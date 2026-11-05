@@ -78,7 +78,7 @@ fn run_create(
         if path.join("tclvenv.cfg").is_file() {
             let _ = std::fs::remove_dir_all(path);
         } else {
-            eprintln!(
+            tcl_cli_support::errln!(
                 "error: refusing to overwrite {}: not a tclpkg venv (missing tclvenv.cfg)",
                 path.display()
             );
@@ -94,21 +94,21 @@ fn run_create(
     let created = match create_venv(path, &opts) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
     if json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({"path": created.to_string_lossy()}))
         );
     } else {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::ok(&format!("created {}", created.display()), colour)
         );
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::dim(
                 &format!("  activate: source {}/bin/activate", created.display()),
@@ -122,16 +122,16 @@ fn run_create(
 fn run_delete(path: &Path, force: bool, json: bool) -> anyhow::Result<u8> {
     let colour = ui::use_colour_for_json(json);
     if let Err(e) = delete_venv(path, force) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
     if json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({"deleted": path.to_string_lossy()}))
         );
     } else {
-        println!("{}", ui::ok(&format!("deleted {}", path.display()), colour));
+        tcl_cli_support::outln!("{}", ui::ok(&format!("deleted {}", path.display()), colour));
     }
     Ok(0)
 }
@@ -140,7 +140,7 @@ fn run_info(path: &Path, json: bool) -> anyhow::Result<u8> {
     let config = match read_venv_config(path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
@@ -149,12 +149,12 @@ fn run_info(path: &Path, json: bool) -> anyhow::Result<u8> {
         for (k, v) in &config {
             map.insert(k.clone(), Value::String(v.clone()));
         }
-        println!("{}", ui::json_output(&Value::Object(map)));
+        tcl_cli_support::outln!("{}", ui::json_output(&Value::Object(map)));
     } else {
         let mut sorted = config;
         sorted.sort_by(|a, b| a.0.cmp(&b.0));
         for (key, value) in &sorted {
-            println!("  {key:30}  {value}");
+            tcl_cli_support::outln!("  {key:30}  {value}");
         }
     }
     Ok(0)
@@ -168,7 +168,7 @@ fn run_activate(path: &Path, shell: Option<&str>) -> anyhow::Result<u8> {
         venv_path.join("bin").join("activate")
     };
     if !script_path.is_file() {
-        eprintln!(
+        tcl_cli_support::errln!(
             "error: activation script not found: {}",
             script_path.display()
         );
@@ -176,18 +176,18 @@ fn run_activate(path: &Path, shell: Option<&str>) -> anyhow::Result<u8> {
     }
     match std::fs::read_to_string(&script_path) {
         Ok(text) => {
-            println!("{text}");
+            tcl_cli_support::outln!("{text}");
             Ok(0)
         }
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             Ok(1)
         }
     }
 }
 
 fn run_deactivate(_shell: Option<&str>) -> anyhow::Result<u8> {
-    println!("deactivate");
+    tcl_cli_support::outln!("deactivate");
     Ok(0)
 }
 
@@ -243,16 +243,19 @@ fn run_list(json: bool) -> anyhow::Result<u8> {
                 json!({"path": path, "tcl_version": tcl, "prompt": prompt, "active": active})
             })
             .collect();
-        println!("{}", ui::json_output(&Value::Array(arr)));
+        tcl_cli_support::outln!("{}", ui::json_output(&Value::Array(arr)));
     } else if found.is_empty() {
-        println!("  No virtual environments found.");
+        tcl_cli_support::outln!("  No virtual environments found.");
     } else {
-        println!(
+        tcl_cli_support::outln!(
             "{:<30} {:<12} {:<10} {:<6}",
-            "PATH", "TCL", "PROMPT", "ACTIVE"
+            "PATH",
+            "TCL",
+            "PROMPT",
+            "ACTIVE"
         );
         for (path, tcl, prompt, active) in &found {
-            println!("{path:<30} {tcl:<12} {prompt:<10} {active:<6}");
+            tcl_cli_support::outln!("{path:<30} {tcl:<12} {prompt:<10} {active:<6}");
         }
     }
     Ok(0)
@@ -264,12 +267,12 @@ fn run_update(path: &Path, tcl: &str, json: bool) -> anyhow::Result<u8> {
     let tclsh = match update_venv(&venv_path, tcl) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
     if json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({
                 "path": venv_path.to_string_lossy(),
@@ -278,7 +281,7 @@ fn run_update(path: &Path, tcl: &str, json: bool) -> anyhow::Result<u8> {
             }))
         );
     } else {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::ok(
                 &format!(
@@ -296,11 +299,11 @@ fn run_update(path: &Path, tcl: &str, json: bool) -> anyhow::Result<u8> {
 fn run_in_venv(path: &Path, command: &[String]) -> anyhow::Result<u8> {
     let venv_path = absolutise(path);
     if !venv_path.join("tclvenv.cfg").is_file() {
-        eprintln!("error: not a tclpkg venv: {}", venv_path.display());
+        tcl_cli_support::errln!("error: not a tclpkg venv: {}", venv_path.display());
         return Ok(1);
     }
     if command.is_empty() {
-        eprintln!("error: no command specified after --");
+        tcl_cli_support::errln!("error: no command specified after --");
         return Ok(1);
     }
 
@@ -309,7 +312,7 @@ fn run_in_venv(path: &Path, command: &[String]) -> anyhow::Result<u8> {
     let tcllibpath = match tcl_pkg::venv::prepare_tcllibpath(&lib_dir, existing.as_deref()) {
         Ok(value) => value,
         Err(error) => {
-            eprintln!("error: {error}");
+            tcl_cli_support::errln!("error: {error}");
             return Ok(1);
         }
     };
@@ -328,7 +331,7 @@ fn run_in_venv(path: &Path, command: &[String]) -> anyhow::Result<u8> {
     match status {
         Ok(s) => Ok(u8::try_from(s.code().unwrap_or(1)).unwrap_or(1)),
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             Ok(1)
         }
     }

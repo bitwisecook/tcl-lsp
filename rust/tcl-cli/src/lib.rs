@@ -29,6 +29,9 @@
 //! `match` is exhaustive.
 
 #![forbid(unsafe_code)]
+// Verb output goes through `tcl_cli_support::sink` so a reused process can
+// capture it; the process streams would bypass that.
+#![deny(clippy::print_stdout, clippy::print_stderr)]
 
 mod cli;
 mod commands;
@@ -82,6 +85,54 @@ where
 /// be. Running every verb on an explicitly-sized thread makes the CLI's
 /// crash behaviour independent of the ambient environment.
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
+
+/// Serve invocations as a reusable test worker (`tcl __tcl-cli-worker …`); see
+/// [`tcl_cli_support::worker`]. `args` is argv after the sentinel.
+#[must_use]
+pub fn serve_worker(args: &[OsString]) -> ExitCode {
+    let program = std::env::args_os()
+        .next()
+        .unwrap_or_else(|| OsString::from("tcl"));
+    let mut handler = |args: &[OsString]| run_captured(&program, args);
+    ExitCode::from(tcl_cli_support::worker::serve(args, &mut handler))
+}
+
+/// Run one invocation in this process with its streams captured, producing
+/// what a fresh process would have: its exit code, stdout and stderr. `None`
+/// when the verb panicked.
+fn run_captured(program: &OsString, args: &[OsString]) -> Option<(i32, Vec<u8>, Vec<u8>)> {
+    let command_line: Vec<OsString> = std::iter::once(program.clone())
+        .chain(args.iter().cloned())
+        .collect();
+    std::thread::Builder::new()
+        .stack_size(WORKER_STACK_SIZE)
+        .spawn(move || {
+            let (code, captured) =
+                tcl_cli_support::sink::capture(|| match Cli::try_parse_from(command_line) {
+                    Ok(cli) => match dispatch(&cli.command) {
+                        Ok(code) => i32::from(code),
+                        Err(err) => {
+                            tcl_cli_support::chrome::eprint_error(format!("{err:#}"));
+                            2
+                        }
+                    },
+                    Err(err) => {
+                        let rendered = err.render().to_string();
+                        let mut stream = if err.use_stderr() {
+                            tcl_cli_support::sink::stderr()
+                        } else {
+                            tcl_cli_support::sink::stdout()
+                        };
+                        let _ = std::io::Write::write_all(&mut stream, rendered.as_bytes());
+                        err.exit_code()
+                    }
+                });
+            (code, captured.stdout, captured.stderr)
+        })
+        .ok()?
+        .join()
+        .ok()
+}
 
 /// Run `dispatch` on a dedicated thread with [`WORKER_STACK_SIZE`] of stack.
 fn run_on_generous_stack(command: Command) -> anyhow::Result<u8> {
@@ -161,7 +212,12 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
         Command::Completion { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();
-            clap_complete::generate(*shell, &mut cmd, "tcl", &mut std::io::stdout());
+            clap_complete::generate(
+                *shell,
+                &mut cmd,
+                "tcl",
+                &mut tcl_cli_support::sink::stdout(),
+            );
             Ok(0)
         }
         Command::Opt {

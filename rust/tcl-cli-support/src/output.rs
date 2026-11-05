@@ -19,7 +19,7 @@
 //! Output writers — text/highlighted output and the colour/tab resolution
 //! helpers.
 
-use std::io::{IsTerminal, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::input::CliError;
@@ -58,7 +58,7 @@ impl OutputTarget {
 pub fn write_text_output(target: &OutputTarget, text: &str) -> Result<(), CliError> {
     match target {
         OutputTarget::Stdout => {
-            let mut out = std::io::stdout().lock();
+            let mut out = crate::sink::stdout();
             out.write_all(text.as_bytes())
                 .map_err(|e| CliError::Io(format!("failed to write stdout: {e}")))?;
             if !text.is_empty() && !text.ends_with('\n') {
@@ -80,7 +80,7 @@ pub fn write_text_output(target: &OutputTarget, text: &str) -> Result<(), CliErr
 pub fn write_binary_output(target: &OutputTarget, payload: &[u8]) -> Result<(), CliError> {
     match target {
         OutputTarget::Stdout => {
-            let mut out = std::io::stdout().lock();
+            let mut out = crate::sink::stdout();
             out.write_all(payload)
                 .map_err(|e| CliError::Io(format!("failed to write stdout: {e}")))?;
             out.flush()
@@ -201,7 +201,7 @@ pub fn resolve_use_colour(colour: bool, no_colour: bool, target: &OutputTarget) 
     if no_colour {
         return false;
     }
-    target.is_stdout() && std::io::stdout().is_terminal()
+    target.is_stdout() && crate::sink::stdout_is_terminal()
 }
 
 #[cfg(test)]

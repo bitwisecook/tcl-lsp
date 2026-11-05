@@ -194,8 +194,10 @@ fn run_test(args: &SpecTestArgs) -> anyhow::Result<u8> {
     let loaded = tcl_pkg::policy::load(Some(&dir));
     let package = &target.package;
     if !loaded.config.build_script_allowed(package) {
-        eprintln!("error: running the package '{package}' is not permitted by policy");
-        eprintln!(
+        tcl_cli_support::errln!(
+            "error: running the package '{package}' is not permitted by policy"
+        );
+        tcl_cli_support::errln!(
             "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {package}'"
         );
         return Ok(1);
@@ -254,7 +256,7 @@ fn test_target(args: &SpecTestArgs) -> anyhow::Result<Option<TestTarget>> {
                 args.pack.display()
             );
         }
-        println!(
+        tcl_cli_support::outln!(
             "{}: the pack declares no command to test",
             args.pack.display()
         );
@@ -344,7 +346,7 @@ fn report_test(args: &SpecTestArgs, target: &TestTarget, outcome: &tcl_sandbox::
     let report =
         crate::commands::spec_test::parse_report(&String::from_utf8_lossy(&outcome.stdout));
     for divergence in &report.divergences {
-        println!("{divergence}");
+        tcl_cli_support::outln!("{divergence}");
     }
     // A package the shell could not require has nothing more asked of it.
     let wanted = if report.package_missing() {
@@ -364,7 +366,7 @@ fn report_test(args: &SpecTestArgs, target: &TestTarget, outcome: &tcl_sandbox::
                 ),
             );
         }
-        println!(
+        tcl_cli_support::outln!(
             "{}: {asked} command(s) tested against '{}', {} divergence(s)",
             args.pack.display(),
             target.package,
@@ -388,7 +390,7 @@ fn report_test(args: &SpecTestArgs, target: &TestTarget, outcome: &tcl_sandbox::
             String::from_utf8_lossy(&outcome.stderr).trim()
         ),
     );
-    println!(
+    tcl_cli_support::outln!(
         "{}: {asked} of {wanted} command(s) tested against '{}', {} divergence(s)",
         args.pack.display(),
         target.package,
@@ -453,7 +455,9 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
 
         match outcome.status {
             UpgradeStatus::NotAPack => {
-                println!("{name}: no `speclib <name> <version>` line found — skipped");
+                tcl_cli_support::outln!(
+                    "{name}: no `speclib <name> <version>` line found — skipped"
+                );
                 incomplete += 1;
                 continue;
             }
@@ -468,7 +472,7 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
                 continue;
             }
             UpgradeStatus::AlreadyCurrent => {
-                println!(
+                tcl_cli_support::outln!(
                     "{name}: already vocabulary {} with nothing left to translate",
                     outcome.declared_version.as_deref().unwrap_or("?")
                 );
@@ -485,7 +489,9 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
 
         if args.proof.verify {
             match verify_snapshots(file, &source, &outcome.source) {
-                Ok(true) => println!("  verify: registry snapshots are byte-identical (U9)"),
+                Ok(true) => {
+                    tcl_cli_support::outln!("  verify: registry snapshots are byte-identical (U9)");
+                }
                 Ok(false) => {
                     incomplete += 1;
                     eprint_status(
@@ -520,7 +526,7 @@ fn report_upgrade(outcome: &UpgradeOutcome, name: &str, dry_run: bool) {
     } else {
         "translated"
     };
-    println!(
+    tcl_cli_support::outln!(
         "{name}: {verb} {} row(s); {} left for the environment wire-up{}",
         outcome.translated.len(),
         outcome.deferred.len(),
@@ -531,13 +537,13 @@ fn report_upgrade(outcome: &UpgradeOutcome, name: &str, dry_run: bool) {
         }
     );
     for row in &outcome.translated {
-        println!("  {}: {} -> {}", row.line, row.before, row.after);
+        tcl_cli_support::outln!("  {}: {} -> {}", row.line, row.before, row.after);
     }
     for row in &outcome.deferred {
-        println!("  {}: TODO {}", row.line, row.reason);
+        tcl_cli_support::outln!("  {}: TODO {}", row.line, row.reason);
     }
     if outcome.restyled {
-        println!(
+        tcl_cli_support::outln!(
             "  {} in canonical form (comments and author layout dropped)",
             if dry_run {
                 "would re-emit"
@@ -832,8 +838,10 @@ fn probe_package(
     let dir = operator_project()?;
     let loaded = tcl_pkg::policy::load(Some(&dir));
     if !loaded.config.build_script_allowed(package) {
-        eprintln!("error: running the package '{package}' is not permitted by policy");
-        eprintln!(
+        tcl_cli_support::errln!(
+            "error: running the package '{package}' is not permitted by policy"
+        );
+        tcl_cli_support::errln!(
             "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {package}'"
         );
         return Ok(None);

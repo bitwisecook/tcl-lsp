@@ -295,7 +295,7 @@ fn run_init(
         .unwrap_or_else(|_| PathBuf::from("."))
         .join("tclpkg.tcl");
     if path.exists() && !force {
-        eprintln!(
+        tcl_cli_support::errln!(
             "error: {} already exists (use --force to overwrite)",
             path.display()
         );
@@ -309,7 +309,9 @@ fn run_init(
             .and_then(|p| p.file_name())
             .and_then(|name| name.to_str())
         else {
-            eprintln!("error: project directory has no Unicode package name; supply --name");
+            tcl_cli_support::errln!(
+                "error: project directory has no Unicode package name; supply --name"
+            );
             return Ok(1);
         };
         name.to_owned()
@@ -321,25 +323,25 @@ fn run_init(
     let body = match render_manifest_header(&name, version, license, tcl, path.to_str()) {
         Ok(body) => body,
         Err(error) => {
-            eprintln!("error: {error}");
+            tcl_cli_support::errln!("error: {error}");
             return Ok(1);
         }
     };
     if let Err(e) = std::fs::write(&path, body) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
 
     let colour = ui::use_colour_for_json(json);
     if json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(
                 &json!({"path": path.to_string_lossy(), "name": name, "version": version})
             )
         );
     } else {
-        println!("{}", ui::ok(&format!("wrote {}", path.display()), colour));
+        tcl_cli_support::outln!("{}", ui::ok(&format!("wrote {}", path.display()), colour));
     }
     Ok(0)
 }
@@ -352,7 +354,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
@@ -362,7 +364,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
     let loaded = tcl_pkg::policy::load(Some(&project_dir));
     for w in &loaded.warnings {
-        eprintln!("{}", ui::warn(w, colour));
+        tcl_cli_support::errln!("{}", ui::warn(w, colour));
     }
     let install_ctx = tcl_pkg::hooks::HookContext::new(&project_dir)
         .var("MANIFEST", mpath.as_os_str())
@@ -372,7 +374,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         &loaded.config,
         &install_ctx,
     ) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
 
@@ -540,7 +542,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
     let resolved = match resolve(&input) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
@@ -575,7 +577,10 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                         &version,
                         true,
                     ) {
-                        println!("{}", ui::warn(&format!("{name} {version}: {e}"), colour));
+                        tcl_cli_support::outln!(
+                            "{}",
+                            ui::warn(&format!("{name} {version}: {e}"), colour)
+                        );
                     }
                     entry.source = result.source;
                     entry.integrity = result.integrity;
@@ -584,7 +589,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                     entry.license = result.license;
                     match package_spec_integrity(&cas, &entry.integrity) {
                         Ok(spec_integrity) => entry.spec_integrity = spec_integrity,
-                        Err(e) => println!(
+                        Err(e) => tcl_cli_support::outln!(
                             "{}",
                             ui::warn(
                                 &format!("{name} {version}: its packs are not hashed: {e}"),
@@ -612,20 +617,20 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                         &loaded.config,
                         &fetch_ctx,
                     ) {
-                        eprintln!("error: {e}");
+                        tcl_cli_support::errln!("error: {e}");
                         return Ok(1);
                     }
                 }
                 Ok(None) => {}
                 Err(FetchError::PolicyRejected(url)) => {
-                    eprintln!(
+                    tcl_cli_support::errln!(
                         "error: {name} {version}: source '{url}' rejected by registry policy"
                     );
                     return Ok(1);
                 }
                 Err(FetchError::Fetch { source, message }) => {
                     entry.source = source;
-                    println!(
+                    tcl_cli_support::outln!(
                         "{}",
                         ui::warn(&format!("{name} {version}: {message}"), colour)
                     );
@@ -644,7 +649,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
             .map(|p| p.name.as_str())
             .collect();
         if !missing.is_empty() {
-            eprintln!(
+            tcl_cli_support::errln!(
                 "error: policy requires integrity hashes but these have none: {}",
                 missing.join(", ")
             );
@@ -656,19 +661,19 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         &loaded.config,
         &install_ctx,
     ) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
 
     if frozen {
         if !lockpath.is_file() {
-            eprintln!("error: --frozen requires an existing tclpkg.lock");
+            tcl_cli_support::errln!("error: --frozen requires an existing tclpkg.lock");
             return Ok(1);
         }
         let existing = match read_lockfile(&lockpath) {
             Ok(l) => l,
             Err(e) => {
-                eprintln!("error: {e}");
+                tcl_cli_support::errln!("error: {e}");
                 return Ok(1);
             }
         };
@@ -685,18 +690,18 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
         old.sort();
         new.sort();
         if old != new {
-            eprintln!(
+            tcl_cli_support::errln!(
                 "error: lockfile would change but --frozen is set; update the manifest and re-run without --frozen"
             );
             return Ok(1);
         }
         if common.json {
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::json_output(&json!({"packages": lf.packages.len(), "frozen": true}))
             );
         } else {
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::ok(
                     &format!("lockfile is up to date ({} packages)", lf.packages.len()),
@@ -708,12 +713,12 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
     }
 
     if let Err(e) = write_lockfile(&lf, &lockpath) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
 
     if common.json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(
                 &json!({"packages": lf.packages.len(), "lockfile": lockpath.to_string_lossy()})
@@ -722,7 +727,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
     } else {
         for pkg in &lf.packages {
             let dev_tag = if pkg.dev { " (dev)" } else { "" };
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::ok(
                     &format!("{:<20} {}{}", pkg.name, pkg.version, dev_tag),
@@ -730,7 +735,7 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
                 )
             );
         }
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::ok(&format!("wrote {}", lockpath.display()), colour)
         );
@@ -742,7 +747,7 @@ fn read_lock_or_report(common: &PkgCommon) -> Result<LockFile, u8> {
     match read_lockfile(lockfile_path(common)) {
         Ok(l) => Ok(l),
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             Err(1)
         }
     }
@@ -755,11 +760,14 @@ fn run_list(common: &PkgCommon) -> anyhow::Result<u8> {
     };
     if common.json {
         let pkgs: Vec<Value> = lf.packages.iter().map(locked_to_json).collect();
-        println!("{}", ui::json_output(&json!({"packages": pkgs})));
+        tcl_cli_support::outln!("{}", ui::json_output(&json!({"packages": pkgs})));
     } else {
-        println!(
+        tcl_cli_support::outln!(
             "{:<20} {:<12} {:<8} {:<8}",
-            "NAME", "VERSION", "KIND", "DEV"
+            "NAME",
+            "VERSION",
+            "KIND",
+            "DEV"
         );
         let mut pkgs: Vec<&LockedPackage> = lf.packages.iter().collect();
         pkgs.sort_by(|a, b| a.name.cmp(&b.name));
@@ -775,9 +783,12 @@ fn run_list(common: &PkgCommon) -> anyhow::Result<u8> {
             });
             let kind = if is_transitive { "trans" } else { "direct" };
             let dev = if pkg.dev { "dev" } else { "" };
-            println!(
+            tcl_cli_support::outln!(
                 "{:<20} {:<12} {:<8} {:<8}",
-                pkg.name, pkg.version, kind, dev
+                pkg.name,
+                pkg.version,
+                kind,
+                dev
             );
         }
     }
@@ -791,12 +802,12 @@ fn run_tree(common: &PkgCommon) -> anyhow::Result<u8> {
     };
     if common.json {
         let pkgs: Vec<Value> = lf.packages.iter().map(locked_to_json).collect();
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({"name": lf.name, "packages": pkgs}))
         );
     } else {
-        println!("{}", lf.name);
+        tcl_cli_support::outln!("{}", lf.name);
         let mut pkgs: Vec<&LockedPackage> = lf.packages.iter().collect();
         pkgs.sort_by(|a, b| a.name.cmp(&b.name));
         let total = pkgs.len();
@@ -807,7 +818,7 @@ fn run_tree(common: &PkgCommon) -> anyhow::Result<u8> {
                 "├── "
             };
             let dev_tag = if pkg.dev { " [dev]" } else { "" };
-            println!("{connector}{} {}{dev_tag}", pkg.name, pkg.version);
+            tcl_cli_support::outln!("{connector}{} {}{dev_tag}", pkg.name, pkg.version);
         }
     }
     Ok(0)
@@ -825,7 +836,7 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
     let mut mismatches = 0;
     for pkg in &lf.packages {
         if pkg.integrity.is_empty() {
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::warn(
                     &format!("{:<20} {:<12} no integrity hash", pkg.name, pkg.version),
@@ -851,7 +862,7 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
             }
         };
         let Some((source, root)) = target else {
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::warn(
                     &format!(
@@ -867,7 +878,7 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
 
         if tcl_pkg::cas::verify_integrity(&root, &pkg.integrity)? {
             let trunc: String = pkg.integrity.chars().take(30).collect();
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::ok(
                     &format!("{:<20} {:<12} {trunc}… ({source})", pkg.name, pkg.version),
@@ -875,7 +886,7 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
                 )
             );
         } else {
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::warn(
                     &format!(
@@ -889,14 +900,14 @@ fn run_verify(common: &PkgCommon) -> anyhow::Result<u8> {
         }
     }
     if mismatches > 0 {
-        eprintln!(
+        tcl_cli_support::errln!(
             "\n{mismatches} package(s) failed integrity verification — the materialised \
              content does not match the lockfile hash."
         );
         return Ok(1);
     }
     if failures > 0 {
-        eprintln!(
+        tcl_cli_support::errln!(
             "\n{failures} package(s) could not be verified (no hash or not materialised) — \
              run 'tcl pkg install' to populate."
         );
@@ -911,33 +922,33 @@ fn run_info(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
         Err(code) => return Ok(code),
     };
     let Some(entry) = lf.lookup(package) else {
-        eprintln!("error: package '{package}' not found in lockfile");
+        tcl_cli_support::errln!("error: package '{package}' not found in lockfile");
         return Ok(1);
     };
     if common.json {
-        println!("{}", ui::json_output(&locked_to_json(entry)));
+        tcl_cli_support::outln!("{}", ui::json_output(&locked_to_json(entry)));
     } else {
-        println!("Name:      {}", entry.name);
-        println!("Version:   {}", entry.version);
-        println!("Source:    {} {}", entry.source.kind, entry.source.url);
+        tcl_cli_support::outln!("Name:      {}", entry.name);
+        tcl_cli_support::outln!("Version:   {}", entry.version);
+        tcl_cli_support::outln!("Source:    {} {}", entry.source.kind, entry.source.url);
         let integ = if entry.integrity.is_empty() {
             "(not computed)"
         } else {
             &entry.integrity
         };
-        println!("Integrity: {integ}");
+        tcl_cli_support::outln!("Integrity: {integ}");
         let lic = if entry.license.is_empty() {
             "(unknown)"
         } else {
             &entry.license
         };
-        println!("Licence:   {lic}");
-        println!("Dev:       {}", if entry.dev { "yes" } else { "no" });
+        tcl_cli_support::outln!("Licence:   {lic}");
+        tcl_cli_support::outln!("Dev:       {}", if entry.dev { "yes" } else { "no" });
         if !entry.requires.is_empty() {
-            println!("Requires:  {}", entry.requires.join(", "));
+            tcl_cli_support::outln!("Requires:  {}", entry.requires.join(", "));
         }
         if !entry.provides.is_empty() {
-            println!("Provides:  {}", entry.provides.join(", "));
+            tcl_cli_support::outln!("Provides:  {}", entry.provides.join(", "));
         }
     }
     Ok(0)
@@ -956,7 +967,7 @@ fn run_add(
     let text = match std::fs::read_to_string(&mpath) {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
@@ -969,28 +980,28 @@ fn run_add(
         match append_manifest_requirement(&text, mpath.to_str(), package, min_ver, source, kind) {
             Ok(edited) => edited,
             Err(error) => {
-                eprintln!("error: {error}");
+                tcl_cli_support::errln!("error: {error}");
                 return Ok(1);
             }
         };
     if let Err(e) = std::fs::write(&mpath, new_text) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
     if common.json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({"added": package, "version": min_ver, "dev": dev}))
         );
     } else {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::ok(
                 &format!("added {package} {min_ver} to {}", mpath.display()),
                 colour
             )
         );
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::dim("  run 'tcl pkg install' to resolve and lock", colour)
         );
@@ -1002,45 +1013,45 @@ fn run_remove(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
     let mpath = manifest_path(common);
     let colour = ui::use_colour_for_json(common.json);
     if !mpath.is_file() {
-        eprintln!("error: manifest not found: {}", mpath.display());
+        tcl_cli_support::errln!("error: manifest not found: {}", mpath.display());
         return Ok(1);
     }
     let text = match std::fs::read_to_string(&mpath) {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
     let declarations = match original_manifest_requirements(&text, mpath.to_str()) {
         Ok(declarations) => declarations,
         Err(error) => {
-            eprintln!("error: {error}");
+            tcl_cli_support::errln!("error: {error}");
             return Ok(1);
         }
     };
     let Some((new_text, count)) = declarations.remove(package) else {
-        eprintln!("error: package '{package}' not found in manifest");
+        tcl_cli_support::errln!("error: package '{package}' not found in manifest");
         return Ok(1);
     };
     if let Err(e) = std::fs::write(&mpath, new_text) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
     if common.json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({"removed": package, "directives_removed": count}))
         );
     } else {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::ok(
                 &format!("removed {package} from {}", mpath.display()),
                 colour
             )
         );
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::dim("  run 'tcl pkg install' to update the lockfile", colour)
         );
@@ -1054,7 +1065,7 @@ fn run_update(packages: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
@@ -1072,16 +1083,16 @@ fn run_update(packages: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
         if all_names.iter().any(|n| n == name) {
             updated.push(name.clone());
         } else {
-            eprintln!("  skip: {name} not in manifest");
+            tcl_cli_support::errln!("  skip: {name} not in manifest");
         }
     }
     if common.json {
-        println!("{}", ui::json_output(&json!({"updated": updated})));
+        tcl_cli_support::outln!("{}", ui::json_output(&json!({"updated": updated})));
     } else if updated.is_empty() {
-        println!("  nothing to update");
+        tcl_cli_support::outln!("  nothing to update");
     } else {
         for name in &updated {
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::ok(
                     &format!("{name} (already at minimum — registry query not yet wired)"),
@@ -1089,7 +1100,7 @@ fn run_update(packages: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
                 )
             );
         }
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::dim("  run 'tcl pkg install' to re-resolve", colour)
         );
@@ -1109,7 +1120,7 @@ fn sync_one_package(
 ) -> bool {
     if pkg.integrity.is_empty() {
         if !common.json {
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::warn(
                     &format!("{:<20} {:<12} no integrity hash", pkg.name, pkg.version),
@@ -1122,7 +1133,7 @@ fn sync_one_package(
     if !cas.has(&pkg.integrity) {
         if common.offline {
             if !common.json {
-                println!(
+                tcl_cli_support::outln!(
                     "{}",
                     ui::warn(
                         &format!(
@@ -1138,14 +1149,17 @@ fn sync_one_package(
         match installer::fetch_and_store(&pkg.source, &pkg.name, &pkg.version, cas, 60) {
             Ok(result) if result.integrity == pkg.integrity => {}
             Ok(result) => {
-                eprintln!(
+                tcl_cli_support::errln!(
                     "error: {} {}: integrity mismatch (lock {}, fetched {})",
-                    pkg.name, pkg.version, pkg.integrity, result.integrity
+                    pkg.name,
+                    pkg.version,
+                    pkg.integrity,
+                    result.integrity
                 );
                 return false;
             }
             Err(e) => {
-                eprintln!("error: {} {}: {e}", pkg.name, pkg.version);
+                tcl_cli_support::errln!("error: {} {}: {e}", pkg.name, pkg.version);
                 return false;
             }
         }
@@ -1153,7 +1167,7 @@ fn sync_one_package(
     match installer::materialise(cas, &pkg.integrity, lib_dir, &pkg.name, &pkg.version, true) {
         Ok(_) => true,
         Err(e) => {
-            eprintln!("error: {} {}: {e}", pkg.name, pkg.version);
+            tcl_cli_support::errln!("error: {} {}: {e}", pkg.name, pkg.version);
             false
         }
     }
@@ -1187,7 +1201,7 @@ fn run_sync(common: &PkgCommon) -> anyhow::Result<u8> {
     }
 
     if common.json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({
                 "synced": synced.len(),
@@ -1197,9 +1211,9 @@ fn run_sync(common: &PkgCommon) -> anyhow::Result<u8> {
         );
     } else {
         for name in &synced {
-            println!("{}", ui::ok(name, colour));
+            tcl_cli_support::outln!("{}", ui::ok(name, colour));
         }
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::ok(
                 &format!(
@@ -1212,7 +1226,7 @@ fn run_sync(common: &PkgCommon) -> anyhow::Result<u8> {
         );
     }
     if failures > 0 {
-        eprintln!("\n{failures} package(s) could not be synced.");
+        tcl_cli_support::errln!("\n{failures} package(s) could not be synced.");
         return Ok(1);
     }
     Ok(0)
@@ -1224,15 +1238,15 @@ fn run_outdated(common: &PkgCommon) -> anyhow::Result<u8> {
         Err(code) => return Ok(code),
     };
     if common.json {
-        println!("{}", ui::json_output(&json!({"outdated": []})));
+        tcl_cli_support::outln!("{}", ui::json_output(&json!({"outdated": []})));
     } else {
-        println!("{:<20} {:<12} {:<12}", "NAME", "CURRENT", "LATEST");
+        tcl_cli_support::outln!("{:<20} {:<12} {:<12}", "NAME", "CURRENT", "LATEST");
         let mut pkgs: Vec<&LockedPackage> = lf.packages.iter().collect();
         pkgs.sort_by(|a, b| a.name.cmp(&b.name));
         for pkg in &pkgs {
-            println!("{:<20} {:<12} {:<12}", pkg.name, pkg.version, pkg.version);
+            tcl_cli_support::outln!("{:<20} {:<12} {:<12}", pkg.name, pkg.version, pkg.version);
         }
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::dim(
                 "\n  (registry version lookup not yet wired)",
@@ -1257,7 +1271,7 @@ fn run_why(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
         Err(code) => return Ok(code),
     };
     let Some(entry) = lf.lookup(package) else {
-        eprintln!("error: package '{package}' not found in lockfile");
+        tcl_cli_support::errln!("error: package '{package}' not found in lockfile");
         return Ok(1);
     };
     let dependents: Vec<&LockedPackage> = lf
@@ -1267,7 +1281,7 @@ fn run_why(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
         .collect();
     if common.json {
         let names: Vec<String> = dependents.iter().map(|d| d.name.clone()).collect();
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({
                 "package": package,
@@ -1277,15 +1291,15 @@ fn run_why(package: &str, common: &PkgCommon) -> anyhow::Result<u8> {
             }))
         );
     } else {
-        println!("{package} {}", entry.version);
+        tcl_cli_support::outln!("{package} {}", entry.version);
         if !dependents.is_empty() {
             for dep in &dependents {
-                println!("└── required by {} {}", dep.name, dep.version);
+                tcl_cli_support::outln!("└── required by {} {}", dep.name, dep.version);
             }
         } else if entry.dev {
-            println!("└── direct dev-require dependency");
+            tcl_cli_support::outln!("└── direct dev-require dependency");
         } else {
-            println!("└── direct dependency");
+            tcl_cli_support::outln!("└── direct dependency");
         }
     }
     Ok(0)
@@ -1299,7 +1313,7 @@ fn run_vendor(dir: &Path, common: &PkgCommon) -> anyhow::Result<u8> {
     let colour = ui::use_colour_for_json(common.json);
     let cas = ContentAddressableStore::new(&tcl_pkg::cache_dir());
     if let Err(e) = std::fs::create_dir_all(dir) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
     let mut vendored: Vec<String> = Vec::new();
@@ -1310,7 +1324,7 @@ fn run_vendor(dir: &Path, common: &PkgCommon) -> anyhow::Result<u8> {
                 vendored.push(pkg.name.clone());
             }
         } else if pkg.integrity.is_empty() {
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::warn(
                     &format!("{} has no integrity hash — skipping", pkg.name),
@@ -1320,16 +1334,16 @@ fn run_vendor(dir: &Path, common: &PkgCommon) -> anyhow::Result<u8> {
         }
     }
     if common.json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({"vendored": vendored, "dir": dir.to_string_lossy()}))
         );
     } else if vendored.is_empty() {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::dim("  no packages with integrity hashes to vendor", colour)
         );
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::dim(
                 "  run 'tcl pkg install' first to populate the cache",
@@ -1338,9 +1352,9 @@ fn run_vendor(dir: &Path, common: &PkgCommon) -> anyhow::Result<u8> {
         );
     } else {
         for name in &vendored {
-            println!("{}", ui::ok(&format!("vendored {name}"), colour));
+            tcl_cli_support::outln!("{}", ui::ok(&format!("vendored {name}"), colour));
         }
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::ok(
                 &format!("wrote {} package(s) to {}/", vendored.len(), dir.display()),
@@ -1356,18 +1370,18 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
     if manifest.entry.is_empty() {
-        eprintln!("error: no 'entry' directive in manifest");
+        tcl_cli_support::errln!("error: no 'entry' directive in manifest");
         return Ok(1);
     }
     let parent = mpath.parent().unwrap_or_else(|| Path::new("."));
     let entry_path = parent.join(&manifest.entry);
     if !entry_path.is_file() {
-        eprintln!("error: entry file not found: {}", entry_path.display());
+        tcl_cli_support::errln!("error: entry file not found: {}", entry_path.display());
         return Ok(1);
     }
 
@@ -1376,7 +1390,7 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     } else if let Some(p) = tcl_pkg::venv::find_tclsh() {
         p
     } else {
-        eprintln!("error: tclsh not found on PATH");
+        tcl_cli_support::errln!("error: tclsh not found on PATH");
         return Ok(1);
     };
 
@@ -1387,7 +1401,7 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
         .var("ENTRY", entry_path.as_os_str())
         .var("MANIFEST", mpath.as_os_str());
     if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PreRun, &loaded.config, &ctx) {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
 
@@ -1401,7 +1415,7 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
         let value = match tcl_pkg::venv::prepare_tcllibpath(&lib_dir, existing.as_deref()) {
             Ok(value) => value,
             Err(error) => {
-                eprintln!("error: {error}");
+                tcl_cli_support::errln!("error: {error}");
                 return Ok(1);
             }
         };
@@ -1411,14 +1425,14 @@ fn run_run(extra: &[String], common: &PkgCommon) -> anyhow::Result<u8> {
     let code = match tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy()) {
         Ok(out) => u8::try_from(out.code.unwrap_or(1)).unwrap_or(1),
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
 
     if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PostRun, &loaded.config, &ctx)
     {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
     Ok(code)
@@ -1436,7 +1450,7 @@ fn run_freeze(common: &PkgCommon) -> anyhow::Result<u8> {
         for pkg in &pkgs {
             map.insert(pkg.name.clone(), Value::String(pkg.version.clone()));
         }
-        println!("{}", ui::json_output(&Value::Object(map)));
+        tcl_cli_support::outln!("{}", ui::json_output(&Value::Object(map)));
     } else {
         let lines = pkgs
             .iter()
@@ -1457,12 +1471,12 @@ fn run_freeze(common: &PkgCommon) -> anyhow::Result<u8> {
         let lines = match lines {
             Ok(lines) => lines,
             Err(error) => {
-                eprintln!("error: {error}");
+                tcl_cli_support::errln!("error: {error}");
                 return Ok(1);
             }
         };
         for line in lines {
-            println!("{line}");
+            tcl_cli_support::outln!("{line}");
         }
     }
     Ok(0)
@@ -1473,7 +1487,7 @@ fn run_search(query: &str, json: bool, offline: bool) -> anyhow::Result<u8> {
     let results = match client.search(query) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
@@ -1482,12 +1496,12 @@ fn run_search(query: &str, json: bool, offline: bool) -> anyhow::Result<u8> {
             .iter()
             .map(|e| json!({"name": e.name, "description": e.description}))
             .collect();
-        println!("{}", ui::json_output(&Value::Array(arr)));
+        tcl_cli_support::outln!("{}", ui::json_output(&Value::Array(arr)));
     } else if results.is_empty() {
-        println!("No matches found.");
+        tcl_cli_support::outln!("No matches found.");
     } else {
         for entry in &results {
-            println!("  {:<20}  {}", entry.name, entry.description);
+            tcl_cli_support::outln!("  {:<20}  {}", entry.name, entry.description);
         }
     }
     Ok(0)
@@ -1540,12 +1554,12 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     let manifest = match load_manifest(&mpath) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
     if manifest.build.script.is_empty() {
-        eprintln!("error: no 'build' directive in manifest");
+        tcl_cli_support::errln!("error: no 'build' directive in manifest");
         return Ok(1);
     }
     let project_dir = mpath
@@ -1556,11 +1570,11 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     // Packages are data by default: a build script runs only when the operator
     // both enables build scripts and trusts this package.
     if !loaded.config.build_script_allowed(&manifest.name) {
-        eprintln!(
+        tcl_cli_support::errln!(
             "error: build script for '{}' is not permitted by policy",
             manifest.name
         );
-        eprintln!(
+        tcl_cli_support::errln!(
             "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {}'",
             manifest.name
         );
@@ -1569,7 +1583,7 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
 
     let script = project_dir.join(&manifest.build.script);
     if !script.is_file() {
-        eprintln!("error: build script not found: {}", script.display());
+        tcl_cli_support::errln!("error: build script not found: {}", script.display());
         return Ok(1);
     }
     let tclsh = if let Some(venv) = std::env::var_os("TCL_VENV") {
@@ -1577,7 +1591,7 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     } else if let Some(p) = tcl_pkg::venv::find_tclsh() {
         p
     } else {
-        eprintln!("error: tclsh not found on PATH");
+        tcl_cli_support::errln!("error: tclsh not found on PATH");
         return Ok(1);
     };
 
@@ -1586,12 +1600,12 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
         .var("BUILD_SCRIPT", script.as_os_str());
     if let Err(e) = tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PreBuild, &loaded.config, &ctx)
     {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
 
     let profile = build_profile(&tclsh, &project_dir, &script, manifest.build.network);
-    println!(
+    tcl_cli_support::outln!(
         "{}",
         ui::dim(
             &format!(
@@ -1604,7 +1618,7 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     let code = match tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy()) {
         Ok(out) => {
             if !out.enforced.filesystem || !(out.enforced.network || manifest.build.network) {
-                eprintln!(
+                tcl_cli_support::errln!(
                     "{}",
                     ui::warn(
                         "build ran without full OS-native confinement (filesystem or network not enforced on this host)",
@@ -1615,7 +1629,7 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
             u8::try_from(out.code.unwrap_or(1)).unwrap_or(1)
         }
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
@@ -1623,11 +1637,11 @@ fn run_build(common: &PkgCommon) -> anyhow::Result<u8> {
     if let Err(e) =
         tcl_pkg::hooks::run_stage(tcl_pkg::hooks::Stage::PostBuild, &loaded.config, &ctx)
     {
-        eprintln!("error: {e}");
+        tcl_cli_support::errln!("error: {e}");
         return Ok(1);
     }
     if code == 0 {
-        println!("{}", ui::ok("build complete", colour));
+        tcl_cli_support::outln!("{}", ui::ok("build complete", colour));
     }
     Ok(code)
 }
@@ -1657,7 +1671,7 @@ fn policy_show(loaded: &tcl_pkg::policy::LoadedPolicy, json: bool) -> anyhow::Re
             })
             .collect();
         let config = serde_json::to_value(cfg).unwrap_or(Value::Null);
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({
                 "sources": sources,
@@ -1669,55 +1683,55 @@ fn policy_show(loaded: &tcl_pkg::policy::LoadedPolicy, json: bool) -> anyhow::Re
         return Ok(0);
     }
     let colour = ui::use_colour(None);
-    println!("Policy layers (low → high precedence):");
+    tcl_cli_support::outln!("Policy layers (low → high precedence):");
     for s in &loaded.sources {
         let status = if s.loaded { "loaded" } else { "—" };
         let note = s
             .note
             .as_deref()
             .map_or(String::new(), |n| format!("  ({n})"));
-        println!("  {:<8} {} [{status}]{note}", s.layer, s.path.display());
+        tcl_cli_support::outln!("  {:<8} {} [{status}]{note}", s.layer, s.path.display());
     }
-    println!("\nSandbox floor:");
-    println!("  fail-closed         {}", cfg.sandbox.fail_closed);
-    println!("  deny-network        {}", cfg.sandbox.deny_network);
-    println!(
+    tcl_cli_support::outln!("\nSandbox floor:");
+    tcl_cli_support::outln!("  fail-closed         {}", cfg.sandbox.fail_closed);
+    tcl_cli_support::outln!("  deny-network        {}", cfg.sandbox.deny_network);
+    tcl_cli_support::outln!(
         "  require-network-deny {}",
         cfg.sandbox.require_network_deny
     );
     if let Some(t) = cfg.sandbox.max_timeout_secs {
-        println!("  max-timeout-secs    {t}");
+        tcl_cli_support::outln!("  max-timeout-secs    {t}");
     }
-    println!("\nRegistry:");
-    println!("  require-https {}", cfg.registry.require_https);
-    println!("  allow         {:?}", cfg.registry.allow);
-    println!("  deny          {:?}", cfg.registry.deny);
-    println!("\nVerification:");
-    println!(
+    tcl_cli_support::outln!("\nRegistry:");
+    tcl_cli_support::outln!("  require-https {}", cfg.registry.require_https);
+    tcl_cli_support::outln!("  allow         {:?}", cfg.registry.allow);
+    tcl_cli_support::outln!("  deny          {:?}", cfg.registry.deny);
+    tcl_cli_support::outln!("\nVerification:");
+    tcl_cli_support::outln!(
         "  require-integrity  {}",
         cfg.verification.require_integrity
     );
-    println!(
+    tcl_cli_support::outln!(
         "  require-provenance {}",
         cfg.verification.require_provenance
     );
-    println!("  cooldown-days      {}", cfg.cooldown.min_release_age_days);
-    println!("\nBuild scripts:");
-    println!("  allow-build-scripts {}", cfg.build.allow_build_scripts);
-    println!("  trusted             {:?}", cfg.build.trusted);
-    println!("\nHooks: {} configured", cfg.hooks.len());
+    tcl_cli_support::outln!("  cooldown-days      {}", cfg.cooldown.min_release_age_days);
+    tcl_cli_support::outln!("\nBuild scripts:");
+    tcl_cli_support::outln!("  allow-build-scripts {}", cfg.build.allow_build_scripts);
+    tcl_cli_support::outln!("  trusted             {:?}", cfg.build.trusted);
+    tcl_cli_support::outln!("\nHooks: {} configured", cfg.hooks.len());
     if loaded.locked.is_empty() {
-        println!("\nAdmin-locked keys: none");
+        tcl_cli_support::outln!("\nAdmin-locked keys: none");
     } else {
-        println!("\nAdmin-locked keys:");
+        tcl_cli_support::outln!("\nAdmin-locked keys:");
         for k in &loaded.locked {
-            println!("  {k}");
+            tcl_cli_support::outln!("  {k}");
         }
     }
     if !loaded.warnings.is_empty() {
-        println!();
+        tcl_cli_support::outln!();
         for w in &loaded.warnings {
-            println!("{}", ui::warn(w, colour));
+            tcl_cli_support::outln!("{}", ui::warn(w, colour));
         }
     }
     Ok(0)
@@ -1726,17 +1740,17 @@ fn policy_show(loaded: &tcl_pkg::policy::LoadedPolicy, json: bool) -> anyhow::Re
 fn policy_verify(loaded: &tcl_pkg::policy::LoadedPolicy, json: bool) -> anyhow::Result<u8> {
     let ok = loaded.warnings.is_empty();
     if json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({"ok": ok, "warnings": loaded.warnings}))
         );
     } else {
         let colour = ui::use_colour(None);
         if ok {
-            println!("{}", ui::ok("policy OK", colour));
+            tcl_cli_support::outln!("{}", ui::ok("policy OK", colour));
         } else {
             for w in &loaded.warnings {
-                println!("{}", ui::warn(w, colour));
+                tcl_cli_support::outln!("{}", ui::warn(w, colour));
             }
         }
     }
@@ -1752,13 +1766,13 @@ fn run_hooks(json: bool) -> anyhow::Result<u8> {
             .iter()
             .map(|(stage, name, cmd)| json!({"stage": stage, "name": name, "command": cmd}))
             .collect();
-        println!("{}", ui::json_output(&json!({"hooks": arr})));
+        tcl_cli_support::outln!("{}", ui::json_output(&json!({"hooks": arr})));
     } else if rows.is_empty() {
-        println!("No operator hooks configured.");
+        tcl_cli_support::outln!("No operator hooks configured.");
     } else {
-        println!("{:<14} {:<16} COMMAND", "STAGE", "NAME");
+        tcl_cli_support::outln!("{:<14} {:<16} COMMAND", "STAGE", "NAME");
         for (stage, name, cmd) in &rows {
-            println!("{stage:<14} {name:<16} {cmd}");
+            tcl_cli_support::outln!("{stage:<14} {name:<16} {cmd}");
         }
     }
     Ok(0)
@@ -1775,12 +1789,12 @@ fn run_audit(lines: usize, json: bool) -> anyhow::Result<u8> {
             .iter()
             .filter_map(|l| serde_json::from_str::<Value>(l).ok())
             .collect();
-        println!("{}", ui::json_output(&Value::Array(arr)));
+        tcl_cli_support::outln!("{}", ui::json_output(&Value::Array(arr)));
     } else if tail.is_empty() {
-        println!("No audit records ({}).", path.display());
+        tcl_cli_support::outln!("No audit records ({}).", path.display());
     } else {
         for l in tail {
-            println!("{l}");
+            tcl_cli_support::outln!("{l}");
         }
     }
     Ok(0)
@@ -1791,14 +1805,14 @@ fn run_trust(package: &str, remove: bool) -> anyhow::Result<u8> {
     match tcl_pkg::policy::set_trusted(package, !remove) {
         Ok(path) => {
             let verb = if remove { "untrusted" } else { "trusted" };
-            println!(
+            tcl_cli_support::outln!(
                 "{}",
                 ui::ok(&format!("{verb} {package} (in {})", path.display()), colour)
             );
             Ok(0)
         }
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             Ok(1)
         }
     }

@@ -29,6 +29,19 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// `Command::output` through a reused `tcl` process (`tcl_cli_support::worker`):
+/// a fresh process spends seconds loading packs before it reads its argv, and
+/// this file asserts on many invocations.
+trait Reused {
+    fn reused_output(&mut self) -> std::io::Result<std::process::Output>;
+}
+
+impl Reused for Command {
+    fn reused_output(&mut self) -> std::io::Result<std::process::Output> {
+        tcl_cli_support::worker::output(self, env!("CARGO_TARGET_TMPDIR"))
+    }
+}
+
 /// v1 of the fake package: one command.
 const V1: &str = "package provide demo 1.0
 
@@ -107,7 +120,7 @@ impl Drop for Tree {
 fn run(args: &[&str]) -> (String, String, i32) {
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     (
         String::from_utf8_lossy(&output.stdout).into_owned(),

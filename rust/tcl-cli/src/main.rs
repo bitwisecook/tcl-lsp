@@ -25,5 +25,12 @@
 #![forbid(unsafe_code)]
 
 fn main() -> std::process::ExitCode {
-    tcl_cli::run(std::env::args_os())
+    let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    if args
+        .get(1)
+        .is_some_and(|a| a == tcl_cli_support::worker::WORKER_ARG)
+    {
+        return tcl_cli::serve_worker(&args[2..]);
+    }
+    tcl_cli::run(args)
 }

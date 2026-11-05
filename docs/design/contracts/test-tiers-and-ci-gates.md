@@ -192,6 +192,38 @@ until the map assigns it.
    the owning build script overrides it, matching Cargo. Ambient
    `CARGO_BIN_EXE_*` values are likewise preserved, while executable paths
    reconstructed for the owning package override same-named inherited values.
+9. **A test that runs the `tcl` CLI many times reuses CLI processes.** A fresh
+   `tcl` spends its start-up discovering and loading SpecTcl packs before it
+   reads argv; the verb is usually a fraction of that. `rust/tcl-cli/tests`
+   therefore run invocations through
+   `tcl_cli_support::worker::output(&mut command, env!("CARGO_TARGET_TMPDIR"))`
+   (each file's `reused_output()`), never a bare `.output()`, unless the
+   command needs something a worker cannot give it. A worker is the CLI binary
+   started as `tcl __tcl-cli-worker <dir> <slot>`. It answers framed
+   `(argv, cwd) → (exit code, stdout, stderr)` requests on loopback, one
+   connection at a time. Workers sit in numbered slots owned through OS file
+   locks under a directory keyed by the binary's identity and the command's
+   full environment, so nextest's per-test processes share them, and the
+   number of CLI starts is bounded by test parallelism per distinct
+   environment. Give the commands of one file one environment: a value that is
+   unique per invocation (a fresh temp path) creates a pool per invocation and
+   defeats reuse. Fidelity rules:
+   - a worker never applies per-request environment; the environment is part
+     of the pool key instead;
+   - verb output goes through `tcl_cli_support::sink` (`outln!`, `errln!`,
+     `sink::stdout()`), and `tcl-cli` denies `clippy::print_stdout` and
+     `clippy::print_stderr` so new verbs keep it;
+   - output that escapes the capture (a library printing to the process
+     streams, a panic), a worker that dies mid-request, or an unencodable
+     argument makes the client run that invocation as a real process, so a
+     result is never a worker artefact;
+   - `TCL_CLI_TEST_SPAWN=1` disables workers, for bisecting a suspected
+     worker-only difference;
+   - process-history state still differs: a reused process continues global
+     counters a fresh one restarts, such as the scope number in the opaque
+     `bodyKey` (`tcl_core_types::body_identity`). A test that compares such
+     output across two invocations runs them as real processes
+     (`run_fresh_tcl_on_scratch_doc` in `cli.rs`).
 
 ## CI redundancy contract
 

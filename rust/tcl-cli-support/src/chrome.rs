@@ -69,13 +69,13 @@ pub fn dim_style() -> Style {
 /// styling, leaving the exact `error: {msg}` line.
 pub fn eprint_error(msg: impl Display) {
     let s = error_style();
-    let mut err = anstream::stderr();
+    let mut err = crate::sink::styled_stderr();
     let _ = writeln!(err, "{}error:{} {msg}", s.render(), s.render_reset());
 }
 
 /// Print a styled status line to stderr (auto-plain when piped).
 pub fn eprint_status(style: Style, msg: impl Display) {
-    let mut err = anstream::stderr();
+    let mut err = crate::sink::styled_stderr();
     let _ = writeln!(err, "{}{msg}{}", style.render(), style.render_reset());
 }
 

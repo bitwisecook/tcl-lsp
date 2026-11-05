@@ -877,7 +877,7 @@ package provide demo 1.0
             tcl_test_support::locate_jimsh().expect("valid optional original Jim oracle")
         };
         let Some(interpreter) = interpreter else {
-            eprintln!("skipping original Jim snapshot control: no Jim oracle");
+            tcl_cli_support::errln!("skipping original Jim snapshot control: no Jim oracle");
             return;
         };
         let fixture = "namespace eval ::demo {}\nproc ::demo::quiet {} {return OK}\npackage provide demo 1.0\n";
@@ -945,7 +945,7 @@ package provide demo 1.0
             tcl_test_support::locate_jimsh().expect("valid optional original Jim oracle")
         };
         let Some(interpreter) = interpreter else {
-            eprintln!("skipping original Jim presence control: no Jim oracle");
+            tcl_cli_support::errln!("skipping original Jim presence control: no Jim oracle");
             return;
         };
         original_presence_report(&interpreter.path);

@@ -24,17 +24,26 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// An `XDG_CONFIG_HOME` for one spawn that names no directory — unique to
-/// the spawn and never created — so no `tcl-lsp/config.ini` can be found
-/// under it: the global policy layer every verb resolves is empty, and a
+/// `Command::output` through a reused `tcl` process (`tcl_cli_support::worker`):
+/// a fresh process spends seconds loading packs before it reads its argv, and
+/// this file asserts on many invocations.
+trait Reused {
+    fn reused_output(&mut self) -> std::io::Result<std::process::Output>;
+}
+
+impl Reused for Command {
+    fn reused_output(&mut self) -> std::io::Result<std::process::Output> {
+        tcl_cli_support::worker::output(self, env!("CARGO_TARGET_TMPDIR"))
+    }
+}
+
+/// An `XDG_CONFIG_HOME` that names no directory — never created — so no
+/// `tcl-lsp/config.ini` can be found under it: the global policy layer every verb resolves is empty, and a
 /// developer's own `config.ini` cannot change what these witnesses see.
 fn absent_config_home() -> PathBuf {
-    static SPAWNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let spawn = SPAWNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    std::env::temp_dir().join(format!(
-        "value-transfers-cli-tests-{}-{spawn}",
-        std::process::id()
-    ))
+    // One path for every spawn, so the invocations can share reused `tcl`
+    // processes (a worker is keyed by its environment); it is never created.
+    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("value-transfers-cli-tests-absent-config")
 }
 
 /// The built `tcl` binary, isolated from the machine's global configuration.
@@ -48,7 +57,7 @@ fn tcl() -> Command {
 fn run_tcl(args: &[&str]) -> String {
     let output = tcl()
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(
         output.status.success(),
@@ -403,7 +412,7 @@ fn run_tcl_in(workspace: &Path, args: &[&str]) -> String {
     let output = tcl()
         .current_dir(workspace)
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(
         output.status.success(),
@@ -638,7 +647,7 @@ fn diagnostics_at(source: &str, dialect: &str, enable: &[&str]) -> Vec<(u64, u64
     }
     let output = tcl()
         .args(&args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     // `tcl diag` exits 1 when it reports a warning or an error, 0 otherwise.
     assert!(

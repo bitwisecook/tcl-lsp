@@ -437,7 +437,7 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
     }
 
     if results.is_empty() {
-        eprintln!("{code} does not fire on any input.");
+        tcl_cli_support::errln!("{code} does not fire on any input.");
         return Ok(1);
     }
 

@@ -29,12 +29,25 @@
 
 use std::process::Command;
 
+/// `Command::output` through a reused `tcl` process (`tcl_cli_support::worker`):
+/// a fresh process spends seconds loading packs before it reads its argv, and
+/// this file asserts on many invocations.
+trait Reused {
+    fn reused_output(&mut self) -> std::io::Result<std::process::Output>;
+}
+
+impl Reused for Command {
+    fn reused_output(&mut self) -> std::io::Result<std::process::Output> {
+        tcl_cli_support::worker::output(self, env!("CARGO_TARGET_TMPDIR"))
+    }
+}
+
 /// Run the built `tcl` binary with `args` and inline source, returning the
 /// captured stdout bytes. Asserts the process succeeded.
 fn run_tcl(args: &[&str]) -> Vec<u8> {
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(
         output.status.success(),
@@ -129,7 +142,7 @@ fn compwasm_emits_valid_module_header() {
             "--wat-output",
             wat_path.to_str().unwrap(),
         ])
-        .output()
+        .reused_output()
         .expect("spawn tcl");
     assert!(
         out.status.success(),
@@ -199,7 +212,7 @@ fn compwasm_codegen_passes_natively_lower_a_hot_loop() {
         }
         let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
             .args(&args)
-            .output()
+            .reused_output()
             .expect("spawn tcl");
         assert!(
             out.status.success(),
@@ -253,7 +266,7 @@ fn compwasm_codegen_passes_natively_lower_a_hot_loop() {
             "-o",
             dir.join("bad.wasm").to_str().unwrap(),
         ])
-        .output()
+        .reused_output()
         .expect("spawn tcl");
     assert!(!bad.status.success());
     let stderr = String::from_utf8_lossy(&bad.stderr);
@@ -289,7 +302,7 @@ fn explore_rejects_codegen_passes_with_serve() {
                 "--source",
                 "set x 1",
             ])
-            .output()
+            .reused_output()
             .expect("spawn tcl");
         assert!(!out.status.success(), "{passes}: --serve accepted the flag");
         let stderr = String::from_utf8_lossy(&out.stderr);
@@ -306,7 +319,7 @@ fn explore_rejects_codegen_passes_with_serve() {
             "--source",
             "set a 1\nincr a\n",
         ])
-        .output()
+        .reused_output()
         .expect("spawn tcl");
     assert!(
         out.status.success(),
@@ -337,7 +350,7 @@ fn explore_rejects_codegen_passes_with_serve() {
 fn compwasm_rejects_removed_backend_selection() {
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .args(["compwasm", "--backend", "vm", "--source", "set x 1"])
-        .output()
+        .reused_output()
         .expect("spawn tcl");
     assert!(
         !output.status.success(),
@@ -369,7 +382,7 @@ fn compwasm_literal_uses_canonical_semantic_argv_plan() {
             "--wat-output",
             wat_path.to_str().expect("utf-8 WAT path"),
         ])
-        .output()
+        .reused_output()
         .expect("spawn tcl");
     assert!(
         output.status.success(),
@@ -396,7 +409,7 @@ fn compwasm_defaults_to_out_wasm_file() {
     let out = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .current_dir(&dir)
         .args(["compwasm", "--source", "set x 1\n"])
-        .output()
+        .reused_output()
         .expect("spawn tcl");
     assert!(
         out.status.success(),

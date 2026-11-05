@@ -149,16 +149,16 @@ pub fn run_compwasm(
         OutputTarget::Stdout => "stdout".to_owned(),
         OutputTarget::File(path) => path.display().to_string(),
     };
-    eprintln!("wrote wasm binary ({} bytes) to {where_to}", bytes.len());
+    tcl_cli_support::errln!("wrote wasm binary ({} bytes) to {where_to}", bytes.len());
     if let Some(reason) = wasm.plan.semantic_decline() {
-        eprintln!(
+        tcl_cli_support::errln!(
             "codegen plan: {} ({}: {})",
             wasm.plan.as_str(),
             reason.as_str(),
             reason.detail_kind()
         );
     } else {
-        eprintln!("codegen plan: {}", wasm.plan.as_str());
+        tcl_cli_support::errln!("codegen plan: {}", wasm.plan.as_str());
     }
     Ok(0)
 }

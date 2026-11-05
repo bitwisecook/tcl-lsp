@@ -26,6 +26,19 @@
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
+/// `Command::output` through a reused `tcl` process (`tcl_cli_support::worker`):
+/// a fresh process spends seconds loading packs before it reads its argv, and
+/// this file asserts on many invocations.
+trait Reused {
+    fn reused_output(&mut self) -> std::io::Result<std::process::Output>;
+}
+
+impl Reused for Command {
+    fn reused_output(&mut self) -> std::io::Result<std::process::Output> {
+        tcl_cli_support::worker::output(self, env!("CARGO_TARGET_TMPDIR"))
+    }
+}
+
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
@@ -34,19 +47,15 @@ fn spec_pack_project() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/spec-packs/tiny-project")
 }
 
-/// An `XDG_CONFIG_HOME` for one spawn that names no directory — unique to
-/// the spawn and never created — so no `tcl-lsp/config.ini` can be found
-/// under it and nothing is left behind: the global layer every
-/// policy-reading verb resolves (`diag`, `lint`, `validate`, `opt`) is empty,
-/// and a developer's own `config.ini` cannot fail a test CI passes. A missing
-/// file is an absent layer, read silently.
+/// An `XDG_CONFIG_HOME` that names no directory — never created — so no
+/// `tcl-lsp/config.ini` can be found under it and nothing is left behind: the
+/// global layer every policy-reading verb resolves (`diag`, `lint`,
+/// `validate`, `opt`) is empty, and a developer's own `config.ini` cannot fail
+/// a test CI passes. A missing file is an absent layer, read silently.
 fn absent_config_home() -> PathBuf {
-    static SPAWNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let spawn = SPAWNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    std::env::temp_dir().join(format!(
-        "tcl-cli-tests-no-config-{}-{spawn}",
-        std::process::id()
-    ))
+    // One path for every spawn, so the invocations can share reused `tcl`
+    // processes (a worker is keyed by its environment); it is never created.
+    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tcl-cli-tests-no-config-absent-config")
 }
 
 /// The built `tcl` binary, isolated from the machine's global configuration
@@ -63,7 +72,7 @@ fn tcl() -> Command {
 fn run_tcl(args: &[&str]) -> Vec<u8> {
     let output = tcl()
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(
         output.status.success(),
@@ -78,7 +87,7 @@ fn run_tcl_in(current_dir: &std::path::Path, args: &[&str]) -> Output {
     tcl()
         .current_dir(current_dir)
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary")
 }
 
@@ -99,7 +108,7 @@ fn command_info_preserves_exact_command_names() {
     ] {
         let output = tcl()
             .args(["command-info", name, "--dialect", "tcl8.6", "--json"])
-            .output()
+            .reused_output()
             .expect("failed to spawn tcl binary");
         assert_eq!(output.status.code(), Some(i32::from(!found)), "{name:?}");
         let payload: serde_json::Value =
@@ -115,7 +124,7 @@ fn command_info_discovers_the_current_projects_spec_pack() {
     let with_pack = tcl()
         .current_dir(&project)
         .args(["command-info", "::tcl_lsp_fixture::collect", "--json"])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(
         with_pack.status.success(),
@@ -133,7 +142,7 @@ fn command_info_discovers_the_current_projects_spec_pack() {
     let without_pack = tcl()
         .current_dir(project.join("lib"))
         .args(["command-info", "::tcl_lsp_fixture::collect", "--json"])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert_eq!(without_pack.status.code(), Some(1));
     let missing: serde_json::Value =
@@ -154,7 +163,7 @@ fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
     let with_pack = tcl()
         .current_dir(&project)
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert_eq!(with_pack.status.code(), Some(1));
     let analysed: serde_json::Value =
@@ -170,7 +179,7 @@ fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
     let without_pack = tcl()
         .current_dir(project.join("lib"))
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(without_pack.status.success());
     let opaque: serde_json::Value =
@@ -394,7 +403,7 @@ fn minimize_missing_code_errors() {
     let input = fixtures_dir().join("minimize.tcl");
     let output = tcl()
         .args(["minimize", input.to_str().unwrap(), "ZZZ999"])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert_eq!(output.status.code(), Some(1), "exit code");
     assert!(output.stdout.is_empty(), "no stdout on the no-fire path");
@@ -430,7 +439,7 @@ fn minimize_reduced_output_still_fires() {
         // directly rather than through the success-asserting `run_tcl`.
         let diag = tcl()
             .args(["diag", "--source", reduced, "--json"])
-            .output()
+            .reused_output()
             .expect("failed to spawn tcl binary")
             .stdout;
         let report: serde_json::Value =
@@ -472,7 +481,7 @@ fn transformations_refuse_lossy_source_before_writing_artifacts() {
             }
             _ => {}
         }
-        let output = command.output().expect("spawn tcl");
+        let output = command.reused_output().expect("spawn tcl");
         assert!(!output.status.success(), "{verb} accepted altered source");
         assert!(
             String::from_utf8_lossy(&output.stderr).contains("decoding errors"),
@@ -489,7 +498,7 @@ fn literal_replacement_characters_remain_faithful_transform_input() {
     let input = scratch.write("valid.tcl", "proc \u{fffd} {} {return HELLO}\n");
     let output = tcl()
         .args(["format", input.to_str().unwrap()])
-        .output()
+        .reused_output()
         .expect("spawn tcl");
     assert!(output.status.success(), "{output:?}");
     assert!(
@@ -685,7 +694,7 @@ fn opt_does_not_fold_a_store_across_a_file_boundary() {
 fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {
     tcl()
         .args(args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary")
         .stdout
 }
@@ -1067,6 +1076,28 @@ fn sslictcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
 /// (the path is appended last), returning stdout. Mirrors the scratch-file
 /// shape [`tcl_diag_rows`] uses, for verbs other than `diag`.
 fn run_tcl_on_scratch_doc(tag: &str, text: &str, args: &[&str]) -> Vec<u8> {
+    run_on_scratch_doc(tag, text, args, run_tcl_allow_failure)
+}
+
+/// [`run_tcl_on_scratch_doc`] in a process of its own: for output compared
+/// across invocations that carries process-history identities (the opaque
+/// `bodyKey` numbering), which a reused worker continues rather than restarts.
+fn run_fresh_tcl_on_scratch_doc(tag: &str, text: &str, args: &[&str]) -> Vec<u8> {
+    run_on_scratch_doc(tag, text, args, |args| {
+        tcl()
+            .args(args)
+            .output()
+            .expect("failed to spawn tcl binary")
+            .stdout
+    })
+}
+
+fn run_on_scratch_doc(
+    tag: &str,
+    text: &str,
+    args: &[&str],
+    run: impl FnOnce(&[&str]) -> Vec<u8>,
+) -> Vec<u8> {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock")
@@ -1079,7 +1110,7 @@ fn run_tcl_on_scratch_doc(tag: &str, text: &str, args: &[&str]) -> Vec<u8> {
     let mut full: Vec<&str> = args.to_vec();
     let path_str = path.to_str().expect("utf-8 path").to_owned();
     full.push(&path_str);
-    let out = run_tcl_allow_failure(&full);
+    let out = run(&full);
     std::fs::remove_dir_all(&dir).ok();
     out
 }
@@ -1175,8 +1206,8 @@ fn callgraph_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
     let lf = "proc foo {} {\n    bar\n}\nproc bar {} {\n    puts hi\n}\nfoo\n";
     let cr = lf.replace('\n', "\r");
 
-    let lf_out = run_tcl_on_scratch_doc("cg-lf", lf, &["callgraph", "--json"]);
-    let cr_out = run_tcl_on_scratch_doc("cg-cr", &cr, &["callgraph", "--json"]);
+    let lf_out = run_fresh_tcl_on_scratch_doc("cg-lf", lf, &["callgraph", "--json"]);
+    let cr_out = run_fresh_tcl_on_scratch_doc("cg-cr", &cr, &["callgraph", "--json"]);
     let lf_json: serde_json::Value = serde_json::from_slice(&lf_out).expect("callgraph JSON");
     let cr_json: serde_json::Value = serde_json::from_slice(&cr_out).expect("callgraph JSON");
 
@@ -1322,7 +1353,7 @@ fn compwasm_compiles_a_cr_terminated_document_the_way_the_editor_does() {
                 "--wat-output",
                 wat_path.to_str().expect("utf-8 path"),
             ])
-            .output()
+            .reused_output()
             .expect("failed to spawn tcl binary");
         assert!(
             output.status.success(),
@@ -1421,7 +1452,10 @@ fn run_tcl_env(args: &[&str], env: &[(&str, &std::ffi::OsStr)]) -> Vec<u8> {
     for (key, value) in env {
         command.env(key, value);
     }
-    command.output().expect("failed to spawn tcl binary").stdout
+    command
+        .reused_output()
+        .expect("failed to spawn tcl binary")
+        .stdout
 }
 
 /// `(file label, code)` pairs of a `diag --json` report.
@@ -1821,7 +1855,7 @@ fn diag_show_suppressed_collapses_the_optimiser_into_one_row() {
             "--source",
             "set x 1   \nputs $y\n",
         ])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     let rendered = String::from_utf8(output.stdout).expect("utf-8 output");
     let sentence = format!(
@@ -1855,7 +1889,7 @@ fn diag_show_suppressed_declares_what_an_abstaining_document_did_not_run() {
 
     let output = tcl()
         .args(["diag", "--show-suppressed", "--json", path])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     let codes: Vec<String> = diag_codes_by_file(&output.stdout)
         .into_iter()
@@ -1917,7 +1951,7 @@ fn diag_show_suppressed_text_rows_keep_the_exit_status() {
             "--show-suppressed",
             only_suppressed.to_str().unwrap(),
         ])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(
         output.status.success(),
@@ -2134,25 +2168,25 @@ fn opt_runs_the_passes_of_the_profile_in_force() {
     );
 }
 
-/// A row's `xdg/tcl-lsp/config.ini`, `proj/.tcl-lsp.ini` and
+/// A row's `tcl-lsp/config.ini` under `xdg`, and `proj/.tcl-lsp.ini` and
 /// `proj/<name>.tcl` (the program, or the bytes for an abstaining document)
-/// — the two truth-table passes' shared scratch layout
+/// in `scratch` — the two truth-table passes' shared layout
 /// (`docs/design/compiler/diagnostic-policy.md` § The truth table). Returns
 /// the input file's path and the `XDG_CONFIG_HOME` directory the run
 /// resolves the global layer under.
+///
+/// `xdg` is one directory for every row of a pass, its `config.ini`
+/// rewritten per row: the CLI reads the file afresh on each run, and one
+/// `XDG_CONFIG_HOME` lets the rows share a reused `tcl` process.
 fn truth_table_scratch(
     scratch: &Scratch,
+    xdg: &Scratch,
     row: &tcl_lsp_core::diagnostic_policy::truth_table::Row,
 ) -> (String, std::ffi::OsString) {
     use tcl_lsp_core::diagnostic_policy::truth_table::Row;
 
-    let config = scratch.write("xdg/tcl-lsp/config.ini", &Row::ini(row.global));
-    let xdg = config
-        .parent()
-        .and_then(std::path::Path::parent)
-        .expect("xdg root")
-        .to_owned()
-        .into_os_string();
+    xdg.write("tcl-lsp/config.ini", &Row::ini(row.global));
+    let xdg = xdg.0.clone().into_os_string();
     scratch.write("proj/.tcl-lsp.ini", &Row::ini(row.project));
     let rel = format!("proj/{}.tcl", row.name);
     let file = match row.bytes {
@@ -2254,9 +2288,10 @@ fn truth_table_rows_render_through_tcl_diag() {
     }
 
     let mut failures: Vec<String> = Vec::new();
+    let xdg = Scratch::new("truth-table-diag-xdg");
     for row in ROWS.iter().filter(|row| row.runs_on(Surface::Cli)) {
         let scratch = Scratch::new("truth-table-diag");
-        let (file, xdg) = truth_table_scratch(&scratch, row);
+        let (file, xdg) = truth_table_scratch(&scratch, &xdg, row);
         let mut args: Vec<String> = vec![
             "diag".to_owned(),
             "--json".to_owned(),
@@ -2299,9 +2334,10 @@ fn truth_table_rewrite_rows_render_through_tcl_opt() {
     };
 
     let mut failures: Vec<String> = Vec::new();
+    let xdg = Scratch::new("truth-table-opt-xdg");
     for row in ROWS.iter().filter(|row| row.runs_on(Surface::CliRewrite)) {
         let scratch = Scratch::new("truth-table-opt");
-        let (file, xdg) = truth_table_scratch(&scratch, row);
+        let (file, xdg) = truth_table_scratch(&scratch, &xdg, row);
         let flags = row.slot_flags();
         let mut args: Vec<String> = vec!["opt".to_owned()];
         if let Some(profile) = &flags.profile {
@@ -2352,7 +2388,7 @@ fn the_dialect_flag_takes_the_registry_names_and_rejects_the_rest() {
     }
     let rejected = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .args(["diag", "--dialect", "nonsense", "--source", "puts hello"])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(!rejected.status.success(), "an unknown dialect is refused");
     let stderr = String::from_utf8_lossy(&rejected.stderr);
@@ -2397,7 +2433,7 @@ fn every_dialect_flag_reaches_the_one_resolver() {
         let rejected = Command::new(env!("CARGO_BIN_EXE_tcl"))
             .args(verb)
             .args(["--dialect", "nonsense"])
-            .output()
+            .reused_output()
             .expect("failed to spawn tcl binary");
         assert!(!rejected.status.success(), "{verb:?} refuses `nonsense`");
         let stderr = String::from_utf8_lossy(&rejected.stderr);
@@ -2456,9 +2492,9 @@ impl Workspace {
     fn tcl(&self, args: &[&str]) -> Output {
         Command::new(env!("CARGO_BIN_EXE_tcl"))
             .current_dir(&self.0)
-            .env("XDG_CONFIG_HOME", self.0.join("empty-config"))
+            .env("XDG_CONFIG_HOME", absent_config_home())
             .args(args)
-            .output()
+            .reused_output()
             .expect("failed to spawn tcl binary")
     }
 }
@@ -2567,7 +2603,7 @@ fn diag_severities(tag: &str, text: &str, extra: &[&str]) -> (Option<i32>, Vec<(
     args.extend_from_slice(extra);
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .args(&args)
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap_or_else(|e| {
         panic!(
@@ -2633,7 +2669,7 @@ fn diag_analyses_a_jimsh_shebang_document_as_jim() {
 fn diag_accepts_the_vivado_alias() {
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
         .args(["diag", "--dialect", "vivado", "--source", "puts hello"])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     assert!(
         output.status.success(),
@@ -2703,7 +2739,7 @@ fn run_on_source_without_panic(verb_args: &[&str], dialect: Option<&str>, source
     }
     let output = command
         .args(["--source", source])
-        .output()
+        .reused_output()
         .expect("failed to spawn tcl binary");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(

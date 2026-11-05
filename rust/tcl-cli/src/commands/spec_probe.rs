@@ -322,7 +322,7 @@ proc __spec_probeOther {} {return OTHER}
             tcl_test_support::locate_jimsh().expect("valid optional original Jim oracle")
         };
         let Some(interpreter) = interpreter else {
-            eprintln!("skipping original Jim inventory control: no Jim oracle");
+            tcl_cli_support::errln!("skipping original Jim inventory control: no Jim oracle");
             return;
         };
         let report = original_inventory_report(&interpreter.path, ORIGINAL_PACKAGE);

@@ -242,7 +242,7 @@ pub fn run_opt(
     write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
 
     if !target.is_stdout() {
-        eprintln!(
+        tcl_cli_support::errln!(
             "optimised {} input(s); rewrites={}",
             documents.len(),
             total_rewrites
@@ -336,7 +336,7 @@ pub fn run_minify(
         },
     );
     for refusal in &result.refusals {
-        eprintln!("minify: {}", refusal.reason());
+        tcl_cli_support::errln!("minify: {}", refusal.reason());
     }
     let rendered = result.source;
     let map = result.symbol_map;
@@ -376,7 +376,7 @@ pub fn run_unminify_error(
                 .with_context(|| format!("failed to read {}", file.display()))?
         }
     } else {
-        eprintln!("error: provide --error TEXT or --error-file FILE");
+        tcl_cli_support::errln!("error: provide --error TEXT or --error-file FILE");
         return Ok(1);
     };
 

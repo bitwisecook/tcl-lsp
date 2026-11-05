@@ -126,7 +126,7 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
     let manifest = match load_manifest(manifest_path) {
         Ok(manifest) => manifest,
         Err(error) => {
-            eprintln!("error: {error}");
+            tcl_cli_support::errln!("error: {error}");
             return Ok(1);
         }
     };
@@ -142,7 +142,7 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
     let source_paths = match collect_source_paths(&roots, recursive, manifest_path) {
         Ok(paths) => paths,
         Err(error) => {
-            eprintln!("error: {error:#}");
+            tcl_cli_support::errln!("error: {error:#}");
             return Ok(1);
         }
     };
@@ -189,7 +189,7 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
                 .map(|(name, (_, minimum))| AddedRequirement { name, minimum })
                 .collect(),
             Err(error) => {
-                eprintln!("error: {error:#}");
+                tcl_cli_support::errln!("error: {error:#}");
                 return Ok(1);
             }
         }
@@ -253,7 +253,7 @@ fn scan_documents(
 
 fn render_output(output: &DiscoveryOutput, json: bool, add: bool) -> anyhow::Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(output)?);
+        tcl_cli_support::outln!("{}", serde_json::to_string_pretty(output)?);
     } else {
         print_text(output, add);
     }
@@ -589,7 +589,7 @@ fn append_requirements(
 }
 
 fn print_text(output: &DiscoveryOutput, add: bool) {
-    println!(
+    tcl_cli_support::outln!(
         "Scanned {} Tcl source file(s); found {} package requirement(s).",
         output.scanned_files,
         output.requirements.len()
@@ -600,38 +600,41 @@ fn print_text(output: &DiscoveryOutput, add: bool) {
             .as_deref()
             .unwrap_or(requirement.expression.as_str());
         let minimum = requirement.minimum.as_deref().unwrap_or("?");
-        println!(
+        tcl_cli_support::outln!(
             "  {name} {minimum}  [{}; {}]  {}:{}",
-            requirement.status, requirement.resolution, requirement.file, requirement.line
+            requirement.status,
+            requirement.resolution,
+            requirement.file,
+            requirement.line
         );
         if let Some(reason) = &requirement.reason {
-            println!("    {reason}");
+            tcl_cli_support::outln!("    {reason}");
         }
     }
     for warning in &output.warnings {
-        eprintln!("warning: {warning}");
+        tcl_cli_support::errln!("warning: {warning}");
     }
     if !output.added.is_empty() {
-        println!("Added to {}:", output.manifest);
+        tcl_cli_support::outln!("Added to {}:", output.manifest);
         for requirement in &output.added {
-            println!("  {} {}", requirement.name, requirement.minimum);
+            tcl_cli_support::outln!("  {} {}", requirement.name, requirement.minimum);
         }
-        println!("Run 'tcl pkg install' to resolve and update tclpkg.lock.");
+        tcl_cli_support::outln!("Run 'tcl pkg install' to resolve and update tclpkg.lock.");
     } else if add {
-        println!("No safe undeclared requirements to add.");
+        tcl_cli_support::outln!("No safe undeclared requirements to add.");
     } else if output
         .requirements
         .iter()
         .any(|requirement| requirement.status == "candidate")
     {
-        println!("Run 'tcl pkg discover --add' to add safe findings.");
+        tcl_cli_support::outln!("Run 'tcl pkg discover --add' to add safe findings.");
     }
     if output
         .requirements
         .iter()
         .any(|requirement| matches!(requirement.status, "review" | "unresolved"))
     {
-        println!("Use 'tcl pkg add NAME VERSION' for review-needed dependencies.");
+        tcl_cli_support::outln!("Use 'tcl pkg add NAME VERSION' for review-needed dependencies.");
     }
 }
 

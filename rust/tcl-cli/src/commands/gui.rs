@@ -74,7 +74,7 @@ pub fn run_serve(bind: &str, port: u16, open: bool) -> anyhow::Result<u8> {
         .map_err(|e| anyhow::anyhow!("cannot bind {bind}:{port}: {e}"))?;
     let local = listener.local_addr()?;
     let url = format!("http://{local}");
-    println!("Compiler explorer serving at {url} (Ctrl-C to stop)");
+    tcl_cli_support::outln!("Compiler explorer serving at {url} (Ctrl-C to stop)");
 
     if open {
         open_browser(&url);
@@ -84,10 +84,10 @@ pub fn run_serve(bind: &str, port: u16, open: bool) -> anyhow::Result<u8> {
         match stream {
             Ok(stream) => {
                 if let Err(e) = serve_one(stream) {
-                    eprintln!("[explorer] connection error: {e}");
+                    tcl_cli_support::errln!("[explorer] connection error: {e}");
                 }
             }
-            Err(e) => eprintln!("[explorer] accept error: {e}"),
+            Err(e) => tcl_cli_support::errln!("[explorer] accept error: {e}"),
         }
     }
     Ok(0)

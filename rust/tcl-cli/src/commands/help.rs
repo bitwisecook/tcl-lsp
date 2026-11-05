@@ -515,7 +515,7 @@ fn run_help_inner(
         let text = ensure_ascii(&serde_json::to_string_pretty(&Value::Array(arr))?);
         write_text_output(&target, &text)?;
     } else if results.is_empty() {
-        eprintln!("no KCS help matches for '{query_str}'");
+        tcl_cli_support::errln!("no KCS help matches for '{query_str}'");
     } else {
         write_text_output(
             &target,
@@ -532,7 +532,7 @@ fn run_help_inner(
         if !catalogue.is_empty() {
             let mut cats: Vec<&(String, Vec<Feature>)> = catalogue.iter().collect();
             cats.sort_by_key(|(c, _)| c.to_lowercase());
-            let mut err = std::io::stderr().lock();
+            let mut err = tcl_cli_support::sink::stderr();
             let _ = writeln!(err, "available sections:");
             for (category, _) in cats {
                 let _ = writeln!(err, "  {category}");

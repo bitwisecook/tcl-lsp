@@ -654,12 +654,12 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs, report: &ReportArgs) -> anyh
     write_text_output(&target, &rendered)?;
 
     if report.show_suppressed {
-        eprintln!(
+        tcl_cli_support::errln!(
             "diagnostics={diagnostic_count} suppressed={suppressed_count} across {} input(s)",
             documents.len()
         );
     } else {
-        eprintln!(
+        tcl_cli_support::errln!(
             "diagnostics={diagnostic_count} across {} input(s)",
             documents.len()
         );
@@ -716,7 +716,7 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     }
 
     if errors.is_empty() {
-        eprintln!("validation ok");
+        tcl_cli_support::errln!("validation ok");
         return Ok(0);
     }
 
@@ -726,7 +726,7 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
         .collect::<Vec<_>>()
         .join("\n");
     write_text_output(&target, &rendered)?;
-    eprintln!("validation failed: {} error(s)", errors.len());
+    tcl_cli_support::errln!("validation failed: {} error(s)", errors.len());
     Ok(1)
 }
 

@@ -124,11 +124,11 @@ fn report_created(
         let content = match generate_dockerfile(spec) {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("error: {e}");
+                tcl_cli_support::errln!("error: {e}");
                 return Ok(1);
             }
         };
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({
                 "path": written.to_string_lossy(),
@@ -140,11 +140,11 @@ fn report_created(
         );
         return Ok(0);
     }
-    println!(
+    tcl_cli_support::outln!(
         "{}",
         ui::ok(&format!("wrote {}", written.display()), colour)
     );
-    println!(
+    tcl_cli_support::outln!(
         "{}",
         ui::dim(
             &format!("  base: {}  tcl: {}", spec.base_image, spec.tcl_version),
@@ -152,7 +152,7 @@ fn report_created(
         )
     );
     if !spec.native_extensions.is_empty() {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::dim(
                 &format!(
@@ -163,7 +163,7 @@ fn report_created(
             )
         );
     }
-    println!("{}", ui::dim("  docker build -t myapp .", colour));
+    tcl_cli_support::outln!("{}", ui::dim("  docker build -t myapp .", colour));
     Ok(0)
 }
 
@@ -193,7 +193,7 @@ fn run_create(action: &DockerCommand) -> anyhow::Result<u8> {
     let project = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let extensions = native_extensions(&project);
     for command in &extensions.unnamed {
-        eprintln!(
+        tcl_cli_support::errln!(
             "{}",
             ui::warn(
                 &format!(
@@ -228,7 +228,7 @@ fn run_create(action: &DockerCommand) -> anyhow::Result<u8> {
         match key_values(flag, items) {
             Ok(pairs) => *slot = pairs,
             Err(message) => {
-                eprintln!("error: {message}");
+                tcl_cli_support::errln!("error: {message}");
                 return Ok(1);
             }
         }
@@ -237,7 +237,7 @@ fn run_create(action: &DockerCommand) -> anyhow::Result<u8> {
     let written = match write_dockerfile(output, &spec, *force) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("error: {e}");
+            tcl_cli_support::errln!("error: {e}");
             return Ok(1);
         }
     };
@@ -263,7 +263,7 @@ fn run_recipe(
                 tcl_cli_install_recipe(defaulted_cli_version.as_deref())
             ),
             Err(e) => {
-                eprintln!("error: {e}");
+                tcl_cli_support::errln!("error: {e}");
                 return Ok(1);
             }
         }
@@ -271,13 +271,13 @@ fn run_recipe(
         match tcl_install_recipe(image, tcl_version) {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("error: {e}");
+                tcl_cli_support::errln!("error: {e}");
                 return Ok(1);
             }
         }
     };
     if json {
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({
                 "image": image,
@@ -287,7 +287,7 @@ fn run_recipe(
             }))
         );
     } else {
-        println!("{recipe}");
+        tcl_cli_support::outln!("{recipe}");
     }
     Ok(0)
 }
@@ -299,7 +299,7 @@ fn run_info(json: bool) -> anyhow::Result<u8> {
     let cli_families = cli_capable_families();
     if json {
         let families: BTreeMap<String, Vec<String>> = recipes.clone();
-        println!(
+        tcl_cli_support::outln!(
             "{}",
             ui::json_output(&json!({
                 "supported_tcl_versions": SUPPORTED_TCL_VERSIONS.to_vec(),
@@ -311,25 +311,25 @@ fn run_info(json: bool) -> anyhow::Result<u8> {
         );
     } else {
         let colour = ui::use_colour(None);
-        println!("{}", ui::bold("Supported Tcl versions:", colour));
+        tcl_cli_support::outln!("{}", ui::bold("Supported Tcl versions:", colour));
         for v in SUPPORTED_TCL_VERSIONS {
-            println!("  {v}");
+            tcl_cli_support::outln!("  {v}");
         }
-        println!();
-        println!("{}", ui::bold("Install recipe families:", colour));
+        tcl_cli_support::outln!();
+        tcl_cli_support::outln!("{}", ui::bold("Install recipe families:", colour));
         for (family, versions) in &recipes {
-            println!("  {family:12}  {}", versions.join(", "));
+            tcl_cli_support::outln!("  {family:12}  {}", versions.join(", "));
         }
-        println!();
-        println!("{}", ui::bold("Native tcl CLI:", colour));
-        println!(
+        tcl_cli_support::outln!();
+        tcl_cli_support::outln!("{}", ui::bold("Native tcl CLI:", colour));
+        tcl_cli_support::outln!(
             "  default release  {}",
             cli_version
                 .as_deref()
                 .unwrap_or("latest (resolved at build time)")
         );
-        println!("  target triples   {}", triples.join(", "));
-        println!("  base families    {}", cli_families.join(", "));
+        tcl_cli_support::outln!("  target triples   {}", triples.join(", "));
+        tcl_cli_support::outln!("  base families    {}", cli_families.join(", "));
     }
     Ok(0)
 }

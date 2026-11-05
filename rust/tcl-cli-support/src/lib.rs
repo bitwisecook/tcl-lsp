@@ -37,7 +37,9 @@ mod input;
 mod output;
 pub mod prompt;
 pub mod secret_input;
+pub mod sink;
 pub mod spec_import;
+pub mod worker;
 
 pub use highlight::{highlight_ansi, highlight_html};
 pub use input::{
@@ -95,20 +97,28 @@ pub fn spec_pack_key(dialect: &str) -> u64 {
 /// ([`tcl_spectcl::demand`]), so the set is reloaded when `dialect` widens the
 /// demand; a pack already evaluated comes back from the snapshot memo.
 fn cli_packs(dialect: &str) -> std::sync::Arc<tcl_spectcl::PackSet> {
-    static PACKS: std::sync::Mutex<Option<(u64, std::sync::Arc<tcl_spectcl::PackSet>)>> =
-        std::sync::Mutex::new(None);
+    type Loaded = (
+        u64,
+        Option<std::path::PathBuf>,
+        std::sync::Arc<tcl_spectcl::PackSet>,
+    );
+    static PACKS: std::sync::Mutex<Option<Loaded>> = std::sync::Mutex::new(None);
     tcl_spectcl::demand::enable();
     tcl_spectcl::demand::note_dialect(dialect);
     let generation = tcl_spectcl::demand::generation();
+    // Discovery starts from the current directory, which a reused CLI process
+    // (`worker`) changes between invocations.
+    let cwd = std::env::current_dir().ok();
     let mut held = PACKS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some((loaded, packs)) = held.as_ref()
+    if let Some((loaded, root, packs)) = held.as_ref()
         && *loaded == generation
+        && *root == cwd
     {
         return std::sync::Arc::clone(packs);
     }
-    let workspace_roots = std::env::current_dir().into_iter().collect();
+    let workspace_roots = cwd.iter().cloned().collect();
     let files = tcl_spectcl::discover(&tcl_spectcl::DiscoveryOptions {
         workspace_roots,
         ..tcl_spectcl::DiscoveryOptions::default()
@@ -119,7 +129,7 @@ fn cli_packs(dialect: &str) -> std::sync::Arc<tcl_spectcl::PackSet> {
     // consult the active pack set; publish both before exposing `packs`.
     tcl_spectcl::hooks::publish(&packs);
     tcl_spectcl::bundled::set_active(Some(std::sync::Arc::clone(&packs)));
-    *held = Some((generation, std::sync::Arc::clone(&packs)));
+    *held = Some((generation, cwd, std::sync::Arc::clone(&packs)));
     packs
 }
 
