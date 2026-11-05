@@ -390,7 +390,7 @@ mod tests {
                 let nested = crate::analysis_control::run(
                     crate::analysis_control::AnalysisControl::new(|_| true),
                     || {
-                        crate::analysis_control::checkpoint(
+                        let _ = crate::analysis_control::checkpoint(
                             crate::analysis_control::AnalysisCheckpoint::Command,
                         );
                     },

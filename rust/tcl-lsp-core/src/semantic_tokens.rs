@@ -3411,6 +3411,10 @@ fn collect_script(
     for seg in
         segment_commands_with_offset_and_config(text, base_offset, ctx.config.at_depth(depth))
     {
+        // A cooperative stop point only: a cancelled host read unwinds here.
+        tcl_compiler::analysis_control::unwind_point(
+            tcl_compiler::analysis_control::AnalysisCheckpoint::Command,
+        );
         if seg.argv.is_empty() {
             continue;
         }
@@ -4912,12 +4916,17 @@ fn collect_entries(
     // variable flows into a `regexp`/`regsub` pattern, keyed by word start so
     // the walk can retag the matching argument.  Empty (no map lookups) when
     // there is no analysis or no such flow.
-    let regex_sources: FxHashMap<u32, Span> = cu.map_or_else(FxHashMap::default, |cu| {
-        tcl_compiler::regex_source::regex_source_literal_spans(source, cu, registry, dialect)
-            .into_iter()
-            .map(|span| (span.start(), span))
-            .collect()
-    });
+    // Read only by the lexical walk; a Native-context document never uses it.
+    let regex_sources: FxHashMap<u32, Span> =
+        cu.filter(|_| lexical)
+            .map_or_else(FxHashMap::default, |cu| {
+                tcl_compiler::regex_source::regex_source_literal_spans(
+                    source, cu, registry, dialect,
+                )
+                .into_iter()
+                .map(|span| (span.start(), span))
+                .collect()
+            });
 
     // The document's command-identity facts: bare-name aliases for commands
     // imported from an exported namespace (`namespace import tcltest::*` →
@@ -5028,18 +5037,18 @@ fn token_object_maps(
     let analysis = Some(retained);
     // Source candidates retain the same complete analysis/Module inputs as
     // their shared producer. Native lookup retains its independent reader.
-    let mut object_classes: ObjectClassMap = if lexical {
-        cu.and_then(|cu| {
+    // Both maps are read only by the lexical walk (object-method overrides and
+    // loop-variable handles); a Native-context document never consults them.
+    if !lexical {
+        return (ObjectClassMap::default(), ObjectClassMap::default());
+    }
+    let mut object_classes: ObjectClassMap = cu
+        .and_then(|cu| {
             tcl_compiler::object_types::logical_source_object_handle_classes(
                 cu, registry, analysis?,
             )
         })
-        .unwrap_or_default()
-    } else {
-        cu.map_or_else(ObjectClassMap::default, |cu| {
-            tcl_compiler::object_types::object_handle_classes(cu, registry)
-        })
-    };
+        .unwrap_or_default();
 
     // Logical object classification shares this compatibility handle map.
     // Native source roles never recover receiver identity from its labels.

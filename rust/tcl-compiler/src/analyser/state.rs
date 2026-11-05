@@ -2690,6 +2690,15 @@ impl Analyser {
     /// Next-line comment syntax is selected after retaining the actual
     /// complete input, declared contracts and original source realm.
     pub(super) fn retain_original_comment_suppressions(&mut self, source: &str) {
+        // Every next-line marker spells `noqa`; a source without it carries
+        // no marker, so the registry-shaped comment walk has nothing to find.
+        if !source
+            .as_bytes()
+            .windows(4)
+            .any(|w| w.eq_ignore_ascii_case(b"noqa"))
+        {
+            return;
+        }
         if let Some(lines) =
             super::utils::parse_noqa_line_suppressions_from_analysis(source, &self.result)
         {

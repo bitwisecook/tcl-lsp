@@ -1607,6 +1607,64 @@ const EDIT_BARRIER_STALL_WARN: std::time::Duration = std::time::Duration::from_s
 /// `VSCODE-WAIT-TIMEOUT`.
 const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not advanced";
 
+/// [`salsa::Cancelled::catch`] for a read on a tracked database clone that
+/// also stops *inside* a long query.
+///
+/// Query boundaries are too coarse on their own: one compilation unit or token
+/// walk runs for seconds without entering another query, so a cancelled clone
+/// kept the publication (and the edit behind it) waiting. The compiler's
+/// cooperative checkpoints probe this clone's token and unwind with
+/// `Cancelled::Local`; Salsa never memoises a query that unwound. The token is
+/// read without Salsa's "local cancellation disabled" bit, which only cycle
+/// recovery sets; `tcl-lsp-db` declares no cycle-recovering query.
+fn cancellable_catch<T>(
+    db: &tcl_lsp_db::TclDatabase,
+    read: impl FnOnce() -> T,
+) -> Result<T, salsa::Cancelled> {
+    use tcl_compiler::analysis_control::{AnalysisControl, run};
+    let token = salsa::Database::cancellation_token(db);
+    let control = AnalysisControl::new(move |_| {
+        if token.is_cancelled() {
+            std::panic::resume_unwind(Box::new(salsa::Cancelled::Local));
+        }
+        false
+    });
+    // Callers hand over owned clones; an unwind leaves nothing half-observed.
+    salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
+        run(control, read)
+            .unwrap_or_else(|_| std::panic::resume_unwind(Box::new(salsa::Cancelled::Local)))
+    }))
+}
+
+/// A tracked clone's handle on its own in-flight queries.
+///
+/// A live publication waits for every outstanding clone to drop. Without a
+/// signal those reads ran to completion first, so an edit queued behind whole
+/// stale diagnostics and token computations. Cancelling the clone's token makes
+/// its queries unwind at their next query boundary (or, under
+/// [`cancellable_catch`], the next compiler checkpoint), exactly as a Salsa
+/// write cancels readers; every reader already treats `salsa::Cancelled` as
+/// "the revision moved on".
+trait SnapshotCancellation {
+    fn snapshot_cancellation(&self) -> Option<salsa::CancellationToken> {
+        None
+    }
+}
+
+impl SnapshotCancellation for tcl_lsp_db::TclDatabase {
+    fn snapshot_cancellation(&self) -> Option<salsa::CancellationToken> {
+        Some(salsa::Database::cancellation_token(self))
+    }
+}
+
+impl SnapshotCancellation for HashMap<Uri, tcl_lsp_db::SourceFile> {}
+
+type CensusEntry = (
+    &'static str,
+    crate::rt::Instant,
+    Option<salsa::CancellationToken>,
+);
+
 /// Live salsa database snapshots, so a stalled publication can name what it is
 /// waiting for.
 ///
@@ -1639,7 +1697,7 @@ const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not adva
 /// automatically register with the correct database's census.
 #[derive(Default)]
 struct SnapshotCensus {
-    live: std::sync::Mutex<HashMap<u64, (&'static str, crate::rt::Instant)>>,
+    live: std::sync::Mutex<HashMap<u64, CensusEntry>>,
     next_id: std::sync::atomic::AtomicU64,
     publication_intent: std::sync::atomic::AtomicUsize,
     publication_advanced: tokio::sync::Notify,
@@ -1683,12 +1741,28 @@ impl SnapshotCensus {
     fn begin_publication(self: &Arc<Self>) -> SnapshotDrainGuard {
         self.publication_intent
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        // New readers are now refused; the outstanding ones read a revision
+        // this publication supersedes, so stop them rather than wait them out.
+        for (_, _, token) in self
+            .live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .values()
+        {
+            if let Some(token) = token {
+                token.cancel();
+            }
+        }
         SnapshotDrainGuard {
             census: Arc::clone(self),
         }
     }
 
-    fn try_track<T>(self: &Arc<Self>, value: T, site: &'static str) -> Result<DbSnapshot<T>, T> {
+    fn try_track<T: SnapshotCancellation>(
+        self: &Arc<Self>,
+        value: T,
+        site: &'static str,
+    ) -> Result<DbSnapshot<T>, T> {
         if self
             .publication_intent
             .load(std::sync::atomic::Ordering::Acquire)
@@ -1704,14 +1778,25 @@ impl SnapshotCensus {
     /// Generic only so the destructor ordering can be proved with a drop probe;
     /// production calls this through [`TrackedMutex::snapshot`] with
     /// `TclDatabase`.
-    fn track<T>(self: &Arc<Self>, value: T, site: &'static str) -> DbSnapshot<T> {
+    fn track<T: SnapshotCancellation>(
+        self: &Arc<Self>,
+        value: T,
+        site: &'static str,
+    ) -> DbSnapshot<T> {
         let id = self
             .next_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.live
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(id, (site, crate::rt::Instant::now()));
+            .insert(
+                id,
+                (
+                    site,
+                    crate::rt::Instant::now(),
+                    value.snapshot_cancellation(),
+                ),
+            );
         DbSnapshot {
             db: Some(value),
             census: Arc::clone(self),
@@ -1741,7 +1826,7 @@ impl SnapshotCensus {
         // same number the comparison was decided on.
         let oldest = live
             .values()
-            .map(|(site, since)| (*site, since.elapsed()))
+            .map(|(site, since, _)| (*site, since.elapsed()))
             .max_by_key(|(_, age)| *age);
         SnapshotReport {
             outstanding: live.len(),
@@ -1880,7 +1965,7 @@ impl<T> TrackedMutex<T> {
     /// no new snapshot can appear until that setter releases it.
     async fn snapshot(&self, site: &'static str) -> DbSnapshot<T>
     where
-        T: Clone,
+        T: Clone + SnapshotCancellation,
     {
         loop {
             let publication_advanced = self.snapshots.publication_advanced.notified();
@@ -1908,7 +1993,7 @@ impl<T> TrackedMutex<T> {
     /// it when a live publisher is draining the finite pre-existing set.
     fn snapshot_from(&self, value: &T, site: &'static str) -> Option<DbSnapshot<T>>
     where
-        T: Clone,
+        T: Clone + SnapshotCancellation,
     {
         self.snapshots.try_track(value.clone(), site).ok()
     }
@@ -5766,7 +5851,7 @@ async fn compute_base_analysis_with_read_cancellations(
         let worker_cancellations = cancellations.clone();
         match crate::rt::spawn_blocking(move || {
             {
-                salsa::Cancelled::catch(|| {
+                cancellable_catch(&snapshot, || {
                     tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
                 })
                 .inspect_err(|reason| {
@@ -5853,7 +5938,7 @@ async fn compute_project_diags_with_read_cancellations(
     let cancellations = cancellations.cloned();
     let worker_cancellations = cancellations.clone();
     match crate::rt::spawn_blocking(move || {
-        salsa::Cancelled::catch(|| {
+        cancellable_catch(&snapshot, || {
             (*tcl_lsp_db::project_callback_diagnostics_for_inputs(
                 &*snapshot, file, config, project,
             ))
@@ -5953,7 +6038,7 @@ async fn compute_compiler_diags_with_read_cancellations(
         let cancellations = cancellations.cloned();
         let worker_cancellations = cancellations.clone();
         match crate::rt::spawn_blocking(move || {
-            let diagnostics = salsa::Cancelled::catch(|| {
+            let diagnostics = cancellable_catch(&snapshot, || {
                 tcl_lsp_db::compiler_check_diagnostics_if_available(&*snapshot, file, config)
             })
             .inspect_err(|reason| {
@@ -14828,7 +14913,7 @@ impl Backend {
         let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.snapshot("db_file_analysis_handle").await;
         Some(crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
+            cancellable_catch(&snapshot, || {
                 tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
             })
             .ok()
@@ -14865,7 +14950,7 @@ impl Backend {
         let config = self.resolved_db_config(uri).await;
         let snapshot = self.db.snapshot("db_compilation_unit_handle").await;
         Some(crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
+            cancellable_catch(&snapshot, || {
                 tcl_lsp_db::document_compilation_unit_for(&*snapshot, file, config)
             })
             .ok()
@@ -14922,7 +15007,7 @@ impl Backend {
         let project = *self.db_project.lock().await;
         let snapshot = self.db.snapshot("db_semantic_tokens").await;
         Some(crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| {
+            cancellable_catch(&snapshot, || {
                 match project.filter(|project| project.files(&*snapshot).contains(&file)) {
                     Some(project) => {
                         tcl_lsp_db::semantic_tokens_project_for_inputs(&*snapshot, file, project)
@@ -31554,7 +31639,7 @@ impl Backend {
                 // reads.
                 let snapshot = db.snapshot("warm_open_documents").await;
                 let _ = crate::rt::spawn_blocking(move || {
-                    let _ = salsa::Cancelled::catch(|| {
+                    let _ = cancellable_catch(&snapshot, || {
                         tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
                     });
                 })
@@ -33942,10 +34027,35 @@ impl Backend {
 }
 
 impl Backend {
+    /// Settle a dialect hint an edit left pending before reading tokens.
+    ///
+    /// The coarse tier refuses a document whose dialect is unresolved, and the
+    /// edit's own resolution runs only after it has published the text and
+    /// scheduled diagnostics. A token request that does not resolve it itself
+    /// is refused until that tail runs, so the editor repaints late. The same
+    /// generation-checked resolution, and a no-op when nothing is pending.
+    async fn resolve_pending_token_dialect(&self, uri: &Uri) {
+        let pending_tcl = {
+            let docs = self.documents.lock("semantic_tokens_dialect").await;
+            docs.get(uri)
+                .is_some_and(|doc| doc.language_id == "tcl" && doc.dialect_resolution_pending())
+        };
+        if pending_tcl
+            && let Err(error) = self
+                .resolve_dirty_open_document_dialect(uri, "semantic_tokens_dialect")
+                .await
+        {
+            self.client
+                .log_message(MessageType::WARNING, error.to_string())
+                .await;
+        }
+    }
+
     async fn semantic_tokens_full_attempt(
         &self,
         uri: &Uri,
     ) -> jsonrpc::Result<ControlFlow<jsonrpc::Result<Option<SemanticTokensResult>>>> {
+        self.resolve_pending_token_dialect(uri).await;
         let Some(doc) = self.read_document_for_semantic_tokens(uri).await? else {
             return Ok(ControlFlow::Break(Ok(None)));
         };
@@ -33995,6 +34105,7 @@ impl Backend {
         uri: &Uri,
         params: &SemanticTokensDeltaParams,
     ) -> jsonrpc::Result<ControlFlow<jsonrpc::Result<Option<SemanticTokensFullDeltaResult>>>> {
+        self.resolve_pending_token_dialect(uri).await;
         let Some(doc) = self.read_document_for_semantic_tokens(uri).await? else {
             return Ok(ControlFlow::Break(Ok(None)));
         };
@@ -59627,6 +59738,53 @@ proc p {} {
         drop(queued);
     }
 
+    #[test]
+    fn a_cancelled_clone_unwinds_at_the_next_compiler_checkpoint() {
+        use tcl_compiler::analysis_control::{AnalysisCheckpoint, checkpoint};
+        let db = tcl_lsp_db::TclDatabase::default();
+        let reached = std::sync::atomic::AtomicBool::new(false);
+        assert_eq!(
+            cancellable_catch(&db, || !checkpoint(AnalysisCheckpoint::Command)).ok(),
+            Some(true),
+            "an uncancelled read completes and is not interrupted"
+        );
+        salsa::Database::cancellation_token(&db).cancel();
+        let read = cancellable_catch(&db, || {
+            let _ = checkpoint(AnalysisCheckpoint::Command);
+            reached.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+        assert!(matches!(read, Err(salsa::Cancelled::Local)));
+        assert!(
+            !reached.load(std::sync::atomic::Ordering::Relaxed),
+            "work after the checkpoint never runs"
+        );
+    }
+
+    #[test]
+    fn a_live_publication_cancels_outstanding_database_clones() {
+        let census = Arc::new(SnapshotCensus::default());
+        let db = tcl_lsp_db::TclDatabase::default();
+        let snapshot = census.track(db.clone(), "test-stale-reader");
+        let token = salsa::Database::cancellation_token(&*snapshot);
+        assert!(!token.is_cancelled(), "a fresh reader runs uncancelled");
+        let drain = census.begin_publication();
+        assert!(
+            token.is_cancelled(),
+            "a publication must stop the stale reader instead of waiting it out"
+        );
+        assert!(
+            census.try_track(db.clone(), "test-late-reader").is_err(),
+            "no new reader is admitted while the publication drains"
+        );
+        drop(snapshot);
+        drop(drain);
+        let late = census.track(db, "test-next-reader");
+        assert!(
+            !salsa::Database::cancellation_token(&*late).is_cancelled(),
+            "a reader admitted after the publication is not cancelled"
+        );
+    }
+
     /// The snapshot census must count what is live and retire what is not.
     ///
     /// This is the reading that names what a stalled turn is waiting for: salsa
@@ -59699,6 +59857,7 @@ proc p {} {
             census: Arc<SnapshotCensus>,
             saw_itself_registered: Arc<std::sync::atomic::AtomicBool>,
         }
+        impl SnapshotCancellation for DropProbe {}
 
         impl Drop for DropProbe {
             fn drop(&mut self) {

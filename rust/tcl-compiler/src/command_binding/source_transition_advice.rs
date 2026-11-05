@@ -3993,6 +3993,10 @@ impl OriginalSourceTransitionSeed {
         };
         advice_context.observe_publication_proposal(&graph);
         for invocation in plan.commands {
+            // A cooperative stop point only: a cancelled host read unwinds here.
+            crate::analysis_control::unwind_point(
+                crate::analysis_control::AnalysisCheckpoint::Body,
+            );
             if let AdviceNamingPolicy::Logical(input) = &policy
                 && self.baseline.metadata_context.source_analysis_input() == Some(input)
                 && self.baseline.logical_source_input.as_ref() == Some(input)

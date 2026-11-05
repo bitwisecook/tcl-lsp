@@ -342,12 +342,7 @@ impl SourceCommandBindings {
         frame: &crate::var_resolve::VariableExecutionFrame,
         namespace: Option<&super::SourceNamespaceKey>,
     ) -> bool {
-        let mut expected = crate::var_resolve::ResolveContext::default().in_frame(frame);
-        if expected.namespace_known
-            && let Some(namespace) = namespace
-        {
-            expected = expected.with_namespace_identity(namespace.clone());
-        }
+        let expected = expected_frame_ownership(frame, namespace);
         context.activation == expected.activation
             && context.frame_kind == expected.frame_kind
             && context.selected_frame == expected.selected_frame
@@ -1107,6 +1102,61 @@ mod original_body_frame_tests {
             &crate::var_resolve::VariableExecutionFrame::Global
         ));
     }
+}
+
+/// The ownership-relevant projection of a fresh context entered in a frame.
+/// Building the full [`crate::var_resolve::ResolveContext`] per comparison
+/// dominated declaration-layout selection, so the projection is memoised.
+struct FrameOwnership {
+    activation: Option<String>,
+    frame_kind: crate::var_resolve::VariableFrameKind,
+    selected_frame: Option<tcl_registry::FrameLevel>,
+    namespace_identity: Option<super::SourceNamespaceKey>,
+    namespace_known: bool,
+    namespace: String,
+}
+
+type FrameOwnershipKey = (
+    crate::var_resolve::VariableExecutionFrame,
+    Option<super::SourceNamespaceKey>,
+);
+
+fn expected_frame_ownership(
+    frame: &crate::var_resolve::VariableExecutionFrame,
+    namespace: Option<&super::SourceNamespaceKey>,
+) -> std::rc::Rc<FrameOwnership> {
+    const LIMIT: usize = 4096;
+    thread_local! {
+        static MEMO: std::cell::RefCell<
+            rustc_hash::FxHashMap<FrameOwnershipKey, std::rc::Rc<FrameOwnership>>,
+        > = std::cell::RefCell::default();
+    }
+    let key = (frame.clone(), namespace.cloned());
+    if let Some(hit) = MEMO.with(|memo| memo.borrow().get(&key).cloned()) {
+        return hit;
+    }
+    let mut expected = crate::var_resolve::ResolveContext::default().in_frame(frame);
+    if expected.namespace_known
+        && let Some(namespace) = namespace
+    {
+        expected = expected.with_namespace_identity(namespace.clone());
+    }
+    let projection = std::rc::Rc::new(FrameOwnership {
+        activation: expected.activation,
+        frame_kind: expected.frame_kind,
+        selected_frame: expected.selected_frame,
+        namespace_identity: expected.namespace_identity,
+        namespace_known: expected.namespace_known,
+        namespace: expected.namespace,
+    });
+    MEMO.with(|memo| {
+        let mut memo = memo.borrow_mut();
+        if memo.len() >= LIMIT {
+            memo.clear();
+        }
+        memo.insert(key, std::rc::Rc::clone(&projection));
+    });
+    projection
 }
 
 #[cfg(test)]

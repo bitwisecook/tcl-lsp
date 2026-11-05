@@ -899,16 +899,56 @@ impl Backend {
                 };
 
                 admission.check_for(uri, self.store.as_ref())?;
-                let driver = self
+                let sidecar_revision = self
+                    .fresh_analysis_cache
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .revision();
+                let mut driver = self
                     .fresh_analysis_driver(admission)
                     .await
                     .into_structure_only();
-                let text = Arc::clone(&snapshot.text);
-                let dialect = snapshot.dialect.clone();
-                let original_uri = uri.clone();
-                crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
-                    .await
-                    .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })??
+                // Every capture attempt of every coarse token request used to
+                // re-analyse the same text; key it exactly as the seed cache.
+                let key = super::fresh_analysis_cache::FreshAnalysisKey {
+                    text: Arc::clone(&snapshot.text),
+                    dialect: snapshot.dialect.clone(),
+                    path_admission: Arc::clone(&driver.path_admission),
+                    analyser_inputs_epoch: driver.analyser_inputs_epoch,
+                    class_factory_generation: driver.class_factory_generation,
+                    inputs: driver.inputs.clone(),
+                    resolved_input: driver
+                        .analyser
+                        .prepare_analysis_input(&snapshot.dialect)
+                        .ok(),
+                };
+                let cached = key.resolved_input.as_ref().and_then(|_| {
+                    self.fresh_analysis_cache
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .get_structure(uri, &key)
+                });
+                if let Some(seed) = cached {
+                    seed
+                } else {
+                    let text = Arc::clone(&snapshot.text);
+                    let dialect = snapshot.dialect.clone();
+                    let original_uri = uri.clone();
+                    let seed =
+                        crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
+                            .await
+                            .map_err(|_| super::DocumentSourceUnavailable::Worker {
+                                uri: original_uri,
+                            })??;
+                    let mut cache = self
+                        .fresh_analysis_cache
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if key.resolved_input.is_some() && cache.is_current(&sidecar_revision) {
+                        cache.insert_structure(uri, key, seed.clone());
+                    }
+                    seed
+                }
             }
         };
         let Some(input) = seed.analysis.resolved_input.clone().map(Arc::new) else {

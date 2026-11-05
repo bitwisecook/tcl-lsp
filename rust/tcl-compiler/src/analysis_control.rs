@@ -54,28 +54,47 @@ fn interruption() -> Option<AnalysisCheckpoint> {
             .find_map(|scope| scope.interrupted.get())
     })
 }
-pub(crate) fn checkpoint(at: AnalysisCheckpoint) -> bool {
+/// Probe every active scheduling owner at `at`; `true` once any owner has
+/// stopped the enclosing jobs. A probe may also unwind instead of answering.
+#[must_use]
+pub fn checkpoint(at: AnalysisCheckpoint) -> bool {
     if interruption().is_some() {
         return true;
     }
-    // An inner owned job cannot mask an active outer scheduling owner.
-    let active = ACTIVE.with(|active| active.borrow().clone());
-    for scope in &active {
+    // An inner owned job cannot mask an active outer scheduling owner. Scopes
+    // are read one at a time so a probe on the hot path never allocates.
+    let mut index = 0;
+    while let Some(scope) = ACTIVE.with(|active| active.borrow().get(index).cloned()) {
         if (scope.control.0)(at) {
             // No enclosing owned job may publish after a nested job stopped,
             // even when its caller chooses to ignore that nested Err.
-            for enclosing in &active {
-                enclosing.interrupted.set(Some(at));
-            }
+            ACTIVE.with(|active| {
+                for enclosing in active.borrow().iter() {
+                    enclosing.interrupted.set(Some(at));
+                }
+            });
             return true;
         }
+        index += 1;
     }
     false
+}
+/// A stop point inside work that cannot publish a partial result. Probes may
+/// unwind here (a host cancelling the whole job), but a `true` answer is
+/// deliberately ignored: nothing is marked interrupted, so the work completes
+/// exactly as it would have without this point.
+pub fn unwind_point(at: AnalysisCheckpoint) {
+    let mut index = 0;
+    while let Some(scope) = ACTIVE.with(|active| active.borrow().get(index).cloned()) {
+        let _ = (scope.control.0)(at);
+        index += 1;
+    }
 }
 pub(crate) fn interrupted() -> bool {
     interruption().is_some()
 }
-pub(crate) fn run<T>(
+/// Run `operation` under `control`; `Err` when any checkpoint stopped it.
+pub fn run<T>(
     control: AnalysisControl,
     operation: impl FnOnce() -> T,
 ) -> Result<T, AnalysisInterrupted> {
@@ -103,6 +122,24 @@ pub(crate) fn run<T>(
 mod tests {
     use super::*;
     use crate::analyser::Analyser;
+    #[test]
+    fn an_unwind_point_never_marks_the_job_interrupted() {
+        let probes = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let seen = std::sync::Arc::clone(&probes);
+        let job = run(
+            AnalysisControl::new(move |_| {
+                seen.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                true
+            }),
+            || {
+                unwind_point(AnalysisCheckpoint::Body);
+                interrupted()
+            },
+        );
+        assert_eq!(job, Ok(false), "a `true` probe answer is ignored here");
+        assert_eq!(probes.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
+
     #[test]
     fn ignoring_a_nested_only_interruption_cannot_complete_the_outer_job() {
         let outer = run(AnalysisControl::new(|_| false), || {

@@ -19,7 +19,11 @@ pub(super) struct DiagnosticReadCancellations(Arc<Mutex<ReadFailure>>);
 impl DiagnosticReadCancellations {
     pub(super) fn observe(&self, reason: &salsa::Cancelled) {
         let next = match reason {
-            salsa::Cancelled::PendingWrite => ReadFailure::PendingWriteOnly,
+            // `Local` is raised only when a live publication drains the
+            // snapshot census: like a pending write, the revision moved on.
+            salsa::Cancelled::PendingWrite | salsa::Cancelled::Local => {
+                ReadFailure::PendingWriteOnly
+            }
             _ => ReadFailure::Terminal,
         };
         if let Ok(mut state) = self.0.lock() {
@@ -73,7 +77,7 @@ mod tests {
     fn only_actual_pending_write_is_recoverable() {
         for (reason, pending) in [
             (salsa::Cancelled::PendingWrite, true),
-            (salsa::Cancelled::Local, false),
+            (salsa::Cancelled::Local, true),
             (salsa::Cancelled::PropagatedPanic, false),
         ] {
             let scope = DiagnosticReadCancellations::default();
@@ -91,7 +95,7 @@ mod tests {
 
     #[test]
     fn terminal_joined_producers_dominate_in_either_order_and_scopes_are_independent() {
-        for terminal_reason in [salsa::Cancelled::Local, salsa::Cancelled::PropagatedPanic] {
+        for terminal_reason in [salsa::Cancelled::PropagatedPanic] {
             for terminal_first in [false, true] {
                 let scope = DiagnosticReadCancellations::default();
                 if terminal_first {

@@ -33,6 +33,10 @@ const MAX_ENTRIES: usize = 512;
 /// unbounded amount of memory through their analyses.
 const MAX_SOURCE_BYTES: usize = 64 * 1024 * 1024;
 
+/// Structure-only analyses serve the coarse semantic-token tier of open
+/// documents, so a handful of slots is enough.
+const MAX_STRUCTURE_ENTRIES: usize = 32;
+
 /// The configured analyser inputs a [`super::FreshAnalysisDriver`] was built
 /// from, other than the epoch/generation stamps it also carries.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,6 +104,9 @@ pub(super) struct FreshAnalysisCache {
     order: VecDeque<Uri>,
     source_bytes: usize,
     revision: Arc<SidecarRevision>,
+    /// Structure-only analyses for the coarse token tier, which otherwise
+    /// re-analysed the same text for every capture attempt of every request.
+    structure: HashMap<Uri, Entry>,
 }
 
 impl FreshAnalysisCache {
@@ -134,6 +141,33 @@ impl FreshAnalysisCache {
                 self.source_bytes -= entry.key.text.len();
             }
         }
+    }
+
+    /// The cached structure-only analysis of `uri` for exactly `key`.
+    pub(super) fn get_structure(
+        &self,
+        uri: &Uri,
+        key: &FreshAnalysisKey,
+    ) -> Option<FreshAnalysisSeed> {
+        let entry = self.structure.get(uri)?;
+        (entry.key == *key).then(|| entry.seed.clone())
+    }
+
+    /// Record `seed` as `uri`'s structure-only analysis for `key`.
+    pub(super) fn insert_structure(
+        &mut self,
+        uri: &Uri,
+        key: FreshAnalysisKey,
+        seed: FreshAnalysisSeed,
+    ) {
+        if key.text.len() > MAX_SOURCE_BYTES {
+            self.structure.remove(uri);
+            return;
+        }
+        if self.structure.len() >= MAX_STRUCTURE_ENTRIES && !self.structure.contains_key(uri) {
+            self.structure.clear();
+        }
+        self.structure.insert(uri.clone(), Entry { key, seed });
     }
 
     /// Drop `uri`'s entry, if any.
@@ -183,6 +217,7 @@ impl FreshAnalysisCache {
         self.entries.clear();
         self.order.clear();
         self.source_bytes = 0;
+        self.structure.clear();
     }
 
     fn touch(&mut self, uri: &Uri) {
