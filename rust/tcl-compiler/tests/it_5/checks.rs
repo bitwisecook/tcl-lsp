@@ -3795,6 +3795,12 @@ mod declared_package_require {
     }
 
     #[test]
+    fn the_required_packages_own_commands_resolve() {
+        assert!(fires("package require http\nhttp::geturl\n", D, "E002"));
+        assert!(!fires("package require http\nhttp::geturl\n", D, "W120"));
+    }
+
+    #[test]
     fn requiring_an_undeclared_package_stays_an_unknown_loader() {
         let found = codes(
             &format!("package require no_such_package_anywhere\n{BODY}"),

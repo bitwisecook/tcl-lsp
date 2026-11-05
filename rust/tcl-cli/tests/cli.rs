@@ -156,7 +156,7 @@ fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
     let args = [
         "diag",
         "--source",
-        "::tcl_lsp_fixture::collect output",
+        "package require tcl_lsp_fixture\n::tcl_lsp_fixture::collect output",
         "--json",
     ];
 
@@ -174,7 +174,7 @@ fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
         .iter()
         .filter_map(|diagnostic| diagnostic["code"].as_str())
         .collect();
-    assert_eq!(codes, ["E002", "W120"]);
+    assert_eq!(codes, ["E002"]);
 
     let without_pack = tcl()
         .current_dir(project.join("lib"))
@@ -190,7 +190,7 @@ fn diag_analysis_changes_when_the_current_projects_spec_pack_is_present() {
 #[test]
 fn analyser_only_verbs_install_the_current_projects_spec_pack_overlay() {
     let project = spec_pack_project();
-    let source = "::tcl_lsp_fixture::collect output { proc nested {} { expr $input + 1 } }";
+    let source = "package require tcl_lsp_fixture\n::tcl_lsp_fixture::collect output { proc nested {} { expr $input + 1 } }";
 
     let symbols = run_tcl_in(&project, &["symbols", "--source", source, "--json"]);
     assert!(symbols.status.success());
@@ -233,7 +233,8 @@ fn analyser_only_verbs_install_the_current_projects_spec_pack_overlay() {
 #[test]
 fn explore_uses_the_current_projects_active_spec_pack_registry() {
     let project = spec_pack_project();
-    let source = "::tcl_lsp_fixture::collect output { set value 1 }";
+    let source =
+        "package require tcl_lsp_fixture\n::tcl_lsp_fixture::collect output { set value 1 }";
     let args = ["explore", "--source", source, "--json"];
 
     let with_pack = run_tcl_in(&project, &args);
@@ -241,11 +242,11 @@ fn explore_uses_the_current_projects_active_spec_pack_registry() {
     let with_pack: serde_json::Value =
         serde_json::from_slice(&with_pack.stdout).expect("explore JSON with pack");
     assert_eq!(
-        with_pack["semantic"][0]["invocations"][0]["resolution"],
+        with_pack["semantic"][0]["invocations"][1]["resolution"],
         "resolved"
     );
     assert_eq!(
-        with_pack["worldSsa"][0]["invocations"][0]["command"],
+        with_pack["worldSsa"][0]["invocations"][1]["command"],
         "::tcl_lsp_fixture::collect"
     );
 
@@ -254,8 +255,8 @@ fn explore_uses_the_current_projects_active_spec_pack_registry() {
     let without_pack: serde_json::Value =
         serde_json::from_slice(&without_pack.stdout).expect("explore JSON without pack");
     assert_eq!(
-        without_pack["semantic"][0]["invocations"][0]["resolution"],
-        "unresolved-unknown-literal-head"
+        without_pack["semantic"][0]["invocations"][1]["resolution"],
+        "unresolved-unproved-binding"
     );
 }
 
@@ -265,7 +266,7 @@ fn cli_publishes_project_pack_hooks() {
     let args = [
         "opt",
         "--source",
-        "set length [::tcl_lsp_fixture::strlen abcde]",
+        "package require tcl_lsp_fixture\nset length [::tcl_lsp_fixture::strlen abcde]",
     ];
 
     let with_pack = run_tcl_in(&project, &args);

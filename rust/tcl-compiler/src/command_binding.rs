@@ -15712,6 +15712,20 @@ impl ModuleCommandBindings {
         })
     }
 
+    /// The implementation that alone provides `package`, when it is present.
+    fn provided_implementation(&self, package: &str) -> Option<&str> {
+        if self.opaque_domain {
+            return None;
+        }
+        let [provision] = self.packages.get(package)?.iter().collect::<Vec<_>>()[..] else {
+            return None;
+        };
+        provision
+            .present
+            .then_some(provision.implementation.as_deref())
+            .flatten()
+    }
+
     fn loaded_provider(&self, package: &str) -> Option<&TrustedPackageLoader> {
         if self.opaque_domain {
             return None;
@@ -20953,6 +20967,10 @@ fn declared_surface_loader(
     package: &str,
 ) -> Option<TrustedPackageLoader> {
     let baseline = &state.baseline;
+    let family = baseline
+        .dialect
+        .and_then(tcl_registry::InvocationDialect::family)
+        .filter(|family| *family == tcl_dialect::model::Family::Tcl)?;
     if baseline.native_entry.is_some()
         || baseline.unknown_entry
         || baseline.source_point_entry.is_some()
@@ -20967,7 +20985,23 @@ fn declared_surface_loader(
         return None;
     }
     let policy = state.original_command_world.selected_policy()?;
-    crate::lowering::declared_surface_package_loader(registry, package, policy)
+    let mut loader = crate::lowering::declared_surface_package_loader(registry, package, policy)?;
+    loader.required_core_family = Some(family);
+    Some(loader)
+}
+
+/// The trusted loader a `package require` of `package` selects: a supplied
+/// one, else one the registry declares.
+fn trusted_package_loader(
+    state: &ModuleCommandBindings,
+    package: &str,
+) -> Option<TrustedPackageLoader> {
+    state
+        .baseline
+        .trusted_loaders
+        .get(package)
+        .cloned()
+        .or_else(|| declared_surface_loader(state, package))
 }
 
 fn apply_package_transition(
@@ -21005,12 +21039,7 @@ fn apply_package_transition(
                 state.mark_opaque_binding_mutation();
                 return;
             }
-            let loader = state
-                .baseline
-                .trusted_loaders
-                .get(package)
-                .cloned()
-                .or_else(|| declared_surface_loader(state, package));
+            let loader = trusted_package_loader(state, package);
             let selected = loader
                 .filter(|loader| trusted_loader_is_selected(state, loader, requirements, *exact));
             let Some(loader) = selected else {

@@ -71,7 +71,7 @@ impl OriginalTrustedPackageTransfer {
             return None;
         };
         let package = package.literal()?;
-        let loader = state.baseline.trusted_loaders.get(package)?;
+        let loader = &super::trusted_package_loader(state, package)?;
         if loader.required_core_family != Some(tcl_dialect::model::Family::Tcl)
             || state
                 .packages
@@ -83,7 +83,7 @@ impl OriginalTrustedPackageTransfer {
         }
         let mut selected = super::boxed_source_branch(state);
         super::apply_package_transition(&mut selected, transition);
-        if selected.loaded_provider(package) != Some(loader)
+        if selected.provided_implementation(package) != Some(loader.implementation_id.as_str())
             || !selected.provider_surface_is_live(loader)
             || selected.has_opaque_domain()
         {
