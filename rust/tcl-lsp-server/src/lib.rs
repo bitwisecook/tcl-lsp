@@ -1582,6 +1582,10 @@ impl tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts {
 /// diagnostics still feel immediate after typing stops.
 const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
 
+/// How long an edit waits before seeding a not-yet-indexed document's
+/// workspace view, so a burst of keystrokes runs one seed analysis.
+const INDEX_SEED_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(100);
+
 /// How many times [`Backend::schedule_diagnostics_impl`] may re-read
 /// `diag_inputs` when the configuration moves while it is being read.
 ///
@@ -13182,6 +13186,35 @@ impl Backend {
 
     /// Restore the index slot removed by a cold open when an edit supersedes
     /// that open's seed. Ordinary edits retain their preceding index view.
+    /// Drive `work` while `uri` still satisfies `current`; `None` once a newer
+    /// publication (or close) leaves it behind, dropping the unfinished work.
+    async fn until_document_superseded<T>(
+        &self,
+        uri: &Uri,
+        mut work: std::pin::Pin<&mut impl Future<Output = T>>,
+        current: impl Fn(&DocumentState) -> bool,
+    ) -> Option<T> {
+        loop {
+            let advanced = self.live_publication_advanced.notified();
+            tokio::pin!(advanced);
+            advanced.as_mut().enable();
+            if !self
+                .documents
+                .lock("index_seed_currency")
+                .await
+                .get(uri)
+                .is_some_and(&current)
+            {
+                return None;
+            }
+            tokio::select! {
+                biased;
+                value = work.as_mut() => return Some(value),
+                () = advanced => {}
+            }
+        }
+    }
+
     async fn restore_missing_live_index(
         &self,
         uri: &Uri,
@@ -13205,9 +13238,24 @@ impl Backend {
                 return Ok(true);
             }
         }
-        let seed = self
-            .fresh_analysis_seed(uri, Arc::clone(text), dialect.to_owned())
-            .await?;
+        // Each keystroke before the first seed lands would otherwise start
+        // its own whole-document analysis, every one obsolete as soon as the
+        // next edit arrives. Settle briefly, and drop a seed a newer edit
+        // has superseded rather than finish (or retry) it.
+        let seed = std::pin::pin!(async {
+            crate::rt::sleep(INDEX_SEED_DEBOUNCE).await;
+            self.fresh_analysis_seed(uri, Arc::clone(text), dialect.to_owned())
+                .await
+        });
+        let Some(seed) = self
+            .until_document_superseded(uri, seed, |doc| {
+                doc.matches_live_source_publication(text, dialect, revision)
+            })
+            .await
+        else {
+            return Ok(false);
+        };
+        let seed = seed?;
         self.publish_live_index_if_current(uri, text, dialect, revision, seed)
             .await
     }
@@ -13397,7 +13445,18 @@ impl Backend {
         // future owns no Salsa snapshot and runs after the publication gate is
         // released, so a newer edit can publish and make this seed obsolete.
         // The diagnostics worker may later replace it with its refined view.
-        let seed = seed.await?;
+        // A newer edit makes this seed obsolete before it can publish; stop
+        // waiting on (and retrying) its whole-document analysis then.
+        let seed = std::pin::pin!(seed);
+        let Some(seed) = self
+            .until_document_superseded(uri, seed, |doc| {
+                doc.matches_open_publication(text, dialect, version)
+            })
+            .await
+        else {
+            return Ok(false);
+        };
+        let seed = seed?;
         self.publish_open_index_if_current(uri, text, dialect, version, seed)
             .await
     }

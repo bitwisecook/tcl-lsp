@@ -2438,6 +2438,167 @@ impl PartialEq for HierarchyCache {
     }
 }
 
+/// The whole-result inputs a parentless `source_registry_words` answer reads.
+#[derive(Debug, Clone, PartialEq)]
+struct SourceWordsStamp {
+    realm: usize,
+    input: Option<super::ResolvedAnalysisInput>,
+    config: Option<tcl_lexer::LexerConfig>,
+    context_unavailable: bool,
+}
+
+/// The per-command inventory rows the same answer reads: the conditional
+/// metadata at the command head and the scoped bodies covering it.
+#[derive(Debug, Clone, PartialEq)]
+struct SourceWordsRowInputs {
+    metadata: HeadMetadataRow,
+    scoped_bodies: usize,
+}
+
+/// The conditional-metadata row at a command head, or its absence.
+#[derive(Debug, Clone, PartialEq)]
+enum HeadMetadataRow {
+    Absent,
+    Recorded(Option<Box<crate::registry_invocation::OriginalConditionalRegistryMetadata>>),
+}
+
+type SourceWordsRows = Vec<(
+    crate::segmenter::SegmentedCommand,
+    SourceWordsRowInputs,
+    Option<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+)>;
+
+type SourceWordsTable = rustc_hash::FxHashMap<(u32, u32), SourceWordsRows>;
+
+/// Equality-transparent memo of parentless original registry words.
+///
+/// The analyser asks for the same command's words up to ~15 times per walk
+/// (1.9k calls over 230 commands for a 650-line file). A row is reused only
+/// while the realm, input and configuration are unchanged and the command's
+/// own head metadata and covering scoped bodies are as they were. Vendor-name
+/// documents are not memoised. In-place inventory updates clear the memo, and
+/// it is emptied when an analysis completes, so a retained result holds no
+/// rows until a later provider query asks again.
+#[derive(Debug, Default)]
+pub struct SourceWordsMemo(std::sync::Mutex<Option<(SourceWordsStamp, SourceWordsTable)>>);
+
+/// A memoised answer, which may itself be "no words".
+pub(crate) struct MemoisedSourceWords(
+    pub(crate) Option<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+);
+
+impl Clone for SourceWordsMemo {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for SourceWordsMemo {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl SourceWordsMemo {
+    const LIMIT: usize = 4096;
+
+    pub(crate) fn clear(&mut self) {
+        *self
+            .0
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
+}
+
+impl AnalysisResult {
+    fn source_words_stamp(&self) -> Option<SourceWordsStamp> {
+        self.original_vendor_source_names
+            .is_empty()
+            .then(|| SourceWordsStamp {
+                realm: self
+                    .command_realm
+                    .as_ref()
+                    .map_or(0, |realm| std::sync::Arc::as_ptr(realm) as usize),
+                input: self.resolved_input.clone(),
+                config: self.body_lexer_config,
+                context_unavailable: self.analysis_context_unavailable.is_some(),
+            })
+    }
+
+    fn source_words_row_inputs(
+        &self,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) -> SourceWordsRowInputs {
+        let head = segment.argv.first().map(|word| word.span.start());
+        SourceWordsRowInputs {
+            metadata: head
+                .and_then(|head| self.original_conditional_registry_metadata.get(&head))
+                .map_or(HeadMetadataRow::Absent, |row| {
+                    HeadMetadataRow::Recorded(row.clone().map(Box::new))
+                }),
+            scoped_bodies: head.map_or(0, |head| {
+                self.original_scoped_bodies
+                    .iter()
+                    .filter(|body| {
+                        let span = body.content_span();
+                        span.start() <= head && head < span.end()
+                    })
+                    .count()
+            }),
+        }
+    }
+
+    /// The memoised words of `segment` under the current inputs, if any.
+    pub(crate) fn memoised_source_words(
+        &self,
+        segment: &crate::segmenter::SegmentedCommand,
+    ) -> Option<MemoisedSourceWords> {
+        let stamp = self.source_words_stamp()?;
+        let memo = self
+            .source_words_memo
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (retained, rows) = memo.as_ref()?;
+        if *retained != stamp {
+            return None;
+        }
+        let candidates = rows.get(&(segment.span.start(), segment.span.end()))?;
+        let inputs = self.source_words_row_inputs(segment);
+        candidates
+            .iter()
+            .find(|(command, row, _)| command == segment && *row == inputs)
+            .map(|(_, _, words)| MemoisedSourceWords(words.clone()))
+    }
+
+    pub(crate) fn memoise_source_words(
+        &self,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: Option<&crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    ) {
+        let Some(stamp) = self.source_words_stamp() else {
+            return;
+        };
+        let inputs = self.source_words_row_inputs(segment);
+        let mut memo = self
+            .source_words_memo
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (retained, rows) =
+            memo.get_or_insert_with(|| (stamp.clone(), SourceWordsTable::default()));
+        if *retained != stamp || rows.len() >= SourceWordsMemo::LIMIT {
+            *retained = stamp;
+            rows.clear();
+        }
+        let candidates = rows
+            .entry((segment.span.start(), segment.span.end()))
+            .or_default();
+        candidates.retain(|(command, _, _)| command != segment);
+        candidates.push((segment.clone(), inputs, words.cloned()));
+    }
+}
+
 /// A lexical region whose body runs in a scoped command environment.
 ///
 /// Recorded by the analyser when it recurses into the
@@ -2957,6 +3118,8 @@ pub struct AnalysisResult {
     /// `pub` only preserves functional-update construction
     /// (`..Default::default()`); it can't be populated from outside.
     pub hierarchy_cache: HierarchyCache,
+    /// Parentless original registry words memo; see [`SourceWordsMemo`].
+    pub(crate) source_words_memo: SourceWordsMemo,
     /// The dialect this document was analysed under (`"tcl9.0"`,
     /// `"tcl8.6"`, `"f5-irules"`, …) — whatever string the caller passed to
     /// [`super::Analyser::analyse`].  Carried on the result so downstream
@@ -3079,6 +3242,7 @@ impl PartialEq for AnalysisResult {
             original_conditional_registry_metadata,
             scoped_sibling_defs,
             hierarchy_cache,
+            source_words_memo,
             dialect,
             body_lexer_config,
             library_versions
@@ -3183,6 +3347,7 @@ macro_rules! analysis_result_mismatch_fields {
                 original_conditional_registry_metadata,
                 scoped_sibling_defs,
                 hierarchy_cache,
+                source_words_memo,
                 dialect,
                 body_lexer_config,
                 library_versions,

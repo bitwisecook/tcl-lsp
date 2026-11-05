@@ -1440,6 +1440,7 @@ impl Analyser {
                                 .as_ref()
                                 .and_then(|existing| existing.merge_source_origin(&occurrence));
                             entry.insert(combined);
+                            self.result.source_words_memo.clear();
                         }
                     }
                 }
@@ -4201,6 +4202,7 @@ impl Analyser {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
                     if entry.get() != &metadata {
                         entry.insert(None);
+                        self.result.source_words_memo.clear();
                     }
                 }
             }

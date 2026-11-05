@@ -202,6 +202,7 @@ fn check_exhaustive_report_fields(a: &AnalysisResult) {
         original_conditional_registry_metadata: _,
         scoped_sibling_defs: _,
         hierarchy_cache: _,
+        source_words_memo: _,
         dialect: _,
         body_lexer_config: _,
         library_versions: _,
@@ -342,6 +343,7 @@ fn report_owners_are_exact(a: &AnalysisResult, b: &AnalysisResult) -> bool {
         original_conditional_registry_metadata,
         scoped_sibling_defs,
         hierarchy_cache,
+        source_words_memo,
     );
     true
 }

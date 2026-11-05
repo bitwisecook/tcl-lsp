@@ -7699,7 +7699,21 @@ impl Lowerer<'_> {
     /// trace and callback-write facts deliberately have this one owner so
     /// compiling a runtime procedure target cannot drift from ordinary module
     /// lowering.
-    pub(crate) fn finish_module(mut self, source: &str) -> Module {
+    pub(crate) fn finish_module(self, source: &str) -> Module {
+        self.finish_module_with(source, true)
+    }
+
+    /// The module a command-mutation scan reads: everything
+    /// [`Self::finish_module`] retains except trace and deferred-write
+    /// observer facts, which no command-binding analysis consults. Each of
+    /// those scans re-walks every retained body (one prepares a whole-source
+    /// callback tape), so the analyser's constant-folding trust oracle skips
+    /// them.
+    pub(crate) fn finish_module_for_command_trust(self, source: &str) -> Module {
+        self.finish_module_with(source, false)
+    }
+
+    fn finish_module_with(mut self, source: &str, observer_facts: bool) -> Module {
         source.clone_into(&mut self.source);
         self.module.source =
             tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
@@ -7734,8 +7748,10 @@ impl Lowerer<'_> {
                     self.supplied_source.as_ref(),
                 )
             });
-        populate_trace_facts(&mut module, registry, standalone_metadata);
-        module.deferred_writes = crate::deferred_writes::scan_module(&module, registry);
+        if observer_facts {
+            populate_trace_facts(&mut module, registry, standalone_metadata);
+            module.deferred_writes = crate::deferred_writes::scan_module(&module, registry);
+        }
         module
     }
 }

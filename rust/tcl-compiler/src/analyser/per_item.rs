@@ -453,7 +453,8 @@ impl Analyser {
         }
 
         self.took_fast_path = true;
-        let result = std::mem::take(&mut self.result);
+        let mut result = std::mem::take(&mut self.result);
+        result.source_words_memo.clear();
         self.clear_run_state();
         result
     }
@@ -1128,6 +1129,8 @@ impl Analyser {
         self.result
             .original_symbol_metadata
             .extend(std::mem::take(&mut r.original_symbol_metadata));
+        // The merges below can update inventory rows in place.
+        self.result.source_words_memo.clear();
         self.result
             .original_scoped_bodies
             .extend(std::mem::take(&mut r.original_scoped_bodies));
@@ -2454,6 +2457,7 @@ fn clear_fragment_original_producers(r: &mut AnalysisResult) {
     for state in r.object_member_state.values_mut().flatten() {
         state.logical_source_members = None;
     }
+    r.source_words_memo.clear();
     r.original_vendor_source_names.clear();
     r.original_vendor_procedure_metadata.clear();
     r.original_vendor_class_metadata.clear();

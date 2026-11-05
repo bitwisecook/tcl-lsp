@@ -2507,10 +2507,34 @@ fn source_registry_words_with_definition_parent(
         matches_image,
     );
     matches_image.then_some(())?;
+    // The image check above proves `source` is the analysed document, so a
+    // parentless answer is a function of the segment and the stamped inputs.
+    if parent.is_none() {
+        if let Some(memoised) = analysis.memoised_source_words(segment) {
+            return memoised.0;
+        }
+        let words = source_registry_words_from_image(
+            source, analysis, segment, None, &image, config, realm,
+        );
+        analysis.memoise_source_words(segment, words.as_ref());
+        return words;
+    }
+    source_registry_words_from_image(source, analysis, segment, parent, &image, config, realm)
+}
+
+fn source_registry_words_from_image(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    parent: Option<&super::source_scoped_body::OriginalSourceScriptBody>,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    realm: &crate::realm::CommandBindingRealm,
+) -> Option<OriginalRegistryWords> {
     let registry = analysis.resolved_registry()?;
     let input = analysis.resolved_input.as_ref()?;
     let mut tokens = crate::ir::CommandTokens::from_segmented(
-        &tcl_lexer::SourceMap::from_image(&image),
+        &tcl_lexer::SourceMap::from_image(image),
         config,
         segment,
     );
@@ -2558,13 +2582,13 @@ fn source_registry_words_with_definition_parent(
     }
     let offset = segment.argv.first()?.span.start();
     if analysis.has_original_vendor_source_names() {
-        return source_vendor_registry_words(source, analysis, segment, &image, config, offset);
+        return source_vendor_registry_words(source, analysis, segment, image, config, offset);
     }
     source_native_registry_words(
         source,
         analysis,
         segment,
-        (&image, config, offset),
+        (image, config, offset),
         realm,
         input,
         &tokens,

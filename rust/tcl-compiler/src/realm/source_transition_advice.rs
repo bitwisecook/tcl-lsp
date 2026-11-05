@@ -157,13 +157,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         crate::command_binding::OriginalSourceTransitionAdviceTape::decoded_lambda_formatting_phase(
             prepared.as_ref().as_ref()?,
             word,
@@ -186,13 +180,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         prepared
             .as_ref()
             .as_ref()?
@@ -252,13 +240,7 @@ impl super::CommandBindingRealm {
             }
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         if let Some(tape) = prepared.as_ref().as_ref() {
             result.extend(tape.logical_lambda_formal_occurrences(input, image));
         }
@@ -279,13 +261,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         prepared
             .as_ref()
             .as_ref()?
@@ -1349,13 +1325,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         OriginalSourceTransitionAdviceTape::logical_math_at(
             prepared.as_ref().as_ref()?,
             input,
@@ -1377,13 +1347,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         Some(
             prepared
                 .as_ref()
@@ -1440,13 +1404,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         OriginalSourceTransitionAdviceTape::logical_procedure_call_at(
             prepared.as_ref().as_ref()?,
             input,
@@ -1469,13 +1427,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         prepared
             .as_ref()
             .as_ref()?
@@ -1497,13 +1449,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         Some(
             prepared
                 .as_ref()
@@ -1528,13 +1474,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         prepared
             .as_ref()
             .as_ref()?
@@ -1557,13 +1497,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         prepared
             .as_ref()
             .as_ref()?
@@ -1585,13 +1519,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         Some(
             prepared
                 .as_ref()
@@ -1614,13 +1542,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         Some(
             prepared
                 .as_ref()
@@ -1644,13 +1566,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         Some(prepared.as_ref().as_ref()?.logical_procedure_body_cards())
     }
 
@@ -1669,13 +1585,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         prepared
             .as_ref()
             .as_ref()?
@@ -1698,13 +1608,7 @@ impl super::CommandBindingRealm {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         prepared.as_ref().as_ref()?.logical_original_word_at_span(
             self.bindings.source_origin()?,
             input,
@@ -1725,13 +1629,7 @@ impl super::CommandBindingRealm {
         self.matches_original_source_image(image, config)
             .then_some(())?;
         let context = input.borrowed_context_registry();
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         let tape = prepared.as_ref().as_ref()?;
         if tape.blocks_registry_source(offset) {
             return None;
@@ -1815,13 +1713,7 @@ impl super::CommandBindingRealm {
             offset,
             config,
         )?;
-        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
+        let prepared = self.prepared_prefix_tape(context);
         let tape = prepared.as_ref().as_ref()?;
         if tape.blocks_registry_source(offset) {
             return None;
@@ -1840,6 +1732,37 @@ impl super::CommandBindingRealm {
         }
         crate::command_binding::source_targets_match_advice(context, binding, advice)
             .then(|| advice.clone())
+    }
+
+    fn prepared_tape_for(
+        &self,
+        context: &ContextRegistry,
+        purpose: crate::command_binding::OriginalSourceCataloguePurpose,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        self.source_advice
+            .get_or_prepare_shared_for(context, purpose, || {
+                self.bindings
+                    .original_source_transition_advice_tape_for_shared(context, purpose)
+            })
+    }
+
+    /// The complete-prefix tape. A complete-program tape exists only when the
+    /// whole image has no fatal tail and no conditional region, and then the
+    /// prefix tape is the identical computation, so it is reused rather than
+    /// preparing the whole source a second time.
+    fn prepared_prefix_tape(
+        &self,
+        context: &ContextRegistry,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        use crate::command_binding::OriginalSourceCataloguePurpose::{
+            CompletePrefix, CompleteProgram,
+        };
+        let program = self.prepared_tape_for(context, CompleteProgram);
+        if program.is_some() {
+            program
+        } else {
+            self.prepared_tape_for(context, CompletePrefix)
+        }
     }
 
     fn original_catalogue_advice(
@@ -1868,17 +1791,14 @@ impl super::CommandBindingRealm {
             offset,
             config,
         )?;
-        let purpose = if member {
-            crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram
+        let prepared = if member {
+            self.prepared_tape_for(
+                context,
+                crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram,
+            )
         } else {
-            crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix
+            self.prepared_prefix_tape(context)
         };
-        let prepared = self
-            .source_advice
-            .get_or_prepare_shared_for(context, purpose, || {
-                self.bindings
-                    .original_source_transition_advice_tape_for_shared(context, purpose)
-            });
         let tape = prepared.as_ref().as_ref()?;
         if tape.blocks_registry_source(offset) {
             return None;

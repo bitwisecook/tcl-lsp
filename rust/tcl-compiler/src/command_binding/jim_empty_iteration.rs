@@ -33,11 +33,13 @@ pub(super) fn transfer(
         || !state.command_observers.is_quiet()
         || state.source_variables.dynamic_traces
         || !state.source_variables.traced.is_empty()
-        || !state.source_variables.possible_trace_registrations.is_empty()
         || !state
-            .ordinary_literal_pool
-            .as_ref()
-            .is_some_and(super::literal_object_pool::SourceOrdinaryLiteralPool::text_effects_current)
+            .source_variables
+            .possible_trace_registrations
+            .is_empty()
+        || !state.ordinary_literal_pool.as_ref().is_some_and(
+            super::literal_object_pool::SourceOrdinaryLiteralPool::text_effects_current,
+        )
         || !native.target.registry_backed
         || native.target.kind != super::BindingKind::Builtin
         || native.target.implementation_generation != 0

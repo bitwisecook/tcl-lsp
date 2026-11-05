@@ -2604,7 +2604,8 @@ impl Analyser {
             return AnalysisResult::default();
         }
 
-        let result = std::mem::take(&mut self.result);
+        let mut result = std::mem::take(&mut self.result);
+        result.source_words_memo.clear();
         self.clear_run_state();
         Self::trace_analysis_phase(phase_start, source.len(), "complete");
         result
@@ -3107,7 +3108,8 @@ impl Analyser {
         self.retain_original_callback_signature_lookups(source);
         self.run_diagnostic_emitters(source);
 
-        let result = std::mem::take(&mut self.result);
+        let mut result = std::mem::take(&mut self.result);
+        result.source_words_memo.clear();
         self.clear_run_state();
         (result, snapshots)
     }
@@ -3218,7 +3220,8 @@ impl Analyser {
             self.run_diagnostic_emitters(source);
         }
 
-        let result = std::mem::take(&mut self.result);
+        let mut result = std::mem::take(&mut self.result);
+        result.source_words_memo.clear();
         self.clear_run_state();
         result
     }
@@ -3911,7 +3914,8 @@ impl Analyser {
         if let Some(entry) = &self.source_analysis_entry {
             lowerer.set_source_analysis_options(entry.options());
         }
-        let module = crate::lowering::lower_to_ir_with(lowerer, &self.source);
+        lowerer.lower(&self.source);
+        let module = lowerer.finish_module_for_command_trust(&self.source);
         let trust = std::sync::Arc::new(crate::command_binding::scan_module_command_mutations(
             &module, registry,
         ));
