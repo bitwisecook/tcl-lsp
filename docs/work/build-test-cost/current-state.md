@@ -12,7 +12,7 @@ for access).
 |---|---|---|---|
 | 1 | Long-tail tests driven by `tcl` CLI start-up | **Landed**: reused CLI workers for `rust/tcl-cli/tests` | `rust/tcl-cli-support/src/{worker,sink}.rs`, test-tiers contract rule 9 |
 | 2 | `rust-check` is one serial 16-minute job | **Landed, awaiting first CI run**: `cargo xtask batch`/`make xtask-gates`; `rust-check` split into `lint` and `drift` matrix legs | `rust/xtask/src/main.rs`, `Makefile`, `.github/workflows/ci.yml`, `scripts/dev/test-pr-gate-path.sh` |
-| 3 | Repository weight on `work` | Not started; deleting tracked evidence needs the owner's decision | |
+| 3 | Repository weight on `work` | **Landed**: the evidence prune (`8ab317a`) took the tree from 10.7 GB to 0.34 GB; `make check-tracked-size` in `xtask-check` keeps it there | `scripts/dev/check-tracked-size.py`, `scripts/dev/test_tracked_size.py` |
 | 4 | Monolithic crates compiled twice | Not started | |
 | 5 | Hundreds of fat test binaries | Not started | |
 | 6 | Broken and racing CI caches | Not started (item 2 gives each `rust-check` leg its own cache key) | |
@@ -106,3 +106,23 @@ Open:
   `tcl-runtime`/`xtask` rebuild loop (`Compiling tcl-runtime` should appear
   once per leg) and record both legs' durations.
 - `kcs-index-links` is now the drift leg's long pole; see item 3.
+
+## 3. Repository weight
+
+The evidence prune on `work` (`8ab317a`, a separate workstream) took the
+tracked tree from 10.7 GB in 127,281 files to 0.34 GB in 39,003, and
+`docs/**/*.md` from 3,472 files to 1,847 (`kcs-index-links` read all of them).
+
+`make check-tracked-size`, part of `xtask-check` and so of CI's `rust-check
+(drift)` leg, fails when a tracked file exceeds 10 MiB or the tracked tree
+exceeds 1 GiB. A file a build or test reads may be listed in
+`scripts/dev/tracked-size-allowlist.txt`; an entry that no longer names an
+oversized file fails too. The largest tracked file today is 8.8 MiB
+(`rust/tcl-compiler/tests/data/native_brace_expression/named-row-audit.json`).
+
+Open:
+
+- History still carries the old blobs: a full clone, or a shallow clone of an
+  old commit, downloads them. Only a history rewrite removes them; that is the
+  owner's call.
+- Re-time `kcs-index-links` after the prune (243 s against the old tree).

@@ -207,7 +207,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check rust-check-lint rust-check-drift check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-gates xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-bundled-manifests xtask-gen-equivalence-packs xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
+.PHONY: xtask-check xtask-gates check-tracked-size xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-bundled-manifests xtask-gen-equivalence-packs xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-object-recipe-gate xtask-pack-goldens xtask-number-drift xtask-value-transfers xtask-registry-axes xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
@@ -946,7 +946,7 @@ xtask-gates: ## Run every single-command xtask drift gate in one process
 	@echo "==> Running 35 xtask drift gates in one process (cargo xtask batch)"
 	cd $(ROOT) && cargo xtask batch $(XTASK_GATES)
 
-xtask-check: check-tcl-evidence check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-gates xtask-sslictcl-data xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tracked-size check-tcl-evidence check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-gates xtask-sslictcl-data xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -1056,6 +1056,10 @@ xtask-gen-environment-docs: ## Verify the README dialect tables, docs/generated/
 	cd $(ROOT) && cargo xtask gen-environment-docs --check
 
 .PHONY: check-tcl-evidence check-name-resolution-proofs
+check-tracked-size: ## Hold tracked files to the size budget (10 MiB each, 1 GiB total; scripts/dev/tracked-size-allowlist.txt)
+	cd $(ROOT) && python3 scripts/dev/check-tracked-size.py
+	cd $(ROOT) && python3 -m unittest discover -s scripts/dev -p 'test_tracked_size*.py'
+
 check-tcl-evidence: ## Validate standalone Tcl execution evidence and byte-exact notation
 	cd $(ROOT) && python3 scripts/dev/check-tcl-evidence.py
 	cd $(ROOT) && python3 -m unittest discover -s scripts/dev -p 'test_tcl_evidence*.py'
