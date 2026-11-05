@@ -50,8 +50,7 @@ impl OriginalNativeCompilerFormals {
         entry: Arc<NativeCompilationEntry>,
         config: tcl_lexer::LexerConfig,
     ) -> Option<Arc<Self>> {
-        let options =
-            crate::compile_service::BytecodeCompileService::native_entry_options(&entry, None);
+        let options = crate::command_binding::native_entry_options(&entry);
         let protocol = entry.compiled_variable_protocol?;
         if !request.matches_entry(&entry)
             || request.target().source != request.original_source()
@@ -126,7 +125,8 @@ impl OriginalNativeCompilerFormals {
 /// The exact original root and nominal compiler frame that consumed a request.
 /// Equal bytes in a foreign or nested source activation cannot borrow this scope.
 #[derive(Debug, Clone)]
-pub(crate) struct OriginalNativeCompilerFormalScope {
+#[doc(hidden)]
+pub struct OriginalNativeCompilerFormalScope {
     owner: Arc<OriginalNativeCompilerFormals>,
     origin: Arc<super::SourceOriginId>,
     frame: crate::var_resolve::VariableExecutionFrame,

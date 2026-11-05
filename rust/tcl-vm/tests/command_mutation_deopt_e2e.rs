@@ -17,10 +17,10 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use tcl_codegen::codegen::codegen_module;
+use tcl_codegen::compile_service::BytecodeCompileService;
+use tcl_codegen::inlining::inline_module;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_compiler::inlining::inline_module;
 use tcl_compiler::lowering::{lower_script_module_for_bytecode, lower_to_ir_traced_with_dialect};
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_lexer::LexerConfig;

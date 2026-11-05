@@ -41,8 +41,8 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use tcl_compiler::codegen::ModuleAsm;
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::codegen::ModuleAsm;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
 use tcl_dialect::model::DependencyTier;
 use tcl_registry::CommandRegistry;
@@ -62,7 +62,7 @@ use tcl_vm::{Code, CompileService, Vm};
 fn fixture_procedure<'a>(
     module: &'a ModuleAsm,
     label: &str,
-) -> &'a tcl_compiler::codegen::FunctionAsm {
+) -> &'a tcl_codegen::codegen::FunctionAsm {
     let mut candidates = module
         .procedure_provenance
         .iter()
@@ -137,7 +137,7 @@ impl PlainCounting {
         let Some(forged) = self.forged else {
             return module;
         };
-        let restate = |function: &mut tcl_compiler::codegen::FunctionAsm| {
+        let restate = |function: &mut tcl_codegen::codegen::FunctionAsm| {
             for claim in &mut function.site_claims {
                 if let SiteClaim::ReferenceBody {
                     procedure, backing, ..
@@ -852,11 +852,11 @@ fn service_for(set: &PackSet) -> BytecodeCompileService {
         .expect("the packs' overlay is installed")
 }
 
-fn calls_a_command(function: &tcl_compiler::codegen::FunctionAsm) -> bool {
+fn calls_a_command(function: &tcl_codegen::codegen::FunctionAsm) -> bool {
     function.instructions.iter().any(|instruction| {
         matches!(
             instruction.op,
-            tcl_compiler::codegen::Op::INVOKE_STK1 | tcl_compiler::codegen::Op::INVOKE_STK4
+            tcl_codegen::codegen::Op::INVOKE_STK1 | tcl_codegen::codegen::Op::INVOKE_STK4
         )
     })
 }

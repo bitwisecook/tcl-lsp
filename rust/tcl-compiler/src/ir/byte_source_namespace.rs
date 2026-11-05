@@ -84,7 +84,8 @@ impl Module {
             }));
     }
 
-    pub(crate) fn original_byte_source_namespace_for_codegen(
+    #[doc(hidden)]
+    pub fn original_byte_source_namespace_for_codegen(
         &self,
         registry: &CommandRegistry,
     ) -> Option<&ByteNamespacePath> {

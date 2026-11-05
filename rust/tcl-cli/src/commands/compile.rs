@@ -36,10 +36,10 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
     registry_for_dialect, write_binary_output, write_text_output,
 };
+use tcl_codegen::codegen::codegen_module;
+use tcl_codegen::codegen::format::format_module_asm;
+use tcl_codegen::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::cfg_builder::build_cfg_codegen_with_registry;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::codegen::format::format_module_asm;
-use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect;
 use tcl_compiler::optimiser::{apply_optimisations, optimise_with_dialect};

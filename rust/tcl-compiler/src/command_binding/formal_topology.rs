@@ -47,7 +47,8 @@ pub(crate) fn native_formal_parameter_bytes_valid(
 /// The immutable original parameter-list producer. Display metadata never
 /// supplies its storage keys, list extents, defaults, or argument topology.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OriginalFormalTopology {
+#[doc(hidden)]
+pub struct OriginalFormalTopology {
     producer: SignatureSourceNameKey,
     parameters: Vec<ByteFormalParameter>,
     grammar: tcl_dialect::ParameterGrammar,

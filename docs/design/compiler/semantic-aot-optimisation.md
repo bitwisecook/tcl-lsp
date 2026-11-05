@@ -197,7 +197,7 @@ rather than the first; a premise whose input another premise rejects is not
 evaluated, since the obstacle is the one already recorded. While none of the
 five passes is enabled the add has not been asked for, no proof is built, and
 the record is the options' premises alone. Selection and record are one
-derivation (`rust/tcl-compiler/src/codegen/wasm/native_add.rs`), so they cannot
+derivation (`rust/tcl-codegen/src/codegen/wasm/native_add.rs`), so they cannot
 disagree. The Explorer's `aot` view and `tcl explore --show aot --text` print
 the record.
 

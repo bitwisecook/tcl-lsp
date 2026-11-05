@@ -47,7 +47,7 @@ fi
 # come from the manifest below; do not duplicate those paths here.
 case "$PATH_TO_CLASSIFY" in
     runtime/rust/* | \
-    rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | \
+    rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-codegen/* | rust/tcl-compiler/* | \
     rust/tcl-core-types/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | \
     rust/tcl-engine-tclvm/* | rust/tcl-host-native/* | rust/tcl-lexer/* | \
     rust/tcl-lsp-core/* | rust/tcl-platform/* | rust/tcl-regex/* | \

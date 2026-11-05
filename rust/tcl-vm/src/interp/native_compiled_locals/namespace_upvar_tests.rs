@@ -23,7 +23,7 @@ fn original_c85_namespace_upvar_opcode_matches_native_namespace_lifetimes() {
         )
         .unwrap();
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         let mut source = b"namespace eval ::N {variable x X;variable y Y};proc p {} {".to_vec();
         source.extend_from_slice(body);

@@ -43,7 +43,7 @@ depend on neither backend formatting nor C's codegen choices.
 ## File-path anchors
 
 - `rust/tcl-bytecode/src/` — the bytecode model (`layout.rs`, `format.rs`).
-- `rust/tcl-compiler/src/codegen/` — the emitter.
+- `rust/tcl-codegen/src/codegen/` — the emitter.
 - `rust/tcl-compiler/tests/fixtures/codegen/{matching,divergent}/` — the
   snippet corpus.
 - `tests/bytecode_reference/<version>/` — captured reference disassembly.
@@ -66,7 +66,7 @@ depend on neither backend formatting nor C's codegen choices.
 
 ## Test anchors
 
-- `rust/tcl-compiler/tests/codegen_golden.rs`, `codegen.rs`,
+- `rust/tcl-codegen/tests/codegen_golden.rs`, `codegen.rs`,
   `differential_codegen.rs`, `body_command_dis_oracle.rs`.
 - `rust/tcl-vm/tests/` — the execution suites (`language_e2e.rs`, the
   `cmd_*_e2e.rs` family, `command_resolution_conformance.rs`).

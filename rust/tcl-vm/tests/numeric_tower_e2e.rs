@@ -35,8 +35,8 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
+use tcl_codegen::codegen::codegen_module;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_with_dialect};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService};
@@ -52,7 +52,7 @@ impl CompileService for CompilerSvc {
         target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_script_bytes_for_profile(target, profile)
     }
     fn compile_substitution_with_entry(
@@ -61,7 +61,7 @@ impl CompileService for CompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_substitution_with_entry(target, profile, entry)
     }
 
@@ -71,7 +71,7 @@ impl CompileService for CompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_script_bytes_with_entry(target, profile, entry)
     }
     fn compile_plain_script_bytes_for_profile(
@@ -79,7 +79,7 @@ impl CompileService for CompilerSvc {
         target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_plain_script_bytes_for_profile(target, profile)
     }
     fn compile_plain_script_bytes_with_entry(
@@ -88,7 +88,7 @@ impl CompileService for CompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_plain_script_bytes_with_entry(target, profile, entry)
     }
     fn compile_procedure_bytes_for_profile(
@@ -97,7 +97,7 @@ impl CompileService for CompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         dispatch: tcl_runtime_api::ProcedureDispatch,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_procedure_bytes_for_profile(target, profile, dispatch)
     }
     fn compile_procedure_bytes_with_entry(
@@ -107,7 +107,7 @@ impl CompileService for CompilerSvc {
         entry: &tcl_runtime_api::NativeCompilationEntry,
         dispatch: tcl_runtime_api::ProcedureDispatch,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
     }
     fn script_command_plan_bytes_for_profile(
@@ -115,7 +115,7 @@ impl CompileService for CompilerSvc {
         source: &tcl_runtime_api::SourceImage,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .script_command_plan_bytes_for_profile(source, profile)
     }
     fn script_command_plan_bytes_with_entry(
@@ -124,7 +124,7 @@ impl CompileService for CompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .script_command_plan_bytes_with_entry(source, profile, entry)
     }
 
@@ -134,7 +134,7 @@ impl CompileService for CompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, tcl_vm::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_script_with_entry(target, profile, entry)
     }
 
@@ -145,7 +145,7 @@ impl CompileService for CompilerSvc {
         entry: &tcl_runtime_api::NativeCompilationEntry,
         dispatch: tcl_runtime_api::ProcedureDispatch,
     ) -> Result<Self::Module, tcl_vm::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_procedure_with_entry(target, profile, entry, dispatch)
     }
 

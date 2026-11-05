@@ -67,7 +67,7 @@ impl NameRoleWord {
 /// Test-only catalogue convenience for detached command layouts.
 /// Production roles require [`original_variable_name_role_words`] ownership.
 #[must_use]
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub fn variable_name_role_words(
     cmd: &SegmentedCommand,
     registry: &CommandRegistry,

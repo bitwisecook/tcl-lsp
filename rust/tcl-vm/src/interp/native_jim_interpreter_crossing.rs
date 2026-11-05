@@ -333,7 +333,7 @@ mod tests {
         let profile = crate::environment::profile_for_dialect("jim");
         let mut vm = crate::native_fixture::core(profile);
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         let child = vm
             .create_child_named_bytes(

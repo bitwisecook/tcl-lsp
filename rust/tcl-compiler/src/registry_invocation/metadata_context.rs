@@ -13,13 +13,15 @@ use tcl_registry::model::{ContextRegistry, ResolvedContext, semantic::SemanticCo
 /// Borrowed metadata selection after its owner accepted the query. Refusal
 /// remains the outer `Option`; `Standalone` is explicit profileless compatibility.
 #[derive(Clone, Copy)]
-pub(crate) enum InvocationMetadataSelection<'a> {
+#[doc(hidden)]
+pub enum InvocationMetadataSelection<'a> {
     Standalone,
     Retained(InvocationMetadataContext<'a>),
 }
 
 impl<'a> InvocationMetadataSelection<'a> {
-    pub(crate) const fn context(self) -> Option<InvocationMetadataContext<'a>> {
+    #[doc(hidden)]
+    pub const fn context(self) -> Option<InvocationMetadataContext<'a>> {
         match self {
             Self::Standalone => None,
             Self::Retained(context) => Some(context),
@@ -86,7 +88,8 @@ impl OwnedInvocationMetadataContext {
 
     /// Reborrow the same actual owner. The explicit standalone variant alone
     /// selects scalar compatibility; supplied refusal cannot reopen that path.
-    pub(crate) fn metadata_context<'a>(
+    #[doc(hidden)]
+    pub fn metadata_context<'a>(
         &'a self,
         registry: &CommandRegistry,
     ) -> Option<InvocationMetadataSelection<'a>> {
@@ -241,9 +244,8 @@ impl<'a> InvocationMetadataContext<'a> {
         self.context
     }
     /// Exact retained source grammar/profile, independently of invocation entry.
-    pub(crate) const fn source_analysis_input(
-        self,
-    ) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
+    #[doc(hidden)]
+    pub const fn source_analysis_input(self) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
         self.actual_input
     }
 

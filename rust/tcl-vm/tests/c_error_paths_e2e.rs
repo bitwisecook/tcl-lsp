@@ -23,7 +23,7 @@
 //! Every expectation is the result of the same script under real tclsh
 //! 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0, grouped where releases agree.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
 /// The result of `src` under the `version` pin; panics if it errors.

@@ -49,7 +49,7 @@ pub(crate) fn interpreter_with_output(
 ) -> Vm {
     let mut vm = core_with_output_and_host(profile, output, Rc::new(NativeHost::new()));
     vm.set_compiler(Box::new(
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
     ));
     vm
 }

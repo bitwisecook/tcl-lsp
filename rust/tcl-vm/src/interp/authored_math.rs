@@ -201,7 +201,7 @@ mod tests {
         assert!(vm.set_command_surface_profile(host));
         assert!(vm.set_native_engine_profile(host));
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         assert!(vm.set_logical_eval_object_provider(
             tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation

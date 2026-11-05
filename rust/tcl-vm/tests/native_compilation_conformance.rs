@@ -19,7 +19,7 @@
 //! Actual native compilation entry and command-selection timing, through the VM.
 
 use std::path::Path;
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
 use tcl_test_support::{available_tclshs, locate_jimsh, require_jimsh, run_script};
 

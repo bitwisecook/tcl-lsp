@@ -58,7 +58,7 @@ fn original_try_vectors_keep_native_handler_bindings_and_finally_completion() {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let defined = vm.invoke_command(
                 "proc",

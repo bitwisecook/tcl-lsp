@@ -778,7 +778,7 @@ flowchart TD
 
 ### 13. Bytecode Assembly Backend
 
-**File:** `rust/tcl-compiler/src/codegen/emitter/mod.rs` — `codegen_function()`, `codegen_module()`
+**File:** `rust/tcl-codegen/src/codegen/emitter/mod.rs` — `codegen_function()`, `codegen_module()`
 
 Takes a pre-SSA `cfg::CfgModule` and emits assembly text matching the format
 produced by `tcl::unsupported::disassemble` in Tcl 9.0.
@@ -956,7 +956,7 @@ tables.
 | `rust/tcl-compiler/src/gvn.rs` | Global value numbering / CSE / PRE / LICM (O105–O106) |
 | `rust/tcl-compiler/src/taint.rs`, `taint_interproc.rs` | Taint analysis for untrusted I/O (T100–T106) |
 | `rust/tcl-compiler/src/shimmer/` | Type-representation issue detection (S100–S103, S110) |
-| `rust/tcl-compiler/src/codegen/` | Tcl VM bytecode assembly backend |
+| `rust/tcl-codegen/src/codegen/` | Tcl VM bytecode assembly backend |
 | `rust/tcl-compiler/src/side_effects.rs` | Command side-effect classification |
 | `rust/tcl-compiler/src/types.rs` | Type lattice definitions |
 | `rust/tcl-compiler/src/compiler_checks.rs` | Downstream-pass aggregation into diagnostics |

@@ -509,7 +509,7 @@ mod tests {
     fn vm() -> Vm {
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::default(),
+            tcl_codegen::compile_service::BytecodeCompileService::default(),
         ));
         vm.install_irules_timer_simulation();
         vm
@@ -530,7 +530,7 @@ mod tests {
     fn ordinary_tcl_after_keeps_its_global_callback_frame() {
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::default(),
+            tcl_codegen::compile_service::BytecodeCompileService::default(),
         ));
         eval(
             &mut vm,

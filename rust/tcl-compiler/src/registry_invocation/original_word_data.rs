@@ -24,7 +24,8 @@ use tcl_registry::CommandRegistry;
 /// Read one unchanged literal argument under its original Module and grammar.
 /// This carries syntax data only, independently of target selection, Native
 /// entry, variable lookup, physical storage and Normal completion.
-pub(crate) fn original_literal_argument_data_for_module(
+#[doc(hidden)]
+pub fn original_literal_argument_data_for_module(
     registry: &CommandRegistry,
     module: &Module,
     tokens: &CommandTokens,
@@ -35,7 +36,8 @@ pub(crate) fn original_literal_argument_data_for_module(
 
 /// One immutable original argument selected under its Module or Script owner.
 /// The view carries source syntax and literal data, without read or execution authority.
-pub(crate) struct OriginalSourceArgument<'a> {
+#[doc(hidden)]
+pub struct OriginalSourceArgument<'a> {
     word: &'a WordExpr,
     native: tcl_lexer::NativeWord,
     config: tcl_lexer::LexerConfig,
@@ -70,7 +72,9 @@ impl<'a> OriginalSourceArgument<'a> {
     }
 }
 
-pub(crate) fn original_source_argument_for_module<'a>(
+#[doc(hidden)]
+
+pub fn original_source_argument_for_module<'a>(
     registry: &CommandRegistry,
     module: &Module,
     tokens: &'a CommandTokens,
@@ -87,7 +91,8 @@ pub(crate) fn original_source_argument_for_module<'a>(
 /// Reborrow one lowered operand from its unchanged actual Script and source
 /// instance. This supplies immutable syntax only; caller state, reads, Native
 /// entry and successful evaluation remain independent.
-pub(crate) fn original_source_argument_for_script<'a>(
+#[doc(hidden)]
+pub fn original_source_argument_for_script<'a>(
     script: &'a Script,
     statement: &'a Statement,
     argument: usize,
@@ -116,7 +121,8 @@ pub(crate) fn original_source_argument_for_script<'a>(
 /// Reborrow one exact original operand word selected by its retained argument
 /// ordinal and expected lowered compatibility shape. The returned effect fact
 /// is lexical only and never grants a dispatch or evaluation result.
-pub(crate) fn original_argument_command_effect(
+#[doc(hidden)]
+pub fn original_argument_command_effect(
     tokens: &CommandTokens,
     argument: usize,
     expected_text: &str,
@@ -147,10 +153,8 @@ fn original_source_argument(
 
 /// Literal data under the exact original whole source vector and grammar.
 /// This immutable syntax projection carries no current Module or execution proof.
-pub(crate) fn original_literal_argument_data(
-    tokens: &CommandTokens,
-    argument: usize,
-) -> Option<String> {
+#[doc(hidden)]
+pub fn original_literal_argument_data(tokens: &CommandTokens, argument: usize) -> Option<String> {
     let (_, words) = original_command_words(tokens)?;
     let word = words.get(argument.checked_add(1)?)?;
     literal_word_data(word)
@@ -182,7 +186,8 @@ fn original_variable_reference_syntax(
 
 /// Reborrow only the selected original expression operand whose complete AST
 /// and source base remain attached to this command or its genuine child.
-pub(crate) fn original_lowered_expression_syntax(
+#[doc(hidden)]
+pub fn original_lowered_expression_syntax(
     expression: &crate::expr_ast::ExprNode,
     expression_base: Option<u32>,
     tokens: &CommandTokens,
@@ -226,7 +231,8 @@ pub(crate) fn original_lowered_expression_syntax(
 
 /// Complete unchanged source words under their actual Module attachment.
 /// These lexical operands grant no evaluation, lookup, frame or read authority.
-pub(crate) fn original_command_words_for_module(
+#[doc(hidden)]
+pub fn original_command_words_for_module(
     registry: &CommandRegistry,
     module: &Module,
     tokens: &CommandTokens,

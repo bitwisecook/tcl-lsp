@@ -7,7 +7,8 @@ use super::{
 use tcl_registry::native_compilation::NativeCompilationFailure;
 use tcl_syntax::expr::errors::{self, NativeArithmeticFailure, OperandDesc, OperandSide};
 
-pub(crate) enum NativeConstantResult {
+#[doc(hidden)]
+pub enum NativeConstantResult {
     Number(TclValue),
     Resident {
         bytes: Vec<u8>,
@@ -17,7 +18,8 @@ pub(crate) enum NativeConstantResult {
     Unavailable,
 }
 
-pub(crate) fn eval_native_constant(node: &ExprNode, policy: FoldPolicy) -> NativeConstantResult {
+#[doc(hidden)]
+pub fn eval_native_constant(node: &ExprNode, policy: FoldPolicy) -> NativeConstantResult {
     if policy
         .invocation_dialect
         .and_then(|dialect| dialect.tcl_version)

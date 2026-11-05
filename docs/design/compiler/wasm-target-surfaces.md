@@ -15,7 +15,7 @@ interpreter receipt.
 The runtime crate has a WASM cdylib build. Numeric-tower availability is selected
 by its build inputs and `build.rs`; an unavailable tower does not become a
 supported numeric operation. The [runtime build instructions](wasm-codegen.md)
-and [real-link tests](../../../rust/tcl-compiler/tests/wasm_real_link.rs) describe
+and [real-link tests](../../../rust/tcl-codegen/tests/wasm_real_link.rs) describe
 that integration. Imports, exports and module size belong to the actual built
 artifact; they are not constants of the host interface.
 

@@ -36,21 +36,8 @@
 //!   [`SsaBlock`](ssa::SsaBlock), [`SsaFunction`](ssa::SsaFunction)),
 //!   dominator algorithms, dominance frontier, phi placement, and
 //!   variable definition extraction.
-//! - [`codegen`] — bytecode assembly types: [`Op`](codegen::Op) (150+
-//!   opcodes), [`Instruction`](codegen::Instruction),
-//!   [`LiteralTable`](codegen::LiteralTable),
-//!   [`LocalVarTable`](codegen::LocalVarTable),
-//!   [`FunctionAsm`](codegen::FunctionAsm),
-//!   [`ModuleAsm`](codegen::ModuleAsm), plus operator mapping and
-//!   index parsing.  The emission context
-//!   [`CodegenCtx`](codegen::CodegenCtx) and submodules
-//!   [`helpers`](codegen::helpers), [`values`](codegen::values),
-//!   [`expressions`](codegen::expressions) provide the codegen emitter
-//!   foundation.  Statement emission
-//!   ([`statements`](codegen::statements)), peephole optimisations
-//!   ([`peephole`](codegen::peephole)), layout resolution
-//!   ([`layout`](codegen::layout)), and disassembly formatting
-//!   ([`format`](codegen::format)) complete the codegen pipeline.
+//! - The bytecode/WASM emitters, inlining and the compile service live in
+//!   the `tcl-codegen` crate, which depends on this one.
 //! - [`types`] — Tcl intrep type lattice:
 //!   [`TclType`](types::TclType), [`TypeLattice`](types::TypeLattice),
 //!   [`type_join`](types::type_join).
@@ -112,12 +99,12 @@ pub mod bounded_set;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod cfg_layout;
-pub mod codegen;
+pub mod codegen_helpers;
 pub mod command_binding;
 pub mod common_aot_plan;
 pub mod compilation_unit;
-mod compile_84;
-pub mod compile_service;
+#[doc(hidden)]
+pub mod compile_84;
 pub mod compiler_checks;
 pub mod completion;
 pub mod connection_scope;
@@ -127,13 +114,15 @@ pub mod dead_stores;
 pub mod declared_frame_effects;
 pub mod def_use;
 mod deferred_writes;
-mod depth_guard;
+#[doc(hidden)]
+pub mod depth_guard;
 pub mod dictionary_bindings;
 pub mod dispatch_proof;
 pub mod durable_inventory;
 pub mod dynamic_names;
 pub mod effect_ssa;
-pub(crate) mod environment_ingress;
+#[doc(hidden)]
+pub mod environment_ingress;
 pub mod executable_ir;
 pub mod execution_region;
 mod existence_query;
@@ -147,7 +136,6 @@ pub use tcl_syntax::expr::parser as expr_parser;
 pub mod gvn;
 mod increment_rewrite;
 pub mod inline_uplevel;
-pub mod inlining;
 pub mod interprocedural;
 pub mod interval_bounds;
 pub mod intervals;
@@ -155,7 +143,8 @@ pub mod ir;
 pub mod ir_helpers;
 pub mod irules_checks;
 pub mod lambda_literal;
-mod lattice_rebase;
+#[doc(hidden)]
+pub mod lattice_rebase;
 pub mod realm;
 pub use lattice_rebase::rebase_script;
 pub mod loops;
@@ -164,7 +153,8 @@ pub mod lowering_hooks;
 pub mod math_function_binding;
 pub mod memory_ssa;
 pub mod mixed_region_plan;
-mod native_byte_compilation;
+#[doc(hidden)]
+pub mod native_byte_compilation;
 pub mod native_compilation_admission;
 pub mod native_integer_proof;
 pub mod native_lowering;

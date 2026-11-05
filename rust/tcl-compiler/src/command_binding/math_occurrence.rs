@@ -126,7 +126,8 @@ impl SourceMathInvocation {
         }
     }
 
-    pub(crate) fn fixed_prerequisite(
+    #[doc(hidden)]
+    pub fn fixed_prerequisite(
         &self,
     ) -> Option<&tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite> {
         self.reached()?.fixed_prerequisite.as_ref()

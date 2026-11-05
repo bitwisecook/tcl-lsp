@@ -51,6 +51,7 @@ crate-type = ["cdylib"]
 # there was a clock to choose at all. `tcl-vm/tests/wasm_coro_e2e.rs` guards it.
 tcl-vm = { path = "../tcl-vm", default-features = false }
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-codegen = { path = "../tcl-codegen" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-dialect = { path = "../tcl-dialect" }

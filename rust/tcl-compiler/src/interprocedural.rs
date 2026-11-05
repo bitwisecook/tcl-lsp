@@ -5413,9 +5413,10 @@ fn expr_value(
 
 use crate::side_effects::classify_side_effects_in;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 #[path = "test_body_identity.rs"]
-pub(crate) mod test_body_identity;
+#[doc(hidden)]
+pub mod test_body_identity;
 
 #[cfg(test)]
 mod tests {

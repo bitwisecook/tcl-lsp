@@ -4976,7 +4976,7 @@ mod native_byte_name_tests {
             let mut vm = Vm::with_output(Box::new(std::io::sink()));
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let root = vm_class_root(&vm);
             assert_eq!(make_class_bytes(&mut vm, b"C", None, root).code, Code::Ok);
@@ -5061,7 +5061,7 @@ mod native_byte_name_tests {
             let mut vm = Vm::with_output(Box::new(std::io::sink()));
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let class = Value::from_native_string_bytes(b"C\xff".as_slice());
             let metaclass = vm_class_root(&vm);
@@ -5256,7 +5256,7 @@ mod original_call_argv_tests {
         )
         .expect("selected actual C constructor");
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         let observed = Rc::new(RefCell::new(Vec::new()));
         vm.register_command_in_slot(

@@ -1756,7 +1756,7 @@ mod tests {
         )
         .expect("the Tcl 9.0 native core");
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         let handle = vm
             .try_compile_function(src)

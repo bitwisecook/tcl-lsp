@@ -4,7 +4,7 @@
 
 //! Original formal declarations retain separate C compiled cells and Jim named cells.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_vm::{Code, Value, Vm};
 
 fn vm(dialect: &str) -> Vm {

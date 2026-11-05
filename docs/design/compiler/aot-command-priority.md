@@ -208,7 +208,7 @@ which implementation or host effects apply at a call site.
 
 ## 4. What the WASM backend emits directly
 
-`compile_wasm` (`rust/tcl-compiler/src/codegen/wasm/pipeline.rs`) first tries
+`compile_wasm` (`rust/tcl-codegen/src/codegen/wasm/pipeline.rs`) first tries
 the semantic-plan ladder over the unit's executable IR — the guarded boxed
 `string length` region and the sealed constant `add` native pilot — and
 otherwise records a typed decline and uses general structured lowering
@@ -240,7 +240,7 @@ A statement none of those admits, and every condition text, lowers through
 `emit_command` — `tcl_eval_code(<source span>)` plus completion dispatch.
 `if`/`while`/`for`/`break`/`continue`/`return` get real WASM control flow
 (blocks, loops, branches) through the `Emit` trait
-(`rust/tcl-compiler/src/codegen/emit.rs`); `foreach` does not.
+(`rust/tcl-codegen/src/codegen/emit.rs`); `foreach` does not.
 
 The native tier (`rust/tcl-compiler/src/native_lowering/`, emitted by
 `wasm/native_emit.rs`) is gated by four `SemanticOptimisationPassId` passes

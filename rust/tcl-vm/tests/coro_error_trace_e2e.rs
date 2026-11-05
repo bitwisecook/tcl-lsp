@@ -29,7 +29,7 @@
 //! verbatim, since the VM's command spellings differ from C's in ways that
 //! do not depend on coroutines.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
 const COROUTINE_RELEASES: [TclVersion; 3] = [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1];

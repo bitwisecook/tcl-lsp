@@ -234,7 +234,7 @@ use SemanticOptimisationPassId as Pass;
 /// Named sets a caller can select instead of listing passes one by one.
 ///
 /// `native-tier` is the four passes
-/// [`WasmCompileOptions::native_tier`](crate::codegen::wasm::WasmCompileOptions::native_tier)
+/// `tcl_codegen::codegen::wasm::WasmCompileOptions::native_tier`
 /// enables, kept in step with it by
 /// `native_tier_group_matches_the_wasm_option`; `all` is every pass, which is
 /// what a "turn everything on and see what changes" run wants.
@@ -307,17 +307,5 @@ mod tests {
         let error = SemanticOptimisationConfig::from_names("direct-proc,nope").unwrap_err();
         assert!(error.contains("`nope`"), "{error}");
         assert!(error.contains("native-tier"), "{error}");
-    }
-
-    /// The `native-tier` group and `WasmCompileOptions::native_tier` are two
-    /// spellings of one set; a pass added to the option and not the group
-    /// would make the CLI and the Explorer quietly weaker than the harness.
-    #[test]
-    fn native_tier_group_matches_the_wasm_option() {
-        let group = SemanticOptimisationConfig::from_names("native-tier").unwrap();
-        let option = crate::codegen::wasm::WasmCompileOptions::hosted()
-            .native_tier()
-            .semantic_optimisations();
-        assert_eq!(group, option);
     }
 }

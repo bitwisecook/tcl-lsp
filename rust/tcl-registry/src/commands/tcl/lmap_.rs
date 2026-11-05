@@ -73,7 +73,7 @@ pub fn spec() -> CommandSpec {
         // `BYTE_COMPILED`: dedicated bytecode handling, not the generic
         // invoke path — the codegen loop-block emitter recognises `lmap`
         // exactly like `foreach` (`command == "foreach" || command ==
-        // "lmap"` in `tcl_compiler::codegen::emitter::loop_blocks`),
+        // "lmap"` in `tcl_codegen::codegen::emitter::loop_blocks`),
         // stripping the body's trailing pop and emitting `LMAP_COLLECT` so
         // each iteration's result is gathered VM-side; aliasing the head to
         // `$cmd` would defeat that and change semantics, exactly the

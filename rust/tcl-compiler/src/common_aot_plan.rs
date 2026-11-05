@@ -1999,7 +1999,8 @@ fn direct_formal_bindings(
 /// Original outer return and sole nested expression from one supplied body.
 /// This selects metadata only; binding, frame, compiler and result-equivalence
 /// premises belong to the caller's independent admission checks.
-pub(crate) fn original_direct_expression_body_operations(
+#[doc(hidden)]
+pub fn original_direct_expression_body_operations(
     registry: &tcl_registry::CommandRegistry,
     metadata: Option<InvocationMetadataContext<'_>>,
     procedure: &Procedure,
@@ -2258,7 +2259,8 @@ pub(crate) fn direct_call_argument_read(
 
 /// Exact captured contents of a selected, unexpanded direct-call operand.
 /// The native tier must independently preserve the original operand evaluation.
-pub(crate) fn direct_call_argument_value(
+#[doc(hidden)]
+pub fn direct_call_argument_value(
     unit: &CompilationUnit,
     id: &DirectCallSiteId,
     argument: usize,

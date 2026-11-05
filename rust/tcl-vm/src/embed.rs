@@ -1428,7 +1428,7 @@ mod procedure_definition_tests {
     fn vm() -> Vm {
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::default(),
+            tcl_codegen::compile_service::BytecodeCompileService::default(),
         ));
         vm
     }

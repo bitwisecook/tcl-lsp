@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::Duration;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_test_support::{locate_source_tree, upstream_test_definition};
 use tcl_vm::{Value, Vm};

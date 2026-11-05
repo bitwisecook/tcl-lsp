@@ -26,7 +26,8 @@
 
 use std::sync::{Mutex, OnceLock};
 
-pub(crate) use tcl_registry::model::ingress::{
+#[doc(hidden)]
+pub use tcl_registry::model::ingress::{
     DocumentEnvironment, context_for_profile, irules_context, resolve_environment,
 };
 
@@ -35,7 +36,8 @@ pub(crate) use tcl_registry::model::ingress::{
 /// select its separately declared execution default. An unprofiled catalogue
 /// selects the compiler's documented Tcl 9.0 target;
 /// this choice is made by the driver, never inferred by the source interpreter.
-pub(crate) fn authoring_invocation_dialect(
+#[doc(hidden)]
+pub fn authoring_invocation_dialect(
     registry: &tcl_registry::CommandRegistry,
     profile: Option<&tcl_dialect::DialectProfile>,
     config: tcl_lexer::LexerConfig,
@@ -59,7 +61,8 @@ pub(crate) fn authoring_invocation_dialect(
 
 /// A source document is evaluated as a file: native command selection is late.
 /// Bytecode and procedure drivers must supply their own explicit compilation entry.
-pub(crate) const fn authoring_native_compilation()
+#[doc(hidden)]
+pub const fn authoring_native_compilation()
 -> tcl_registry::native_compilation::NativeCompilationContext {
     use tcl_registry::native_compilation::{
         NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
@@ -165,41 +168,6 @@ pub(crate) fn captured_native_entry_with_owner_using(
     captured_native_entry_with_request(profile, setup, |vm| {
         assert!(vm.try_compile_function("set entry_probe 1").is_err());
     })
-}
-
-/// Capture the actual procedure activation after public namespace and definition setup.
-#[cfg(test)]
-pub(crate) fn captured_native_namespace_entry_with_owner(
-    profile: &'static tcl_dialect::DialectProfile,
-    namespace: &str,
-) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
-    let procedure = format!("{namespace}::entry_probe");
-    let (owner, entry) = captured_native_entry_with_request(
-        profile,
-        |vm| {
-            let _ = vm.invoke_command(
-                "namespace",
-                &[
-                    tcl_vm::Value::string("eval"),
-                    tcl_vm::Value::string(namespace),
-                    tcl_vm::Value::string(""),
-                ],
-            );
-            vm.try_define_procedure(&procedure, &[], "set entry_probe 1")
-                .expect("authentic namespace procedure definition");
-        },
-        |vm| {
-            let _ = vm.invoke_command(&procedure, &[]);
-        },
-    );
-    assert_eq!(
-        crate::command_binding::SourceNamespaceKey::from_native_entry(&entry)
-            .unwrap()
-            .display(),
-        Some(namespace.to_owned()),
-        "actual selected procedure namespace",
-    );
-    (owner, entry)
 }
 
 #[cfg(test)]

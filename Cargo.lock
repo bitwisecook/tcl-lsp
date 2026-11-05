@@ -4279,6 +4279,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tcl-cli-support",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-diagram",
  "tcl-dialect",
@@ -4331,6 +4332,25 @@ dependencies = [
  "tcl-runtime-api",
  "tcl-syntax",
  "tcl-test-support",
+]
+
+[[package]]
+name = "tcl-codegen"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "tcl-bytecode",
+ "tcl-cmd-core",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
+ "tcl-test-support",
+ "tcl-vm",
+ "temp-env",
 ]
 
 [[package]]
@@ -4389,6 +4409,7 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "tcl-bytecode",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-dialect",
  "tcl-lexer",
@@ -4430,6 +4451,7 @@ dependencies = [
 name = "tcl-engine-tclvm"
 version = "0.1.0"
 dependencies = [
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-dialect",
  "tcl-engine-api",
@@ -4457,6 +4479,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-dialect",
  "tcl-lexer",
@@ -4485,6 +4508,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tcl-bytecode",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-dialect",
  "tcl-lexer",
@@ -4520,6 +4544,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-bytecode",
  "tcl-cmd-core",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-dialect",
  "tcl-irules",
@@ -4567,6 +4592,7 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-cmd-core",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
@@ -4588,6 +4614,7 @@ dependencies = [
  "rayon",
  "salsa",
  "serde_json",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
@@ -4647,6 +4674,7 @@ dependencies = [
  "tcl-bigip",
  "tcl-cli",
  "tcl-cli-support",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-diagram",
  "tcl-dialect",
@@ -4802,6 +4830,7 @@ name = "tcl-spectcl"
 version = "0.1.0"
 dependencies = [
  "rustc-hash",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
@@ -4885,6 +4914,7 @@ dependencies = [
  "serde_json",
  "tcl-bytecode",
  "tcl-cmd-core",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
@@ -4904,6 +4934,7 @@ name = "tcl-vm-cli"
 version = "0.1.0"
 dependencies = [
  "tcl-bytecode",
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-cshim",
  "tcl-dialect",

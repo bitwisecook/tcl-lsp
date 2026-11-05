@@ -31,7 +31,7 @@
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_vm::{Vm, host_native::NativeHost};
 

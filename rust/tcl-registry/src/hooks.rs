@@ -182,7 +182,7 @@ source_catalogue_enum! {
 /// matches C Tcl 9's `bytecode` output). The compiler's codegen
 /// layer holds the per-variant emitter. Keep this enum in sync
 /// with the dispatch table in
-/// `tcl_compiler::codegen::emitter::bytecoded`; a new variant
+/// `tcl_codegen::codegen::emitter::bytecoded`; a new variant
 /// here gives the compiler a compile-time match-exhaustion error
 /// until the new arm is wired up.
 ///
@@ -251,14 +251,14 @@ source_catalogue_enum! {
 /// Identifies which command shape gets a hand-written inline emitter
 /// on the compiler's command-substitution / catch-body paths — the
 /// `[cmd …]` value-position dispatch in
-/// `tcl_compiler::codegen::cmd_subst::emit_inline_cmd_subst` and the
+/// `tcl_codegen::codegen::cmd_subst::emit_inline_cmd_subst` and the
 /// single-command catch/try-body dispatch in
-/// `tcl_compiler::codegen::control_flow::emit_catch_body`. The
+/// `tcl_codegen::codegen::control_flow::emit_catch_body`. The
 /// compiler owns the per-variant emitters (and their applicability
 /// guards — arity / shape / proc-context); the registry stamps which
 /// command form picks which emitter, exactly as [`CodegenHookId`]
 /// does for the statement-position dispatch in
-/// `tcl_compiler::codegen::emitter::bytecoded`. A new variant here
+/// `tcl_codegen::codegen::emitter::bytecoded`. A new variant here
 /// gives the compiler a compile-time match-exhaustion error until the
 /// new arm is wired up. A dispatcher matches only the variants it
 /// specialises in its own context — an unmatched variant falls to

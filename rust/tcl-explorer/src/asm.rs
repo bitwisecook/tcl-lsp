@@ -23,7 +23,7 @@
 //! flat-text `text` snippet (reused from `codegen::format::format_function_asm`).
 //!
 //! **Per-instruction `range`:** the emitter stamps each
-//! [`Instruction`](tcl_compiler::codegen::Instruction) with the byte
+//! [`Instruction`](tcl_codegen::codegen::Instruction) with the byte
 //! `source_span` of the construct it lowered from (statement, branch
 //! condition, return value); this serialiser maps that span to a
 //! line:col `range` plus a 1-based `sourceLine` for click-to-source.
@@ -46,8 +46,8 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
-use tcl_compiler::codegen::format::{format_function_asm, instruction_operand_text};
-use tcl_compiler::codegen::{FunctionAsm, Op, Operand, codegen_module_with_command_mutations};
+use tcl_codegen::codegen::format::{format_function_asm, instruction_operand_text};
+use tcl_codegen::codegen::{FunctionAsm, Op, Operand, codegen_module_with_command_mutations};
 use tcl_compiler::ir::Module;
 use tcl_lexer::LineIndex;
 // The pack-carrying registry, not the plain one: since the EDA vendor

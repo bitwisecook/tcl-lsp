@@ -175,7 +175,7 @@ Source -> Lexer (rust/tcl-lexer/src/lexer.rs)
       -> SSA Construction (rust/tcl-compiler/src/ssa.rs)
       -> Core Analyses: SCCP, liveness, dead stores
          (rust/tcl-compiler/src/analyses.rs, dead_stores.rs, …)
-      -> Diagnostics / codegen (rust/tcl-compiler/src/codegen/)
+      -> Diagnostics / codegen (rust/tcl-codegen/src/codegen/)
 ```
 
 Types and functions with domain-specific names (e.g. `LatticeValue`, `sccp`)

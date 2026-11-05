@@ -36,7 +36,7 @@ fn simulation(missing: Option<Missing>) -> (crate::Vm, Rc<RefCell<Vec<u8>>>) {
     assert!(vm.set_command_surface_profile(host));
     assert!(vm.set_native_engine_profile(host));
     vm.set_compiler(Box::new(
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(logical),
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(logical),
     ));
     if missing != Some(Missing::Eval) {
         assert!(

@@ -223,7 +223,8 @@ pub enum SourceNativeCompilerAdmission {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(super) struct SourceOriginalCompilerWords {
+#[doc(hidden)]
+pub struct SourceOriginalCompilerWords {
     pub config: tcl_lexer::LexerConfig,
     pub site: CommandAllocationSite,
     pub words: Arc<[crate::ir::WordExpr]>,
@@ -318,7 +319,8 @@ impl SourceNativeNamespaceBindingPreparation {
 
 /// Original switch arms selected by the native compiler, independent of dispatch.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(super) struct SourceNativeSwitchPreparation {
+#[doc(hidden)]
+pub struct SourceNativeSwitchPreparation {
     pub compilation_site: CommandAllocationSite,
     pub dependency: super::SourceNativeCompilationDependency,
     pub recipe: tcl_registry::native_switch_compilation::NativeSwitchInstruction,
@@ -327,9 +329,11 @@ pub(super) struct SourceNativeSwitchPreparation {
 /// Exact original structured compiler preparation, independent of execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceNativeStructuredPreparation {
-    pub(super) compilation_site: CommandAllocationSite,
+    #[doc(hidden)]
+    pub compilation_site: CommandAllocationSite,
     pub(super) dependency: super::SourceNativeCompilationDependency,
-    pub(super) recipe: tcl_registry::native_instruction_plan::NativeInstructionPlan,
+    #[doc(hidden)]
+    pub recipe: tcl_registry::native_instruction_plan::NativeInstructionPlan,
 }
 
 impl std::hash::Hash for SourceNativeStructuredPreparation {

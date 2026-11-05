@@ -34,6 +34,7 @@ expect_relevant specs/eda_cadence.tclspec
 expect_relevant docs/design/spec-dsl-examples/foreach.tclspec
 expect_relevant docs/design/spec-dsl-examples/external/tcllib.tclspec
 expect_relevant rust/tcl-compiler/src/lib.rs
+expect_relevant rust/tcl-codegen/src/lib.rs
 expect_relevant runtime/rust/src/lib.rs
 expect_relevant rust/tcl-spectcl/data/shipped-pack-dirs.txt
 expect_unrelated README.md

@@ -3316,7 +3316,8 @@ impl super::SourceInvocationBinding {
     /// Keep source-layout purpose separate from actual invocation permission.
     /// A reached point retains its terminal invocation checks; only its absence
     /// permits the existing exact declaration/compiler source correspondence.
-    pub(crate) fn original_source_advice_purpose(
+    #[doc(hidden)]
+    pub fn original_source_advice_purpose(
         &self,
         tokens: &crate::ir::CommandTokens,
         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,

@@ -67,7 +67,7 @@ pub use closed_native_execution::{
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_engine_api::OriginalObject;
 use tcl_engine_api::{
     Budget, BudgetKind, CommandPublicationKey, CommandPublicationPurpose,

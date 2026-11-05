@@ -41,6 +41,7 @@ description = "Bytecode VM executing Tcl 9 bytecode (TCLVM)"
 name = "tcl_vm"
 
 [dependencies]
+tcl-codegen = { path = "../tcl-codegen" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-dialect = { path = "../tcl-dialect" }

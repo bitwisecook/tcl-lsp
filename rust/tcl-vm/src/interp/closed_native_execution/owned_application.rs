@@ -493,7 +493,7 @@ mod tests {
     fn a_filled_plain_module_cache_is_outside_the_owned_scope() {
         let mut vm = crate::test_support::native_vm();
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::default(),
+            tcl_codegen::compile_service::BytecodeCompileService::default(),
         ));
         assert!(vm.owned_application_cache_scope_is_empty());
         vm.compile_plain_cached_module(tcl_runtime_api::ScriptCompileTarget {

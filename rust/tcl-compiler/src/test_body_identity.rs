@@ -5,7 +5,8 @@
 use crate::ir::ProcedureId;
 use std::borrow::Cow;
 
-pub(crate) trait FixtureBodyLabel {
+#[doc(hidden)]
+pub trait FixtureBodyLabel {
     fn fixture_label(&self) -> Cow<'_, str>;
 }
 impl FixtureBodyLabel for crate::ir::Procedure {
@@ -46,14 +47,16 @@ impl FixtureBodyLabel for super::MethodSummary {
 }
 
 // A fixture label must identify one genuinely issued body before its ID is used.
-pub(crate) fn fixture_id<'a, T: FixtureBodyLabel + 'a>(
+#[doc(hidden)]
+pub fn fixture_id<'a, T: FixtureBodyLabel + 'a>(
     rows: impl IntoIterator<Item = (&'a ProcedureId, &'a T)>,
     label: &str,
 ) -> ProcedureId {
     fixture_id_if_present(rows, label)
         .unwrap_or_else(|| panic!("authored fixture body {label:?} absent"))
 }
-pub(crate) fn fixture_id_if_present<'a, T: FixtureBodyLabel + 'a>(
+#[doc(hidden)]
+pub fn fixture_id_if_present<'a, T: FixtureBodyLabel + 'a>(
     rows: impl IntoIterator<Item = (&'a ProcedureId, &'a T)>,
     label: &str,
 ) -> Option<ProcedureId> {
@@ -68,14 +71,16 @@ pub(crate) fn fixture_id_if_present<'a, T: FixtureBodyLabel + 'a>(
     first
 }
 
-pub(crate) fn fixture_proc<'a>(
+#[doc(hidden)]
+pub fn fixture_proc<'a>(
     analysis: &'a super::InterproceduralAnalysis,
     label: &str,
 ) -> Option<&'a super::ProcSummary> {
     let id = fixture_id_if_present(&analysis.procedures, label)?;
     analysis.procedures.get(&id)
 }
-pub(crate) fn edge_labels(
+#[doc(hidden)]
+pub fn edge_labels(
     analysis: &super::InterproceduralAnalysis,
     edges: &[ProcedureId],
 ) -> Vec<String> {

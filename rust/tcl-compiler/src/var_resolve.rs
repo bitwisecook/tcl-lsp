@@ -611,7 +611,8 @@ pub struct ResolveContext {
         VariableCellTable<crate::literal_contents::ClosedLiteralContents>,
     /// Authentic entered formal declaration prefix. It does not close the
     /// rest of a procedure's compiled-local inventory or authenticate a CPP.
-    pub(crate) original_formal_topology:
+    #[doc(hidden)]
+    pub original_formal_topology:
         Option<std::sync::Arc<crate::command_binding::formal_topology::OriginalFormalTopology>>,
     /// Compiler formal slots from a live original Native procedure request.
     /// This is not authored syntax, a physical layout or an entered frame.

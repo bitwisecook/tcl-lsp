@@ -1,6 +1,6 @@
 # WASM runtime boundary
 
-The canonical Tcl-to-WASM compiler is `rust/tcl-compiler/src/codegen/wasm/`.
+The canonical Tcl-to-WASM compiler is `rust/tcl-codegen/src/codegen/wasm/`.
 Its output uses the ABI implemented by `runtime/rust/src/codegen_abi.rs` and
 the shared declarations in `rust/tcl-runtime-api/`. This document records the
 current boundary; it does not describe a separate emitter or linker.

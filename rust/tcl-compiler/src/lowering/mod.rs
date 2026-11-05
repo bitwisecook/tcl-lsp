@@ -50,18 +50,18 @@ use tcl_dialect::model::surface_admits;
 use tcl_syntax::word_rules::WordValueRules;
 
 mod authored_source_bodies;
-mod execution_regions;
+#[doc(hidden)]
+pub mod execution_regions;
 pub(crate) mod hooks;
 mod hosted_source_bodies;
 mod installed_bodies;
-mod source_body_syntax;
+#[doc(hidden)]
+pub mod source_body_syntax;
 pub use source_body_syntax::{
     SourceBodySyntaxCache, SourceBodySyntaxRequest, SourceBodySyntaxTemplate,
 };
 #[cfg(test)]
 mod native_body_context_tests;
-#[cfg(test)]
-mod native_control_carrier_tests;
 #[cfg(test)]
 mod original_body_word_geometry_tests;
 #[cfg(test)]
@@ -985,7 +985,7 @@ pub(crate) enum CompileTarget {
     /// lowering hook ALSO suppressed ([`lower_to_ir_traced`]): every command
     /// falls straight to [`Lowerer::lower_default`] — a plain runtime
     /// dispatch (`Statement::Call`/`Statement::Barrier` with a non-empty
-    /// `command`, both of which [`crate::codegen`] emits as `push words;
+    /// `command`, both of which `tcl_codegen::codegen` emits as `push words;
     /// INVOKE`), never a typed statement (`AssignConst`/`Incr`/`Return`/…)
     /// or a structured control-flow block (`If`/`While`/`Foreach`/`Switch`/
     /// `Catch`/`Try`/…). Used to recompile a proc/script body so execution
@@ -7677,7 +7677,8 @@ pub fn first_fatal_parse_cut(
 
 /// Segment `source` using `config`, retaining only complete commands before a
 /// fatal command and the original structured cut, including its kind and term.
-pub(crate) fn command_at_time_script_with_config(
+#[doc(hidden)]
+pub fn command_at_time_script_with_config(
     source: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Result<crate::segmenter::SegmentedScript, tcl_lexer::ParseCutUnavailable> {
@@ -7686,7 +7687,8 @@ pub(crate) fn command_at_time_script_with_config(
 
 /// Complete command prefix of an original source image. Unavailable lexical
 /// ownership remains distinct from an authentic malformed command tail.
-pub(crate) fn command_at_time_script_image(
+#[doc(hidden)]
+pub fn command_at_time_script_image(
     source: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
 ) -> Result<crate::segmenter::SegmentedScript, tcl_lexer::ParseCutUnavailable> {
@@ -7706,7 +7708,8 @@ impl Lowerer<'_> {
     /// trace and callback-write facts deliberately have this one owner so
     /// compiling a runtime procedure target cannot drift from ordinary module
     /// lowering.
-    pub(crate) fn finish_module(self, source: &str) -> Module {
+    #[doc(hidden)]
+    pub fn finish_module(self, source: &str) -> Module {
         self.finish_module_with(source, true)
     }
 

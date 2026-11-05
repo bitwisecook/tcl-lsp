@@ -4,7 +4,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 use tcl_bytecode::ModuleAsm;
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, NativeProcedureHeaderCompilation as Header};
 use tcl_runtime_api::{
     CompileError, CompileService, NativeCompilationEntry, ProcedureCompileTargetBytes,

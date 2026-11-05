@@ -32,7 +32,8 @@ pub use host_structure_observer::{HostStructureTraceGuard, begin_host_structure_
 mod original_procedure_call;
 #[cfg(test)]
 pub(crate) use original_procedure_call::OriginalSourceProcedureCall;
-pub(crate) use original_procedure_call::{
+#[doc(hidden)]
+pub use original_procedure_call::{
     OriginalProcedureMayDependencies, original_authored_body_procedure_calls_for_module,
     original_authored_procedure_calls_for_module, original_logical_procedure_calls_for_module,
     original_logical_procedure_may_dependencies_for_module, original_procedure_formal_count_shape,
@@ -59,7 +60,8 @@ pub(crate) use source_receiver_names::{
     SourceReceiverNameOperand, original_source_receiver_name_operand,
 };
 mod original_word_data;
-pub(crate) use original_word_data::{
+#[doc(hidden)]
+pub use original_word_data::{
     OriginalSourceArgument, original_argument_command_effect, original_command_words_for_module,
     original_literal_argument_data, original_literal_argument_data_for_module,
     original_lowered_expression_syntax, original_source_argument_for_module,
@@ -2002,7 +2004,8 @@ pub(crate) fn conditional_option_arguments_with_metadata_context(
 /// Original alias captures and source words remain composed by the shared
 /// declaration owner. This grants no Native handler, Normal completion,
 /// compiler entry, variable allocation or executable erasure permission.
-pub(crate) fn original_logical_operation_invocation_with_metadata_context(
+#[doc(hidden)]
+pub fn original_logical_operation_invocation_with_metadata_context(
     registry: &CommandRegistry,
     context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
@@ -5843,7 +5846,8 @@ pub enum NativeOperationSelectionDecline {
 }
 
 /// Carry exact original namespace identity across compiler/runtime consumers.
-pub(crate) fn compiled_namespace_context(
+#[doc(hidden)]
+pub fn compiled_namespace_context(
     tokens: &CommandTokens,
 ) -> Option<tcl_runtime_api::CompiledNamespaceContext> {
     tokens
@@ -6022,12 +6026,14 @@ pub fn native_compiler_dependency(
 }
 
 /// Independent registration and handler axes consumed by compilation.
-pub(crate) enum NativeCompilationDependency {
+#[doc(hidden)]
+pub enum NativeCompilationDependency {
     Compiler(tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite),
     Implementation(tcl_runtime_api::CommandBindingIdentity),
 }
 
-pub(crate) fn native_compilation_dependency(
+#[doc(hidden)]
+pub fn native_compilation_dependency(
     dependency: &crate::command_binding::SourceNativeCompilationDependency,
 ) -> NativeCompilationDependency {
     if let Some(required) = native_compiler_dependency(dependency) {
@@ -9563,7 +9569,8 @@ pub fn resolve_command_tokens(
     )
 }
 
-pub(crate) fn resolve_command_tokens_with_metadata_context(
+#[doc(hidden)]
+pub fn resolve_command_tokens_with_metadata_context(
     registry: &CommandRegistry,
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,

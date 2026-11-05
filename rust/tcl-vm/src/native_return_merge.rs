@@ -589,7 +589,7 @@ mod execution_tests {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let body = Value::new_native_string_bytes(bytes(fields[2]));
             assert_eq!(

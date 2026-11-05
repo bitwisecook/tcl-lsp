@@ -28,7 +28,7 @@ fn fixture() -> Vm {
     )
     .expect("explicit original C9 core bootstrap");
     vm.set_compiler(Box::new(
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
     ));
     vm.register_native_command(
         "originalPure",

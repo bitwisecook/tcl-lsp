@@ -21,9 +21,9 @@
 
 use std::io::Read;
 
+use tcl_codegen::codegen::codegen_module;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_registry::CommandRegistry;
 
@@ -43,13 +43,13 @@ fn main() {
     if std::env::var("DIS").is_ok() {
         eprintln!(
             "=== ::top ===\n{}",
-            tcl_compiler::codegen::format::format_function_asm(&asm.top_level)
+            tcl_codegen::codegen::format::format_function_asm(&asm.top_level)
         );
         for f in asm.procedures.values() {
             eprintln!(
                 "=== proc {} ===\n{}",
                 f.name,
-                tcl_compiler::codegen::format::format_function_asm(f)
+                tcl_codegen::codegen::format::format_function_asm(f)
             );
         }
     }

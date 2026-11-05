@@ -4,7 +4,7 @@
 
 //! Independent native vectors for variable roots, elements, aliases and scope writes.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 
 #[test]
 fn selected_container_models_match_native_root_and_alias_vectors() {

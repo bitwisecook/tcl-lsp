@@ -341,7 +341,8 @@ impl BodyScript {
 pub struct Function {
     /// Actual availability owner from this CFG construction request. Missing
     /// supplied input remains unavailable, independently of source names.
-    pub(crate) metadata_context: crate::cfg_builder::CfgMetadataContext,
+    #[doc(hidden)]
+    pub metadata_context: crate::cfg_builder::CfgMetadataContext,
     /// Actual namespace owner retained from the executable body.
     pub namespace_context: Option<Box<crate::command_binding::SourceNamespaceKey>>,
     /// Exact source instance retained independently of native admission.

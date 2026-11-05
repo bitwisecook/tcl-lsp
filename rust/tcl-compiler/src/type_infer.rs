@@ -147,13 +147,15 @@ fn literal_type(text: &str, numbers: NumberSyntax) -> TypeLattice {
 
 /// Decoded contents of one unchanged original literal argument.
 /// This carries no object class, header, representation, SSA value or admission.
-pub(crate) struct OriginalLiteralArgumentContents {
+#[doc(hidden)]
+pub struct OriginalLiteralArgumentContents {
     value: String,
     numbers: NumberSyntax,
 }
 
 impl OriginalLiteralArgumentContents {
-    pub(crate) fn value(&self) -> &str {
+    #[doc(hidden)]
+    pub fn value(&self) -> &str {
         &self.value
     }
 
@@ -166,7 +168,8 @@ impl OriginalLiteralArgumentContents {
 
 /// Decode only a literal written argument under its retained Module and point
 /// input. Missing ownership, substitutions, opaque bytes and NUL decline.
-pub(crate) fn original_literal_argument_contents(
+#[doc(hidden)]
+pub fn original_literal_argument_contents(
     registry: &CommandRegistry,
     module: &crate::ir::Module,
     tokens: &crate::ir::CommandTokens,

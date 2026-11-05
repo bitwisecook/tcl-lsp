@@ -895,7 +895,7 @@ mod tests {
             receipt_start,
         );
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm
     }
@@ -1074,7 +1074,7 @@ mod tests {
             let mut vm = Vm::new();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let first = Value::from_native_string_bytes(b"k\0a".to_vec());
             let second = Value::from_native_string_bytes(b"k\0b".to_vec());
@@ -1175,7 +1175,7 @@ mod tests {
             receipt_start,
         );
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm
     }
@@ -1317,7 +1317,7 @@ mod tests {
             receipt_start,
         );
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm.register_native_command(
             "advance",

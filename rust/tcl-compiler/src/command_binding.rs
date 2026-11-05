@@ -217,16 +217,19 @@ mod original_math_function;
 pub use original_math_function::OriginalMathFunctionOccurrence;
 mod math_occurrence;
 pub use math_occurrence::{SourceConditionalMathInvocation, SourceMathInvocation};
-pub(crate) mod formal_topology;
+#[doc(hidden)]
+pub mod formal_topology;
 mod native_compiler_formals;
 pub(crate) use native_compiler_formals::{
     OriginalNativeCompilerFormalScope, OriginalNativeCompilerFormals,
 };
 mod formal_value;
 mod origin_inventory;
-pub(crate) use origin_inventory::OriginalInvocationSourcePurpose;
+#[doc(hidden)]
+pub use origin_inventory::OriginalInvocationSourcePurpose;
 mod retained_body_inventory;
-pub(crate) use retained_body_inventory::RetainedSourceBodyInventory;
+#[doc(hidden)]
+pub use retained_body_inventory::RetainedSourceBodyInventory;
 mod original_body_namespace;
 pub(crate) use original_body_namespace::original_logical_frame_body_namespace_for_module;
 #[cfg(test)]
@@ -279,8 +282,10 @@ pub use command_presence::SourceCommandSlotPresence;
 pub use generated_procedures::{
     OriginalNativeProcedureBody, SourceInstalledProcedureBody, SourceProcedureImplementationBody,
 };
-mod compiled_preflight;
-mod compiler_inventory;
+#[doc(hidden)]
+pub mod compiled_preflight;
+#[doc(hidden)]
+pub mod compiler_inventory;
 pub(crate) use compiler_inventory::OriginalCompilerArgumentSyntax;
 mod variable_observers;
 mod variable_outputs;
@@ -353,7 +358,9 @@ pub use conditional_source::{
 };
 mod source_argument_syntax;
 use source_analysis_entry::native_compilation_dialect;
-pub use source_analysis_entry::{SourceAnalysisEntry, SourceAnalysisOptions};
+pub use source_analysis_entry::{
+    SourceAnalysisEntry, SourceAnalysisOptions, native_entry_config, native_entry_options,
+};
 pub(crate) use source_analysis_entry::{SourceDeclaredCommandContracts, source_input_dialect};
 pub use source_point_entry::{
     OriginalSourcePointEntry, OriginalSourcePointObligation, OriginalSourcePointOrigin,
@@ -369,13 +376,15 @@ mod namespace_context;
 use cfg_lookup_context::{CfgLookupContexts, CfgPointContext};
 mod namespace_slots;
 pub(crate) use namespace_context::NamespaceKeyQuery;
-pub(crate) use namespace_context::SourceCommandKey;
+#[doc(hidden)]
+pub use namespace_context::SourceCommandKey;
 pub use namespace_context::SourceNamespaceKey;
 use namespace_context::{
     CommandKeyQuery, SourceCommandTable, SourceNamespaceMap, SourceNamespaceSet,
 };
 mod native_variable_tables;
-mod runtime_entry;
+#[doc(hidden)]
+pub mod runtime_entry;
 mod snit_definition;
 pub use compiled_invocation::{
     CompiledExecutionCertainty, CompiledExecutionResidual, NativeCompilationSnapshot,
@@ -428,7 +437,8 @@ pub struct Binding {
 /// resolver. `prepended` contains every literal argument contributed by an
 /// `interp alias` chain, in invocation order.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct ResolvedCommandTarget {
+#[doc(hidden)]
+pub struct ResolvedCommandTarget {
     pub(crate) command: String,
     pub(crate) prepended: Vec<crate::registry_invocation::EffectiveInvocationWord>,
     /// Whether `command` denotes the registry descriptor of that spelling.
@@ -705,7 +715,8 @@ impl SourceOriginId {
     /// Reuse only derived lexical geometry of this immutable source instance.
     /// Complete config, offset and original vector are matched independently
     /// of every caller's current lookup, input, metadata and Native admission.
-    pub(crate) fn original_lexical_command(
+    #[doc(hidden)]
+    pub fn original_lexical_command(
         &self,
         words: &[crate::ir::WordExpr],
         offset: u32,
@@ -905,7 +916,8 @@ pub struct CommandAllocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum MayBinding {
+#[doc(hidden)]
+pub enum MayBinding {
     Target(ResolvedCommandTarget),
     Imported(ImportedCommandBinding),
     /// The binding is absent on this path, so Tcl falls back from a local name
@@ -917,7 +929,8 @@ enum MayBinding {
 
 /// Callable origin and independently retained compiler token of an import.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct ImportedCommandBinding {
+#[doc(hidden)]
+pub struct ImportedCommandBinding {
     origin: CommandToken,
     compiler: Option<CommandToken>,
 }
@@ -1466,7 +1479,8 @@ pub struct SourceInvocationBinding {
     original_argument_syntax: Option<Arc<source_argument_syntax::OriginalSourceArgumentSyntax>>,
     conditional_expression_evaluations:
         Option<Arc<[expression_preparation::SourceConditionalExpressionEvaluation]>>,
-    pub(crate) lookup_namespace: String,
+    #[doc(hidden)]
+    pub lookup_namespace: String,
     pub(crate) lookup_namespace_key: SourceNamespaceKey,
     pub(crate) lookup_word: Option<String>,
     dispatch_site: Option<CommandAllocationSite>,
@@ -2177,9 +2191,11 @@ impl OriginalCompilationLookupAdvice {
 /// immutable shared fields to use their existing structural equality.
 /// A reached state join invalidates the memo on its detached snapshot only.
 #[derive(Debug, Clone)]
-pub(crate) struct SourceLookupSnapshot {
+#[doc(hidden)]
+pub struct SourceLookupSnapshot {
     realm: tcl_dialect::model::InvocationRealm,
-    state: ModuleCommandBindings,
+    #[doc(hidden)]
+    pub state: ModuleCommandBindings,
     fingerprint: OnceLock<u64>,
     compiler_name_effects: original_compiler_effects::SourceCompilerNameEffectsCache,
 }
@@ -4092,7 +4108,8 @@ pub struct SourceCommandBindings {
             Vec<compiled_preflight::expression_syntax::SourceExpressionSyntaxChild>,
         >,
     >,
-    compiler_invocations: SharedSourceInventory<
+    #[doc(hidden)]
+    pub compiler_invocations: SharedSourceInventory<
         BTreeMap<CommandAllocationSite, Vec<compiler_inventory::SourceCompilerInvocation>>,
     >,
     runtime_coverage: SharedSourceInventory<BTreeMap<CommandAllocationSite, (usize, bool)>>,
@@ -4419,7 +4436,8 @@ enum SourceBodyEntryPurpose {
 }
 
 #[derive(Clone, Copy)]
-struct SourceExecutionContext<'a> {
+#[doc(hidden)]
+pub struct SourceExecutionContext<'a> {
     control: source_execution_control::SourceExecutionControl,
     original_logical_body:
         Option<&'a declaration_preview::logical_body_entry::OriginalLogicalBodyEntry>,
@@ -14866,7 +14884,8 @@ pub struct ModuleCommandBindings {
     tainted_object_dispatch: Arc<BTreeSet<String>>,
     tainted_provider_state: Arc<BTreeSet<String>>,
     command_observers: Arc<command_observers::SourceCommandObservers>,
-    source_variables: Arc<crate::var_resolve::ResolveContext>,
+    #[doc(hidden)]
+    pub source_variables: Arc<crate::var_resolve::ResolveContext>,
     variable_frame: crate::var_resolve::VariableExecutionFrame,
     /// Sparse flow-sensitive binding state. Analysis forks this state for
     /// every executable root, while most roots leave the command table
@@ -22590,7 +22609,8 @@ pub fn scan_module_command_mutations(
 /// public convenience wrapper above remains available to callers that do not
 /// already retain the prepared lattice.
 #[must_use]
-pub(crate) fn scan_module_command_mutations_with_bindings(
+#[doc(hidden)]
+pub fn scan_module_command_mutations_with_bindings(
     ir_module: &crate::ir::Module,
     registry: &CommandRegistry,
     command_bindings: &ModuleCommandBindings,

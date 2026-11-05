@@ -25,7 +25,7 @@
 //! and 9.1.0, which agree on all of them; each script runs under each of
 //! those pins.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
 const COROUTINE_RELEASES: [TclVersion; 3] = [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1];

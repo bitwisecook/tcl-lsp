@@ -1202,8 +1202,8 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:1310` | site | the host's reading of a |
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:1315` | site | the host's anchored |
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:1320` | site | the host's reading of a |
-| irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:155` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
-| irreducible | `rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:173` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
+| irreducible | `rust/tcl-codegen/src/codegen/emitter/try_blocks.rs:155` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
+| irreducible | `rust/tcl-codegen/src/codegen/emitter/try_blocks.rs:173` | site | the defs-only marker `lower_catch` builds on a catch end block, not a Tcl invocation |
 | irreducible | `rust/tcl-lsp-core/src/document_links.rs:352` | site | the pack grammar's own statements |
 | irreducible | `rust/tcl-lsp-core/src/document_links.rs:367` | site | the pack grammar's own statements |
 | options | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs:314` | site | W311 reads the encoding option's position, which `option_placement` on the registry will carry |
@@ -1222,11 +1222,11 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 6 |
-| `rust/tcl-compiler/src/codegen/cmd_subst.rs` | 3 |
-| `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs` | 4 |
-| `rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs` | 2 |
-| `rust/tcl-compiler/src/codegen/statements.rs` | 2 |
-| `rust/tcl-compiler/src/codegen/structured.rs` | 2 |
+| `rust/tcl-codegen/src/codegen/cmd_subst.rs` | 3 |
+| `rust/tcl-codegen/src/codegen/emitter/bytecoded.rs` | 4 |
+| `rust/tcl-codegen/src/codegen/emitter/loop_blocks.rs` | 2 |
+| `rust/tcl-codegen/src/codegen/statements.rs` | 2 |
+| `rust/tcl-codegen/src/codegen/structured.rs` | 2 |
 | `rust/tcl-compiler/src/connection_scope.rs` | 1 |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 |
 | `rust/tcl-compiler/src/irules_checks.rs` | 3 |

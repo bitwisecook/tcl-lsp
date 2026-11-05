@@ -385,7 +385,7 @@ assert the payload is complete.
 
 - `rust/tcl-explorer/src/wasm_explorer.rs` (unit) — the module header carries
   every contract field, and `types` covers imports plus defined functions.
-- `rust/tcl-compiler/src/codegen/wasm/ir.rs` (unit) — `type_section()`
+- `rust/tcl-codegen/src/codegen/wasm/ir.rs` (unit) — `type_section()`
   predicts the type table `to_bytes` emits.
 - `rust/tcl-cli/tests/explorer_gui.rs` (integration) — drives the shipped GUI
   in headless Chromium against a real payload and asserts the WASM tab

@@ -34,7 +34,7 @@
 mod common;
 
 use std::rc::Rc;
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 use tcl_test_support::{JimCapability, require_jimsh, required_tclshs};
 use tcl_vm::{Code, Completion, NativeCommand, Value, Vm};

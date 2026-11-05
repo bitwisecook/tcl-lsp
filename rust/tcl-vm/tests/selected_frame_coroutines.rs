@@ -19,7 +19,7 @@
 //! Selected Tcl frames retain their physical owners across coroutine suspension.
 //! Expected bytes were measured independently on C Tcl 8.6, 9.0 and 9.1.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
 
 fn diagnose_entry_stage(source: &str, profile: &'static DialectProfile) {

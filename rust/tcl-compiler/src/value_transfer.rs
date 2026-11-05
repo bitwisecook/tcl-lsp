@@ -61,7 +61,7 @@ use tcl_registry::{
 };
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
-use crate::codegen::helpers::split_list_values;
+use crate::codegen_helpers::split_list_values;
 use crate::command_binding::CommandTrustSnapshot;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};

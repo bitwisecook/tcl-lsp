@@ -1,0 +1,2676 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! General proc inliner (v0 + verbatim + v3 parameterised).
+//!
+//! Combines the decision catalogue, the IR-level splice transform, and
+//! the α-rename machinery (here [`rename`]). The inliner rewrites
+//! statement-position calls to *inlinable* procedures so the call
+//! boundary disappears before WASM codegen consumes the IR.
+//!
+//! # Scope
+//!
+//! Four call shapes are handled:
+//!
+//! * **v0 — empty body.** A call to a zero-statement proc vanishes.
+//! * **v1 / v2 — verbatim wrapper.** A zero-parameter proc whose every
+//!   body statement is *splice-eligible* (a frame-independent, def-free,
+//!   substitution-free builtin call) has its body spliced verbatim.
+//! * **v3 — parameterised.** Procs with parameters and / or local writes.
+//!   Every parameter and locally-written variable is α-renamed to a fresh
+//!   `__inline_<id>__<name>` slot ([`rename`]), call-site args are bound
+//!   to the mangled parameter slots (honouring defaults, variadic `args`,
+//!   and braced-literal args), and a non-trailing `return` is lowered to
+//!   `set __RESULT <v>; break` wrapped in a one-shot `while {1} { … }`
+//!   loop so it doesn't short-circuit the caller.
+//!
+//! # Consumer
+//!
+//! Inlining is a pre-codegen IR transform — it dissolves call boundaries
+//! so the backend emits flatter code. The LSP and CLI analysis paths
+//! report on the program *as written* and never lower to codegen, so they
+//! deliberately do not run the inliner. [`inline_module`], which inlines
+//! the procedures a module defines, is exposed for the WASM codegen and
+//! unwired, with the IR-shape unit tests here as its current verification.
+//! [`inline_reference_bodies`] is the bytecode compile service's: it inlines
+//! the definitions a pack gives the commands it backs with a Tcl body, and
+//! no procedure the module defines, because a site that inlines one records
+//! a claim on the pack that the VM attests and the WASM backend records none.
+//!
+//! # Soundness
+//!
+//! Two gates combine in [`build_inlinable_map`]: the precise
+//! interprocedural [`var_escape::pure_leaf`](tcl_compiler::var_escape) proof
+//! (`safe_to_inline`, the soundness predicate) and the
+//! structural shape. Redefined procs are never inlined (their body is
+//! ambiguous). Recursion cannot loop: the splice replaces a single static
+//! call site, and the rename gives every inline a fresh slot namespace.
+//! v3 declines a proc whose `return` sits inside a loop / `catch` / `try`
+//! / `uplevel` body (where our `break`-based early-return lowering would
+//! be trapped) and any call site using `{*}` expansion (runtime arity).
+//!
+//! Three more conditions keep a splice the call it replaced. The body reads only
+//! what its own frame binds, through operands the rename reaches ([`frame`]), for a
+//! name it never bound would be the caller's variable. It names its commands as
+//! its own namespace does ([`heads`]): spliced into a third namespace each call is
+//! spelled from the global one, and a body that substitutes a command there stays a
+//! call. And what replaces the call is the value the call had, where anything
+//! reads it ([`Tail`]): a `return` stays one only where the value is the
+//! procedure's, is wrapped where nothing reads it, and where a `catch` or a `try`
+//! holds the value the call stays a call. An `uplevel` body is never rewritten:
+//! it is emitted from its text.
+
+mod frame;
+mod heads;
+pub(crate) mod reference;
+mod rename;
+
+use std::collections::{BTreeSet, HashMap, HashSet};
+
+use tcl_lexer::{LexerConfig, Span};
+
+use tcl_compiler::expr_ast::ExprNode;
+use tcl_compiler::ir::{
+    CommandBindingSite, CommandTokens, IfClause, Module, Procedure, Script, Statement, SwitchArm,
+    TryHandler,
+};
+use tcl_compiler::var_escape::ProcEscapeSummary;
+use tcl_registry::CommandRegistry;
+use tcl_syntax::word_rules::WordValueRules;
+
+struct InliningSummaries<'a> {
+    module: &'a Module,
+    registry: &'a CommandRegistry,
+    escapes: &'a HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+}
+
+impl InliningSummaries<'_> {
+    fn get(&self, id: &tcl_compiler::ir::ProcedureId) -> Option<&ProcEscapeSummary> {
+        self.escapes.get(&tcl_core_types::BodyFrameId::Body(*id))
+    }
+    fn selected_body(&self, tokens: &CommandTokens) -> Option<tcl_compiler::ir::ProcedureId> {
+        let calls = tcl_compiler::registry_invocation::original_logical_procedure_calls_for_module(
+            tokens,
+            self.module,
+            self.registry,
+        )?;
+        let first = calls.first()?;
+        if !first.accepts_arguments()
+            || !first.effective_arguments().binding_prefix.is_empty()
+            || !calls.iter().all(|call| {
+                call.id() == first.id()
+                    && call.accepts_arguments()
+                    && call.effective_arguments() == first.effective_arguments()
+            })
+        {
+            return None;
+        }
+        let written = tokens.words().get(1..)?;
+        (first.effective_arguments().words.get(1..)? == written).then_some(first.id())
+    }
+}
+
+/// Per-proc inlining policy decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InlineDecision {
+    /// Always inline a call to this proc (small, pure-leaf body).
+    Always,
+    /// Inline only when the proc has exactly one static caller. Recorded
+    /// for future pruning; not acted on by the splice (the
+    /// post-inline proc-pruning interaction is not yet implemented).
+    IfSingleCall,
+    /// Never inline.
+    Never,
+}
+
+/// A body-size and static-call-count fact with no execution permission.
+///
+/// This type is deliberately distinct from [`InlineDecision`]. It proves no
+/// escape, argument, frame, compiler, callback or currentness condition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InliningProfitability {
+    /// The body's size permits bounded code growth at any static call count.
+    BoundedGrowth,
+    /// The larger body is size-neutral only at its single static caller.
+    SingleCallerOnly,
+    /// The size and call count do not meet either profitability rule.
+    Unprofitable,
+}
+
+/// Describe only body size and static call count, independently of eligibility.
+///
+/// This function accepts an IR body as data. Its result cannot authorize a
+/// splice, frame removal, argument binding or native execution. Those consumers
+/// still require their independent semantic proofs through [`classify_proc`]
+/// and the actual transformation's existing guards.
+#[must_use]
+pub fn inlining_profitability(proc: &Procedure, static_call_count: usize) -> InliningProfitability {
+    if count_statements(&proc.body) <= SMALL_BODY_THRESHOLD {
+        InliningProfitability::BoundedGrowth
+    } else if static_call_count == 1 {
+        InliningProfitability::SingleCallerOnly
+    } else {
+        InliningProfitability::Unprofitable
+    }
+}
+
+/// A pure-leaf proc whose body has at most this many flat statements is
+/// unconditionally inlinable.
+pub const SMALL_BODY_THRESHOLD: usize = 5;
+
+/// Depth cap shared by every `Script`/`Statement`-tree recursion in this
+/// module (`tally_calls`, `has_irreturn_in_unsafe_scope`,
+/// `walk_local_writes`).
+///
+/// Transitively bounded today via `tcl_compiler::lowering`'s
+/// `MAX_LOWER_NEST_DEPTH` (every `Script` this module walks is built by
+/// lowering, which already caps its own construction at 256), capped here
+/// independently for defence-in-depth and consistency with every other
+/// full-tree walker in this crate.
+const MAX_INLINING_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+
+/// What an inlinable proc splices in at a call site.
+#[derive(Debug, Clone)]
+struct ProcedureDefinitionIdentity {
+    name: String,
+    namespace: String,
+    parameters: String,
+    body: String,
+}
+
+#[derive(Debug, Clone)]
+enum InlineSpec {
+    /// v0 — empty body; the call vanishes.
+    Empty(ProcedureDefinitionIdentity, LexerConfig),
+    /// v1 / v2 — splice these body statements verbatim.
+    Verbatim(Script, ProcedureDefinitionIdentity, LexerConfig),
+    /// v3 — parameterised; rewrite per call site from this proc, whose
+    /// `params_raw` is parsed under the **module's** word-value rules
+    /// ([`WordValueRules`]) rather than a re-derived C Tcl default.
+    Parameterised(Procedure, WordValueRules, LexerConfig),
+}
+
+impl InlineSpec {
+    /// The statements of the body the definition has.
+    fn body_statements(&self) -> &[Statement] {
+        match self {
+            Self::Empty(_, _) => &[],
+            Self::Verbatim(body, _, _) => &body.statements,
+            Self::Parameterised(proc, _, _) => &proc.body.statements,
+        }
+    }
+
+    fn lexer_config(&self) -> LexerConfig {
+        match self {
+            Self::Empty(_, config)
+            | Self::Verbatim(_, _, config)
+            | Self::Parameterised(_, _, config) => *config,
+        }
+    }
+
+    fn definition(&self) -> ProcedureDefinitionIdentity {
+        match self {
+            Self::Empty(definition, _) | Self::Verbatim(_, definition, _) => definition.clone(),
+            Self::Parameterised(proc, _, _) => procedure_definition(proc)
+                .expect("only source-backed procedures enter the inlining catalogue"),
+        }
+    }
+}
+
+fn procedure_definition(proc: &Procedure) -> Option<ProcedureDefinitionIdentity> {
+    Some(ProcedureDefinitionIdentity {
+        name: proc.publication.as_ref()?.source_spelling()?,
+        namespace: proc
+            .body
+            .namespace_context
+            .as_ref()?
+            .advisory_key()?
+            .clone(),
+        parameters: proc.params_raw.clone(),
+        body: proc.body_source.clone()?,
+    })
+}
+
+// statement counting
+
+/// Total number of leaf statements reachable in `script`, walking nested
+/// control-flow bodies transitively (the inlined code-size cost).
+#[must_use]
+pub fn count_statements(script: &Script) -> usize {
+    script.statements.iter().map(count_one).sum()
+}
+
+fn count_one(stmt: &Statement) -> usize {
+    match stmt {
+        Statement::Block { body, .. } | Statement::UpFrame { body, .. } => count_statements(body),
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            let mut n = 0;
+            for c in clauses {
+                n += 1 + count_statements(&c.body);
+            }
+            if let Some(b) = else_body {
+                n += count_statements(b);
+            }
+            n
+        }
+        Statement::For {
+            init, next, body, ..
+        } => count_statements(init) + 1 + count_statements(next) + count_statements(body),
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. } => 1 + count_statements(body),
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            let mut n = count_statements(body);
+            for h in handlers {
+                n += count_statements(&h.body);
+            }
+            if let Some(fb) = finally_body {
+                n += count_statements(fb);
+            }
+            n
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            let mut n = 0;
+            for a in arms {
+                if let Some(b) = &a.body {
+                    n += count_statements(b);
+                }
+            }
+            if let Some(b) = default_body {
+                n += count_statements(b);
+            }
+            n
+        }
+        _ => 1,
+    }
+}
+
+// static call counting
+
+/// Return `{qname: static_call_count}` over the whole module. Walks the
+/// top-level script and every proc body; an [`Statement::Call`] whose
+/// command resolves (per the same namespace-walk rules the
+/// interprocedural pass uses) to a known proc contributes `+1`.
+fn count_static_calls(
+    module: &Module,
+    summaries: &InliningSummaries<'_>,
+) -> HashMap<tcl_compiler::ir::ProcedureId, usize> {
+    let mut counts: HashMap<_, _> = module.procedures.keys().map(|id| (*id, 0)).collect();
+    for body in
+        std::iter::once(&module.top_level).chain(module.procedures.values().map(|proc| &proc.body))
+    {
+        tcl_compiler::ir::for_each_statement(body, &mut |statement| {
+            if let Statement::Call {
+                tokens: Some(tokens),
+                ..
+            } = statement
+                && let Some(id) = summaries.selected_body(tokens)
+                && let Some(count) = counts.get_mut(&id)
+            {
+                *count += 1;
+            }
+        });
+    }
+    counts
+}
+
+/// Procedure-body namespace label in the authored inlining model.
+#[cfg(test)]
+fn root_namespace_of(qname: &str) -> String {
+    tcl_syntax::naming::reported_qname_namespace(
+        qname,
+        tcl_syntax::naming::ReportedQNameNamespacePurpose::AfterLeadingRoot,
+    )
+}
+
+/// `depth` is the nesting level of `script` — see
+/// [`MAX_INLINING_WALK_DEPTH`].
+/// Apply the inlining policy to a single proc. A proc is inlinable only if
+/// its escape summary is pure-leaf (`safe_to_inline`); among that set,
+/// size and static-call-count decide between [`InlineDecision::Always`]
+/// (small enough that growth is bounded), [`InlineDecision::IfSingleCall`]
+/// (size-neutral), and [`InlineDecision::Never`].
+#[must_use]
+pub fn classify_proc(
+    proc: &Procedure,
+    summary: Option<&ProcEscapeSummary>,
+    static_call_count: usize,
+) -> InlineDecision {
+    if tcl_compiler::native_compilation_admission::script_requires_admission(&proc.body) {
+        trace_native_inline_decline("compiler-admission", proc, summary);
+        return InlineDecision::Never;
+    }
+    if !summary.is_some_and(ProcEscapeSummary::safe_to_inline) {
+        trace_native_inline_decline("escape-summary", proc, summary);
+        return InlineDecision::Never;
+    }
+    let body_size = count_statements(&proc.body);
+    if body_size <= SMALL_BODY_THRESHOLD {
+        InlineDecision::Always
+    } else if static_call_count == 1 {
+        InlineDecision::IfSingleCall
+    } else {
+        InlineDecision::Never
+    }
+}
+
+fn trace_native_inline_decline(stage: &str, proc: &Procedure, summary: Option<&ProcEscapeSummary>) {
+    static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_none()
+        || LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 16
+    {
+        return;
+    }
+    eprintln!(
+        "NATIVE_INLINE_DECLINE proc={} stage={stage} admission={:?} legacy_failure={} summary={:?}",
+        proc.qualified_name,
+        proc.body
+            .native_compilation_admission
+            .as_ref()
+            .map(|admission| (
+                admission.provider_required,
+                admission.failure.is_some(),
+                admission.source.is_some(),
+            )),
+        proc.body.native_compilation_failure.is_some(),
+        summary.map(|summary| (
+            summary.pure_leaf,
+            summary.frame_needed,
+            &summary.flags,
+            summary.barriers.len()
+        )),
+    );
+}
+
+// splice-eligibility
+
+/// True when `command` resolves the same way from any caller's namespace
+/// as it does from the callee's: it is fully qualified, or it is
+/// unqualified and doesn't resolve to any known proc (so it's a global
+/// builtin).
+fn command_is_namespace_invariant(
+    command: &str,
+    _callee_qname: &str,
+    tokens: &CommandTokens,
+    summaries: &InliningSummaries<'_>,
+) -> bool {
+    if command.starts_with("::") {
+        return true;
+    }
+    summaries.selected_body(tokens).is_none()
+}
+
+/// True iff `stmt` can be lifted out of the wrapper proc and spliced into
+/// a caller without changing observable behaviour.
+fn stmt_is_splice_eligible(
+    stmt: &Statement,
+    callee_qname: &str,
+    summaries: &InliningSummaries<'_>,
+    source: frame::SourceContext<'_>,
+) -> bool {
+    let Statement::Call {
+        command,
+        defs,
+        tokens: Some(tokens),
+        ..
+    } = stmt
+    else {
+        return false;
+    };
+    let Some(invocation) = source.invocation(tokens) else {
+        return false;
+    };
+    defs.is_empty()
+        && command_is_namespace_invariant(command, callee_qname, tokens, summaries)
+        && tcl_registry::traits::is_splice_safe(invocation.facts.traits)
+        && tcl_compiler::word_subst::checked_lifted_calls(tokens, source.config)
+            .is_some_and(|calls| calls.is_empty())
+}
+
+// v3 eligibility
+
+/// Return true iff `proc` qualifies for parameterised (v3) inlining.
+fn v3_eligible(
+    proc: &Procedure,
+    qname: &str,
+    summaries: &InliningSummaries<'_>,
+    source: frame::SourceContext<'_>,
+) -> bool {
+    if has_irreturn_in_unsafe_scope(&proc.body, false, 0) {
+        return false;
+    }
+    for stmt in &proc.body.statements {
+        if matches!(stmt, Statement::Return { .. }) {
+            continue; // top-level return is fine — handled by wrap or kept
+        }
+        if !v3_stmt_eligible(stmt, qname, summaries, source) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Walk `script` looking for any [`Statement::Return`] inside a construct
+/// whose `break` semantics would trap our wrapper's break (loop bodies,
+/// `catch` / `try` traps, `uplevel` frame-shifts). Transparent groupings
+/// (`Block`, `if` clauses, `switch` arms) propagate the parent flag.
+/// `depth` is the nesting level of `script` — see
+/// [`MAX_INLINING_WALK_DEPTH`]. Past the cap, conservatively answers
+/// `true` ("assume an unsafe-scope return exists") — this predicate gates
+/// whether a proc is *safe* to v3-inline, so an unresolved deep answer
+/// must lean toward declining the inline, never toward inlining something
+/// that could trap a `break`.
+fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool, depth: u32) -> bool {
+    if MAX_INLINING_WALK_DEPTH.exceeded(depth) {
+        return true;
+    }
+    for stmt in &script.statements {
+        match stmt {
+            Statement::Return { .. } => {
+                if inside_unsafe {
+                    return true;
+                }
+            }
+            Statement::For {
+                init, next, body, ..
+            } => {
+                if has_irreturn_in_unsafe_scope(init, inside_unsafe, depth + 1)
+                    || has_irreturn_in_unsafe_scope(next, inside_unsafe, depth + 1)
+                    || has_irreturn_in_unsafe_scope(body, true, depth + 1)
+                {
+                    return true;
+                }
+            }
+            Statement::While { body, .. }
+            | Statement::Foreach { body, .. }
+            | Statement::Catch { body, .. }
+            | Statement::UpFrame { body, .. } => {
+                if has_irreturn_in_unsafe_scope(body, true, depth + 1) {
+                    return true;
+                }
+            }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                if has_irreturn_in_unsafe_scope(body, true, depth + 1) {
+                    return true;
+                }
+                for h in handlers {
+                    if has_irreturn_in_unsafe_scope(&h.body, true, depth + 1) {
+                        return true;
+                    }
+                }
+                if let Some(fb) = finally_body
+                    && has_irreturn_in_unsafe_scope(fb, true, depth + 1)
+                {
+                    return true;
+                }
+            }
+            Statement::Block { body, .. } => {
+                if has_irreturn_in_unsafe_scope(body, inside_unsafe, depth + 1) {
+                    return true;
+                }
+            }
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for c in clauses {
+                    if has_irreturn_in_unsafe_scope(&c.body, inside_unsafe, depth + 1) {
+                        return true;
+                    }
+                }
+                if let Some(b) = else_body
+                    && has_irreturn_in_unsafe_scope(b, inside_unsafe, depth + 1)
+                {
+                    return true;
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for a in arms {
+                    if let Some(b) = &a.body
+                        && has_irreturn_in_unsafe_scope(b, inside_unsafe, depth + 1)
+                    {
+                        return true;
+                    }
+                }
+                if let Some(b) = default_body
+                    && has_irreturn_in_unsafe_scope(b, inside_unsafe, depth + 1)
+                {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Per-statement eligibility for v3 inlining.
+fn v3_stmt_eligible(
+    stmt: &Statement,
+    callee_qname: &str,
+    summaries: &InliningSummaries<'_>,
+    source: frame::SourceContext<'_>,
+) -> bool {
+    match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } => {
+            // `::`-qualified names (globals) decline — the rename map only
+            // covers locals. Array writes (`arr(idx)`) qualify.
+            !name.contains("::")
+        }
+        Statement::Call { .. } => stmt_is_splice_eligible(stmt, callee_qname, summaries, source),
+        Statement::ExprEval { .. } => true,
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            clauses
+                .iter()
+                .all(|c| v3_script_eligible(&c.body, callee_qname, summaries, source))
+                && else_body
+                    .as_ref()
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, source))
+        }
+        Statement::For {
+            init, next, body, ..
+        } => {
+            v3_script_eligible(init, callee_qname, summaries, source)
+                && v3_script_eligible(next, callee_qname, summaries, source)
+                && v3_script_eligible(body, callee_qname, summaries, source)
+        }
+        Statement::Block { body, .. }
+        | Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. }
+        | Statement::UpFrame { body, .. } => {
+            v3_script_eligible(body, callee_qname, summaries, source)
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            v3_script_eligible(body, callee_qname, summaries, source)
+                && handlers
+                    .iter()
+                    .all(|h| v3_script_eligible(&h.body, callee_qname, summaries, source))
+                && finally_body
+                    .as_ref()
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, source))
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            arms.iter().all(|a| {
+                a.body
+                    .as_ref()
+                    .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, source))
+            }) && default_body
+                .as_ref()
+                .is_none_or(|b| v3_script_eligible(b, callee_qname, summaries, source))
+        }
+        // Return is handled by the caller; Barrier and anything else decline.
+        _ => false,
+    }
+}
+
+/// Recurse into a nested script and check per-statement eligibility.
+/// `return` inside a nested script IS allowed (the for/break wrap routes
+/// it).
+fn v3_script_eligible(
+    script: &Script,
+    callee_qname: &str,
+    summaries: &InliningSummaries<'_>,
+    source: frame::SourceContext<'_>,
+) -> bool {
+    if tcl_compiler::native_compilation_admission::script_requires_admission(script) {
+        return false;
+    }
+    for stmt in &script.statements {
+        if matches!(stmt, Statement::Return { .. }) {
+            continue;
+        }
+        if !v3_stmt_eligible(stmt, callee_qname, summaries, source) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Build the Module-issued body-ID map of inlinable procedures. Only
+/// [`InlineDecision::Always`] procs qualify; `IfSingleCall` is not
+/// eligible, because its profitability depends on post-inline pruning
+/// this pass does not perform. Redefined procs are never inlined.
+fn build_inlinable_map(
+    module: &Module,
+    summaries: &InliningSummaries<'_>,
+    registry: &CommandRegistry,
+) -> HashMap<tcl_compiler::ir::ProcedureId, InlineSpec> {
+    // The transform binds ordinary positional cells, ordered defaults and a
+    // final rest slot. Name-only Jim headers cannot issue that activation;
+    // unknown axes preserve dispatch instead of borrowing C Tcl binding.
+    if module.parameter_grammar() != Some(tcl_dialect::ParameterGrammar::Tcl) {
+        return HashMap::new();
+    }
+    let Some(source) = frame::SourceContext::for_module(module, registry) else {
+        return HashMap::new();
+    };
+    let counts = count_static_calls(module, summaries);
+    // The module's own dialect, resolved once here — the lowered module names
+    // it, and this is the only point in the inliner's recursion that still
+    // holds the module.
+    let word_rules = WordValueRules::from_config(&module.lexer_config);
+    let mut map = HashMap::new();
+    for (id, proc) in &module.procedures {
+        let qname = &proc.qualified_name;
+        if module.redefined_procedures.contains(qname)
+            || !source.matches_procedure(proc)
+            || tcl_compiler::native_compilation_admission::script_requires_admission(&proc.body)
+        {
+            continue;
+        }
+        let count = counts.get(id).copied().unwrap_or(0);
+        if classify_proc(proc, summaries.get(id), count) != InlineDecision::Always {
+            continue;
+        }
+        // Every binding strategy uses the same selected strict ParamList
+        // syntax, including exact-arity and empty-body calls. A displayed name
+        // vector cannot bypass the original declaration's validation.
+        let Some(parameters) = parse_params_with_defaults(&proc.params_raw, word_rules) else {
+            continue;
+        };
+        if !parameters
+            .iter()
+            .map(|(name, _)| name)
+            .eq(proc.params.iter())
+        {
+            continue;
+        }
+        // Executable inlining is valid only when codegen can retain an exact
+        // definition identity for runtime admission. Synthetic procedures have
+        // no Tcl body source to validate, so leave their calls intact.
+        let Some(definition) = procedure_definition(proc) else {
+            continue;
+        };
+
+        // A body runs in a frame of its own. Spliced into a caller's, a name it
+        // reads without having bound it would answer the caller's variable of
+        // that spelling, so such a body stays a call.
+        if !frame::reads_only_bound_names(proc, source) {
+            continue;
+        }
+
+        // v0 — empty body.
+        if proc.body.statements.is_empty() {
+            map.insert(*id, InlineSpec::Empty(definition, source.config));
+            continue;
+        }
+
+        // v1 / v2 — zero-param wrapper, every body statement splice-safe.
+        if proc.params.is_empty()
+            && proc
+                .body
+                .statements
+                .iter()
+                .all(|s| stmt_is_splice_eligible(s, qname, summaries, source))
+        {
+            map.insert(
+                *id,
+                InlineSpec::Verbatim(proc.body.clone(), definition, source.config),
+            );
+            continue;
+        }
+
+        // v3 — parameterised inline with α-renaming.
+        if v3_eligible(proc, qname, summaries, source) {
+            map.insert(
+                *id,
+                InlineSpec::Parameterised(proc.clone(), word_rules, source.config),
+            );
+        }
+    }
+    map
+}
+
+// the pass
+
+/// Inline eligible statement-position calls throughout `module`,
+/// returning the rewritten module. Idempotent: a module with no remaining
+/// inlinable sites is returned structurally unchanged.
+///
+/// Dead-proc elimination is intentionally omitted: the [`Procedure`] type
+/// carries no `compiler_synthetic` flag to key it on. User procs stay in
+/// the module so host eval / `info procs` / `rename` observers still see
+/// them.
+#[must_use]
+pub fn inline_module(module: Module, registry: &CommandRegistry) -> Module {
+    inline_procedures(module, registry, &Inlining::Everything)
+}
+
+/// Inline the calls `module` makes to commands a pack declares
+/// `TclBody`-backed, and to no procedure the module defines.
+///
+/// The definition each such command's `runtime_backing` names is brought into
+/// the module ([`ReferenceBodies`](tcl_compiler::ir::ReferenceBodies)) and inlined under
+/// the policy a procedure the module defines is: a pure leaf of at most
+/// [`SMALL_BODY_THRESHOLD`] statements, never at a site the runtime could not
+/// replay. Each site records the procedure binding the runtime holds the live
+/// command to, and codegen records a
+/// [`tcl_runtime_api::SiteClaim::ReferenceBody`] beside it, so the unit is
+/// admitted only while the live command is that definition and the pack that
+/// declared it is the one the runtime holds. A module that calls none, a plain
+/// dispatch compile, a release that keeps the commands running bytecode
+/// compiled (`TclVersion::revalidates_running_bytecode`), and a registry that
+/// holds no pack with a body are returned unchanged.
+///
+/// `config` and `profile` are the compile's own, so a definition is read under
+/// the grammar its caller is.
+#[must_use]
+pub fn inline_reference_bodies(
+    mut module: Module,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+) -> Module {
+    // A procedure body is a unit of its own that a release keeping the
+    // commands running bytecode compiled enters afresh at each call, which a
+    // body spliced into its caller would not be.
+    let release = profile.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+        profile.vm_runtime_version
+    });
+    if module.plain_command_dispatch || !release.revalidates_running_bytecode() {
+        return module;
+    }
+    let imported = reference::import(&mut module, registry, config, profile);
+    if imported.is_empty() {
+        return module;
+    }
+    let mut module = inline_procedures(module, registry, &Inlining::Only(&imported));
+    module.procedures.retain(|name, _| !imported.contains(name));
+    module
+}
+
+/// Which procedures a pass inlines the calls to.
+enum Inlining<'a> {
+    /// Every procedure the module defines that the policy admits.
+    Everything,
+    /// Only the procedures the importer added: the module's own are neither
+    /// inlined nor rewritten.
+    Only(&'a BTreeSet<tcl_compiler::ir::ProcedureId>),
+}
+
+impl Inlining<'_> {
+    fn admits(&self, id: &tcl_compiler::ir::ProcedureId) -> bool {
+        match self {
+            Self::Everything => true,
+            Self::Only(names) => names.contains(id),
+        }
+    }
+
+    /// Whether the module's top level is rewritten, and whether it may be Tcl
+    /// frame zero. A script's global level is frame zero's, and a body inlined
+    /// there would leave its renamed parameters behind as global variables, so
+    /// a pass that inlines a pack's definition leaves it alone; a
+    /// procedure-body compile's top level is a procedure's, with a frame of its
+    /// own.
+    fn top_level(&self, module: &Module) -> Option<bool> {
+        match self {
+            Self::Everything => Some(true),
+            Self::Only(_) => (module.top_level_kind
+                == tcl_compiler::ir::TopLevelKind::ProcedureBody)
+                .then_some(false),
+        }
+    }
+}
+
+/// What becomes of the value of the command a call stands in, which decides what
+/// replaces the call.
+///
+/// A procedure's value is its last command's, so the value of a call is
+/// somebody's only where the call is the last command of its script and the
+/// script's own value is somebody's in turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Tail {
+    /// Nothing reads it: a command that is not the last of its script, or the
+    /// body of a loop.
+    Dropped,
+    /// It is the procedure's own value, so a `return` in its place ends the
+    /// procedure as the callee's would have ended the callee.
+    Returned,
+    /// A command around the call reads it and a `return` would not end the
+    /// procedure — a `catch` or a `try` holds it. Only a replacement that is
+    /// itself the value will do.
+    Captured,
+}
+
+/// Where a call stands in its script.
+#[derive(Debug, Clone, Copy)]
+struct Site {
+    /// What becomes of the call's value.
+    tail: Tail,
+    /// Whether nothing of the rewritten script stands before the call, so that
+    /// no earlier command can be mistaken for its value once it is gone.
+    first: bool,
+}
+
+fn inline_procedures(
+    mut module: Module,
+    registry: &CommandRegistry,
+    scope: &Inlining<'_>,
+) -> Module {
+    let catalogue = module.clone();
+    let escape =
+        tcl_compiler::var_escape::analyse_var_escape_with_registry(&catalogue, true, registry);
+    let summaries = InliningSummaries {
+        module: &catalogue,
+        registry,
+        escapes: &escape,
+    };
+    let mut inlinable = build_inlinable_map(&catalogue, &summaries, registry);
+    inlinable.retain(|id, _| scope.admits(id));
+    if inlinable.is_empty() {
+        return module;
+    }
+
+    let mut counter: usize = 0;
+    let top_caller = module.top_level_namespace.clone();
+    if let Some(may_be_global_frame) = scope.top_level(&module) {
+        let (new_top, _) = rewrite_script(
+            &module.top_level,
+            &top_caller,
+            &inlinable,
+            &summaries,
+            &mut counter,
+            Tail::Returned,
+            may_be_global_frame,
+        );
+        module.top_level = new_top;
+    }
+
+    let mut procedures = std::mem::take(&mut module.procedures);
+    for (qname, proc) in &mut procedures {
+        if matches!(scope, Inlining::Only(names) if names.contains(qname)) {
+            continue;
+        }
+        let Some(caller_namespace) = proc
+            .body
+            .namespace_context
+            .as_deref()
+            .and_then(tcl_compiler::command_binding::SourceNamespaceKey::advisory_key)
+        else {
+            continue;
+        };
+        let (new_body, changed) = rewrite_script(
+            &proc.body,
+            &caller_namespace,
+            &inlinable,
+            &summaries,
+            &mut counter,
+            Tail::Returned,
+            false,
+        );
+        if changed {
+            proc.body = new_body;
+        }
+    }
+    module.procedures = procedures;
+    module
+}
+
+/// Rewrite a script, returning `(new_script, changed)`. `tail` is what becomes
+/// of the script's own value; it is the last statement's, so a v3 inline of a
+/// proc with a trailing `return` keeps the return where the value is the
+/// procedure's and wraps it where nothing reads the value.
+///
+/// `caller_may_be_global_frame` distinguishes a module script from a procedure
+/// body without encoding that fact in a synthetic procedure name. A module's
+/// top-level activation can be Tcl frame zero, and every structured body
+/// flattened into it keeps that possibility. The runtime cannot transparently
+/// replay a command copied from another namespace there: frame zero is the
+/// immutable `uplevel #0` / coroutine-flow root. Procedure bodies have a real
+/// supra-global frame whose namespace can be replaced for the duration of a
+/// stale-command replay.
+fn rewrite_script(
+    script: &Script,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    tail: Tail,
+    caller_may_be_global_frame: bool,
+) -> (Script, bool) {
+    if tcl_compiler::native_compilation_admission::script_requires_admission(script) {
+        return (script.clone(), false);
+    }
+    let mut out: Vec<Statement> = Vec::with_capacity(script.statements.len());
+    let mut command_binding_sites: Vec<CommandBindingSite> =
+        script.command_binding_sites.iter().cloned().collect();
+    let mut procedure_binding_requirements: Vec<tcl_runtime_api::ProcedureBindingIdentity> = script
+        .procedure_binding_requirements
+        .iter()
+        .cloned()
+        .collect();
+    let mut changed = false;
+    let n = script.statements.len();
+    for (i, stmt) in script.statements.iter().enumerate() {
+        let site = Site {
+            tail: if i + 1 == n { tail } else { Tail::Dropped },
+            first: out.is_empty(),
+        };
+        match rewrite_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            site,
+            caller_may_be_global_frame,
+        ) {
+            None => out.push(stmt.clone()),
+            Some(replacement) => {
+                changed = true;
+                out.extend(replacement.statements);
+                command_binding_sites.extend(replacement.command_binding_sites);
+                procedure_binding_requirements.extend(replacement.procedure_bindings);
+            }
+        }
+    }
+    (
+        Script::from_transformed_parts(out, command_binding_sites, procedure_binding_requirements),
+        changed,
+    )
+}
+
+/// Return a replacement expansion, or `None` to keep `stmt`. An empty
+/// statement list drops the statement (v0); a non-empty list substitutes
+/// the inlined body. A body nested in the statement is rewritten for the value
+/// the statement gives it: a branch of an `if` or `switch`, and the body of a
+/// block, are the statement's own tail; a `catch` or `try` holds the value of
+/// its body; a loop reads none.
+fn rewrite_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    site: Site,
+    caller_may_be_global_frame: bool,
+) -> Option<InlineExpansion> {
+    match stmt {
+        Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } => {
+            let target = summaries.selected_body(tokens)?;
+            // A procedure invocation normally creates a frame in its defining
+            // namespace. Inlining erases that frame. If a preceding command in
+            // the copied body mutates a later specialised command, the VM
+            // replays that later command in the copied source namespace. It can
+            // do so transparently only above frame zero; replacing frame zero
+            // would change `uplevel #0` and leak through coroutine flow swaps.
+            // Keep the original procedure call whenever a module-level caller
+            // may occupy frame zero and the callee belongs to another namespace.
+            if caller_may_be_global_frame
+                && summaries
+                    .module
+                    .procedures
+                    .get(&target)?
+                    .body
+                    .namespace_context
+                    .as_ref()?
+                    .advisory_key()?
+                    != caller_qname
+            {
+                return None;
+            }
+            let spec = inlinable.get(&target)?;
+            splice_call_site(stmt, spec, caller_qname, counter, site)
+        }
+        Statement::Block { .. } => rewrite_block_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            site.tail,
+            caller_may_be_global_frame,
+        )
+        .map(InlineExpansion::without_bindings),
+        Statement::If { .. } => rewrite_if_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            site.tail,
+            caller_may_be_global_frame,
+        )
+        .map(InlineExpansion::without_bindings),
+        Statement::For { .. } => rewrite_for_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            caller_may_be_global_frame,
+        )
+        .map(InlineExpansion::without_bindings),
+        Statement::While { .. } | Statement::Foreach { .. } | Statement::Catch { .. } => {
+            rewrite_single_body_stmt(
+                stmt,
+                caller_qname,
+                inlinable,
+                summaries,
+                counter,
+                caller_may_be_global_frame,
+            )
+            .map(InlineExpansion::without_bindings)
+        }
+        Statement::Try { .. } => rewrite_try_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            caller_may_be_global_frame,
+        )
+        .map(InlineExpansion::without_bindings),
+        Statement::Switch { .. } => rewrite_switch_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            site.tail,
+            caller_may_be_global_frame,
+        )
+        .map(InlineExpansion::without_bindings),
+        // An `uplevel` body is not lowered into the function: the statement is
+        // emitted from its source text, so a splice made in the copy would be
+        // discarded, and what it recorded would be a requirement of code that
+        // never runs. Nothing else holds a body.
+        _ => None,
+    }
+}
+
+/// `Block`: recurse into the body under the block's (possibly namespaced)
+/// caller name. The block's value is its last command's, so the body's tail is
+/// the block's own.
+fn rewrite_block_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    tail: Tail,
+    caller_may_be_global_frame: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::Block {
+        span,
+        body,
+        namespace,
+        tokens,
+        error_context,
+    } = stmt
+    else {
+        return None;
+    };
+    let inner_caller = if !namespace.is_empty() && namespace != "::" {
+        namespace.to_owned()
+    } else {
+        caller_qname.to_owned()
+    };
+    let (new_body, changed) = rewrite_script(
+        body,
+        &inner_caller,
+        inlinable,
+        summaries,
+        counter,
+        tail,
+        caller_may_be_global_frame,
+    );
+    changed.then(|| {
+        vec![Statement::Block {
+            span: *span,
+            body: new_body,
+            namespace: namespace.clone(),
+            tokens: tokens.clone(),
+            error_context: *error_context,
+        }]
+    })
+}
+
+/// Whether `script` ends in a branch — an `if` or a `switch`.
+fn ends_in_a_branch(script: &Script) -> bool {
+    matches!(
+        script.statements.last(),
+        Some(Statement::If { .. } | Statement::Switch { .. })
+    )
+}
+
+/// [`rewrite_script`] for an arm of an `if` or a `switch`, except that where
+/// somebody reads the arm's value, a rewrite that makes a branch of the command
+/// the arm ended with is not made. The code generator loses the value of an `if`
+/// or a `switch` that ends an arm — `if {$n} {if {$n < 0} {set r neg} else {set r
+/// pos}} else {return zero}` answers the empty string — and a splice that gave a
+/// call's value to one would answer what the call did not.
+fn rewrite_arm(
+    body: &Script,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    tail: Tail,
+    caller_may_be_global_frame: bool,
+) -> (Script, bool) {
+    let (rewritten, changed) = rewrite_script(
+        body,
+        caller_qname,
+        inlinable,
+        summaries,
+        counter,
+        tail,
+        caller_may_be_global_frame,
+    );
+    if changed && tail != Tail::Dropped && ends_in_a_branch(&rewritten) && !ends_in_a_branch(body) {
+        (body.clone(), false)
+    } else {
+        (rewritten, changed)
+    }
+}
+
+/// `If`: recurse into each clause body and the else body, propagating `tail`
+/// (the taken branch's value is the `if`'s).
+fn rewrite_if_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    tail: Tail,
+    caller_may_be_global_frame: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::If {
+        span,
+        clauses,
+        else_body,
+        else_span,
+    } = stmt
+    else {
+        return None;
+    };
+    let mut new_clauses = Vec::with_capacity(clauses.len());
+    let mut changed = false;
+    for c in clauses {
+        let (body, ch) = rewrite_arm(
+            &c.body,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            tail,
+            caller_may_be_global_frame,
+        );
+        if ch {
+            changed = true;
+            new_clauses.push(IfClause {
+                condition: c.condition.clone(),
+                condition_span: c.condition_span,
+                condition_base: c.condition_base,
+                body,
+                body_span: c.body_span,
+            });
+        } else {
+            new_clauses.push(c.clone());
+        }
+    }
+    let new_else = match else_body {
+        Some(b) => {
+            let (s, ch) = rewrite_arm(
+                b,
+                caller_qname,
+                inlinable,
+                summaries,
+                counter,
+                tail,
+                caller_may_be_global_frame,
+            );
+            if ch {
+                changed = true;
+            }
+            Some(s)
+        }
+        None => None,
+    };
+    changed.then(|| {
+        vec![Statement::If {
+            span: *span,
+            clauses: new_clauses,
+            else_body: new_else,
+            else_span: *else_span,
+        }]
+    })
+}
+
+/// `For`: recurse into the init / next / body sub-scripts (a loop reads the
+/// value of none).
+fn rewrite_for_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    caller_may_be_global_frame: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::For {
+        span,
+        init,
+        init_span,
+        condition,
+        condition_span,
+        condition_base,
+        next,
+        next_span,
+        body,
+        body_span,
+        raw_args,
+        raw_tokens,
+    } = stmt
+    else {
+        return None;
+    };
+    let (new_init, c1) = rewrite_script(
+        init,
+        caller_qname,
+        inlinable,
+        summaries,
+        counter,
+        Tail::Dropped,
+        caller_may_be_global_frame,
+    );
+    let (new_next, c2) = rewrite_script(
+        next,
+        caller_qname,
+        inlinable,
+        summaries,
+        counter,
+        Tail::Dropped,
+        caller_may_be_global_frame,
+    );
+    let (new_body, c3) = rewrite_script(
+        body,
+        caller_qname,
+        inlinable,
+        summaries,
+        counter,
+        Tail::Dropped,
+        caller_may_be_global_frame,
+    );
+    (c1 || c2 || c3).then(|| {
+        vec![Statement::For {
+            span: *span,
+            init: new_init,
+            init_span: *init_span,
+            condition: condition.clone(),
+            condition_span: *condition_span,
+            condition_base: *condition_base,
+            next: new_next,
+            next_span: *next_span,
+            body: new_body,
+            body_span: *body_span,
+            raw_args: raw_args.clone(),
+            raw_tokens: raw_tokens.clone(),
+        }]
+    })
+}
+
+/// `While` / `Foreach` / `Catch`: recurse into the single body, rebuilding the
+/// statement when it changed. A loop reads no value of its body, except an
+/// `lmap` ([`rewrite_foreach_stmt`]); a `catch` holds the value of its body for
+/// its result variable.
+fn rewrite_single_body_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    caller_may_be_global_frame: bool,
+) -> Option<Vec<Statement>> {
+    match stmt {
+        Statement::While {
+            span,
+            condition,
+            condition_span,
+            condition_base,
+            body,
+            body_span,
+            raw_args,
+            raw_tokens,
+        } => {
+            let (new_body, ch) = rewrite_script(
+                body,
+                caller_qname,
+                inlinable,
+                summaries,
+                counter,
+                Tail::Dropped,
+                caller_may_be_global_frame,
+            );
+            ch.then(|| {
+                vec![Statement::While {
+                    span: *span,
+                    condition: condition.clone(),
+                    condition_span: *condition_span,
+                    condition_base: *condition_base,
+                    body: new_body,
+                    body_span: *body_span,
+                    raw_args: raw_args.clone(),
+                    raw_tokens: raw_tokens.clone(),
+                }]
+            })
+        }
+        Statement::Foreach { .. } => rewrite_foreach_stmt(
+            stmt,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            caller_may_be_global_frame,
+        ),
+        Statement::Catch {
+            span,
+            body,
+            body_span,
+            result_var,
+            options_var,
+            raw_args,
+            tokens,
+        } => {
+            let (new_body, ch) = rewrite_script(
+                body,
+                caller_qname,
+                inlinable,
+                summaries,
+                counter,
+                Tail::Captured,
+                caller_may_be_global_frame,
+            );
+            ch.then(|| {
+                vec![Statement::Catch {
+                    span: *span,
+                    body: new_body,
+                    body_span: *body_span,
+                    result_var: result_var.clone(),
+                    options_var: options_var.clone(),
+                    raw_args: raw_args.clone(),
+                    tokens: tokens.clone(),
+                }]
+            })
+        }
+        _ => None,
+    }
+}
+
+/// `Foreach` and `lmap`: recurse into the body. A loop reads no value of its body
+/// and an `lmap` gathers each iteration's, so its body is rewritten as `Captured`;
+/// the collector the code generator gives an `lmap` gathers from a body of one
+/// fall-through block, so a body the splice gave a branch or a loop is not given
+/// to it.
+fn rewrite_foreach_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    caller_may_be_global_frame: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::Foreach {
+        span,
+        iterators,
+        body,
+        body_span,
+        is_lmap,
+        raw_args,
+        is_dict_iteration,
+        is_array_iteration,
+        raw_tokens,
+    } = stmt
+    else {
+        return None;
+    };
+    let tail = if *is_lmap {
+        Tail::Captured
+    } else {
+        Tail::Dropped
+    };
+    let (new_body, changed) = rewrite_script(
+        body,
+        caller_qname,
+        inlinable,
+        summaries,
+        counter,
+        tail,
+        caller_may_be_global_frame,
+    );
+    (changed && (!*is_lmap || new_body.is_straight_line())).then(|| {
+        vec![Statement::Foreach {
+            span: *span,
+            iterators: iterators.clone(),
+            body: new_body,
+            body_span: *body_span,
+            is_lmap: *is_lmap,
+            raw_args: raw_args.clone(),
+            is_dict_iteration: *is_dict_iteration,
+            is_array_iteration: *is_array_iteration,
+            raw_tokens: raw_tokens.clone(),
+        }]
+    })
+}
+
+/// `Try`: recurse into the body, each handler body, and the finally body. The
+/// value of a `try` is its body's or the handler's that ran, which its handlers
+/// and the caller of the `try` may read; the `finally` body's is read by none.
+fn rewrite_try_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    caller_may_be_global_frame: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::Try {
+        span,
+        body,
+        body_span,
+        handlers,
+        finally_body,
+        finally_span,
+        raw_args,
+    } = stmt
+    else {
+        return None;
+    };
+    let (new_body, mut changed) = rewrite_script(
+        body,
+        caller_qname,
+        inlinable,
+        summaries,
+        counter,
+        Tail::Captured,
+        caller_may_be_global_frame,
+    );
+    let mut new_handlers = Vec::with_capacity(handlers.len());
+    for h in handlers {
+        let (hbody, ch) = rewrite_script(
+            &h.body,
+            caller_qname,
+            inlinable,
+            summaries,
+            counter,
+            Tail::Captured,
+            caller_may_be_global_frame,
+        );
+        if ch {
+            changed = true;
+            new_handlers.push(TryHandler {
+                kind: h.kind,
+                match_arg: h.match_arg.clone(),
+                trap_pattern: h.trap_pattern.clone(),
+                var_name: h.var_name.clone(),
+                options_var: h.options_var.clone(),
+                body: hbody,
+                body_span: h.body_span,
+                fallthrough: h.fallthrough,
+            });
+        } else {
+            new_handlers.push(h.clone());
+        }
+    }
+    let new_finally = match finally_body {
+        Some(b) => {
+            let (s, ch) = rewrite_script(
+                b,
+                caller_qname,
+                inlinable,
+                summaries,
+                counter,
+                Tail::Dropped,
+                caller_may_be_global_frame,
+            );
+            if ch {
+                changed = true;
+            }
+            Some(s)
+        }
+        None => None,
+    };
+    changed.then(|| {
+        vec![Statement::Try {
+            span: *span,
+            body: new_body,
+            body_span: *body_span,
+            handlers: new_handlers,
+            finally_body: new_finally,
+            finally_span: *finally_span,
+            raw_args: raw_args.clone(),
+        }]
+    })
+}
+
+/// `Switch`: recurse into each arm / default body, propagating `tail` (the
+/// matched arm's value is the `switch`'s, like `if`).
+fn rewrite_switch_stmt(
+    stmt: &Statement,
+    caller_qname: &str,
+    inlinable: &HashMap<tcl_compiler::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
+    counter: &mut usize,
+    tail: Tail,
+    caller_may_be_global_frame: bool,
+) -> Option<Vec<Statement>> {
+    let Statement::Switch {
+        span,
+        subject,
+        subject_braced,
+        subject_span,
+        arms,
+        default_body,
+        default_span,
+        mode,
+        nocase,
+        raw_args,
+        raw_arg_braced,
+        raw_arg_quoted,
+        command,
+        patterns_braced,
+    } = stmt
+    else {
+        return None;
+    };
+    let mut new_arms = Vec::with_capacity(arms.len());
+    let mut changed = false;
+    for a in arms {
+        match &a.body {
+            Some(b) => {
+                let (body, ch) = rewrite_arm(
+                    b,
+                    caller_qname,
+                    inlinable,
+                    summaries,
+                    counter,
+                    tail,
+                    caller_may_be_global_frame,
+                );
+                if ch {
+                    changed = true;
+                    new_arms.push(SwitchArm {
+                        pattern: a.pattern.clone(),
+                        pattern_braced: a.pattern_braced,
+                        pattern_span: a.pattern_span,
+                        body: Some(body),
+                        body_span: a.body_span,
+                        fallthrough: a.fallthrough,
+                    });
+                } else {
+                    new_arms.push(a.clone());
+                }
+            }
+            None => new_arms.push(a.clone()),
+        }
+    }
+    let new_default = match default_body {
+        Some(b) => {
+            let (s, ch) = rewrite_arm(
+                b,
+                caller_qname,
+                inlinable,
+                summaries,
+                counter,
+                tail,
+                caller_may_be_global_frame,
+            );
+            if ch {
+                changed = true;
+            }
+            Some(s)
+        }
+        None => None,
+    };
+    changed.then(|| {
+        vec![Statement::Switch {
+            subject_braced: *subject_braced,
+            raw_arg_braced: raw_arg_braced.clone(),
+            raw_arg_quoted: raw_arg_quoted.clone(),
+            command: command.clone(),
+            span: *span,
+            subject: subject.clone(),
+            subject_span: *subject_span,
+            arms: new_arms,
+            default_body: new_default,
+            default_span: *default_span,
+            mode: *mode,
+            nocase: *nocase,
+            raw_args: raw_args.clone(),
+            patterns_braced: *patterns_braced,
+        }]
+    })
+}
+
+// per-call-site splice
+
+/// One inlined call-site replacement plus the structured-command dependencies
+/// which move into the caller script with it.
+struct InlineExpansion {
+    statements: Vec<Statement>,
+    command_binding_sites: Vec<CommandBindingSite>,
+    procedure_bindings: Vec<tcl_runtime_api::ProcedureBindingIdentity>,
+}
+
+impl InlineExpansion {
+    fn without_bindings(statements: Vec<Statement>) -> Self {
+        Self {
+            statements,
+            command_binding_sites: Vec::new(),
+            procedure_bindings: Vec::new(),
+        }
+    }
+
+    fn from_script(script: Script) -> Self {
+        Self {
+            statements: script.statements,
+            command_binding_sites: script.command_binding_sites.iter().cloned().collect(),
+            procedure_bindings: script
+                .procedure_binding_requirements
+                .iter()
+                .cloned()
+                .collect(),
+        }
+    }
+}
+
+/// Produce the inlined statements and their script-owned metadata for a single
+/// call site, or `None` to decline (keep the call).
+///
+/// `resolution_namespace` is the namespace the call resolved its command in,
+/// and the one the spliced statements now run in.
+fn splice_call_site(
+    call: &Statement,
+    spec: &InlineSpec,
+    resolution_namespace: &str,
+    counter: &mut usize,
+    site: Site,
+) -> Option<InlineExpansion> {
+    let Statement::Call {
+        command,
+        args,
+        span,
+        tokens,
+        ..
+    } = call
+    else {
+        return None;
+    };
+    let span = *span;
+    let definition = spec.definition();
+    let defined_in = definition.namespace.clone();
+    let foreign = resolution_namespace != defined_in;
+    // A definition in a namespace of its own resolved each command it names there
+    // first and in the global namespace after it. No spelling says that to a
+    // caller in another namespace, so such a body is spliced only where it names
+    // no command the IR keeps.
+    if foreign
+        && defined_in != "::"
+        && heads::names_a_command(spec.body_statements(), spec.lexer_config())
+    {
+        return None;
+    }
+    let mut expansion = match spec {
+        InlineSpec::Empty(_, _) => {
+            if !args.is_empty() {
+                return None;
+            }
+            // An empty body's value is the empty string. Where the value is
+            // read, the call can vanish only when nothing stands before it to
+            // be mistaken for it: `set a 5; noop` is "", and `set a 5` is not.
+            if site.tail != Tail::Dropped && !site.first {
+                return None;
+            }
+            Some(InlineExpansion::without_bindings(Vec::new()))
+        }
+        InlineSpec::Verbatim(body, _, _) => {
+            if !args.is_empty() {
+                return None;
+            }
+            // Re-attribute each spliced call to the call site for diagnostics.
+            let statements = body
+                .statements
+                .iter()
+                .map(|inner| match inner {
+                    Statement::Call { .. } => with_span(inner, span),
+                    other => other.clone(),
+                })
+                .collect();
+            Some(InlineExpansion {
+                statements,
+                command_binding_sites: body.command_binding_sites.iter().cloned().collect(),
+                procedure_bindings: body
+                    .procedure_binding_requirements
+                    .iter()
+                    .cloned()
+                    .collect(),
+            })
+        }
+        InlineSpec::Parameterised(proc, rules, config) => {
+            splice_v3(call, proc, *rules, *config, counter, site.tail)
+        }
+    }?;
+    // A definition in the global namespace resolved each command it names there. A
+    // caller in another namespace would resolve the same spelling from its own
+    // first, and a command of that name defined there would answer in its place.
+    if foreign && defined_in == "::" {
+        expansion.statements = heads::root(
+            std::mem::take(&mut expansion.statements),
+            spec.lexer_config(),
+        )?;
+    }
+    expansion.procedure_bindings.push(
+        tcl_runtime_api::ProcedureBindingIdentity::in_rooted_namespace(
+            resolution_namespace,
+            command,
+            definition.name,
+            definition.parameters,
+            definition.body,
+        )
+        .with_namespace_context(
+            tokens
+                .as_ref()
+                .and_then(tcl_compiler::registry_invocation::compiled_namespace_context),
+        ),
+    );
+    Some(expansion)
+}
+
+/// v3 splice — build parameter bindings, α-rename the body, and handle
+/// the `return`-disposition strategy.
+fn splice_v3(
+    call: &Statement,
+    proc: &Procedure,
+    rules: WordValueRules,
+    config: LexerConfig,
+    counter: &mut usize,
+    tail: Tail,
+) -> Option<InlineExpansion> {
+    let span = call.span();
+    let body_stmts = &proc.body.statements;
+    let body_has_trailing_return = body_stmts
+        .last()
+        .is_some_and(|s| matches!(s, Statement::Return { .. }));
+    let body_has_non_trailing_return = body_stmts
+        .iter()
+        .rev()
+        .skip(1)
+        .any(|s| matches!(s, Statement::Return { .. }))
+        || has_nested_irreturn(&proc.body);
+
+    // A `catch` or a `try` reads the value of the call and a `return` in its
+    // place would not end the procedure, so only a body with no `return` — whose
+    // last command's value is the body's — can stand there.
+    if tail == Tail::Captured && (body_has_trailing_return || body_has_non_trailing_return) {
+        return None;
+    }
+
+    let (cid, mut rename, bindings) = build_param_bindings(call, proc, rules, config, counter)?;
+
+    // Mangle every locally-written variable too.
+    for name in collect_local_names(&proc.body) {
+        rename
+            .entry(name.clone())
+            .or_insert_with(|| format!("__inline_{cid}__{name}"));
+    }
+
+    let renamed_body = rename::rewrite_script(&proc.body, &rename, config);
+
+    let mut out = bindings;
+    if body_has_non_trailing_return {
+        // Capture the implicit-trailing-return value when the body falls
+        // off the end without an explicit `return`.
+        let mut implicit: Option<Stored> = None;
+        if !body_has_trailing_return && let Some(trailing) = renamed_body.statements.last() {
+            implicit = Some(capture_implicit_return_value(trailing)?);
+        }
+        let result_var = format!("__inline_{cid}__RESULT");
+        let mut wrapped = wrap_with_irreturn_loop(&renamed_body, &result_var, span, implicit);
+        if tail == Tail::Returned {
+            // The value is the result's, which is read as the lowering spells a
+            // whole-word variable reference: the emitter substitutes `${name}`
+            // and pushes `$name` as the text it is.
+            wrapped.push(Statement::Return {
+                expr_base: None,
+                tokens: None,
+                span,
+                value: Some(format!("${{{result_var}}}")),
+                value_word: None,
+                expr: None,
+                command_binding: None,
+                braced: false,
+            });
+        }
+        out.extend(wrapped);
+        return Some(InlineExpansion::without_bindings(out));
+    }
+
+    if body_has_trailing_return && tail != Tail::Returned {
+        // Trailing return where the value is not the procedure's — wrap so it
+        // doesn't short-circuit the rest of the caller's body.
+        let result_var = format!("__inline_{cid}__RESULT");
+        out.extend(wrap_with_irreturn_loop(
+            &renamed_body,
+            &result_var,
+            span,
+            None,
+        ));
+        return Some(InlineExpansion::without_bindings(out));
+    }
+
+    // No return, or a trailing return where the value is the procedure's — flat
+    // splice.
+    let expansion = InlineExpansion::from_script(renamed_body);
+    out.extend(expansion.statements);
+    Some(InlineExpansion {
+        statements: out,
+        command_binding_sites: expansion.command_binding_sites,
+        procedure_bindings: expansion.procedure_bindings,
+    })
+}
+
+/// Clone `stmt` (a [`Statement::Call`]) with its span replaced. Used to
+/// re-attribute spliced statements to the call site.
+fn with_span(stmt: &Statement, span: Span) -> Statement {
+    match stmt {
+        Statement::Call {
+            command,
+            canonical_command,
+            args,
+            defs,
+            reads,
+            reads_own_defs,
+            safe_on_uninit,
+            tokens,
+            foreach_groups,
+            ..
+        } => Statement::Call {
+            span,
+            command: command.clone(),
+            canonical_command: canonical_command.clone(),
+            args: args.clone(),
+            defs: defs.clone(),
+            reads: reads.clone(),
+            reads_own_defs: *reads_own_defs,
+            safe_on_uninit: *safe_on_uninit,
+            tokens: tokens.clone(),
+            foreach_groups: foreach_groups.clone(),
+        },
+        other => other.clone(),
+    }
+}
+
+// nested-return scanning
+
+fn has_nested_irreturn(script: &Script) -> bool {
+    script
+        .statements
+        .iter()
+        .any(|s| !matches!(s, Statement::Return { .. }) && scan_for_irreturn(s))
+}
+
+fn scan_for_irreturn(stmt: &Statement) -> bool {
+    match stmt {
+        Statement::Return { .. } => true,
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            clauses.iter().any(|c| has_any_irreturn(&c.body))
+                || else_body.as_ref().is_some_and(has_any_irreturn)
+        }
+        Statement::For {
+            init, next, body, ..
+        } => has_any_irreturn(init) || has_any_irreturn(next) || has_any_irreturn(body),
+        Statement::Block { body, .. }
+        | Statement::UpFrame { body, .. }
+        | Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. } => has_any_irreturn(body),
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            has_any_irreturn(body)
+                || handlers.iter().any(|h| has_any_irreturn(&h.body))
+                || finally_body.as_ref().is_some_and(has_any_irreturn)
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            arms.iter()
+                .any(|a| a.body.as_ref().is_some_and(has_any_irreturn))
+                || default_body.as_ref().is_some_and(has_any_irreturn)
+        }
+        _ => false,
+    }
+}
+
+fn has_any_irreturn(script: &Script) -> bool {
+    script
+        .statements
+        .iter()
+        .any(|s| matches!(s, Statement::Return { .. }) || scan_for_irreturn(s))
+}
+
+/// A value stored for the wrapped body's result, as the statement it came from
+/// said it: a literal, which nothing substitutes, or a word the emitter
+/// substitutes. A braced word is the first, and storing it as the second runs
+/// its backslash sequences and its `[…]`.
+enum Stored {
+    Literal(String),
+    Substituted(String),
+}
+
+impl Stored {
+    /// The statement that stores this value in `name`.
+    fn into_statement(self, span: Span, name: &str) -> Statement {
+        match self {
+            Self::Literal(value) => Statement::AssignConst {
+                span,
+                name: name.to_owned(),
+                name_braced: false,
+                value,
+                value_span: None,
+            },
+            Self::Substituted(value) => Statement::AssignValue {
+                span,
+                name: name.to_owned(),
+                name_braced: false,
+                value_needs_backsubst: value.contains('\\'),
+                value,
+                tokens: None,
+            },
+        }
+    }
+}
+
+/// Return the value the body's last statement contributes as Tcl's implicit
+/// return value, as that statement stored it, or `None` when the shape is too
+/// complex to capture safely.
+fn capture_implicit_return_value(stmt: &Statement) -> Option<Stored> {
+    match stmt {
+        Statement::AssignConst { value, .. } => Some(Stored::Literal(value.clone())),
+        Statement::AssignValue { value, .. } => Some(Stored::Substituted(value.clone())),
+        _ => None,
+    }
+}
+
+// return-as-break wrap
+
+/// Wrap `renamed_body` in a one-shot `while {1} { … }` loop that routes
+/// `return`-as-break. Uses `while`
+/// rather than `for` so empty init/next clauses don't emit placeholder
+/// calls the WASM codegen would trap on.
+fn wrap_with_irreturn_loop(
+    renamed_body: &Script,
+    result_var: &str,
+    span: Span,
+    implicit_value: Option<Stored>,
+) -> Vec<Statement> {
+    let rewritten = substitute_irreturn(renamed_body, result_var);
+    let mut body_with_break: Vec<Statement> = rewritten.statements;
+    let command_binding_sites = rewritten.command_binding_sites.iter().cloned().collect();
+    let procedure_binding_requirements = rewritten
+        .procedure_binding_requirements
+        .iter()
+        .cloned()
+        .collect();
+    if let Some(stored) = implicit_value {
+        body_with_break.push(stored.into_statement(span, result_var));
+    }
+    body_with_break.push(break_call(span));
+
+    vec![
+        Statement::AssignConst {
+            span,
+            name: result_var.to_owned(),
+            name_braced: false,
+            value: String::new(),
+            value_span: None,
+        },
+        Statement::While {
+            span,
+            condition: ExprNode::Literal {
+                text: "1".to_owned(),
+                start: 0,
+                end: 1,
+            },
+            condition_span: span,
+            condition_base: None,
+            body: Script::from_transformed_parts(
+                body_with_break,
+                command_binding_sites,
+                procedure_binding_requirements,
+            ),
+            body_span: span,
+            raw_args: Vec::new(),
+            raw_tokens: None,
+        },
+    ]
+}
+
+/// A synthetic `break` call.
+fn break_call(span: Span) -> Statement {
+    Statement::Call {
+        span,
+        command: "break".to_owned(),
+        canonical_command: Some("::break".to_owned()),
+        args: Vec::new(),
+        defs: Vec::new(),
+        reads: Vec::new(),
+        reads_own_defs: false,
+        safe_on_uninit: false,
+        tokens: None,
+        foreach_groups: None,
+    }
+}
+
+/// Replace each [`Statement::Return`] reachable from `script` with
+/// `set <result_var> <value>; break`. Recurses into transparent nested
+/// bodies (`Block`, `if`, `switch`); does NOT recurse into loop / catch /
+/// try / upframe bodies (the eligibility gate guarantees no return is
+/// nested there).
+fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
+    let mut out = Vec::with_capacity(script.statements.len());
+    let mut command_binding_sites: Vec<CommandBindingSite> =
+        script.command_binding_sites.iter().cloned().collect();
+    let procedure_binding_requirements = script
+        .procedure_binding_requirements
+        .iter()
+        .cloned()
+        .collect();
+    for stmt in &script.statements {
+        if let Statement::Return {
+            span,
+            value,
+            expr,
+            braced,
+            command_binding,
+            ..
+        } = stmt
+        {
+            if let Some(binding) = command_binding {
+                command_binding_sites.push(CommandBindingSite {
+                    span: *span,
+                    binding: binding.clone(),
+                    known_namespaces: None,
+                    variable_frame: None,
+                    variable_context: None,
+                    existing_namespace_cells: None,
+                    source_tokens: None,
+                    shape: tcl_registry::release_compilation::InvocationShape::counted(
+                        usize::from(value.is_some() || expr.is_some()),
+                    ),
+                });
+            }
+            let v = value.clone().unwrap_or_default();
+            let stored = if *braced {
+                Stored::Literal(v)
+            } else {
+                Stored::Substituted(v)
+            };
+            out.push(stored.into_statement(*span, result_var));
+            out.push(break_call(*span));
+        } else {
+            out.push(substitute_irreturn_stmt(stmt, result_var));
+        }
+    }
+    Script::from_transformed_parts(out, command_binding_sites, procedure_binding_requirements)
+}
+
+fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
+    match stmt {
+        Statement::Block {
+            span,
+            body,
+            namespace,
+            tokens,
+            error_context,
+        } => Statement::Block {
+            span: *span,
+            body: substitute_irreturn(body, result_var),
+            namespace: namespace.clone(),
+            tokens: tokens.clone(),
+            error_context: *error_context,
+        },
+        Statement::If {
+            span,
+            clauses,
+            else_body,
+            else_span,
+        } => Statement::If {
+            span: *span,
+            clauses: clauses
+                .iter()
+                .map(|c| IfClause {
+                    condition: c.condition.clone(),
+                    condition_span: c.condition_span,
+                    condition_base: c.condition_base,
+                    body: substitute_irreturn(&c.body, result_var),
+                    body_span: c.body_span,
+                })
+                .collect(),
+            else_body: else_body
+                .as_ref()
+                .map(|b| substitute_irreturn(b, result_var)),
+            else_span: *else_span,
+        },
+        Statement::Switch {
+            span,
+            subject,
+            subject_braced,
+            subject_span,
+            arms,
+            default_body,
+            default_span,
+            mode,
+            nocase,
+            raw_args,
+            raw_arg_braced,
+            raw_arg_quoted,
+            command,
+            patterns_braced,
+        } => Statement::Switch {
+            subject_braced: *subject_braced,
+            span: *span,
+            subject: subject.clone(),
+            subject_span: *subject_span,
+            arms: arms
+                .iter()
+                .map(|a| SwitchArm {
+                    pattern: a.pattern.clone(),
+                    pattern_braced: a.pattern_braced,
+                    pattern_span: a.pattern_span,
+                    body: a.body.as_ref().map(|b| substitute_irreturn(b, result_var)),
+                    body_span: a.body_span,
+                    fallthrough: a.fallthrough,
+                })
+                .collect(),
+            default_body: default_body
+                .as_ref()
+                .map(|b| substitute_irreturn(b, result_var)),
+            default_span: *default_span,
+            mode: *mode,
+            nocase: *nocase,
+            raw_args: raw_args.clone(),
+            raw_arg_braced: raw_arg_braced.clone(),
+            raw_arg_quoted: raw_arg_quoted.clone(),
+            command: command.clone(),
+            patterns_braced: *patterns_braced,
+        },
+        other => other.clone(),
+    }
+}
+
+// parameter bindings
+
+/// Build the parameter-binding statement list for a v3 call. Returns
+/// `(cid, rename, bindings)` on success, or `None` to decline.
+fn build_param_bindings(
+    call: &Statement,
+    proc: &Procedure,
+    rules: WordValueRules,
+    config: LexerConfig,
+    counter: &mut usize,
+) -> Option<(usize, HashMap<String, String>, Vec<Statement>)> {
+    let Statement::Call {
+        args, tokens, span, ..
+    } = call
+    else {
+        return None;
+    };
+    let span = *span;
+
+    // `{*}` expansion changes call arity at runtime — decline.
+    if let Some(t) = tokens
+        && let Some(expand) = &t.expand_word
+        && expand.iter().skip(1).any(|&b| b)
+    {
+        return None;
+    }
+
+    *counter += 1;
+    let cid = *counter;
+    let mut rename: HashMap<String, String> = HashMap::new();
+    for p in &proc.params {
+        rename.insert(p.clone(), format!("__inline_{cid}__{p}"));
+    }
+
+    let params = &proc.params;
+    let has_variadic = params.last().is_some_and(|p| p == "args");
+    let tokens = tokens.as_ref();
+
+    let mut bound: Vec<String> = Vec::new();
+    let mut bound_is_literal: Vec<bool> = Vec::new();
+    // The call-site half of a default-filling binding, should either branch
+    // below find the call short of its formals.
+    let mut site = DefaultBindingSite {
+        args,
+        tokens,
+        positional_count: params.len(),
+        has_variadic,
+    };
+
+    if has_variadic {
+        let positional_count = params.len() - 1;
+        if args.len() < positional_count {
+            site.positional_count = positional_count;
+            return build_with_defaults(cid, &rename, proc, &site, rules);
+        }
+        for (i, a) in args.iter().enumerate().take(positional_count) {
+            bound.push(a.clone());
+            bound_is_literal.push(arg_is_braced_literal(tokens, i));
+        }
+        let extras = &args[positional_count..];
+        if extras.is_empty() {
+            bound.push(String::new());
+            bound_is_literal.push(true);
+        } else {
+            for i in positional_count..args.len() {
+                if arg_is_braced_literal(tokens, i) {
+                    return None;
+                }
+            }
+            for w in extras {
+                // An empty extra word (e.g. the quoted `""` in `v ""`) would
+                // collapse inside `[list …]` — `[list ]` is a zero-element
+                // list, dropping the original one-element value. Decline so
+                // the call falls back to runtime dispatch with correct arity.
+                if w.is_empty() || !list_clean_for_splice(w, config) {
+                    return None;
+                }
+            }
+            bound.push(format!("[list {}]", extras.join(" ")));
+            bound_is_literal.push(false);
+        }
+    } else {
+        if args.len() > params.len() {
+            return None;
+        }
+        if args.len() < params.len() {
+            return build_with_defaults(cid, &rename, proc, &site, rules);
+        }
+        for (i, a) in args.iter().enumerate() {
+            bound.push(a.clone());
+            bound_is_literal.push(arg_is_braced_literal(tokens, i));
+        }
+    }
+
+    let mut bindings: Vec<Statement> = Vec::with_capacity(params.len());
+    for ((p, v), is_literal) in params.iter().zip(&bound).zip(&bound_is_literal) {
+        let name = rename[p].clone();
+        if *is_literal {
+            bindings.push(Statement::AssignConst {
+                span,
+                name,
+                name_braced: false,
+                value: v.clone(),
+                value_span: None,
+            });
+        } else {
+            bindings.push(Statement::AssignValue {
+                span,
+                name,
+                name_braced: false,
+                value: v.clone(),
+                value_needs_backsubst: v.contains('\\'),
+                tokens: None,
+            });
+        }
+    }
+    Some((cid, rename, bindings))
+}
+
+/// Whether the call-site word at `args[idx]` was a braced literal (`{…}`)
+/// in source — so it must bind as an [`Statement::AssignConst`], preserving
+/// embedded `$`/`[` rather than re-substituting them at the inlined site.
+///
+/// Thin wrapper over the shared [`CommandTokens::arg_is_braced_literal`] for
+/// the `Option<&CommandTokens>` the inliner carries.
+fn arg_is_braced_literal(tokens: Option<&CommandTokens>, idx: usize) -> bool {
+    tokens.is_some_and(|t| t.arg_is_braced_literal(idx))
+}
+
+/// Try to fill missing positional args from declared defaults.
+///
+/// Matches the non-default path's literal binding: a call-site word that
+/// was a braced literal binds as [`Statement::AssignConst`], and so does a
+/// declared default — Tcl proc defaults are literal (`proc p {{a $x}} …; p`
+/// binds `a` to the string `$x`, never the caller's `$x`). Without this the
+/// default path would re-substitute both in the caller frame.
+/// The call-site half of a default-filling parameter binding: the words the
+/// caller wrote, their token shapes, and the arity facts derived from the
+/// callee's formals.
+struct DefaultBindingSite<'a> {
+    args: &'a [String],
+    tokens: Option<&'a CommandTokens>,
+    positional_count: usize,
+    has_variadic: bool,
+}
+
+fn build_with_defaults(
+    cid: usize,
+    rename: &HashMap<String, String>,
+    proc: &Procedure,
+    site: &DefaultBindingSite<'_>,
+    rules: WordValueRules,
+) -> Option<(usize, HashMap<String, String>, Vec<Statement>)> {
+    let DefaultBindingSite {
+        args,
+        tokens,
+        positional_count,
+        has_variadic,
+    } = *site;
+    if proc.params_raw.is_empty() {
+        return None;
+    }
+    let parsed = parse_params_with_defaults(&proc.params_raw, rules)?;
+    if parsed.len() != proc.params.len() {
+        return None; // parse drift — bail safely
+    }
+
+    let mut bound: Vec<String> = Vec::new();
+    let mut bound_is_literal: Vec<bool> = Vec::new();
+    for i in 0..positional_count {
+        if i < args.len() {
+            bound.push(args[i].clone());
+            bound_is_literal.push(arg_is_braced_literal(tokens, i));
+            continue;
+        }
+        let default = parsed[i].1.as_ref()?;
+        bound.push(default.clone());
+        bound_is_literal.push(true); // defaults are literal
+    }
+    if has_variadic {
+        bound.push(String::new());
+        bound_is_literal.push(true); // empty literal
+    }
+
+    let bindings: Vec<Statement> = proc
+        .params
+        .iter()
+        .zip(&bound)
+        .zip(&bound_is_literal)
+        .map(|((p, v), is_literal)| {
+            let name = rename[p].clone();
+            if *is_literal {
+                Statement::AssignConst {
+                    span: proc.span,
+                    name,
+                    name_braced: false,
+                    value: v.clone(),
+                    value_span: None,
+                }
+            } else {
+                Statement::AssignValue {
+                    span: proc.span,
+                    name,
+                    name_braced: false,
+                    value: v.clone(),
+                    value_needs_backsubst: v.contains('\\'),
+                    tokens: None,
+                }
+            }
+        })
+        .collect();
+    Some((cid, rename.clone(), bindings))
+}
+
+/// Parse a valid Tcl proc `param_str` into `(name, default_or_None)` pairs.
+///
+/// Inlining is an execution transform, so it uses the shared strict proc
+/// grammar.  A malformed declaration declines the transform and remains on the
+/// ordinary runtime path, where Tcl reports the precise creation error.
+fn parse_params_with_defaults(
+    param_str: &str,
+    rules: WordValueRules,
+) -> Option<Vec<(String, Option<String>)>> {
+    tcl_compiler::signature_scan::params::parse_param_list_strict_in(
+        param_str,
+        rules,
+        tcl_dialect::ParameterGrammar::Tcl,
+    )
+    .ok()
+    .map(|parameters| {
+        parameters
+            .into_iter()
+            .map(|parameter| (parameter.name, parameter.default))
+            .collect()
+    })
+}
+
+/// Return True iff `text` can be safely spliced verbatim into a Tcl
+/// `[list <e1> <e2> …]` synth as a single element.
+fn list_clean_for_splice(text: &str, config: LexerConfig) -> bool {
+    use tcl_lexer::word_parts::{SubstFlags, WordPart, decompose_spanned_checked};
+
+    let Ok(parts) = decompose_spanned_checked(text.as_bytes(), SubstFlags::default(), config)
+    else {
+        return false;
+    };
+    if parts
+        .iter()
+        .any(|part| matches!(part.part, WordPart::ParseError(_)))
+    {
+        return false;
+    }
+    // This generated word is lexical emission advice. The placeholder command
+    // selects no worker, source lookup or Native compilation entry.
+    let spelling = format!("__inline_list_argument {text}");
+    let Ok(end) = u32::try_from(spelling.len()) else {
+        return false;
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(&spelling),
+        Span::new(0, end),
+        config,
+    ) else {
+        return false;
+    };
+    let [command] = plan.commands.as_slice() else {
+        return false;
+    };
+    let [_, word] = command.words.as_slice() else {
+        return false;
+    };
+    plan.fatal_tail.is_none()
+        && word.written_bytes() == text.as_bytes()
+        && word.span() == word.word_span()
+        && word.tokens().iter().all(|token| {
+            token.kind != tcl_lexer::TokenType::Str
+                && !token.in_quote
+                && !(token.kind == tcl_lexer::TokenType::Esc && token.content_offset != 0)
+        })
+}
+
+// local-name collection
+
+/// Return the union of every local-variable name written inside `script`.
+/// Array-element writes contribute the array base name.
+fn collect_local_names(script: &Script) -> HashSet<String> {
+    let mut names = HashSet::new();
+    walk_local_writes(script, &mut names, 0);
+    names
+}
+
+fn record_local_base(name: &str, names: &mut HashSet<String>) {
+    if name.contains("::") {
+        return;
+    }
+    let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
+    if !base.is_empty() {
+        names.insert(base.to_owned());
+    }
+}
+
+/// `depth` is the nesting level of `script` — see
+/// [`MAX_INLINING_WALK_DEPTH`].
+fn walk_local_writes(script: &Script, names: &mut HashSet<String>, depth: u32) {
+    if MAX_INLINING_WALK_DEPTH.exceeded(depth) {
+        return;
+    }
+    for stmt in &script.statements {
+        match stmt {
+            Statement::AssignConst { name, .. }
+            | Statement::AssignValue { name, .. }
+            | Statement::AssignExpr { name, .. }
+            | Statement::Incr { name, .. } => record_local_base(name, names),
+            Statement::Call { defs, .. } => {
+                for d in defs {
+                    record_local_base(d, names);
+                }
+            }
+            Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
+                walk_local_writes(body, names, depth + 1);
+            }
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for c in clauses {
+                    walk_local_writes(&c.body, names, depth + 1);
+                }
+                if let Some(b) = else_body {
+                    walk_local_writes(b, names, depth + 1);
+                }
+            }
+            Statement::For {
+                init, next, body, ..
+            } => {
+                walk_local_writes(init, names, depth + 1);
+                walk_local_writes(next, names, depth + 1);
+                walk_local_writes(body, names, depth + 1);
+            }
+            Statement::While { body, .. } => walk_local_writes(body, names, depth + 1),
+            Statement::Foreach {
+                iterators, body, ..
+            } => {
+                for it in iterators {
+                    for v in &it.vars {
+                        record_local_base(v, names);
+                    }
+                }
+                walk_local_writes(body, names, depth + 1);
+            }
+            Statement::Catch {
+                body,
+                result_var,
+                options_var,
+                ..
+            } => {
+                walk_local_writes(body, names, depth + 1);
+                if let Some(v) = result_var {
+                    names.insert(v.clone());
+                }
+                if let Some(v) = options_var {
+                    names.insert(v.clone());
+                }
+            }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                walk_local_writes(body, names, depth + 1);
+                for h in handlers {
+                    walk_local_writes(&h.body, names, depth + 1);
+                    if let Some(v) = &h.var_name {
+                        names.insert(v.clone());
+                    }
+                    if let Some(v) = &h.options_var {
+                        names.insert(v.clone());
+                    }
+                }
+                if let Some(fb) = finally_body {
+                    walk_local_writes(fb, names, depth + 1);
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for a in arms {
+                    if let Some(b) = &a.body {
+                        walk_local_writes(b, names, depth + 1);
+                    }
+                }
+                if let Some(b) = default_body {
+                    walk_local_writes(b, names, depth + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod reported_namespace_tests {
+    use super::root_namespace_of;
+
+    #[test]
+    fn procedure_body_reporting_namespace_retains_its_selected_prefix() {
+        // Implementation contract: naming.analysis.reported-qname-namespace-prefix
+        // docs/design/analysis/name-resolution-proofs/reported-qname-namespace-prefix.md
+        // Shared analytical name contract:
+        // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).
+        // Actual consumer purpose selection; reporting text grants no lookup identity.
+        for (qname, expected) in [
+            ("n::p", "n"),
+            (":::p", "::"),
+            ("::n::", "::n"),
+            ("::é::λ", "::é"),
+        ] {
+            assert_eq!(root_namespace_of(qname), expected);
+        }
+    }
+}

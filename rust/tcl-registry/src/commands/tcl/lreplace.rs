@@ -100,7 +100,7 @@
 // `tcl-vm/src/cmd_list.rs::cmd_lreplace` requires exactly `list first
 // last` plus any number of trailing elements — matching
 // `Arity::at_least(3)` and the compiler's own inline-codegen guard
-// (`args.len() >= 3` in `tcl-compiler/src/codegen/cmd_subst.rs`) — and
+// (`args.len() >= 3` in `tcl-codegen/src/codegen/cmd_subst.rs`) — and
 // reads/writes no variable: a flat function of its arguments with no
 // eval fallback, so `FRAMELESS_RUNTIME`/`PURE` (already set) are
 // correct; it already appears in

@@ -13,7 +13,8 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 |-------|------|
 | `tcl-core-types`, `tcl-platform`, `tcl-dialect`, `tcl-version`, `tcl-userdirs` | Graph leaves — value types, platform helpers, the dialect vocabulary (`DialectSet`, `TclVersion`, `DialectProfile`), the version every binary reports, and the per-user cache / config / state directories.  Depend on nothing project-local. |
 | `tcl-lexer`, `tcl-syntax` | Tcl lexer + lossless concrete syntax tree (red-green). |
-| `tcl-compiler` | Tcl pipeline — IR, lowering, CFG, SSA, passes, optimiser, codegen, WASM emitter, compiler-internal analyses (taint, var-escape, interprocedural). |
+| `tcl-compiler` | Tcl pipeline — IR, lowering, CFG, SSA, passes, optimiser, compiler-internal analyses (taint, var-escape, interprocedural), and the stateless helpers the emitter and constant folding share (`codegen_helpers`). The `test-support` feature exposes test fixtures to `tcl-codegen`'s tests only. |
+| `tcl-codegen` | The back end over `tcl-compiler`: bytecode emitter (`codegen`), WASM emitter, reference-body inlining (`inlining`) and the bytecode compile service (`compile_service`). It depends on `tcl-compiler` and nothing in `tcl-compiler` depends on it, so analysis-only consumers build without it. Its `seam_tests` drive `tcl-compiler` internals through the emitters. |
 | `tcl-registry` | Command / dialect registry (per-command specs, arity, subcommands, arg-roles) + canonical dialect detection. |
 | `tcl-bytecode`, `tcl-runtime-api`, `tcl-cmd-core`, `tcl-vm`, `tcl-vm-cli` | Bytecode model, runtime API, per-command runtime, the bytecode VM, and its `tclvm` CLI. |
 | `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-engine-wasm`, `tcl-cshim` | The engine-neutral Tcl extension interface, the `tcl-vm` engine behind it, the runtime compiled to `wasm32` as an engine under wasmtime (with the C extensions built for it), and the C Tcl extension shim over it. |
@@ -60,8 +61,12 @@ dependency graph (a crate can only use what it declares in
    `tcl-userdirs` are graph leaves.**  No dependency on any higher project
    crate — every other crate may depend on them without cycles.
 2. **The compiler stack stays below the analyser-and-up stack.**
-   `tcl-lexer`, `tcl-syntax`, `tcl-compiler`, and `tcl-registry` do not
-   depend on `tcl-lsp-core`, `tcl-lsp-server`, or the CLI/MCP crates.
+   `tcl-lexer`, `tcl-syntax`, `tcl-compiler`, `tcl-codegen` and
+   `tcl-registry` do not depend on `tcl-lsp-core`, `tcl-lsp-server`, or the
+   CLI/MCP crates. `tcl-codegen` sits above `tcl-compiler`: a new emitter
+   need goes into `tcl-codegen`, and anything `tcl-compiler` itself needs
+   from it (as constant folding needs the list/format folds) moves down into
+   `tcl-compiler` instead of back-referencing the emitter.
 3. **The registry is data.**  Dialect spec packs live in `tcl-registry`;
    they describe commands (arity, subcommands, arg-roles) and are
    reload-safe — they do not reach into compiler internals such as

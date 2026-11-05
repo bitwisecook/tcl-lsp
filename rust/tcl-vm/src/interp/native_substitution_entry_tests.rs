@@ -42,7 +42,7 @@ fn substitution_entry_requires_selected_handler_and_independent_source_context()
             Err(tcl_runtime_api::CompileError::Unsupported(_))
         ));
         let compiler =
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(vm.source_profile());
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(vm.source_profile());
         let module = compiler
             .compile_substitution_with_entry(target, vm.source_profile(), entry)
             .unwrap();

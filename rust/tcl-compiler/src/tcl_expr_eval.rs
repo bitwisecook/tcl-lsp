@@ -62,7 +62,8 @@ use tcl_registry::value_transfer::{
 
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 mod native_constant;
-pub(crate) use native_constant::{NativeConstantResult, eval_native_constant};
+#[doc(hidden)]
+pub use native_constant::{NativeConstantResult, eval_native_constant};
 
 /// Result of evaluating a constant Tcl expression.
 #[derive(Debug, Clone, PartialEq)]

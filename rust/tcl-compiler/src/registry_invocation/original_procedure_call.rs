@@ -11,7 +11,8 @@ use tcl_syntax::formal_params::FormalArgumentCountShape;
 /// A conditional source call joined to its genuine original declaration.
 /// Logical and authored-simulation issuers retain separate applicability;
 /// this argument/count model grants no Native invocation, frame or completion.
-pub(crate) struct OriginalSourceProcedureCall<'a> {
+#[doc(hidden)]
+pub struct OriginalSourceProcedureCall<'a> {
     id: crate::ir::ProcedureId,
     procedure: &'a Procedure,
     arguments: super::EffectiveCommandWords,
@@ -19,7 +20,8 @@ pub(crate) struct OriginalSourceProcedureCall<'a> {
 }
 
 impl<'a> OriginalSourceProcedureCall<'a> {
-    pub(crate) const fn id(&self) -> crate::ir::ProcedureId {
+    #[doc(hidden)]
+    pub const fn id(&self) -> crate::ir::ProcedureId {
         self.id
     }
 
@@ -28,7 +30,8 @@ impl<'a> OriginalSourceProcedureCall<'a> {
     }
 
     /// Read the same retained effective argv, including original captured operands.
-    pub(crate) const fn effective_arguments(&self) -> &super::EffectiveCommandWords {
+    #[doc(hidden)]
+    pub const fn effective_arguments(&self) -> &super::EffectiveCommandWords {
         &self.arguments
     }
 
@@ -44,7 +47,8 @@ impl<'a> OriginalSourceProcedureCall<'a> {
         self.arguments.words.len().checked_sub(1)
     }
 
-    pub(crate) fn accepts_arguments(&self) -> bool {
+    #[doc(hidden)]
+    pub fn accepts_arguments(&self) -> bool {
         self.argument_count()
             .is_some_and(|count| self.count.is_some_and(|shape| shape.accepts(count)))
     }
@@ -54,7 +58,8 @@ impl<'a> OriginalSourceProcedureCall<'a> {
 /// exact original header/body inventory. Neither reported names nor a later
 /// equal source offset select a declaration. Captured operands use the shared
 /// post-binding argv owner; their values are not re-evaluated at this call.
-pub(crate) fn original_logical_procedure_calls_for_module<'a>(
+#[doc(hidden)]
+pub fn original_logical_procedure_calls_for_module<'a>(
     tokens: &CommandTokens,
     module: &'a Module,
     registry: &CommandRegistry,
@@ -78,7 +83,8 @@ pub(crate) fn original_logical_procedure_calls_for_module<'a>(
 
 /// A source calling template under an explicitly authored naming simulation.
 /// It never selects Native dispatch, compiler entry, a frame or completion.
-pub(crate) fn original_authored_procedure_calls_for_module<'a>(
+#[doc(hidden)]
+pub fn original_authored_procedure_calls_for_module<'a>(
     tokens: &CommandTokens,
     module: &'a Module,
     registry: &CommandRegistry,
@@ -131,7 +137,8 @@ pub(crate) enum OriginalAuthoredBodyCallObligation {
 
 /// The source-only call set retains obligations independently of its original
 /// declaration/formal correspondence. It grants no successful runtime action.
-pub(crate) struct OriginalAuthoredBodyProcedureCalls<'a> {
+#[doc(hidden)]
+pub struct OriginalAuthoredBodyProcedureCalls<'a> {
     calls: Vec<OriginalSourceProcedureCall<'a>>,
     obligations: [OriginalAuthoredBodyCallObligation; 3],
 }
@@ -148,7 +155,8 @@ impl<'a> OriginalAuthoredBodyProcedureCalls<'a> {
 /// The exact retained declaration row supplies conditional source targets; its
 /// original source formals supply arity independently of Native formal slots.
 /// No reached lookup, successful activation, frame or observer closure follows.
-pub(crate) fn original_authored_body_procedure_calls_for_module<'a>(
+#[doc(hidden)]
+pub fn original_authored_body_procedure_calls_for_module<'a>(
     tokens: &CommandTokens,
     module: &'a Module,
     registry: &CommandRegistry,
@@ -242,7 +250,8 @@ pub(crate) fn original_authored_body_procedure_calls_for_module<'a>(
 
 /// Possible body identities from the original invocation's checked source lookup.
 /// This supplies source reachability only, never dispatch, argument or Native grants.
-pub(crate) fn original_source_procedure_ids_for_word_for_module(
+#[doc(hidden)]
+pub fn original_source_procedure_ids_for_word_for_module(
     tokens: &CommandTokens,
     word: &str,
     module: &Module,
@@ -272,7 +281,8 @@ pub(crate) fn original_source_procedure_ids_for_word_for_module(
 }
 
 /// Source-selected body calls with the same original captured argv; no Native grant.
-pub(crate) fn original_source_procedure_calls_for_word_for_module<'a>(
+#[doc(hidden)]
+pub fn original_source_procedure_calls_for_word_for_module<'a>(
     tokens: &CommandTokens,
     word: &str,
     module: &'a Module,
@@ -321,7 +331,8 @@ fn original_procedure_calls_for_targets<'a>(
 /// Descriptive formal count shape from the same original declaration and
 /// independently selected parameter/list grammar. This supplies no argument
 /// values, local cells, activation or successful procedure completion.
-pub(crate) fn original_procedure_formal_count_shape(
+#[doc(hidden)]
+pub fn original_procedure_formal_count_shape(
     module: &Module,
     procedure: &Procedure,
     registry: &CommandRegistry,
@@ -339,7 +350,8 @@ pub(crate) fn original_procedure_formal_count_shape(
 /// the conditional Logical model. The selected binding planner retains Jim
 /// defaults/rest names and caller links; links and nonlocal/element destinations
 /// cannot borrow this scalar no-error model. Native activation stays separate.
-pub(crate) fn original_procedure_scalar_bindings(
+#[doc(hidden)]
+pub fn original_procedure_scalar_bindings(
     module: &Module,
     procedure: &Procedure,
     registry: &CommandRegistry,
@@ -388,7 +400,9 @@ pub(crate) fn original_procedure_scalar_bindings(
     common
 }
 
-pub(crate) fn original_procedure_parameters(
+#[doc(hidden)]
+
+pub fn original_procedure_parameters(
     module: &Module,
     procedure: &Procedure,
     registry: &CommandRegistry,
@@ -430,7 +444,8 @@ pub(crate) fn original_procedure_parameters(
 
 /// Possible original body-summary dependencies, separate from a selected call.
 /// Open alternatives cannot supply a return value, argument binder or call edge.
-pub(crate) struct OriginalProcedureMayDependencies {
+#[doc(hidden)]
+pub struct OriginalProcedureMayDependencies {
     pub(crate) bodies: Vec<crate::ir::ProcedureId>,
     pub(crate) unknown_alternatives: bool,
 }
@@ -453,7 +468,8 @@ fn original_logical_summary_body_purpose_matches(
 /// Possible Logical body dependencies under an authentic original source scope.
 /// Namespace/name coordinates select only current Module-issued source bodies;
 /// unknown alternatives remain and no argv binder, call or return is supplied.
-pub(crate) fn original_logical_procedure_may_dependencies_for_module(
+#[doc(hidden)]
+pub fn original_logical_procedure_may_dependencies_for_module(
     tokens: &CommandTokens,
     module: &Module,
     registry: &CommandRegistry,
@@ -561,7 +577,8 @@ pub(crate) fn original_logical_procedure_may_dependencies_for_module(
 /// Join original call geometry to genuine declaration cards for MAY consumers.
 /// Implementation-backed selection keeps its stronger existing owner; Native
 /// source cards retain other handler/alias possibilities independently.
-pub(crate) fn original_procedure_may_dependencies_for_word_for_module(
+#[doc(hidden)]
+pub fn original_procedure_may_dependencies_for_word_for_module(
     tokens: &CommandTokens,
     word: &str,
     module: &Module,

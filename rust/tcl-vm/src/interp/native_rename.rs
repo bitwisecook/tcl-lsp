@@ -109,7 +109,7 @@ mod tests {
         assert!(vm.set_native_engine_profile(profile));
         vm.set_dialect_profile(profile);
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm
     }

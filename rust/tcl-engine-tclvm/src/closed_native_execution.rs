@@ -10,7 +10,7 @@ use std::io::{self, Write};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::optimiser::closed_consumer::{
     ClosedSourcePlan, MAX_CLOSED_OUTPUT_BYTES, MIN_CLOSED_STACK_BYTES, optimise_closed_source,
     prepare_closed_source,

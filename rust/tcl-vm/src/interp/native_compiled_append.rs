@@ -225,7 +225,7 @@ mod tests {
         )
         .unwrap();
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         assert_eq!(vm.eval_source("proc watch {n1 n2 op} {lappend ::events $op}; array default set a {A B}; set saved [array default get a]; set events {}; trace add variable a {read write} watch; proc p {} {lappend ::a(missing)}").unwrap().code, Code::Ok);
         let default = vm.get_var_bytes(b"saved").expect("actual retained default");
@@ -302,7 +302,7 @@ mod tests {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             assert_eq!(vm.eval_source("proc watch {n1 n2 op} {lappend ::events $op}; proc arm {} {uplevel 1 {trace add variable r {read write} watch}}; set events {}").unwrap().code, Code::Ok);
             let body = Value::new_native_string_bytes(decode(fields[2]));

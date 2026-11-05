@@ -395,9 +395,9 @@ pub fn serialise_semantic_optimisations(config: SemanticOptimisationConfig) -> V
 /// which is what the Explorer's per-pass toggles change.
 fn serialise_wasm_with_options(
     result: &ExplorerResult,
-    options: tcl_compiler::codegen::wasm::WasmCompileOptions,
+    options: tcl_codegen::codegen::wasm::WasmCompileOptions,
 ) -> Value {
-    use tcl_compiler::codegen::wasm::{WasmCodegenPlan, WasmSemanticDecline, compile_wasm};
+    use tcl_codegen::codegen::wasm::{WasmCodegenPlan, WasmSemanticDecline, compile_wasm};
 
     let Some(retained) = retained_explorer_source(result, &result.source) else {
         return Value::Null;
@@ -3812,7 +3812,7 @@ pub fn serialise_result_with_optimisations(
     result: &ExplorerResult,
     optimisations: SemanticOptimisationConfig,
 ) -> Value {
-    let options = tcl_compiler::codegen::wasm::WasmCompileOptions::hosted()
+    let options = tcl_codegen::codegen::wasm::WasmCompileOptions::hosted()
         .with_semantic_optimisations(optimisations);
     let li = LineIndex::new(&result.source);
     let mut out = Map::new();
@@ -4272,7 +4272,7 @@ mod tests {
 
     #[test]
     fn wasm_view_exposes_common_native_i64_selection_evidence() {
-        use tcl_compiler::codegen::wasm::{SemanticOptimisationPassId, WasmCompileOptions};
+        use tcl_codegen::codegen::wasm::{SemanticOptimisationPassId, WasmCompileOptions};
 
         let result = run_pipeline(
             "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n",
@@ -4439,7 +4439,7 @@ mod tests {
 
     #[test]
     fn wasm_view_exposes_the_native_tier_lowering_record() {
-        use tcl_compiler::codegen::wasm::WasmCompileOptions;
+        use tcl_codegen::codegen::wasm::WasmCompileOptions;
 
         let result = run_pipeline("set a 1\nincr a\nputs $a\n", "tcl9.0");
         let off = serialise_result(&result)["wasm"].clone();
@@ -5738,7 +5738,7 @@ mod retained_explorer_source_tests {
                 "wasm",
                 serialise_wasm_with_options(
                     result,
-                    tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
+                    tcl_codegen::codegen::wasm::WasmCompileOptions::hosted(),
                 ),
             ),
             ("shimmer", serialise_shimmer(result, &li, source)),

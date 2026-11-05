@@ -63,7 +63,7 @@ mod tests {
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             );
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::default(),
+                tcl_codegen::compile_service::BytecodeCompileService::default(),
             ));
             let error = vm.try_eval_source(script).unwrap_err();
             let tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(

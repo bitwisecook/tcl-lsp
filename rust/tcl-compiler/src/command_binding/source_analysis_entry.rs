@@ -28,7 +28,8 @@ use super::{TrustedPackageLoader, TrustedSourceModuleLoader};
 /// Immutable document/workspace contract carrier. The document-surface owner
 /// remains the only metadata query door; no runtime lookup follows from it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct SourceDeclaredCommandContracts(tcl_registry::model::DeclaredSurface);
+#[doc(hidden)]
+pub struct SourceDeclaredCommandContracts(tcl_registry::model::DeclaredSurface);
 impl SourceDeclaredCommandContracts {
     pub(crate) fn for_document(
         source: &str,
@@ -542,10 +543,49 @@ impl SourceAnalysisEntry {
     }
 }
 
-#[cfg(test)]
+/// Translate a live runtime entry into the shared source-analysis contract.
+/// Custom compiler pipelines use this same adapter before applying passes
+/// (`tcl_codegen::compile_service::BytecodeCompileService::native_entry_options`).
+#[must_use]
+pub fn native_entry_options(
+    entry: &tcl_runtime_api::NativeCompilationEntry,
+) -> SourceAnalysisOptions<'_> {
+    use tcl_registry::native_compilation::{
+        NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+    };
+    let mut options = SourceAnalysisOptions {
+        compilation_scope: tcl_runtime_api::SourceCompilationScope::EnteredSource,
+        native_entry: Some(entry),
+        native_compilation: NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: NativeCompilationFrame::ScriptCode,
+            loop_depth: 0,
+            catch_depth: Some(0),
+        },
+        ..SourceAnalysisOptions::default()
+    };
+    options.invocation_dialect = options.logical_invocation_dialect();
+    options
+}
+
+/// The lexer configuration a compilation reads under for `entry`.
+#[must_use]
+pub fn native_entry_config(
+    config: tcl_lexer::LexerConfig,
+    entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+) -> tcl_lexer::LexerConfig {
+    SourceAnalysisOptions {
+        native_entry: entry,
+        ..SourceAnalysisOptions::default()
+    }
+    .native_lexer_config(config)
+}
+
+#[cfg(any(test, feature = "test-support"))]
 impl SourceAnalysisEntry {
     /// An explicitly supplied entry whose prior interpreter history is unknown.
-    pub(crate) fn unknown_history_for_test(input: &crate::analyser::ResolvedAnalysisInput) -> Self {
+    #[doc(hidden)]
+    pub fn unknown_history_for_test(input: &crate::analyser::ResolvedAnalysisInput) -> Self {
         Self {
             metadata_context:
                 crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
@@ -778,10 +818,7 @@ mod original_source_config_owner_tests {
                 assert!(module.source_entry.native_entry.is_none());
                 assert_eq!(options.logical_invocation_dialect(), policy);
             }
-            assert_eq!(
-                crate::compile_service::BytecodeCompileService::native_entry_config(config, None),
-                config,
-            );
+            assert_eq!(native_entry_config(config, None), config,);
         }
     }
 
@@ -841,13 +878,7 @@ mod original_source_config_owner_tests {
         assert_eq!(unknown.native_lexer_config(config), config);
         assert!(unknown.native_compiler_dialect().is_none());
         assert!(unknown.logical_invocation_dialect().is_none());
-        assert_eq!(
-            crate::compile_service::BytecodeCompileService::native_entry_config(
-                config,
-                Some(&unavailable),
-            ),
-            config,
-        );
+        assert_eq!(native_entry_config(config, Some(&unavailable),), config,);
         let source = "set witness 1";
         let mut lowerer = crate::lowering::Lowerer::with_config(registry, config);
         lowerer.set_source_analysis_options(options);

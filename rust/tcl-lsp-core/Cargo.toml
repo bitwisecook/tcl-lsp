@@ -59,6 +59,7 @@ getrandom = { version = "0.2.17", features = ["js"] }
 fluent-uri = { version = "0.4.1", features = ["net"] }
 
 [dev-dependencies]
+tcl-codegen = { path = "../tcl-codegen" }
 # A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
 # permits and `tcl-registry` / `tcl-compiler` already use: the inherited-roster
 # completion test seeds the shipped core surfaces exactly as the server's

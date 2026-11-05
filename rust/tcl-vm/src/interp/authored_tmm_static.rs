@@ -722,7 +722,7 @@ mod tests {
         )
         .expect("authentic C object sharing");
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm.install_irules_timer_simulation();
         vm.install_irules_static_simulation();

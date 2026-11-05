@@ -24,7 +24,7 @@
 //! interning tables ([`LiteralTable`], [`LocalVarTable`]), plus instruction
 //! [`layout`] and disassembly [`format`].
 //!
-//! The compiler's emitter (`tcl_compiler::codegen`) produces these types and
+//! The compiler's emitter (`tcl_codegen::codegen`) produces these types and
 //! re-exports them; the bytecode VM consumes them. Keeping them in a leaf crate
 //! (whose only dependency is `tcl-syntax`, for [`BinOp`]/[`UnaryOp`]) lets the
 //! VM depend on the artifact without pulling in the whole compiler.

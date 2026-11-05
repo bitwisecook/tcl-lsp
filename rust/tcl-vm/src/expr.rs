@@ -2301,7 +2301,7 @@ mod tests {
         for dynamic in [false, true] {
             let mut vm = Vm::new();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::default(),
+                tcl_codegen::compile_service::BytecodeCompileService::default(),
             ));
             vm.set_dialect_profile(profile);
             let script = if dynamic {
@@ -2584,7 +2584,7 @@ mod tests {
             if policy == tcl_dialect::NativeArithmetic::Tcl84Wide {
                 let mut vm = Vm::new();
                 vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::default(),
+                    tcl_codegen::compile_service::BytecodeCompileService::default(),
                 ));
                 vm.set_dialect_profile(profile);
                 let result = vm.eval_source("expr {18446744073709551616 + 0}").unwrap();

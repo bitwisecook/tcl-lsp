@@ -6522,7 +6522,7 @@ p\uD801 ordinary";
             std::rc::Rc<std::cell::RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>,
         );
         impl tcl_vm::CompileService for Capture {
-            type Module = <tcl_compiler::compile_service::BytecodeCompileService as tcl_vm::CompileService>::Module;
+            type Module = <tcl_codegen::compile_service::BytecodeCompileService as tcl_vm::CompileService>::Module;
 
             fn compile(&self, _: &str) -> Result<Self::Module, tcl_vm::CompileError> {
                 Err(tcl_vm::CompileError::Unsupported(

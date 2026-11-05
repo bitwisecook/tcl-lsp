@@ -769,7 +769,8 @@ pub struct SourceExpressionPreparation {
     pub script_compilation: Option<Arc<SourceExpressionScriptCompilation>>,
     /// Original operand pieces captured by the actual expression walker.
     /// This is independent of the derived expression's parser coordinates.
-    pub(crate) executed_expression: Option<Arc<super::ExecutedExpressionSource>>,
+    #[doc(hidden)]
+    pub executed_expression: Option<Arc<super::ExecutedExpressionSource>>,
 }
 
 /// Closed ordered script preparation, retaining its immutable compiler table.

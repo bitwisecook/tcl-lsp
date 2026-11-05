@@ -16,7 +16,8 @@ use tcl_runtime_api::native_compilation::{NativeCompilationBinding, NativeCompil
 /// Original generic dispatch or an independently registered opcode recipe.
 /// A registered plan still requires an emitter implementing its operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum NativeByteCommandPlan {
+#[doc(hidden)]
+pub enum NativeByteCommandPlan {
     /// Native compilation emits ordinary dispatch without choosing its handler.
     Generic,
     /// The original compiler selected a retained, supported operation.
@@ -27,7 +28,8 @@ pub(crate) enum NativeByteCommandPlan {
 
 /// Original named worker selection, without retaining its callable body.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NativeByteNamedInvocation {
+#[doc(hidden)]
+pub struct NativeByteNamedInvocation {
     /// Exact parser operand layout and canonical member replacement.
     pub recipe: tcl_registry::native_instruction_plan::NativeNamedInvocationInstruction,
     /// Original public compiler/configuration and actual selected worker.
@@ -37,7 +39,8 @@ pub(crate) struct NativeByteNamedInvocation {
 /// Exact original registration and authored compiler recipe. This grants no
 /// normal-handler, variable contents, purity or runtime object-class facts.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NativeByteRegisteredCommand {
+#[doc(hidden)]
+pub struct NativeByteRegisteredCommand {
     /// Independently authored descriptor of the actual installed compiler.
     pub spec: NativeCompilationSpec,
     /// Selected operation and original compiler validation boundary.
@@ -70,17 +73,16 @@ struct OriginalRegisteredRecipe {
 impl NativeByteRegisteredCommand {
     /// Consume the original factory recipe without changing its compiler purpose.
     /// A different source vector or selection basis cannot reuse its preparation.
-    pub(crate) fn has_generic_preparation(&self) -> bool {
+    #[doc(hidden)]
+    pub fn has_generic_preparation(&self) -> bool {
         matches!(
             self.recipe.instruction,
             NativeInstructionPlan::GenericPreparation(_)
         )
     }
 
-    pub(crate) fn original_instruction(
-        &self,
-        words: &[NativeWord],
-    ) -> Option<&NativeInstructionPlan> {
+    #[doc(hidden)]
+    pub fn original_instruction(&self, words: &[NativeWord]) -> Option<&NativeInstructionPlan> {
         let recipe = &self.recipe;
         (recipe.words == words
             && recipe.spec == self.spec
@@ -93,7 +95,8 @@ impl NativeByteRegisteredCommand {
 
 /// Unavailable original compilation, distinct from generic or guest rejection.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum NativeByteCommandUnavailable {
+#[doc(hidden)]
+pub enum NativeByteCommandUnavailable {
     /// Physical engine or independent name/source issuer is missing or conflicts.
     Entry,
     /// The original command vector could not retain its lexical/value evidence.
@@ -118,7 +121,8 @@ pub(crate) enum NativeByteCommandUnavailable {
 /// # Errors
 /// Returns missing original source/entry ownership, registration, dependencies
 /// or implemented opcode capability. This is not a Tcl completion.
-pub(crate) fn native_byte_command_plan(
+#[doc(hidden)]
+pub fn native_byte_command_plan(
     words: &[NativeWord],
     entry: &NativeCompilationEntry,
     registry: &CommandRegistry,

@@ -107,7 +107,8 @@ pub(crate) fn original_procedure_topology<'a>(
     selected
 }
 
-pub(crate) fn original_procedure_argument_slots(
+#[doc(hidden)]
+pub fn original_procedure_argument_slots(
     module: &Module,
     procedure: &Procedure,
 ) -> Option<OriginalScalarArgumentSlots> {

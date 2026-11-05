@@ -5,7 +5,7 @@
 //! Authentic physical core and independent source compiler for resolution fixtures.
 
 use std::{cell::RefCell, path::Path, rc::Rc};
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_vm::{Vm, host_native::NativeHost};
 
 #[derive(Clone, Default)]

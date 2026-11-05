@@ -59,7 +59,7 @@ use super::{
     CellAccessKind, CellAccessRecord, FunctionDecline, FunctionReport, FunctionStatus,
     NativeBinding, NativeLoweringDecline, StatementOutcome, StatementRecord,
 };
-use crate::codegen::structured::command_text;
+use crate::codegen_helpers::command_text;
 use crate::command_binding::ModuleCommandMutations;
 use crate::dispatch_proof::{
     DispatchEntryAssumption, DispatchProofAnalysis, analyse_original_dispatch_stability,

@@ -61,6 +61,7 @@ members = [
     "rust/tcl-sslictcl",
     "rust/tcl-regex",
     "rust/tcl-compiler",
+    "rust/tcl-codegen",
     "rust/tcl-diagram",
     "rust/tcl-vm",
     "rust/tcl-vm-cli",

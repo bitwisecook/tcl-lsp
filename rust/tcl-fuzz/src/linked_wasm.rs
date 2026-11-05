@@ -36,7 +36,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
+use tcl_codegen::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 

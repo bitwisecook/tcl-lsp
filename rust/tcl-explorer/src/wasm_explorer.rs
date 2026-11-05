@@ -19,7 +19,7 @@
 //! Rich per-instruction explorer view for the WASM codegen output.
 //!
 //! Built over the
-//! [`WasmModule`](tcl_compiler::codegen::wasm::WasmModule) the canonical
+//! [`WasmModule`](tcl_codegen::codegen::wasm::WasmModule) the canonical
 //! compiler produces. It resolves, per instruction:
 //!
 //! * `call` target names (imports and internal functions),
@@ -39,7 +39,7 @@
 //! without coupling the codegen crate to the explorer's JSON shape.
 
 use serde_json::{Map, Value, json};
-use tcl_compiler::codegen::wasm::{ValType, WasmFunction, WasmModule, WasmOp};
+use tcl_codegen::codegen::wasm::{ValType, WasmFunction, WasmModule, WasmOp};
 use tcl_lexer::{LineIndex, Span};
 
 use crate::formatters::range_dict;
@@ -564,10 +564,10 @@ mod tests {
     fn wasm_entries(src: &str) -> Vec<Value> {
         let result = run_pipeline(src, "tcl8.6");
         let registry = tcl_registry::model::ingress::static_context_for(&result.dialect).commands();
-        let module = tcl_compiler::codegen::wasm::compile_wasm(
+        let module = tcl_codegen::codegen::wasm::compile_wasm(
             &result.unit,
             registry,
-            tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
+            tcl_codegen::codegen::wasm::WasmCompileOptions::hosted(),
         );
         let li = LineIndex::new(&result.source);
         wasm_to_explorer_json(&module, &li, &result.source)

@@ -1936,7 +1936,7 @@ pub struct CommandSpec {
     pub bpf_op: Option<&'static crate::bpf_op::BpfOpSpec>,
 
     /// `TclVM` bytecode codegen hook ID — picks the per-command
-    /// emitter inside `tcl_compiler::codegen::emitter::bytecoded`
+    /// emitter inside `tcl_codegen::codegen::emitter::bytecoded`
     /// (the path that matches C Tcl 9's bytecode output).
     /// `None` means the generic invoke emitter handles this command.
     pub codegen_hook: Option<CodegenHookId>,
@@ -1959,8 +1959,8 @@ pub struct CommandSpec {
     /// Inline (value-position / catch-body) bytecode codegen hook ID —
     /// picks the per-command emitter on the compiler's
     /// command-substitution and catch-body paths
-    /// (`tcl_compiler::codegen::cmd_subst` /
-    /// `tcl_compiler::codegen::control_flow`). `None` means those
+    /// (`tcl_codegen::codegen::cmd_subst` /
+    /// `tcl_codegen::codegen::control_flow`). `None` means those
     /// paths use their generic invoke emission for this command.
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
 

@@ -48,6 +48,7 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-vm = { path = "../tcl-vm" }
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-codegen = { path = "../tcl-codegen" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 serde_json = { version = "1", features = ["preserve_order"] }

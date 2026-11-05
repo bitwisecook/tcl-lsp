@@ -34,7 +34,8 @@ use crate::segmenter::SegmentedCommand;
 /// ([`tcl_dialect::DialectProfile::f5_core_expr_grammar`]: F5's fork adds
 /// its word operators to 8.4's parser).
 #[must_use]
-pub(crate) fn compile_failure(
+#[doc(hidden)]
+pub fn compile_failure(
     source: &str,
     registry: &CommandRegistry,
     profile: &DialectProfile,

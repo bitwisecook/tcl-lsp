@@ -86,6 +86,7 @@ on:
       - "rust/tcl-syntax/**"
       - "rust/tcl-registry/**"
       - "rust/tcl-compiler/**"
+      - "rust/tcl-codegen/**"
       - "rust/tcl-lsp-core/**"
       - ".github/workflows/github-pages.yml"
   workflow_dispatch:

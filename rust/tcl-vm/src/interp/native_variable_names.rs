@@ -2402,7 +2402,7 @@ mod tests {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let body = String::from_utf8(unhex(columns[2])).unwrap();
             let source = format!(
@@ -2678,7 +2678,7 @@ mod tests {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             vm.register("probe", global_cache_probe);
             vm.set_var_bytes(b"name", Value::new_native_string_bytes(b"v".as_slice()))
@@ -2747,7 +2747,7 @@ mod tests {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             vm.register("alias_probe", alias_simple_probe);
             let completion = vm
@@ -2832,7 +2832,7 @@ mod tests {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let completion = vm.try_eval_source(source).unwrap();
             assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
@@ -2895,7 +2895,7 @@ mod tests {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             vm.register("namespace_cache_probe", namespace_cache_probe);
             let original = Value::new_native_string_bytes(b"v".as_slice());
@@ -3086,7 +3086,7 @@ mod tests {
                 CACHE_LOOKUP_CALLBACKS.with(|count| count.set(0));
                 let mut vm = actual(environment);
                 vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(
+                    tcl_codegen::compile_service::BytecodeCompileService::for_profile(
                         vm.dialect_profile(),
                     ),
                 ));

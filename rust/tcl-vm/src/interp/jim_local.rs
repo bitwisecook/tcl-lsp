@@ -684,7 +684,7 @@ mod tests {
             assert!(vm.set_native_engine_profile(profile));
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let result = vm.eval_source(fields[2]).unwrap();
             assert!(
@@ -1081,7 +1081,7 @@ mod current_cleanup_tests {
         assert!(vm.set_native_engine_profile(profile));
         vm.set_dialect_profile(profile);
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         let source = "proc p {} {return BASE};proc driver {} {local proc p {} {return LOCAL};rename p {};proc p {} {return OTHER};return DONE};list [driver] [llength [info commands p]]";
         let result = vm.try_eval_source(source).unwrap();

@@ -38,9 +38,9 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use tcl_codegen::codegen::codegen_module;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_vm::{Code, CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch};
@@ -70,7 +70,7 @@ impl CompileService for CountingCompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.calls.set(self.calls.get() + 1);
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_script_bytes_for_profile(target, profile)
     }
     fn compile_substitution_with_entry(
@@ -80,7 +80,7 @@ impl CompileService for CountingCompilerSvc {
         entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.calls.set(self.calls.get() + 1);
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_substitution_with_entry(target, profile, entry)
     }
 
@@ -91,7 +91,7 @@ impl CompileService for CountingCompilerSvc {
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.calls.set(self.calls.get() + 1);
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_script_bytes_with_entry(target, profile, entry)
     }
     fn compile_plain_script_bytes_for_profile(
@@ -100,7 +100,7 @@ impl CompileService for CountingCompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.calls.set(self.calls.get() + 1);
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_plain_script_bytes_for_profile(target, profile)
     }
     fn compile_plain_script_bytes_with_entry(
@@ -110,7 +110,7 @@ impl CompileService for CountingCompilerSvc {
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.calls.set(self.calls.get() + 1);
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_plain_script_bytes_with_entry(target, profile, entry)
     }
     fn compile_procedure_bytes_for_profile(
@@ -120,7 +120,7 @@ impl CompileService for CountingCompilerSvc {
         dispatch: tcl_runtime_api::ProcedureDispatch,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.calls.set(self.calls.get() + 1);
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_procedure_bytes_for_profile(target, profile, dispatch)
     }
     fn compile_procedure_bytes_with_entry(
@@ -131,7 +131,7 @@ impl CompileService for CountingCompilerSvc {
         dispatch: tcl_runtime_api::ProcedureDispatch,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.calls.set(self.calls.get() + 1);
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
     }
     fn script_command_plan_bytes_for_profile(
@@ -139,7 +139,7 @@ impl CompileService for CountingCompilerSvc {
         source: &tcl_runtime_api::SourceImage,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .script_command_plan_bytes_for_profile(source, profile)
     }
     fn script_command_plan_bytes_with_entry(
@@ -148,7 +148,7 @@ impl CompileService for CountingCompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .script_command_plan_bytes_with_entry(source, profile, entry)
     }
 
@@ -215,7 +215,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .compile_script_bytes_for_profile(target, profile)
     }
     fn compile_substitution_with_entry(
@@ -230,7 +230,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .compile_substitution_with_entry(target, profile, entry)
     }
 
@@ -246,7 +246,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .compile_script_bytes_with_entry(target, profile, entry)
     }
     fn compile_plain_script_bytes_for_profile(
@@ -260,7 +260,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .compile_plain_script_bytes_for_profile(target, profile)
     }
     fn compile_plain_script_bytes_with_entry(
@@ -275,7 +275,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .compile_plain_script_bytes_with_entry(target, profile, entry)
     }
     fn compile_procedure_bytes_for_profile(
@@ -290,7 +290,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .compile_procedure_bytes_for_profile(target, profile, dispatch)
     }
     fn compile_procedure_bytes_with_entry(
@@ -306,7 +306,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
     }
     fn script_command_plan_bytes_for_profile(
@@ -320,7 +320,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .script_command_plan_bytes_for_profile(source, profile)
     }
     fn script_command_plan_bytes_with_entry(
@@ -335,7 +335,7 @@ impl CompileService for FixedFallbackCompilerSvc {
                 profile.name
             )));
         }
-        tcl_compiler::compile_service::BytecodeCompileService::default()
+        tcl_codegen::compile_service::BytecodeCompileService::default()
             .script_command_plan_bytes_with_entry(source, profile, entry)
     }
 
@@ -371,7 +371,7 @@ impl CompileService for WrongProfileCompilerSvc {
         _profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(wrong)
             .compile_script_bytes_for_profile(target, wrong)
     }
     fn compile_substitution_with_entry(
@@ -381,7 +381,7 @@ impl CompileService for WrongProfileCompilerSvc {
         entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(wrong)
             .compile_substitution_with_entry(target, wrong, entry)
     }
 
@@ -392,7 +392,7 @@ impl CompileService for WrongProfileCompilerSvc {
         _entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(wrong)
             .compile_script_bytes_for_profile(target, wrong)
     }
     fn compile_plain_script_bytes_for_profile(
@@ -401,7 +401,7 @@ impl CompileService for WrongProfileCompilerSvc {
         _profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(wrong)
             .compile_plain_script_bytes_for_profile(target, wrong)
     }
     fn compile_plain_script_bytes_with_entry(
@@ -411,7 +411,7 @@ impl CompileService for WrongProfileCompilerSvc {
         _entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(wrong)
             .compile_plain_script_bytes_for_profile(target, wrong)
     }
     fn compile_procedure_bytes_for_profile(
@@ -421,7 +421,7 @@ impl CompileService for WrongProfileCompilerSvc {
         dispatch: tcl_runtime_api::ProcedureDispatch,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(wrong)
             .compile_procedure_bytes_for_profile(target, wrong, dispatch)
     }
     fn compile_procedure_bytes_with_entry(
@@ -432,7 +432,7 @@ impl CompileService for WrongProfileCompilerSvc {
         dispatch: tcl_runtime_api::ProcedureDispatch,
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(wrong)
             .compile_procedure_bytes_for_profile(target, wrong, dispatch)
     }
     fn script_command_plan_bytes_for_profile(
@@ -440,7 +440,7 @@ impl CompileService for WrongProfileCompilerSvc {
         source: &tcl_runtime_api::SourceImage,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .script_command_plan_bytes_for_profile(source, profile)
     }
     fn script_command_plan_bytes_with_entry(
@@ -449,7 +449,7 @@ impl CompileService for WrongProfileCompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile)
             .script_command_plan_bytes_with_entry(source, profile, entry)
     }
 
@@ -556,7 +556,7 @@ fn named_command_surface_override_cannot_hide_compiled_release_commands() {
 fn eval_source_reports_a_script_that_ran_nothing_through_the_error_channel() {
     let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(
-        tcl_compiler::compile_service::BytecodeCompileService::default(),
+        tcl_codegen::compile_service::BytecodeCompileService::default(),
     ));
 
     // Nothing parses at all.

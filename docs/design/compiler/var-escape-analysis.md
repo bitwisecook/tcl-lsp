@@ -133,7 +133,7 @@ Focused coverage lives in:
 - `rust/tcl-compiler/tests/var_escape_cfg.rs`;
 - `rust/tcl-compiler/tests/var_escape_residual2.rs`;
 - `rust/tcl-compiler/tests/var_escape_typeinfer.rs`; and
-- `rust/tcl-compiler/tests/inlining.rs`.
+- `rust/tcl-codegen/tests/inlining.rs`.
 
 Tests cover literal and dynamic aliases, `info` forms, nested control flow,
 SSA joins, recursion, interprocedural `upvar`, typed reasons, registry-aware

@@ -428,7 +428,8 @@ impl RetainedSourceModuleBindings {
 
     /// Check the same exact original Module inputs without deriving a clone.
     /// This is a source-owner join, independently of any reached dispatch.
-    pub(crate) fn matches_module(&self, module: &Module, registry: &CommandRegistry) -> bool {
+    #[doc(hidden)]
+    pub fn matches_module(&self, module: &Module, registry: &CommandRegistry) -> bool {
         self.source == module.source
             && self.entry == module.source_entry
             && self.entry.metadata_context.source_analysis_input()
@@ -443,7 +444,8 @@ impl RetainedSourceModuleBindings {
 
     /// Original top-level source namespace for artifact geometry. Reporting
     /// labels cannot select it; runtime admission remains independent.
-    pub(crate) fn original_top_namespace_for_module(
+    #[doc(hidden)]
+    pub fn original_top_namespace_for_module(
         &self,
         module: &Module,
         registry: &CommandRegistry,
@@ -468,7 +470,8 @@ impl RetainedSourceModuleBindings {
     /// Borrow the exact positioned interpretation from the original Lowerer.
     /// An absent or changed Module input is terminal for this projection;
     /// independent source interpretation has its own explicit ingress.
-    pub(crate) fn positioned_for_module(
+    #[doc(hidden)]
+    pub fn positioned_for_module(
         &self,
         module: &Module,
         registry: &CommandRegistry,
@@ -702,7 +705,8 @@ impl RetainedSourceModuleBindings {
 
     /// Exact Module-issued source body for MAY summaries. Reporting labels
     /// do not change the retained original header, body or statement geometry.
-    pub(crate) fn matches_original_procedure_summary(
+    #[doc(hidden)]
+    pub fn matches_original_procedure_summary(
         &self,
         id: crate::ir::ProcedureId,
         procedure: &Procedure,

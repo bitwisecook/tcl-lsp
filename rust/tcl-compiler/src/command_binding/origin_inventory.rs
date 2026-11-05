@@ -30,7 +30,8 @@ use super::{
 /// `AuthoredSimulation` retains a selected software naming policy for model source
 /// advice only; it supplies no Native entry, dispatch or trace-absence owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OriginalInvocationSourcePurpose {
+#[doc(hidden)]
+pub enum OriginalInvocationSourcePurpose {
     Execution,
     Logical,
     Standalone,
@@ -1748,7 +1749,8 @@ impl crate::ir::Module {
     /// an actual invocation receiver. Availability and raw Logical eligibility
     /// cannot select its purpose; Native entries still need a separate token
     /// owner before any trace absence is usable.
-    pub(crate) fn original_invocation_source_purpose(
+    #[doc(hidden)]
+    pub fn original_invocation_source_purpose(
         &self,
         registry: &tcl_registry::CommandRegistry,
         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,

@@ -28,7 +28,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_vm::{Code, CompileService, Completion, NativeCommand, TclError, Value, Vm};
 
 fn vm() -> Vm {

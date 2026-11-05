@@ -53,6 +53,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # registry, bytecode, and the VM as the eval host.
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-codegen = { path = "../tcl-codegen" }
 tcl-registry = { path = "../tcl-registry" }
 # Typed WASM import identity/signatures and completion transport layout.
 tcl-runtime-api = { path = "../tcl-runtime-api" }

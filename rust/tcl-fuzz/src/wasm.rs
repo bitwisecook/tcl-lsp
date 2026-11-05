@@ -40,7 +40,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use tcl_compiler::codegen::wasm::{
+use tcl_codegen::codegen::wasm::{
     ValType, WasmCompileOptions, WasmFunction, WasmInstruction, WasmModule, WasmOp, compile_wasm,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -101,7 +101,7 @@ fn compile_to_wasm(src: &str) -> Result<Vec<u8>, String> {
 
 /// Build the host stub: a module defining + exporting `memory` and the three
 /// `tcl_*` functions the emitted module imports, with trivial bodies. Mirrors
-/// `tcl-compiler/tests/wasm_execute.rs::host_stub`. `tcl_eval_code` returns `0`
+/// `tcl-codegen/tests/wasm_execute.rs::host_stub`. `tcl_eval_code` returns `0`
 /// (`ok`, so the emitted completion-code dispatch falls through) and
 /// `tcl_expr_bool` returns `0` (false), so every condition is false and all
 /// control flow terminates.

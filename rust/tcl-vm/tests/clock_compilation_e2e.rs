@@ -5,7 +5,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use tcl_bytecode::{ModuleAsm, Op, Operand};
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_runtime_api::{
     CompileError, NativeCompilationEntry, ScriptCommandPlan, ScriptCompileTargetBytes, SourceImage,
 };

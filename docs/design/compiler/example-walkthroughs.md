@@ -62,7 +62,7 @@ Source text
 │ 4. CFG           build_cfg_function()     → cfg::Function            │  rust/tcl-compiler/src/cfg_builder/mod.rs
 │ 5. SSA           build_ssa()              → SsaFunction              │  rust/tcl-compiler/src/ssa.rs
 │ 6. Core analyses sccp / type_infer / …    → FunctionUnit / SccpResult│  rust/tcl-compiler/src/sccp.rs
-│ 7. Codegen       codegen_module()         → ModuleAsm                │  rust/tcl-compiler/src/codegen/emitter/mod.rs
+│ 7. Codegen       codegen_module()         → ModuleAsm                │  rust/tcl-codegen/src/codegen/emitter/mod.rs
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -529,7 +529,7 @@ pub struct TypeLattice { /* repr: Unknown | Union(BoundedSet<TypeShape>) | Overd
 // Lattice order:  Unknown < Known(t) < Shimmered(a, b) < Overdefined
 ```
 
-### Stage 7 — Codegen types (`rust/tcl-compiler/src/codegen/`, `rust/tcl-bytecode/src/lib.rs`)
+### Stage 7 — Codegen types (`rust/tcl-codegen/src/codegen/`, `rust/tcl-bytecode/src/lib.rs`)
 
 ```rust
 // rust/tcl-bytecode/src/lib.rs — the Tcl 9.0.2 bytecode opcodes
@@ -3638,7 +3638,7 @@ proc abs {n} {
 ### Step 1 — LVT allocation
 
 `CodegenCtx::new(is_proc, params, registry)`
-(`rust/tcl-compiler/src/codegen/mod.rs`) creates a `LocalVarTable` from the
+(`rust/tcl-codegen/src/codegen/mod.rs`) creates a `LocalVarTable` from the
 parameter list:
 
 ```
@@ -3651,7 +3651,7 @@ Inside a `proc`, all variable accesses use LVT-indexed instructions
 
 ### Step 2 — Block linearisation (`linearise()`)
 
-`linearise()` (`rust/tcl-compiler/src/codegen/emitter/ordering.rs`, called
+`linearise()` (`rust/tcl-codegen/src/codegen/emitter/ordering.rs`, called
 from `generate()`) performs a DFS traversal from the entry block, producing a
 reverse post-order (RPO) that determines instruction layout:
 
@@ -3679,7 +3679,7 @@ After  (bottom-tested): jump header → body → header (jumpTrue body)
 As the emitter walks blocks it calls `CodegenCtx::place_label()` (which
 records that a label points at the *next* instruction) and
 `CodegenCtx::emit()` (which appends one instruction and returns its index) —
-both in `rust/tcl-compiler/src/codegen/mod.rs`:
+both in `rust/tcl-codegen/src/codegen/mod.rs`:
 
 ```
 ctx.place_label("entry_1")        → label at instruction 0
@@ -3735,7 +3735,7 @@ Jump operands are patched from label names to relative byte offsets.
 
 ### Step 6 — Peephole optimisation
 
-`rust/tcl-compiler/src/codegen/peephole.rs` applies tclsh-matching
+`rust/tcl-codegen/src/codegen/peephole.rs` applies tclsh-matching
 rewrites, called from `emitter/generate.rs`:
 
 1. **`remove_trailing_pop()`**: The last statement's result stays on

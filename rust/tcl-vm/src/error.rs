@@ -652,7 +652,7 @@ mod tests {
                 tcl_registry::model::ingress::resolve_environment(engine).analyser_profile();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let source = "\"prefix [return -level 2 -code error -errorcode {X Y} -errorinfo ORIGINAL MESSAGE]\"";
             let completion = vm.try_eval_expr(source).expect("guest quote completion");
@@ -721,7 +721,7 @@ mod tests {
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             );
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::default(),
+                tcl_codegen::compile_service::BytecodeCompileService::default(),
             ));
             vm.register_command("byte_refusal", Command::Builtin(refuse));
             let refusal = vm.try_eval_source(source).expect_err("host access refusal");

@@ -5005,7 +5005,7 @@ mod tests {
             let mut vm = Vm::new();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let name = Value::new_native_string_bytes(decode(fields[3]));
             let definition = super::cmd_proc(
@@ -5206,7 +5206,7 @@ mod tests {
             let mut vm = Vm::new();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let protocol = vm
                 .native_invocation_dialect()
@@ -5578,7 +5578,7 @@ mod tests {
                 let mut vm = crate::Vm::new();
                 vm.set_dialect_profile(profile);
                 vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                    tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
                 ));
                 let completion = vm
                     .try_eval_source(source)
@@ -5609,7 +5609,7 @@ mod tests {
             let mut vm = crate::Vm::new();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let result = vm
                 .try_eval_source(
@@ -5892,7 +5892,7 @@ mod tests {
             let mut vm = crate::Vm::new();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let completion = vm.eval_source(&words[2]).unwrap();
             assert_eq!(
@@ -5926,7 +5926,7 @@ mod tests {
             let mut vm = crate::Vm::new();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let completion = vm.eval_source(source).unwrap();
             assert_eq!(
@@ -5952,7 +5952,7 @@ mod tests {
             let mut vm = crate::Vm::new();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let completion = vm.eval_source("proc written {} {}").unwrap();
             assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
@@ -6017,7 +6017,7 @@ mod tests {
                 let mut vm = crate::Vm::new();
                 vm.set_dialect_profile(profile);
                 vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                    tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
                 ));
                 let result = vm.eval_source(source).unwrap();
                 assert_eq!(
@@ -6073,7 +6073,7 @@ mod tests {
             let mut vm = Vm::new();
             vm.set_dialect_profile(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let result = Value::new_native_string_bytes(&b"\xff\0TAIL"[..]);
             let script = Value::list(vec![Value::string("return"), result.clone()]);
@@ -6101,7 +6101,7 @@ mod tests {
         let mut vm = Vm::new();
         vm.set_dialect_profile(profile);
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         let words = |args: &[&str]| {
             args.iter()

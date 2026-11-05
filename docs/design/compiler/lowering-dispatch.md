@@ -210,7 +210,7 @@ runtime interpreter handles the full Tcl specification; the compiler only
 inlines what it can prove is safe.
 
 Functions that return `None` to signal "I cannot handle this" (e.g.
-`parse_subst_template` in `rust/tcl-compiler/src/codegen/helpers.rs`) are not
+`parse_subst_template` in `rust/tcl-compiler/src/codegen_helpers.rs`) are not
 incomplete — they are conservative by design. Missing escape forms are an
 optimisation limitation, not a correctness bug.
 

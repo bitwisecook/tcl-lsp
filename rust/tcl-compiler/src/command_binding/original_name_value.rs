@@ -1099,7 +1099,8 @@ impl super::SourceInvocationBinding {
 
     /// Complete syntax configuration from this original word-vector owner.
     /// It grants syntax only, independently of any Native-purpose admission.
-    pub(crate) fn original_lexer_config_for_tokens(
+    #[doc(hidden)]
+    pub fn original_lexer_config_for_tokens(
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<tcl_lexer::LexerConfig> {

@@ -20,7 +20,7 @@
 
 use super::*;
 use std::{cell::RefCell, io::Write, rc::Rc};
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
 #[derive(Clone, Default)]

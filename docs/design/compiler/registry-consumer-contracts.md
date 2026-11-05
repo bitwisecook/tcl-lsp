@@ -161,7 +161,7 @@ expression, and declared-implementation routes decide nothing here.
 >
 > A command a pack backs with a Tcl body has its definition inlined into the
 > code that calls it. `inline_reference_bodies`
-> (`rust/tcl-compiler/src/inlining/`) brings the definition the backing names
+> (`rust/tcl-codegen/src/inlining/`) brings the definition the backing names
 > into a module, the procedures that call the command are rewritten, and
 > codegen records a `SiteClaim::ReferenceBody` beside the procedure binding
 > that holds the live command to the definition (`BackingKind`,
@@ -1520,7 +1520,7 @@ tclsh 9.1 raises.
   catch-position `InlineCodegenHookId` variants — with four residual by-name
   sites: the loop-control jumps, the `::tcl::dict::for` / `::tcl::dict::map`
   rewrite barriers, and the `incr` fallback in
-  `rust/tcl-compiler/src/codegen/values.rs`.
+  `rust/tcl-codegen/src/codegen/values.rs`.
 - **Binding provenance.** The artefact carries a `CommandBindingIdentity`
   per specialised site (`rust/tcl-runtime-api/src/lib.rs`).
   `command_binding_matches` in `rust/tcl-vm/src/interp.rs` re-resolves
@@ -1592,7 +1592,7 @@ tclsh 9.1 raises.
   installed with an `OverlayMiss`, not the plain generation under another
   name, and each consumer answers it for itself.
   `BytecodeCompileService::for_profile_with_overlay`
-  (`rust/tcl-compiler/src/compile_service.rs`) looks the generation up for
+  (`rust/tcl-codegen/src/compile_service.rs`) looks the generation up for
   every compile, and returns a `CompileError` naming the overlay once it is
   gone, or for a profile the packs are not installed for.
   `tcl_lsp_db::compilation_unit` answers `None` — no unit, and with it no
@@ -1643,7 +1643,7 @@ base domains survives an unrelated `proc`, `rename` and `interp alias`, and
 falls back once `string` is rebound
 (`guarded_intrinsic_guards_survive_unrelated_command_mutation`,
 `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime` in
-`rust/tcl-compiler/tests/wasm_real_link.rs`). The three domains that
+`rust/tcl-codegen/tests/wasm_real_link.rs`). The three domains that
 describe the lookup environment itself — `CommandEnvironment`, `Namespace` and
 `UnknownHandling` — move together, on namespace and interpreter events only,
 and never on a command's definition, rename, alias, import, hide or expose.
@@ -1720,7 +1720,7 @@ pack supplied answered a constant fold (`rust/tcl-compiler/src/const_subst.rs`),
 `BuiltinAlias` where a binding's identity came through `alias_of`
 (`ResolvedCall::stamp_identity` answered the target), and `ReferenceBody` for
 each procedure binding of a function that names a definition the inliner copied
-from a pack (`claim_reference_bodies`, `rust/tcl-compiler/src/codegen/emitter/mod.rs`;
+from a pack (`claim_reference_bodies`, `rust/tcl-codegen/src/codegen/emitter/mod.rs`;
 a procedure the module defines for itself has a binding and no claim).
 `rust/tcl-compiler/src/site_claims.rs` builds the stamps from the origin the
 installer records beside each spec it inserts (`CommandRegistry::pack_origin`,
@@ -1944,7 +1944,7 @@ refuses survives:
   alias hop could never match: `ResolvedCall::stamp_identity` (`rust/tcl-registry/src/codegen_stamp.rs`)
   answers the target exactly where the target's own spec carries the stamp
   at the same site, and `registry_codegen_hook`
-  (`rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`) and the inline path
+  (`rust/tcl-codegen/src/codegen/emitter/bytecoded.rs`) and the inline path
   (`codegen/cmd_subst.rs`) record it, claiming beside it the pack facts
   that made the target admissible (`SiteClaim::BuiltinAlias`). Only there: an `-override` keeps a
   shipped command's codegen hook through the floor whatever `alias_of` it
@@ -2452,11 +2452,11 @@ flowchart LR
 - `rust/tcl-compiler/src/analyser/handlers.rs`, `oo.rs`, `commands.rs`, `dispatch.rs`, `param_traits.rs`, `utils.rs`, `types.rs` — the hook dispatch and its generic tail (`apply_state_transitions`, `handle_var_binding_command`, `dispatch_body_arguments`), `member_landing` and `apply_oo_subcommand_in`, `parse_stub_flags`, and `StubCommandDef::to_declared_command`
 - `rust/tcl-compiler/src/lowering/structured.rs`, `lowering/mod.rs`, `ir.rs`, `executable_ir.rs`, `cfg_builder/cfg_lower.rs`, `signature_scan/walker.rs` — `lower_if`, `lower_try`, `MethodKind::from_effect`, `TryHandler`, `IfClause`, and the clause-plan readers
 - `rust/tcl-compiler/src/dynamic_names.rs`, `analyser/diagnostics/security.rs` — the substitution barrier and W102
-- `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs`, `codegen/cmd_subst.rs`, `codegen/statements.rs`, `codegen/values.rs` — the typed hook dispatch and the residual by-name sites
+- `rust/tcl-codegen/src/codegen/emitter/bytecoded.rs`, `codegen/cmd_subst.rs`, `codegen/statements.rs`, `codegen/values.rs` — the typed hook dispatch and the residual by-name sites
 - `rust/tcl-compiler/src/realm.rs`, `command_binding.rs` — alias knowledge and binding validity
 - `rust/tcl-runtime-api/src/lib.rs`, `guard.rs`, `codegen_abi.rs`, `site_claim.rs`, `backing.rs`, `manifest.rs` — `CommandBindingIdentity`, `ProcedureBindingIdentity`, `GuardIdentity`, the ABI descriptor table and its derived version, `SiteClaim` and `PackFactStamp`, `RegisteredBacking` with `BackingReport`, and `ArtefactIdentityManifest` with `RuntimeContext`, the rung sets and the WASM section reader
 - `rust/tcl-compiler/src/site_claims.rs`, `rust/tcl-registry/src/pack_origin.rs`, `codegen_stamp.rs` — the claims codegen records, the pack origin they are built from, and the one "same stamp, same site" predicate
-- `rust/tcl-compiler/src/codegen/emitter/mod.rs`, `codegen/wasm/backend.rs`, `ir.rs`, `rust/tcl-bytecode/src/lib.rs` — where each emitter states the manifest, the `tcl.manifest` section's encoding, and `ModuleAsm::manifest` with `FunctionAsm::rungs`
+- `rust/tcl-codegen/src/codegen/emitter/mod.rs`, `codegen/wasm/backend.rs`, `ir.rs`, `rust/tcl-bytecode/src/lib.rs` — where each emitter states the manifest, the `tcl.manifest` section's encoding, and `ModuleAsm::manifest` with `FunctionAsm::rungs`
 - `rust/tcl-vm/src/interp.rs`, `exec.rs`, `command.rs`, `cmd_string.rs`, `environment.rs` — `command_binding_matches`, `procedure_binding_matches`, `guarded_commands`, `attach_identities`, `backing_report`, `bump_cmd_epoch`, registration, the pin
 - `runtime/rust/src/interp.rs`, `codegen_abi.rs`, `builtins.rs`, `embedded_stdlib.rs`, `capi.rs`, `obj.rs` — the WASM runtime's guard table, `attach_identities`, `backing_report`, `execute_intrinsic`, `invalidate_command_environment`, the commands the embedded Tcl library defines, the C surface, and the `Tcl_Obj` layout it asserts
 - `rust/tcl-spectcl/src/loader.rs`, `loader/eval.rs`, `loader/environment_block.rs`, `discovery.rs`, `install.rs`, `stamps.rs` — what a pack may write, tier to provenance, discovery and the dependency tier it reads beside a manifest, the floor's application, and the two gates a stamp or a declaration must pass
@@ -2464,14 +2464,14 @@ flowchart LR
 - `rust/tcl-spec-hooks/src/sandbox.rs`, `pack_eval.rs`, `host.rs` — the hook whitelist, the pack evaluator, and the hook host with its per-pack engines, budgets, and context keys
 - `rust/tcl-registry/src/extension_default.rs`, `rust/tcl-registry/src/model/declaration.rs` — the conservative default for an extension command and the declared form that narrows it
 - `rust/tcl-spec-studio/src/infer/c_scan.rs`, `rust/tcl-spec-studio/src/infer/extension.rs`, `rust/tcl-cli/src/commands/spec_probe.rs`, `rust/tcl-cli-support/src/spec_import.rs` — the C scan, the rows it and the probe describe an extension with, the probe's script and report, and the pack they render as
-- `rust/tcl-compiler/src/inlining/reference.rs`, `rust/tcl-spectcl/src/package_sources.rs` — `inline_reference_bodies` and `ReferenceBodies`, and `provision`, which reads a `-package-source` body at load
+- `rust/tcl-codegen/src/inlining/reference.rs`, `rust/tcl-spectcl/src/package_sources.rs` — `inline_reference_bodies` and `ReferenceBodies`, and `provision`, which reads a `-package-source` body at load
 - `rust/tcl-registry/src/value_transfer/reference_body.rs`, `rust/tcl-spectcl/src/loader/reference.rs`, `rust/tcl-spec-studio/src/infer.rs` — the scan of a reference body, the loader pass that derives its declared implementation, and `infer_from_body`
 - `rust/tcl-cli/src/commands/spec.rs`, `spec_test.rs` — `tcl spec test` and the probe it sends to the shell
 - `rust/tcl-spec-studio/src/render_spectcl.rs`, `render_rs.rs`, `coverage.rs`, `schema.rs`, `draft.rs`, `help.rs` — `GAPS`, `GapKind`, the `.rs` contribution export, and the four studio surfaces
 - `rust/tcl-vm/src/compiled.rs` — `CompiledUnit`, `CompilerProvenance`, and the generations and manifest a unit carries
 - `rust/tcl-engine-api/src/lib.rs`, `rust/tcl-engine-tclvm/src/lib.rs`, `rust/tcl-cshim/src/lib.rs`, `rust/tcl-cshim/src/load.rs`, `rust/tcl-cshim/src/ffi.rs`, `rust/tcl-cshim/src/obj.rs`, `runtime/rust/include/tcl.h`, `rust/tcl-cshim/tests/c/layout.c`, `rust/tcl-vm-cli/src/main.rs` — the engine interface, the VM's implementation (`TclVmEngine`, beside `runtime/rust/src/engine.rs`'s `RuntimeEngine` and `rust/tcl-engine-wasm`'s `WasmEngine`) and `register_host_command`, `Interp::load_static` and its `Loaded` report, `StaticExtensions` (the host's `load`), the 36 exported symbols, the authored header, the layout it declares and the probe that reports it, and `tclvm --static-extensions`
 - `scripts/check_c_extension_wasm.py`, `scripts/check_c_api_ownership.py`, `Makefile` (`check-c-extension-wasm`, `check-c-api-ownership`) — the header's legs held to the runtime's and the shim's exports and to the wasm32 compiles, and the runtime's exports held to their ownership rows
-- `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `runtime_context.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin and the `RuntimeContext` it resolves, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
+- `rust/tcl-dialect/src/version.rs`, `profile.rs`, `rust/tcl-registry/src/model/ingress.rs`, `assembly.rs`, `runtime_context.rs`, `rust/tcl-codegen/src/compile_service.rs`, `rust/tcl-lsp-db/src/lib.rs` — the release, the pin and the `RuntimeContext` it resolves, the overlay ingress and its `OverlayMiss`, the compile service's overlay door, and the salsa registry queries
 - `rust/tcl-pkg-model/src/manifest.rs`, `lockfile.rs`, `tier.rs`, `rust/tcl-pkg/src/docker.rs` — the package manager's data model and the derivation of a package's dependency tier, which the pack loader reads too, and the container generator
 - `rust/xtask/src/command_backing.rs`, `gen_irule_test_data.rs`, `docs/generated/wasm-command-backing.md` — the backing gate and its one waiver list, the registry-generated iRules mocks, and the rendered report
 - `rust/tcl-irule-test/tcl/command_mocks.tcl`, `_mock_stubs.tcl` — the simulator's hand-written and generated command backing
@@ -2480,7 +2480,7 @@ flowchart LR
 
 - `rust/tcl-registry/tests/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs` — `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, the per-token guard contract in each runtime
-- `rust/tcl-compiler/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime, and `a_module_with_a_foreign_intrinsic_table_is_refused`, the link check against the runtime's own `tcl_runtime_identity`
+- `rust/tcl-codegen/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime, and `a_module_with_a_foreign_intrinsic_table_is_refused`, the link check against the runtime's own `tcl_runtime_identity`
 - `rust/tcl-cshim/tests/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
@@ -2498,7 +2498,7 @@ flowchart LR
 - `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor, and the manifest's per-rung check: `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`, `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`, `a_manifest_for_another_world_refuses_the_whole_module`, `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`
 - `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` — the pin: `the_profile_form_of_a_pin_is_the_context_the_profile_names`, `a_context_the_ingress_refuses_leaves_the_pin_unchanged`, and `the_trace_gate_reads_the_pinned_profile_not_the_release_name`
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs`, `rust/xtask/src/command_backing.rs` — the backing query and its gate: `identities_come_from_the_pinned_generation_never_an_overlay` and `the_sweep_attests_only_the_builtin_it_registered` in each runtime, `a_declared_builtin_the_runtime_lacks_is_drift_unless_waived` and `a_declared_none_the_runtime_registers_is_drift` in the gate
-- `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-compiler/src/compile_service.rs`, `rust/tcl-lsp-db/tests/overlay_generations.rs`, `dialect_seam.rs`, `rust/tcl-spectcl/tests/codegen_stamps.rs` — the overlay miss: `an_uninstalled_overlay_is_an_error_not_the_plain_generation`, the service's `a_service_whose_overlay_is_gone_declines_every_compile` and `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`, the database's abstention, retry and retired-generation tests, and `the_compilation_unit_sees_the_packs_commands`
+- `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-codegen/src/compile_service.rs`, `rust/tcl-lsp-db/tests/overlay_generations.rs`, `dialect_seam.rs`, `rust/tcl-spectcl/tests/codegen_stamps.rs` — the overlay miss: `an_uninstalled_overlay_is_an_error_not_the_plain_generation`, the service's `a_service_whose_overlay_is_gone_declines_every_compile` and `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`, the database's abstention, retry and retired-generation tests, and `the_compilation_unit_sees_the_packs_commands`
 
 ## Related docs
 

@@ -619,11 +619,11 @@ axes*), which waives the sites by axis.
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 6 | the `special_vars` and `side_effects` axes — the `static::`, `log`, and `global` checks |
-| `rust/tcl-compiler/src/codegen/cmd_subst.rs` | 3 | the `native_lowering` axis — instruction selection for `set` and the `array` intrinsics |
-| `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs` | 4 | the `native_lowering` axis — instruction selection for the `dict` and `array` ensembles |
-| `rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs` | 2 | the `native_lowering` axis — the loop emitter's `foreach` / `lmap` collect flag, which the declared iteration plan can carry |
-| `rust/tcl-compiler/src/codegen/statements.rs` | 2 | the `native_lowering` axis — `break` / `continue` as loop exits |
-| `rust/tcl-compiler/src/codegen/structured.rs` | 2 | the `native_lowering` axis — `break` / `continue` as loop exits |
+| `rust/tcl-codegen/src/codegen/cmd_subst.rs` | 3 | the `native_lowering` axis — instruction selection for `set` and the `array` intrinsics |
+| `rust/tcl-codegen/src/codegen/emitter/bytecoded.rs` | 4 | the `native_lowering` axis — instruction selection for the `dict` and `array` ensembles |
+| `rust/tcl-codegen/src/codegen/emitter/loop_blocks.rs` | 2 | the `native_lowering` axis — the loop emitter's `foreach` / `lmap` collect flag, which the declared iteration plan can carry |
+| `rust/tcl-codegen/src/codegen/statements.rs` | 2 | the `native_lowering` axis — `break` / `continue` as loop exits |
+| `rust/tcl-codegen/src/codegen/structured.rs` | 2 | the `native_lowering` axis — `break` / `continue` as loop exits |
 | `rust/tcl-compiler/src/connection_scope.rs` | 1 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 | the `native_lowering` axis — the inliner's synthesised `break` / `continue`, the expected waiver |
 | `rust/tcl-compiler/src/irules_checks.rs` | 3 | the `side_effects` axis — `drop` / `reject` / `discard`, `DNS::return`, `event disable all` |

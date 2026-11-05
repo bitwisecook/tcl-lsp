@@ -40,9 +40,9 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
+use tcl_codegen::codegen::codegen_module;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::compile_service::BytecodeCompileService;
 // Compile the way the real VM runtime does (`tcl-vm-cli`): the bytecode lowering
 // turns constructs the backend can't compile correctly — a literal `try` with
 // handlers, nested complex `foreach`/`lmap` — into runtime-command barriers,

@@ -94,7 +94,8 @@ impl InvocationProjectionMemo {
 /// projection or borrowed builder escape: every changed source interpretation
 /// must construct a new owner, even when its text or namespace label is equal.
 #[derive(Clone)]
-pub(crate) struct RetainedSourceBodyInventory {
+#[doc(hidden)]
+pub struct RetainedSourceBodyInventory {
     bindings: Arc<SourceCommandBindings>,
     projections: Arc<BodyProjectionMemo>,
     logical_realm: Arc<OnceLock<Option<crate::realm::CommandBindingRealm>>>,

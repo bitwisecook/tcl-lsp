@@ -50,9 +50,9 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
+use tcl_codegen::codegen::wasm::{WasmCompileOptions, compile_wasm};
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::native_compilation_admission::{
     NativeCompilationAdmissionPlan, NativeCompilationAdmissionScope, script_admission_plan,
 };

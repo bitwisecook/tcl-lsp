@@ -1259,7 +1259,8 @@ impl CommandBindingSites {
     /// Unanimous original carrier of one actual statement. A synthetic marker
     /// owns its explicit phase carrier; consumed runtime-command sites at the
     /// same wrapper span cannot donate or contradict that different phase.
-    pub(crate) fn unanimous_statement_source_tokens<'a>(
+    #[doc(hidden)]
+    pub fn unanimous_statement_source_tokens<'a>(
         sites: impl IntoIterator<Item = &'a CommandBindingSite>,
         statement: &'a Statement,
     ) -> Option<&'a CommandTokens> {
@@ -3223,7 +3224,8 @@ impl Module {
 
     /// Original procedure syntax under this Module issuer, including retained
     /// declaration bodies. Lambdas and installed-only units are separate purposes.
-    pub(crate) fn original_source_procedure_bodies(
+    #[doc(hidden)]
+    pub fn original_source_procedure_bodies(
         &self,
     ) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
         self.procedures
@@ -3286,7 +3288,8 @@ impl Module {
     /// Bodies available for compiling a definition-time runtime entry. Original
     /// Native cards retain source syntax only: the allocating invocation still
     /// performs publication, and direct-call/frame authority is independent.
-    pub(crate) fn native_source_procedure_bodies_for_compilation(
+    #[doc(hidden)]
+    pub fn native_source_procedure_bodies_for_compilation(
         &self,
     ) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
         self.procedures
@@ -3305,7 +3308,8 @@ impl Module {
 
     /// Select only the exact allocating source instruction before validating
     /// its retained Native body, so unrelated bodies need no deep comparison.
-    pub(crate) fn native_source_procedure_bodies_for_compilation_at_declaration<'a>(
+    #[doc(hidden)]
+    pub fn native_source_procedure_bodies_for_compilation_at_declaration<'a>(
         &'a self,
         site: &'a crate::command_binding::CommandAllocationSite,
         span: Span,
@@ -3717,8 +3721,9 @@ pub fn when_event_name(qualified_name: &str) -> &str {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn native_call_for_test(bytes: &[u8]) -> Statement {
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn native_call_for_test(bytes: &[u8]) -> Statement {
     let image = tcl_lexer::SourceImage::native(bytes);
     let config = tcl_lexer::LexerConfig::default();
     let tokens = tcl_lexer::Lexer::with_source_image(&image, config)

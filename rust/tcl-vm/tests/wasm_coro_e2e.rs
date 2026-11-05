@@ -30,7 +30,7 @@
 //! same tclsh 9.0.4 oracle values the native coroutine suite pins.
 //!
 //! Skips cleanly when the `wasm32-unknown-unknown` target or `node` is absent
-//! (mirroring `tcl-compiler/tests/wasm_real_link.rs`), so CI without a wasm
+//! (mirroring `tcl-codegen/tests/wasm_real_link.rs`), so CI without a wasm
 //! toolchain is unaffected.
 
 use std::path::{Path, PathBuf};
@@ -112,8 +112,8 @@ fn have_wasm_target() -> bool {
 /// return their integer results as raw wasm exports.
 const LIB_RS: &str = r#"
 use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::codegen::codegen_module;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 use tcl_vm::Vm;

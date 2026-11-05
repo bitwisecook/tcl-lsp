@@ -976,7 +976,8 @@ mod tests {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(super) struct SourceCompilerInvocation {
+#[doc(hidden)]
+pub struct SourceCompilerInvocation {
     pub source_locals:
         Option<Arc<super::compiled_preflight::ordered_locals::SourceCompilerLocalInventory>>,
     pub selection: Option<tcl_registry::native_compilation::NativeCompilationSelection>,
@@ -1001,7 +1002,8 @@ pub(super) type SourceCompilerVisits =
 /// lookup/variable worlds. Missing axes remain missing and all observations
 /// must agree; this carrier contains no implementation or handler authority.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(super) struct SourceNativeCompilerPolicy {
+#[doc(hidden)]
+pub struct SourceNativeCompilerPolicy {
     words: Option<tcl_registry::InvocationDialect>,
     source_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
     compiler: Option<tcl_registry::InvocationDialect>,
@@ -1776,7 +1778,8 @@ impl SourceInvocationBinding {
 
     /// Authenticate the complete original compiler vector, including source
     /// channel and delimiters. A transformed or truncated token vector abstains.
-    pub(crate) fn original_compiler_source<'a>(
+    #[doc(hidden)]
+    pub fn original_compiler_source<'a>(
         &'a self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<(&'a tcl_lexer::SourceImage, &'a [crate::ir::WordExpr], u32)> {
@@ -1792,7 +1795,8 @@ impl SourceInvocationBinding {
 
     /// Borrow the original compiler receipt retained before IR expression
     /// transformations. Admission and emitted operation guards remain required.
-    pub(crate) fn retained_original_compiler_source(
+    #[doc(hidden)]
+    pub fn retained_original_compiler_source(
         &self,
     ) -> Option<(&tcl_lexer::SourceImage, &[crate::ir::WordExpr], u32)> {
         let original = self.original_compiler_words.as_ref()?;
@@ -1811,12 +1815,14 @@ impl SourceInvocationBinding {
 
     /// Original word-value policy retained at compiler visitation. This is
     /// source decoding evidence, not a compiler engine or normal-handler proof.
-    pub(crate) fn compiler_word_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+    #[doc(hidden)]
+    pub fn compiler_word_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
         self.compiler_policy.as_ref()?.words
     }
 
     /// Original source-string issuer, independent of the installed compiler.
-    pub(crate) fn compiler_source_protocol(
+    #[doc(hidden)]
+    pub fn compiler_source_protocol(
         &self,
     ) -> Option<tcl_syntax::native_string::NativeStringProtocol> {
         self.compiler_policy.as_ref()?.source_protocol

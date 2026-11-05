@@ -109,7 +109,7 @@ fn synchronous_tailcall_validates_parent_before_array_index_completion() {
                 let profile =
                     tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
                 vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                    tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
                 ));
             }
             crate::interp::ok(crate::Value::string("key"))

@@ -81,7 +81,7 @@ fn actions(source: &str, analysis: &AnalysisResult, report: &Report) -> Vec<Code
 }
 
 fn observe(tclsh: &std::path::Path, source: &str) -> tcl_test_support::ScriptOutcome {
-    let word = tcl_compiler::codegen::helpers::tcl_list_element(source);
+    let word = tcl_codegen::codegen::helpers::tcl_list_element(source);
     let script =
         format!("set completion [catch {word} message]\nputs [list $completion $message]\n");
     tcl_test_support::run_script(tclsh, script.as_bytes()).unwrap()
@@ -292,7 +292,7 @@ fn a_user_command_named_expr_has_no_conversion_recommendation() {
 fn unknown_hex_text_does_not_justify_an_automatic_scan_rewrite() {
     let jim = jimsh();
     for value in ["-ff", "ff+1", "zz"] {
-        let word = tcl_compiler::codegen::helpers::tcl_list_element(value);
+        let word = tcl_codegen::codegen::helpers::tcl_list_element(value);
         let original = format!("set hex {word}\nexpr 0x$hex\n");
         let scanned = format!("set hex {word}\nset value UNSET\nscan $hex %x value\nset value\n");
         for version in tcl_dialect::TclVersion::ALL {

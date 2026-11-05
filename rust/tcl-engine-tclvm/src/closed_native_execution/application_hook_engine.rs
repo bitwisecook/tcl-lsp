@@ -10,7 +10,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_platform::{NativeCIntegerAbi, NumericEnvironment, NumericErrorState};
 use tcl_registry::{CommandRegistry, InvocationDialect};
 use tcl_runtime_api::closed_native_consumer::ClosedSourceRefusal;

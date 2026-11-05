@@ -188,7 +188,7 @@ mod tests {
             let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
             let mut vm = crate::native_fixture::core(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let result = vm.eval_source("::oo::object create O; set count 0; proc original {} {global count; incr count; return O}; proc c {} {info object class [original]}; proc n {} {info object namespace [original]}; proc i {} {info object isa object [original]}; list [c] [string match ::oo::* [n]] [i] $count").unwrap();
             assert_eq!(

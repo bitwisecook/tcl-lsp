@@ -23,7 +23,7 @@
 //! through to a run-time error string (`"opcode {mnemonic} not implemented
 //! in tcl-vm"`) instead of a build failure. A codegen emission site with no
 //! matching VM dispatch arm — `Op::PUSH_RETURN_CODE` had five
-//! (`tcl-compiler/src/codegen/control_flow.rs`) — would then be invisible
+//! (`tcl-codegen/src/codegen/control_flow.rs`) — would then be invisible
 //! until a compiled `catch`/`try`/`return -code` body hit it at run time.
 //!
 //! `match instr.op` in `exec.rs` lists every `Op` variant explicitly, with
@@ -38,7 +38,7 @@
 //!
 //! `Op::LAND`/`Op::LOR` are not reachable from current codegen — `&&`/`||`
 //! compile to short-circuit jump sequences
-//! (`tcl_compiler::codegen::expressions::emit_expr_binary`), never through
+//! (`tcl_codegen::codegen::expressions::emit_expr_binary`), never through
 //! `Op::from_binop` — but they are enumerable `Op` variants reachable
 //! through that same `from_binop` mapping (`BinOp::And`/`BinOp::Or`), so an
 //! enum variant with no dispatch arm is precisely the class of bug this

@@ -46,7 +46,7 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 // `lower_to_ir_for_bytecode`, not the analysis-oriented `lower_to_ir` (which
 // e.g. emits `beginCatch`-shaped IR for `try` instead of the runtime-call
 // shape `tcl-vm-cli` actually compiles). The analysis-oriented lowering does

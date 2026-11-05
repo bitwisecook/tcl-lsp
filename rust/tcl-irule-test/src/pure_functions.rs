@@ -671,7 +671,7 @@ mod stub_transport_tests {
         let mut vm =
             tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm.try_eval_source("namespace eval ::itest::cmd {}; set prior BEFORE")
             .unwrap();
@@ -792,7 +792,7 @@ mod binary_boundary_tests {
         let mut vm =
             tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm.register_native_command(
             "probe",

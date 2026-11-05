@@ -63,21 +63,24 @@ use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
 /// Original lexical values used by single-command source emitters.
 /// These retain raw escapes and grouping; they grant no command binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct SingleCommandSourcePart {
+#[doc(hidden)]
+pub struct SingleCommandSourcePart {
     pub text: String,
     pub braced: bool,
     pub expand: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SingleCommandSourcePurpose {
+#[doc(hidden)]
+pub enum SingleCommandSourcePurpose {
     Script,
     CommandSubstitution,
 }
 
 /// Project one complete command through the shared configured word owner.
 /// Missing geometry, malformed tails and multiple commands remain unavailable.
-pub(crate) fn single_command_source_parts(
+#[doc(hidden)]
+pub fn single_command_source_parts(
     text: &str,
     config: tcl_lexer::LexerConfig,
     purpose: SingleCommandSourcePurpose,
@@ -366,7 +369,8 @@ fn dependency_parts(
 
 /// Complete original substitution inventory for effect consumers. A truncated
 /// or unsupported word walk must not establish absence of name effects.
-pub(crate) fn checked_lifted_calls(
+#[doc(hidden)]
+pub fn checked_lifted_calls(
     tokens: &CommandTokens,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<LiftedCall>> {

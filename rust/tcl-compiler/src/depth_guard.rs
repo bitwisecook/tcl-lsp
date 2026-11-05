@@ -30,8 +30,8 @@
 /// Binary, unary, ternary and function-call nodes can nest independently of
 /// the enclosing script's braced-body depth. The 256-node cap bounds these
 /// recursive walks separately from [`MAX_SOURCE_NEST_DEPTH`].
-pub(crate) const MAX_EXPR_NODE_DEPTH: tcl_core_types::RecursionLimit =
-    tcl_core_types::RecursionLimit(256);
+#[doc(hidden)]
+pub const MAX_EXPR_NODE_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// Depth cap for recursive descent into command substitutions inside a word.
 ///

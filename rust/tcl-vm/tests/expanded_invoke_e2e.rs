@@ -20,7 +20,7 @@
 
 use std::path::{Path, PathBuf};
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 use tcl_test_support::{locate_source_tree, run_script_from_source_tree};
 use tcl_vm::CompileService;

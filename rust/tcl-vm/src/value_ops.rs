@@ -1288,7 +1288,7 @@ mod raw_value_tests {
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
             );
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::default(),
+                tcl_codegen::compile_service::BytecodeCompileService::default(),
             ));
             vm.register("refuse", refuse);
             vm.set_var("x", Value::int(10)).unwrap();

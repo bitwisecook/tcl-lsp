@@ -179,7 +179,7 @@ fn vm_on(host: seam::Seam) -> Vm {
 fn vm_of_release_on(release: tcl_dialect::TclVersion, host: seam::Seam) -> Vm {
     let mut vm = tcl_vm::test_support::native_vm_for_release(release, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(
-        tcl_compiler::compile_service::BytecodeCompileService::default(),
+        tcl_codegen::compile_service::BytecodeCompileService::default(),
     ));
     vm.set_host(std::rc::Rc::new(host));
     vm

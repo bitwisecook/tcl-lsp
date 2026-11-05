@@ -2422,7 +2422,7 @@ fn top_level_return_ends_the_script() {
 /// setup (traces, `namespace import`, command dispatch) can `eval_source`.
 mod compiler {
     use tcl_bytecode::{FunctionAsm, ModuleAsm};
-    use tcl_compiler::compile_service::BytecodeCompileService;
+    use tcl_codegen::compile_service::BytecodeCompileService;
     use tcl_dialect::DialectProfile;
     use tcl_runtime_api::{
         CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch,

@@ -35,7 +35,7 @@ use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
 use tcl_registry::f5::{BigIpExecutionContext, evidence::BigIpBuild, naming::BigIpNameEvent};
 use tcl_runtime_api::authored_tmm::AuthoredObservedFrameStorageContext;

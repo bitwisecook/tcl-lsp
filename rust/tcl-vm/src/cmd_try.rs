@@ -1454,7 +1454,7 @@ mod native_fixture_tests {
         let mut vm = Vm::new();
         vm.set_dialect_profile(profile);
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         let source = include_str!("../tests/data/native_try/cases.tsv")
             .lines()

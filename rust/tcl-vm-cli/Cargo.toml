@@ -44,6 +44,7 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-vm = { path = "../tcl-vm" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-codegen = { path = "../tcl-codegen" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-lexer = { path = "../tcl-lexer" }
 # `--static-extensions`: the host's opt-in `load` over extensions the build

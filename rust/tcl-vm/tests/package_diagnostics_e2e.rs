@@ -23,7 +23,7 @@
 //! 8.6; 8.4 and 8.5 leave `errorCode` at `NONE`, except that 8.5 already
 //! reports `TCL LOOKUP PACKAGE name` for `package present`.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
 fn run_for_version(src: &str, version: TclVersion) -> String {

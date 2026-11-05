@@ -1077,6 +1077,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-codegen"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "tcl-bytecode",
+ "tcl-cmd-core",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-compiler"
 version = "0.1.0"
 dependencies = [
@@ -1122,6 +1138,7 @@ dependencies = [
 name = "tcl-engine-tclvm"
 version = "0.1.0"
 dependencies = [
+ "tcl-codegen",
  "tcl-compiler",
  "tcl-dialect",
  "tcl-engine-api",
@@ -1353,6 +1370,7 @@ dependencies = [
  "num-traits",
  "tcl-bytecode",
  "tcl-cmd-core",
+ "tcl-codegen",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-host-native",

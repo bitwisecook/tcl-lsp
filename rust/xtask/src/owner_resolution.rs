@@ -1161,7 +1161,7 @@ fn validate_native_compiler_pass_consumers(root: &Path) -> Result<Vec<String>> {
             ],
         ),
         (
-            "rust/tcl-compiler/src/codegen/native_compiler_pass.rs",
+            "rust/tcl-codegen/src/codegen/native_compiler_pass.rs",
             vec![
                 "native_compiler_replays(",
                 "ctx.instructions",
@@ -1169,11 +1169,11 @@ fn validate_native_compiler_pass_consumers(root: &Path) -> Result<Vec<String>> {
             ],
         ),
         (
-            "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+            "rust/tcl-codegen/src/codegen/emitter/generate.rs",
             vec!["capture_first_pass(ctx)", "omit_command_markers(ctx)"],
         ),
         (
-            "rust/tcl-compiler/src/codegen/emitter/mod.rs",
+            "rust/tcl-codegen/src/codegen/emitter/mod.rs",
             vec![
                 "native_compiler_pass::replay_environment(",
                 "replay.lvt = std::mem::take(&mut asm.lvt)",
@@ -1273,11 +1273,11 @@ fn validate_native_coroutine_consumers(root: &Path) -> Result<Vec<String>> {
             "native_coroutine_compilation::compile_native_coroutine(",
         ),
         (
-            "rust/tcl-compiler/src/codegen/statements.rs",
+            "rust/tcl-codegen/src/codegen/statements.rs",
             "native_coroutine_tasks(",
         ),
         (
-            "rust/tcl-compiler/src/codegen/native_coroutine.rs",
+            "rust/tcl-codegen/src/codegen/native_coroutine.rs",
             "NativeCoroutineStep::",
         ),
         (
@@ -1328,7 +1328,7 @@ fn validate_native_string_trim_consumers(root: &Path) -> Result<Vec<String>> {
         }
     }
     for path in [
-        "rust/tcl-compiler/src/codegen/statements/native_string.rs",
+        "rust/tcl-codegen/src/codegen/statements/native_string.rs",
         "runtime/rust/src/interp/native_body_artifact/native_string_trim.rs",
     ] {
         if !read(root, path)?.contains("native_string_trim_compilation::default_trim_set(") {
@@ -1387,9 +1387,9 @@ fn validate_execution_name_policy_consumers(root: &Path) -> Result<Vec<String>> 
             .push("native entry does not retain independent naming purpose admission".to_owned());
     }
     for path in [
-        "rust/tcl-compiler/src/codegen/values.rs",
-        "rust/tcl-compiler/src/codegen/native_control.rs",
-        "rust/tcl-compiler/src/codegen/statements.rs",
+        "rust/tcl-codegen/src/codegen/values.rs",
+        "rust/tcl-codegen/src/codegen/native_control.rs",
+        "rust/tcl-codegen/src/codegen/statements.rs",
         "rust/tcl-compiler/src/command_binding/native_variable_tables.rs",
     ] {
         let source = read(root, path)?;

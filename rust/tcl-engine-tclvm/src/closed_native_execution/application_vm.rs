@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tcl_compiler::compile_service::ApplicationInputCompileService;
+use tcl_codegen::compile_service::ApplicationInputCompileService;
 use tcl_platform::{Host, NativeCIntegerAbi, NumericEnvironment};
 use tcl_registry::{CommandRegistry, RegistrySemanticKey};
 use tcl_runtime_api::NativeCompilationEntry;

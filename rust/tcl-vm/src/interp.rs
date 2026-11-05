@@ -30234,7 +30234,7 @@ mod family_b_tests {
     use super::*;
     use crate::command::NativeCommand;
     use std::cell::Cell;
-    use tcl_compiler::compile_service::BytecodeCompileService;
+    use tcl_codegen::compile_service::BytecodeCompileService;
     use tcl_runtime_api::GLOBAL_FRAME;
 
     const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
@@ -34752,7 +34752,7 @@ mod definition_compiler_registration_tests {
             )
             .unwrap();
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let records = Rc::new(RefCell::new(Vec::new()));
             vm.register_command(
@@ -35304,7 +35304,7 @@ mod native_child_constructor_tests {
     fn child_startup_copy_ignores_parent_local_shadows_and_c_has_no_copy_recipe() {
         let mut vm = core("jim");
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(
                 crate::environment::profile_for_dialect("jim"),
             ),
         ));

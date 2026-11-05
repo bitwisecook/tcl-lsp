@@ -267,7 +267,8 @@ impl SourceInvocationBinding {
 
     /// Original argv geometry under the actual whole Module. The synthetic
     /// argument boundary keeps its marker and grants no invocation effects.
-    pub(crate) fn original_argument_metadata_for_module<'a>(
+    #[doc(hidden)]
+    pub fn original_argument_metadata_for_module<'a>(
         &'a self,
         tokens: &CommandTokens,
         module: &crate::ir::Module,
@@ -367,7 +368,8 @@ impl SourceInvocationBinding {
     /// vector uses its sealed original-declaration purpose; a present reached
     /// owner remains terminal on refusal. Native input requires the point route.
     /// This grants no execution, handler completion, body entry or physical frame.
-    pub(crate) fn original_invocation_metadata_for_input<'a>(
+    #[doc(hidden)]
+    pub fn original_invocation_metadata_for_input<'a>(
         &'a self,
         tokens: &CommandTokens,
         input: &crate::analyser::ResolvedAnalysisInput,

@@ -18,7 +18,7 @@ variant runtime artefact, C-tier `test*` registration, or compiler scan that
 selects an extension from `package require`. `compile_wasm` currently accepts
 hosted or standalone packaging options and emits one module through the
 canonical runtime ABI. The real-link coverage in
-`rust/tcl-compiler/tests/wasm_real_link.rs` is a test helper, not automatic
+`rust/tcl-codegen/tests/wasm_real_link.rs` is a test helper, not automatic
 package bundling.
 
 ## Runtime boundary

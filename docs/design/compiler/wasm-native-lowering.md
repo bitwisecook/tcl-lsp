@@ -6,7 +6,7 @@ Tcl framing where the available proof permits it. Unsupported instructions and
 missing admission evidence retain runtime execution with a typed decline.
 
 The public entry is `compile_wasm` in
-`rust/tcl-compiler/src/codegen/wasm/pipeline.rs`. The runtime implementations
+`rust/tcl-codegen/src/codegen/wasm/pipeline.rs`. The runtime implementations
 live in `runtime/rust`; intrinsic identities, target-neutral operations and ABI
 imports have shared owners in `tcl-registry` and `tcl-runtime-api`.
 
@@ -54,7 +54,7 @@ the original runtime operation.
 
 ### 2.2 Validation surfaces
 
-`rust/tcl-compiler/tests/wasm_tiers.rs` compiles deterministic
+`rust/tcl-codegen/tests/wasm_tiers.rs` compiles deterministic
 `samples/wasm/` programs with default, analysis and native options. Real-link
 tests compare stdout with committed Tcl oracle outputs. `TCL_REQUIRE_WASM_LINK=1`
 makes missing runtime-link prerequisites a failure.

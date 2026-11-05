@@ -2,11 +2,11 @@
 
 This note describes the current Rust bytecode emitter. The public compiler
 front end produces a `CompilationUnit`; bytecode consumers use the emitter in
-`rust/tcl-compiler/src/codegen/` and the artefact types in `rust/tcl-bytecode/`.
+`rust/tcl-codegen/src/codegen/` and the artefact types in `rust/tcl-bytecode/`.
 
 ## Pipeline
 
-1. `rust/tcl-compiler/src/codegen/emitter/generate.rs` drives module and
+1. `rust/tcl-codegen/src/codegen/emitter/generate.rs` drives module and
    function emission from the retained CFG/SSA facts.
 2. `emitter/ordering.rs` linearises reachable CFG blocks and handles the
    loop-specific ordering required by the bytecode layout.
@@ -17,7 +17,7 @@ front end produces a `CompilationUnit`; bytecode consumers use the emitter in
 5. `tcl-bytecode::layout::resolve_layout` resolves symbolic labels and jump
    offsets. The resulting `FunctionAsm` retains instructions, literals, local
    variables, source spans, and error regions.
-6. `rust/tcl-compiler/src/codegen/peephole.rs` applies bytecode-local rewrites
+6. `rust/tcl-codegen/src/codegen/peephole.rs` applies bytecode-local rewrites
    after emission. Formatting and disassembly are provided by
    `rust/tcl-bytecode/src/format.rs`.
 
@@ -70,7 +70,7 @@ abstaining and pinning are both wrong there.
 The bytecode VM executes the resulting `ModuleAsm`; it does not select a
 compiler backend. Tcl command semantics remain registry-owned, and generic
 invocation is emitted when a command shape has no safe bytecode hook. WASM is a
-separate target under `rust/tcl-compiler/src/codegen/wasm/` and has its sole
+separate target under `rust/tcl-codegen/src/codegen/wasm/` and has its sole
 public entry point in `compile_wasm`.
 
 ## Related

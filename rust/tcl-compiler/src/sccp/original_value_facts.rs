@@ -33,7 +33,7 @@ use tcl_registry::CommandRegistry;
 use crate::analyses::MAX_CONSTSET_SIZE;
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::codegen::helpers::split_list_values;
+use crate::codegen_helpers::split_list_values;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::math_function_binding::ExpressionMathBindings;
@@ -3680,7 +3680,7 @@ fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 
     // `[list ...]` — reuse the codegen fold.
     if trusted("list")
-        && let Some(folded) = crate::codegen::helpers::fold_list_cmd(value, policy.word_rules)
+        && let Some(folded) = crate::codegen_helpers::fold_list_cmd(value, policy.word_rules)
     {
         return Some(LatticeValue::Const(ConstValue::String(folded)));
     }
@@ -3696,7 +3696,7 @@ fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
             profile.grammar.escapes
         });
     if trusted("format")
-        && let Some(folded) = crate::codegen::helpers::try_format_fold(value, escapes)
+        && let Some(folded) = crate::codegen_helpers::try_format_fold(value, escapes)
     {
         return Some(LatticeValue::Const(ConstValue::String(folded)));
     }

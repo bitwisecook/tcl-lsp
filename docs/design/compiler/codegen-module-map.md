@@ -1,6 +1,6 @@
 # Code-generation module map
 
-Rust code generation lives in `rust/tcl-compiler/src/codegen/`. The shared
+Rust code generation lives in `rust/tcl-codegen/src/codegen/`. The shared
 compiler front end builds IR, CFG, SSA, semantic analysis, and structured
 lowering before target emission.
 
@@ -23,7 +23,7 @@ an execution artefact; it is not a selectable Tcl-to-WebAssembly backend.
 
 ## WASM modules
 
-`rust/tcl-compiler/src/codegen/wasm/` has one public compilation entry:
+`rust/tcl-codegen/src/codegen/wasm/` has one public compilation entry:
 
 - `mod.rs` exports `compile_wasm`, `WasmCompilation`, typed plan evidence,
   packaging options, and WASM IR types;

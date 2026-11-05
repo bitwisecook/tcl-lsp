@@ -19,7 +19,8 @@
 //! Compiler traversal precedes execution, including unreachable inline bodies.
 
 pub(super) mod expression_syntax;
-pub(super) mod ordered_locals;
+#[doc(hidden)]
+pub mod ordered_locals;
 mod original_preparation;
 
 use super::{

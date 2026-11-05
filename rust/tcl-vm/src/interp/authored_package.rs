@@ -372,7 +372,7 @@ mod tests {
         )
         .expect("actual host core");
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
         let _ = vm.set_command_surface_profile(profile);

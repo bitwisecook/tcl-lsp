@@ -228,7 +228,8 @@ impl CommandBindingRealm {
 
     /// Borrow the retained inventory for syntax navigation in the same source
     /// root. Reconstructed/entered sources must select their own origin first.
-    pub(crate) fn source_bindings_ref(&self) -> &SourceCommandBindings {
+    #[doc(hidden)]
+    pub fn source_bindings_ref(&self) -> &SourceCommandBindings {
         &self.bindings
     }
 
@@ -953,7 +954,8 @@ pub fn document_realm_bindings_for_fresh_hosted_source(
 /// Interpret source with the driver's retained execution target and full body
 /// configuration. The catalogue's convenience default supplies no replacement
 /// for this input; actual native entries use their independently sealed path.
-pub(crate) fn document_realm_bindings_with_resolved_input(
+#[doc(hidden)]
+pub fn document_realm_bindings_with_resolved_input(
     source: &str,
     input: &crate::analyser::ResolvedAnalysisInput,
     declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,

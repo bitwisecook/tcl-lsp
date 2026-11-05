@@ -23,7 +23,7 @@
 //! Every expectation is the same script's result under real tclsh 8.6.18,
 //! 9.0.4 and 9.1.0.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
 const FROM_8_6: [TclVersion; 3] = [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1];

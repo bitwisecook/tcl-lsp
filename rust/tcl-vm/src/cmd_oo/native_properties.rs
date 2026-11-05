@@ -1212,7 +1212,7 @@ mod tests {
         )
         .unwrap();
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         let result=vm.eval_source("oo::configurable create C {property yellow -get {return Y}; property zinc -get {return Z}}; C create o").unwrap();
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());

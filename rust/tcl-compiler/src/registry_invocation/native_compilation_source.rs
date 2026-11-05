@@ -157,7 +157,8 @@ pub fn original_native_compiler_words(
 /// The original parser and IR-vector checks own this immutable result. It
 /// carries no selected implementation, metadata, native entry or completion.
 #[derive(Debug)]
-pub(crate) struct OriginalSourceCommandProjection {
+#[doc(hidden)]
+pub struct OriginalSourceCommandProjection {
     native: Vec<NativeWord>,
     command: crate::segmenter::SegmentedCommand,
 }

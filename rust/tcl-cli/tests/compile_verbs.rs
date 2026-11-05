@@ -445,14 +445,14 @@ fn dis_document_bom_policy_keeps_the_actual_non_root_command_literal() {
         assert!(
             text.contains(&format!(
                 "\"{}\"",
-                tcl_compiler::codegen::format::esc(root_literal, usize::MAX)
+                tcl_codegen::codegen::format::esc(root_literal, usize::MAX)
             )),
             "{dialect}: {text}"
         );
         assert!(
             text.contains(&format!(
                 "\"{}\"",
-                tcl_compiler::codegen::format::esc("\u{feff}probe", usize::MAX)
+                tcl_codegen::codegen::format::esc("\u{feff}probe", usize::MAX)
             )),
             "{dialect}: {text}"
         );

@@ -99,7 +99,7 @@ mod tests {
         assert!(vm.set_command_surface_profile(host));
         assert!(vm.set_native_engine_profile(host));
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(logical),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(logical),
         ));
         if eval {
             assert!(

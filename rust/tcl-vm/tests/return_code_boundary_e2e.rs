@@ -23,7 +23,7 @@
 //! Every expectation is the same script's result under real tclsh 8.4.20,
 //! 8.5.19, 8.6.18, 9.0.4 and 9.1.0 for the releases each case names.
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 
 const ALL_RELEASES: [TclVersion; 5] = [

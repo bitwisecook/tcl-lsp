@@ -62,7 +62,8 @@ impl SourceNamespaceKey {
 
     /// Optional compatibility key whose analytical splitter agrees with the
     /// retained geometry. Even this view carries no callable-name authority.
-    pub(crate) fn advisory_key(&self) -> Option<String> {
+    #[doc(hidden)]
+    pub fn advisory_key(&self) -> Option<String> {
         let display = self.display()?;
         if let Some(path) = self.exact_native_path() {
             let components = tcl_syntax::naming::checked_namespace_path_utf8(path).ok()?;
@@ -169,7 +170,8 @@ fn display_path(path: &ByteNamespacePath) -> Option<String> {
 /// Primary command-table key. A written source spelling cannot impersonate an
 /// actual native slot, even when it equals that slot's display spelling.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum SourceCommandKey {
+#[doc(hidden)]
+pub enum SourceCommandKey {
     /// Symbolic command key in an authored document's namespace model.
     Authored(String),
     /// Exact counted simple key in a retained or allocated namespace table.

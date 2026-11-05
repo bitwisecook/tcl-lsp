@@ -547,14 +547,14 @@ Relevant modules:
   generic/guarded/lowered/opaque region evidence and exact slow paths;
 - `tcl-compiler/src/common_aot_plan.rs` and `native_integer_proof.rs` — common
   direct-call, slot, frame, boundary, closed-coverage, and numeric proofs;
-- `tcl-compiler/src/codegen/wasm/pipeline.rs` — sole entry and plan evidence;
-- `tcl-compiler/src/codegen/wasm/semantic_plan.rs` — non-emitting executable-IR
+- `tcl-codegen/src/codegen/wasm/pipeline.rs` — sole entry and plan evidence;
+- `tcl-codegen/src/codegen/wasm/semantic_plan.rs` — non-emitting executable-IR
   plan validation;
-- `tcl-compiler/src/codegen/wasm/leaf_invoke.rs` — non-emitting per-statement
+- `tcl-codegen/src/codegen/wasm/leaf_invoke.rs` — non-emitting per-statement
   prebuilt-argv planning, frame layout, and typed word declines;
-- `tcl-compiler/src/codegen/wasm/backend.rs` — the sole module emitter for
+- `tcl-codegen/src/codegen/wasm/backend.rs` — the sole module emitter for
   generic, guarded-intrinsic, sealed-native, and general structured modes;
-- `tcl-compiler/src/codegen/wasm/ir.rs` — shared target IR and encoders;
+- `tcl-codegen/src/codegen/wasm/ir.rs` — shared target IR and encoders;
 - `tcl-runtime-api/src/guard.rs` — shared guard identity, domain, and token
   vocabulary;
 - `tcl-runtime-api/src/codegen_abi.rs` — shared ABI declarations; and

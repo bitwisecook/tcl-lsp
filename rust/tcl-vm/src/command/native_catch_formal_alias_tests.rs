@@ -64,7 +64,7 @@ fn caught_callback_result_follows_replaced_formal_alias_native_controls() {
         )
         .unwrap();
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         if vm
             .native_invocation_dialect()

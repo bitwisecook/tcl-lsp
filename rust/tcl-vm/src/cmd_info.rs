@@ -882,7 +882,7 @@ mod tests {
             let profile = crate::environment::profile_for_dialect(engine);
             let mut vm = crate::native_fixture::core(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             let completion = vm
                 .eval_source("info functions sin")
@@ -927,7 +927,7 @@ mod tests {
             let profile = crate::environment::profile_for_dialect(engine);
             let mut vm = crate::native_fixture::core(profile);
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
             ));
             for source in [
                 "info loaded {}",

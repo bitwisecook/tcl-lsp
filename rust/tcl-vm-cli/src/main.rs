@@ -46,7 +46,7 @@
 use std::io::{IsTerminal, Write};
 use std::sync::{Arc, Mutex};
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 use tcl_vm::{CompileService, Value, Vm};
 

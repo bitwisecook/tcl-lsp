@@ -9762,7 +9762,8 @@ pub(crate) fn is_arm_writes_marker(stmt: &Statement) -> bool {
 /// it has: where code the module cannot see runs, or what the scripts it keeps
 /// inside itself write. It shares its host's span and is no command to run or
 /// plan.
-pub(crate) fn is_effect_marker(stmt: &Statement) -> bool {
+#[doc(hidden)]
+pub fn is_effect_marker(stmt: &Statement) -> bool {
     is_unseen_call_marker(stmt) || is_arm_writes_marker(stmt)
 }
 

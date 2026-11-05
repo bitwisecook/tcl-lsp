@@ -39,9 +39,9 @@
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::analyses::LatticeValue;
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::CommandRegistry;
 use tcl_registry::hover::ScriptTiming;

@@ -45,7 +45,7 @@ fn nested_info_compilation_retains_original_maps_and_late_worker_binding() {
     for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = native_vm(engine);
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
         ));
         assert_eq!(invoke(&mut vm, "oo::class", &["create", "C"]), Code::Ok);
         let source = tcl_lexer::SourceImage::native(b"info class superclasses ::C".as_slice());
@@ -402,7 +402,7 @@ fn operation_sites_keep_raw_imported_compilers_and_replay_failed_prerequisites()
     ] {
         let mut vm = native_vm("tcl8.6");
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
         ));
         vm.declare_namespace_exports("N", &["list"]);
         assert_eq!(invoke(&mut vm, "rename", &["list", "N::list"]), Code::Ok);
@@ -498,7 +498,7 @@ fn imported_compiler_failure_retains_raw_registration_before_any_body_store() {
 
     let mut vm = native_vm("tcl8.4");
     vm.set_compiler(Box::new(
-        tcl_compiler::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
+        tcl_codegen::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
     ));
     vm.declare_namespace_exports("N", &["set"]);
     assert_eq!(invoke(&mut vm, "rename", &["set", "N::set"]), Code::Ok);
@@ -557,7 +557,7 @@ fn emitted_array_operation_retains_actual_ensemble_compiler() {
     for engine in ["tcl9.0", "tcl9.1"] {
         let mut vm = native_vm(engine);
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
         ));
         let source = tcl_lexer::SourceImage::native(b"array set payload {}".as_slice());
         let unit = vm.compile_script_cached_bytes(&source).unwrap();
@@ -663,7 +663,7 @@ fn ensemble_operation_checks_configuration_and_independent_worker_binding() {
         ] {
             let mut vm = native_vm("tcl9.0");
             vm.set_compiler(Box::new(
-                tcl_compiler::compile_service::BytecodeCompileService::for_profile(
+                tcl_codegen::compile_service::BytecodeCompileService::for_profile(
                     vm.source_profile(),
                 ),
             ));
@@ -1030,7 +1030,7 @@ fn first_array_callback_revalidates_replay_before_final_array_publication() {
     for changes_limit in [false, true] {
         let mut vm = native_vm("tcl9.1");
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
         ));
         if changes_limit {
             vm.register("enableReplayLimit", enable_limit);

@@ -31,7 +31,7 @@ fn production_consumers_call_the_canonical_codegen_api() {
         "rust/tcl-fuzz/src/wasm.rs",
         "rust/tcl-fuzz/src/wasm_diff.rs",
         "rust/tcl-mcp/src/tools.rs",
-        "rust/tcl-compiler/examples/emit_wasm.rs",
+        "rust/tcl-codegen/examples/emit_wasm.rs",
     ] {
         let contents = source(&root, relative);
         assert!(
@@ -54,7 +54,7 @@ fn no_production_surface_exposes_a_legacy_codegen_selector() {
         concat!("--", "backend"),
     ];
     for relative in [
-        "rust/tcl-compiler/src/codegen/wasm/mod.rs",
+        "rust/tcl-codegen/src/codegen/wasm/mod.rs",
         "rust/tcl-cli/src/cli.rs",
         "rust/tcl-cli/src/commands/compile.rs",
         "rust/tcl-explorer/src/serialise.rs",
@@ -72,7 +72,7 @@ fn no_production_surface_exposes_a_legacy_codegen_selector() {
         }
     }
 
-    let public_module = source(&root, "rust/tcl-compiler/src/codegen/wasm/mod.rs");
+    let public_module = source(&root, "rust/tcl-codegen/src/codegen/wasm/mod.rs");
     assert!(public_module.contains("compile_wasm"));
     assert!(public_module.contains("WasmCompilation"));
     assert!(public_module.contains("WasmCodegenPlan"));
@@ -81,15 +81,15 @@ fn no_production_surface_exposes_a_legacy_codegen_selector() {
 #[test]
 fn wasm_has_one_module_emitter_for_semantic_and_general_plans() {
     let root = workspace_root();
-    let wasm_dir = root.join("rust/tcl-compiler/src/codegen/wasm");
+    let wasm_dir = root.join("rust/tcl-codegen/src/codegen/wasm");
     assert!(
         !wasm_dir.join("executable.rs").exists(),
         "the former parallel executable-IR emitter must not return"
     );
 
-    let backend = source(&root, "rust/tcl-compiler/src/codegen/wasm/backend.rs");
-    let pipeline = source(&root, "rust/tcl-compiler/src/codegen/wasm/pipeline.rs");
-    let semantic_plan = source(&root, "rust/tcl-compiler/src/codegen/wasm/semantic_plan.rs");
+    let backend = source(&root, "rust/tcl-codegen/src/codegen/wasm/backend.rs");
+    let pipeline = source(&root, "rust/tcl-codegen/src/codegen/wasm/pipeline.rs");
+    let semantic_plan = source(&root, "rust/tcl-codegen/src/codegen/wasm/semantic_plan.rs");
     let production = format!("{backend}\n{pipeline}\n{semantic_plan}");
     assert_eq!(
         production.matches("fn emit_wasm(").count(),
@@ -113,7 +113,7 @@ fn analysed_codegen_reuses_the_compilation_unit_command_mutations() {
     let root = workspace_root();
     for relative in [
         "rust/tcl-compiler/src/common_aot_plan.rs",
-        "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+        "rust/tcl-codegen/src/codegen/wasm/backend.rs",
     ] {
         let contents = source(&root, relative);
         assert!(
@@ -126,7 +126,7 @@ fn analysed_codegen_reuses_the_compilation_unit_command_mutations() {
         );
     }
 
-    let emitter = source(&root, "rust/tcl-compiler/src/codegen/emitter/mod.rs");
+    let emitter = source(&root, "rust/tcl-codegen/src/codegen/emitter/mod.rs");
     assert!(emitter.contains("pub fn codegen_module_with_command_mutations"));
     assert_eq!(
         emitter.matches("scan_module_command_mutations").count(),

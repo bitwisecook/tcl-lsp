@@ -488,9 +488,11 @@ pub struct FunctionUnit {
     original_lattice_worker: Option<Arc<original_lattice_worker::OriginalFunctionLatticeResult>>,
     original_lattice_callback_admission: Option<bool>,
     /// Complete immutable metadata generation retained by the actual build.
-    pub(crate) source_metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    #[doc(hidden)]
+    pub source_metadata_input: Option<crate::analyser::ResolvedAnalysisInput>,
     /// Exact source lexer configuration, including body-coordinate policy.
-    pub(crate) source_config: tcl_lexer::LexerConfig,
+    #[doc(hidden)]
+    pub source_config: tcl_lexer::LexerConfig,
     /// Qualified function name (e.g. `::top`, `::foo::bar`).
     pub name: String,
     /// Retained module body identity; the top-level script leaves this absent.
@@ -5783,8 +5785,9 @@ impl CompilationUnit {
     }
 
     /// Select a uniquely named authored test fixture, then its actual issued body.
-    #[cfg(test)]
-    pub(crate) fn function(&self, name: &str) -> Option<&FunctionUnit> {
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn function(&self, name: &str) -> Option<&FunctionUnit> {
         if name == "::top" {
             return (!self.ir_module.procedures.has_display(name))
                 .then(|| self.function_for_body(None))

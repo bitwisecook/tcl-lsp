@@ -76,7 +76,8 @@ pub struct LoweringCommand<'a> {
 /// keeps lowering as the semantic owner of provenance: downstream IR/CFG and
 /// codegen never need to reconstruct a command head from source text and risk
 /// disagreeing with the registry context and alias selection used here.
-pub(crate) struct ResolvedLowering {
+#[doc(hidden)]
+pub struct ResolvedLowering {
     pub(crate) statement: Statement,
     /// Exact registry binding when the hook replaced ordinary command
     /// dispatch with specialised IR. A hook may still return a `Call` or
@@ -1056,7 +1057,8 @@ pub(crate) fn extract_single_expr_arg(
 /// Extract a nested expression only after consulting its retained dispatch
 /// proof. Compatibility snapshots without any source query retain the legacy
 /// entry; queried snapshots require the exact nested command identity.
-pub(crate) fn extract_proved_expr_arg(
+#[doc(hidden)]
+pub fn extract_proved_expr_arg(
     source_word: (Option<&crate::ir::CommandTokens>, usize),
     text: &str,
     aliases: &CommandAliasMap,

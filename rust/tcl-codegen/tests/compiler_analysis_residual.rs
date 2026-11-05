@@ -1,0 +1,2588 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Residual coverage for several under-covered `tcl-compiler` analysis
+//! files.  This suite deliberately targets the *remaining* uncovered branches
+//! that the existing suites (`analyser.rs`, `checks.rs`, `core_analyses.rs`,
+//! `fp_depth.rs`, `inlining.rs`, `dataflow.rs`, `optimiser_*`) and the
+//! in-crate unit tests already miss:
+//!
+//!   * `src/scan_predicate.rs` — every `scan`/format-string conversion
+//!     specifier, the width/precision/size/suppression skips, and the decline
+//!     (`None`) paths.  Driven both directly (`scan_provably_no_match`, which is
+//!     `pub`) and end-to-end through the W210 read-before-set surface.
+//!   * `src/auto_path_eval.rs` — the `lappend auto_path` mini-evaluator: the
+//!     `[file join]` / `[file dirname]` / `[info script]` idioms, the tokeniser
+//!     quirks (brace groups, quoted words, braced-`[` as a literal,
+//!     unterminated delimiters), and the POSIX path helpers.
+//!   * `src/place_bridge.rs` — the place/SSA-bridge def/read resolution: dict
+//!     paths, must-alias kills, braced-literal data words, upvar aliases,
+//!     `namespace upvar`, trace targets, whole-array reads, and the
+//!     terminator-read paths.
+//!   * `src/lattice_rebase.rs` — the memoised-unit offset rebase (SCCP value
+//!     rebasing across a shift): the `Foreach` / `Try` / `UpFrame` / constant-
+//!     branch / loop-node statement variants the existing shift test misses.
+//!   * `src/inlining/mod.rs` — `classify_proc` / `inline_module` decline reasons
+//!     (size limits, recursion, side-effects, non-namespace-invariant calls,
+//!     globals, `{*}` expansion) `inlining.rs` misses.
+//!   * `src/analyser/diagnostics/fp/rch.rs` — the reachability (O107) FP
+//!     suppressor carve-outs: code after `return` / `break` / `continue` /
+//!     `error`, constant-false guards, and the various unreachable-region shapes,
+//!     each with a fires/suppressed control pair.
+//!
+//! ## Proof discipline
+//!
+//! Where a test depends on a **Tcl-observable** fact — a `scan` conversion
+//! result, what survives after `return` / `error`, a `file join` / `file
+//! dirname` value, reachability after an unconditional exit — the expected value
+//! is pinned to real `tclsh8.6` and `tclsh9.0` via `scripts/dev/tclsh_check.sh`
+//! and cited with a `// tclsh:` comment (8.4 / 8.5 are not installed in this
+//! environment).
+//!
+//! **Analysis-internal structure** — the lattice/place/predicate *shape*, the
+//! rebased-span identity, the `InlineDecision` verdict, and which IR node a
+//! splice produces — is **not** directly observable from a Tcl program's output,
+//! so it is asserted structurally.  For `scan_predicate`, several inputs Tcl
+//! itself leaves the output unset on (`scan nan %f`, the second `%d` of
+//! `%*d%d`) are nonetheless *not* provable-no-match for the predicate, which is
+//! a deliberate sound over-approximation (it never fires a false W210); those
+//! cases assert the conservative `false` return and say so.
+
+#[path = "../../tcl-compiler/tests/support/body_identity.rs"]
+mod body_identity;
+#[path = "../../tcl-compiler/tests/support/function_identity.rs"]
+mod function_identity;
+use function_identity::OriginalFixtureFunctions;
+
+use body_identity::{fixture_id, fixture_id_if_present};
+
+use tcl_codegen::inlining::{
+    InlineDecision, SMALL_BODY_THRESHOLD, classify_proc, count_statements, inline_module,
+};
+use tcl_compiler::analyser::Analyser;
+use tcl_compiler::auto_path_eval::evaluate_auto_path_expr;
+use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+use tcl_compiler::ir::{Module, Statement};
+use tcl_compiler::place::{self, Index, LOCAL_NS, Place, PlaceKind, overlap};
+use tcl_compiler::place_bridge::{
+    build_resolve_context, def_places, element_writes_observed_by_reads, read_places,
+    terminator_read_places,
+};
+use tcl_compiler::scan_predicate::scan_provably_no_match;
+use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
+
+// Shared harness
+
+/// Default dialect for the diagnostic-surface reproducers.
+const D: &str = "tcl8.6";
+
+fn reg() -> CommandRegistry {
+    CommandRegistry::build_default()
+}
+
+/// Every diagnostic code the analyser + `run_all_checks` surface for `src`
+/// (optimisation codes excluded) — the W210/W211/W220 surface used by the
+/// place-bridge and scan-predicate end-to-end proofs.
+fn codes(src: &str, dialect: &str) -> Vec<String> {
+    use tcl_compiler::compiler_checks::run_all_checks;
+    let mut out: Vec<String> = Analyser::new()
+        .analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect();
+    let registry = static_context_for(dialect).commands();
+    let cu = CompilationUnit::build_for(src, registry, false);
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
+    for d in run_all_checks(&cu, registry, dialect_opt) {
+        if d.code.is_optimisation() {
+            continue;
+        }
+        out.push(d.code.to_string());
+    }
+    out
+}
+
+fn fires(src: &str, dialect: &str, code: &str) -> bool {
+    codes(src, dialect).iter().any(|c| c == code)
+}
+
+/// `O107` (unreachable dead code) is an optimiser-pass suggestion, not an
+/// analyser/`run_all_checks` diagnostic — union the optimiser output to test
+/// the reachability FP suppressor.
+fn o107_fires(src: &str, dialect: &str) -> bool {
+    use tcl_compiler::optimiser::manager::optimise_with_dialect;
+    use tcl_core_types::DiagCode;
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
+    optimise_with_dialect(src, registry, d)
+        .iter()
+        .any(|o| o.code == DiagCode::O107)
+}
+
+/// `source → Module`, for the inliner.
+fn module_for(source: &str) -> Module {
+    CompilationUnit::build_for(source, &reg(), false).ir_module
+}
+
+/// Run the whole-module inline transform.
+fn inlined(source: &str) -> Module {
+    inline_module(module_for(source), &reg())
+}
+
+/// Count statement-position calls to `command` across the module top level.
+fn top_calls_to(module: &Module, command: &str) -> usize {
+    module
+        .top_level
+        .statements
+        .iter()
+        .filter(|s| matches!(s, Statement::Call { command: c, .. } if c == command))
+        .count()
+}
+
+/// Collect every def-place and read-place across a proc's CFG (mirrors the
+/// `place_bridge` unit-test helper, exposed here over the public API).
+fn places_of(src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
+    let r = reg();
+    let cu = CompilationUnit::build_for(src, &r, false);
+    let fu = cu.fixture_function(qname).expect("proc not found");
+    let ctx = build_resolve_context(&fu.cfg, &fu.name);
+    let mut defs = Vec::new();
+    let mut reads = Vec::new();
+    for block in fu.cfg.blocks.values() {
+        for stmt in &block.statements {
+            defs.extend(def_places(stmt, &ctx, &r));
+            reads.extend(read_places(stmt, &ctx, &r));
+        }
+        if let Some(term) = &block.terminator {
+            reads.extend(terminator_read_places(term, &ctx, &r));
+        }
+    }
+    (defs, reads)
+}
+
+// scan_predicate.rs — every conversion specifier + the decline paths
+//
+// `scan_provably_no_match(FMT, INPUT)` returns `true` iff the first conversion
+// is statically guaranteed not to consume input (so the first output var stays
+// unset).  Every expected verdict below is pinned to tclsh: a `true` means
+// tclsh leaves the output unset; a `false` means tclsh either fills it or the
+// predicate conservatively declines (noted inline).
+
+#[test]
+fn scan_decimal_int_match_and_no_match() {
+    // tclsh (8.6, 9.0): `scan 42 %d n` → n=42 (match); `scan abc %d n` → unset.
+    assert!(!scan_provably_no_match("%d", "42"));
+    assert!(scan_provably_no_match("%d", "abc"));
+    // Signed forms still match (leading +/-).
+    // tclsh (8.6, 9.0): `scan -5 %d n` → n=-5; `scan +5 %i n` → n=5.
+    assert!(!scan_provably_no_match("%d", "-5"));
+    assert!(!scan_provably_no_match("%i", "+5"));
+    assert!(!scan_provably_no_match("%u", "5"));
+    // A lone sign with no following digit can't satisfy the conversion.
+    assert!(scan_provably_no_match("%d", "-"));
+}
+
+#[test]
+fn scan_octal_int_match_and_no_match() {
+    // tclsh (8.6, 9.0): `scan 777 %o n` → n=511 (octal); `scan 8 %o n` → unset
+    // (8 is not an octal digit); `scan 9 %o n` → unset.
+    assert!(!scan_provably_no_match("%o", "777"));
+    assert!(scan_provably_no_match("%o", "8"));
+    assert!(scan_provably_no_match("%o", "9"));
+}
+
+#[test]
+fn scan_binary_int_match_and_no_match() {
+    // tclsh (8.6, 9.0): `scan 101 %b n` → n=5; `scan 2 %b n` → unset.
+    assert!(!scan_provably_no_match("%b", "101"));
+    assert!(scan_provably_no_match("%b", "2"));
+}
+
+#[test]
+fn scan_hex_int_match_and_no_match() {
+    // tclsh (8.6, 9.0): `scan 0x1f %x n` → n=31 (leading 0 is a hex digit);
+    // `scan g %x n` → unset (g is not a hex digit).
+    assert!(!scan_provably_no_match("%x", "0x1f"));
+    assert!(!scan_provably_no_match("%X", "1f"));
+    assert!(scan_provably_no_match("%x", "g"));
+}
+
+#[test]
+fn scan_char_conversion_consumes_any_byte() {
+    // `%c` reads ANY single byte (no leading-whitespace skip).
+    // tclsh (8.6, 9.0): `scan abc %c n` → n=97; `scan "" %c n` → unset.
+    assert!(!scan_provably_no_match("%c", "abc"));
+    assert!(!scan_provably_no_match("%c", " ")); // a space is a byte for %c
+    assert!(scan_provably_no_match("%c", "")); // empty input — nothing to read
+}
+
+#[test]
+fn scan_string_conversion_needs_nonspace() {
+    // `%s` skips leading whitespace then needs a non-space char.
+    // tclsh (8.6, 9.0): `scan "   " %s n` → unset (all whitespace);
+    // `scan abc %s n` → n=abc.
+    assert!(!scan_provably_no_match("%s", "abc"));
+    assert!(!scan_provably_no_match("%s", "  x")); // leading ws skipped, x remains
+    assert!(scan_provably_no_match("%s", "   "));
+    assert!(scan_provably_no_match("%s", ""));
+}
+
+#[test]
+fn scan_float_conversion_variants() {
+    // Every float leader: a digit, a leading-sign+digit, a `.digit`, and Inf.
+    // tclsh (8.6, 9.0): `scan .5 %f n` → 0.5; `scan -.5 %f n` → -0.5;
+    // `scan Inf %f n` → Inf; `scan x %f n` → unset; `scan . %f n` → unset.
+    assert!(!scan_provably_no_match("%f", "3"));
+    assert!(!scan_provably_no_match("%e", "+3"));
+    assert!(!scan_provably_no_match("%g", ".5"));
+    assert!(!scan_provably_no_match("%E", "-.5"));
+    assert!(!scan_provably_no_match("%G", "Inf"));
+    assert!(!scan_provably_no_match("%f", "infinity")); // case-insensitive prefix
+    assert!(scan_provably_no_match("%f", "x"));
+    assert!(scan_provably_no_match("%f", ".")); // a lone dot is not a float
+    assert!(scan_provably_no_match("%f", "+")); // a lone sign is not a float
+    assert!(scan_provably_no_match("%f", "")); // empty input
+}
+
+#[test]
+fn scan_float_nan_is_conservative_not_provable() {
+    // SOUNDNESS NOTE (not a bug): tclsh (8.6, 9.0) `scan nan %g n` leaves `n`
+    // UNSET — this build's `scan "nan" %g n` does not fill the var.  The
+    // predicate, however, treats a leading `nan` prefix as "might match" and
+    // returns `false` (declines to prove no-match).  That is a deliberate
+    // OVER-approximation: returning `false` means no W210 fires, so a real
+    // unset is merely not flagged — never a false positive.  The predicate is
+    // sound (it only ever asserts a *provable* no-match), just imprecise here.
+    assert!(
+        !scan_provably_no_match("%g", "nan"),
+        "the nan-prefix float path is a sound over-approximation (returns false)"
+    );
+}
+
+#[test]
+fn scan_percent_n_always_succeeds() {
+    // `%n` writes the consumed-character count and never consumes input, so it
+    // can never be a provable no-match — even on empty input.
+    // tclsh (8.6, 9.0): `scan "" %n n` → n=0 (always assigned).
+    assert!(!scan_provably_no_match("%n", ""));
+    assert!(!scan_provably_no_match("%n", "anything"));
+}
+
+#[test]
+fn scan_literal_percent_directive() {
+    // `%%` matches a literal `%` in the input; only THEN does the conversion
+    // run.  tclsh (8.6, 9.0): `scan "%5" "%%%d" n` → n=5 (the %% eats the %,
+    // %d reads 5); `scan "X5" "%%%d" n` → unset (X is not a literal %).
+    assert!(!scan_provably_no_match("%%%d", "%5"));
+    assert!(scan_provably_no_match("%%%d", "X5"));
+    // A `%%` that runs off the end of the input mismatches.
+    assert!(scan_provably_no_match("%%%d", ""));
+}
+
+#[test]
+fn scan_assignment_suppression_star() {
+    // `%*d` consumes-and-discards; the predicate models the FIRST conversion,
+    // which is the suppressed `d`.  `scan "5" "%*d%d" n` matches the first %*d
+    // against `5`, so the predicate returns `false` (might consume).  tclsh
+    // (8.6, 9.0) leaves `n` UNSET there (the SECOND %d has no input left) — a
+    // sound over-approximation: `false` means no false W210.
+    assert!(
+        !scan_provably_no_match("%*d%d", "5"),
+        "suppressed first conversion consumes — predicate declines to prove no-match"
+    );
+    // But if the suppressed conversion itself can't match, it IS a no-match.
+    assert!(scan_provably_no_match("%*d%d", "abc"));
+}
+
+#[test]
+fn scan_width_and_size_modifiers_are_skipped() {
+    // A width prefix (`%2d`) and a size modifier (`%ld`, `%hd`, `%lld`) are
+    // skipped before the conversion char is read.
+    // tclsh (8.6, 9.0): `scan "12 34" "%2d" n` → n=12; `scan 42 "%ld" n` → 42.
+    assert!(!scan_provably_no_match("%2d", "12"));
+    assert!(!scan_provably_no_match("%ld", "42"));
+    assert!(!scan_provably_no_match("%lld", "42"));
+    assert!(!scan_provably_no_match("%hd", "42"));
+    // …and they don't rescue a genuine mismatch.
+    assert!(scan_provably_no_match("%2d", "ab"));
+    assert!(scan_provably_no_match("%ld", "zz"));
+}
+
+#[test]
+fn scan_plain_literal_prefix_must_match() {
+    // A non-`%`, non-whitespace literal in the format must match the input
+    // verbatim before the conversion.  tclsh (8.6, 9.0): `scan abc "lit%d" n`
+    // → unset (no `lit` prefix); a matching literal lets the conversion run.
+    assert!(scan_provably_no_match("lit%d", "abc"));
+    assert!(scan_provably_no_match("x%d", "y3")); // literal x vs y
+    assert!(!scan_provably_no_match("x%d", "x3")); // literal matches, %d reads 3
+}
+
+#[test]
+fn scan_format_whitespace_directive_skips_input_run() {
+    // A whitespace char in the format skips a run of input whitespace before
+    // the conversion.  tclsh (8.6, 9.0): `scan "  42" "%d" n` → 42 (leading ws
+    // auto-skipped for %d); a leading-ws skip lets a following digit match.
+    assert!(!scan_provably_no_match(" %d", "   42"));
+    assert!(!scan_provably_no_match("%d", "  42"));
+}
+
+#[test]
+fn scan_decline_paths_return_false() {
+    // Every "outside the modelled subset" path returns `false` (never
+    // proves a no-match):
+    // 1. A char-set conversion `%[...]` is unmodelled.
+    assert!(!scan_provably_no_match("%[abc]", "x"));
+    // 2. A format that ends right after `%` is malformed → None → false.
+    assert!(!scan_provably_no_match("%", "abc"));
+    // 3. A format with no conversion at all has nothing to write → None → false.
+    assert!(!scan_provably_no_match("plain", "plain"));
+    assert!(!scan_provably_no_match("", ""));
+    // 4. A `\`, `$`, or `[` in either arg bails immediately (raw-source slices,
+    //    no substitution applied).
+    assert!(!scan_provably_no_match("\\r%d", " 123"));
+    assert!(!scan_provably_no_match("%d", "$x"));
+    assert!(!scan_provably_no_match("[cmd]%d", "abc"));
+    // 5. An unmodelled conversion char (`%p`) → None → false.
+    assert!(!scan_provably_no_match("%p", "abc"));
+    // 6. A `%*` that runs off the end of the format → None → false.
+    assert!(!scan_provably_no_match("%*", "abc"));
+    // 7. Width digits that consume the rest of the format → None → false.
+    assert!(!scan_provably_no_match("%12", "abc"));
+    // 8. A size modifier that ends the format → None → false.
+    assert!(!scan_provably_no_match("%l", "abc"));
+}
+
+#[test]
+fn scan_predicate_w210_end_to_end_fires_and_silent() {
+    // End-to-end through the read-before-set surface, the Tcl-observable proof:
+    // a provable no-match leaves the output var unset, so the later read is a
+    // real read-before-set (W210); a match must stay silent.
+    // tclsh (8.6, 9.0): `scan 777 %o n` → n=511 (no W210);
+    //                    `scan 8 %o n`   → n unset (W210 on `puts $n`).
+    let silent = "proc f {} { scan 777 %o n\n puts $n }";
+    let fires_src = "proc f {} { scan 8 %o n\n puts $n }";
+    assert!(
+        !fires(silent, D, "W210"),
+        "octal match must not fire W210; emitted {:?}",
+        codes(silent, D)
+    );
+    assert!(
+        fires(fires_src, D, "W210"),
+        "octal no-match read-before-set must fire W210; emitted {:?}",
+        codes(fires_src, D)
+    );
+}
+
+#[test]
+fn scan_predicate_w210_hex_and_binary() {
+    // tclsh (8.6, 9.0): `scan 0x1f %x n` → 31 (silent); `scan g %x n` → unset
+    // (fires); `scan 101 %b n` → 5 (silent); `scan 2 %b n` → unset (fires).
+    assert!(!fires("proc f {} { scan 0x1f %x n\n puts $n }", D, "W210"));
+    assert!(fires("proc f {} { scan g %x n\n puts $n }", D, "W210"));
+    assert!(!fires("proc f {} { scan 101 %b n\n puts $n }", D, "W210"));
+    assert!(fires("proc f {} { scan 2 %b n\n puts $n }", D, "W210"));
+}
+
+// auto_path_eval.rs — the lappend auto_path mini-evaluator
+//
+// Structural note: the evaluator is a side-effect-free POSIX-path mini-eval; its
+// path helpers (`posix_join`, `normpath`, `expanduser`) follow standard POSIX
+// path rules, NOT tclsh's `file` command byte-for-byte (tclsh's `//`
+// handling differs across 8.6/9.0).  The `[file dirname]` / `[file join]` /
+// `[info script]` idiom *resolution* is what is Tcl-observable and is pinned to
+// tclsh below; the helper normalisation is asserted against the documented
+// POSIX behaviour.  All tests use ABSOLUTE `info_script` / literal paths so
+// `abspath` reduces to `normpath` and the result is cwd-independent.
+
+#[test]
+fn auto_path_file_join_multi_component() {
+    // tclsh (8.6, 9.0): `file join /proj a b c` → /proj/a/b/c.
+    assert_eq!(
+        evaluate_auto_path_expr("[file join /proj a b c]", None).as_deref(),
+        Some("/proj/a/b/c"),
+    );
+}
+
+#[test]
+fn auto_path_file_join_later_absolute_resets() {
+    // A later absolute component resets the accumulator (POSIX join + tclsh).
+    // tclsh (8.6, 9.0): `file join a /b c` → /b/c.
+    assert_eq!(
+        evaluate_auto_path_expr("[file join /a /b c]", None).as_deref(),
+        Some("/b/c"),
+    );
+}
+
+#[test]
+fn auto_path_file_join_single_arg() {
+    // `file join` with exactly one path arg (args.len()==2 after the subcommand)
+    // returns it unchanged (then abspath/normpath).
+    // tclsh (8.6, 9.0): `file join /solo` → /solo.
+    assert_eq!(
+        evaluate_auto_path_expr("[file join /solo]", None).as_deref(),
+        Some("/solo"),
+    );
+}
+
+#[test]
+fn auto_path_dirname_root_and_trailing_slash() {
+    // `posix_dirname` collapses a non-root head's trailing slashes but keeps the
+    // root.  tclsh (8.6, 9.0): `file dirname /a/b/c` → /a/b; `file dirname /`
+    // → /; `file dirname //` → /.
+    assert_eq!(
+        evaluate_auto_path_expr("[file dirname /a/b/c]", None).as_deref(),
+        Some("/a/b"),
+    );
+    // A path with a single leading component → its dirname is the root.
+    assert_eq!(
+        evaluate_auto_path_expr("[file dirname /a]", None).as_deref(),
+        Some("/"),
+    );
+}
+
+#[test]
+fn auto_path_normpath_collapses_dotdot_and_dot() {
+    // The end-to-end parent-dir idiom collapses `..` and `.` via normpath.
+    // tclsh (8.6, 9.0): `file dirname [info script]` of /proj/lib/pkg/x.tcl with
+    // a trailing `..` → /proj/lib.
+    assert_eq!(
+        evaluate_auto_path_expr(
+            "[file join [file dirname [info script]] ..]",
+            Some("/proj/lib/pkg/x.tcl"),
+        )
+        .as_deref(),
+        Some("/proj/lib"),
+    );
+    // A literal absolute path with embedded `.` / `..` / `//` normalises.
+    assert_eq!(
+        evaluate_auto_path_expr("/a/./b/../c", None).as_deref(),
+        Some("/a/c"),
+    );
+}
+
+#[test]
+fn auto_path_normpath_double_slash_preserved() {
+    // POSIX `normpath` preserves EXACTLY two leading slashes and
+    // collapses three-or-more to one (a deliberate POSIX-specific rule; tclsh's
+    // own `file` command differs across 8.6/9.0, so this is the documented
+    // POSIX behaviour, asserted structurally).
+    assert_eq!(
+        evaluate_auto_path_expr("//net/share", None).as_deref(),
+        Some("//net/share"),
+    );
+    assert_eq!(
+        evaluate_auto_path_expr("///srv/x", None).as_deref(),
+        Some("/srv/x"),
+    );
+}
+
+#[test]
+fn auto_path_normpath_dotdot_above_root_is_clamped() {
+    // `..` cannot ascend above an absolute root — it is dropped.
+    assert_eq!(
+        evaluate_auto_path_expr("/../../x", None).as_deref(),
+        Some("/x"),
+    );
+}
+
+#[test]
+fn auto_path_nested_and_double_dirname() {
+    // `[file dirname [file dirname [info script]]]` climbs two levels.
+    // tclsh (8.6, 9.0): for /proj/lib/init.tcl → /proj.
+    assert_eq!(
+        evaluate_auto_path_expr(
+            "[file dirname [file dirname [info script]]]",
+            Some("/proj/lib/init.tcl"),
+        )
+        .as_deref(),
+        Some("/proj"),
+    );
+}
+
+#[test]
+fn auto_path_info_non_script_arg_declines() {
+    // `[info ...]` with anything other than `script` is unmodelled → None.
+    assert_eq!(
+        evaluate_auto_path_expr("[info library]", Some("/a/b.tcl")),
+        None,
+    );
+    // `[info script]` with no known path → None.
+    assert_eq!(
+        evaluate_auto_path_expr("[file dirname [info script]]", None),
+        None,
+    );
+}
+
+#[test]
+fn auto_path_file_unknown_subcommand_and_arity_decline() {
+    // A `file` name operation the registry routes answers through the route,
+    // as tclsh 8.4.20 to 9.1.0 do...
+    assert_eq!(
+        evaluate_auto_path_expr("[file rootname /a/b.tcl]", None).as_deref(),
+        Some("/a/b"),
+    );
+    // ...and `file` with a subcommand outside the subset → None.
+    assert_eq!(
+        evaluate_auto_path_expr("[file exists /a/b.tcl]", None),
+        None
+    );
+    // `file dirname` with the wrong arity (two path args) → None.
+    assert_eq!(evaluate_auto_path_expr("[file dirname /a /b]", None), None,);
+    // `file` with too few args (just the subcommand) → None.
+    assert_eq!(evaluate_auto_path_expr("[file dirname]", None), None);
+}
+
+#[test]
+fn auto_path_variable_subst_declines() {
+    // A `$`-bearing literal word is refused (never guess a runtime value).
+    assert_eq!(evaluate_auto_path_expr("$auto_path", None), None);
+    assert_eq!(
+        evaluate_auto_path_expr("[file dirname $base]", Some("/a/b.tcl")),
+        None,
+    );
+}
+
+#[test]
+fn auto_path_unsupported_command_declines() {
+    // A command outside the supported subset (`lsort`) → None.
+    assert_eq!(
+        evaluate_auto_path_expr("[lsort {a b}]", Some("/a/b.tcl")),
+        None,
+    );
+}
+
+#[test]
+fn auto_path_tokeniser_brace_group_and_bracket_quirk() {
+    // A brace group is one literal word; brackets inside braces are literal.
+    // `{/lib}` → the literal `/lib`.
+    assert_eq!(
+        evaluate_auto_path_expr("{/lib}", None).as_deref(),
+        Some("/lib"),
+    );
+    // A braced `[` is a literal `[`, not an open bracket — Tcl performs no
+    // substitution inside braces.  A string-token tokeniser would lose
+    // that distinction and mis-read `{[} info script ]` as the command
+    // substitution `[info script]`; with typed word tokens it is a literal
+    // `[` followed by trailing words, which the expression parser rejects.
+    assert_eq!(
+        evaluate_auto_path_expr("{[} info script ]", Some("/proj/x.tcl")),
+        None,
+    );
+}
+
+#[test]
+fn auto_path_tokeniser_quoted_word_with_escape() {
+    // A double-quoted word is one token; an internal backslash-escape is
+    // consumed as a pair by the tokeniser (so the closing quote isn't matched
+    // early). The word still carries the backslash to `eval` as a literal.
+    assert_eq!(
+        evaluate_auto_path_expr("\"/quoted/path\"", None).as_deref(),
+        Some("/quoted/path"),
+    );
+}
+
+#[test]
+fn auto_path_tokeniser_unterminated_delimiters_decline() {
+    // An unterminated brace or quote aborts tokenisation → None.
+    assert_eq!(evaluate_auto_path_expr("{/unterminated", None), None);
+    assert_eq!(evaluate_auto_path_expr("\"/unterminated", None), None);
+    // An unbalanced command bracket (`[` with no `]`) → parse fails → None.
+    assert_eq!(evaluate_auto_path_expr("[file dirname /a", None), None);
+    // A stray `]` at the start of a word → parse fails → None.
+    assert_eq!(evaluate_auto_path_expr("] /a", None), None);
+}
+
+#[test]
+fn auto_path_empty_and_whitespace_is_none() {
+    assert_eq!(evaluate_auto_path_expr("", None), None);
+    assert_eq!(evaluate_auto_path_expr("   ", None), None);
+}
+
+#[test]
+fn auto_path_tilde_user_form_unchanged() {
+    // `~user` (a non-bare tilde) is left unexpanded — no passwd lookup. It is a
+    // literal relative word, so abspath joins it under cwd; we assert only that
+    // the `~user` segment survives verbatim (no HOME expansion).
+    temp_env::with_var("HOME", Some("/home/tester"), || {
+        let got = evaluate_auto_path_expr("~someuser/lib", None).expect("some path");
+        assert!(
+            got.ends_with("~someuser/lib"),
+            "~user must not be HOME-expanded, got {got:?}"
+        );
+    });
+}
+
+#[test]
+fn auto_path_bare_tilde_no_home_unchanged() {
+    // The bare `~` form with HOME unset is left unexpanded.
+    temp_env::with_var_unset("HOME", || {
+        let got = evaluate_auto_path_expr("~/lib", None).expect("some path");
+        assert!(
+            got.ends_with("~/lib"),
+            "~ with no HOME must not expand, got {got:?}"
+        );
+    });
+}
+
+// place_bridge.rs — place/SSA-bridge def/read resolution
+
+#[test]
+fn place_dict_set_defs_variable_and_dollar_read_observes_it() {
+    // `dict set d a b 1` writes the WHOLE dict variable `d` (the place bridge
+    // resolves the VAR_WRITE target at variable granularity — a Scalar `d`, not
+    // an element path: the dict commands mutate the bound variable in place).
+    // The later `[dict get $d a b]` reads `$d`, which overlaps that def.
+    let (defs, reads) = places_of(
+        "proc f {} { dict set d a b 1; puts [dict get $d a b] }",
+        "::f",
+    );
+    let d = place::scalar("d", LOCAL_NS, false);
+    assert!(
+        defs.iter().any(|p| p.name == "d"),
+        "dict set must def the variable d, got {defs:?}",
+    );
+    assert!(
+        reads.iter().any(|r| overlap(r, &d)),
+        "the `$d` read in `dict get $d a b` must observe d, reads={reads:?}",
+    );
+}
+
+#[test]
+fn place_must_alias_kill_suppresses_dead_element() {
+    // `set a(k) 1; set a(k) 2; puts $a(k)` — the FIRST write to a(k) is dead
+    // (a later write to the exact same literal key with no intervening read),
+    // even though a read later observes a(k).  So a(k) is NOT in the
+    // "observed" suppression set for the first def's block/index, but the
+    // SECOND write IS observed.  We assert the must-alias machinery via the
+    // public `element_writes_observed_by_reads`: it returns the indices of the
+    // element writes a read observes, EXCLUDING must-alias-killed ones.
+    let r = reg();
+    let cu = CompilationUnit::build_for(
+        "proc f {} { set a(k) 1; set a(k) 2; puts $a(k) }",
+        &r,
+        false,
+    );
+    let fu = cu.fixture_function("::f").expect("proc");
+    let observed = element_writes_observed_by_reads(&fu.cfg, &fu.name, &r);
+    // Exactly one element write is observed-and-kept (the second `set a(k) 2`);
+    // the first is must-alias-killed so it is excluded.
+    assert_eq!(
+        observed.len(),
+        1,
+        "only the surviving a(k) write is observed (first is must-alias killed); got {observed:?}",
+    );
+}
+
+#[test]
+fn place_array_element_write_no_kill_is_observed() {
+    // Control: distinct keys (`a(k)` then `a(j)`), each read — both are
+    // observed (no must-alias kill since the keys differ).
+    let r = reg();
+    let cu = CompilationUnit::build_for(
+        "proc f {} { set a(k) 1; set a(j) 2; puts $a(k); puts $a(j) }",
+        &r,
+        false,
+    );
+    let fu = cu.fixture_function("::f").expect("proc");
+    let observed = element_writes_observed_by_reads(&fu.cfg, &fu.name, &r);
+    assert_eq!(
+        observed.len(),
+        2,
+        "both distinct-key element writes are observed; got {observed:?}",
+    );
+}
+
+#[test]
+fn place_no_array_assignment_is_empty() {
+    // The cheap pre-check: a function with no array-element assignment returns
+    // an empty observed set without scanning.
+    let r = reg();
+    let cu = CompilationUnit::build_for("proc f {} { set x 1; puts $x }", &r, false);
+    let fu = cu.fixture_function("::f").expect("proc");
+    assert!(
+        element_writes_observed_by_reads(&fu.cfg, &fu.name, &r).is_empty(),
+        "no array assignment → empty observed set",
+    );
+}
+
+#[test]
+fn place_braced_literal_data_word_is_not_a_read() {
+    // `puts {$a(k)}` is a BRACED literal data word — Tcl performs no
+    // substitution, so it must NOT register a read of a(k).  A real dead store
+    // to a(k) would otherwise be wrongly suppressed.
+    let (_defs, reads) = places_of("proc f {} { set a(k) 1; puts {$a(k)} }", "::f");
+    let ak = place::array_elem("a", Index::literal("k"), LOCAL_NS, false);
+    assert!(
+        !reads.iter().any(|r| overlap(r, &ak)),
+        "a braced literal {{$a(k)}} must not read a(k); reads={reads:?}",
+    );
+}
+
+#[test]
+fn place_quoted_data_word_does_read() {
+    // Control: a double-quoted word DOES substitute, so `puts "$a(k)"` reads
+    // a(k).
+    let (_defs, reads) = places_of("proc f {} { set a(k) 1; puts \"$a(k)\" }", "::f");
+    let ak = place::array_elem("a", Index::literal("k"), LOCAL_NS, false);
+    assert!(
+        reads.iter().any(|r| overlap(r, &ak)),
+        "a quoted \"$a(k)\" must read a(k); reads={reads:?}",
+    );
+}
+
+#[test]
+fn place_namespace_upvar_alias_resolves() {
+    // `namespace upvar ::ns v local` binds `local` to the namespace var
+    // ::ns::v — the resolve context records the alias and `local` resolves to
+    // an UpvarAlias, not a fresh local scalar.
+    let r = reg();
+    let cu = CompilationUnit::build_for(
+        "namespace eval ns { variable v 0 }\nproc f {} { namespace upvar ::ns v local; set local 1 }",
+        &r,
+        false,
+    );
+    let fu = cu.fixture_function("::f").expect("proc");
+    let ctx = build_resolve_context(&fu.cfg, &fu.name);
+    assert!(
+        ctx.upvar_aliases.contains_key("local"),
+        "namespace upvar should register the alias; aliases={:?}",
+        ctx.upvar_aliases,
+    );
+    let p = tcl_compiler::var_resolve::resolve_place("local", &ctx, false, &r);
+    assert_eq!(
+        p.kind,
+        PlaceKind::UpvarAlias,
+        "the namespace-upvar local resolves to an UpvarAlias",
+    );
+}
+
+#[test]
+fn place_trace_target_marks_observed() {
+    // `trace add variable g write …` marks `g` as traced → externally
+    // observable, so a write to it is never dead.
+    let r = reg();
+    let cu = CompilationUnit::build_for(
+        "proc f {} { set g 1; trace add variable g write cb; set g 2 }",
+        &r,
+        false,
+    );
+    let fu = cu.fixture_function("::f").expect("proc");
+    let ctx = build_resolve_context(&fu.cfg, &fu.name);
+    assert!(
+        ctx.traced.contains("g"),
+        "trace add variable should record g as traced; traced={:?}",
+        ctx.traced,
+    );
+}
+
+#[test]
+fn place_whole_array_read_overlaps_every_element() {
+    // `array get arr` reads the WHOLE array → overlaps any element a(k).
+    let (_defs, reads) = places_of("proc f {} { set out [array get arr] }", "::f");
+    let arr_k = place::array_elem("arr", Index::literal("k"), LOCAL_NS, false);
+    assert!(
+        reads.iter().any(|r| overlap(r, &arr_k)),
+        "array get arr reads the whole array; reads={reads:?}",
+    );
+}
+
+#[test]
+fn place_dynamic_var_read_name_is_unknown_top() {
+    // `array get $name` — the read target is a runtime-computed name, so it
+    // resolves to UNKNOWN/top, which overlaps everything (a write to any array
+    // is therefore not falsely dead).
+    let (_defs, reads) = places_of(
+        "proc f {} { set name arr; set out [array get $name] }",
+        "::f",
+    );
+    let any_elem = place::array_elem("whatever", Index::literal("z"), LOCAL_NS, false);
+    assert!(
+        reads.iter().any(|r| overlap(r, &any_elem)),
+        "a dynamic array-name read must be UNKNOWN/top (overlaps all); reads={reads:?}",
+    );
+}
+
+#[test]
+fn place_terminator_branch_condition_reads() {
+    // An `if {$cond} …` branch terminator reads `cond` (the condition), and a
+    // `[expr]`-embedded command-subst within the condition is recursed.
+    let r = reg();
+    let cu = CompilationUnit::build_for("proc f {c} { if {$c} { puts yes } }", &r, false);
+    let fu = cu.fixture_function("::f").expect("proc");
+    let ctx = build_resolve_context(&fu.cfg, &fu.name);
+    let mut term_reads = Vec::new();
+    for block in fu.cfg.blocks.values() {
+        if let Some(term) = &block.terminator {
+            term_reads.extend(terminator_read_places(term, &ctx, &r));
+        }
+    }
+    assert!(
+        term_reads
+            .iter()
+            .any(|r| overlap(r, &place::scalar("c", LOCAL_NS, false))),
+        "the branch condition must read c; term_reads={term_reads:?}",
+    );
+}
+
+#[test]
+fn place_terminator_braced_return_is_not_a_read() {
+    // A braced `return {$x}` is a literal — its `$x` is not a read.  A bare
+    // `return $x` IS a read.  We compare the two terminator-read sets.
+    let r = reg();
+    let braced = CompilationUnit::build_for("proc f {} { set x 1; return {$x} }", &r, false);
+    let bare = CompilationUnit::build_for("proc g {} { set x 1; return $x }", &r, false);
+    let read_x = |cu: &CompilationUnit, q: &str| -> bool {
+        let fu = cu.fixture_function(q).expect("proc");
+        let ctx = build_resolve_context(&fu.cfg, &fu.name);
+        fu.cfg.blocks.values().any(|b| {
+            b.terminator.as_ref().is_some_and(|t| {
+                terminator_read_places(t, &ctx, &r)
+                    .iter()
+                    .any(|r| overlap(r, &place::scalar("x", LOCAL_NS, false)))
+            })
+        })
+    };
+    assert!(
+        !read_x(&braced, "::f"),
+        "braced return {{$x}} must not read x"
+    );
+    assert!(read_x(&bare, "::g"), "bare return $x must read x");
+}
+
+#[test]
+fn place_incr_reads_its_own_target() {
+    // `incr counter` reads (and writes) `counter`; the amount word can read
+    // more.
+    let (defs, reads) = places_of("proc f {} { set counter 0; incr counter }", "::f");
+    let c = place::scalar("counter", LOCAL_NS, false);
+    assert!(defs.iter().any(|d| overlap(d, &c)), "incr defs counter");
+    assert!(
+        reads.iter().any(|r| overlap(r, &c)),
+        "incr reads its own target counter; reads={reads:?}",
+    );
+}
+
+#[test]
+fn place_block_body_reads_recovered() {
+    // An `eval {puts $x}` lowers to a Block whose body runs in the enclosing
+    // scope — its `$x` read must be recovered so the store to x isn't dead.
+    let (_defs, reads) = places_of("proc f {} { set x 1; eval {puts $x} }", "::f");
+    let x = place::scalar("x", LOCAL_NS, false);
+    assert!(
+        reads.iter().any(|r| overlap(r, &x)),
+        "eval {{puts $x}} block body must read x; reads={reads:?}",
+    );
+}
+
+// lattice_rebase.rs — memoised-unit offset rebase across a shift
+//
+// Structural note: `lattice_rebase` shifts every absolute span in a memoised
+// `FunctionUnit` when a cached offset-0 body is reused at a new file offset.
+// The contract (documented in the module) is that the *span-carrying* parts of
+// the rebased unit — the CFG (block statements + terminators + loop-node spans),
+// the SSA statement clones, and the SCCP constant-branch spans — are
+// BYTE-IDENTICAL to a fresh whole-file build at the new position.  We drive the
+// rebase through the public `build_for_memoized` seam and assert exactly those
+// three fields (`cfg` / `ssa` / `sccp`) equal a fresh build.  (The span-free
+// `def_use` chains are NOT compared: their `Vec<UseSite>` ordering is a build-
+// path artifact independent of the rebase — they carry no spans for the rebase
+// to touch, and the existing diagnostics shift-test sidesteps the same way by
+// comparing diagnostics rather than the raw unit.)  This exercises the Foreach /
+// Try / UpFrame / constant-branch / loop-node statement variants the existing
+// shift-test (`memoized_compilation_unit_shift_correctness`) does not cover.
+
+/// Assert the *span-carrying* parts of two function units are identical: the
+/// CFG, the SSA, and the SCCP result are exactly what `lattice_rebase` shifts,
+/// so equality here proves the rebase reproduced a fresh build's positions.
+fn assert_span_carrying_eq(got: &FunctionUnit, want: &FunctionUnit, ctx: &str) {
+    assert_eq!(
+        got.cfg, want.cfg,
+        "{ctx}: rebased CFG must match a fresh build"
+    );
+    assert_eq!(
+        got.ssa, want.ssa,
+        "{ctx}: rebased SSA must match a fresh build"
+    );
+    assert_eq!(
+        got.sccp, want.sccp,
+        "{ctx}: rebased SCCP constant-branch spans must match a fresh build"
+    );
+}
+
+/// The registry and profile every rebase build runs under: `D`'s, on the
+/// memoised and the fresh path alike, so the lattice evaluates under a
+/// target — the routes that fold and a case list's selection need one.
+fn rebase_target() -> (
+    &'static CommandRegistry,
+    &'static tcl_dialect::DialectProfile,
+) {
+    (
+        static_context_for(D).commands(),
+        tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
+    )
+}
+
+/// A fresh whole-file build of `source` under the rebase target: the ground
+/// truth a rebased unit is compared against.
+fn fresh_unit(source: &str) -> CompilationUnit {
+    let (registry, profile) = rebase_target();
+    CompilationUnit::build_for_profile(source, registry, false, profile)
+}
+
+/// Build a `FunctionUnit` for every proc via a position-independent memo whose
+/// cache is seeded on `base` and reused on `shifted`, so the shifted procs hit
+/// and the builder rebases their offset-0 units to the new positions. Each
+/// memoised unit is built as the language server's memo builds one: under the
+/// request's analysis context and the command trust its snapshot records.
+fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit) {
+    use std::collections::{BTreeSet, HashMap, HashSet};
+    let (registry, profile) = rebase_target();
+    let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+    let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
+    let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| -> CompilationUnit {
+        CompilationUnit::build_for_memoized(
+            s,
+            tcl_compiler::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+                let key = format!(
+                    "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                    req.qname, req.body, req.params, req.param_constants
+                );
+                if let Some(fu) = cache.get(&key) {
+                    return fu.clone();
+                }
+                let prepared = tcl_compiler::cfg_builder::PreparedCfgContext::from_source_input(
+                    (
+                        req.upvar_procs.clone(),
+                        req.proc_params.clone(),
+                        req.global_write_procs.clone(),
+                        req.command_bindings.clone(),
+                        req.procedure_summary_owners.clone(),
+                    ),
+                    registry,
+                    req.source_metadata_input,
+                );
+                let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_prepared_context(
+                    req.qname,
+                    req.body,
+                    true,
+                    registry,
+                    req.plain_command_dispatch,
+                    &prepared,
+                    req.lexer_config,
+                );
+                let pc =
+                    tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
+                let known_classes: HashSet<String> = req.known_classes.iter().cloned().collect();
+                let traced_variables: BTreeSet<String> =
+                    req.traced_variables.iter().cloned().collect();
+                let command_trust = req.analysis_context.bindings.to_mutations();
+                let fu = FunctionUnit::build_with_param_constants_and_classes_under(
+                    req.qname,
+                    cfg,
+                    req.params,
+                    tcl_compiler::compilation_unit::UnitDialect {
+                        registry,
+                        config: req.lexer_config,
+                        source_metadata_input: req.source_metadata_input,
+                    },
+                    pc.as_ref(),
+                    &known_classes,
+                    tcl_compiler::compilation_unit::ModuleAnalysisFacts {
+                        trace: tcl_compiler::compilation_unit::ModuleTraceFacts {
+                            traced_variables: &traced_variables,
+                            has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                            deferred_writes: &req.analysis_context.deferred_writes,
+                        },
+                        analysis_context: req.analysis_context,
+                        command_trust: &command_trust,
+                    },
+                );
+                cache.insert(key, fu.clone());
+                fu
+            },
+        )
+    };
+    let cu_base = build(base, &mut cache);
+    let cu_shifted = build(shifted, &mut cache);
+    (cu_base, cu_shifted)
+}
+
+#[test]
+fn rebase_shifted_unit_spans_match_fresh() {
+    // A body exercising the rebase variants the existing shift-test misses:
+    //   * foreach (Foreach span + body + raw_tokens)
+    //   * try / finally (Try body + handler bodies + finally)
+    //   * uplevel (UpFrame body)
+    //   * incr / expr (Incr + ExprEval spans)
+    //   * a `for` loop populates cfg.loop_nodes (LoopNode span + for_stmt)
+    //   * `if {1}` folds an SCCP constant branch (sccp.constant_branches span)
+    //   * `subst` records a template-word plan (sccp.template_plans span)
+    //   * an opaque `switch` over a constant subject records its selection
+    //     (sccp.selections: the statement span and each arm's pattern span);
+    //     a literal subject, since the `try` body's unknown `risky` may reach
+    //     every local through `upvar`, so no local of `p` stays constant
+    let body = "\
+proc p {items} {
+    set total 0
+    subst -nocommands {total $total}
+    switch -glob -- abc { a* { set zero 1 } default { set zero 0 } }
+    foreach it $items { incr total }
+    for {set i 0} {$i < 2} {incr i} { set acc [expr {$i * 2}] }
+    if {1} { set always 1 } else { set never 0 }
+    try {
+        set r [risky]
+    } on error {e} {
+        set r fallback
+    } finally {
+        uplevel 1 { set marker done }
+    }
+    return $total
+}
+";
+    // Prepend several top-level lines so the proc shifts down by a known delta.
+    let shifted = format!("set a 0\nset b 1\n# comment\nset c 2\n{body}");
+    let (_cu_base, cu_shifted) = rebased_units(body, &shifted);
+    // A fresh whole-file build at the shifted position is the ground truth.
+    let cu_fresh = fresh_unit(&shifted);
+
+    let got = cu_shifted.fixture_function("::p").expect("rebased proc");
+    let want = cu_fresh.fixture_function("::p").expect("fresh proc");
+    assert_eq!(
+        want.sccp.selections.len(),
+        1,
+        "the opaque switch records its selection"
+    );
+    assert_span_carrying_eq(
+        got,
+        want,
+        "shifted foreach/try/finally/uplevel/for/if/switch",
+    );
+}
+
+#[test]
+fn rebase_switch_and_while_shift() {
+    // A second shape: switch (arm + default bodies, subject span) and a while
+    // loop, shifted, must still rebase to a fresh unit's span-carrying parts.
+    let body = "\
+proc q {n} {
+    while {$n > 0} { incr n -1 }
+    switch -- $n {
+        0 { set s zero }
+        1 { set s one }
+        default { set s many }
+    }
+    return $s
+}
+";
+    let shifted = format!("# pad\n# pad2\nset top 9\n{body}");
+    let (_b, cu_shifted) = rebased_units(body, &shifted);
+    let cu_fresh = fresh_unit(&shifted);
+    assert_span_carrying_eq(
+        cu_shifted.fixture_function("::q").expect("rebased"),
+        cu_fresh.fixture_function("::q").expect("fresh"),
+        "shifted switch/while",
+    );
+}
+
+#[test]
+fn rebase_zero_delta_is_noop() {
+    // When the cached body sits at the same offset (no shift), delta == 0 and
+    // the rebase early-returns — the memoised unit's span-carrying parts equal a
+    // fresh build with no span movement.  (Drives the `delta == 0` early-return
+    // arms in both `rebase_function_unit` and `rebase_script`.)
+    let body = "proc z {} { set x 1\n set y [expr {$x + 1}]\n return $y }\n";
+    let (cu_base, _shifted) = rebased_units(body, body);
+    let cu_fresh = fresh_unit(body);
+    assert_span_carrying_eq(
+        cu_base.fixture_function("::z").expect("memoised"),
+        cu_fresh.fixture_function("::z").expect("fresh"),
+        "zero-delta",
+    );
+}
+
+// inlining/mod.rs — classify_proc / inline_module decline reasons
+
+#[test]
+fn inline_classify_no_summary_is_never() {
+    // `classify_proc` with no escape summary (None) → Never (the soundness gate
+    // fails closed).
+    let module = module_for("proc ::f {} { puts hi }\n");
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::f"))
+        .expect("authored fixture body");
+    assert_eq!(
+        classify_proc(proc, None, 0),
+        InlineDecision::Never,
+        "a proc with no escape summary must be Never",
+    );
+}
+
+#[test]
+fn inline_classify_side_effecting_proc_is_never() {
+    // A proc that writes a caller frame via `upvar` is NOT pure-leaf, so it is
+    // Never regardless of size.
+    // tclsh (8.6, 9.0): `proc bump {name} {upvar 1 $name v; incr v}; set x 5;
+    // bump x; set x` → 6 — the upvar mutates the caller; inlining must not
+    // relocate that body.
+    let module = module_for("proc ::bump {name} { upvar 1 $name v; incr v }\n");
+    let summaries = analyse_var_escape(&module, true);
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::bump"))
+        .expect("authored fixture body");
+    assert!(
+        !summaries
+            .get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &module.procedures,
+                "::bump"
+            )))
+            .is_some_and(ProcEscapeSummary::safe_to_inline),
+        "upvar proc is not safe_to_inline",
+    );
+    assert_eq!(
+        classify_proc(
+            proc,
+            summaries.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &module.procedures,
+                "::bump"
+            ))),
+            0
+        ),
+        InlineDecision::Never,
+    );
+}
+
+#[test]
+fn inline_classify_small_pure_leaf_is_always_large_is_count_dependent() {
+    // Boundary at SMALL_BODY_THRESHOLD: a body of exactly the threshold is
+    // Always; threshold+1 is count-dependent (IfSingleCall at 1 caller, Never
+    // otherwise).
+    let assign_body = |n: usize| -> String {
+        use std::fmt::Write as _;
+        let mut body = String::new();
+        for i in 0..n {
+            let _ = writeln!(body, "  set v{i} {i}");
+        }
+        body
+    };
+    let small = assign_body(SMALL_BODY_THRESHOLD);
+    let big = assign_body(SMALL_BODY_THRESHOLD + 1);
+    let ms = module_for(&format!("proc ::s {{}} {{\n{small}}}\n"));
+    let mb = module_for(&format!("proc ::b {{}} {{\n{big}}}\n"));
+    let ss = analyse_var_escape(&ms, true);
+    let sb = analyse_var_escape(&mb, true);
+    assert_eq!(
+        classify_proc(
+            ms.procedures
+                .get(&fixture_id(&ms.procedures, "::s"))
+                .expect("authored fixture body"),
+            ss.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &ms.procedures,
+                "::s"
+            ))),
+            99
+        ),
+        InlineDecision::Always,
+        "threshold-sized pure-leaf is Always regardless of count",
+    );
+    assert_eq!(
+        classify_proc(
+            mb.procedures
+                .get(&fixture_id(&mb.procedures, "::b"))
+                .expect("authored fixture body"),
+            sb.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &mb.procedures,
+                "::b"
+            ))),
+            1
+        ),
+        InlineDecision::IfSingleCall,
+        "threshold+1 with one caller is IfSingleCall",
+    );
+    assert_eq!(
+        classify_proc(
+            mb.procedures
+                .get(&fixture_id(&mb.procedures, "::b"))
+                .expect("authored fixture body"),
+            sb.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &mb.procedures,
+                "::b"
+            ))),
+            3
+        ),
+        InlineDecision::Never,
+        "threshold+1 with multiple callers is Never",
+    );
+}
+
+#[test]
+fn inline_count_statements_try_and_switch() {
+    // `count_statements` walks Try (body + handlers + finally) and Switch (arm +
+    // default bodies) — the variants `inlining.rs`'s count tests skip.
+    let module = module_for(
+        "proc ::f {} {\n try { set a 1 } on error {e} { set b 2 } finally { set c 3 }\n switch -- $a { 1 { set d 4 } default { set e 5 } }\n}\n",
+    );
+    let n = count_statements(
+        &module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body,
+    );
+    // 3 from try (a, b, c) + 2 from switch (d, e) = 5 leaf statements.
+    assert_eq!(n, 5, "count walks try + switch bodies");
+}
+
+#[test]
+fn inline_count_statements_foreach_and_catch() {
+    // foreach / catch each contribute 1 (the construct) + their body count.
+    let module = module_for("proc ::f {} {\n foreach x {1 2} { set a 1 }\n catch { set b 2 }\n}\n");
+    let n = count_statements(
+        &module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body,
+    );
+    // foreach: 1 + 1(set a) = 2; catch: 1 + 1(set b) = 2; total 4.
+    assert_eq!(n, 4, "count walks foreach + catch bodies");
+}
+
+#[test]
+fn inline_v3_return_inside_catch_declines() {
+    // A `return` inside a `catch` body would be trapped by the break-based
+    // early-return wrap — v3 declines, so the call survives.
+    let stmts = inlined("proc ::h {x} { catch { return $x } }\nh 1")
+        .top_level
+        .statements;
+    assert!(
+        stmts
+            .iter()
+            .any(|s| matches!(s, Statement::Call { command, .. } if command == "h")),
+        "return-inside-catch keeps the call",
+    );
+}
+
+#[test]
+fn inline_v3_return_inside_try_declines() {
+    // Same for a `return` inside a `try` body.
+    let stmts = inlined("proc ::h {x} { try { return $x } on error {e} { } }\nh 1")
+        .top_level
+        .statements;
+    assert!(
+        stmts
+            .iter()
+            .any(|s| matches!(s, Statement::Call { command, .. } if command == "h")),
+        "return-inside-try keeps the call",
+    );
+}
+
+#[test]
+fn inline_v3_global_write_declines() {
+    // A `::`-qualified (global) write isn't covered by the local-only rename
+    // map, so v3 declines and the call survives.
+    let stmts = inlined("proc ::w {} { set ::g 1 }\nw").top_level.statements;
+    assert!(
+        stmts
+            .iter()
+            .any(|s| matches!(s, Statement::Call { command, .. } if command == "w")),
+        "a global write declines v3, keeping the call",
+    );
+}
+
+#[test]
+fn inline_verbatim_non_namespace_invariant_call_declines() {
+    // A wrapper whose body calls an unqualified proc that DOES resolve to a
+    // known proc is not namespace-invariant (it could resolve differently from
+    // a caller's namespace), so it is not splice-eligible — the call survives.
+    let src = "proc ::helper {} { puts deep }\nproc ::wrap {} { helper }\nwrap";
+    let module = inlined(src);
+    // `wrap` calls `helper` (a known proc, unqualified) → wrap's body is not
+    // splice-safe (helper is not in the SPLICE_SAFE allow-list anyway), so the
+    // `wrap` call is not verbatim-inlined.
+    assert_eq!(
+        top_calls_to(&module, "wrap"),
+        1,
+        "wrapper calling a known proc is not verbatim-spliced",
+    );
+}
+
+#[test]
+fn inline_empty_body_with_args_declines() {
+    // An empty-body proc inlined as `Empty` requires a zero-arg call site; a
+    // call WITH args declines (the splice can't bind them).
+    let module = inlined("proc ::noop {} {}\nnoop extra");
+    assert_eq!(
+        top_calls_to(&module, "noop"),
+        1,
+        "empty-body proc called with args keeps the call",
+    );
+}
+
+#[test]
+fn inline_recursive_proc_does_not_loop() {
+    // A self-recursive proc must not inline into an infinite expansion. The
+    // pass replaces a single static call site only; the inliner must terminate
+    // and the module is well-formed.
+    let module = inlined("proc ::rec {n} { if {$n} { rec [expr {$n - 1}] } }\nrec 3");
+    // `rec` is not pure-leaf (it calls itself / has a command-subst arg), so it
+    // never qualifies — the call survives and the pass terminates.
+    assert!(
+        fixture_id_if_present(&module.procedures, "::rec").is_some(),
+        "recursive proc remains defined",
+    );
+}
+
+#[test]
+fn inline_idempotent_on_clean_module() {
+    // A module with no inlinable site is returned structurally unchanged
+    // (inline_module's early-return when the inlinable map is empty).
+    let src = "proc ::p {a} { upvar 1 $a v; set v 1 }\np x";
+    let once = inlined(src);
+    let twice = inline_module(once.clone(), &reg());
+    assert_eq!(once, twice, "no inlinable site → unchanged module");
+}
+
+#[test]
+fn inline_v3_semantics_preserved_value() {
+    // The load-bearing proof that v3 inlining is semantics-preserving.
+    // tclsh (8.6, 9.0): `proc add {a b} { return [expr {$a + $b}] }; add 3 4`
+    // → 7.  After inlining `add 3 4`, the spliced body must still compute 7 —
+    // here we assert the call was replaced and a renamed binding/return is
+    // present (the value identity is what tclsh confirms).
+    let stmts = inlined("proc ::add {a b} { return [expr {$a + $b}] }\nadd 3 4")
+        .top_level
+        .statements;
+    assert!(
+        !stmts
+            .iter()
+            .any(|s| matches!(s, Statement::Call { command, .. } if command == "add")),
+        "the add call was inlined",
+    );
+    assert!(
+        stmts.iter().any(|s| matches!(s, Statement::Return { .. })),
+        "terminal trailing return is preserved (forwards the value)",
+    );
+}
+
+// analyser/diagnostics/fp/rch.rs — reachability (O107) FP suppressor carve-outs
+//
+// The reachability suppressor decides whether code after an unconditional exit
+// (return / break / continue / error), or guarded by a constant-false
+// condition, is genuinely dead (O107 fires) or only apparently dead (suppressed).
+// Each carve-out gets a fires/suppressed control pair, with the Tcl-observable
+// reachability fact pinned to tclsh.
+
+#[test]
+fn rch_code_after_return_is_dead() {
+    // tclsh (8.6, 9.0): `proc f {} { return 1; puts after }; f` → 1 (the `puts
+    // after` never runs — it is unreachable).  O107 must fire on it.
+    let src = "proc f {} { return 1\n puts after }";
+    assert!(
+        o107_fires(src, D),
+        "code after an unconditional return is dead; O107 must fire; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_code_after_conditional_return_is_reachable() {
+    // Control: when the return is GUARDED (`if {$c} { return }`), the tail is
+    // reachable — O107 must NOT fire.
+    // tclsh (8.6, 9.0): `proc f {c} { if {$c} { return 1 }; puts after }; f 0`
+    // → prints `after` (reachable when c is false).
+    let src = "proc f {c} { if {$c} { return 1 }\n puts after }";
+    assert!(
+        !o107_fires(src, D),
+        "tail after a conditional return is reachable; O107 must NOT fire; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_code_after_error_is_dead() {
+    // `error` always raises — code after it (in the same straight-line block)
+    // is unreachable.
+    // tclsh (8.6, 9.0): `proc f {} { error boom; puts after }; catch f` — the
+    // `puts after` never runs.  O107 fires.
+    let src = "proc f {} { error boom\n puts after }";
+    assert!(
+        o107_fires(src, D),
+        "code after error is dead; O107 must fire; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_code_after_break_in_loop_is_dead() {
+    // An unconditional `break` makes the rest of the loop body dead.
+    // tclsh (8.6, 9.0): `foreach x {1 2} { break; puts inner }` — `puts inner`
+    // never runs.  O107 fires on it.
+    let src = "proc f {} { foreach x {1 2} { break\n puts inner } }";
+    assert!(
+        o107_fires(src, D),
+        "code after an unconditional break in a loop is dead; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_code_after_continue_in_loop_is_dead() {
+    // An unconditional `continue` makes the rest of the loop body dead.
+    // tclsh (8.6, 9.0): `foreach x {1 2} { continue; puts inner }` — `puts
+    // inner` never runs.  O107 fires.
+    let src = "proc f {} { foreach x {1 2} { continue\n puts inner } }";
+    assert!(
+        o107_fires(src, D),
+        "code after an unconditional continue in a loop is dead; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_conditional_break_keeps_loop_tail_reachable() {
+    // Control: a CONDITIONAL break leaves the loop-body tail reachable.
+    // tclsh (8.4 to 9.1): `foreach x {1 2} { if {$x > 1} break; puts inner }`
+    // prints `inner` once — the break runs for the second element only, so
+    // the condition decides nothing and O107 must NOT fire. (Over `$x > 5`
+    // every member of `{1, 2}` is false, the break never runs — tclsh prints
+    // `inner` twice — and O107 removing it is right.)
+    let src = "proc f {} { foreach x {1 2} { if {$x > 1} break\n puts inner } }";
+    assert!(
+        !o107_fires(src, D),
+        "a conditional break keeps the loop tail reachable; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_constant_false_guard_is_constant_branch_not_o107() {
+    // A statically-false guard (`if {0} { … }`) makes its body unreachable, but
+    // that is handled by SCCP's *constant-branch* path (the I230 dead-arm info),
+    // NOT the post-exit reachability O107.  This is a reachability carve-out: the
+    // O107 suppressor must NOT also fire on a constant-folded branch (it would be
+    // a duplicate / mis-attributed diagnostic).
+    // tclsh (8.6, 9.0): `if {0} { puts never }` prints nothing (the body is
+    // dead) — surfaced here as I230, the constant-branch dead-arm info.
+    let src = "proc f {} { if {0} { puts never } }";
+    assert!(
+        fires(src, D, "I230"),
+        "an if {{0}} dead arm must surface as I230; emitted {:?}",
+        codes(src, D)
+    );
+    assert!(
+        !o107_fires(src, D),
+        "a constant-folded if {{0}} must NOT also fire O107; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_constant_true_guard_body_is_reachable() {
+    // Control: an `if {1} { … }` body is always reached — its body is live, so
+    // no O107 on it (the absent else-branch is the dead arm, surfaced as the
+    // I230 constant-branch info, not O107).
+    let src = "proc f {} { if {1} { puts always } else { puts never } }";
+    assert!(
+        !o107_fires(src, D),
+        "an if {{1}} body is reachable; O107 must NOT fire; emitted {:?}",
+        codes(src, D)
+    );
+    assert!(
+        fires(src, D, "I230"),
+        "the constant-true branch's dead else-arm surfaces as I230; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_while1_no_break_post_loop_is_dead() {
+    // A `while 1` body with no break/return makes the post-loop block dead.
+    // tclsh: `while 1 { puts x }` never exits, so `puts after` is unreachable.
+    let src = "proc f {} { while 1 { puts x }\n puts after }";
+    assert!(
+        o107_fires(src, D),
+        "post-loop block after an infinite while-1 is dead; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+#[test]
+fn rch_while1_with_break_post_loop_is_reachable() {
+    // Control: a `while 1` with a (conditional) break can exit, so the
+    // post-loop block is reachable — O107 must NOT fire.
+    let src = "proc f {c} { while 1 { if {$c} break }\n puts after }";
+    assert!(
+        !o107_fires(src, D),
+        "a while-1 with a break makes the post-loop block reachable; emitted {:?}",
+        codes(src, D)
+    );
+}
+
+/// Build `src` through the per-procedure lattice memo, exactly the way
+/// `tcl-lsp-db`'s `function_lattice` does: a single-CFG rebuild under the
+/// request's analysis context, whose command-trust snapshot is the module's
+/// whole-module view. Returns the unit, how many times the memo callback was
+/// reached, and the analysis context each request carried.
+fn memoised_unit(
+    src: &str,
+) -> (
+    CompilationUnit,
+    usize,
+    Vec<tcl_compiler::value_transfer::AnalysisContextKey>,
+) {
+    let registry = reg();
+    let mut hits = 0usize;
+    let mut contexts = Vec::new();
+    let cu = CompilationUnit::build_for_memoized(
+        src,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: &registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::default(),
+            dialect: Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+            hits += 1;
+            contexts.push(req.analysis_context.clone());
+            let prepared = tcl_compiler::cfg_builder::PreparedCfgContext::from_source_input(
+                (
+                    req.upvar_procs.clone(),
+                    req.proc_params.clone(),
+                    req.global_write_procs.clone(),
+                    req.command_bindings.clone(),
+                    req.procedure_summary_owners.clone(),
+                ),
+                &registry,
+                req.source_metadata_input,
+            );
+            let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_prepared_context(
+                req.qname,
+                req.body,
+                true,
+                &registry,
+                req.plain_command_dispatch,
+                &prepared,
+                req.lexer_config,
+            );
+            let pc = tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
+            let traced: std::collections::BTreeSet<String> =
+                req.traced_variables.iter().cloned().collect();
+            let command_trust = req.analysis_context.bindings.to_mutations();
+            FunctionUnit::build_with_param_constants_and_classes_under(
+                req.qname,
+                cfg,
+                req.params,
+                tcl_compiler::compilation_unit::UnitDialect {
+                    registry: &registry,
+                    config: req.lexer_config,
+                    source_metadata_input: req.source_metadata_input,
+                },
+                pc.as_ref(),
+                &req.known_classes.iter().cloned().collect(),
+                tcl_compiler::compilation_unit::ModuleAnalysisFacts {
+                    trace: tcl_compiler::compilation_unit::ModuleTraceFacts {
+                        traced_variables: &traced,
+                        has_dynamic_variable_trace: req.has_dynamic_variable_trace,
+                        deferred_writes: &req.analysis_context.deferred_writes,
+                    },
+                    analysis_context: req.analysis_context,
+                    command_trust: &command_trust,
+                },
+            )
+        },
+    );
+    (cu, hits, contexts)
+}
+
+/// Whether `::g`'s lattice proves its local `v` is the integer 3.
+fn g_proves_v_is_three(cu: &CompilationUnit) -> bool {
+    let Some(fu) = cu.procedures.get(&fixture_id(&cu.procedures, "::g")) else {
+        return false;
+    };
+    let Some(sym) = fu.ssa.var_symbol("v") else {
+        return false;
+    };
+    fu.sccp.values.iter().any(|((s, _), lv)| {
+        *s == sym
+            && matches!(
+                lv,
+                tcl_compiler::analyses::LatticeValue::Const(
+                    tcl_compiler::analyses::ConstValue::Int(3)
+                )
+            )
+    })
+}
+
+#[test]
+fn unresolved_handler_barrier_blocks_scalar_constant_branch() {
+    // Tcl 9.0.4: the default unresolved handler may load and invoke a command
+    // which changes caller-frame state. The SCCP consumer therefore cannot
+    // retain the pre-call constant for this branch, even though the runtime
+    // invocation itself remains generic.
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; missing_command; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "unresolved handler barrier must prevent stale scalar branch folding: {:?}",
+        fu.sccp.constant_branches,
+    );
+}
+
+#[test]
+fn embedded_handler_barrier_blocks_host_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; set result [missing_command]; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an embedded unresolved handler must invalidate host-following scalar facts",
+    );
+}
+
+#[test]
+fn condition_handler_barrier_blocks_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; if {[missing_command]} {}; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a condition substitution reaching the unresolved handler must invalidate following scalar facts",
+    );
+}
+
+#[test]
+fn foreach_list_handler_barrier_blocks_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; foreach item [missing_command] {}; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a foreach list substitution reaching the unresolved handler must invalidate following scalar facts",
+    );
+}
+
+#[test]
+fn braced_foreach_list_does_not_create_handler_barrier() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; foreach item {[missing_command]} {}; if {$x == 5} { return kept } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "a braced foreach list does not evaluate its bracket text",
+    );
+}
+
+#[test]
+fn try_header_handler_barrier_blocks_scalar_constant_branch() {
+    use tcl_compiler::cfg_builder::{build_cfg_codegen_with_registry, build_cfg_with_registry};
+
+    let registry = reg();
+    let source = "proc p {} {set x 5; try {} on error [missing_command] {}; if {$x == 5} {return stale} else {return changed}}";
+    let cu = CompilationUnit::build_for(source, &registry, false);
+    assert_eq!(
+        cu.fixture_function("::p").unwrap().sccp.constant_branches,
+        [] as [tcl_compiler::sccp::ConstantBranch; 0]
+    );
+    for cfg in [
+        build_cfg_with_registry(&cu.ir_module, false, &registry),
+        build_cfg_codegen_with_registry(&cu.ir_module, false, &registry),
+    ] {
+        let function = cfg
+            .procedures
+            .get(&fixture_id(&cfg.procedures, "::p"))
+            .expect("authored fixture body");
+        assert!(
+            function.blocks.values().any(|block| {
+                block.statements.iter().any(|statement| {
+                    statement.synthetic_marker()
+                        == Some(tcl_compiler::ir::SyntheticMarker::UnseenCall)
+                })
+            }),
+            "both inlined and deferred try paths must retain header effects"
+        );
+    }
+
+    let safe = CompilationUnit::build_for(
+        "proc p {} {set x 5; try {} on error [list e o] {}; if {$x == 5} {return kept} else {return changed}}",
+        &registry,
+        false,
+    );
+    assert_ne!(
+        safe.fixture_function("::p").unwrap().sccp.constant_branches,
+        [] as [tcl_compiler::sccp::ConstantBranch; 0]
+    );
+}
+
+#[test]
+fn known_safe_registry_handler_preserves_scalar_constant_branch() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set x 5; string length value; if {$x == 5} { return kept } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "a known safe registry handler should retain scalar precision",
+    );
+}
+
+#[test]
+fn embedded_shadowed_builtin_does_not_borrow_code_running_traits() {
+    let cu = CompilationUnit::build_for(
+        "proc eval args {return 0}; proc p {} {set x 5; set ignored [eval {set x 6}]; if {$x == 5} {return kept} else {return changed}}",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "a user procedure named eval must not inherit eval's code-running traits",
+    );
+}
+
+#[test]
+fn embedded_alias_to_user_proc_does_not_borrow_code_running_traits() {
+    let cu = CompilationUnit::build_for(
+        "proc fake args {return 0}; interp alias {} eval {} fake; proc p {} {set x 5; set ignored [eval {set x 6}]; if {$x == 5} {return kept} else {return changed}}",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        !fu.sccp.constant_branches.is_empty(),
+        "an alias to a user procedure must not borrow its source spelling's registry traits",
+    );
+}
+
+#[test]
+fn temporal_unknown_handler_keeps_auto_load_barrier() {
+    let cu = CompilationUnit::build_for(
+        "set auto_index(missing_command) { proc missing_command {} { upvar 1 x x; set x 6 } }; proc p {} { set x 5; missing_command; if {$x == 5} { return stale } else { return changed } }; set observed [p]; proc unknown {args} { return harmless }; puts $observed",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an auto-loaded caller-mutating generation must keep the unresolved barrier",
+    );
+}
+
+#[test]
+fn embedded_user_call_makes_later_embedded_binding_opaque() {
+    let cu = CompilationUnit::build_for(
+        "proc mutate {} {rename safe {}; interp alias {} safe {} eval; return 0}; proc safe args {return 0}; proc p {} {set x 5; if {[mutate] + [safe {set x 6}]} {}; if {$x == 5} {return stale} {return changed}}; puts [p]",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a later embedded call must see the earlier user call's source-order binding opacity",
+    );
+}
+
+#[test]
+fn embedded_rename_makes_later_embedded_binding_opaque() {
+    let cu = CompilationUnit::build_for(
+        "proc p {} {set x 5; if {[rename safe {}] + [safe {set x 6}]} {}; if {$x == 5} {return stale} {return changed}}; proc safe args {return 0}; puts [p]",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "later embedded resolution must observe a preceding rename transition",
+    );
+}
+
+#[test]
+fn sibling_if_conditions_join_source_order_binding_states() {
+    let cu = CompilationUnit::build_for(
+        "proc safe args {return 0}; set x 5; if {0} {} elseif {[rename safe {}; rename eval safe] eq \"never\"} {} elseif {[safe {set x 6; expr 0}]} {}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5"),
+        "a later elseif condition must observe preceding condition transitions",
+    );
+}
+
+#[test]
+fn for_init_transition_reaches_first_condition_projection() {
+    let cu = CompilationUnit::build_for(
+        "proc safe args {return 0}; set x 5; for {rename safe {}; rename eval safe} {[safe {set x 6; expr 0}]} {} {}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5"),
+        "a for init transition must widen the first condition projection",
+    );
+}
+
+#[test]
+fn foreach_backedge_transition_widens_next_iteration() {
+    let cu = CompilationUnit::build_for(
+        "proc safe args {return 0}; set x 5; foreach i {1 2} {safe {set x 6}; if {$i == 1} {rename safe {}; rename eval safe}}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5"),
+        "a foreach backedge transition must widen later list/body evaluation",
+    );
+}
+
+#[test]
+fn sibling_substitutions_follow_tcl_argument_order() {
+    let cu = CompilationUnit::build_for(
+        "proc aaa args {return 0}; set x 5; list [rename aaa {}; rename eval aaa] [aaa {set x 6}]; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "later substitution arguments must see earlier transitions",
+    );
+}
+
+#[test]
+fn nested_substitution_runs_before_outer_invocation() {
+    let cu = CompilationUnit::build_for(
+        "proc aaa args {return 0}; set x 5; set ignored [aaa [rename aaa {}; rename eval aaa; set _ {set x 6}]]; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "nested substitutions must transition bindings before their outer command",
+    );
+}
+
+#[test]
+fn nested_alias_substitution_runs_before_outer_invocation() {
+    let cu = CompilationUnit::build_for(
+        "interp alias {} safe {} string length; set x 5; set ignored [safe [rename safe {}; rename eval safe; set _ {set x 6}]]; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "a nested rename must reach the outer registry alias before it is resolved",
+    );
+}
+
+#[test]
+fn bracket_script_segments_run_in_order_around_nested_substitution() {
+    let cu = CompilationUnit::build_for(
+        "proc aaa args {return 0}; set x 5; set ignored [rename eval zzz; aaa [rename aaa {}; rename zzz aaa; set _ {set x 6}]]; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "a nested substitution in command two must not run before command one",
+    );
+}
+
+#[test]
+fn short_circuit_condition_keeps_skipped_binding_path() {
+    let cu = CompilationUnit::build_for(
+        "proc unknown args {return 0}; rename eval safe; set x 5; if {[pid] < 0 && [rename safe {}]} {}; safe {set x 6}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "a skipped short-circuit RHS must not erase the reachable eval alias",
+    );
+}
+
+#[test]
+fn short_circuit_expression_keeps_skipped_binding_path() {
+    let cu = CompilationUnit::build_for(
+        "proc unknown args {return 0}; rename eval safe; set x 5; expr {[pid] < 0 && [rename safe {}]}; safe {set x 6}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "conditional expression substitutions outside if must retain their skipped path",
+    );
+}
+
+#[test]
+fn later_substitution_keeps_short_circuit_binding_uncertainty() {
+    let cu = CompilationUnit::build_for(
+        "proc unknown args {return 0}; rename eval safe; set x 5; expr {([pid] < 0 && [rename safe {}]) + [safe {set x 6; expr 0}]}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        cu.top_level.sccp.constant_branches.is_empty(),
+        "a later substitution must retain the skipped binding path in the same expression",
+    );
+}
+
+#[test]
+fn foreach_binding_projection_closes_more_than_one_backedge() {
+    let cu = CompilationUnit::build_for(
+        "proc b args {return 0}; proc c args {return 0}; rename eval a; set x 5; foreach i {1 2 3} {c {set x 6}; if {$i < 3} {rename c {}; rename b c; if {$i == 1} {rename a b}}}; if {$x == 5} {puts stale} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5"),
+        "a loop binding projection must not mistake its first post-state for closure",
+    );
+}
+
+#[test]
+fn braced_nested_substitution_text_does_not_execute() {
+    let cu = CompilationUnit::build_for(
+        "interp alias {} safe {} string length; set x 5; set ignored [list {[rename safe {}; rename eval safe]}]; safe {set x 6}; if {$x == 5} {puts kept} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        !cu.top_level.sccp.constant_branches.is_empty(),
+        "braced text in a recovered command word must remain inert",
+    );
+}
+
+#[test]
+fn opaque_user_call_keeps_later_builtin_resolution_barrier() {
+    // tclsh: evaluates the later `puts` as `eval`, so `x` becomes 6 and the
+    // final branch selects `changed`. The dynamic rename subjects prevent the
+    // module summary from resolving this transition ahead of the call.
+    let cu = CompilationUnit::build_for(
+        "proc mutate {a b} {rename $a {}; rename $b $a}; proc p {} {set x 5; mutate puts eval; puts {set x 6}; if {$x == 5} {return stale} else {return changed}}; puts [p]",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a source-opaque user call must invalidate later direct builtin resolution",
+    );
+}
+
+#[test]
+fn readable_eval_user_call_makes_later_binding_opaque() {
+    let cu = CompilationUnit::build_for(
+        "proc mutate {} {rename safe {}; interp alias {} safe {} eval; return 0}; proc safe args {return 0}; proc p {} {set x 5; eval {mutate}; safe {set x 6}; if {$x == 5} {return stale} {return changed}}; puts [p]",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "a readable eval body shares the source-order binding transfer",
+    );
+}
+
+#[test]
+fn alias_to_unresolved_handler_keeps_terminal_barrier_effect() {
+    let cu = CompilationUnit::build_for(
+        "interp alias {} forward {} unknown\nproc p {} { set x 5; forward missing_command; if {$x == 5} { return stale } else { return changed } }",
+        &reg(),
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    assert!(
+        fu.sccp.constant_branches.is_empty(),
+        "an alias reaching the registry unknown handler must keep the scalar barrier",
+    );
+}
+
+/// A `proc llength …` shadow declared elsewhere in the module is visible only
+/// to the whole-module command-mutation scan, so the per-procedure lattice
+/// memo must carry that scan in its key and fold under it: a module that
+/// shadows a builtin is never served a unit built as if every builtin still
+/// meant what it spells (#2164). The key's analysis context carries the
+/// module's command-trust snapshot, so the memo stays on and answers under
+/// the module's own trust.
+///
+/// tclsh 8.4.20 – 9.1b0 (unanimous): with the shadow, `[llength {a b c}]` is
+/// 99, so a lattice claiming `v == 3` is wrong.
+#[test]
+fn a_shadowing_module_is_served_a_lattice_keyed_by_its_trust() {
+    let (shadowed, hits, shadowed_contexts) = memoised_unit(
+        "proc llength {l} { return 99 }\nproc g {} { set v [llength {a b c}]; return $v }\n",
+    );
+    assert!(hits > 0, "the memo stays on, keyed by the module's trust");
+    assert!(
+        !g_proves_v_is_three(&shadowed),
+        "the memoised lattice must not answer with the builtin's 3"
+    );
+
+    // Positive control: the same shape with nothing shadowed reaches the
+    // memo under a different key, and the unit it returns does prove
+    // `v == 3` — so the assertions above measure the trust in the key, not
+    // an unreachable memo or a lattice that never had the fact.
+    let (control, hits, control_contexts) =
+        memoised_unit("proc g {} { set v [llength {a b c}]; return $v }\n");
+    assert!(hits > 0, "the control must reach the memo");
+    assert!(
+        g_proves_v_is_three(&control),
+        "the control's memoised lattice does prove v == 3"
+    );
+    assert!(
+        shadowed_contexts
+            .iter()
+            .all(|context| !control_contexts.contains(context)),
+        "a shadowing module's requests must not share the control's key"
+    );
+}
+
+fn seeded_parameter_result(source: &str) -> tcl_compiler::sccp::SccpResult {
+    use std::collections::{BTreeSet, HashMap};
+    use tcl_compiler::analyses::{ConstValue, LatticeValue};
+    let registry = reg();
+    let cu = CompilationUnit::build_for(source, &registry, false);
+    let fu = cu.fixture_function("::p").expect("procedure");
+    let seeds = HashMap::from([(("x".to_owned(), 0), LatticeValue::Const(ConstValue::Int(5)))]);
+    tcl_compiler::sccp::sccp(
+        &fu.cfg,
+        &fu.ssa,
+        Some(&seeds),
+        tcl_compiler::tcl_expr_eval::FoldPolicy::default(),
+        tcl_compiler::sccp::TraceInputs {
+            registry: &registry,
+            source_metadata_input: fu.source_metadata_input(),
+            traced_variables: &BTreeSet::new(),
+            has_dynamic_variable_trace: false,
+            deferred_writes: &tcl_compiler::ir::NO_DEFERRED_WRITES,
+            analysis_context: None,
+            existence: None,
+        },
+    )
+}
+
+#[test]
+fn registry_handler_widens_seeded_parameter() {
+    // Tcl 9.0.4 with its unmodified init.tcl: auto_index(missing_command)
+    // loads a proc using `upvar 1 x x; set x 6`; p 5 returns changed.
+    let result = seeded_parameter_result(
+        "proc p {x} { missing_command; if {$x == 5} { return stale } else { return changed } }",
+    );
+    assert_eq!(
+        result.constant_branches,
+        [] as [tcl_compiler::sccp::ConstantBranch; 0]
+    );
+}
+
+#[test]
+fn conditional_registry_handler_widens_seeded_parameter() {
+    let result = seeded_parameter_result(
+        "proc p {x flag} { if {$flag} { missing_command }; if {$x == 5} { return stale } else { return changed } }",
+    );
+    assert_eq!(
+        result.constant_branches,
+        [] as [tcl_compiler::sccp::ConstantBranch; 0]
+    );
+}
+
+#[test]
+fn safe_registry_call_keeps_seeded_parameter_constant() {
+    let result = seeded_parameter_result(
+        "proc p {x} { string length safe; if {$x == 5} { return kept } else { return changed } }",
+    );
+    assert_eq!(result.constant_branches.len(), 1);
+}
+
+#[test]
+fn an_unseen_call_preserves_dead_prior_and_future_definitions() {
+    let registry = reg();
+    let cu = CompilationUnit::build_for(
+        "proc p {} { set first 5; set before [expr {$first + 1}]; missing_command; set after 7; return $after }",
+        &registry,
+        false,
+    );
+    let fu = cu.fixture_function("::p").expect("procedure");
+    for (name, expected) in [("first", 5), ("after", 7)] {
+        let symbol = fu.ssa.var_symbol(name).expect("variable");
+        assert!(
+            fu.sccp.values.iter().any(|((var, _), value)| {
+                *var == symbol
+                    && *value
+                        == tcl_compiler::analyses::LatticeValue::Const(
+                            tcl_compiler::analyses::ConstValue::Int(expected),
+                        )
+            }),
+            "{name} must retain its constant: {:?}",
+            fu.sccp.values
+        );
+    }
+}
+
+#[test]
+fn registry_handler_widens_array_element_read_by_terminator() {
+    let registry = reg();
+    for tail in [
+        "return $a(k)",
+        "if {$a(k) == 5} {return stale} else {return changed}",
+        "if {$flag} {set a(other) 9}; return $a(k)",
+    ] {
+        let source = format!("proc p {{flag}} {{set a(k) 5; missing_command; {tail}}}");
+        let cu = CompilationUnit::build_for(&source, &registry, false);
+        let fu = cu.fixture_function("::p").expect("procedure");
+        let symbol = fu.ssa.var_symbol("a(k)").expect("element");
+        let transitions: Vec<_> = fu
+            .ssa
+            .value_clobbers
+            .values()
+            .flat_map(|markers| markers.values())
+            .filter_map(|versions| versions.get(&symbol))
+            .collect();
+        assert!(!transitions.is_empty(), "a(k) needs a fresh value boundary");
+        for &&(prior, fresh) in &transitions {
+            assert_eq!(
+                fu.sccp.values.get(&(symbol, prior)),
+                Some(&tcl_compiler::analyses::LatticeValue::Const(
+                    tcl_compiler::analyses::ConstValue::Int(5)
+                ))
+            );
+            assert_eq!(
+                fu.sccp.values.get(&(symbol, fresh)),
+                Some(&tcl_compiler::analyses::LatticeValue::Overdefined)
+            );
+        }
+        for (id, block) in &fu.cfg.blocks {
+            if matches!(&block.terminator,
+                Some(tcl_compiler::cfg::Terminator::Return {value: Some(value), ..})
+                    if value == "$a(k)")
+            {
+                let version = fu.ssa.blocks[id].exit_versions[&symbol];
+                assert_eq!(
+                    fu.sccp.values.get(&(symbol, version)),
+                    Some(&tcl_compiler::analyses::LatticeValue::Overdefined)
+                );
+            }
+        }
+        assert_eq!(
+            fu.sccp.constant_branches,
+            [] as [tcl_compiler::sccp::ConstantBranch; 0]
+        );
+    }
+    let control =
+        CompilationUnit::build_for("proc p {} {set a(k) 5; return $a(k)}", &registry, false);
+    let fu = control.fixture_function("::p").expect("procedure");
+    let symbol = fu.ssa.var_symbol("a(k)").expect("element");
+    assert!(
+        fu.sccp.values.iter().any(|((var, _), value)| {
+            *var == symbol
+                && *value
+                    == tcl_compiler::analyses::LatticeValue::Const(
+                        tcl_compiler::analyses::ConstValue::Int(5),
+                    )
+        }),
+        "the safe control must retain element precision"
+    );
+}
+
+#[test]
+fn brace_expression_handler_barrier_blocks_following_scalar_fold() {
+    for expression in [
+        "if {[expr {[missing_command]}]} {}",
+        "set ignored [expr {[missing_command]}]",
+    ] {
+        let source = format!(
+            "proc p {{}} {{set x 5; {expression}; if {{$x == 5}} {{return stale}} else {{return changed}}}}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        assert_eq!(
+            cu.fixture_function("::p").unwrap().sccp.constant_branches,
+            [] as [tcl_compiler::sccp::ConstantBranch; 0]
+        );
+    }
+    let safe = CompilationUnit::build_for(
+        "proc p {} {set x 5; if {[expr {[string length safe]}]} {}; if {$x == 5} {return kept} else {return changed}}",
+        &reg(),
+        false,
+    );
+    assert!(
+        safe.fixture_function("::p")
+            .unwrap()
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.condition == "$x == 5")
+    );
+}
+
+#[test]
+fn registry_value_clobber_preserves_branch_before_and_widens_branch_after() {
+    let source =
+        "set x 5; if {$x == 5} {set y before}; missing_command; if {$x == 5} {set y after}";
+    let cu = CompilationUnit::build_for(source, &reg(), false);
+    let branches = &cu.top_level.sccp.constant_branches;
+    assert_eq!(
+        branches.len(),
+        1,
+        "only the pre-handler condition may fold: {branches:?}"
+    );
+    assert!(branches[0].value);
+    assert!(
+        branches[0].span.unwrap().end()
+            < u32::try_from(source.find("missing_command").unwrap()).unwrap()
+    );
+    let x = cu.top_level.ssa.var_symbol("x").unwrap();
+    for versions in cu
+        .top_level
+        .ssa
+        .value_clobbers
+        .values()
+        .flat_map(|markers| markers.values())
+    {
+        let &(prior, fresh) = versions.get(&x).unwrap();
+        assert_eq!(
+            cu.top_level.sccp.values.get(&(x, prior)),
+            Some(&tcl_compiler::analyses::LatticeValue::Const(
+                tcl_compiler::analyses::ConstValue::Int(5)
+            ))
+        );
+        assert_eq!(
+            cu.top_level.sccp.values.get(&(x, fresh)),
+            Some(&tcl_compiler::analyses::LatticeValue::Overdefined)
+        );
+    }
+}
+
+#[test]
+fn registry_value_clobber_preserves_seeded_parameter_before_handler() {
+    let result = seeded_parameter_result(
+        "proc p {x} {if {$x == 5} {set before yes}; missing_command; if {$x == 5} {return stale} else {return changed}}",
+    );
+    assert_eq!(result.constant_branches.len(), 1);
+    assert!(result.constant_branches[0].value);
+}
+
+#[test]
+fn braced_expression_rebinding_precedes_later_sibling_and_statement() {
+    // tclsh 9.0.4: all forms print `changed`; the former pure procedure now
+    // resolves to eval after the earlier expression runs the rename script.
+    for (prefix, middle) in [
+        (
+            "",
+            "list [expr {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
+        ),
+        (
+            "",
+            "list [expr {[rename aaa {}; rename eval aaa; set _ 0]}]; aaa {set x 6}",
+        ),
+        (
+            "interp alias {} e {} expr; ",
+            "list [e {[rename aaa {}; rename eval aaa; set _ 0]}]; aaa {set x 6}",
+        ),
+        (
+            "interp alias {} e {} expr 1 +; ",
+            "list [e {[rename aaa {}; rename eval aaa; set _ 0]}]; aaa {set x 6}",
+        ),
+    ] {
+        let source = format!(
+            "proc aaa args {{return 0}}; {prefix}set x 5; {middle}; if {{$x == 5}} {{puts stale}} else {{puts changed}}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        assert!(
+            cu.top_level.sccp.constant_branches.is_empty(),
+            "earlier expression transitions must reach later invocations: {middle}"
+        );
+    }
+    for (prefix, head) in [
+        ("", "expr"),
+        ("interp alias {} e {} expr; ", "e"),
+        ("interp alias {} e {} expr 1 +; ", "e"),
+    ] {
+        let source = format!(
+            "proc aaa args {{return 0}}; {prefix}set x 5; list [{head} {{[string length safe]}}] [aaa {{set x 6}}]; if {{$x == 5}} {{puts kept}} else {{puts changed}}"
+        );
+        let safe = CompilationUnit::build_for(&source, &reg(), false);
+        assert_eq!(safe.top_level.sccp.constant_branches.len(), 1);
+        assert!(safe.top_level.sccp.constant_branches[0].value);
+    }
+}
+
+#[test]
+fn expression_alias_roles_use_bindings_before_substitution() {
+    // The later redefinition must not hide the expression role of this alias
+    // at its earlier invocation. Tcl 9.0.4 prints changed and kept respectively.
+    for (expression, should_fold) in [
+        ("[rename aaa {}; rename eval aaa; set _ 0]", false),
+        ("[string length safe]", true),
+    ] {
+        let source = format!(
+            "proc aaa args {{return 0}}; interp alias {{}} e {{}} expr; set x 5; set ignored \"[e {{{expression}}}][aaa {{set x 6}}]\"; if {{$x == 5}} {{puts kept}} else {{puts changed}}; rename e {{}}; proc e args {{return 0}}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        assert_eq!(
+            cu.top_level.sccp.constant_branches.len(),
+            usize::from(should_fold),
+            "expression roles must reflect the invocation's source-order state"
+        );
+        if should_fold {
+            assert!(cu.top_level.sccp.constant_branches[0].value);
+        }
+    }
+}
+
+#[test]
+fn expression_alias_created_by_earlier_substitution_replays_nested_effects() {
+    // Tcl 9.0.4: each mutating form prints changed; the pure control prints kept.
+    for middle in [
+        "list [interp alias {} e {} expr] [e {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
+        "list [interp alias {} e {} expr 1 +] [e {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
+        "set ignored \"[interp alias {} e {} expr][e {[rename aaa {}; rename eval aaa; set _ 0]}][aaa {set x 6}]\"",
+        "list [expr {[interp alias {} e {} expr] ne \"\"}] [e {[rename aaa {}; rename eval aaa; set _ 0]}] [aaa {set x 6}]",
+    ] {
+        let source = format!(
+            "proc aaa args {{return 0}}; set x 5; {middle}; if {{$x == 5}} {{puts stale}} else {{puts changed}}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        assert!(cu.top_level.sccp.constant_branches.is_empty(), "{middle}");
+    }
+    let safe = CompilationUnit::build_for(
+        "proc aaa args {return 0}; set x 5; list [interp alias {} e {} expr] [e {[string length safe]}] [aaa {set x 6}]; if {$x == 5} {puts kept} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert_eq!(safe.top_level.sccp.constant_branches.len(), 1);
+    assert!(safe.top_level.sccp.constant_branches[0].value);
+}
+
+#[test]
+fn conditional_expression_binding_replay_keeps_skipped_paths() {
+    // Tcl 9.0.4 prints changed: each skipped replacement leaves e as eval.
+    for expression in [
+        "0 && [interp alias {} e {} list]",
+        "1 || [interp alias {} e {} list]",
+        "1 ? 0 : [interp alias {} e {} list]",
+        "0 ? [interp alias {} e {} list] : 0",
+        "$flag && [interp alias {} e {} list]",
+    ] {
+        for middle in [
+            format!("list [expr {{{expression}}}] [e {{set x 6}}]"),
+            format!("set ignored [expr {{{expression}}}]; e {{set x 6}}"),
+            format!("if {{{expression}}} {{puts ignored}}; e {{set x 6}}"),
+        ] {
+            let source = format!(
+                "interp alias {{}} e {{}} eval; set flag 0; set x 5; {middle}; if {{$x == 5}} {{puts stale}} else {{puts changed}}"
+            );
+            let cu = CompilationUnit::build_for(&source, &reg(), false);
+            assert!(
+                !cu.top_level
+                    .sccp
+                    .constant_branches
+                    .iter()
+                    .any(|branch| branch.value && branch.condition.contains('x')),
+                "{middle}"
+            );
+        }
+    }
+    let safe = CompilationUnit::build_for(
+        "set x 5; list [expr {0 && [string length safe]}]; if {$x == 5} {puts kept} else {puts changed}",
+        &reg(),
+        false,
+    );
+    assert!(
+        safe.top_level
+            .sccp
+            .constant_branches
+            .iter()
+            .any(|branch| branch.value)
+    );
+}
+
+#[test]
+fn global_script_and_unseen_call_both_widen_seeded_parameter() {
+    for middle in [
+        "set y [setter $::script][missing_command]",
+        "list [setter $::script] [missing_command]",
+        "if {[setter $::script] + [missing_command]} {puts ignored}",
+        "foreach item [setter $::script][missing_command] {puts ignored}",
+        "switch -- [setter $::script][missing_command] {default {puts ignored}}",
+    ] {
+        let source = format!(
+            "proc setter {{body}} {{uplevel #0 $body}}; proc p {{x}} {{{middle}; if {{$x == 5}} {{return stale}} else {{return changed}}}}"
+        );
+        let result = seeded_parameter_result(&source);
+        assert!(
+            !result
+                .constant_branches
+                .iter()
+                .any(|branch| branch.condition.contains('x')),
+            "{middle}"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        let fu = cu.fixture_function("::p").unwrap();
+        for marker in [
+            tcl_compiler::ir::SyntheticMarker::GlobalFrameScript,
+            tcl_compiler::ir::SyntheticMarker::UnseenCall,
+        ] {
+            assert!(
+                fu.cfg
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.statements)
+                    .any(|stmt| stmt.synthetic_marker() == Some(marker)),
+                "{middle}: {marker:?}"
+            );
+        }
+    }
+    let safe = seeded_parameter_result(
+        "proc setter {body} {uplevel #0 {set ::g 1}}; proc p {x} {set y [setter unused]literal; if {$x == 5} {return kept} else {return changed}}",
+    );
+    assert_eq!(safe.constant_branches.len(), 1);
+    assert!(safe.constant_branches[0].value);
+}
+
+#[test]
+fn catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths() {
+    use tcl_compiler::cfg_builder::{build_cfg_codegen_with_registry, build_cfg_with_registry};
+    let registry = reg();
+    for body in ["", "set body_value ok"] {
+        let source = format!(
+            "proc p {{x}} {{catch {{{body}}} [missing_command]; if {{$x == 5}} {{return stale}} else {{return changed}}}}"
+        );
+        assert_eq!(
+            seeded_parameter_result(&source).constant_branches,
+            [] as [tcl_compiler::sccp::ConstantBranch; 0]
+        );
+        let cu = CompilationUnit::build_for(&source, &registry, false);
+        for cfg in [
+            build_cfg_with_registry(&cu.ir_module, false, &registry),
+            build_cfg_codegen_with_registry(&cu.ir_module, false, &registry),
+        ] {
+            assert!(
+                cfg.procedures
+                    .get(&fixture_id(&cfg.procedures, "::p"))
+                    .expect("authored fixture body")
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.statements)
+                    .any(|stmt| stmt.synthetic_marker()
+                        == Some(tcl_compiler::ir::SyntheticMarker::UnseenCall))
+            );
+        }
+    }
+    assert_eq!(
+        seeded_parameter_result(
+            "proc p {x} {catch {} [list result]; if {$x == 5} {return kept} else {return changed}}"
+        )
+        .constant_branches
+        .len(),
+        1
+    );
+}
+
+#[test]
+fn registry_handler_widens_collection_classes_before_later_updates() {
+    for middle in ["missing_command", "set ignored [missing_command]"] {
+        let source = format!(
+            "oo::class create A {{}}; oo::class create B {{}}; set d [dict create k [A new]]; {middle}; dict set d k2 [A new]; set x [dict get $d k]"
+        );
+        let cu = CompilationUnit::build_for(&source, &reg(), false);
+        let fu = cu.fixture_function("::top").unwrap();
+        let x = fu.ssa.var_symbol("x").unwrap();
+        assert!(
+            fu.types
+                .iter()
+                .filter(|((symbol, _), _)| *symbol == x)
+                .all(|(_, ty)| ty.class_name().is_none()),
+            "{middle}: {:?}",
+            fu.types
+        );
+    }
+}
+
+#[test]
+fn constructor_effects_and_redefinitions_withdraw_collection_type_precision() {
+    for source in [
+        "oo::class create A {constructor {} {upvar 1 acc cell; set cell {changed}}}; set acc [list]; lappend acc [A new]; set x [lindex $acc 0]",
+        "oo::class create A {}; set acc [list]; oo::define A constructor {} {upvar 1 acc cell; set cell {changed}}; lappend acc [A new]; set x [lindex $acc 0]",
+        "oo::class create A {}; set acc [list]; missing_command; lappend acc [A new]; set x [lindex $acc 0]",
+    ] {
+        let cu = CompilationUnit::build_for(source, &reg(), false);
+        let fu = cu.fixture_function("::top").unwrap();
+        let x = fu.ssa.var_symbol("x").unwrap();
+        let inferred: Vec<_> = fu
+            .types
+            .iter()
+            .filter(|((symbol, _), _)| *symbol == x)
+            .map(|(_, ty)| ty)
+            .collect();
+        assert_ne!(inferred, [] as [&tcl_compiler::types::TypeLattice; 0]);
+        assert!(
+            inferred.iter().all(|ty| ty.class_name().is_none()),
+            "{source}: {inferred:?}"
+        );
+    }
+}

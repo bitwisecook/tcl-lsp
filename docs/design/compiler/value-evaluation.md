@@ -195,11 +195,11 @@ default it was not asked for.
   live string-backed `ValueOps` implementation; the others
   (`rust/tcl-syntax/src/value.rs`, `tcl-cmd-core`'s test modules) are
   test-only.
-- **Codegen carries no folder of its own.** `rust/tcl-compiler/src/codegen/helpers.rs`
+- **Codegen carries no folder of its own.** `rust/tcl-compiler/src/codegen_helpers.rs`
   holds no command fold: the engine runs every fold, and `format` folds on
   its registry-owned route over the shared format core.
 - **Codegen already emits folded values, guarded.** `try_emit_constant_fold`
-  in `rust/tcl-compiler/src/codegen/values.rs` folds a literal-only
+  in `rust/tcl-codegen/src/codegen/values.rs` folds a literal-only
   `[cmd …]` through `ConstSubstCtx::fold_cmd_subst_resolved`, pushes the
   literal, and calls `require_command_binding` for every
   `CommandBindingIdentity` the fold consumed; the VM revalidates those
@@ -2186,7 +2186,7 @@ implementation against the library's real behaviour.
 - `rust/tcl-dialect/src/version.rs`, `grammar.rs`, `profile.rs` — `TclVersion::from_profile`, `string_character_model`, `number_syntax`, `byte_string_encoding`, `StringCharacterModel`, `ByteStringEncoding`, `NumberSyntax`, `const_fold_version`
 - `rust/tcl-vm/src/value_ops.rs`, `runtime/rust/src/value_ops.rs` — the two runtime implementations of the seam
 - `rust/tcl-registry/src/const_fold.rs`, `commands/tcl/string_.rs`, `commands/tcl/format_.rs`, `commands/tcl/regsub_.rs` — the shipped folders: the core calls and the hand-written ones
-- `rust/tcl-compiler/src/codegen/values.rs` — `try_emit_constant_fold`, codegen's guarded fold over the engine
+- `rust/tcl-codegen/src/codegen/values.rs` — `try_emit_constant_fold`, codegen's guarded fold over the engine
 - `rust/tcl-compiler/src/tcl_expr_eval.rs`, `rust/tcl-syntax/src/expr/eval.rs`, `rust/tcl-syntax/src/expr/mathfunc.rs`, `rust/tcl-syntax/src/expr/rand.rs` — `FoldOps`, `eval_with_config`, `ExprOps`, `MathFuncSpec`, `MathFuncSince`, the generator model
 - `rust/tcl-compiler/src/type_infer.rs` — `expr_call_type`, which reads `MathFuncSpec::result_class`
 - `rust/tcl-regex/src/lib.rs`, `exec.rs`, `cmd_core.rs` — `Regex::exec`, `MATCH_FUEL`, `MAX_BT_DEPTH`, `MAX_DISSECT_DEPTH`, `Matcher::spend_fuel`, `AreEngine`

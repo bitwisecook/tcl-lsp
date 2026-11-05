@@ -357,7 +357,8 @@ pub struct NativeTierReport {
 }
 
 impl NativeTierReport {
-    pub(crate) fn record(&mut self, id: NativeFunctionId, name: &str, report: FunctionReport) {
+    #[doc(hidden)]
+    pub fn record(&mut self, id: NativeFunctionId, name: &str, report: FunctionReport) {
         self.functions.insert(
             id,
             NamedFunctionReport {

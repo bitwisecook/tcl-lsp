@@ -2350,7 +2350,7 @@ mod tests {
 
     #[test]
     fn native_namespace_bodies_propagate_return_and_inscope_requires_c_target() {
-        use tcl_compiler::compile_service::BytecodeCompileService;
+        use tcl_codegen::compile_service::BytecodeCompileService;
         for profile in tcl_dialect::TclVersion::ALL
             .map(|version| crate::environment::profile_for_dialect(version.dialect_profile_name()))
             .into_iter()

@@ -890,7 +890,7 @@ fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<BlockId> {
 ///
 /// `None` — and an unknown name — resolve through `by_opt_name` to the plain-Tcl
 /// profile, whose grammar is `Tcl90`: the same default
-/// [`crate::codegen::CodegenCtx::numbers`] takes for its hand-built contexts.
+/// `tcl_codegen::codegen::CodegenCtx::numbers` takes for its hand-built contexts.
 #[must_use]
 pub fn numbers_for_dialect(dialect: Option<&'static tcl_dialect::DialectProfile>) -> NumberSyntax {
     tcl_dialect::NumberSyntax::of_profile(dialect)
@@ -902,7 +902,7 @@ pub fn numbers_for_dialect(dialect: Option<&'static tcl_dialect::DialectProfile>
 /// do not yet thread a dialect (`tcl-explorer`'s `intervals` view); every
 /// in-crate consumer calls [`compute_intervals_with`] with the dialect its
 /// caller already holds. `Tcl90` is the crate's established
-/// no-dialect-available default (see [`crate::codegen::CodegenCtx::numbers`]),
+/// no-dialect-available default (see `tcl_codegen::codegen::CodegenCtx::numbers`),
 /// and under it a bare leading zero is decimal — so for an 8.x target this
 /// entry reads `0755` as 755 rather than 493. Prefer the `_with` form.
 #[must_use]

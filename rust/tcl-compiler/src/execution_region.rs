@@ -355,8 +355,9 @@ impl EvaluatedBodyRegion {
     }
 }
 
-#[cfg(test)]
-pub(crate) fn evaluated_region_test_fixture() -> crate::executable_ir::ExecutableFunction {
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn evaluated_region_test_fixture() -> crate::executable_ir::ExecutableFunction {
     use crate::executable_ir::{ExecutableFunctionId, build_linear_executable_ir};
     use crate::ir::Statement;
     use crate::lowering::lower_to_ir;

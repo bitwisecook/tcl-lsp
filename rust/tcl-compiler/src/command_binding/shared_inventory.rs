@@ -9,7 +9,8 @@ use std::sync::Arc;
 
 /// Analysis writes detach a shared inventory; retained body selection shares it.
 #[derive(Debug, Clone, Default)]
-pub(super) struct SharedSourceInventory<T>(Arc<T>);
+#[doc(hidden)]
+pub struct SharedSourceInventory<T>(Arc<T>);
 
 impl<T: PartialEq> PartialEq for SharedSourceInventory<T> {
     fn eq(&self, other: &Self) -> bool {

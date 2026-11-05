@@ -157,7 +157,7 @@ fn original_observed_cache_retirement_keeps_child_artifacts_on_actual_child_sele
     let child = vm.child_id(&child_name).unwrap();
     vm.in_interp(child, |vm| {
         vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(
                 crate::environment::profile_for_dialect("tcl9.0"),
             ),
         ));

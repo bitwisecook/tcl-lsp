@@ -712,7 +712,7 @@ mod tests {
                 }
                 2 => {
                     vm.set_compiler(Box::new(
-                        tcl_compiler::compile_service::BytecodeCompileService::for_profile(
+                        tcl_codegen::compile_service::BytecodeCompileService::for_profile(
                             crate::environment::profile_for_dialect("tcl8.6"),
                         ),
                     ));

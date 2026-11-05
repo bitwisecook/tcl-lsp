@@ -395,7 +395,7 @@ const OWNED: &[OwnedPattern] = &[
     // asking is a second availability rule.
     OwnedPattern {
         needle: "has_command_in_this_dialect",
-        owners: &["rust/tcl-registry/src/", "rust/tcl-compiler/src/codegen/"],
+        owners: &["rust/tcl-registry/src/", "rust/tcl-codegen/src/codegen/"],
     },
     OwnedPattern {
         needle: "all_dialect_command_names",
@@ -869,7 +869,7 @@ mod tests {
         // registry's availability question legitimately.
         let fold = "if registry.has_command_in_this_dialect(head) { }\n";
         assert_eq!(
-            scan_owned(fold, Path::new("rust/tcl-compiler/src/codegen/values.rs")).len(),
+            scan_owned(fold, Path::new("rust/tcl-codegen/src/codegen/values.rs")).len(),
             0
         );
         assert_eq!(

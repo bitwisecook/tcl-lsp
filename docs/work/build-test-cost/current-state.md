@@ -13,7 +13,7 @@ for access).
 | 1 | Long-tail tests driven by `tcl` CLI start-up | **Landed**: reused CLI workers for `rust/tcl-cli/tests` | `rust/tcl-cli-support/src/{worker,sink}.rs`, test-tiers contract rule 9 |
 | 2 | `rust-check` is one serial 16-minute job | **Landed, awaiting first CI run**: `cargo xtask batch`/`make xtask-gates`; `rust-check` split into `lint` and `drift` matrix legs | `rust/xtask/src/main.rs`, `Makefile`, `.github/workflows/ci.yml`, `scripts/dev/test-pr-gate-path.sh` |
 | 3 | Repository weight on `work` | **Landed**: the evidence prune (`8ab317a`) took the tree from 10.7 GB to 0.34 GB; `make check-tracked-size` in `xtask-check` keeps it there | `scripts/dev/check-tracked-size.py`, `scripts/dev/test_tracked_size.py` |
-| 4 | Monolithic crates compiled twice | Not started | |
+| 4 | Monolithic crates compiled twice | **Landed, test parity against the base pending**: the emitters split into `tcl-codegen` | `rust/tcl-codegen`, `docs/design/contracts/project-layout.md` |
 | 5 | Hundreds of fat test binaries | Not started | |
 | 6 | Broken and racing CI caches | Not started (item 2 gives each `rust-check` leg its own cache key) | |
 | 7 | Exhaustive checks in unoptimised unit tests | Not started | |
@@ -126,3 +126,47 @@ Open:
   old commit, downloads them. Only a history rewrite removes them; that is the
   owner's call.
 - Re-time `kcs-index-links` after the prune (243 s against the old tree).
+
+## 4. Splitting `tcl-compiler`
+
+A balanced split is not available as a move: the production code (about
+338k of the crate's 908k lines; the rest is `#[cfg(test)]`) is one strongly
+connected module graph of 97 modules and 330k lines. Even `ir` reaches
+`analyser`, `command_binding` and `lowering`. Any further split first needs
+cycles broken by design.
+
+The one slice that comes out with few cut edges is the back end, now the
+`tcl-codegen` crate: `codegen` (30k production + 22k test lines), `inlining`
+and `compile_service`. It depends on `tcl-compiler`; nothing in
+`tcl-compiler` depends on it.
+
+- Edges cut: the list/format folds and `command_text` moved down into
+  `tcl_compiler::codegen_helpers` (re-exported as `codegen::helpers`); the
+  native-entry configuration helpers moved into `command_binding`
+  (`compile_service` delegates); doc links became plain text.
+- About 150 crate-private items that the emitters use became
+  `#[doc(hidden)] pub`: the emitters always used `tcl-compiler` internals.
+- Tests: emitter tests that lived in `tcl-compiler` moved to
+  `tcl-codegen` — 19 integration test files and an example, plus unit
+  tests in `src/seam_tests`. Fixtures they need from `tcl-compiler` are
+  behind its `test-support` feature (enabled only by `tcl-codegen`'s
+  dev-dependency); fixtures that hold a VM live in
+  `tcl_codegen::test_support`, since `tcl-compiler` cannot depend on
+  `tcl-vm`.
+- CI: the shard map re-keys the moved binaries and adds 22 rows, 19 of
+  which were missing on the base commit (`verify-nextest-binary-shards.py
+  --metadata-only` now passes: 417 targets). `wasm-real-link` runs
+  `-p tcl-codegen`; the `lsp_wasm`, GitHub Pages and SpecTcl-compat path
+  filters include `rust/tcl-codegen`. The five separately locked WASM crates
+  gained the new package in their lockfiles, and nothing else.
+
+Verified: `cargo check --workspace --all-targets --all-features` is clean
+apart from two dead-code warnings already on the base; `tcl-vm-wasm` checks
+for the host. `tcl-codegen`'s tests run; no failure is a missing fixture or
+path.
+
+Open:
+
+- Prove the `tcl-codegen` test failures are the base commit's: run the same
+  tests on `2c04bd9` and compare failure sets by name.
+- Re-time a cold library build against the base.

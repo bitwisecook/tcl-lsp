@@ -449,7 +449,7 @@ The seam in §4.6 — a Tcl script compiled by `tcl_compiler::codegen::wasm`
 calling an **extension-registered** command and dispatching into that
 extension — runs against the real runtime in
 `a_compiled_script_calls_an_extension_registered_command`
-(`rust/tcl-compiler/tests/wasm_real_link.rs`):
+(`rust/tcl-codegen/tests/wasm_real_link.rs`):
 an extension module shares the runtime's memory and function table, installs its
 `Tcl_ObjCmdProc` in the table and registers it from `Foo_Init` through the
 runtime's `Tcl_CreateObjCommand` export, and a compiled `foo` then reaches it

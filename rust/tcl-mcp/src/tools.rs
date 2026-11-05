@@ -778,20 +778,20 @@ fn compile_wasm(args: &Value) -> Value {
     let unit = tcl_compiler::compilation_unit::CompilationUnit::build_for_profile(
         source, &registry, false, profile,
     );
-    let mut wasm = tcl_compiler::codegen::wasm::compile_wasm(
+    let mut wasm = tcl_codegen::codegen::wasm::compile_wasm(
         &unit,
         &registry,
-        tcl_compiler::codegen::wasm::WasmCompileOptions::hosted(),
+        tcl_codegen::codegen::wasm::WasmCompileOptions::hosted(),
     );
     let codegen_plan = wasm.plan.as_str();
     let semantic_decline = wasm
         .plan
         .semantic_decline()
-        .map(tcl_compiler::codegen::wasm::WasmSemanticDecline::as_str);
+        .map(tcl_codegen::codegen::wasm::WasmSemanticDecline::as_str);
     let semantic_decline_detail = wasm
         .plan
         .semantic_decline()
-        .map(tcl_compiler::codegen::wasm::WasmSemanticDecline::detail_kind);
+        .map(tcl_codegen::codegen::wasm::WasmSemanticDecline::detail_kind);
     let function_count = wasm.functions.len();
     let bytes = wasm.to_bytes();
     let wat = wasm.to_wat();

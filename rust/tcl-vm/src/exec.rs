@@ -6821,7 +6821,7 @@ impl Vm {
             // instruction never raises. Popping/re-pushing the value (and
             // erroring on a non-boolean) desynchronised the operand stack from
             // our own `string is boolean` codegen
-            // (`tcl-compiler/src/codegen/cmd_subst.rs`), which emits C's
+            // (`tcl-codegen/src/codegen/cmd_subst.rs`), which emits C's
             // `tryCvtToBoolean; jumpTrue L; push ""; streq; jump end; L: pop;
             // push "1"` sequence and so needs both the flag and the value.
             // The flag is C's *strict* test — `TclSetBooleanFromAny` /

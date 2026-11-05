@@ -81,7 +81,8 @@ impl CellPlace {
 
 /// Why a variable word could not be resolved to a cell statically.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum VariableWordDecline {
+#[doc(hidden)]
+pub enum VariableWordDecline {
     /// The word is not one whole static reference, or its element key
     /// substitutes.
     Dynamic,
@@ -115,7 +116,8 @@ pub(crate) fn whole_reference(spelling: &str, config: tcl_lexer::LexerConfig) ->
 
 /// Symbolic cell selected by a completed variable-name datum. It supplies no
 /// current frame, physical cell, successful store or observer closure.
-pub(crate) fn name_data_place(name: &str) -> Option<CellPlace> {
+#[doc(hidden)]
+pub fn name_data_place(name: &str) -> Option<CellPlace> {
     if name.contains('\0') {
         return None;
     }
@@ -164,7 +166,8 @@ pub(crate) fn cell_place(name: &str, braced: bool) -> Option<CellPlace> {
 /// element keys. Both literal spellings select the same symbolic element, so
 /// native shadows cannot keep two incompatible aliases for that lookup.
 /// This is a syntax projection, not a physical-cell or successful-read proof.
-pub(crate) fn variable_word_place(
+#[doc(hidden)]
+pub fn variable_word_place(
     spelling: &str,
     source: &SourceSite,
     config: tcl_lexer::LexerConfig,
@@ -180,7 +183,8 @@ pub(crate) fn variable_word_place(
 
 /// Symbolic lookup syntax shared by original word and expression operands.
 /// This accepts no physical identity, successful-read or execution proof.
-pub(crate) fn variable_reference_place(
+#[doc(hidden)]
+pub fn variable_reference_place(
     spelling: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Result<CellPlace, VariableWordDecline> {

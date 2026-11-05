@@ -38,7 +38,7 @@ done
 `budgets.tsv` is the committed golden: one row per sample per compilation
 plan, counting the framing imports the emitted module still calls
 (`tcl_eval_code` — source re-parsed at run time, `tcl_invoke_argv` — compiled
-words with runtime dispatch, and the rest). `rust/tcl-compiler/tests/wasm_tiers.rs`
+words with runtime dispatch, and the rest). `rust/tcl-codegen/tests/wasm_tiers.rs`
 gates it and the oracle comparison together:
 
 ```
