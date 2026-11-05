@@ -1059,11 +1059,33 @@ impl Lsp {
     /// deterministic barrier: it only returns once the server has analysed the
     /// document's latest content, and cannot be dropped by the diagnostics
     /// debounce/coalescer.
+    ///
+    /// The server answers `ContentModified` with reason `pending`, `stale` or
+    /// `cancelled` while the latest content is not yet analysed; that is
+    /// retried within one load-scaled deadline, never read as empty findings.
     pub fn pull_diagnostics(&mut self, uri: &str) -> Vec<Value> {
-        let report = self.request(
-            "textDocument/diagnostic",
-            json!({ "textDocument": { "uri": uri } }),
-        );
+        const METHOD: &str = "textDocument/diagnostic";
+        let deadline = Instant::now() + scaled_timeout(REQUEST_TIMEOUT);
+        let report = loop {
+            let response = self.request_response(
+                METHOD,
+                json!({ "textDocument": { "uri": uri } }),
+                REQUEST_TIMEOUT,
+            );
+            let Some(err) = response.get("error") else {
+                break response.get("result").cloned().unwrap_or(Value::Null);
+            };
+            let retryable = err.get("code").and_then(Value::as_i64) == Some(-32801)
+                && matches!(
+                    err.pointer("/data/reason").and_then(Value::as_str),
+                    Some("pending" | "stale" | "cancelled")
+                );
+            assert!(
+                retryable && Instant::now() < deadline,
+                "{METHOD} -> error {err}"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        };
         // A `full` report carries `items`; an `unchanged` report (only returned
         // when a matching `previousResultId` is replayed, which this never sends)
         // carries none.
