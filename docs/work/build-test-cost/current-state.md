@@ -16,7 +16,7 @@ for access).
 | 4 | Monolithic crates compiled twice | **Landed**: the emitters split into `tcl-codegen`; test parity with the base proven | `rust/tcl-codegen`, `docs/design/contracts/project-layout.md` |
 | 5 | Hundreds of fat test binaries | **Landed**: integration tests merged per (crate, shard); no test lost | `rust/*/tests/it_<k>/`, `scripts/dev/rust-test-binary-shards.tsv`, test-tiers contract |
 | 6 | Broken and racing CI caches | **Landed, awaiting first CI run**: shard cache keyed per runner class; sccache outlives the test phase | `.github/workflows/ci.yml`, `scripts/dev/test-rust-tests-runner.sh` |
-| 7 | Exhaustive checks in unoptimised unit tests | Not started | |
+| 7 | Exhaustive checks in unoptimised unit tests | **Partly landed**: the registry prerequisite-index test runs its dialects concurrently (75 s → 38 s); coverage unchanged | `rust/tcl-registry/src/registry.rs` |
 | 8 | Version stamp reruns on every cargo call | Not started | |
 | 9 | Duplicate WASM builds | Not started | |
 | 10 | Runner queueing in bursts | Not started | |
@@ -264,3 +264,26 @@ Open:
 - Five legs still race to save one key per class ("another job may be
   creating this cache"); that is harmless, but saving from one leg needs the
   pinned setup action's save option checked first.
+
+## 7. Exhaustive unit tests
+
+`registry::prerequisite_index_tests::the_prerequisite_index_selects_what_the_full_scan_selects`
+compares the indexed registration lookup with the full scan for every
+identity on seven dialects and two registries (about 66,000 comparisons).
+Measured per dialect, the indexed lookup costs as much as the full scan in an
+unoptimised build: about 2 ms an identity on `tcl8.4` and `irules`, 0.2 ms
+on the others. Removing duplicate identities and building the default
+registry once changed nothing. The cost is in the registration owners
+(`native_registration_exact_descriptor`, TclOO registration,
+`native_registration_compiler_descriptor`). Those are naming-layer owners, and
+the test is their cross-check, so neither the owners nor the coverage
+changed. The dialects now run on their own threads: **75 s → 38 s** wall,
+bounded by `tcl8.4`. Identity keys still come from
+`tcl_syntax::naming::root_unrooted_key`.
+
+Open:
+
+- Why the uncached index path costs as much as the full scan (the naming
+  workstream's registration owners).
+- The `tcl-lsp-core` depth tests (`deeply_nested_*`, 25–181 s): their depths
+  are the property under test, so changing them is the owners' call.

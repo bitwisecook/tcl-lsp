@@ -20632,53 +20632,75 @@ mod fallback_projection_compiler_tests {
 mod prerequisite_index_tests {
     /// The indexed registration selection equals the full scan for every
     /// spec, member and implementation slot, on every dialect.
+    ///
+    /// Every distinct identity is compared once per registry and dialect.
+    /// Both lookups cost about as much as each other in an unoptimised build,
+    /// so the dialects run on their own threads: the same comparisons, with
+    /// the wall time bounded by the slowest dialect instead of their sum.
     #[test]
     fn the_prerequisite_index_selects_what_the_full_scan_selects() {
-        let mut compared = 0usize;
-        for environment in [
-            "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim", "irules",
+        // Independent of the environment; built once and shared.
+        let default_registry = super::CommandRegistry::build_default();
+        let compared: usize = std::thread::scope(|scope| {
+            [
+                "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim", "irules",
+            ]
+            .map(|environment| {
+                let default_registry = &default_registry;
+                scope.spawn(move || compare_index_with_full_scan(environment, default_registry))
+            })
+            .into_iter()
+            .map(|worker| worker.join().expect("comparison thread"))
+            .sum()
+        });
+        assert!(compared > 1000, "{compared} identities compared");
+    }
+
+    fn compare_index_with_full_scan(
+        environment: &str,
+        default_registry: &super::CommandRegistry,
+    ) -> usize {
+        let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
+        let dialect = crate::InvocationDialect::of_profile(profile);
+        let mut compared = 0;
+        for registry in [
+            crate::model::ingress::static_context_for_profile(profile).commands(),
+            default_registry,
         ] {
-            let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
-            let dialect = crate::InvocationDialect::of_profile(profile);
-            for registry in [
-                crate::model::ingress::static_context_for_profile(profile).commands(),
-                &super::CommandRegistry::build_default(),
-            ] {
-                let mut identities: Vec<String> = Vec::new();
-                for specs in registry.by_name.values() {
-                    for spec in specs {
-                        identities.push(spec.name.to_owned());
-                        identities.push(tcl_syntax::naming::root_unrooted_key(spec.name));
-                        let compilations = spec.native_compilation.into_iter().chain(
-                            spec.subcommands.iter().flat_map(|member| {
-                                member.native_compilation.into_iter().chain(
-                                    member
-                                        .sub_subcommands
-                                        .iter()
-                                        .filter_map(|worker| worker.native_compilation),
-                                )
-                            }),
-                        );
-                        for compilation in compilations {
-                            for lookup in compilation
-                                .implementation_prerequisites(dialect)
-                                .unwrap_or_default()
-                            {
-                                identities.push(lookup.slot.to_owned());
-                            }
+            let mut identities = std::collections::BTreeSet::<String>::new();
+            for specs in registry.by_name.values() {
+                for spec in specs {
+                    identities.insert(spec.name.to_owned());
+                    identities.insert(tcl_syntax::naming::root_unrooted_key(spec.name));
+                    let compilations = spec.native_compilation.into_iter().chain(
+                        spec.subcommands.iter().flat_map(|member| {
+                            member.native_compilation.into_iter().chain(
+                                member
+                                    .sub_subcommands
+                                    .iter()
+                                    .filter_map(|worker| worker.native_compilation),
+                            )
+                        }),
+                    );
+                    for compilation in compilations {
+                        for lookup in compilation
+                            .implementation_prerequisites(dialect)
+                            .unwrap_or_default()
+                        {
+                            identities.insert(lookup.slot.to_owned());
                         }
                     }
                 }
-                for identity in identities {
-                    assert_eq!(
-                        registry.native_compilation_for_registration_uncached(&identity, dialect),
-                        registry.native_compilation_for_registration_full_scan(&identity, dialect),
-                        "{environment}: {identity}"
-                    );
-                    compared += 1;
-                }
+            }
+            for identity in identities {
+                assert_eq!(
+                    registry.native_compilation_for_registration_uncached(&identity, dialect),
+                    registry.native_compilation_for_registration_full_scan(&identity, dialect),
+                    "{environment}: {identity}"
+                );
+                compared += 1;
             }
         }
-        assert!(compared > 1000, "{compared} identities compared");
+        compared
     }
 }
