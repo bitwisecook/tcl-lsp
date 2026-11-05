@@ -113,6 +113,7 @@ pub(crate) fn entry(
                 required_core_family: Some(tcl_dialect::model::Family::Tcl),
                 package: package.to_owned(),
                 version: Some(version.to_owned()),
+                accepts_any_requested_version: false,
                 implementation_id: implementation.to_owned(),
                 command_surface: commands,
                 compiler_hooks,

@@ -3768,3 +3768,38 @@ mod interpreter_provided_package_require {
         assert_eq!(plain, required);
     }
 }
+
+// A package whose commands the registry declares installs exactly that
+// surface, so the rest of the command world stays proved after requiring it.
+// A package nothing declares remains an unknown loader.
+mod declared_package_require {
+    use super::*;
+
+    const BODY: &str = "proc f {a} { puts $nope }\nf 1\n";
+
+    #[test]
+    fn requiring_a_declared_package_keeps_procedure_diagnostics() {
+        for require in [
+            "package require http",
+            "package require http 2.9",
+            "package require struct::set",
+        ] {
+            let found = codes(&format!("{require}\n{BODY}"), D);
+            for code in ["W210", "W214"] {
+                assert!(
+                    found.iter().any(|c| c == code),
+                    "`{require}` lost {code}: {found:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn requiring_an_undeclared_package_stays_an_unknown_loader() {
+        let found = codes(
+            &format!("package require no_such_package_anywhere\n{BODY}"),
+            D,
+        );
+        assert!(!found.iter().any(|c| c == "W214"), "{found:?}");
+    }
+}

@@ -66,7 +66,7 @@ mod native_control_carrier_tests;
 mod original_body_word_geometry_tests;
 #[cfg(test)]
 mod passive_metadata_tests;
-pub use execution_regions::stock_body_provider_loader;
+pub use execution_regions::{declared_surface_package_loader, stock_body_provider_loader};
 // `pub(crate)` for one item: `structured::parse_switch_options`, which the
 // dispatch chain's lowering asks where a `switch`'s options end, and whether
 // `--` closed them, rather than carrying a second copy of that rule.

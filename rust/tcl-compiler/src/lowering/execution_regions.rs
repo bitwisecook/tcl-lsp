@@ -27,6 +27,56 @@ use tcl_registry::InvocationArguments;
 use tcl_registry::body_execution::{BodyExecutionSelection, BodyExecutionSpec, BodyOperand};
 use tcl_syntax::word_rules::WordValueRules;
 
+/// A loader for `package` when the registry declares its commands, through a
+/// loaded `SpecTcl` pack or a shipped package spec. It installs exactly the
+/// declared surface; a package that also redefines other commands is not
+/// modelled.
+#[must_use]
+pub fn declared_surface_package_loader(
+    registry: &tcl_registry::CommandRegistry,
+    package: &str,
+) -> Option<crate::command_binding::TrustedPackageLoader> {
+    let mut command_surface = registry
+        .command_names()
+        .filter(|name| {
+            registry
+                .get(name)
+                .and_then(|spec| spec.required_package)
+                .is_some_and(|required| required == package)
+        })
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    if command_surface.is_empty() {
+        return None;
+    }
+    command_surface.sort_unstable();
+    Some(crate::command_binding::TrustedPackageLoader {
+        required_core_family: None,
+        package: package.to_owned(),
+        version: None,
+        accepts_any_requested_version: true,
+        implementation_id: format!("registry-declared:{package}"),
+        compiler_hooks: command_surface
+            .iter()
+            .map(|command| {
+                (
+                    command.clone(),
+                    tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+                )
+            })
+            .collect(),
+        command_surface,
+        definition_dispatchers: std::collections::BTreeSet::new(),
+        optional_command_surface: Vec::new(),
+        namespace_exports: std::collections::BTreeMap::new(),
+        optional_namespace_exports: std::collections::BTreeMap::new(),
+        lookup_dependencies: Vec::new(),
+        installed_lookup_dependencies: Vec::new(),
+        state_dependency_namespaces: Vec::new(),
+        modelled_state_variables: Vec::new(),
+    })
+}
+
 /// Adapt explicitly selected stock distribution data to the shared source
 /// kernel. `None` retains the audited intersection without guessing a version.
 #[must_use]
@@ -102,6 +152,7 @@ pub fn stock_body_provider_loader(
         required_core_family: Some(provider.required_core_family),
         package: provider.package.into(),
         version: version.map(str::to_owned),
+        accepts_any_requested_version: false,
         implementation_id: provider.implementation_id.into(),
         // The audited stock body provider surface consists of Tcl procedures.
         compiler_hooks: commands

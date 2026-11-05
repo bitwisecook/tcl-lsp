@@ -1160,6 +1160,9 @@ pub struct TrustedPackageLoader {
     pub package: String,
     /// Exact selected package version, when established by the provider.
     pub version: Option<String>,
+    /// The surface is declared for the package rather than for one audited
+    /// version, so any literal version requirement selects it.
+    pub accepts_any_requested_version: bool,
     /// Stable provider/source implementation identity.
     pub implementation_id: String,
     /// Commands installed by this selected loader.
@@ -20913,6 +20916,29 @@ fn interpreter_provided_packages(
         .collect()
 }
 
+/// Authored source requiring a package the registry declares trusts a loader
+/// of exactly that surface. Runtime and inherited entries never assert one.
+fn declared_surface_loader(
+    state: &ModuleCommandBindings,
+    package: &str,
+) -> Option<TrustedPackageLoader> {
+    let baseline = &state.baseline;
+    if baseline.native_entry.is_some()
+        || baseline.unknown_entry
+        || baseline.source_point_entry.is_some()
+        || baseline.invocation_realm != tcl_dialect::model::InvocationRealm::RuleLoader
+    {
+        return None;
+    }
+    let registry = baseline.registry_owner.as_ref()?.registry();
+    let profile = registry.profile()?;
+    if profile.is_irules() || profile.package_protocol() != Some(tcl_dialect::PackageProtocol::Tcl)
+    {
+        return None;
+    }
+    crate::lowering::declared_surface_package_loader(registry, package)
+}
+
 fn apply_package_transition(
     state: &mut ModuleCommandBindings,
     transition: &tcl_registry::model::binding::PackageTransition,
@@ -20948,7 +20974,12 @@ fn apply_package_transition(
                 state.mark_opaque_binding_mutation();
                 return;
             }
-            let loader = state.baseline.trusted_loaders.get(package).cloned();
+            let loader = state
+                .baseline
+                .trusted_loaders
+                .get(package)
+                .cloned()
+                .or_else(|| declared_surface_loader(state, package));
             let selected = loader
                 .filter(|loader| trusted_loader_is_selected(state, loader, requirements, *exact));
             let Some(loader) = selected else {
@@ -21051,6 +21082,11 @@ fn trusted_loader_is_selected(
     }
     if requirements.is_empty() {
         return true;
+    }
+    if loader.accepts_any_requested_version {
+        return requirements
+            .iter()
+            .all(|requirement| requirement.literal().is_some());
     }
     let (Some(version), Some(release)) = (loader.version.as_deref(), state.baseline.release) else {
         return false;
@@ -23183,6 +23219,7 @@ mod tests {
             required_core_family: Some(Family::Tcl),
             package: "audited".to_owned(),
             version: Some("1.0".to_owned()),
+            accepts_any_requested_version: false,
             implementation_id: "audited-implementation".to_owned(),
             command_surface: vec!["::audited::run".to_owned()],
             compiler_hooks: BTreeMap::new(),
