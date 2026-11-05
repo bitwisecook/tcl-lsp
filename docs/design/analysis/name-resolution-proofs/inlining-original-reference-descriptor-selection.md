@@ -64,17 +64,16 @@ External bigip behavior is not tested here. Exact descriptor labels and original
 
 ## Consumer bindings
 
-- [rust/tcl-compiler/src/inlining/reference.rs](../../../../rust/tcl-compiler/src/inlining/reference.rs), `called_descriptors`: Original closed advisory Registry labels before source appendix mutation; no tail heuristic or Native grant.
-- [rust/tcl-compiler/src/inlining/reference.rs](../../../../rust/tcl-compiler/src/inlining/reference.rs), `lower_definition`: Actual produced declaration key must select exact backing Registry row; body/shape remain original producer.
+- `rust/tcl-compiler/src/inlining/reference.rs`, `called_descriptors`: Original closed advisory Registry labels before source appendix mutation; no tail heuristic or Native grant.
+- `rust/tcl-compiler/src/inlining/reference.rs`, `lower_definition`: Actual produced declaration key must select exact backing Registry row; body/shape remain original producer.
 - [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `original_argument_metadata_for_module`: Original whole-source argument metadata under same retained Module, independent of entered Native invocation.
 - [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs), `unanimous_command_words`: Existing closed consensus readonly descriptor/word advice, not selected execution or role proof.
 - [rust/tcl-compiler/src/site_claims.rs](../../../../rust/tcl-compiler/src/site_claims.rs), `reference_body_facts`: Existing independent selected pack provenance; labels and constructor keys cannot supply it.
-- [rust/tcl-compiler/src/inlining/reference.rs](../../../../rust/tcl-compiler/src/inlining/reference.rs), `inlining::reference::tests::original_reference_candidates_use_selected_labels_instead_of_source_tails` (linked): Original Logical alias source selects the exact string descriptor label and never the alias reporting name; an unrelated qualified name or source-defined same tail does not select that label. Missing metadata, changed whole source or a Registry with a genuinely replaced same-named row withdraws candidates. This is conditional import-candidate advice, not pack or Native admission.
-- [rust/tcl-compiler/src/inlining/reference.rs](../../../../rust/tcl-compiler/src/inlining/reference.rs), `inlining::reference::tests::reference_definition_uses_its_produced_key_and_exact_registry_row` (linked): The actual lowered authored single-procedure declaration supplies its produced qualified key and must select the exact expected Registry row. An unrelated qualified tail, two declarations, or an equal-name fresh row from a different Registry is refused. No body is imported or executed by this control, and no Native name or procedure identity is granted.
+- `rust/tcl-compiler/src/inlining/reference.rs`, `inlining::reference::tests::original_reference_candidates_use_selected_labels_instead_of_source_tails` (linked): Original Logical alias source selects the exact string descriptor label and never the alias reporting name; an unrelated qualified name or source-defined same tail does not select that label. Missing metadata, changed whole source or a Registry with a genuinely replaced same-named row withdraws candidates. This is conditional import-candidate advice, not pack or Native admission.
+- `rust/tcl-compiler/src/inlining/reference.rs`, `inlining::reference::tests::reference_definition_uses_its_produced_key_and_exact_registry_row` (linked): The actual lowered authored single-procedure declaration supplies its produced qualified key and must select the exact expected Registry row. An unrelated qualified tail, two declarations, or an equal-name fresh row from a different Registry is refused. No body is imported or executed by this control, and no Native name or procedure identity is granted.
 
 ## Evidence
 
-- [rust/tcl-compiler/src/inlining](../../../../rust/tcl-compiler/src/inlining)
 - [rust/tcl-compiler](../../../../rust/tcl-compiler)
 - [rust/tcl-compiler/src/command_binding](../../../../rust/tcl-compiler/src/command_binding)
 - [rust/tcl-compiler/src/registry_invocation](../../../../rust/tcl-compiler/src/registry_invocation)

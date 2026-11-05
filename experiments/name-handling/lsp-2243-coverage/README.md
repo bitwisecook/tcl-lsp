@@ -11,9 +11,9 @@ The shared `FixedCorpusSource` owner rejects missing or changed bytes. The two
 reported substitution extents are 43921–43926 and 43960–43965.
 
 The diagnostic patch was built on
-`ad4335a83992de1b674fc74baf243e3cd100a46c`; [build-seal.txt](build-seal.txt)
-records the exact patch and source hashes, and [binaries.sha256](binaries.sha256)
-records the copied executable hashes. [audit.patch.json](audit.patch.json) preserves the
+`ad4335a83992de1b674fc74baf243e3cd100a46c`; `build-seal.txt`
+records the exact patch and source hashes, and `binaries.sha256`
+records the copied executable hashes. `audit.patch.json` preserves the
 failing probes and their build inputs as UTF-8 lines with the original patch digest.
 Concatenating the JSON `lines` values reconstructs the exact sealed patch. The digest file
 `rust/tcl-test-support/data/tcllib-2.0-imap4.sha256` must also be present when
@@ -23,17 +23,17 @@ are evidence of missing coverage, not passing abstention assertions.
 
 | Check | Actual result |
 | --- | --- |
-| Combined DB library and corpus test build | Exit 0; [build.log](build.log) |
+| Combined DB library and corpus test build | Exit 0; `build.log` |
 | Checked diagnostic provider | Available, zero checks |
 | Actual solve top-level unit | Not complexity guarded; no opaque native accesses; replay report says complete |
-| Original-source selector at 43921–43926 | Missing; [source-owner.log](source-owner.log), exit 101 |
+| Original-source selector at 43921–43926 | Missing; `source-owner.log`, exit 101 |
 | Original-source selector at 43960–43965 | Not reached after the first missing-read assertion |
 | Document taint solve executions | One |
-| Procedure `function_lattice` executions | Zero; [memo-counter.log](memo-counter.log), exit 101 |
+| Procedure `function_lattice` executions | Zero; `memo-counter.log`, exit 101 |
 | Warm report reuse assertion | Not reached after the missing lattice-work assertion |
-| Quiet startup and active `gets`/`argc` rebind/unset-rebind controls | Pass; [active-controls.log](active-controls.log), exit 0 |
+| Quiet startup and active `gets`/`argc` rebind/unset-rebind controls | Pass; `active-controls.log`, exit 0 |
 
-[Source tracing](source-phases.log) records zero procedures, one function, two
+Source tracing records zero procedures, one function, two
 blocks and thirteen statements. The first `package require Tcl 8.5 9` at byte
 2661 has one known target. The following `package provide` at 2687, `namespace
 eval` at 2716 and outer `if` at 43652 have no known targets and retain
@@ -71,6 +71,6 @@ reported revisions, `04fda11d` and `c945a41e`: its suppression was
 comparison identifies an old cross-unit path; it does not reproduce the old
 intermittency or establish current exact-file read coverage.
 
-A separate [public native-entry probe](seed-audit/README.md) reproduces a
+A separate public native-entry probe reproduces a
 current incoming-taint provenance defect at genuinely retained top-level reads.
 Its diagnostic and coverage limits remain separate from #2243.

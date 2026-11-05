@@ -1,6 +1,6 @@
 # Original fixed nonnumeric equality values
 
-The retained fixed [probe](probe.tcl) ran against original Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and pinned Jim. All six processes exited zero; catches inside the probe preserve individual failures. The [original manifest](manifest.json) retains actual commands, matching Tcl source libraries, provider/init hashes before and after, stdout/stderr hashes and capture time. All six empty stderr channels are retained.
+The retained fixed probe ran against original Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and pinned Jim. All six processes exited zero; catches inside the probe preserve individual failures. The original manifest retains actual commands, matching Tcl source libraries, provider/init hashes before and after, stdout/stderr hashes and capture time. All six empty stderr channels are retained.
 
 For the fixed nonnumeric literal `GET`, the observed numeric comparison operator, textual equality and exact Switch agree for the five fixed left-hand values on all six providers. The separate numeric `01`, spaced `1` and exponent examples demonstrate why this agreement cannot be assumed for potentially numeric fixed values. The shared selected numeral grammar must independently rule out a numeric literal before that operator is considered a string-equality source proposal.
 

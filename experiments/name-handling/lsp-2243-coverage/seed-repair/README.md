@@ -1,6 +1,6 @@
 # Incoming external-global seed repair
 
-The baseline [public native-entry probe](../seed-audit/README.md) reproduced
+The baseline public native-entry probe reproduced
 four seed-map failures on genuine retained top-level reads: a reachable global
 writer masks independent `argv` and `env` provenance, while a qualified `argv`
 read and a root alias miss the seed. T100 still emits from independently unknown
@@ -19,9 +19,9 @@ On sealed source `82ff2b798c86b54bb95d3f7bb1142d868cb71157` plus patch
 `f9c132b4bf1ce4e22a3cae040e85e5660968e7729ef904be9b1c0376ffa7110a`,
 production compiler Clippy and the compiler library test build both exited 0.
 All 42,917 hydrated tracked files retained identical hashes across the build.
-The [receipt](receipt.json) records commands, actual exits, source hashes,
-binary hash and the earlier failed/interrupted attempts. The raw [Clippy log](clippy.log),
-[build log](build.log) and six process streams remain alongside it.
+The receipt records commands, actual exits, source hashes,
+binary hash and the earlier failed/interrupted attempts. The raw Clippy log,
+build log and six process streams remain alongside it.
 
 Twelve counted tests passed in six fresh processes: four new fixed regressions,
 four existing provenance/formal/global-writer controls and four interruption

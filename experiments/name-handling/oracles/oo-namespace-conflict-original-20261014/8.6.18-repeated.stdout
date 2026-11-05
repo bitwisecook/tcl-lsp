@@ -1,2 +1,0 @@
-PROVIDER 8.6.18
-RESULT 1 {can't create namespace "::::Outer::::allocated": already exists} {TCL OPERATION NAMESPACE CREATEEXISTING} {}

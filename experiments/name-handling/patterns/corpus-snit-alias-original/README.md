@@ -36,7 +36,7 @@ its package warnings reached stderr; its raw setup refusal remains retained.
 Historical command paths referred to the input at capture time; each directory
 preserves those exact input and runner bytes independently of the final input.
 
-See [question](question.md), [input](probe.tcl), [runner](run.py),
+See question, [input](probe.tcl), runner,
 [final measurements](result.json) and [source provenance](source.json).
 All eight retained package-source hashes match before/after. Each available
 provider ran the final input once in a fresh process with a 30-second bound.

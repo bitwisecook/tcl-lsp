@@ -171,7 +171,6 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ## Evidence
 
-- [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json)
 - [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt)
 - [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt)
 - [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt)

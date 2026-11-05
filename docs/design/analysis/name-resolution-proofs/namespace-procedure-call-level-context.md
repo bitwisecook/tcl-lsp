@@ -72,5 +72,4 @@ No original BIG-IP response to this exact namespace/procedure call-context scrip
 ## Evidence
 
 - [runtime/rust/tests/data/native_namespace_call_levels](../../../../runtime/rust/tests/data/native_namespace_call_levels)
-- [runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files](../../../../runtime/rust/tests/data/native_namespace_call_levels/recorded-launch-files)
 - [runtime/rust](../../../../runtime/rust)

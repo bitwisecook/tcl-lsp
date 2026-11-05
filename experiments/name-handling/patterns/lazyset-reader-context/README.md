@@ -20,7 +20,7 @@ namespace-captured command prefixes.
 
 [Source provenance](source-provenance.json) retains manifest, full-file,
 selected-range and licence hashes. The [unchanged source](upstream/lazyset.tcl)
-and [upstream licence](upstream/license.terms) are retained. The source's
+and upstream licence are retained. The source's
 documentation identifies Roy Keene's 2018 copyright; no new licence header
 was inserted into upstream bytes.
 
@@ -65,7 +65,7 @@ or package implementation was substituted. The Jim binary matches the retained
 upstream revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`; no fresh upstream
 HEAD claim is made.
 
-[Final original records](results-trace-add/records.json) and
+Final original records and
 [provider provenance](results-trace-add/provenance.json) retain all 36 exact
 captures, full source/driver/setup/question bytes, raw stdout/stderr, binary
 hashes, reported patchlevels, matching C `TCL_LIBRARY` selectors and startup
@@ -73,15 +73,15 @@ source hashes. Return options are captured where supported; C8.4 retains
 message/errorCode/errorInfo through native two-argument catch. Every process
 exited zero; guest completion and reached stages are separate fields.
 
-[Earlier exact captures](final-results/records.json) retain the first authored
+Earlier exact captures retain the first authored
 core inputs using legacy `trace variable cell w`: C8.4–8.6 reached I/R/I,
 but C9 refused that removed command form. The final modern core inputs change
 only the trace registration form. An even earlier driver provenance attempt
 stopped before any probe because C8.4 has no `generic/tclTrace.c`; its
 [refusal](results/driver-refusal.json) and startup bytes remain retained.
-[run-captured.py](run-captured.py) matches both completed captures' runner hash;
-[run-first-attempt.py](run-first-attempt.py) retains the failed runner. The
-[replay runner](run.py) adds only the repository licence header.
+`run-captured.py` matches both completed captures' runner hash;
+`run-first-attempt.py` retains the failed runner. The
+replay runner adds only the repository licence header.
 
 ## Recognition and consumer boundary
 
@@ -107,7 +107,7 @@ with no consumer accuracy or edit/optimisation grant.
 
 Array elements, empty indices, repeated reads, multiple traces, prefix
 replacement, cell unset/recreation and arbitrary prefix scripts remain outside
-this bounded question. Native F5 contexts remain [unanswered](F5-REQUEST.md).
+this bounded question. Native F5 contexts remain unanswered.
 
 Replay with all supplied original shells and a fresh output directory:
 

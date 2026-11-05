@@ -1,9 +1,0 @@
-
-running 4 tests
-test taint::tests::incoming_external_globals_keep_physical_identity_and_independent_provenance ... ok
-test taint::tests::incoming_external_globals_use_retained_availability_and_entry ... ok
-test taint::tests::incoming_global_metadata_cannot_replace_genuine_formal_or_gets_sources ... ok
-test taint::tests::incoming_global_projection_refuses_foreign_nonroot_and_recreated_storage ... ok
-
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 10915 filtered out; finished in 2.88s
-

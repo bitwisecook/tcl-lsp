@@ -1,9 +1,0 @@
-{
-  "exit": 0,
-  "rows": 48,
-  "command": [
-    "/tmp/lsp-2376-query-purpose-probe"
-  ],
-  "rlibs_unchanged": true,
-  "duration": "Not recorded"
-}

@@ -54,9 +54,6 @@ No appliance observation for this question.
 
 - [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json)
 - [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl)
 - [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl)
 - [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl)
 - [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl)

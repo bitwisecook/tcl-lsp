@@ -1,2 +1,0 @@
-values {ONE TWO 0 0}
-names {{$literal} {${braced}}}

@@ -1,2 +1,0 @@
-core-availability 1 {invalid command name "foreachLine"}
-fileutil-availability 1 {can't find package fileutil}

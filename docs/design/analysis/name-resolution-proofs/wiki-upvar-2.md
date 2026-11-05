@@ -58,5 +58,4 @@ No implementation binding is claimed by this observation record.
 
 - [experiments/name-handling/patterns/wiki-probes.tcl](../../../../experiments/name-handling/patterns/wiki-probes.tcl)
 - [rust/tcl-registry/tests/data/native_wiki_naming_patterns/capture-runner-original.txt](../../../../rust/tcl-registry/tests/data/native_wiki_naming_patterns/capture-runner-original.txt)
-- [rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json](../../../../rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json)
 - [experiments/name-handling/patterns/wiki-results](../../../../experiments/name-handling/patterns/wiki-results)

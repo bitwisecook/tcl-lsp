@@ -1,4 +1,0 @@
-local|localVarName|LOCAL
-namespace|parsedVarName|GLOBAL
-linked|parsedVarName|GLOBAL
-completion|0|GLOBAL

@@ -8,11 +8,11 @@ The result-data case retains an unevaluated dollar reference.
 
 | Oracle | Direct / captured alias | Stopped setup | Result data | Capture |
 | --- | --- | --- | --- | --- |
-| C Tcl 8.4.20 | Expected missing-read error; cleanup sees `1`; `absent` remains absent | Body unentered; cleanup sees `1` | `data_only` remains absent | [Raw output](c-results/8.4.20/stdout) |
-| C Tcl 8.5.19 | Same | Same | Same | [Raw output](c-results/8.5.19/stdout) |
-| C Tcl 8.6.18 | Same | Same | Same | [Raw output](c-results/8.6.18/stdout) |
-| C Tcl 9.0.4 | Same | Same | Same | [Raw output](c-results/9.0.4/stdout) |
-| C Tcl 9.1.0 | Same | Same | Same | [Raw output](c-results/9.1.0/stdout) |
+| C Tcl 8.4.20 | Expected missing-read error; cleanup sees `1`; `absent` remains absent | Body unentered; cleanup sees `1` | `data_only` remains absent | Raw output |
+| C Tcl 8.5.19 | Same | Same | Same | Raw output |
+| C Tcl 8.6.18 | Same | Same | Same | Raw output |
+| C Tcl 9.0.4 | Same | Same | Same | Raw output |
+| C Tcl 9.1.0 | Same | Same | Same | Raw output |
 | Jim | Unmeasured for these exact C Tcltest inputs | Unmeasured | Unmeasured | Jim's separate [native shared-lifecycle control](../patterns/jim-results-5bac7c9/jim-native/test-shared-lifecycle/record.json) does not answer these inputs |
 | F5 | Unmeasured for these exact C Tcltest inputs | Unmeasured | Unmeasured | [Context-specific pending questions](../patterns/f5/questions.json) |
 
@@ -22,10 +22,10 @@ control: it records `stop`, body entry `0` and cleanup value `1`. It is not a
 failed attempt to load the harness. Process completion is `0`; raw reporting
 and error information are retained.
 
-[records.json](c-results/records.json) retains executable, experiment,
+`records.json` retains executable, experiment,
 `init.tcl`, `tcltest.tcl` and output hashes. Each release directory includes
 its exact input, metadata and both output streams. The
-[original capture runner](c-results/capture-original.txt) records the code
+original capture runner records the code
 used for these immutable captures. To create another capture from the same
 source-built distributions, choose a new destination:
 

@@ -40,8 +40,8 @@ No native observation for this precise question and provider is attached; no res
 
 - [runtime/rust/src/cmd_mathop.rs](../../../../runtime/rust/src/cmd_mathop.rs), `cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls` (linked): All eighty-four unchanged original recorded procedure/source controls compare under actual selected engine and explicit Jim distribution bootstrap. Recorded source results do not establish independent compiler/worker/object admission or an executed Runtime pass.
 
-- [rust/tcl-compiler/src/codegen/statements/native_mathop.rs](../../../../rust/tcl-compiler/src/codegen/statements/native_mathop.rs), `CodegenCtx::append_native_mathop_tasks`: Translate the selected original mathop recipe into operand/literal/primitive tasks without creating an operand evaluation that the recipe omits.
-- [rust/tcl-compiler/src/codegen/statements/native_mathop.rs](../../../../rust/tcl-compiler/src/codegen/statements/native_mathop.rs), `codegen::statements::native_mathop::tests::original_comparison_preparation_reaches_nested_words_without_an_inline_hook` (linked): Captured-entry software code generation retains the selected comparison recipe for nested original mathop source words in list and return contexts while omitting tick operand literals where that recipe does not evaluate operands.
+- `rust/tcl-compiler/src/codegen/statements/native_mathop.rs`, `CodegenCtx::append_native_mathop_tasks`: Translate the selected original mathop recipe into operand/literal/primitive tasks without creating an operand evaluation that the recipe omits.
+- `rust/tcl-compiler/src/codegen/statements/native_mathop.rs`, `codegen::statements::native_mathop::tests::original_comparison_preparation_reaches_nested_words_without_an_inline_hook` (linked): Captured-entry software code generation retains the selected comparison recipe for nested original mathop source words in list and return contexts while omitting tick operand literals where that recipe does not evaluate operands.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

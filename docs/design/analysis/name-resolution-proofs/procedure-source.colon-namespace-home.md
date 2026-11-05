@@ -46,6 +46,5 @@ No appliance execution of these procedure source controls is attached.
 ## Evidence
 
 - [rust/tcl-syntax/tests/data/native_procedure_name/cases.json](../../../../rust/tcl-syntax/tests/data/native_procedure_name/cases.json)
-- [rust/tcl-syntax/tests/data/native_procedure_name/run.py](../../../../rust/tcl-syntax/tests/data/native_procedure_name/run.py)
 - [rust/tcl-syntax/tests/data/native_procedure_name/manifest.json](../../../../rust/tcl-syntax/tests/data/native_procedure_name/manifest.json)
 - [rust/tcl-syntax/tests/data/native_procedure_name/rows.txt](../../../../rust/tcl-syntax/tests/data/native_procedure_name/rows.txt)

@@ -29,7 +29,7 @@ The source declarations and command queries need separate measurements before
 those outcomes can become narrower adapter expectations. Equal displayed
 names supply no identity equivalence or deduplication rule.
 
-[The initial input](input.tcl) additionally requested `info library` for
+The initial input additionally requested `info library` for
 identity. All five C captures succeeded and retain matching library identity.
 Jim rejected that identity operation before any query. Those original captures
 remain intact. The portable input changes only the identity header to

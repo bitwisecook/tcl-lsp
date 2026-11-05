@@ -64,10 +64,3 @@ No observation of this exact question is attached for this provider.
 ## Evidence
 
 - [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory.c](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory.c)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-manifest.json](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-manifest.json)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.4.20.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.4.20.jsonl)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.5.19.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.5.19.jsonl)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.6.18.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-8.6.18.jsonl)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.0.4.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.0.4.jsonl)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.1.0.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-9.1.0.jsonl)
-- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-Jim.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-inventory-Jim.jsonl)

@@ -50,6 +50,5 @@ Exact original body hashes and process outcomes join the unchanged original rece
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/probe.tcl)
-- [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/capture.py)
 - [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stdout](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stdout)
 - [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stderr)

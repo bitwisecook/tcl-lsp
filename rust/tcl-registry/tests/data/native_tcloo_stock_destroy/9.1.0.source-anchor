@@ -1,2 +1,0 @@
-138:    DCM("destroy", true,	TclOO_Object_Destroy),
-158:    DCM("destroy", true,	TclOO_SingletonInstance_Destroy),

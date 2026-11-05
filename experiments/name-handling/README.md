@@ -12,13 +12,13 @@ Existing command/variable/namespace vectors live in
 | Path | Meaning |
 | --- | --- |
 | Retained report and action source validation | Original source/worker/full report collection, current diagnostic publisher rejoin and actual LSP adapters; exact source reviews, retained editor failure and passing repair; real five-library build running, no test acceptance. |
-| [Original Jim variable construction](oracles/jim-variable-construction-20261016/evidence.json) | Canonical/Tail/Create versus root assignment, array-element distinction and CString formatter outputs; exact original scripts/provider hashes, independent of migratedRuntime acceptance. |
-| [Original C Import preload](oracles/c-import-preload-20261016/auto-import-shadow.json) | Actual C8.4 selected global direct helper versus C8.5+ current-namespace ordinary evaluation; global/local shadow and trace controls across all five releases. |
-| [Original C compiled-stack body](oracles/c-compiled-stack-body-20261016/results.json) | Dynamic Catch and For-start controls on all five original C releases, with same-header List→Bytecode observations where supported and exact original source entry slices; Rust controls unexecuted at capture. |
-| [Original Jim physical procedure body](oracles/jim-original-info-body-20261016/evidence.json) | Actual lazy body-header result without a body getter, warm original command cache, and separately bounded native-worker old-result deletion window; original probe only, Rust acceptance pending. |
-| [Original Jim assignment retirement](oracles/jim-assignment-retirement-20261016/) | Old-cell retirement precedes assignment; observer source, exact incoming/old counts and raw native output retained. |
-| [Original C compiled List body](oracles/c86-compiled-list-body-20261016/) | Actual C8.6 compiled-stack body turns the same List header into Bytecode and retains original variable error shape; generic direct-eval purpose remains separate. |
-| [Installed C/Jim provider pairing](oracles/provider-pairing-20261016/README.txt) | Five original C executable/library/Tcltest pairs and contemporaneous latest Jim setup, with reusable probes and exact hashes; setup acceptance only. |
+| Original Jim variable construction | Canonical/Tail/Create versus root assignment, array-element distinction and CString formatter outputs; exact original scripts/provider hashes, independent of migratedRuntime acceptance. |
+| Original C Import preload | Actual C8.4 selected global direct helper versus C8.5+ current-namespace ordinary evaluation; global/local shadow and trace controls across all five releases. |
+| Original C compiled-stack body | Dynamic Catch and For-start controls on all five original C releases, with same-header List→Bytecode observations where supported and exact original source entry slices; Rust controls unexecuted at capture. |
+| Original Jim physical procedure body | Actual lazy body-header result without a body getter, warm original command cache, and separately bounded native-worker old-result deletion window; original probe only, Rust acceptance pending. |
+| Original Jim assignment retirement | Old-cell retirement precedes assignment; observer source, exact incoming/old counts and raw native output retained. |
+| Original C compiled List body | Actual C8.6 compiled-stack body turns the same List header into Bytecode and retains original variable error shape; generic direct-eval purpose remains separate. |
+| `Installed C/Jim provider pairing` | Five original C executable/library/Tcltest pairs and contemporaneous latest Jim setup, with reusable probes and exact hashes; setup acceptance only. |
 | Original Jim local namespace projection and dictionary keys |35 original SDK rows, exact namespace79/79 pairing and unchanged247 provider inputs per capture; local first-key/ASCII construction and no-pattern key getter observations, without accepted Import or actual outer local-producer completion. |
 | Original Jim namespace-info projection | Actual Source relay, lmap/string-cat/header observations:15rows, original namespace79/79,247 unchanged provider inputs; genuine/empty observations and mutable-case software refusals have separate acceptance, with no command-key inverse or Import grant. |
 | [patterns/w114-original-reference-atoms/README.md](patterns/w114-original-reference-atoms/README.md) | Original scalar reference atoms for expression advice; fixed C5/pinned Jim grammar observations preserve RequiresReview and independent lookup/Native scope. |
@@ -26,7 +26,7 @@ Existing command/variable/namespace vectors live in
 | `results/original-workspace-import-patterns-20261015/README.md` | Original C5/pinned Jim escaped import patterns and reached calls; shared literal-pattern classification supplies no lookup census or Native grant. |
 | [reference-tail-proposal-20261015/README.md](reference-tail-proposal-20261015/README.md) | Original reference-tail proposals retain initial Jim signal11 and separate controlled cases; no failure is replaced or inferred to be an LSP result. |
 | [decoded-arm-script-values-20261015/README.md](decoded-arm-script-values-20261015/README.md) | Original C5/pinned Jim distinguish literal command-name braces from Return script data; no F5, Rust or Native acceptance follows. |
-| [cases.tcl](cases.tcl) | Portable C Tcl 8.4-compatible observation suite; executable measurements, no manufactured expected answers |
+| `cases.tcl` | Portable C Tcl 8.4-compatible observation suite; executable measurements, no manufactured expected answers |
 | [case-catalogue.md](case-catalogue.md) | Exact case IDs, semantic questions and consumer coverage |
 | [pattern-sources.md](pattern-sources.md) | Maintained corpus and Tcl Wiki discovery, provenance and held-out validation |
 | [patterns/README.md](patterns/README.md) | Maintained wild-pattern catalogue: sources, experiments, per-oracle results and unanswered questions |
@@ -38,10 +38,10 @@ Existing command/variable/namespace vectors live in
 | `results/runtime-c84-real-suites/20261012T151253Z/README.md` | Six real 8.4 naming suites, exact questions, inputs, results and refusals |
 | `results/RESULTS.md` | Scoped VM/runtime original-suite comparisons and measured gaps |
 | `results/runtime-array-search-var132-current/results.md` | Original var-13.2 validation dependency: measured iterator ownership repair and exact harness replay |
-| [run_suites.py](run_suites.py) | Original-suite capture with matching source-built interpreter, original-input admission and retained provenance |
+| `run_suites.py` | Original-suite capture with matching source-built interpreter, original-input admission and retained provenance |
 | [upstream-integrity/README.md](upstream-integrity/README.md) | Immutable original library/test inventories selected through the shared reference manifest |
 | `results/shared-name-owner-current-20261013/README.md` | Scoped central command/variable/namespace and current Jim name controls |
-| [run_jim_suites.py](run_jim_suites.py) | Original upstream Jim naming suites using Jim's actual test wrapper |
+| `run_jim_suites.py` | Original upstream Jim naming suites using Jim's actual test wrapper |
 | `results/README.md` | Provenance and record format; records distinguish measured, pending and unsupported |
 | Core145 result and `retention/comparison manifest` | All196 controls:123 PASS/73 FAIL, source-subset drift0, missing/empty selection0 and no timeouts. All101 Core117 controls retained with three gains/zero regressions;95 additions49 PASS/46 FAIL. Complete202-file capture retained byte-exact; Native minifier editing capability remains an independent obligation |
 | Compiler146 result and `retention/comparison manifest` | All313 controls:248 PASS/65 nonpassing, three harness timeouts, source-subset drift0 and no missing/empty selectors;320 files and three large logs retained losslessly. Comparison preserves264 unchanged originals (13 gains/zero regressions) plus one explicitly oracle-corrected/renamed nested-array control; corrected lineage and prior failures remain distinct from unchanged-original gains |
@@ -51,9 +51,9 @@ Existing command/variable/namespace vectors live in
 | Owner-resolution CLI163 result and full log | Actual exit1 with183 reported contract failures (179 general owners/contracts and four Source routes), source/document-subset drift0; this exact capture predates the newer owner registrations and is separate from the full strict-proof checker |
 | VM159 result and `retention/comparison manifest` | All58 controls PASS:all52 VM132 controls retained and now pass, plus six new copy/bootstrap controls pass; three gains/zero regressions or drops. Actual original20 automatic-error corpus and both child regressions pass. Source, compiled-input and artifact drift maps0; complete81-file capture retained byte-exact. Acceptance is this VM/original-provider scope, independently of Compiler/Core/Runtime/DB/F5 obligations |
 | VM132 result and retention manifest | All52 controls:49 PASS/3 FAIL, full source/compiled-input/artifact drift0; all45 prior plus seven additions retained, with two original child regressions and persistent automatic-error corpus failure; complete75-file capture retained byte-exact |
-| [oracles/variable-completion-extent-20261014/README.md](oracles/variable-completion-extent-20261014/README.md) | Original C8.4–9.1/Jim variable reference closers; exact source, raw output and retained manifest path mapping |
+| `oracles/variable-completion-extent-20261014/README.md` | Original C8.4–9.1/Jim variable reference closers; exact source, raw output and retained manifest path mapping |
 | Original Jim child startup probes and retention manifest | Three unchanged original Jim scripts with raw output and provider/source hashes, ten files retained exactly: missing-variable omission, global-scope copying and CString extents; no C Tcl, F5 or migrated-runtime equivalence claim |
-| [oracles/jim-original-key-reference-observer-20261014/result.json](oracles/jim-original-key-reference-observer-20261014/result.json) | Actual Jim command-key/object reference observation with original observer source, build and raw output; no Native runtime acceptance |
+| `oracles/jim-original-key-reference-observer-20261014/result.json` | Actual Jim command-key/object reference observation with original observer source, build and raw output; no Native runtime acceptance |
 | [f5/REQUEST.md](f5/REQUEST.md) | Appliance-chat questions, execution contexts and return protocol |
 | [f5/ANSWER-TEMPLATE.md](f5/ANSWER-TEMPLATE.md) | Answer document template |
 | `f5/answers/README.md` | Destination for returned documents and raw transcripts on `work` |

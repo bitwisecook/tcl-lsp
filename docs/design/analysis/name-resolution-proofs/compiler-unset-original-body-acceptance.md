@@ -1460,5 +1460,4 @@ No implementation binding is claimed by this observation record.
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json)
 - [rust/tcl-registry/tests/data/native_unset_compilation/windows.tsv](../../../../rust/tcl-registry/tests/data/native_unset_compilation/windows.tsv)

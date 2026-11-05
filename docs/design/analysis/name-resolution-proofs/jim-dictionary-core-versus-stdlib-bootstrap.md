@@ -85,4 +85,3 @@ Exact original body hashes and process outcomes join the unchanged original rece
 - [rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/compile.stderr](../../../../rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/compile.stderr)
 - [rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/execute.stdout](../../../../rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/execute.stdout)
 - [rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/execute.stderr](../../../../rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/execute.stderr)
-- [rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_dictionary_bootstrap191/capture.py)

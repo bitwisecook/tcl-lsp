@@ -124,4 +124,3 @@ No implementation binding is claimed by this observation record.
 - [rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/9.1.0.tsv)
 - [rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/manifest.json](../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/manifest.json)
 - [rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/probe.c](../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/probe.c)
-- [rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/run.py](../../../../rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/run.py)

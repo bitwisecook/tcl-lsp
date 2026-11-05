@@ -57,5 +57,4 @@ No appliance execution answers this exact question.
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_jim_core_alias_prefix273](../../../../rust/tcl-registry/tests/data/native_jim_core_alias_prefix273)
-- [rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/request/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/request/capture.py)
 - [rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/request/probe.c](../../../../rust/tcl-registry/tests/data/native_jim_core_alias_prefix273/request/probe.c)

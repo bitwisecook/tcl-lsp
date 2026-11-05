@@ -1,8 +1,0 @@
-Acquired compiler build slot 1
-   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/tmp/lsp-providers/rust/tcl-lsp-core)
-   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/tmp/lsp-providers/rust/tcl-spectcl)
-   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/tmp/lsp-providers/rust/tcl-test-support)
-   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/tmp/lsp-providers/rust/tcl-lsp-db)
-    Finished `test` profile [unoptimized] target(s) in 1m 15s
-  Executable unittests src/lib.rs (target/debug/deps/tcl_lsp_db-760d612a8d398169)
-  Executable tests/compiler_check_corpus.rs (target/debug/deps/compiler_check_corpus-93310a9581906487)

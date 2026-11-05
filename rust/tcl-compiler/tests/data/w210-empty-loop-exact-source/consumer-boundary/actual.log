@@ -1,6 +1,0 @@
-BASELINE exact [(105, 107)]
-CONTROL_WITHOUT_OPAQUE_NAME_ADVICE exact [(79, 81), (105, 107)]
-BASELINE guarded-only []
-CONTROL_WITHOUT_OPAQUE_NAME_ADVICE guarded-only []
-BASELINE guarded-later-read []
-CONTROL_WITHOUT_OPAQUE_NAME_ADVICE guarded-later-read [(65, 67)]

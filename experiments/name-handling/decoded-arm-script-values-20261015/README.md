@@ -11,8 +11,8 @@ The different body `return one` invokes Return: catch code 2, result `one`.
 The original switch/list value owner has already removed the body container.
 Peeling braces from that decoded value again changes the command being named.
 
-[manifest.json](manifest.json) and all stdout/stderr files are unchanged
-original captures. [SHA256SUMS](SHA256SUMS) seals every archive file; empty
+`manifest.json` and all stdout/stderr files are unchanged
+original captures. SHA256SUMS seals every archive file; empty
 stderr files remain present. These observations were captured before the new
 Rust conformance assertions. No refusal/error is converted into successful
 execution, and no Rust/LSP result is inferred from these interpreter captures.

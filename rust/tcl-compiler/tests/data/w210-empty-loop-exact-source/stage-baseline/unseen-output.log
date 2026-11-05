@@ -1,6 +1,0 @@
-source="proc p {} {foreach x {} {}; puts $x}; error fail" unresolved_has_x=true resolved_has_x=false
-unseen Span { start: 0, end: 49 }
-unseen Span { start: 51, end: 61 }
-unseen Span { start: 11, end: 22 }
-unseen Span { start: 41, end: 48 }
-source="proc p {} {operation x; foreach x {} {}; puts $x}; error fail" unresolved_has_x=true resolved_has_x=true

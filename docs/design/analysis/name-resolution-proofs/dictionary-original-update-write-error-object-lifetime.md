@@ -458,6 +458,3 @@ static void probe_bytes(const char*id,const char*src,int source_len){caseid=id;p
 - [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request)
 - [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398)
 - [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime399)
-- [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/Makefile](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/8.6.18/unix/Makefile)
-- [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/Makefile](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.0.4/unix/Makefile)
-- [rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/Makefile](../../../../rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398/request/sdk/9.1.0/unix/Makefile)

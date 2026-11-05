@@ -125,9 +125,3 @@ The [independent SDK C environment](numeric-wasi-libc-environment.md), [original
 ## Evidence
 
 - [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
-- [rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker](../../../../rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/capture443/linker)
-- [rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/libc-binding](../../../../rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/libc-binding)
-- [rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib](../../../../rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib)
-- [rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/.cargo](../../../../rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/.cargo)
-- [rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/runtime/rust](../../../../rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/runtime/rust)
-- [rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/rust/tcl-compiler/tests/common](../../../../rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/rust/tcl-compiler/tests/common)

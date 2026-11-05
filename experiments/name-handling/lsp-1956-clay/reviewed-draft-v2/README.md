@@ -5,10 +5,10 @@ all current reviewed work to be pushed. Only v2 was restored; older stashes
 remain preserved. No Cargo, generator, new oracle run, or new feature work was
 performed for this handoff.
 
-The exact [source patch](source.patch) has SHA-256
+The exact source patch has SHA-256
 `afaf71a8b637ecb0bf3374fe73495bf28e507fe47050e9136f7d9edc31b4b1cc`.
 Its original base is `cc6262bed73765f88c2e563465ea6fe996cd939e`.
-The [manifest](manifest.json) retains all 18 exact resulting source hashes,
+The manifest retains all 18 exact resulting source hashes,
 the initial review patch, and the preserved v2 stash. Restoration onto
 `68df69c92cd2a9116c866b1fce14e592bd476d73` left every recorded source hash
 identical. The patch is an archived draft artifact; it is not an instruction
@@ -28,7 +28,7 @@ entry, and rename authority remain incomplete or unavailable. Native package
 loading is not inferred from registry presence.
 
 The existing [source/native audit](../README.md) and
-[held-server protocol receipt](../baseline-server-receipt.json) retain the
+held-server protocol receipt retain the
 limits: the baseline HTTPD file has no class symbols, and even the plain TclOO
 `my connect` definition control returns null. That provider gap remains
 unresolved. Native C Tcl 8.6/9.0/9.1 load Clay and HTTPD; the

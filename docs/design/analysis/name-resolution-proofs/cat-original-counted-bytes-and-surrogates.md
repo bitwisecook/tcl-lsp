@@ -41,7 +41,5 @@ Compiled/run status0; 24 concatenations and 148 retained physical/projection row
 
 - [rust/tcl-syntax/tests/data/native_object_cat/bytes/probe.c](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/probe.c)
 - [rust/tcl-syntax/tests/data/native_object_cat/bytes/manifest.json](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/manifest.json)
-- [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.jsonl)
 - [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.tsv](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.tsv)
-- [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.jsonl)
 - [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.tsv](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.tsv)

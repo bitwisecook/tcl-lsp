@@ -13,7 +13,7 @@ The driver sources upstream `tests/testing.tcl`, which sources upstream `tcltest
 | `alias-prefix-lifetime` | setup-failed-question-unreached | `wrong # args: should be "interp"` | [record](corpus/alias-prefix-lifetime/record.json) |
 | `computed-binding-mutation` | returned-value | `replacement` | [record](corpus/computed-binding-mutation/record.json) |
 | `computed-qualified` | returned-value | `first` | [record](corpus/computed-qualified/record.json) |
-| `ensemble-prefix-map` | setup-failed-question-unreached | `wrong # args: should be "ensemble command ?-automap prefix?"` | [record](corpus/ensemble-prefix-map/record.json) |
+| `ensemble-prefix-map` | setup-failed-question-unreached | `wrong # args: should be "ensemble command ?-automap prefix?"` | record |
 | `factory-body-near-miss` | raised-error | `can't read "name": no such variable` | [record](corpus/factory-body-near-miss/record.json) |
 | `finite-factory` | returned-value | `red blue` | [record](corpus/finite-factory/record.json) |
 | `frame-wrapper-near-miss` | returned-value | `original` | [record](corpus/frame-wrapper-near-miss/record.json) |

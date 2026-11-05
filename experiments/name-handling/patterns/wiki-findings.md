@@ -6,7 +6,7 @@ Native answers are registered in the existing
 [name-resolution proof index](../../../docs/design/analysis/name-resolution-proofs/README.md):
 29 `naming.wiki.*` questions cover these 30 test cases, with the two mutually
 exclusive legacy/modern nested-prefix controls joined into one release question.
-The [canonical observation join](../../../rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json)
+The canonical observation join
 references the original input, real C receipts and exact raw PASS/SKIP lines;
 it supplies no additional observation or independent proof authority.
 This investigation read 17 existing pages on 2026-10-12. The proposed standalone
@@ -35,7 +35,7 @@ XOTcl, Itcl or other unavailable dependencies.
 Each case runs in a fresh child interpreter under the real C interpreter; each
 child receives normal `init.tcl` startup. Assertions run through the matching
 real upstream `tcltest.tcl`, without replacement commands or harness shims.
-[run_wiki_probes.py](run_wiki_probes.py) captures stdout, stderr, process status,
+`run_wiki_probes.py` captures stdout, stderr, process status,
 test counts, binary identity, manifest/probe/runner hashes and the SHA-256 of the
 actual loaded `init.tcl` and `tcltest.tcl` bytes, including ZIPFS resources.
 

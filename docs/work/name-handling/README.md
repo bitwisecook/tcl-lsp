@@ -13,3 +13,5 @@ Four no-build packaging contracts pass again at12:58; no actual WASM/VSIX/native
 Native45c remains old-source cancelled with521 individual failed outcomes and429 missing terminal events, no aggregate/cause. Original browser CI is not rerun by Native diagnostics. Optional conditional-purpose autoload work is private and grants no lookup/Native/Normal/edit authority.
 
 Publisher278694's latest inspected success13:22:58 1535c88b safely integrates remote changes. Earlier disk/gateway/auth/server interruptions remain explicit, not uninterrupted cadence. V8 ENOSPC evidence is preserved; verified archives/retirement and atomic relocation recover resources while RMW builds. Preserve reproducible oracle evidence during required temporary-material cleanup.
+
+When this work finishes, [cut a squashed branch](branch-cut.md) so clones no longer carry the deleted evidence history.

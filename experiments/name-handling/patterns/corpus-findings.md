@@ -74,7 +74,7 @@ corpus's recorded revision rather than an assumed current upstream HEAD.
 
 ## Real C Tcl reductions
 
-[run_corpus_probes.py](run_corpus_probes.py) captures each authored probe in a
+`run_corpus_probes.py` captures each authored probe in a
 fresh matching C interpreter. Each probe's final line is the observed lookup;
 preceding lines are setup. Raw scripts, stdout, stderr, completion codes,
 return options where available, binary/source hashes and individual records

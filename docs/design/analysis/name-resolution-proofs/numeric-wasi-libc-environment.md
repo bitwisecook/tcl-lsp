@@ -103,9 +103,4 @@ The [independent native scalar ABI/getter captures](numeric-original-capi-scalar
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_wasi_libc_environment_original](../../../../rust/tcl-registry/tests/data/native_wasi_libc_environment_original)
-- [rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/VERSION](../../../../rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/VERSION)
-- [rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/bin](../../../../rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/bin)
-- [rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/lib/clang/23/include/stddef.h](../../../../rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/lib/clang/23/include/stddef.h)
-- [rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1](../../../../rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1)
-- [rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/bits/alltypes.h](../../../../rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasi-sdk-34.0/share/wasi-sysroot/include/wasm32-wasip1/bits/alltypes.h)
 - [rust/tcl-syntax/src/scalar_getter/abi_tests.rs](../../../../rust/tcl-syntax/src/scalar_getter/abi_tests.rs)

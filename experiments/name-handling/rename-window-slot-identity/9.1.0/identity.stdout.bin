@@ -1,3 +1,0 @@
-PATCHLEVEL 9.1.0
-EXECUTABLE /workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh
-LIBRARY 0 //zipfs:/app/tcl_library

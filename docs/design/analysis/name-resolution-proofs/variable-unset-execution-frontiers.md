@@ -530,5 +530,4 @@ No implementation binding is claimed by this observation record.
 - [runtime/rust/tests/data/native_unset_execution/9.0.tsv](../../../../runtime/rust/tests/data/native_unset_execution/9.0.tsv)
 - [runtime/rust/tests/data/native_unset_execution/9.1.tsv](../../../../runtime/rust/tests/data/native_unset_execution/9.1.tsv)
 - [runtime/rust/tests/data/native_unset_execution/jim.tsv](../../../../runtime/rust/tests/data/native_unset_execution/jim.tsv)
-- [runtime/rust/tests/data/native_unset_execution/probe.py](../../../../runtime/rust/tests/data/native_unset_execution/probe.py)
 - [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json)

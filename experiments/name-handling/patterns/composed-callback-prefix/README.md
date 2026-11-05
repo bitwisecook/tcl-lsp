@@ -83,15 +83,15 @@ alias or OO adaptation replaces these original failed setups.
 Two failed Jim driver attempts remain explicit. The first C-style version
 introspection refused at unsupported `package vcompare`, before source setup
 (raw initial records,
-[exact first driver](driver-portability-attempt.py)). The next attempt reached
+exact first driver). The next attempt reached
 source setup's alias error but then assumed global `::errorInfo` existed and
 failed while serialising it ([raw records](jim-native-results/records.json),
-[exact second driver](driver-jim-errorinfo-attempt.py)). Those driver failures
+exact second driver). Those driver failures
 are not semantic answers. The final driver selects native catch capability
 without C version commands and reads error globals independently; its exact
 source inputs match both earlier attempts.
 
-The corrected [runner](run.py) requires a fresh destination:
+The corrected runner requires a fresh destination:
 
 ```sh
 python3 experiments/name-handling/patterns/composed-callback-prefix/run.py --dest /tmp/composed-callback-new
@@ -100,4 +100,4 @@ python3 experiments/name-handling/patterns/composed-callback-prefix/run.py --des
 Use `--provider jim` for the Jim-only channel. Existing capture directories must
 not be overwritten. Inspect [consumer inspection and proposed independent
 checks](CONSUMER-PLAN.md) separately from these native results, and the
-[unanswered F5 source/context request](F5-REQUEST.md) for appliance boundaries.
+`unanswered F5 source/context request` for appliance boundaries.

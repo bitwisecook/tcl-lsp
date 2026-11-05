@@ -39,4 +39,3 @@ No BIG-IP appliance result is attached for this precise native source question.
 ## Evidence
 
 - [rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/file](../../../../rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/file)
-- [rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/replay.py](../../../../rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/replay.py)

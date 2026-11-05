@@ -1,9 +1,0 @@
-
-running 4 tests
-test analysis_control::tests::ignoring_a_nested_only_interruption_cannot_complete_the_outer_job ... ok
-test analysis_control::tests::interruption_is_typed_and_a_fresh_retry_cannot_read_a_partial_source_memo ... ok
-test analysis_control::tests::nested_owned_and_default_analysis_inherit_a_sticky_outer_interruption ... ok
-test analysis_control::tests::noninterrupting_owned_analysis_preserves_results_and_source_currency ... ok
-
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 10915 filtered out; finished in 4.07s
-

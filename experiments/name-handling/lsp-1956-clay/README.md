@@ -11,7 +11,7 @@ development checkpoint under the user's final push instruction. The
 base, and all 18 source hashes. Its nine semantic controls and code generation
 remain unrun. Older stashes were not restored.
 
-The [audit receipt](audit-receipt.json) pins the files. `clay/clay.tcl` has
+The audit receipt pins the files. `clay/clay.tcl` has
 SHA-256 `150b48a3ddf4916cca5e182ce05274773ddcc3bc296c9b1e6f8c4d9afd1c49b0`;
 `httpd/httpd.tcl` has
 `36cdae3de3a8669d14deca6ac9ea6430670aefd82e28a163bb6d398f60c7288d`.
@@ -36,11 +36,11 @@ multi-requirement `package require` error. This Tcl 8.5 host reports neither
 `::oo::class` nor an installed TclOO package; no claim is made about other
 Tcl 8.5 hosts with that extension.
 
-The [baseline probe](baseline-probe.py) uses the existing native server from
+The baseline probe uses the existing native server from
 clean source `cab14d1a4fe76da7e88eb5225b9533408d35e95b`, before the independent
 seed fix. The binary SHA-256 is
 `e4e4153afadf5906975a94fe661d81ef1040ecce0c630416c4cde9c0742d2ab7`, unchanged
-before and after the protocol run. The [protocol receipt](baseline-server-receipt.json)
+before and after the protocol run. The protocol receipt
 records a TclOO control with one class and two method symbols, no symbols for
 the equivalent Clay or near-name command, and nine namespace/variable symbols
 for the exact HTTPD file with no classes. `my connect` definition requests

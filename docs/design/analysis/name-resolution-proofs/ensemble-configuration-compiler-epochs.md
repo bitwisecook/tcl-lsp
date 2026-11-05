@@ -210,4 +210,3 @@ No implementation binding is claimed by this observation record.
 - [runtime/rust/tests/data/native_ensemble_epochs/9.1.0.tsv](../../../../runtime/rust/tests/data/native_ensemble_epochs/9.1.0.tsv)
 - [runtime/rust/tests/data/native_ensemble_epochs/manifest.json](../../../../runtime/rust/tests/data/native_ensemble_epochs/manifest.json)
 - [runtime/rust/tests/data/native_ensemble_epochs/probe.c](../../../../runtime/rust/tests/data/native_ensemble_epochs/probe.c)
-- [runtime/rust/tests/data/native_ensemble_epochs/run.py](../../../../runtime/rust/tests/data/native_ensemble_epochs/run.py)

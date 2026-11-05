@@ -1,3 +1,0 @@
-PATCHLEVEL 8.6.18
-EXECUTABLE /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh
-LIBRARY 0 /workspace/tcl-lsp/tmp/tcl8.6.18/library

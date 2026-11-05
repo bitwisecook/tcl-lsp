@@ -84,7 +84,6 @@ No implementation binding is claimed by this observation record.
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/capture.py)
 - [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stderr)
 - [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stdout)
 - [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stderr)

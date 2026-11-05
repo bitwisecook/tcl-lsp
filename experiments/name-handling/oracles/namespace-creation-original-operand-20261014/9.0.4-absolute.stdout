@@ -1,2 +1,0 @@
-OBSERVATIONS {1 {can't create namespace "::retiring": already exists} {TCL OPERATION NAMESPACE CREATEEXISTING}}
-FINAL_EXISTS 0

@@ -1,8 +1,0 @@
-{
-  "head": "8e4ec201404463ffdd2f265bec2a4d5bd97e5bf6",
-  "files": {
-    "rust/tcl-compiler/src/command_binding.rs": "0896d64c6e5ac70d809187c975d1c0fdfd7073c3426ab90e93c0c9452462c02b",
-    "rust/tcl-compiler/tests/w210_short_circuit.rs": "52ed90070ea9d98732e1c1cb2b069d41b37287f13a3761fdd07e8c28b32398a7",
-    "rust/tcl-compiler/tests/data/w210-short-circuit.json": "b872c87b3c1fd49c4f57dcccdacdae8738de0db987110a4fab6f96b8967606c3"
-  }
-}

@@ -212,7 +212,6 @@ const EnsembleImplMap tclInfoImplMap[] = {
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json)
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c)
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c)
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c)

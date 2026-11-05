@@ -27,7 +27,7 @@ text is copied. The Wiki receipt has no inspected licence or verified revision.
 The sites supply separate caller-link, forwarding and namespace-capture
 ingredients. None contains this exact composition. Ruff's state array and
 pave's OO receiver/expanded arguments remain unmeasured. This selection adds no
-source-site count or prevalence claim. [Original proposal notes](proposal-notes.md)
+source-site count or prevalence claim. Original proposal notes
 retain the pre-execution hypotheses separately from the results below.
 
 The question is: **After exact successful setup, which caller-local value and
@@ -70,8 +70,8 @@ semantic authority.
 The first C8.4 capture attempts failed in the driver before the final question:
 its bytecode compiler rejected three-variable `catch` inside a skipped nested
 branch. Those raw failures remain in `results/`, with the exact
-[first driver](driver-first-attempt.py). The
-[corrected driver](run.py) invokes `catch` indirectly and selects its native
+first driver. The
+corrected driver invokes `catch` indirectly and selects its native
 arity by provider; a fresh C8.4-only output directory preserves the unchanged
 source/setup/question bytes. The correction changes no guest input.
 
@@ -90,7 +90,7 @@ python3 experiments/name-handling/patterns/frame-capture-prefix/run.py --dest /t
 ```
 
 `--provider jim` and `--provider tcl8.4.20` select bounded channels. Do not
-overwrite retained evidence. The [F5 source/context request](F5-REQUEST.md)
+overwrite retained evidence. The `F5 source/context request`
 requires actual native-host acceptance and reached execution; desktop results
 or a mock supply no appliance answer. No network, message or appliance load
 was performed here.

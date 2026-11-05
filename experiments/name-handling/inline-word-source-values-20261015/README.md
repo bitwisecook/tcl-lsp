@@ -1,6 +1,6 @@
 # Original inline-word and configured quoted-name source values
 
-The fixed [probe](probe.tcl) ran on original Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and pinned Jim before new configured quote-content assertions. All six processes exited zero; the [original manifest](manifest.json) retains per-case completeness/code/result output, selected Tcl libraries, provider/init hashes before and after, and all output hashes. All six empty stderr channels and the [original capture driver](original_capture.py) are preserved byte-for-byte.
+The fixed probe ran on original Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and pinned Jim before new configured quote-content assertions. All six processes exited zero; the original manifest retains per-case completeness/code/result output, selected Tcl libraries, provider/init hashes before and after, and all output hashes. All six empty stderr channels and the original capture driver are preserved byte-for-byte.
 
 An original variable whose literal value contains a quote retains that quote when substituted into a quoted word. Raw source splicing fails on C Tcl and produces a different value on Jim; the escaped quoted proposal preserves the observed value on all six providers. Literal dollar data remains literal in the original braced value and becomes an active variable read in the raw source proposal. A quote inside a nested braced variable name is retained through the original quoted word on Tcl 9.0/9.1; the Tcl 8 and Jim refusals remain separate actual outcomes.
 

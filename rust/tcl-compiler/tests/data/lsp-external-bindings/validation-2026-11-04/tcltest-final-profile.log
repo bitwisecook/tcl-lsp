@@ -1,5 +1,0 @@
-BINDING_EXTERNAL {"input": "2286-linked.test", "dialect": "tcl9.1", "bytes": 124908, "diagnostics": [{"code": "W300", "start": 167, "end": 202, "message": "source with a dynamic path (variable or command substitution) executes arbitrary Tcl code. Ensure the path is not influenced by untrusted input."}], "process_exit": 0, "stderr": ""}
-BINDING_EXTERNAL {"input": "2286-issue-1-with-tcltest-context", "dialect": "tcl9.1", "bytes": 1491, "diagnostics": [], "process_exit": 0, "stderr": ""}
-BINDING_EXTERNAL {"input": "2286-issue-2-with-tcltest-context", "dialect": "tcl9.1", "bytes": 789, "diagnostics": [], "process_exit": 0, "stderr": ""}
-BINDING_EXTERNAL {"input": "2286-issue-3-with-tcltest-context", "dialect": "tcl9.1", "bytes": 1494, "diagnostics": [], "process_exit": 0, "stderr": ""}
-BINDING_EXTERNAL {"input": "2286-issue-4-with-tcltest-context", "dialect": "tcl9.1", "bytes": 2656, "diagnostics": [], "process_exit": 0, "stderr": ""}

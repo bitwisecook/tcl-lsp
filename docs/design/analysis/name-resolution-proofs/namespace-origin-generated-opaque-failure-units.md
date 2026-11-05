@@ -48,6 +48,5 @@ No captured result for this exact purpose is attached for this provider.
 ## Evidence
 
 - [runtime/rust/tests/data/native_namespace_origin_failures/source.tcl](../../../../runtime/rust/tests/data/native_namespace_origin_failures/source.tcl)
-- [runtime/rust/tests/data/native_namespace_origin_failures/run.py](../../../../runtime/rust/tests/data/native_namespace_origin_failures/run.py)
 - [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json)
 - [runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv](../../../../runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv)

@@ -44,4 +44,3 @@ Selected original rows: [["property-read","34","0","1","0","3","tcl::oo property
 - [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c)
 - [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json)
 - [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv)
-- [rust/tcl-registry/tests/data/native_property_names/capture.py](../../../../rust/tcl-registry/tests/data/native_property_names/capture.py)

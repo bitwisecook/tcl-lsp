@@ -70,4 +70,3 @@ No implementation binding is claimed by this observation record.
 
 - [rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/file](../../../../rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/file)
 - [rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/stdin](../../../../rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/stdin)
-- [rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/replay.py](../../../../rust/tcl-lsp-core/tests/data/native_inline_variable_semantics/replay.py)

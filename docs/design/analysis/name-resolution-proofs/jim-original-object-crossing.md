@@ -132,7 +132,6 @@ static const jim_subcmd_type interp_command_table[] = {
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/capture.py)
 - [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stderr)
 - [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stdout)
 - [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stderr)

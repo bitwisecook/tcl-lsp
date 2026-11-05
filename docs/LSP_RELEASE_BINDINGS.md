@@ -293,7 +293,7 @@ gate change or failing CI test installed. #2371 remains unresolved.
 The #2376 source matrix is in
 [`w210-short-circuit.json`](../rust/tcl-compiler/tests/data/w210-short-circuit.json),
 with 138 fixed native observations in
-[`w210-short-circuit-oracles.json`](../rust/tcl-compiler/tests/data/w210-short-circuit-oracles.json).
+`w210-short-circuit-oracles.json`.
 It includes `&&`/`||`, nested negation, the later genuine read's intended span,
 and command results frozen before later stores in their argv. Unsupported
 composite expression results cannot borrow a child's completed value. Native
@@ -312,7 +312,7 @@ priority. This checkpoint publishes native evidence and planned acceptance;
 it is not a product-fix or green-gate claim.
 
 A concrete review-only proposal is archived as
-[`w210-short-circuit-proposal.patch`](../rust/tcl-compiler/tests/data/w210-short-circuit-proposal.patch).
+`w210-short-circuit-proposal.patch`.
 It accepts completed values only for a command AST or its logical negations,
 uses the shared boolean-context acceptor with the actual invocation numeric
 syntax (unanimous release agreement when absent), and leaves all existing

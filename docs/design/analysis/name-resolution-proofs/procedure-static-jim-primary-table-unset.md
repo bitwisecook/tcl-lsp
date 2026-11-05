@@ -161,7 +161,6 @@ int Jim_UnsetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
 
 ## Evidence
 
-- [rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json)
 - [rust/tcl-syntax/tests/data/body_execution/native-static-storage.tcl](../../../../rust/tcl-syntax/tests/data/body_execution/native-static-storage.tcl)
 - [rust/tcl-syntax/tests/data/body_execution/native-static-storage-jim.txt](../../../../rust/tcl-syntax/tests/data/body_execution/native-static-storage-jim.txt)
 - [runtime/rust/src/vars/entered_container.rs](../../../../runtime/rust/src/vars/entered_container.rs)

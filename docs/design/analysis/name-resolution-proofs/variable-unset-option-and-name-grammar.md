@@ -860,5 +860,4 @@ No implementation binding is claimed by this observation record.
 - [rust/tcl-registry/tests/data/native_unset_options/9.0.tsv](../../../../rust/tcl-registry/tests/data/native_unset_options/9.0.tsv)
 - [rust/tcl-registry/tests/data/native_unset_options/9.1.tsv](../../../../rust/tcl-registry/tests/data/native_unset_options/9.1.tsv)
 - [rust/tcl-registry/tests/data/native_unset_options/jim.tsv](../../../../rust/tcl-registry/tests/data/native_unset_options/jim.tsv)
-- [rust/tcl-registry/tests/data/native_unset_options/probe.py](../../../../rust/tcl-registry/tests/data/native_unset_options/probe.py)
 - [rust/tcl-registry/tests/data/native_unset_options/provenance.json](../../../../rust/tcl-registry/tests/data/native_unset_options/provenance.json)

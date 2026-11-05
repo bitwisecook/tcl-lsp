@@ -1,9 +1,0 @@
-{
-  "exit": 0,
-  "rows": 24,
-  "command": [
-    "/tmp/lsp-2376-conditional-query-probe"
-  ],
-  "rlibs_unchanged": true,
-  "duration": "Not recorded"
-}

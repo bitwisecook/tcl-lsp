@@ -141,9 +141,3 @@ No original observation for this exact question is attached for this provider.
 
 - [rust/tcl-syntax/tests/data/native_formal_storage/probe.c](../../../../rust/tcl-syntax/tests/data/native_formal_storage/probe.c)
 - [rust/tcl-syntax/tests/data/native_formal_storage/manifest.json](../../../../rust/tcl-syntax/tests/data/native_formal_storage/manifest.json)
-- [rust/tcl-syntax/tests/data/native_formal_storage/8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/8.4.20.jsonl)
-- [rust/tcl-syntax/tests/data/native_formal_storage/8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/8.5.19.jsonl)
-- [rust/tcl-syntax/tests/data/native_formal_storage/8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/8.6.18.jsonl)
-- [rust/tcl-syntax/tests/data/native_formal_storage/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/9.0.4.jsonl)
-- [rust/tcl-syntax/tests/data/native_formal_storage/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/9.1.0.jsonl)
-- [rust/tcl-syntax/tests/data/native_formal_storage/Jim.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/Jim.jsonl)

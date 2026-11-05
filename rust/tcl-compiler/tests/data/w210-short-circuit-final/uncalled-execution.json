@@ -1,9 +1,0 @@
-{
-  "command": [
-    "/tmp/lsp-2376-entryless-probe"
-  ],
-  "exit": 1,
-  "seconds": 27.50999466200301,
-  "binary_sha256": "80df62aada21d49d2ac844d5638cc9c875c5b97806900f36d71845b265eedb14",
-  "source_sha256": "538fa247aaa82885422ca40b6017be5376dd21fd044e93121a89ea16d8ed0d79"
-}

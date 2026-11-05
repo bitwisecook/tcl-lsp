@@ -71,8 +71,3 @@ No observation of this exact question is retained for this provider.
 
 - [rust/tcl-cshim/tests/data/native_index_cache/probe.c](../../../../rust/tcl-cshim/tests/data/native_index_cache/probe.c)
 - [rust/tcl-cshim/tests/data/native_index_cache/manifest.json](../../../../rust/tcl-cshim/tests/data/native_index_cache/manifest.json)
-- [rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl)
-- [rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl)
-- [rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl)
-- [rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl)
-- [rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl)

@@ -1,3 +1,0 @@
-cd /workspace/tcl-lsp/tmp/lsp-providers/ && python3 scripts/dev/check-tcl-evidence.py
-Checked 1649 Tcl execution evidence file(s).
-cd /workspace/tcl-lsp/tmp/lsp-providers/ && python3 -m unittest discover -s scripts/dev -p 'test_tcl_evidence*.py'

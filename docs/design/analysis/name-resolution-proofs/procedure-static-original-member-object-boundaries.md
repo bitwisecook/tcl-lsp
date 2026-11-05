@@ -46,7 +46,6 @@ No appliance execution is attached.
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_procedure_static_original/probe.c](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/probe.c)
-- [rust/tcl-registry/tests/data/native_procedure_static_original/capture.py](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/capture.py)
 - [rust/tcl-registry/tests/data/native_procedure_static_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/8.4.20)
 - [rust/tcl-registry/tests/data/native_procedure_static_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/8.5.19)
 - [rust/tcl-registry/tests/data/native_procedure_static_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/8.6.18)

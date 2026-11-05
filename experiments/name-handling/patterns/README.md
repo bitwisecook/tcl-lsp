@@ -40,26 +40,26 @@ remain independent.
 | [Array snapshot root and key coordinates](namespace-array-snapshot/README.md) | Forty reached C8.4–9.1 observations show an opening parenthesis in an actual array root surviving the coordinate query but selecting another array when the helper combines root and key. Capture03 retains actual loaded original init bytes, including Tcl9 ZIPFS; capture02's physical-library assumption failed separately. No Rust repair, physical-cell certificate or whole snapshot acceptance follows. |
 | Original Jim local namespace projection and dictionary keys |35 original SDK rows, exact namespace79/79 pairing and unchanged247 provider inputs per capture; local first-key/ASCII construction and no-pattern key getter observations, without accepted Import or actual outer local-producer completion. |
 | Original Jim namespace-info projection | Actual Source relay, lmap/string-cat/header observations:15rows, original namespace79/79,247 unchanged provider inputs; genuine/empty observations and mutable-case software refusals have separate acceptance, with no command-key inverse or Import grant. |
-| [Namespace creation operand](../oracles/namespace-creation-original-operand-20261014/manifest.json) | Fresh C8.4–9.1 processes isolate the original report operand and error-code policy; the dying-token callback has its own lifecycle and option availability. No implementation result follows. |
-| [TclOO namespace conflict](../oracles/oo-namespace-conflict-original-20261014/manifest.json) | Original C8.6–9.1 conflict message/errorCode and source operand flow; C8.4/8.5 lack the TclOO command, so their lookup is unreached. Language NUL and raw C-string operands remain distinct. |
-| [Jim lambda namespace object](../oracles/jim-lambda-namespace-original-20261014/manifest.json) and original SDK getter controls | Original nested callers, comment/invalid bodies and command-lookup probes distinguish the retained Jim namespace object from a materialised coordinate. The original first-substitution SDK cases separately observe missing-variable substitutions leaving namespace bytes null, while a reached bracketed command lookup materialises them before its later error. The original apply-frame argv controls separately retain a stringless original integer argument through preparation and observe its actual RETURN/result-list member identity before any result getter. C8.4 apply is unavailable. The VM retains a typed original context through Script preparation; actual Rust execution and the standalone Runtime getter schedule remain independent of these SDK observations. |
+| Namespace creation operand | Fresh C8.4–9.1 processes isolate the original report operand and error-code policy; the dying-token callback has its own lifecycle and option availability. No implementation result follows. |
+| TclOO namespace conflict | Original C8.6–9.1 conflict message/errorCode and source operand flow; C8.4/8.5 lack the TclOO command, so their lookup is unreached. Language NUL and raw C-string operands remain distinct. |
+| Jim lambda namespace object and original SDK getter controls | Original nested callers, comment/invalid bodies and command-lookup probes distinguish the retained Jim namespace object from a materialised coordinate. The original first-substitution SDK cases separately observe missing-variable substitutions leaving namespace bytes null, while a reached bracketed command lookup materialises them before its later error. The original apply-frame argv controls separately retain a stringless original integer argument through preparation and observe its actual RETURN/result-list member identity before any result getter. C8.4 apply is unavailable. The VM retains a typed original context through Script preparation; actual Rust execution and the standalone Runtime getter schedule remain independent of these SDK observations. |
 | Direct original Jim canonical getter order | Three direct API SDK cases separately observe name-before-namespace getters, absolute CString extent, relative counted NUL bytes and root-relative original-name identity. No public command invocation, Runtime/VM or lifecycle result follows. |
 | `Original Jim which public/helper getter order` | Sixteen command/variable, absolute/relative, cold/hot invocations distinguish public front-door and direct helper lookup before the payload getter. A direct canonical absolute payload cannot erase an earlier reached helper-head getter; no Runtime optimisation or full SDK closure follows. |
 | Original Jim pending tailcall selection | Four actual apply invocations/19rows preserve cold/hot namespace getter state and a genuine native worker invoked before its real deletion callback after issuer cleanup. This requires independent pending command/List ownership; a displayed namespace or deferred spelling lookup supplies none. No Runtime/VM or full lifecycle acceptance follows. |
 | Original dying-namespace descendant SDK controls | Four original unset-callback cases under each C8.4–9.1 provider retain the actual old ancestor for newly entered descendants and remove them after outer teardown. Native namespace lookup and public namespace-exists visibility differ; the earlier allocation of an existing child is unmeasured. Runtime/VM, command-delete callbacks, Jim and F5 acceptance are outside this capture. |
-| [Namespace cache context](../oracles/native-namespace-cache-context-original-20261014/manifest.json) | C8.4–9.1 text controls reuse an operand across real namespaces and root recreation. Retained upstream source informs cache/getter ordering separately; these text results do not observe native cache fields or establish Jim behavior. |
+| Namespace cache context | C8.4–9.1 text controls reuse an operand across real namespaces and root recreation. Retained upstream source informs cache/getter ordering separately; these text results do not observe native cache fields or establish Jim behavior. |
 
 These captures do not use tcltest. Each C provider retains its matching original
 init.tcl. None supplies a new F5 observation or widens a Native execution proof.
 
-The [original assignment/increment operands](../oracles/native-original-operand-data-20261014/README.md)
+The `original assignment/increment operands`
 retain C8.4–9.1 and latest Jim source-value, substitution and increment controls,
 including provider-specific integer errors and the separate float probe. Their
-[appliance questions](../oracles/native-original-operand-data-20261014/bigip-questions.md)
+appliance questions
 remain unanswered. Source operand contents do not establish Native compilation
 or a completed store.
 
-The [original return-word controls](../oracles/propagation-original-return-words-20261014/README.md)
+The original return-word controls
 retain braced literal returns, partial `$a:b` substitution and combined array
 references under C8.4–9.1 and pinned latest Jim. These observations distinguish
 original reference syntax from result data; optimiser/read-owner acceptance
@@ -77,14 +77,14 @@ retain distinct C5/Jim quoted/default/escaped-parent formal reports. Current rea
 source geometry keeps Native topology separate from Logical declaration advice;
 W214 quote markers are a reporting convention. The F5 packet is unanswered.
 
-The [original scalar-reference insertion controls](../oracles/variable-completion-source-spelling-20261014/README.md)
+The original scalar-reference insertion controls
 retain seeded C8.4–9.1 and latest Jim complete braced references for literal
 sigils, spaces, backslashes, newlines and release-selected brace boundaries.
 The combined-array row remains an array-element operation. These observations
 supply no scalar/read or Native permission; Logical insertion checks retain
 separate current source and grammar owners. F5 is untested.
 
-The [original array-reference insertion controls](../oracles/variable-completion-array-source-spelling-20261015/README.md)
+The original array-reference insertion controls
 retain fixed C5/Jim literal sigil, escape, parenthesis and release-selected brace
 indices. Direct source formatting can substitute or decode literal key data;
 computed original index syntax remains a separate input. These seeded source
@@ -211,8 +211,8 @@ reason. Popular idioms alone cannot establish a particular call target.
 
 ## Exact portable corpus observations
 
-[Probe source](probes), [capture runner](run_corpus_probes.py),
-[75 original record joins](results/records.json) and
+[Probe source](probes), capture runner,
+75 original record joins and
 [capture provenance](results/provenance.json) retain full input, stdout/stderr,
 setup/lookup completion and return options where supported.
 Each row links its exact source and canonical question. Jim entries link their
@@ -226,7 +226,7 @@ are actual observations, not missing answers.
 | [alias-prefix-lifetime](probes/alias-prefix-lifetime.tcl) · [proof](../../../docs/design/analysis/name-resolution-proofs/corpus-pattern-alias-prefix-lifetime.md) | `0: {::nh::emit {a b}} {{a b} {c d}}` | `0: {::nh::emit {a b}} {{a b} {c d}}` | `0: {::nh::emit {a b}} {{a b} {c d}}` | `0: {::nh::emit {a b}} {{a b} {c d}}` | `0: {::nh::emit {a b}} {{a b} {c d}}` | setup refusal: `wrong # args: should be "interp"`; lookup unreached · [capture](jim-results-5bac7c9/corpus/alias-prefix-lifetime/record.json) | original hosted final operation observed · review |
 | [computed-binding-mutation](probes/computed-binding-mutation.tcl) · [proof](../../../docs/design/analysis/name-resolution-proofs/corpus-pattern-computed-binding-mutation.md) | `0: replacement` | `0: replacement` | `0: replacement` | `0: replacement` | `0: replacement` | `0: replacement` · [capture](jim-results-5bac7c9/corpus/computed-binding-mutation/record.json) | original hosted final operation observed · review |
 | [computed-qualified](probes/computed-qualified.tcl) · [proof](../../../docs/design/analysis/name-resolution-proofs/corpus-pattern-computed-qualified.md) | `0: first` | `0: first` | `0: first` | `0: first` | `0: first` | `0: first` · [capture](jim-results-5bac7c9/corpus/computed-qualified/record.json) | original hosted final operation observed · review |
-| [ensemble-prefix-map](probes/ensemble-prefix-map.tcl) · [proof](../../../docs/design/analysis/name-resolution-proofs/corpus-pattern-ensemble-prefix-map.md) | setup refusal (`namespace ensemble` absent) | `0: {a b} {c d}` | `0: {a b} {c d}` | `0: {a b} {c d}` | `0: {a b} {c d}` | setup refusal: `wrong # args: should be "ensemble command ?-automap prefix?"`; lookup unreached · [capture](jim-results-5bac7c9/corpus/ensemble-prefix-map/record.json) | original stock 8.5 observed · review |
+| [ensemble-prefix-map](probes/ensemble-prefix-map.tcl) · [proof](../../../docs/design/analysis/name-resolution-proofs/corpus-pattern-ensemble-prefix-map.md) | setup refusal (`namespace ensemble` absent) | `0: {a b} {c d}` | `0: {a b} {c d}` | `0: {a b} {c d}` | `0: {a b} {c d}` | setup refusal: `wrong # args: should be "ensemble command ?-automap prefix?"`; lookup unreached · capture | original stock 8.5 observed · review |
 | [factory-body-near-miss](probes/factory-body-near-miss.tcl) · [proof](../../../docs/design/analysis/name-resolution-proofs/corpus-pattern-factory-body-near-miss.md) | `1: can't read "name": no such variable` | `1: can't read "name": no such variable` | `1: can't read "name": no such variable` | `1: can't read "name": no such variable` | `1: can't read "name": no such variable` | `1: can't read "name": no such variable` · [capture](jim-results-5bac7c9/corpus/factory-body-near-miss/record.json) | original hosted final operation observed · review |
 | [finite-factory](probes/finite-factory.tcl) · [proof](../../../docs/design/analysis/name-resolution-proofs/corpus-pattern-finite-factory.md) | `0: red blue` | `0: red blue` | `0: red blue` | `0: red blue` | `0: red blue` | `0: red blue` · [capture](jim-results-5bac7c9/corpus/finite-factory/record.json) | original hosted final operation observed · review |
 | [frame-wrapper](probes/frame-wrapper.tcl) · [proof](../../../docs/design/analysis/name-resolution-proofs/corpus-pattern-frame-wrapper.md) | `0: changed` | `0: changed` | `0: changed` | `0: changed` | `0: changed` | `0: changed` · [capture](jim-results-5bac7c9/corpus/frame-wrapper/record.json) | original hosted final operation observed · review |
@@ -242,10 +242,10 @@ are actual observations, not missing answers.
 ## Exact Wiki oracle observations
 
 [Original Wiki probe source](wiki-probes.tcl) and
-[runner](run_wiki_probes.py) execute fixed cases using the matching real upstream
+runner execute fixed cases using the matching real upstream
 `init.tcl` and `tcltest.tcl`. Each child interpreter starts normally.
 [Provenance](wiki-results/provenance.json) records library bytes, binary identity
-and counts; [canonical case joins](../../../rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json)
+and counts; canonical case joins
 identify exact raw PASS/SKIP lines. The result column is the assertion proved by
 PASS, not an invented trace of intermediate execution. `skip` supplies no answer.
 Jim entries are completions of the separately captured inner script; they are
@@ -300,7 +300,7 @@ initial hypotheses and corrections; final expectations use measured C results.
 ## Latest Jim: exact channels and separate controls
 
 [Latest Jim captures](jim-results-5bac7c9/README.md),
-[49 records](jim-results-5bac7c9/records.json) and
+49 records and
 [provenance](jim-results-5bac7c9/provenance.json) identify upstream revision
 `5bac7c99ad65864c87da513e22e2f01703fa4e03` (`0.84-9-g5bac7c9`), checked against
 upstream HEAD on 2026-10-12 at 13:13 UTC. The driver sources the real upstream
@@ -426,10 +426,10 @@ keeps F5-N01–F5-N16 remaining variants explicit, including suspended frames,
 restart/reload after deletion, other traffic contexts and earlier-state
 cleanup limits. These counts establish the recorded inputs and contexts.
 
-The [clock bootstrap questions](../clock-bootstrap-epoch/registration-repair/README.md)
+The clock bootstrap questions
 retain actual C8.6 registration and compiler-epoch observations. Separate
-[mathfunc](../clock-bootstrap-epoch/registration-repair/mathfunc-bootstrap/README.md)
-and [procedure/foreach](../clock-bootstrap-epoch/registration-repair/compiled-foreach/README.md)
+mathfunc
+and `procedure/foreach`
 questions retain original inputs and provider-specific outcomes; stock-shell
 completion supplies no native iterator lifetime or F5 answer.
 
@@ -514,4 +514,4 @@ braced tail. The failed8.4 reporting setup is separate. Lexer geometry grants
 no selected command, runtime completion or optimiser authority; Jim/F5 are
 unobserved by this capture.
 
-Original formal-name acceptance is recorded in [the scoped C/Jim probe](../oracles/qualified-formals-20261016T1520/manifest.json): all five pinned C providers reject the tested qualified/array-spelled formals at procedure creation, while the rechecked original Jim provider accepts them. Simple and rest-formal controls succeed. This supports the C-only LSP fixture premise; it observes no alias/cell binding and supplies no cross-provider policy.
+Original formal-name acceptance is recorded in `the scoped C/Jim probe`: all five pinned C providers reject the tested qualified/array-spelled formals at procedure creation, while the rechecked original Jim provider accepts them. Simple and rest-formal controls succeed. This supports the C-only LSP fixture premise; it observes no alias/cell binding and supplies no cross-provider policy.

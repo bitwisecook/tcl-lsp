@@ -110,5 +110,4 @@ No appliance observation for this question.
 
 - [runtime/rust/tests/data/native_dictionary_scope_traces/manifest.json](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/manifest.json)
 - [runtime/rust/tests/data/native_dictionary_scope_traces/cases.json](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/cases.json)
-- [runtime/rust/tests/data/native_dictionary_scope_traces/run.py](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/run.py)
 - [runtime/rust/tests/data/native_dictionary_scope_traces/controls.tsv](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/controls.tsv)

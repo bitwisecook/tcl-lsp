@@ -1,6 +1,6 @@
 # Original expression equality and source literals
 
-The retained fixed [probe](probe.tcl) ran against original Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and pinned Jim before the related expression-consumer assertions. All six exited zero. The [original manifest](manifest.json) retains commands, actual source libraries, provider/init hashes before and after, and exact stdout/stderr hashes. Empty stderr files are retained.
+The retained fixed probe ran against original Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and pinned Jim before the related expression-consumer assertions. All six exited zero. The original manifest retains commands, actual source libraries, provider/init hashes before and after, and exact stdout/stderr hashes. Empty stderr files are retained.
 
 All six show that `01`, ` 1 ` and `1e0` compare numerically equal to `1` but differ in textual equality and exact Switch matching. Numeric comparison therefore cannot become exact string matching for an unknown scalar. A quoted literal containing `||` and a braced literal containing `$value` remain data in their expression operands. A whole braced string used as an If condition errors as a non-boolean literal; it is not a container to remove in order to discover a different equality expression.
 

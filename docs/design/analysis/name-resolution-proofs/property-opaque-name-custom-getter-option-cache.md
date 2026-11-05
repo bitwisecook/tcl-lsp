@@ -46,6 +46,5 @@ Original full rows are opaque-0 RAW none and opaque-1 RAW none. Compile/process 
 - [runtime/rust/tests/data/native_property_opaque/probe.c](../../../../runtime/rust/tests/data/native_property_opaque/probe.c)
 - [runtime/rust/tests/data/native_property_opaque/manifest.json](../../../../runtime/rust/tests/data/native_property_opaque/manifest.json)
 - [runtime/rust/tests/data/native_property_opaque/native.tsv](../../../../runtime/rust/tests/data/native_property_opaque/native.tsv)
-- [runtime/rust/tests/data/native_property_opaque/capture.py](../../../../runtime/rust/tests/data/native_property_opaque/capture.py)
 - [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs)
 - [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs)

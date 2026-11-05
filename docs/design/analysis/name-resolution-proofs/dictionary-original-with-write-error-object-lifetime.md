@@ -703,8 +703,4 @@ These source bindings establish no executed assertion result; exact software out
 
 - [rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405/request](../../../../rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405/request)
 - [rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405](../../../../rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405)
-- [rust/tcl-vm/tests/data/native_dictionary_body/probe.c](../../../../rust/tcl-vm/tests/data/native_dictionary_body/probe.c)
 - [rust/tcl-vm/tests/data/native_dictionary_body/cases.tsv](../../../../rust/tcl-vm/tests/data/native_dictionary_body/cases.tsv)
-- [rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405/request/sdk/8.6.18/unix/Makefile](../../../../rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405/request/sdk/8.6.18/unix/Makefile)
-- [rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405/request/sdk/9.0.4/unix/Makefile](../../../../rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405/request/sdk/9.0.4/unix/Makefile)
-- [rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405/request/sdk/9.1.0/unix/Makefile](../../../../rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405/request/sdk/9.1.0/unix/Makefile)

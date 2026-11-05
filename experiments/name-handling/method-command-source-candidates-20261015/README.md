@@ -4,7 +4,7 @@ These fixed original-provider observations bound two independent source-navigati
 purposes. They do not establish an installed call, complete lookup result, method
 namespace, entered frame, Native admission or edit permission.
 
-[Relative method lookup](relative-namespace/probe.tcl) records the global helper
+Relative method lookup records the global helper
 before an object-local shadow, then creates that shadow only in the namespace
 returned by the original `info object namespace` operation. C Tcl 8.6.18, 9.0.4
 and 9.1.0 return `GLOBAL`, then `OBJECT`. A class declared in `::Outer` still uses
@@ -14,7 +14,7 @@ possible source target with unresolved runtime namespace alternatives. C Tcl
 8.4.20/8.5.19 and this pinned Jim have no baseline TclOO; their unavailable outputs
 are preserved, without an emulation or portability claim.
 
-[Operand effects](operand-effects/probe.tcl) records a literal argument retaining
+Operand effects records a literal argument retaining
 an `OLD` absolute helper, while a command substitution replaces that helper before
 lookup and yields `NEW`. All five original C versions and the pinned Jim show this
 result. A known absolute source coordinate therefore does not remove the current

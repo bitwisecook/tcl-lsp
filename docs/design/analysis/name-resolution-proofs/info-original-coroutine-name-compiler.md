@@ -286,15 +286,12 @@ TclCompileInfoCoroutineCmd(
 - [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs), `spec`: Publish the authored info SubCommand table through CommandSpec.subcommands, independently of actual selected original C ensemble/compiler registration.
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `NativeCompilationSpec::select_registered_worker_native_words`: Use original effective worker coordinates and the selected zero-argument InfoCoroutine grammar; independent Native token/compiler entry remains required.
 - [rust/tcl-registry/src/native_coroutine_compilation.rs](../../../../rust/tcl-registry/src/native_coroutine_compilation.rs), `compile_native_coroutine`: Retain selected C8.6/C9 zero-worker-operand Name recipe, exact release/arity and expanded-argument decline; no original live holder grant.
-- [rust/tcl-compiler/src/codegen/native_coroutine.rs](../../../../rust/tcl-compiler/src/codegen/native_coroutine.rs), `CodegenCtx::native_coroutine_tasks`: Project the selected Name recipe to the coroutine-name instruction plan without argument work; original compilation/body/execution admission remains independent.
+- `rust/tcl-compiler/src/codegen/native_coroutine.rs`, `CodegenCtx::native_coroutine_tasks`: Project the selected Name recipe to the coroutine-name instruction plan without argument work; original compilation/body/execution admission remains independent.
 - [rust/tcl-registry/src/native_coroutine_compilation.rs](../../../../rust/tcl-registry/src/native_coroutine_compilation.rs), `native_coroutine_compilation::coroutine_name_tests::original_coroutine_name_compiler_keeps_zero_operand_recipe_and_native_decline` (linked): Actual selected C release and original public/direct worker operand coordinates retain the zero-operand Name recipe only from C8.6. Extra or expanded arguments decline; C8.4/8.5 remain unavailable. This marked source/API definition executes no external compiler/provider and grants no Native token/frame/holder/result.
 
 ## Evidence
 
 - [rust/tcl-registry/tests/data/native_info_inventory_original/sources](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources)
-- [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.4.20](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.4.20)
-- [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.5.19](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.5.19)
 - [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
-- [rust/tcl-compiler/src/codegen](../../../../rust/tcl-compiler/src/codegen)
 - [rust/tcl-registry/src/commands/tcl](../../../../rust/tcl-registry/src/commands/tcl)
 - [rust/tcl-registry/src](../../../../rust/tcl-registry/src)

@@ -8,8 +8,8 @@ package behaviour; they do not establish a compiler fix for #2243.
 
 | Input | Measured result |
 | --- | --- |
-| [Exact header](exact-header.tcl) | C Tcl 8.5.19, 8.6.18, 9.0.4 and 9.1.0 return their actual provided `Tcl` version. Tcl 8.4.20 and current Jim reject the two requirement words for argument count. The measured global command-name snapshot is unchanged in all rows. |
-| [Provided and forgotten packages](provided-and-forgotten.tcl) | All five C releases run no `ifneeded` loader for an already provided package, both for a compatible request and an incompatible request that errors. An external package and `Tcl` after explicit `package forget` each execute the registered loader and create a command. |
+| Exact header | C Tcl 8.5.19, 8.6.18, 9.0.4 and 9.1.0 return their actual provided `Tcl` version. Tcl 8.4.20 and current Jim reject the two requirement words for argument count. The measured global command-name snapshot is unchanged in all rows. |
+| Provided and forgotten packages | All five C releases run no `ifneeded` loader for an already provided package, both for a compatible request and an incompatible request that errors. An external package and `Tcl` after explicit `package forget` each execute the registered loader and create a command. |
 | Jim boundary | Exact checkout `82fb4d0caf90240d94352a31fcbd16adf52658a7` reports `0.84-10-g82fb4d0`, supplies no initial `Tcl` provision and rejects `ifneeded`. The external/forgotten cases are not executed there; provided-package results use Jim's dummy `1.0` version. |
 
 The standalone execution evidence retains each exact script once, all six

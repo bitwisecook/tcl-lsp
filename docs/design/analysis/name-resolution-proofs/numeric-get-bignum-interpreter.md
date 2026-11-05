@@ -117,9 +117,3 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 - [rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c)
 - [rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json)
-- [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl)
-- [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl)
-- [rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl)
-- [rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl)
-- [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl)
-- [rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl)

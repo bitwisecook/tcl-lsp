@@ -1,5 +1,0 @@
-superclass-normal AFTER ::Child
-superclass-destruction CLEAN
-mixin-precedence MIXIN ::Mixed
-superclass-failure 1 BOOM CLEAN 0
-local-precedence OWN ::Own

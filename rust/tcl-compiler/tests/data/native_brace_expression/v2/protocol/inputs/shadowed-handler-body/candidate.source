@@ -1,1 +1,0 @@
-proc expr {x} {uplevel 1 {info body p}}; proc p {} {expr {1 + 2}}; p

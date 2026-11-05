@@ -17,14 +17,14 @@ reads in separate processes and prints the interpreter's actual patchlevel.
 
 The controlled follow-up completed all eighteen provider/case runs.
 The first Jim trial exited with signal 11 and emitted no result; that original
-trial remains in [initial/manifest.json](initial/manifest.json). The successful
+trial remains in `initial/manifest.json`. The successful
 isolated observations are separate receipts and do not rewrite or explain that
 signal. Unsupported operations, missing reads and nonzero statuses remain
 observations rather than expected successful variable reads.
 
-[controlled/manifest.json](controlled/manifest.json) records the exact selected
+`controlled/manifest.json` records the exact selected
 provider, original library, argv, status and output hashes. Original stdout and
-stderr files remain byte-for-byte captures; [SHA256SUMS](SHA256SUMS) seals the
+stderr files remain byte-for-byte captures; SHA256SUMS seals the
 archive. Both original manifests are preserved without path or receipt edits.
 
 This evidence concerns source constructor validity only. It supplies no current

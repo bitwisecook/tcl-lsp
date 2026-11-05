@@ -2,15 +2,15 @@
 
 Does `array names a -bad x` fail when `a` is missing, scalar, empty or
 populated? Does an invalid regular expression fail without a candidate key?
-The discrete [cases](cases/) are fresh-interpreter Tcl inputs. They print the
+The discrete cases are fresh-interpreter Tcl inputs. They print the
 reached catch code, result and global error code; no implementation output is
 used as an oracle. Unique mode prefixes, an ambiguous prefix, a sole trailing
 dash word and both argument-count boundaries are separate controls.
 
 Run `source /tmp/name-env.sh` and `python3 capture.py` from the repository root.
-The [capture program](capture.py) retains exact stdin inputs, subprocess argv,
+The capture program retains exact stdin inputs, subprocess argv,
 raw stdout/stderr, exit codes, reported patchlevels, matching C libraries and
-input/binary/source hashes in [captures](captures/). These are source-built
+input/binary/source hashes in captures. These are source-built
 C 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0. The latest upstream Jim available
 in this session is revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`.
 Its independent grammar admits only `arrayName ?pattern?`.
@@ -30,7 +30,7 @@ on 12 October 2026; this capture does not repeat remote discovery.
 | Populated array, sole `-bad` trailing word | Empty glob result | Empty glob result | Empty glob result |
 | `array names` without a name | Ensemble usage error | Names-worker usage error | Names-worker usage error |
 
-The [source excerpts](source-excerpts/) retain the relevant workers and line
+The source excerpts retain the relevant workers and line
 numbers. In C 8.4/8.5, non-array return precedes mode validation; pattern string
 materialisation precedes original mode-index selection. C 8.6+ locates the
 array, validates the mode, returns for a non-array, then materialises the
@@ -50,7 +50,7 @@ retained as exit code 2 and stderr, not represented as a caught Tcl error.
 
 ## Does lookup or argument validation win over an array trace?
 
-The separate [trace inputs](traces/) record registration first, so unsupported
+The separate trace inputs record registration first, so unsupported
 registration is not misreported as a reached lookup. All five C releases fire
 the array trace before validating a mode on an otherwise valid argument count.
 A trace error wins over a bad mode, and a trace that creates a missing array
@@ -76,7 +76,7 @@ the observed empty list when there are no candidate keys and requests the
 currently unavailable original regex worker only when enumeration reaches a
 candidate. Adapter trace admission remains a separate recorded gap.
 
-[capture_regression.py](capture_regression.py) mechanically replaces each
+`capture_regression.py` mechanically replaces each
 `puts [list ...]` with row accumulation. It independently executed all 222
 adapted inputs on the six real oracles and verified identical stdout/stderr
 and completion against the original captures. The [regression vectors](regression-vectors/)
@@ -90,12 +90,12 @@ for C regex enumeration with populated arrays. Original Jim trace questions
 remain unreached, and the independent C 8.4/8.5 no-name and excess-arity trace
 admission gaps remain outside that conformance assertion.
 
-[runtime-test.log](validation/runtime-test.log) records the fresh native
+`runtime-test.log` records the fresh native
 integration executable passing all three focused tests, including both
 pre-existing variable/mode matrices. The new boundary test passes 200 exact
 oracle-row comparisons. Ten populated-regexp checks establish explicit host
 refusal, independently of C conformance. The
-[execution record](validation/runtime-test-record.json) retains the executable,
+execution record retains the executable,
 input, source and log hashes with each input's reached validation scope.
 Before/after build inventories covering 4,938 Rust/runtime source and Cargo
 files are identical. The existing C 8.5 `var.test` 69-pass capture is preserved;

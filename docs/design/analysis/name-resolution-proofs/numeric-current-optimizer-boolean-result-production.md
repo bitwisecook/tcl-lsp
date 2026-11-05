@@ -394,9 +394,7 @@ No Rust assertion is attached to this source interpretation record. Current sour
 
 - [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
 - [rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.4.20](../../../../rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.4.20)
-- [rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.4.20/sources](../../../../rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.4.20/sources)
 - [rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.5.19](../../../../rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.5.19)
-- [rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.5.19/sources](../../../../rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.5.19/sources)
 - [rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.6.18](../../../../rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.6.18)
 - [rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.6.18/sources](../../../../rust/tcl-registry/tests/data/current_optimizer_boolean_result_production/providers/8.6.18/sources)
 - [rust/tcl-registry/tests/data/current_optimizer_boolean_result_production](../../../../rust/tcl-registry/tests/data/current_optimizer_boolean_result_production)

@@ -13,7 +13,7 @@ alias target. Jim reports the first target, establishing the helper's root looku
 basis independently of caller namespace canonicalisation.
 
 Jim's exact helper source is retained in
-[the command-query source receipt](../namespace-command-query/jim-source/).
+the command-query source receipt.
 `nshelper.tcl` lines 17–30 select canonical alias, canonical command and original
 command in that order. Both `exists -alias` and `info alias` use the same canonical
 object. The global helper uses the actual root namespace for these getters;

@@ -77,7 +77,6 @@ External bigip results are not tested here. The source-defined held-Jim software
 
 - [rust/tcl-compiler](../../../../rust/tcl-compiler)
 - [rust/tcl-compiler/src/command_binding](../../../../rust/tcl-compiler/src/command_binding)
-- [rust/tcl-compiler/src/inlining](../../../../rust/tcl-compiler/src/inlining)
 - [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
 - [rust/tcl-compiler/src/optimiser/elimination](../../../../rust/tcl-compiler/src/optimiser/elimination)
 - [rust/tcl-registry](../../../../rust/tcl-registry)
