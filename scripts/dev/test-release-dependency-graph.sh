@@ -282,6 +282,17 @@ require_needs linux-release-portability create-release build-server-matrix
 require_needs publish-native-binaries create-release build-server-matrix linux-release-portability
 require_needs build-vsix create-release test-ext test-ext-web build-server-matrix \
     linux-release-portability lsp-server-wasi
+# The browser module is linked once, by `lsp-server-wasm`; `test-ext-web`
+# consumes its artifact instead of repeating the release/LTO link.
+require_needs test-ext-web channel lsp-server-wasm
+if ! printf '%s\n' "$(require_job test-ext-web)" | grep -Fq "if: \${{ !cancelled() }}"; then
+    echo "test-ext-web must still run when lsp-server-wasm's own session fails" >&2
+    exit 1
+fi
+if [ "$(grep -cE '^[[:space:]]+run: make lsp-server-wasm[[:space:]]*$' "$WORKFLOW")" != 1 ]; then
+    echo "exactly one ci.yml job may build the browser module (make lsp-server-wasm)" >&2
+    exit 1
+fi
 require_needs build-jetbrains create-release build-server-matrix linux-release-portability
 require_needs build-sublime create-release build-server-matrix linux-release-portability
 

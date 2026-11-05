@@ -18,7 +18,7 @@ for access).
 | 6 | Broken and racing CI caches | **Landed, awaiting first CI run**: shard cache keyed per runner class; sccache outlives the test phase | `.github/workflows/ci.yml`, `scripts/dev/test-rust-tests-runner.sh` |
 | 7 | Exhaustive checks in unoptimised unit tests | **Partly landed**: the registry prerequisite-index test runs its dialects concurrently (75 s → 38 s); coverage unchanged | `rust/tcl-registry/src/registry.rs` |
 | 8 | Version stamp reruns on every cargo call | **Landed**: dev-profile builds no longer re-run the stamp on every call; a no-op `cargo build -p tcl-lsp-server` went from 65 s to 0.3 s | `rust/tcl-version/build.rs` |
-| 9 | Duplicate WASM builds | Not started | |
+| 9 | Duplicate WASM builds | **Landed, awaiting first CI run**: `lsp-server-wasm` builds the browser module once and `test-ext-web` downloads it | `.github/workflows/ci.yml`, `scripts/dev/test-release-dependency-graph.sh` |
 | 10 | Runner queueing in bursts | Not started | |
 
 ## Baseline state of `work` (`84ddae4`), independent of this work
@@ -32,6 +32,11 @@ Recorded so a failure here is not mistaken for a regression from it:
   fails on the base commit.
 - `tcl-compiler` has two dead-code warnings, so `clippy -D warnings` fails
   before reaching downstream crates.
+- `scripts/dev/test-vscode-test-partitions.sh` ("partition manifest does
+  not cover the canonical glob exactly once") and
+  `tcl-spec-studio` `reference_doc::fields_doc_matches_the_schema`
+  (`fields.md` lags the registry's Clay grammar and TclOO flags) fail on the
+  base commit.
 - Drift gates failing on the base commit (each also fails run alone):
   `kcs-index-links`, `owner-resolution`, `resolution-drift`,
   `retired-api-gate`, `value-transfers --check`, `registry-axes --check`,
@@ -306,3 +311,56 @@ such change. A debug binary is never shipped, so the lag is acceptable.
 No-op builds after the change: `tcl-lsp-server` **65 s → 0.3 s**, `tcl-cli`
 **5 s → 0.3 s**. `cargo test -p tcl-version` passes, and a release build of the
 crate still emits the probe.
+
+## 9. Duplicate WASM builds
+
+On a PR that touched the browser server, `lsp-server-wasm` and `test-ext-web`
+each did the same release/LTO `make lsp-server-wasm` link on their own runner.
+`test-ext-web` built its own copy because `lsp-server-wasm` skipped on a
+narrower path filter, and an extension-only change would then have had no
+module to test.
+
+`lsp-server-wasm` is now the only producer:
+
+- Its build gate, `BUILD_LSP_WASM`, is the union of its own gate and
+  `test-ext-web`'s `RUN_EXT_WEB`.
+- It uploads `rust/tcl-lsp-server-wasm/dist` as `lsp-server-wasm-dist` and
+  then runs its node session.
+- `test-ext-web` needs it, downloads the artifact, and no longer installs Rust
+  or `wasm-bindgen`.
+- `test-ext-web` runs under `if: !cancelled()`. A failed node session in the
+  producer, which runs after the upload, still lets the extension suite report
+  on its own. A failed build fails the download, and with it the suite.
+
+`scripts/dev/test-release-dependency-graph.sh` now checks the `needs` edge,
+the `!cancelled()` guard, and that exactly one `ci.yml` step runs
+`make lsp-server-wasm`. Negative controls (no producer, a second producer)
+fail it.
+
+The release path is unchanged: `build-vsix` still builds its own payload under
+the release stamp, because a published module must carry the tag's version.
+
+Trade-off: `test-ext-web`'s `npm ci` and Chromium install now start after the
+link instead of alongside it. That adds a few minutes of wall time to that leg
+and saves one full LTO link of runner time on every qualifying run.
+
+### Stale references from items 4 and 5, fixed alongside
+
+Checking the CI contract scripts found references the crate split and the
+binary merge had left behind:
+
+- `scripts/dev/{rust-tests,lsp-e2e}-package-paths.txt` lacked
+  `rust/tcl-codegen`. Their `test-*-paths.sh` contracts failed, and a
+  `tcl-codegen`-only change would not have triggered those suites.
+- `--test <name>` commands for merged modules now name the merged binary and
+  a module filter (`--test it_2 codegen_golden::`):
+  - the `bytecode-compare` skill
+  - the `reference_doc` regenerate hint, both in code and in `fields.md`
+  - `pack_torture`'s ignore reason
+  - `release_optimiser_safety`, `early_cutoff` and `references_rename` in the
+    design and work docs
+- `wasm_tiers` references now say `-p tcl-codegen`.
+- Dated receipts (`*_RECEIPT_*.json`, `validation-2026-11-04/`) record what was
+  run at the time and are left as they are.
+
+Every `-p <pkg> --test <name>` in the tree now resolves to a real target.

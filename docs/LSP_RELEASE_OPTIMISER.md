@@ -162,7 +162,7 @@ this checkpoint. No failing test has been removed or weakened.
 
 ## Verified first batch
 
-`cargo test --offline -p tcl-compiler --test release_optimiser_safety -- --nocapture`
+`cargo test --offline -p tcl-codegen --test it_3 release_optimiser_safety:: -- --nocapture`
 passed all 44 initial issue witnesses, with no ignored tests, after the first
 fix batch (`1c15d4ff5`). The suite used every applicable pinned Tcl 8.4–9.1
 oracle. Each test is named `issue_<number>` and compares stdout, stderr,

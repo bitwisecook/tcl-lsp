@@ -1044,8 +1044,14 @@ jobs:
   # (`ext_changed`) and the browser language server (`lsp_wasm_changed`).  Step-
   # level like every other skip here, so the job still reports success and the
   # release `needs:` graph stays intact.
+  #
+  # The browser server itself comes from `lsp-server-wasm`, which builds it once
+  # for both jobs. `!cancelled()` keeps this suite independent of that job's own
+  # node session: the module is uploaded before that session runs, so a browser
+  # LSP regression there still lets the extension suite report on its own.
   test-ext-web:
-    needs: [channel]
+    needs: [channel, lsp-server-wasm]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04
     env:
       RUN_EXT_WEB: ${{ (needs.channel.outputs.ext_changed == 'true' || needs.channel.outputs.lsp_wasm_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.prerelease != 'true' }}
@@ -1062,26 +1068,6 @@ jobs:
           # These hosted-runner SDKs are unused by the Rust/Node browser suite.
           sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
           df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
-
-      # The browser server is built here rather than fetched from the
-      # `lsp-server-wasm` job: that job step-skips on its own narrower path
-      # filter, so depending on its artefact would make this suite skip
-      # whenever only `editors/vscode/**` changed — exactly when it is most
-      # worth running.  Its own cache key keeps the release/LTO link warm.
-      - name: Set up Rust
-        if: env.RUN_EXT_WEB == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
-        with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          cache-key: test-ext-web
-          cache-workspaces: rust/tcl-lsp-server-wasm
-
-      - name: Install wasm-bindgen CLI
-        if: env.RUN_EXT_WEB == 'true'
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
-        with:
-          tool: wasm-bindgen-cli@0.2.129
 
       - name: Set up Node.js
         if: env.RUN_EXT_WEB == 'true'
@@ -1155,9 +1141,13 @@ jobs:
           path: editors/vscode/.vscode-test-web
           key: vscode-test-web-${{ runner.os }}-${{ steps.vscode-web-version.outputs.version }}
 
-      - name: Build the browser language server
+      # Built by `lsp-server-wasm`, whose build gate includes this job's.
+      - name: Fetch the browser language server
         if: env.RUN_EXT_WEB == 'true'
-        run: make lsp-server-wasm
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: lsp-server-wasm-dist
+          path: rust/tcl-lsp-server-wasm/dist
 
       # `npm run compile` stages `dist/web` best-effort, so a build that never
       # produced the worker assets would reach the browser as a runtime error
@@ -2070,13 +2060,17 @@ jobs:
       # local dependency closure.  An ambiguous path classification is true;
       # already-green merge pushes and tags carry forward their PR/push result.
       RUN_LSP_WASM: ${{ needs.channel.outputs.lsp_wasm_changed == 'true' && needs.channel.outputs.already_green != 'true' }}
+      # The single producer of the browser module: true whenever this job's
+      # session or `test-ext-web` (RUN_EXT_WEB) will run, so neither links it
+      # a second time.
+      BUILD_LSP_WASM: ${{ needs.channel.outputs.already_green != 'true' && (needs.channel.outputs.lsp_wasm_changed == 'true' || ((needs.channel.outputs.ext_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.prerelease != 'true')) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
 
       - name: Set up Rust
-        if: env.RUN_LSP_WASM == 'true'
+        if: env.BUILD_LSP_WASM == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
@@ -2085,20 +2079,35 @@ jobs:
           cache-workspaces: rust/tcl-lsp-server-wasm
 
       - name: Install wasm-bindgen CLI
-        if: env.RUN_LSP_WASM == 'true'
+        if: env.BUILD_LSP_WASM == 'true'
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: wasm-bindgen-cli@0.2.129
 
+      # Node also runs build-wasm.sh's externref growability check.
       - name: Set up Node.js
-        if: env.RUN_LSP_WASM == 'true'
+        if: env.BUILD_LSP_WASM == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"
 
-      - name: Build and exercise the browser LSP server
+      - name: Build the browser LSP server
+        if: env.BUILD_LSP_WASM == 'true'
+        run: make lsp-server-wasm
+
+      - name: Upload the browser LSP server
+        if: env.BUILD_LSP_WASM == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lsp-server-wasm-dist
+          path: rust/tcl-lsp-server-wasm/dist
+          if-no-files-found: error
+          retention-days: 1
+
+      # The same session `make lsp-server-wasm-test` runs, without rebuilding.
+      - name: Exercise the browser LSP server
         if: env.RUN_LSP_WASM == 'true'
-        run: make lsp-server-wasm-test
+        run: node rust/tcl-lsp-server-wasm/test/e2e.mjs
 
   # The real WASI LSP server: release-link the wasm32-wasip1 command, optimise
   # it, then drive scripted JSON-RPC sessions against it under the wasmtime CLI.

@@ -54,7 +54,7 @@ python3 .claude/skills/bytecode-compare/bytecode_compare.py [-v VERSION] <subcom
 | `diff` | `<snippet>` | Detailed instruction-by-instruction diff for one snippet (e.g. `while-simple`) |
 | `summary` | | One-line per snippet: match/mismatch with instruction counts |
 | `instructions` | `<snippet>` | Side-by-side normalised instruction listing |
-| `refresh` | | Verify the goldens still match live codegen (`codegen_golden`), then re-compare. Re-bless an intentional codegen change with `BLESS_GOLDEN=1 cargo test -p tcl-compiler --test codegen_golden`. |
+| `refresh` | | Verify the goldens still match live codegen (`codegen_golden`), then re-compare. Re-bless an intentional codegen change with `BLESS_GOLDEN=1 cargo test -p tcl-codegen --test it_2 codegen_golden::`. |
 | `categories` | | Group differences by category (variable access, jumps, opcodes, etc.) |
 | `versions` | `<snippet>` | Compare one snippet against all Tcl versions (8.4, 8.5, 8.6, 9.0) |
 

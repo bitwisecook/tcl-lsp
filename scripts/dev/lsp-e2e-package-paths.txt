@@ -8,6 +8,7 @@ rust/tcl-bigip
 rust/tcl-bigip-query
 rust/tcl-bytecode
 rust/tcl-cmd-core
+rust/tcl-codegen
 rust/tcl-compiler
 rust/tcl-core-types
 rust/tcl-diagram

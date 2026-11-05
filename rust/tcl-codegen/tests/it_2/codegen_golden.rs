@@ -28,7 +28,7 @@
 //! Regenerate the goldens after an *intentional* codegen change:
 //!
 //! ```text
-//! BLESS_GOLDEN=1 cargo test -p tcl-compiler --test codegen_golden
+//! BLESS_GOLDEN=1 cargo test -p tcl-codegen --test it_2 codegen_golden::
 //! ```
 
 use std::fs;

@@ -23,7 +23,7 @@
 //! manual cannot drift from the studio (and, through the studio's coverage
 //! gates, cannot drift from the registry). `tests/reference_doc.rs` asserts
 //! the on-disk file matches; regenerate with
-//! `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test reference_doc`.
+//! `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test it_2 reference_doc::`.
 
 use std::fmt::Write as _;
 
@@ -37,7 +37,7 @@ pub fn render_fields_doc() -> String {
         "# CommandSpec fields\n\n\
          > Generated from the spec studio's schema — do not edit by hand.\n\
          > Regenerate with `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio \
-         --test reference_doc`.\n\n\
+         --test it_2 reference_doc::`.\n\n\
          Every field of `CommandSpec` and `SubCommand`, grouped the way the \
          [Spec Studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/) \
          groups its form. The same text sits behind the studio's **?** \

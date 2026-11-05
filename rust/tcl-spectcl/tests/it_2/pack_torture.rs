@@ -307,7 +307,7 @@ fn truncation_at_each_parse_state_loads() {
 /// six-case test above is the CI cover for the same code.
 #[ignore = "permuted-input sweep over every truncation offset; fuzz-shaped, so \
             manual tier only — run explicitly with `cargo test -p tcl-spectcl \
-            --test pack_torture -- --ignored`, or via `make test-exhaustive`. \
+            --test it_2 pack_torture:: -- --ignored`, or via `make test-exhaustive`. \
             The representative fixed cases run in CI as \
             truncation_at_each_parse_state_loads"]
 #[test]

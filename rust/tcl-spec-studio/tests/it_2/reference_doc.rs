@@ -20,7 +20,7 @@
 //! with the studio schema it is rendered from.
 //!
 //! Regenerate with
-//! `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test reference_doc`.
+//! `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test it_2 reference_doc::`.
 
 use std::path::PathBuf;
 
@@ -42,6 +42,6 @@ fn fields_doc_matches_the_schema() {
         on_disk == rendered,
         "docs/references/command-spec/fields.md is out of date with the \
          studio schema — regenerate with UPDATE_REFERENCE=1 cargo test -p \
-         tcl-spec-studio --test reference_doc"
+         tcl-spec-studio --test it_2 reference_doc::"
     );
 }

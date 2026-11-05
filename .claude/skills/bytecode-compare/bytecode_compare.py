@@ -209,7 +209,7 @@ def regenerate_ours(bless: bool = False) -> int:
     them after an intentional codegen change.
     """
     env = {"BLESS_GOLDEN": "1"} if bless else {}
-    cmd = ["cargo", "test", "-p", "tcl-compiler", "--test", "codegen_golden"]
+    cmd = ["cargo", "test", "-p", "tcl-codegen", "--test", "it_2", "codegen_golden::"]
     proc = subprocess.run(cmd, cwd=REPO_ROOT, env={**os.environ, **env}, check=False)
     return proc.returncode
 
@@ -443,7 +443,7 @@ def cmd_refresh(version: str) -> None:
         print(
             "\ncodegen_golden failed: the goldens no longer match what the compiler\n"
             "emits. If the codegen change was intentional, re-bless them with:\n"
-            "    BLESS_GOLDEN=1 cargo test -p tcl-compiler --test codegen_golden\n",
+            "    BLESS_GOLDEN=1 cargo test -p tcl-codegen --test it_2 codegen_golden::\n",
             file=sys.stderr,
         )
         raise SystemExit(rc)

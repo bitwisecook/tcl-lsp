@@ -586,7 +586,7 @@ fn render_budgets() -> String {
     let mut out = String::new();
     out.push_str(
         "# Framing budgets for samples/wasm — GOLDEN, regenerate with:\n\
-         #   UPDATE_WASM_BUDGETS=1 cargo test -p tcl-compiler --test wasm_tiers \\\n\
+         #   UPDATE_WASM_BUDGETS=1 cargo test -p tcl-codegen --test wasm_tiers \\\n\
          #       framing_budgets\n\
          #\n\
          # One row per sample per compilation plan. eval_code / expr_bool /\n\
@@ -663,7 +663,7 @@ fn framing_budgets_match_the_committed_golden() {
     panic!(
         "the framing budgets in {BUDGETS_PATH} no longer match what the emitter \
          produces:\n{drift}\nIf this is an intended framing change, regenerate and \
-         review the diff:\n  {UPDATE_VAR}=1 cargo test -p tcl-compiler --test wasm_tiers \
+         review the diff:\n  {UPDATE_VAR}=1 cargo test -p tcl-codegen --test wasm_tiers \
          framing_budgets\nA budget that goes UP is a framing regression and needs a \
          reason in the commit message."
     );

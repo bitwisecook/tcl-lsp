@@ -82,7 +82,7 @@ fn labels(items: &[tcl_lsp_core::completion::CompletionItem]) -> Vec<&str> {
 
 #[test]
 fn smoke_completion_binary_exists() {
-    // Anchors the test binary so `cargo llvm-cov --test completion_residual`
+    // Anchors the test binary so `cargo llvm-cov --test it_4`
     // has a target to instrument.
     let src = "pu\n";
     let analysis = analyse(src);

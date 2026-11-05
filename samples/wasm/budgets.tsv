@@ -1,5 +1,5 @@
 # Framing budgets for samples/wasm — GOLDEN, regenerate with:
-#   UPDATE_WASM_BUDGETS=1 cargo test -p tcl-compiler --test wasm_tiers \
+#   UPDATE_WASM_BUDGETS=1 cargo test -p tcl-codegen --test wasm_tiers \
 #       framing_budgets
 #
 # One row per sample per compilation plan. eval_code / expr_bool /

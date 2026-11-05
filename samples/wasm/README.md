@@ -42,8 +42,8 @@ words with runtime dispatch, and the rest). `rust/tcl-codegen/tests/wasm_tiers.r
 gates it and the oracle comparison together:
 
 ```
-cargo test -p tcl-compiler --test wasm_tiers
-UPDATE_WASM_BUDGETS=1 cargo test -p tcl-compiler --test wasm_tiers framing_budgets
+cargo test -p tcl-codegen --test wasm_tiers
+UPDATE_WASM_BUDGETS=1 cargo test -p tcl-codegen --test wasm_tiers framing_budgets
 ```
 
 To read one script's module by hand:

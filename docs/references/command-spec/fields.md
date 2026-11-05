@@ -1,7 +1,7 @@
 # CommandSpec fields
 
 > Generated from the spec studio's schema — do not edit by hand.
-> Regenerate with `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test reference_doc`.
+> Regenerate with `UPDATE_REFERENCE=1 cargo test -p tcl-spec-studio --test it_2 reference_doc::`.
 
 Every field of `CommandSpec` and `SubCommand`, grouped the way the [Spec Studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/) groups its form. The same text sits behind the studio's **?** buttons. Impact tables — which fields drive which diagnostics, optimisations, and editor features — live in [README.md](README.md).
 
