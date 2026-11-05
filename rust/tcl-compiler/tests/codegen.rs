@@ -89,7 +89,9 @@ use tcl_registry::CommandRegistry;
 // Helpers.
 
 fn registry() -> CommandRegistry {
-    CommandRegistry::build_default()
+    CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    )
 }
 
 fn sp() -> Span {

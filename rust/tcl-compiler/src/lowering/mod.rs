@@ -6772,16 +6772,23 @@ fn declared_member_vars(
 
 /// Lower Tcl source to an IR module.
 ///
-/// This is the main entry point for the lowering phase.  Lexes with the
-/// default (Tcl-8.5+) config and parses expressions in the plain-Tcl grammar;
-/// use [`lower_to_ir_with_dialect`] to honour a document's dialect.
+/// Lexes, parses expressions and resolves commands under `registry`'s own
+/// profile; a profile-less registry abstains from resolution. Use
+/// [`lower_to_ir_with_dialect`] to honour a document's dialect.
 #[must_use]
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
     // dialect-drift-ok: the test-only entry point — every production caller
-    // now goes through `lower_to_ir_with_config` / `_with_dialect` with the
-    // document's own config; the test fixtures across the workspace still
-    // spell the plain-Tcl default this way.
-    lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default())
+    // goes through `lower_to_ir_with_config` / `_with_dialect` with the
+    // document's own config. The command world fails closed on a lexer
+    // config that differs from its profile's, so the config follows the
+    // registry's profile.
+    let profile = registry.profile();
+    lower_to_ir_with_dialect(
+        source,
+        registry,
+        tcl_lexer::LexerConfig::for_profile(profile),
+        profile,
+    )
 }
 
 /// Lower a single `proc` body in isolation at `proc_depth == 1` (a fresh
