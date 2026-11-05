@@ -28,23 +28,29 @@ use tcl_registry::body_execution::{BodyExecutionSelection, BodyExecutionSpec, Bo
 use tcl_syntax::word_rules::WordValueRules;
 
 /// A loader for `package` when the registry declares its commands, through a
-/// loaded `SpecTcl` pack or a shipped package spec. It installs exactly the
-/// declared surface; a package that also redefines other commands is not
-/// modelled.
+/// loaded `SpecTcl` pack or a shipped package spec. Package names compare as
+/// `policy`'s package keys. It installs exactly the declared surface; a
+/// package that also redefines other commands is not modelled.
 #[must_use]
 pub fn declared_surface_package_loader(
     registry: &tcl_registry::CommandRegistry,
     package: &str,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Option<crate::command_binding::TrustedPackageLoader> {
+    use tcl_registry::native_package::NativePackageNameKey;
+    let requested = NativePackageNameKey::from_native_units(package.as_bytes(), policy);
     let mut command_surface = registry
-        .command_names()
-        .filter(|name| {
+        .command_descriptor_keys()
+        .filter(|key| {
             registry
-                .get(name)
+                .get(key.label())
                 .and_then(|spec| spec.required_package)
-                .is_some_and(|required| required == package)
+                .is_some_and(|required| {
+                    NativePackageNameKey::from_native_units(required.as_bytes(), policy)
+                        == requested
+                })
         })
-        .map(str::to_owned)
+        .map(tcl_registry::CanonicalCommandDescriptorKey::rooted_binding_label)
         .collect::<Vec<_>>();
     if command_surface.is_empty() {
         return None;

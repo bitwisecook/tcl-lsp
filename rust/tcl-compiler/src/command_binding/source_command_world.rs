@@ -498,6 +498,11 @@ impl OriginalSourceCommandWorld {
             .then_some(policy)
     }
 
+    /// The naming policy this world selected at its baseline, if any.
+    pub(super) const fn selected_policy(&self) -> Option<NamePolicyProtocol> {
+        self.policy
+    }
+
     /// Select the immutable source baseline before any branch or operation.
     /// Native entry state and unknown history retain their independent owners.
     pub(super) fn for_baseline(state: &ModuleCommandBindings) -> Self {

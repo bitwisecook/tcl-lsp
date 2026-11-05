@@ -15761,11 +15761,16 @@ impl ModuleCommandBindings {
                     .collect(),
             ),
             namespaces: Arc::new(namespaces.into_iter().collect()),
-            packages: Arc::new(interpreter_provided_packages(state_baseline_release)),
             ..Self::default()
         };
         state.original_command_world =
             Arc::new(source_command_world::OriginalSourceCommandWorld::for_baseline(&state));
+        if let (Some(release), Some(policy)) = (
+            state_baseline_release,
+            state.original_command_world.selected_policy(),
+        ) {
+            state.packages = Arc::new(interpreter_provided_packages(release, policy));
+        }
         if state.baseline.native_entry.is_none()
             && !state.baseline.unknown_entry
             && let Some(dialect) = state.baseline.dialect
@@ -20894,24 +20899,29 @@ fn default_binding(qname: &str, registry: &CommandRegistry) -> Binding {
 }
 
 /// The packages a fresh interpreter of `release` provides before any script
-/// runs. Requiring one only checks its version: no loader runs and no command
-/// binding changes.
+/// runs, keyed by `policy`'s package keys. Requiring one only checks its
+/// version: no loader runs and no command binding changes.
 fn interpreter_provided_packages(
-    release: Option<tcl_dialect::TclVersion>,
+    release: tcl_dialect::TclVersion,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> BTreeMap<String, BTreeSet<PackageProvision>> {
     release
-        .map(tcl_dialect::TclVersion::core_provided_packages)
-        .unwrap_or_default()
+        .core_provided_packages()
         .iter()
-        .map(|package| {
-            (
-                package.name.to_owned(),
+        .filter_map(|package| {
+            let key = tcl_registry::native_package::NativePackageNameKey::from_native_units(
+                package.name.as_bytes(),
+                policy,
+            );
+            let key = String::from_utf8(key.bytes().to_vec()).ok()?;
+            Some((
+                key,
                 BTreeSet::from([PackageProvision {
                     present: true,
                     version: Some(package.version.to_owned()),
                     implementation: None,
                 }]),
-            )
+            ))
         })
         .collect()
 }
@@ -20936,7 +20946,8 @@ fn declared_surface_loader(
     {
         return None;
     }
-    crate::lowering::declared_surface_package_loader(registry, package)
+    let policy = state.original_command_world.selected_policy()?;
+    crate::lowering::declared_surface_package_loader(registry, package, policy)
 }
 
 fn apply_package_transition(
