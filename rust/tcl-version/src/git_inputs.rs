@@ -50,7 +50,7 @@ pub(crate) fn dependency_paths(manifest_dir: &Path) -> Vec<PathBuf> {
 /// observes (notably chmod-only changes and missing root-level files). Keeping
 /// the probe under Cargo's private output directory avoids watching the source
 /// or target directory recursively. The build script never creates it, so an
-/// unstamped build always re-evaluates the working-tree state.
+/// unstamped release-profile build always re-evaluates the working-tree state.
 pub(crate) fn worktree_probe_path(out_dir: &Path) -> PathBuf {
     out_dir.join("tcl-version-worktree-state-probe")
 }

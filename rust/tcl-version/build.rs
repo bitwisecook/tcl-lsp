@@ -48,13 +48,17 @@ fn main() {
     for path in git_inputs::dependency_paths(Path::new(env!("CARGO_MANIFEST_DIR"))) {
         println!("cargo:rerun-if-changed={}", path.display());
     }
-    if stamped.is_none() {
+    if stamped.is_none() && !is_dev_profile() {
         // There is no complete, portable set of filesystem mtimes that models
         // `git status`: an unstaged root-level deletion has no existing child
         // to watch, and a chmod-only change alters neither size nor mtime.
-        // Re-run this tiny stamp crate on every unstamped binary build instead.
-        // It is intentionally absent from the xtask dependency graph, so the
-        // repeated code-generation commands this repository runs stay fresh.
+        // Re-run this tiny stamp crate on every unstamped release build instead.
+        //
+        // Not in the dev profile: every crate that reads the stamp recompiles
+        // after a rerun, and `tcl-lsp-server` alone takes a minute, so a no-op
+        // `cargo build`/`cargo test` would pay that on every invocation. A
+        // debug binary is never a release, so its `.dirty` marker is allowed to
+        // lag until the next HEAD or ref change re-runs this script.
         let out_dir = PathBuf::from(
             std::env::var_os("OUT_DIR").expect("Cargo always supplies a build-script OUT_DIR"),
         );
@@ -113,6 +117,12 @@ fn main() {
         "cargo:rustc-env=TCL_LSP_RESOLVED_COMMIT={}",
         hash.unwrap_or_default()
     );
+}
+
+/// Cargo's `PROFILE` is `debug` for the dev and test profiles and `release`
+/// for release and every profile that inherits from it.
+fn is_dev_profile() -> bool {
+    std::env::var("PROFILE").is_ok_and(|p| p == "debug")
 }
 
 /// `GIT_HASH`, for builds outside a git checkout (an sdist / vendored build),

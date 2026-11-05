@@ -17,7 +17,7 @@ for access).
 | 5 | Hundreds of fat test binaries | **Landed**: integration tests merged per (crate, shard); no test lost | `rust/*/tests/it_<k>/`, `scripts/dev/rust-test-binary-shards.tsv`, test-tiers contract |
 | 6 | Broken and racing CI caches | **Landed, awaiting first CI run**: shard cache keyed per runner class; sccache outlives the test phase | `.github/workflows/ci.yml`, `scripts/dev/test-rust-tests-runner.sh` |
 | 7 | Exhaustive checks in unoptimised unit tests | **Partly landed**: the registry prerequisite-index test runs its dialects concurrently (75 s → 38 s); coverage unchanged | `rust/tcl-registry/src/registry.rs` |
-| 8 | Version stamp reruns on every cargo call | Not started | |
+| 8 | Version stamp reruns on every cargo call | **Landed**: dev-profile builds no longer re-run the stamp on every call; a no-op `cargo build -p tcl-lsp-server` went from 65 s to 0.3 s | `rust/tcl-version/build.rs` |
 | 9 | Duplicate WASM builds | Not started | |
 | 10 | Runner queueing in bursts | Not started | |
 
@@ -287,3 +287,22 @@ Open:
   workstream's registration owners).
 - The `tcl-lsp-core` depth tests (`deeply_nested_*`, 25–181 s): their depths
   are the property under test, so changing them is the owners' call.
+
+## 8. Version stamp
+
+`tcl-version`'s build script watched a file that never exists whenever
+`TCL_LSP_VERSION` was unset. It did this to keep the `.dirty` marker exact,
+so every unstamped cargo call re-ran the script and recompiled every crate
+that reads `tcl_version::VERSION`. In a no-op build that meant 65 s for
+`tcl-lsp-server`, whose library embeds the version, and 5 s for `tcl-cli`.
+Every local `cargo build` or `cargo test` paid it before doing any work.
+
+The probe is now emitted only outside the dev profile (`PROFILE != debug`).
+Release builds and stamped CI builds behave exactly as before. A debug build
+still re-stamps when HEAD, the current branch ref, tags or `packed-refs`
+change. Its `.dirty` marker can lag behind an uncommitted edit until the next
+such change. A debug binary is never shipped, so the lag is acceptable.
+
+No-op builds after the change: `tcl-lsp-server` **65 s → 0.3 s**, `tcl-cli`
+**5 s → 0.3 s**. `cargo test -p tcl-version` passes, and a release build of the
+crate still emits the probe.
