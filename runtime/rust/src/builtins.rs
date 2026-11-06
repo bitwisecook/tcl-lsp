@@ -1009,6 +1009,11 @@ impl InterpExprCtx<'_> {
             }
             other => other,
         };
+        if elem.is_none() {
+            if let Some(value) = self.interp.direct_variable_value(base) {
+                return Ok(crate::obj::Owned::retain(value));
+            }
+        }
         if let Some(code) = self.interp.fire_read_trace(base, elem.as_deref()) {
             return Err(self.propagated_error(code));
         }

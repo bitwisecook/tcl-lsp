@@ -162,6 +162,16 @@ impl NativeOperationCurrency {
         let _diagnostic = super::constructor_diagnostics::WorkMeasurement::new(
             super::constructor_diagnostics::Work::Currency,
         );
+        if self.interpreter.upgrade().is_some_and(|state| {
+            state.native_operation_context_epoch.get() == Some(self.epoch)
+                && !state.native_compilation.borrow().refused()
+                && std::ptr::addr_eq(Weak::as_ptr(&self.host), Rc::as_ptr(&state.host.borrow()))
+                && state.pin.borrow().context == self.context
+                && std::ptr::eq(state.dialect_profile.get(), self.profile)
+                && state.runtime_version.get() == self.version
+        }) {
+            return Ok(());
+        }
         let interpreter = self
             .interpreter
             .upgrade()

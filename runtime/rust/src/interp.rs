@@ -9523,6 +9523,33 @@ impl Interp {
     /// [`Self::has_variable_traces`] for an access spelt `name`, including the
     /// native `env` trace where the spelling may reach the global `env` array
     /// ([`Self::traces_may_observe`]).
+    /// The value a read of whole name `base` returns when no trace can observe
+    /// it: no script or `env` trace reaches the spelling, and the cell is not a
+    /// native `errorInfo`/`errorCode`/`tcl_precision` cell. Exactly the reads
+    /// whose `fire_read_trace` completes without effect.
+    pub(crate) fn direct_variable_value(&self, base: &[u8]) -> Option<*mut TclObj> {
+        if self.observed_name_policy_selected()
+            || self.traces_may_observe(base)
+            || self.check_entered_native_operation().is_err()
+        {
+            return None;
+        }
+        let home = self.trace_identity(base);
+        if home.link_elem.is_some()
+            || home.binding_id.is_some_and(|id| {
+                self.native_precision_cell.get() == Some(id)
+                    || self
+                        .native_error_cells
+                        .borrow()
+                        .iter()
+                        .any(|(_, registered)| *registered == id)
+            })
+        {
+            return None;
+        }
+        self.var_get(base)
+    }
+
     fn variable_traces_may_observe(&self, name: &[u8]) -> bool {
         !self.native_error_cells.borrow().is_empty()
             || self.native_precision_cell.get().is_some()

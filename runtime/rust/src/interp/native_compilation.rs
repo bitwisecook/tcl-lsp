@@ -81,6 +81,14 @@ impl std::ops::DerefMut for CompilationState {
     }
 }
 impl CompilationState {
+    /// Whether any execution refusal cause is retained.
+    pub(super) fn refused(&self) -> bool {
+        self.execution_refusal.is_some()
+            || self.admission_error.is_some()
+            || self.native_access_refusal.is_some()
+            || self.host_command_refusal.is_some()
+    }
+
     pub(super) fn swap_execution(&mut self, other: &mut CompilationExecution) {
         std::mem::swap(&mut self.execution, other);
     }
@@ -259,6 +267,9 @@ impl Interp {
 
     /// Actual retained host cause; guest completion state never supplies it.
     pub fn native_execution_refusal(&self) -> Option<tcl_runtime_api::NativeExecutionError> {
+        if !self.0.native_compilation.borrow().refused() {
+            return None;
+        }
         let state = self.native_compilation.borrow();
         if let Some(error) = &state.execution_refusal {
             return Some(error.clone());

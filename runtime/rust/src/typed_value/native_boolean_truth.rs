@@ -518,6 +518,20 @@ pub(crate) fn expression_boolean_for_interp(
     value: *mut TclObj,
     production: Production,
 ) -> Result<bool, CmdError> {
+    let dialect = interp.native_invocation_dialect();
+    if std::ptr::eq(crate::obj::obj_type_ptr(value), &crate::obj::TCL_INT_TYPE)
+        && dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+        && interp.native_execution_refusal().is_none()
+        && dialect
+            .native_boolean_expression_result_protocol(production)
+            .is_some_and(|protocol| {
+                dialect
+                    .native_boolean_truth_protocol(protocol.truth_purpose())
+                    .is_some()
+            })
+    {
+        return Ok(crate::obj::wide_of(value) != 0);
+    }
     let mut ops = OriginalOps::entered(interp)?;
     ops.check_host_refusal()?;
     let protocol = ops

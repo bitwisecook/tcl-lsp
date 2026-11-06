@@ -1094,6 +1094,23 @@ impl ExprOps for TowerOps<'_> {
         left: &Owned,
         right: &Owned,
     ) -> Result<Option<NumericCompare>, ExprError> {
+        if self.jim.is_none()
+            && std::ptr::eq(obj::obj_type_ptr(left.ptr()), &obj::TCL_INT_TYPE)
+            && std::ptr::eq(obj::obj_type_ptr(right.ptr()), &obj::TCL_INT_TYPE)
+            && self
+                .ctx
+                .invocation_dialect()
+                .arithmetic()
+                .is_none_or(|policy| policy == tcl_dialect::NativeArithmetic::TclBignum)
+            && self
+                .ctx
+                .boolean_interpreter()
+                .is_some_and(|interp| interp.native_execution_refusal().is_none())
+        {
+            return Ok(Some(NumericCompare::Ordered(
+                obj::wide_of(left.ptr()).cmp(&obj::wide_of(right.ptr())),
+            )));
+        }
         let operation = NumericOperation::enter(self.ctx)?;
         let result = operation.with_environment(|environment| {
             let dialect = operation.dialect();
