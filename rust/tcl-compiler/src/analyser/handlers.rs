@@ -10073,7 +10073,11 @@ impl Analyser {
             .matches_original_source_image(&tcl_lexer::SourceImage::document(&self.source), config)
             .then_some(())?;
         let mut tokens = crate::ir::CommandTokens::from_segmented(
-            &tcl_lexer::SourceMap::new(&self.source),
+            &Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            ),
             config,
             segment,
         );

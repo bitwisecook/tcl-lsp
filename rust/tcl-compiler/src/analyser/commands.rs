@@ -640,7 +640,11 @@ impl Analyser {
             return false;
         }
         let config = self.file_lexer_config();
-        let sm = SourceMap::new(&self.source);
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let child = descend_token(&sm, body_tok, config);
         if !child.is_terminated() {
             return false;
@@ -1347,7 +1351,11 @@ impl Analyser {
         }
         let segment = commands.pop()?;
         let mut tokens = crate::ir::CommandTokens::from_segmented(
-            &tcl_lexer::SourceMap::new(&self.source),
+            &Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            ),
             config,
             &segment,
         );
@@ -2765,7 +2773,11 @@ impl Analyser {
         if token.kind != TokenType::Cmd || word.image().bytes() != self.source.as_bytes() {
             return None;
         }
-        let sm = tcl_lexer::SourceMap::new(&self.source);
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
         let descended = descend_token(&sm, *token, word.config());
         let mut segments = segments_from_tree(descended.tree(), &sm);
         if segments.len() != 1 {

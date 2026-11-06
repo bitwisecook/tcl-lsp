@@ -1046,7 +1046,14 @@ impl Analyser {
             return None;
         }
         let context = self.resolved_analysis_input().context_registry();
-        let requested = tcl_lexer::word_span(&tcl_lexer::SourceMap::new(&self.source), body);
+        let requested = tcl_lexer::word_span(
+            &Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            ),
+            body,
+        );
         for region in invocation.words.source_script_bodies_for(
             &context,
             crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
