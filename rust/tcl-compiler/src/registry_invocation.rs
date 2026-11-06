@@ -660,6 +660,14 @@ fn authored_simulation_structure_is_supported(
     }
     selected.with_metadata_schema(registry, context, realm, |schema| {
         use tcl_registry::hooks::LoweringHookId;
+        // A class or object definition, like a procedure, stores its body for
+        // later dispatch; its static words above are all that is modelled.
+        if schema
+            .authored_source_definition_body_grammar()
+            .is_some_and(|grammar| grammar.family.manufactures_runtime_commands())
+        {
+            return Some(());
+        }
         let hook = schema.facts().lowering_hook?;
         // A definition stores its body for later calls in the procedure's own
         // frame, so only a fully static name, parameter list and body is modelled.

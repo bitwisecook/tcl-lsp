@@ -5988,7 +5988,9 @@ impl<'r> Lowerer<'r> {
                             self.module.oo_evidence.unretained_executable_roots = true;
                             continue;
                         };
-                        self.walk_segments_for_oo(&segments, &child_ns);
+                        self.in_word_space(&ct.argv_texts[3], body_off, |this| {
+                            this.walk_segments_for_oo(&segments, &child_ns);
+                        });
                     }
                 }
                 _ => {}
@@ -6029,7 +6031,9 @@ impl<'r> Lowerer<'r> {
                     self.module.oo_evidence.unretained_executable_roots = true;
                     continue;
                 };
-                self.walk_segments_for_oo(&sub, &child_ns);
+                self.in_word_space(&seg.texts[3], off, |this| {
+                    this.walk_segments_for_oo(&sub, &child_ns);
+                });
             }
         }
     }
@@ -6159,14 +6163,16 @@ impl<'r> Lowerer<'r> {
                 .extend(class_ivars.iter().cloned());
         }
 
-        self.extract_members_from_segments(
-            &call,
-            definer,
-            &segments,
-            &class_qname,
-            &class_ivars,
-            namespace,
-        );
+        self.in_word_space(body_text, body_content_offset, |this| {
+            this.extract_members_from_segments(
+                &call,
+                definer,
+                &segments,
+                &class_qname,
+                &class_ivars,
+                namespace,
+            );
+        });
     }
 
     /// The per-segment member walk behind [`Self::extract_definer_members`],
@@ -6252,14 +6258,16 @@ impl<'r> Lowerer<'r> {
                         } else {
                             class_ivars
                         };
-                        self.extract_members_from_wrapper_block(
-                            &wrapped_call,
-                            &sub,
-                            class_qname,
-                            ivars,
-                            namespace,
-                            head,
-                        );
+                        self.in_word_space(&seg.texts[1], off, |this| {
+                            this.extract_members_from_wrapper_block(
+                                &wrapped_call,
+                                &sub,
+                                class_qname,
+                                ivars,
+                                namespace,
+                                head,
+                            );
+                        });
                         continue;
                     }
                     _ => {
@@ -6511,17 +6519,12 @@ impl<'r> Lowerer<'r> {
             .and_then(|bindings| bindings.executed_script_for_word(body_tok.span).cloned());
         let body_script = if let Some(source) = retained {
             let tokens = self.cmd_tokens(seg);
-            let namespace = b_idx
-                .checked_sub(1)
-                .and_then(|argument| {
-                    self.original_body_namespace_context(&tokens, argument, &source)
-                })
-                .or_else(|| {
-                    self.source_bindings
-                        .as_ref()?
-                        .executed_script_namespace_context(&source)
-                });
-            self.lower_original_body(source, namespace.as_ref())
+            match b_idx.checked_sub(1).and_then(|argument| {
+                self.original_body_namespace_context(&tokens, argument, &source)
+            }) {
+                Some(namespace) => self.lower_original_body(source, Some(&namespace)),
+                None => self.lower_retained_script(source),
+            }
         } else {
             self.lower_body(seg.texts[b_idx].as_str(), body_off, lowering_namespace)
         };
