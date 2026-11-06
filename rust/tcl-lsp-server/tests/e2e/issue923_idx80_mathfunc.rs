@@ -62,8 +62,10 @@ const HELPER: &str = "namespace eval ::tcl::mathfunc {\n\
                       }\n";
 
 /// The consumer: `Pi()` on line 2, `Inv($x)` on line 5, a math function nothing
-/// anywhere defines on line 8, and — on line 10 — an unknown command *close
-/// enough to a real one to attract a suggestion*, which is the true-positive
+/// anywhere defines on line 8, and — on line 11, in a procedure of its own
+/// because a top-level unknown call would widen every later body — an
+/// unknown command *close enough to a real one to attract a suggestion*,
+/// which is the true-positive
 /// control the code-action half needs. A quick-fix only exists where the
 /// analyser found a "did you mean…?" candidate, so a control has to be a
 /// near-miss (`puta` → `puts`); an arbitrary long name draws the W123 but
@@ -78,7 +80,9 @@ const VECTOR: &str = "namespace eval tomato::vector {}\n\
                       proc tomato::vector::Broken {} {\n\
                       \x20   return [expr {NeverDefinedAnywhere()}]\n\
                       }\n\
-                      puta hi\n";
+                      proc tomato::vector::Control {} {\n\
+                      \x20   puta hi\n\
+                      }\n";
 
 /// The names W123 reports, in source order.
 fn w123_names(diags: &[Value]) -> Vec<String> {
@@ -120,11 +124,11 @@ fn titles_at_pi(lsp: &mut Lsp, uri: &str) -> Vec<String> {
     action_titles(&lsp.code_actions(uri, caret(2, 30), json!([])))
 }
 
-/// Titles offered at [`VECTOR`]'s line-10 `puta` call — a name nothing
+/// Titles offered at [`VECTOR`]'s line-11 `puta` call — a name nothing
 /// defines, one edit from the real `puts`, so the unresolved-command quick-fix
 /// genuinely exists there.
 fn titles_at_undefined(lsp: &mut Lsp, uri: &str) -> Vec<String> {
-    action_titles(&lsp.code_actions(uri, caret(10, 1), json!([])))
+    action_titles(&lsp.code_actions(uri, caret(11, 5), json!([])))
 }
 
 /// Whether any offered title is a "did you mean…?" command rewrite.

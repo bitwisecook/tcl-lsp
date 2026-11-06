@@ -2178,6 +2178,27 @@ impl CapturedOriginalCommandTransfer {
                             });
                         }
                     }
+        // An authored `namespace eval a::b` also creates `::a`; each authored
+        // ancestor takes its prefix of this same geometry.
+        if let (SourceNamespaceKey::Authored(_), SignatureNamespaceScope::C(path)) = (&key, &scope)
+        {
+            let mut ancestor = path.parent();
+            while let Some(parent) = ancestor.filter(|parent| !parent.is_root()) {
+                if let Some(spelling) = tcl_syntax::naming::checked_namespace_path_key(&parent) {
+                    let parent_key = SourceNamespaceKey::authored(spelling);
+                    if state.namespaces.contains(&parent_key)
+                        && !self.world.namespaces.has_key(&parent_key)
+                    {
+                        self.world.namespaces.push(NamespaceGeometry {
+                            key: parent_key,
+                            scope: SignatureNamespaceScope::C(parent.clone()),
+                            allocation: Some(self.site.clone()),
+                        });
+                    }
+                }
+                ancestor = parent.parent();
+            }
+        }
         if self
             .world
             .namespaces
