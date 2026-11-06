@@ -56,7 +56,9 @@ Models used so far: Claude Opus 4.6, Gemini 3.1 Pro, GPT-5.3-Codex.
   notices and license (for example `runtime/rust/vendor/` and
   `rust/tcl-regex/tests/data/reg.test`). Also skip generated files, test
   fixtures and golden corpora, and `.github/workflows/*`. See `DUAL-LICENSING.md`
-  for the licensing model.
+  for the licensing model. `make check-license-headers` holds Rust sources to
+  the full notice; `python3 scripts/dev/check-license-headers.py --fix` writes
+  it.
 
 ## Code reuse and deduplication
 

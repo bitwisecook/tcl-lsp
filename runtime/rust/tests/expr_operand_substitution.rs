@@ -13,6 +13,8 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! A runtime `expr` substitutes a `"…"` operand and leaves a `{…}` one as
 //! written. tclsh 8.4.20 through 9.1b0 all return `[id 9]`, `0` and `pre5`

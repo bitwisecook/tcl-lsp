@@ -1,24 +1,20 @@
-// tcl-lsp — TclOO unresolved-receiver provenance diagnostic.
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//
-// Companion to the `tcloo_dispatch` resolution-rate experiment.  Where that one
-// measures *how many* object-dispatch sites resolve, this one asks *why the rest
-// don't*: for every UNRESOLVED `$var method …` receiver, it categorises how the
-// receiver variable is bound across the compilation unit.  The category
-// histogram says which typing edge would move the needle next.
-//
-//   cargo run --release -p tcl-lsp-core --example tcloo_diag -- <dir|file>...
-//
-// Categories (per receiver variable name, best signal wins):
-//   constructor    set v [Class new|create …]        (should already resolve)
-//   proc-return    set v [someproc …]                (resolves if proc→object)
-//   method-return  set v [$obj m …] / [my m …]       (NOT modelled — candidate)
-//   collection-get set v [dict get|lindex|… ]        (collection element typing)
-//   alias          set v $other                      (aliasing edge)
-//   param          v is a proc/method parameter      (interproc, incl cross-file)
-//   cmd-return     set v [othercmd …]                (unmodelled command)
-//   literal        set v foo / "…" / {…}             (not an object)
-//   unbound        never assigned here               (instance var / global / xfile)
 
 // Coverage-stat arithmetic: counts cast to f64 for percentages and to u32 for
 // LSP positions; the magnitudes are tiny, so truncation/precision loss is moot.

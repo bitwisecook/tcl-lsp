@@ -1,0 +1,5 @@
+# Rust sources the AGPL notice gate (check-license-headers.py) skips beyond its
+# automatic rules (vendor/, tests/data/, @generated, non-AGPL SPDX).
+# One repo-relative path per line; `#` starts a comment.
+rust/tcl-syntax/src/native_glob_case_mapping.rs  # carries the Tcl licence of its source tables
+rust/tcl-syntax/src/native_glob_fixtures.rs  # measured C Tcl/Jim results (fixture data)

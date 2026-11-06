@@ -1,22 +1,20 @@
-// tcl-lsp — TclOO object-dispatch resolution-rate experiment.
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//
-// Measures, over a corpus of real Tcl files, what fraction of `TclOO`
-// object-method dispatch sites the semantic-token resolver resolves (colours
-// the method a callable) vs leaves unresolved.  This is the quantitative
-// counterpart to the `tcloo_dispatch_pattern_fixture` golden test: run it
-// before/after an object-typing change to prove a resolution-rate improvement.
-//
-//   cargo run --release -p tcl-lsp-core --example tcloo_dispatch -- <dir|file>...
-//
-// A "dispatch site" is a command whose head is an object *receiver* shape:
-//   - `$var method …`         (variable handle)
-//   - `[dict get …] method …` / `[lindex …] …` / `[Class new] …`  (`[cmd]` head)
-//   - `my method …`           (self-call in a method body)
-// The method word is `argv[1]`; it is "resolved" when the token stream marks it
-// a `function` (a callable), else unresolved.  Genuinely-dynamic sites are
-// expected to stay unresolved — this measures coverage, not correctness (the
-// fixture guards correctness / no-false-positives).
 
 // Coverage-stat arithmetic: counts cast to f64 for percentages and to u32 for
 // LSP positions; the magnitudes are tiny, so truncation/precision loss is moot.
