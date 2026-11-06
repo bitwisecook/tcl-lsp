@@ -2497,6 +2497,42 @@ pub fn tool_schemas() -> Vec<(&'static str, &'static str, Value)> {
         .collect()
 }
 
+/// The tool table of `docs/kcs/features/kcs-feature-mcp-server.md`, rendered
+/// from [`TOOLS`]: one row per tool with its description and its arguments,
+/// required ones marked `*` and closed ones followed by their values.
+fn kcs_tool_table() -> String {
+    let cell = |text: &str| text.replace('|', "\\|");
+    let mut out =
+        String::from("| Tool | Description | Arguments |\n|------|-------------|-----------|\n");
+    for tool in TOOLS {
+        let schema = input_schema(tool);
+        let arguments: Vec<String> = tool
+            .params
+            .iter()
+            .map(|(name, _, _)| {
+                let mut argument = format!("`{name}`");
+                if tool.required.contains(name) {
+                    argument.push('*');
+                }
+                if *name != DIALECT_PARAM
+                    && let Some(values) = schema["properties"][*name]["enum"].as_array()
+                {
+                    let values: Vec<&str> = values.iter().filter_map(Value::as_str).collect();
+                    argument.push_str(&format!(" ({})", values.join(", ")));
+                }
+                argument
+            })
+            .collect();
+        out.push_str(&format!(
+            "| `{}` | {} | {} |\n",
+            tool.name,
+            cell(tool.description),
+            cell(&arguments.join(", "))
+        ));
+    }
+    out
+}
+
 /// Run a tool by name against its JSON `arguments`, returning the raw JSON
 /// result — or `None` when the tool is unknown.
 pub fn dispatch(name: &str, args: &Value) -> Option<Value> {
@@ -2504,6 +2540,52 @@ pub fn dispatch(name: &str, args: &Value) -> Option<Value> {
         .iter()
         .find(|t| t.name == name)
         .map(|t| (t.handler)(args))
+}
+
+/// The KCS note's tool table is generated from [`TOOLS`]; set
+/// `TCL_MCP_BLESS=1` to rewrite it (#2266).
+#[cfg(test)]
+mod kcs_note_tests {
+    const BEGIN: &str = "<!-- BEGIN GENERATED: tcl-mcp tool table (TCL_MCP_BLESS=1 cargo test -p tcl-mcp kcs_note) -->\n";
+    const END: &str = "<!-- END GENERATED: tcl-mcp tool table -->";
+
+    #[test]
+    fn kcs_note_tool_table_matches_the_catalogue() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../docs/kcs/features/kcs-feature-mcp-server.md");
+        let note = std::fs::read_to_string(&path).expect("the KCS note");
+        let start = note.find(BEGIN).expect("the generated-table begin marker") + BEGIN.len();
+        let end = note.find(END).expect("the generated-table end marker");
+        let table = super::kcs_tool_table();
+        if note[start..end] == table {
+            return;
+        }
+        if std::env::var_os("TCL_MCP_BLESS").is_some_and(|v| v == "1") {
+            std::fs::write(&path, format!("{}{table}{}", &note[..start], &note[end..]))
+                .expect("rewrite the KCS note");
+            return;
+        }
+        panic!(
+            "{} is stale against the tool catalogue; run `TCL_MCP_BLESS=1 cargo test -p tcl-mcp kcs_note`",
+            path.display()
+        );
+    }
+
+    #[test]
+    fn every_tool_has_a_row() {
+        let table = super::kcs_tool_table();
+        for tool in super::TOOLS {
+            assert!(
+                table.contains(&format!("| `{}` |", tool.name)),
+                "{}",
+                tool.name
+            );
+        }
+        assert!(
+            table.contains("`tier` (bundled, user, workspace, studio-override)"),
+            "{table}"
+        );
+    }
 }
 
 #[cfg(test)]
