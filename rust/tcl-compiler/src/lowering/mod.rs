@@ -6519,11 +6519,30 @@ impl<'r> Lowerer<'r> {
             .and_then(|bindings| bindings.executed_script_for_word(body_tok.span).cloned());
         let body_script = if let Some(source) = retained {
             let tokens = self.cmd_tokens(seg);
-            match b_idx.checked_sub(1).and_then(|argument| {
-                self.original_body_namespace_context(&tokens, argument, &source)
-            }) {
+            let namespace = b_idx
+                .checked_sub(1)
+                .and_then(|argument| {
+                    self.original_body_namespace_context(&tokens, argument, &source)
+                })
+                .or_else(|| {
+                    self.source_bindings
+                        .as_ref()?
+                        .executed_script_namespace_context(&source)
+                });
+            match namespace {
                 Some(namespace) => self.lower_original_body(source, Some(&namespace)),
-                None => self.lower_retained_script(source),
+                // No receiver namespace is retained for a runtime-selected
+                // body: report it through the same lexical approximation as an
+                // unretained one, under the MethodDef's runtime-selected context.
+                // It is not an original receiver frame, so it keeps no
+                // executed source.
+                None if execution_namespace == crate::ir::ExecutionNamespace::RuntimeSelected => {
+                    let mut script =
+                        self.lower_body(seg.texts[b_idx].as_str(), body_off, lowering_namespace);
+                    script.executed_source = None;
+                    script
+                }
+                None => self.lower_original_body(source, None),
             }
         } else {
             self.lower_body(seg.texts[b_idx].as_str(), body_off, lowering_namespace)
