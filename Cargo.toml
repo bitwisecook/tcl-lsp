@@ -241,3 +241,12 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.aes]
 opt-level = 3
+
+# The lexer runs under every pack load, analysis and test. Unoptimised, its
+# per-byte loops were most of a debug `tcl` start-up (1.3 s -> 0.84 s at
+# opt-level 2) for about 2 s more compile on this one small crate.
+[profile.dev.package.tcl-lexer]
+opt-level = 2
+# The SpecTcl cache digests every pack source on each load.
+[profile.dev.package.xxhash-rust]
+opt-level = 3

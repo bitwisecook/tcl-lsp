@@ -635,18 +635,9 @@ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
         source,
         source_config(bom),
     );
-    let mut line_starts: Vec<usize> = vec![0];
-    for (offset, byte) in source.bytes().enumerate() {
-        if byte == b'\n' {
-            line_starts.push(offset + 1);
-        }
-    }
+    let lines = tcl_lexer::LineIndex::new(source);
     let line_of = |offset: usize| -> u32 {
-        let index = match line_starts.binary_search(&offset) {
-            Ok(i) => i,
-            Err(i) => i.saturating_sub(1),
-        };
-        base_line + u32::try_from(index).unwrap_or(u32::MAX)
+        base_line.saturating_add(lines.line_at(u32::try_from(offset).unwrap_or(u32::MAX)))
     };
 
     parsed
