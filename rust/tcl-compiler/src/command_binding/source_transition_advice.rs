@@ -592,7 +592,10 @@ impl OriginalSourceCommandTransitionAdvice {
         &self.original
     }
     /// Whether two advice values retain the same issued original vector.
-    #[expect(dead_code, reason = "only used by the unwired `SourceReadCatalogue::owns_original_advice`")]
+    #[expect(
+        dead_code,
+        reason = "only used by the unwired `SourceReadCatalogue::owns_original_advice`"
+    )]
     pub(super) fn shares_original_record(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.original, &other.original)
     }
