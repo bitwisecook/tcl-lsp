@@ -986,6 +986,43 @@ struct NativeRegistrationCache {
     /// Each dialect's registration slots by unrooted slot, so selecting one
     /// registration reads its slot instead of every visible spec.
     registration_slots: FxHashMap<crate::InvocationDialect, Arc<RegistrationSlots>>,
+    /// The few specs each registry-wide query can select, so those queries
+    /// read a handful of specs instead of every registered command.
+    query_surfaces: Option<Arc<RegistryQuerySurfaces>>,
+}
+
+/// Specs a registry-wide query can select, in the registry's iteration order.
+#[derive(Default)]
+struct RegistryQuerySurfaces {
+    /// Each name's last spec carrying [`Traits::OBJECT_COMMAND_SURFACE`].
+    object_command_surfaces: Vec<&'static CommandSpec>,
+    /// Each name's last spec with manufacturer rows or a definition grammar.
+    definers: Vec<&'static CommandSpec>,
+    /// Every spec with a data-collection operation.
+    data_collection: Vec<&'static CommandSpec>,
+}
+
+impl RegistryQuerySurfaces {
+    fn of(by_name: &FxHashMap<&'static str, Vec<&'static CommandSpec>>) -> Self {
+        let mut surfaces = Self::default();
+        for specs in by_name.values() {
+            if let Some(&spec) = specs.last() {
+                if spec.traits.contains(Traits::OBJECT_COMMAND_SURFACE) {
+                    surfaces.object_command_surfaces.push(spec);
+                }
+                if !spec.manufacturer_methods.is_empty() || spec.definition_body.is_some() {
+                    surfaces.definers.push(spec);
+                }
+            }
+            surfaces.data_collection.extend(
+                specs
+                    .iter()
+                    .copied()
+                    .filter(|spec| spec.data_collection.is_some()),
+            );
+        }
+        surfaces
+    }
 }
 
 /// One implementation-path step a visible compilation names.
@@ -3118,16 +3155,35 @@ impl CommandRegistry {
     /// owns that surface.  A dialect may supply at most one such surface; an
     /// accidental duplicate is treated conservatively as no unique answer.
     #[must_use]
-    pub fn object_command_method(&self, word: &str) -> Option<&SubCommand> {
-        let mut matches = self.by_name.values().filter_map(|specs| {
-            let spec = specs.last()?;
-            spec.traits
-                .contains(Traits::OBJECT_COMMAND_SURFACE)
-                .then_some(spec)?
-                .resolve_subcommand(word)
-        });
+    pub fn object_command_method(&self, word: &str) -> Option<&'static SubCommand> {
+        let surfaces = self.query_surfaces();
+        let mut matches = surfaces
+            .object_command_surfaces
+            .iter()
+            .filter_map(|spec| spec.resolve_subcommand(word));
         let method = matches.next()?;
         matches.next().is_none().then_some(method)
+    }
+
+    /// The specs each registry-wide query can select, derived once per
+    /// registry state.
+    fn query_surfaces(&self) -> Arc<RegistryQuerySurfaces> {
+        if let Some(surfaces) = &self
+            .native_registrations
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .query_surfaces
+        {
+            return Arc::clone(surfaces);
+        }
+        let surfaces = Arc::new(RegistryQuerySurfaces::of(&self.by_name));
+        Arc::clone(
+            self.native_registrations
+                .write()
+                .unwrap_or_else(PoisonError::into_inner)
+                .query_surfaces
+                .get_or_insert(surfaces),
+        )
     }
 
     /// Whether `word` is a destructive operation on the universal object
@@ -3163,8 +3219,8 @@ impl CommandRegistry {
         &'a self,
         word: &'a str,
     ) -> impl Iterator<Item = &'static crate::definer::ManufacturerMethod> + 'a {
-        self.by_name.values().filter_map(move |specs| {
-            let spec = specs.last()?;
+        let definers = self.query_surfaces().definers.clone();
+        definers.into_iter().filter_map(move |spec| {
             spec.manufacturer_methods
                 .iter()
                 .find(|method| method.keyword == word)
@@ -3332,16 +3388,14 @@ impl CommandRegistry {
     #[must_use]
     pub fn is_possible_class_construction_word(&self, word: &str) -> bool {
         self.is_manufacturer_method(word)
-            || self.by_name.values().any(|specs| {
-                specs.last().is_some_and(|spec| {
-                    spec.definition_body.is_some_and(|grammar| {
-                        match grammar.bare_word_construction_source_hint {
-                            Some(hint) => hint.recognises(word),
-                            None => grammar
-                                .bare_word_construction_hint
-                                .is_some_and(|recognises| recognises(word)),
-                        }
-                    })
+            || self.query_surfaces().definers.iter().any(|spec| {
+                spec.definition_body.is_some_and(|grammar| {
+                    match grammar.bare_word_construction_source_hint {
+                        Some(hint) => hint.recognises(word),
+                        None => grammar
+                            .bare_word_construction_hint
+                            .is_some_and(|recognises| recognises(word)),
+                    }
                 })
             })
     }
@@ -7453,9 +7507,9 @@ impl CommandRegistry {
     /// lifecycle operations rather than only collect commands.
     #[must_use]
     pub fn data_collection_protocol(&self, protocol: &str) -> Option<DataCollectionProtocol> {
-        self.by_name
-            .values()
-            .flatten()
+        self.query_surfaces()
+            .data_collection
+            .iter()
             .filter_map(|spec| spec.data_collection)
             .find(|operation| operation.protocol.name.eq_ignore_ascii_case(protocol))
             .map(|operation| operation.protocol)
@@ -7467,13 +7521,17 @@ impl CommandRegistry {
     /// for example, UDP payload access deliberately returns `None` because
     /// BIG-IP provides each datagram without a `UDP::collect` command.
     #[must_use]
-    pub fn data_collection_collect_command(&self, protocol: &str) -> Option<&CommandSpec> {
-        self.by_name.values().flatten().copied().find(|spec| {
-            spec.data_collection.is_some_and(|operation| {
-                operation.action == DataCollectionAction::Collect
-                    && operation.protocol.name.eq_ignore_ascii_case(protocol)
+    pub fn data_collection_collect_command(&self, protocol: &str) -> Option<&'static CommandSpec> {
+        self.query_surfaces()
+            .data_collection
+            .iter()
+            .copied()
+            .find(|spec| {
+                spec.data_collection.is_some_and(|operation| {
+                    operation.action == DataCollectionAction::Collect
+                        && operation.protocol.name.eq_ignore_ascii_case(protocol)
+                })
             })
-        })
     }
 
     /// Return the event-handler priority policy declared by `name`.
