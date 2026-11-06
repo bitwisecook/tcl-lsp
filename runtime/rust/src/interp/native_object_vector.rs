@@ -18,7 +18,7 @@
 
 //! Public original argv error reporting, separate from retained source-command text.
 
-use super::{native_arguments::OriginalArguments, Code, Interp};
+use super::{Code, Interp, native_arguments::OriginalArguments};
 use crate::obj::{self, Owned, TclObj};
 use tcl_registry::native_object_vector::NativeObjectVectorErrorProjection;
 use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};
@@ -255,6 +255,35 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #2343: tclsh 8.6.18, 9.0.4 and 9.1.0 give `TCL LOOKUP COMMAND nosuch`
+    /// for `catch {nosuch} m o`; 8.4.20 and 8.5.19 leave `NONE`.
+    #[test]
+    fn a_missing_command_carries_the_release_lookup_error_code() {
+        for (environment, expected) in [
+            ("tcl8.4", b"NONE".as_slice()),
+            ("tcl8.5", b"NONE"),
+            ("tcl8.6", b"TCL LOOKUP COMMAND nosuch"),
+            ("tcl9.0", b"TCL LOOKUP COMMAND nosuch"),
+            ("tcl9.1", b"TCL LOOKUP COMMAND nosuch"),
+        ] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(environment),
+                tcl_registry::special_vars::NativeBootstrapInputs {
+                    package_path: Vec::new(),
+                    default_library: None,
+                },
+            )
+            .expect("authentic C constructor before bootstrap");
+            assert_eq!(
+                interp.eval_str(b"catch {nosuch} m; set ::errorCode"),
+                Code::Ok,
+                "{environment}"
+            );
+            assert_eq!(interp.result_bytes(), expected, "{environment}");
+        }
+    }
 
     const FIXTURES: [(&str, &str); 6] = [
         (
