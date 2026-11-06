@@ -983,6 +983,9 @@ struct NativeRegistrationCache {
     /// registry's own iteration order, so a registration reads its slot's
     /// entries instead of every visible spec.
     prerequisites: FxHashMap<crate::InvocationDialect, Arc<PrerequisiteIndex>>,
+    /// Each dialect's registration slots by unrooted slot, so selecting one
+    /// registration reads its slot instead of every visible spec.
+    registration_slots: FxHashMap<crate::InvocationDialect, Arc<RegistrationSlots>>,
 }
 
 /// One implementation-path step a visible compilation names.
@@ -996,6 +999,11 @@ struct PrerequisiteEntry {
 }
 
 type PrerequisiteIndex = FxHashMap<&'static str, Vec<PrerequisiteEntry>>;
+
+/// A dialect's registration slots by unrooted slot: the one lookup every
+/// visible spec agrees on, or `None` when two of them disagree.
+type RegistrationSlots =
+    FxHashMap<&'static str, Option<crate::native_compilation::NativeCompilerImplementationLookup>>;
 
 /// Immutable registry snapshot for incremental consumers. Equality checks the
 /// complete structural identity; a hash is only a table index. Specs and body
@@ -4043,27 +4051,22 @@ impl CommandRegistry {
         selected.or_else(|| self.native_registration_compiler_descriptor(identity, dialect))
     }
 
-    /// The selection before the prerequisite index, scanning every visible spec.
+    /// Every implementation-path step of every visible spec, in registry scan
+    /// order: the walk the selection did before the prerequisite index.
+    ///
+    /// Taken once per registry and dialect. The per-spec work (visibility,
+    /// implementation paths, unrooted slot keys) does not depend on the
+    /// identity being selected, so repeating it per identity only made the
+    /// equivalence test quadratic.
     #[cfg(test)]
-    fn native_compilation_for_registration_full_scan(
+    fn native_registration_full_scan(
         &self,
-        identity: &str,
         dialect: crate::InvocationDialect,
-    ) -> Option<crate::native_compilation::NativeCompilationSpec> {
-        let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
-        let query = dialect.authoring_query()?;
-        if let Some(spec) = self.native_registration_exact_descriptor(identity, dialect) {
-            return spec
-                .native_compilation
-                .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect));
-        }
-        if let Some(compilation) = crate::native_tcloo_registration::compilation(identity, dialect)
-        {
-            return Some(compilation);
-        }
-        let mut mapping = None;
-        let mut selected = None;
-        let mut found = false;
+    ) -> Vec<(&'static str, PrerequisiteEntry)> {
+        let Some(query) = dialect.authoring_query() else {
+            return Vec::new();
+        };
+        let mut steps = Vec::new();
         for specs in self.by_name.values() {
             let Some(spec) = self.best_visible(specs, Some(query)) else {
                 continue;
@@ -4087,34 +4090,66 @@ impl CommandRegistry {
                     continue;
                 };
                 for lookup in &path {
-                    if tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot)
-                        != key
-                    {
-                        continue;
-                    }
-                    if mapping.is_some_and(|previous| previous != *lookup) {
-                        return None;
-                    }
-                    mapping = Some(*lookup);
-                    let candidate = if matches!(
+                    let terminal = matches!(
                         compilation.grammar,
                         crate::native_compilation::NativeCompilationGrammar::WithImplementationPath { .. }
-                    ) && path.last() == Some(lookup) {
-                        // The terminal registration owns a compiler descriptor
-                        // even when its semantic operand offset cannot be rebased.
-                        compilation
-                    } else {
-                        // Registration owns this descriptor independently of
-                        // invocation argc; selecting a member needs no fake argv.
-                        self.native_registration_compiler_descriptor(identity, dialect)?
-                    };
-                    if found && selected != Some(candidate) {
-                        return None;
-                    }
-                    selected = Some(candidate);
-                    found = true;
+                    ) && path.last() == Some(lookup);
+                    steps.push((
+                        tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot),
+                        PrerequisiteEntry {
+                            compilation,
+                            lookup: *lookup,
+                            terminal,
+                        },
+                    ));
                 }
             }
+        }
+        steps
+    }
+
+    /// The selection before the prerequisite index: filter the full scan's
+    /// steps by slot instead of looking the slot up in the index.
+    #[cfg(test)]
+    fn native_compilation_for_registration_full_scan(
+        &self,
+        identity: &str,
+        dialect: crate::InvocationDialect,
+        scan: &[(&'static str, PrerequisiteEntry)],
+    ) -> Option<crate::native_compilation::NativeCompilationSpec> {
+        let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
+        dialect.authoring_query()?;
+        if let Some(spec) = self.native_registration_exact_descriptor(identity, dialect) {
+            return spec
+                .native_compilation
+                .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect));
+        }
+        if let Some(compilation) = crate::native_tcloo_registration::compilation(identity, dialect)
+        {
+            return Some(compilation);
+        }
+        let mut mapping = None;
+        let mut selected = None;
+        let mut found = false;
+        for (_, step) in scan.iter().filter(|(slot, _)| *slot == key) {
+            if mapping.is_some_and(|previous| previous != step.lookup) {
+                return None;
+            }
+            mapping = Some(step.lookup);
+            let candidate = if step.terminal {
+                // The terminal registration owns a compiler descriptor
+                // even when its semantic operand offset cannot be rebased.
+                step.compilation
+            } else {
+                // Registration owns this descriptor independently of
+                // invocation argc; selecting a member needs no fake argv.
+                self.native_registration_compiler_descriptor(identity, dialect)?
+            };
+            if found && selected != Some(candidate) {
+                return None;
+            }
+            selected = Some(candidate);
+            found = true;
         }
         selected.or_else(|| self.native_registration_compiler_descriptor(identity, dialect))
     }
@@ -4563,7 +4598,29 @@ impl CommandRegistry {
     ) -> Option<crate::native_compilation::NativeCompilerImplementationLookup> {
         let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
         let query = dialect.authoring_query()?;
-        let mut selected = None;
+        self.registration_slots(dialect, query)
+            .get(key)
+            .copied()
+            .flatten()
+    }
+
+    /// Every implementation-path and stock-worker slot a visible spec publishes
+    /// for `dialect`, built once per registry and dialect.
+    fn registration_slots(
+        &self,
+        dialect: crate::InvocationDialect,
+        query: SurfaceQuery<'_>,
+    ) -> Arc<RegistrationSlots> {
+        if let Some(slots) = self
+            .native_registrations
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .registration_slots
+            .get(&dialect)
+        {
+            return Arc::clone(slots);
+        }
+        let mut slots = RegistrationSlots::default();
         for specs in self.by_name.values() {
             let Some(spec) = self.best_visible(specs, Some(query)) else {
                 continue;
@@ -4591,15 +4648,96 @@ impl CommandRegistry {
             let normal = successful_handler_contracts(spec)
                 .flat_map(|contract| contract.stock_native_workers(dialect));
             for lookup in compiled.chain(normal) {
-                if tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot) != key
-                {
-                    continue;
+                let selected = slots
+                    .entry(
+                        tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot),
+                    )
+                    .or_insert(Some(lookup));
+                // Two different lookups for one slot leave it ambiguous for good.
+                if *selected != Some(lookup) {
+                    *selected = None;
                 }
-                if selected.is_some_and(|previous| previous != lookup) {
-                    return None;
-                }
-                selected = Some(lookup);
             }
+        }
+        let slots = Arc::new(slots);
+        self.native_registrations
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .registration_slots
+            .insert(dialect, Arc::clone(&slots));
+        slots
+    }
+
+    /// Every registration slot in registry scan order, as the selection walked
+    /// them per identity before [`Self::registration_slots`]. Taken once per
+    /// registry and dialect by the equivalence test.
+    #[cfg(test)]
+    fn native_registration_lookup_scan(
+        &self,
+        dialect: crate::InvocationDialect,
+    ) -> Vec<(
+        &'static str,
+        crate::native_compilation::NativeCompilerImplementationLookup,
+    )> {
+        let Some(query) = dialect.authoring_query() else {
+            return Vec::new();
+        };
+        let mut steps = Vec::new();
+        for specs in self.by_name.values() {
+            let Some(spec) = self.best_visible(specs, Some(query)) else {
+                continue;
+            };
+            if spec.owning_package().is_some() {
+                continue;
+            }
+            let compiled = spec
+                .native_compilation
+                .into_iter()
+                .chain(spec.subcommands.iter().flat_map(|member| {
+                    member.native_compilation.into_iter().chain(
+                        member
+                            .sub_subcommands
+                            .iter()
+                            .filter_map(|worker| worker.native_compilation),
+                    )
+                }))
+                .flat_map(|compilation| {
+                    compilation
+                        .implementation_prerequisites(dialect)
+                        .into_iter()
+                        .flatten()
+                });
+            let normal = successful_handler_contracts(spec)
+                .flat_map(|contract| contract.stock_native_workers(dialect));
+            for lookup in compiled.chain(normal) {
+                steps.push((
+                    tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot),
+                    lookup,
+                ));
+            }
+        }
+        steps
+    }
+
+    /// The registration lookup before [`Self::registration_slots`]: filter the
+    /// scan's steps by slot.
+    #[cfg(test)]
+    fn native_registration_lookup_full_scan(
+        identity: &str,
+        dialect: crate::InvocationDialect,
+        scan: &[(
+            &'static str,
+            crate::native_compilation::NativeCompilerImplementationLookup,
+        )],
+    ) -> Option<crate::native_compilation::NativeCompilerImplementationLookup> {
+        let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
+        dialect.authoring_query()?;
+        let mut selected = None;
+        for (_, lookup) in scan.iter().filter(|(slot, _)| *slot == key) {
+            if selected.is_some_and(|previous| previous != *lookup) {
+                return None;
+            }
+            selected = Some(*lookup);
         }
         selected
     }
@@ -20630,13 +20768,13 @@ mod fallback_projection_compiler_tests {
 
 #[cfg(test)]
 mod prerequisite_index_tests {
-    /// The indexed registration selection equals the full scan for every
-    /// spec, member and implementation slot, on every dialect.
+    /// The indexed registration lookup and compiler selection each equal their
+    /// full scan for every spec, member, implementation and stock-worker slot,
+    /// on every dialect.
     ///
-    /// Every distinct identity is compared once per registry and dialect.
-    /// Both lookups cost about as much as each other in an unoptimised build,
-    /// so the dialects run on their own threads: the same comparisons, with
-    /// the wall time bounded by the slowest dialect instead of their sum.
+    /// Every distinct identity is compared once per registry and dialect. The
+    /// full scan is taken once per registry and dialect and filtered per
+    /// identity, and the dialects run on their own threads.
     #[test]
     fn the_prerequisite_index_selects_what_the_full_scan_selects() {
         // Independent of the environment; built once and shared.
@@ -20690,12 +20828,29 @@ mod prerequisite_index_tests {
                             identities.insert(lookup.slot.to_owned());
                         }
                     }
+                    for contract in super::successful_handler_contracts(spec) {
+                        for lookup in contract.stock_native_workers(dialect) {
+                            identities.insert(lookup.slot.to_owned());
+                        }
+                    }
                 }
             }
+            let scan = registry.native_registration_full_scan(dialect);
+            let lookup_scan = registry.native_registration_lookup_scan(dialect);
             for identity in identities {
                 assert_eq!(
+                    registry.native_registration_lookup_uncached(&identity, dialect),
+                    super::CommandRegistry::native_registration_lookup_full_scan(
+                        &identity,
+                        dialect,
+                        &lookup_scan
+                    ),
+                    "{environment}: registration lookup for {identity}"
+                );
+                assert_eq!(
                     registry.native_compilation_for_registration_uncached(&identity, dialect),
-                    registry.native_compilation_for_registration_full_scan(&identity, dialect),
+                    registry
+                        .native_compilation_for_registration_full_scan(&identity, dialect, &scan),
                     "{environment}: {identity}"
                 );
                 compared += 1;
