@@ -5236,6 +5236,23 @@ pub(crate) fn foreach_runs_at_least_once(
         .any(|it| list_literal_nonempty(&it.list_arg, rules))
 }
 
+/// True when a `foreach`/`lmap` provably never iterates: every iterator list
+/// is a literal with no elements.
+pub(crate) fn foreach_never_runs(
+    stmt: &Statement,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> bool {
+    let Statement::Foreach { iterators, .. } = stmt else {
+        return false;
+    };
+    !iterators.is_empty()
+        && iterators.iter().all(|it| {
+            !it.list_arg.contains('$')
+                && !it.list_arg.contains('[')
+                && crate::tcl_expr_eval::split_tcl_list(&it.list_arg, rules).is_empty()
+        })
+}
+
 impl CfgBuilder<'_> {
     /// Names a non-`AssignConst` init statement may write.  `None` means "can't
     /// tell" — the caller then drops *all* constant bindings (a write it can't

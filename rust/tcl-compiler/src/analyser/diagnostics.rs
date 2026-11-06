@@ -641,10 +641,7 @@ impl Analyser {
         // still reports.
         let unit_commands = self.unit_command_resolver(registry);
         let opaque_callee_defs = |fu: &crate::compilation_unit::FunctionUnit| {
-            crate::interprocedural::collect_positioned_opaque_callee_name_args(
-                &fu.cfg,
-                &|statement| unit_commands.resolves(statement),
-            )
+            executable_opaque_callee_name_args(fu, &|statement| unit_commands.resolves(statement))
         };
         top_level_known_defined.extend(opaque_callee_defs(&cu.top_level));
 
@@ -721,12 +718,9 @@ impl Analyser {
             // Other event bodies may read these same retained connection cells.
             let (mut cross_event_vars, mut extra_known_defined) =
                 when_proc_cross_event_names(cu, id);
-            extra_known_defined.extend(
-                crate::interprocedural::collect_positioned_opaque_callee_name_args(
-                    &fu.cfg,
-                    &|statement| unit_commands.resolves(statement),
-                ),
-            );
+            extra_known_defined.extend(executable_opaque_callee_name_args(fu, &|statement| {
+                unit_commands.resolves(statement)
+            }));
             // Suppress dead-store on caller-locals this
             // proc passes by name to an upvar callee.
             cross_event_vars.extend(
@@ -851,12 +845,9 @@ impl Analyser {
                 crate::compilation_unit::MethodBodyFacts::known_bound_at_entry,
             );
             let mut cross_event_vars = known_bound.clone();
-            known_bound.extend(
-                crate::interprocedural::collect_positioned_opaque_callee_name_args(
-                    &fu.cfg,
-                    &|statement| unit_commands.resolves(statement),
-                ),
-            );
+            known_bound.extend(executable_opaque_callee_name_args(fu, &|statement| {
+                unit_commands.resolves(statement)
+            }));
             cross_event_vars.extend(
                 crate::interprocedural::collect_positioned_call_by_name_reads(
                     &fu.cfg,
@@ -912,12 +903,9 @@ impl Analyser {
                 continue;
             };
             let mut known_bound: HashSet<String> = procedure.params.iter().cloned().collect();
-            known_bound.extend(
-                crate::interprocedural::collect_positioned_opaque_callee_name_args(
-                    &function.cfg,
-                    &|statement| unit_commands.resolves(statement),
-                ),
-            );
+            known_bound.extend(executable_opaque_callee_name_args(function, &|statement| {
+                unit_commands.resolves(statement)
+            }));
             self.emit_original_native_declaration_reads(
                 function,
                 procedure,
@@ -1013,12 +1001,9 @@ impl Analyser {
             };
             let mut known_bound: HashSet<String> = ir_proc.params.iter().cloned().collect();
             let mut cross_event_vars = known_bound.clone();
-            known_bound.extend(
-                crate::interprocedural::collect_positioned_opaque_callee_name_args(
-                    &fu.cfg,
-                    &|statement| unit_commands.resolves(statement),
-                ),
-            );
+            known_bound.extend(executable_opaque_callee_name_args(fu, &|statement| {
+                unit_commands.resolves(statement)
+            }));
             cross_event_vars.extend(
                 crate::interprocedural::collect_positioned_call_by_name_reads(
                     &fu.cfg,
@@ -1841,4 +1826,18 @@ mod original_logical_command_availability_tests {
                 .resolves(&tokenless)
         );
     }
+}
+
+/// The source arguments of opaque callees in the blocks the function's value
+/// facts reach: a call in a block that never runs binds nothing.
+fn executable_opaque_callee_name_args(
+    function: &crate::compilation_unit::FunctionUnit,
+    resolvable: &dyn Fn(&crate::ir::Statement) -> bool,
+) -> HashSet<String> {
+    let executable = function.diagnostic_value_facts().executable_blocks();
+    crate::interprocedural::collect_executable_opaque_callee_name_args(
+        &function.cfg,
+        resolvable,
+        &|block| executable.contains(block),
+    )
 }

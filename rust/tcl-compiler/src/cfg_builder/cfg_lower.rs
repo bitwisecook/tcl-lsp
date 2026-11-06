@@ -240,6 +240,16 @@ fn literal_true_expr() -> ExprNode {
     }
 }
 
+/// The always-false counterpart of [`literal_true_expr`], guarding a loop
+/// body that provably never runs.
+fn literal_false_expr() -> ExprNode {
+    ExprNode::Literal {
+        text: "0".into(),
+        start: 0,
+        end: 0,
+    }
+}
+
 /// A `switch` subject as an operand of the flattened exact-mode dispatch.
 ///
 /// The subject is a *word*, never an expression: `TclCompileSwitchCmd`
@@ -846,17 +856,39 @@ impl CfgBuilder<'_> {
             return end_block;
         }
 
-        self.push_statement(&header, var_def);
+        // Every iterator list is an empty literal: the body never runs and no
+        // loop variable is written. A statically-false guard lets SCCP prune
+        // the body, whose commands the source walk never reached.
+        let never_runs = self.faithful_exceptions
+            && crate::cfg_builder::foreach_never_runs(
+                stmt,
+                tcl_syntax::word_rules::WordValueRules::from_config(&self.config),
+            );
+        if never_runs {
+            self.push_statement(&body_block, var_def);
+        } else {
+            self.push_statement(&header, var_def);
+        }
 
-        // Opaque condition: non-deterministic branch.
         self.set_terminator(
             &header,
-            Terminator::Branch {
-                condition: foreach_condition(),
-                true_target: body_id,
-                false_target: end_id,
-                span: Some(*span),
-                condition_base: None,
+            if never_runs {
+                Terminator::Branch {
+                    condition: literal_false_expr(),
+                    true_target: body_id,
+                    false_target: end_id,
+                    span: None,
+                    condition_base: None,
+                }
+            } else {
+                // Opaque condition: non-deterministic branch.
+                Terminator::Branch {
+                    condition: foreach_condition(),
+                    true_target: body_id,
+                    false_target: end_id,
+                    span: Some(*span),
+                    condition_base: None,
+                }
             },
         );
 

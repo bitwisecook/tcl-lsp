@@ -606,8 +606,23 @@ pub fn dynamic_name_barrier(
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> DynamicNameBarrier {
+    dynamic_name_barrier_in(cfg, registry, config, |_| true)
+}
+
+/// [`dynamic_name_barrier`] over the blocks `executable` admits: a statement
+/// in a block that never runs writes, reads and destroys nothing.
+#[must_use]
+pub fn dynamic_name_barrier_in(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    executable: impl Fn(&crate::cfg::BlockId) -> bool,
+) -> DynamicNameBarrier {
     let mut barrier = cfg.caller_frame_barrier;
-    for block in cfg.blocks.values() {
+    for (id, block) in &cfg.blocks {
+        if !executable(id) {
+            continue;
+        }
         for stmt in &block.statements {
             barrier = barrier.union(statement_barrier_for_cfg(stmt, cfg, registry, config));
         }

@@ -570,9 +570,23 @@ pub fn collect_positioned_opaque_callee_name_args(
     cfg: &crate::cfg::Function,
     resolvable: &dyn Fn(&crate::ir::Statement) -> bool,
 ) -> HashSet<String> {
+    collect_executable_opaque_callee_name_args(cfg, resolvable, &|_| true)
+}
+
+/// [`collect_positioned_opaque_callee_name_args`] over the blocks `executable`
+/// admits: a call in a block that never runs binds nothing.
+#[must_use]
+pub fn collect_executable_opaque_callee_name_args(
+    cfg: &crate::cfg::Function,
+    resolvable: &dyn Fn(&crate::ir::Statement) -> bool,
+    executable: &dyn Fn(&crate::cfg::BlockId) -> bool,
+) -> HashSet<String> {
     use crate::ir::Statement;
     let mut out = HashSet::new();
-    for block in cfg.blocks.values() {
+    for (id, block) in &cfg.blocks {
+        if !executable(id) {
+            continue;
+        }
         for (index, stmt) in block.statements.iter().enumerate() {
             if !stmt.is_executable_invocation()
                 || stmt

@@ -1023,6 +1023,15 @@ fn build_full_sccp_artifacts(
     });
     #[cfg(any(test, debug_assertions))]
     phase_trace.phase(4);
+    // SCCP solved under the whole-function barrier, so a block it leaves
+    // unexecutable is unreachable under any narrower one too.
+    let dynamic_names = if sccp.executable_blocks.len() == cfg.blocks.len() {
+        dynamic_names
+    } else {
+        crate::dynamic_names::dynamic_name_barrier_in(cfg, inputs.registry, inputs.config, |id| {
+            sccp.executable_blocks.contains(id)
+        })
+    };
     FullSccpArtifacts {
         fold_policy,
         dynamic_names,
