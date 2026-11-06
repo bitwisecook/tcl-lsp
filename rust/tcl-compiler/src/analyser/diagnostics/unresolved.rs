@@ -170,7 +170,8 @@ impl Analyser {
 
     /// Whether another workspace document declares `name`, read the way the
     /// walker reads it: a relative name nothing here defines falls back to
-    /// the global namespace.
+    /// the global namespace. The site stays unresolved in this document, so
+    /// cross-file navigation and arity still settle it against its provider.
     fn is_workspace_declared(&self, name: &str) -> bool {
         let (Some(workspace), Some(registry)) = (
             self.workspace_declared_commands.as_deref(),
@@ -207,7 +208,6 @@ impl Analyser {
                 .stub_commands
                 .iter()
                 .any(|stub| stub.name == name)
-            || self.is_workspace_declared(name)
             || self.is_scoped_command_resolved(name, range)
         {
             return Presence::Unknown;
@@ -331,7 +331,7 @@ impl Analyser {
             self.result
                 .unresolved_command_sites
                 .push((inv.range, name.clone()));
-            if !emit_w123 {
+            if !emit_w123 || !inv.is_mathfunc_call && self.is_workspace_declared(name) {
                 continue;
             }
 

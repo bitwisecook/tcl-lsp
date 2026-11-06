@@ -144,38 +144,32 @@ fn unqualified_call_resolves_in_callers_namespace_first() {
 }
 
 #[test]
-fn global_call_with_single_namespaced_proc_uses_fallback() {
-    // Only ::a::helper exists: a global-scope call has no namespace-visible
-    // candidate, and `helper` names no builtin, so the lenient fallback
-    // resolves the call to the only same-named proc.
+fn global_call_with_only_a_namespaced_proc_has_no_definition() {
+    // Only ::a::helper exists, so a global-scope `helper` finds nothing:
+    // tclsh 8.6 / 9.0 both raise `invalid command name "helper"`. A
+    // same-tail proc in another namespace is not a definition of the call.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "namespace eval a {\n    proc helper {} { return 1 }\n}\nhelper\n";
     lsp.open_ready(&uri, src);
     let result = lsp.definition(&uri, 3, 2);
-    let locs = locations(&result);
-    assert!(!locs.is_empty());
-    assert_eq!(start_line(&locs[0]), 1, "fallback must reach ::a::helper");
+    assert!(locations(&result).is_empty(), "{result:?}");
 }
 
 #[test]
-fn global_call_fallback_is_deterministic_across_repeats() {
-    // No ::helper exists, so the lenient fallback fires — and must pick the
-    // lexicographically smallest qualified name (::a::helper) on every
-    // repeat, never a proc-table-iteration-order hijack (::z::helper is
-    // deliberately defined first).
+fn global_call_with_several_namespaced_procs_has_no_definition() {
+    // Neither ::z::helper nor ::a::helper is visible from the global
+    // namespace (tclsh 8.6 / 9.0: `invalid command name "helper"`), and the
+    // answer is the same on every repeat.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "namespace eval z {\n    proc helper {} { return 26 }\n}\nnamespace eval a {\n    proc helper {} { return 1 }\n}\nhelper\n";
     lsp.open_ready(&uri, src);
     for attempt in 0..4 {
         let result = lsp.definition(&uri, 6, 2);
-        let locs = locations(&result);
-        assert!(!locs.is_empty(), "attempt {attempt}: no definition");
-        assert_eq!(
-            start_line(&locs[0]),
-            4,
-            "attempt {attempt}: fallback must pick ::a::helper deterministically"
+        assert!(
+            locations(&result).is_empty(),
+            "attempt {attempt}: {result:?}"
         );
     }
 }
