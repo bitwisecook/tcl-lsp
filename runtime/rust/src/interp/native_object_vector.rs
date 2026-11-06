@@ -18,7 +18,7 @@
 
 //! Public original argv error reporting, separate from retained source-command text.
 
-use super::{Code, Interp, native_arguments::OriginalArguments};
+use super::{native_arguments::OriginalArguments, Code, Interp};
 use crate::obj::{self, Owned, TclObj};
 use tcl_registry::native_object_vector::NativeObjectVectorErrorProjection;
 use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};

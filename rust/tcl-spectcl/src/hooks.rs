@@ -924,7 +924,7 @@ speclib hooked 1 {
                 constraints: None,
                 dialect: None,
                 targets: &[],
-                budget: Default::default(),
+                budget: tcl_registry::value_transfer::ImplementationBudget::default(),
                 depends: &[],
             };
             assert_eq!(

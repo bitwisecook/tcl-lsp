@@ -533,7 +533,16 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one end-to-end scenario
     fn conditional_single_binder_declines_other_profiles_and_handlers() {
+        const EXTRA: &[crate::side_effects::SideEffect] = &[
+            crate::iteration_entry::PAIRED_LOOP_LEGACY_EFFECTS[0],
+            crate::side_effects::SideEffect {
+                target: crate::side_effects::SideEffectTarget::FileIo,
+                writes: true,
+                ..crate::side_effects::SideEffect::DEFAULT
+            },
+        ];
         use InvocationWord::Literal as L;
         let registry = crate::CommandRegistry::build_default();
         let profile = crate::model::ingress::resolve_environment("tcl9.0").unit_profile();
@@ -557,14 +566,6 @@ mod tests {
         let selected = foreach.resolved().unwrap();
         assert!(selected.conditional_source_single_loop_binding().is_some());
         let mut extra = selected;
-        const EXTRA: &[crate::side_effects::SideEffect] = &[
-            crate::iteration_entry::PAIRED_LOOP_LEGACY_EFFECTS[0],
-            crate::side_effects::SideEffect {
-                target: crate::side_effects::SideEffectTarget::FileIo,
-                writes: true,
-                ..crate::side_effects::SideEffect::DEFAULT
-            },
-        ];
         extra.semantics.side_effects = EXTRA;
         assert!(extra.conditional_source_single_loop_binding().is_none());
         let mut declined = selected;

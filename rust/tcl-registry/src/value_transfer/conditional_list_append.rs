@@ -656,11 +656,13 @@ mod tests {
                 if state_descriptor {
                     assert!(selected.selected.spec.state_transitions.is_some());
                     assert!(selected.semantics.state_transitions.is_declared());
-                    selected.semantics.state_transitions = Default::default();
+                    selected.semantics.state_transitions =
+                        crate::state_transition::ResolvedStateTransitions::default();
                 } else {
                     assert!(selected.selected.spec.world_effects.is_some());
                     assert!(selected.semantics.world_effects.is_declared());
-                    selected.semantics.world_effects = Default::default();
+                    selected.semantics.world_effects =
+                        crate::world_effect::ResolvedWorldEffects::default();
                 }
                 assert!(!selected.semantics.state_transitions.is_declared());
                 assert!(!selected.semantics.world_effects.is_declared());
@@ -830,14 +832,14 @@ mod tests {
                 Mutation::MissingNative => spec.native_compilation = None,
                 Mutation::Grammar => {
                     spec.native_compilation.as_mut().unwrap().grammar =
-                        NativeCompilationGrammar::Expression
+                        NativeCompilationGrammar::Expression;
                 }
                 Mutation::Operation => {
                     spec.native_compilation.as_mut().unwrap().operation =
-                        SemanticOperationId::Invoke
+                        SemanticOperationId::Invoke;
                 }
                 Mutation::Body => {
-                    spec.native_compilation.as_mut().unwrap().body = NativeBodyCompilation::Direct
+                    spec.native_compilation.as_mut().unwrap().body = NativeBodyCompilation::Direct;
                 }
                 Mutation::MissingHandler => spec.successful_handler = None,
                 Mutation::Handler => spec.successful_handler = Some(SuccessfulHandlerSpec::Leaf),

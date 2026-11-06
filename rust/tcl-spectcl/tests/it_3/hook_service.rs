@@ -148,7 +148,7 @@ fn bound_resolver(
 fn a_stable_source_slot_retires_its_count_table_on_a_word_sensitive_edit() {
     let _guard = SERVICE_TEST.lock().unwrap();
     let counted = edited_pack(
-        r#"
+        r"
 speclib svc_reload 2.0 {
     command svc::changing {
         arity 0..
@@ -158,7 +158,7 @@ speclib svc_reload 2.0 {
         arg_role_resolver_roles Body
     }
 }
-"#,
+",
     );
     tcl_spectcl::hooks::publish(&counted);
     let (old_slot, old) = bound_resolver(&counted);
@@ -177,7 +177,7 @@ speclib svc_reload 2.0 {
     );
 
     let changed = edited_pack(
-        r#"
+        r"
 speclib svc_reload 2.0 {
     command svc::changing {
         arity 0..
@@ -187,7 +187,7 @@ speclib svc_reload 2.0 {
         arg_role_resolver_roles Body
     }
 }
-"#,
+",
     );
     let (new_slot, new) = bound_resolver(&changed);
     assert_eq!(
@@ -207,7 +207,7 @@ speclib svc_reload 2.0 {
 #[test]
 fn a_worker_warm_answer_obeys_actor_quarantine_and_a_healthy_reload() {
     let _guard = SERVICE_TEST.lock().unwrap();
-    let source = r#"
+    let source = r"
 speclib svc_reload 2.0 {
     command svc::changing {
         arity 1
@@ -218,7 +218,7 @@ speclib svc_reload 2.0 {
         arg_role_resolver_roles Body
     }
 }
-"#;
+";
     let packs = edited_pack(source);
     tcl_spectcl::hooks::publish(&packs);
     let (slot, resolver) = bound_resolver(&packs);
@@ -269,7 +269,7 @@ speclib svc_reload 2.0 {
 fn a_tabulated_hook_stops_answering_after_its_large_call_is_quarantined() {
     let _guard = SERVICE_TEST.lock().unwrap();
     let packs = edited_pack(
-        r#"
+        r"
 speclib svc_reload 2.0 {
     command svc::changing {
         arity 0..
@@ -280,7 +280,7 @@ speclib svc_reload 2.0 {
         arg_role_resolver_roles Body
     }
 }
-"#,
+",
     );
     tcl_spectcl::hooks::publish(&packs);
     let (slot, resolver) = bound_resolver(&packs);

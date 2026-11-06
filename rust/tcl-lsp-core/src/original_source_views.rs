@@ -1288,6 +1288,7 @@ mod conditional_external_autoload_tests {
 
     #[test]
     fn deferred_body_index_headers_are_conditional_and_keep_exact_view_owners() {
+        use tcl_compiler::registry_invocation::source_structure::OriginalNativeDeferredAutoloadObligation as Debt;
         with_views(SOURCE, |views, suffix| {
             let at = cursor(SOURCE);
             assert!(
@@ -1298,7 +1299,6 @@ mod conditional_external_autoload_tests {
                 .expect("canonical deferred source recipe");
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0].publication(), suffix);
-            use tcl_compiler::registry_invocation::source_structure::OriginalNativeDeferredAutoloadObligation as Debt;
             assert!(requests[0].obligations().contains(&Debt::BodyEntry));
             assert!(requests[0].obligations().contains(&Debt::ActualLookup));
             for debt in [

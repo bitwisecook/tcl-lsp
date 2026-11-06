@@ -2500,7 +2500,9 @@ pub fn tool_schemas() -> Vec<(&'static str, &'static str, Value)> {
 /// The tool table of `docs/kcs/features/kcs-feature-mcp-server.md`, rendered
 /// from [`TOOLS`]: one row per tool with its description and its arguments,
 /// required ones marked `*` and closed ones followed by their values.
+#[cfg(test)]
 fn kcs_tool_table() -> String {
+    use std::fmt::Write as _;
     let cell = |text: &str| text.replace('|', "\\|");
     let mut out =
         String::from("| Tool | Description | Arguments |\n|------|-------------|-----------|\n");
@@ -2518,17 +2520,18 @@ fn kcs_tool_table() -> String {
                     && let Some(values) = schema["properties"][*name]["enum"].as_array()
                 {
                     let values: Vec<&str> = values.iter().filter_map(Value::as_str).collect();
-                    argument.push_str(&format!(" ({})", values.join(", ")));
+                    let _ = write!(argument, " ({})", values.join(", "));
                 }
                 argument
             })
             .collect();
-        out.push_str(&format!(
-            "| `{}` | {} | {} |\n",
+        let _ = writeln!(
+            out,
+            "| `{}` | {} | {} |",
             tool.name,
             cell(tool.description),
             cell(&arguments.join(", "))
-        ));
+        );
     }
     out
 }

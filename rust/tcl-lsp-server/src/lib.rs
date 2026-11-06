@@ -244,6 +244,9 @@ enum DocumentPathAdmission {
     },
 }
 
+/// Saved document bytes, each with the path admission that read them.
+type SavedSourceBytes = Vec<(std::sync::Arc<DocumentPathAdmission>, std::sync::Arc<[u8]>)>;
+
 #[derive(Debug, Clone)]
 enum DocumentSourceUnavailable {
     ConditionalAdvice {
@@ -13379,6 +13382,7 @@ impl Backend {
     /// Taking the seed as a future makes the supersession boundary directly
     /// testable: neither the publication gate nor a Salsa snapshot may live
     /// while this future is pending.
+    #[allow(clippy::too_many_lines)] // one request handler, step by step
     async fn commit_open_document_with_seed<F>(
         &self,
         uri: &Uri,
@@ -15331,18 +15335,17 @@ impl Backend {
                     })
                     .await
                     .map_err(|_| DocumentSourceUnavailable::Worker { uri: original_uri })?;
-                    match attempt {
-                        Ok(seed) => seed?,
-                        Err(_) => {
-                            if cooperation.wait_after(ticket).await
-                                == analysis_cooperation::TransportProgress::Stopped
-                            {
-                                // The driver owns terminal completion. No warning,
-                                // empty analysis or cache/index result is published.
-                                return std::future::pending().await;
-                            }
-                            continue;
+                    if let Ok(seed) = attempt {
+                        seed?
+                    } else {
+                        if cooperation.wait_after(ticket).await
+                            == analysis_cooperation::TransportProgress::Stopped
+                        {
+                            // The driver owns terminal completion. No warning,
+                            // empty analysis or cache/index result is published.
+                            return std::future::pending().await;
                         }
+                        continue;
                     }
                 } else {
                     crate::rt::spawn_blocking(move || driver.analyse(&source, &dialect, None))
@@ -18467,41 +18470,39 @@ impl Backend {
             let analysis = self
                 .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
                 .await?;
-            let observation = if !analysis.allows_lexical_declaration_advice() {
-                if let Some(request) = core_definition::original_autoload_request_at(
-                    &doc.text,
-                    &analysis,
-                    pos.line,
-                    pos.character,
-                ) {
-                    let resolver = self.package_resolver.read().await;
-                    let resolver_revision = resolver.revision();
-                    let candidates = request.files(&resolver);
-                    drop(resolver);
-                    let index = self.workspace_index.read().await;
-                    let providers = candidates
-                        .iter()
-                        .filter_map(|file| canonical_file_uri(file))
-                        .map(|uri| {
-                            (
-                                uri.as_str().to_owned(),
-                                index.document_revision(uri.as_str()),
-                            )
-                        })
-                        .collect();
-                    drop(index);
-                    Some(AutoloadQueryObservation {
-                        request,
-                        inputs_epoch: source_epoch,
-                        factory_generation,
-                        sidecar,
-                        sidecar_published,
-                        resolver_revision,
-                        providers,
+            let observation = if analysis.allows_lexical_declaration_advice() {
+                None
+            } else if let Some(request) = core_definition::original_autoload_request_at(
+                &doc.text,
+                &analysis,
+                pos.line,
+                pos.character,
+            ) {
+                let resolver = self.package_resolver.read().await;
+                let resolver_revision = resolver.revision();
+                let candidates = request.files(&resolver);
+                drop(resolver);
+                let index = self.workspace_index.read().await;
+                let providers = candidates
+                    .iter()
+                    .filter_map(canonical_file_uri)
+                    .map(|uri| {
+                        (
+                            uri.as_str().to_owned(),
+                            index.document_revision(uri.as_str()),
+                        )
                     })
-                } else {
-                    None
-                }
+                    .collect();
+                drop(index);
+                Some(AutoloadQueryObservation {
+                    request,
+                    inputs_epoch: source_epoch,
+                    factory_generation,
+                    sidecar,
+                    sidecar_published,
+                    resolver_revision,
+                    providers,
+                })
             } else {
                 None
             };
@@ -30385,7 +30386,7 @@ impl Backend {
             .map(|notice| ("load_notice", notice))
             .chain(collisions.iter().map(|notice| ("collision", notice)));
         for (index, (kind, notice)) in notices.take(10).enumerate() {
-            let (path, path_truncated) = bounded(&format!("{:?}", notice.path));
+            let (path, path_truncated) = bounded(&format!("{:?}", notice.path.to_string_lossy()));
             let (context, context_truncated) = bounded(&notice.context);
             let (message, message_truncated) = bounded(&notice.message);
             let pack_names = packs
@@ -30435,6 +30436,7 @@ impl Backend {
     /// notices); an open one is rescheduled instead, so the set that lands
     /// carries the analyser's findings *and* the loader's rather than
     /// whichever producer ran last.
+    #[allow(clippy::too_many_lines)] // one request handler, step by step
     async fn publish_spec_pack_notices(
         &self,
         packs: &Arc<tcl_spectcl::PackSet>,
@@ -42318,6 +42320,7 @@ mod tests {
                 .unwrap()
         }
 
+        #[derive(Clone, Copy)]
         enum ExternalOccupant {
             Class,
             Procedure,

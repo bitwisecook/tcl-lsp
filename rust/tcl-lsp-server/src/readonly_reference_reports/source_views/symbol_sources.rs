@@ -167,7 +167,7 @@ impl Backend {
 
     fn workspace_symbol_original_saved_sources(
         sources: &[Arc<PublishedOriginalSourceView>],
-    ) -> Option<Vec<(Arc<DocumentPathAdmission>, Arc<[u8]>)>> {
+    ) -> Option<crate::SavedSourceBytes> {
         let mut saved = Vec::new();
         for view in sources {
             let physical = &view.draft.physical;

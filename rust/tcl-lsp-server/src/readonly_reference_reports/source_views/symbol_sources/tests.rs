@@ -147,8 +147,9 @@ async fn first_scanned_closed_symbol_uses_its_actual_inherited_source_view() {
     let first = backend
         .symbol(WorkspaceSymbolParams {
             query: "greet_helper".into(),
-            work_done_progress_params: Default::default(),
-            partial_result_params: Default::default(),
+            work_done_progress_params: tower_lsp_server::ls_types::WorkDoneProgressParams::default(
+            ),
+            partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
         })
         .await
         .unwrap();

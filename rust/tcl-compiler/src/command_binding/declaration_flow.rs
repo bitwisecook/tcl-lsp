@@ -5040,6 +5040,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one end-to-end scenario
     fn conditional_representation_head_correspondence_checks_original_receipts() {
         let source = "set n 1";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -5241,6 +5242,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one end-to-end scenario
     fn conditional_substitution_context_requires_exact_single_child() {
         let source = "set marker 0; foreach pt {{1 2} {3 4}} {set y [  lindex $pt 1  ]; set z [lindex $pt 1]}";
         let report = conditional_representation_report(source);
@@ -5593,6 +5595,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one end-to-end scenario
     fn conditional_body_context_requires_exact_original_loop_and_source() {
         let source = "set x 0; foreach i {1 2 3} {incr x; lindex $x 0; if {1} {incr x}}; foreach j {1 2 3} {incr x}";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -5785,11 +5788,11 @@ mod tests {
                 .source_read_point_scope(&child, &site)
                 .is_some()
         );
-        assert!(
+        assert_eq!(
             changed_builder
                 .source_read_selection(&child, &site)
-                .as_ref()
-                == Some(&selected)
+                .as_ref(),
+            Some(&selected)
         );
         assert!(
             changed_builder
@@ -5834,6 +5837,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one end-to-end scenario
     fn conditional_root_source_scope_uses_its_original_parent_and_input() {
         let source = "set ys {}; foreach pt {{1 2} {3 4}} {lappend ys $pt}";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -6033,7 +6037,7 @@ mod tests {
                     1 => baseline.registry_snapshot = None,
                     _ => {
                         baseline.metadata_context =
-                            crate::registry_invocation::OwnedInvocationMetadataContext::Standalone
+                            crate::registry_invocation::OwnedInvocationMetadataContext::Standalone;
                     }
                 }
                 row.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
@@ -6090,12 +6094,12 @@ mod tests {
                             site.source.source_image().clone(),
                             0,
                         )
-                        .unwrap()
+                        .unwrap();
                     }
                     1 => {
                         *frame = crate::var_resolve::VariableExecutionFrame::Namespace(
                             "::foreign".to_owned(),
-                        )
+                        );
                     }
                     2 => *namespace = super::super::SourceNamespaceKey::authored("::foreign"),
                     _ => config.expand_syntax = !config.expand_syntax,

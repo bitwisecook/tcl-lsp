@@ -872,6 +872,7 @@ impl Backend {
         .await
     }
 
+    #[allow(clippy::too_many_lines)] // one report, step by step
     async fn capture_fresh_source_analysis_diagnostic(
         &self,
         uri: &Uri,

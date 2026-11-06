@@ -5517,7 +5517,7 @@ fn memo_diagnostic_unit(
         (input, settings),
     );
     assert!(unit.original_lattice_callbacks_are_current());
-    assert!(unit.ir_module.source_metadata_input.as_ref() == Some(input));
+    assert_eq!(unit.ir_module.source_metadata_input.as_ref(), Some(input));
     unit.with_interprocedural(registry, Some(input.unit_profile()))
 }
 

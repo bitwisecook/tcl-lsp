@@ -3873,9 +3873,10 @@ impl Backend {
             // Retain the existing bounded retry behavior for an initial lease.
             return Ok(None);
         };
-        let output = if let Some(output) = ordinary {
-            output
-        } else if let Some(requests) = conditional {
+        let Some(output) = ordinary else {
+            let Some(requests) = conditional else {
+                return Ok(Some(std::ops::ControlFlow::Break(None)));
+            };
             let Some(locations) = self
                 .conditional_source_view_autoload_locations(&ids, &owners, &requests)
                 .await?
@@ -3884,8 +3885,6 @@ impl Backend {
             };
             // The provider and view leases have already been joined together.
             return Ok(Some(std::ops::ControlFlow::Break(Some(locations))));
-        } else {
-            return Ok(Some(std::ops::ControlFlow::Break(None)));
         };
         let mut output = Some(output);
         let result = self
@@ -4398,7 +4397,7 @@ impl Backend {
     fn conditional_autoload_saved_sources(
         publications: &[&super::super::LibraryPublicationSource],
         admissions: &[&super::super::DocumentPathAdmission],
-    ) -> Option<Vec<(Arc<super::super::DocumentPathAdmission>, Arc<[u8]>)>> {
+    ) -> Option<crate::SavedSourceBytes> {
         (publications.len() == admissions.len()).then_some(())?;
         let mut saved = Vec::new();
         for (publication, expected) in publications.iter().zip(admissions) {
@@ -4504,7 +4503,7 @@ impl Backend {
                 request_files.push(
                     candidates
                         .iter()
-                        .map(|file| crate::canonical_file_uri(file))
+                        .map(crate::canonical_file_uri)
                         .collect::<Option<Vec<_>>>(),
                 );
                 for file in candidates {

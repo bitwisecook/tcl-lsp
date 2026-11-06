@@ -1694,7 +1694,15 @@ mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one end-to-end scenario
     fn source_namespace_eval_covers_only_its_declared_legacy_bridge() {
+        const POLICY_WRITE: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+            WorldStateDomain::InterpreterPolicy,
+            EffectAccessMode::Write,
+            StaticInterpreterScope::Current,
+            StaticNamespaceScope::Current,
+            StaticSubjectScope::Wildcard,
+        )];
         use crate::world_effect::{
             EffectAccessMode, StaticEffectAccess, StaticInterpreterScope, StaticNamespaceScope,
             StaticSubjectScope,
@@ -1767,13 +1775,6 @@ mod tests {
                     .is_none()
             );
         }
-        const POLICY_WRITE: &[StaticEffectAccess] = &[StaticEffectAccess::new(
-            WorldStateDomain::InterpreterPolicy,
-            EffectAccessMode::Write,
-            StaticInterpreterScope::Current,
-            StaticNamespaceScope::Current,
-            StaticSubjectScope::Wildcard,
-        )];
         let mut altered = crate::CommandRegistry::build_default();
         altered.insert(crate::CommandSpec {
             world_effects: Some(WorldEffectDescriptor {

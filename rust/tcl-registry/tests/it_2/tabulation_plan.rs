@@ -29,7 +29,7 @@ fn answer(slot: HookSlot) -> HookAnswer {
             constraints: None,
             dialect: None,
             targets: &[],
-            budget: Default::default(),
+            budget: tcl_registry::value_transfer::ImplementationBudget::default(),
             depends: &[],
         },
     )

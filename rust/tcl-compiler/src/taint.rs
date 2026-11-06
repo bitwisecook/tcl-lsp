@@ -11249,7 +11249,7 @@ mod tests {
             let span = Span::new(start, start + u32::try_from(spelling.len()).unwrap());
             let read = crate::ssa::original_source_read_at_unit(&unit, span, registry)
                 .expect("actual retained top-level read");
-            assert!(std::ptr::eq(read.function(), &unit.top_level));
+            assert!(std::ptr::eq(read.function(), &raw const unit.top_level));
             let cell = read.function().ssa.cell_key(read.symbol()).unwrap();
             let global = cell
                 .incoming_root_global(unit.ir_module.source_entry.native_entry.as_deref().unwrap())

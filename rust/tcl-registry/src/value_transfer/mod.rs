@@ -318,6 +318,15 @@ pub trait CommandSemantics: Sync + Send {
     }
 }
 
+impl std::fmt::Debug for dyn CommandSemantics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommandSemantics")
+            .field("identity", &self.identity())
+            .field("route", &self.route())
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod conditional_source_representation_tests {
     use super::*;
@@ -453,14 +462,5 @@ mod conditional_source_representation_tests {
         assert_eq!(append.conditional_source_representation(&args), None);
         let extra = LiteralInputs::new("incr", None, &["x", "1", "2"], None);
         assert_eq!(update.conditional_source_representation(&extra), None);
-    }
-}
-
-impl std::fmt::Debug for dyn CommandSemantics {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CommandSemantics")
-            .field("identity", &self.identity())
-            .field("route", &self.route())
-            .finish()
     }
 }

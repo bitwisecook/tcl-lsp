@@ -2795,7 +2795,7 @@ mod tests {
         relabelled.title = "Updated presentation".to_owned();
         let mut actions = vec![first.clone(), relabelled];
         deduplicate_context_actions(&mut actions);
-        assert_eq!(actions, [first.clone()]);
+        assert_eq!(actions, std::slice::from_ref(&first));
 
         let mut different_kind = first.clone();
         different_kind.kind = ActionKind::RefactorRewrite;

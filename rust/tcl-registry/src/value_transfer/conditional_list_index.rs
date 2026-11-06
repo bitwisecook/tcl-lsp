@@ -477,13 +477,13 @@ mod tests {
                 spec.state_transitions = Some(StateTransitionDescriptor {
                     resolver: Some(variable_transition),
                     ..StateTransitionDescriptor::EMPTY
-                })
+                });
             }
             IndexEffectMutation::CommandBindingTransition => {
                 spec.state_transitions = Some(StateTransitionDescriptor {
                     resolver: Some(command_transition),
                     ..StateTransitionDescriptor::EMPTY
-                })
+                });
             }
         }
     }
