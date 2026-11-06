@@ -1782,6 +1782,21 @@ mod tests {
         );
     }
 
+    /// #2402: a `$body` word holds no script the scan can read, and a `for`
+    /// init that leaves the procedure never reaches the body; tclsh 8.4.20
+    /// to 9.1.0 end each of these loops.
+    #[test]
+    fn w241_declines_a_variable_body_and_an_exiting_for_init() {
+        for source in [
+            "proc p {} { set body {return 1}; while 1 $body; return none }\n",
+            "set body {break}; while 1 $body; puts after\n",
+            "proc p {} { for {return 1} {1} {} {}; return none }\n",
+        ] {
+            assert!(codes(source).is_empty(), "{source}: {:?}", codes(source));
+        }
+        assert_eq!(codes("for {set i 0} {1} {} {}\n"), vec!["W241"]);
+    }
+
     #[test]
     fn w241_constant_true_no_exit() {
         assert_eq!(codes("while 1 {puts hi}\n"), vec!["W241"]);

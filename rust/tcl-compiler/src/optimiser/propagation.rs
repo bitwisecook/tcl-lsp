@@ -5455,6 +5455,30 @@ mod tests {
             .collect()
     }
 
+    /// #2430: `string cat` arrives in 8.6 and `string reverse` in 8.5;
+    /// tclsh 8.4.20 / 8.5.19 raise `bad option` for the missing one, so the
+    /// fold declines under those releases and takes the value from 8.6 on.
+    #[test]
+    fn o129_declines_a_string_subcommand_the_release_lacks() {
+        let folds = |release: &str, src: &str| -> Vec<String> {
+            let context = tcl_registry::model::ingress::static_context_for(release);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
+            crate::optimiser::manager::optimise_with_dialect(src, context.commands(), Some(profile))
+                .into_iter()
+                .filter(|o| o.code == DiagCode::O129 && !o.hint_only)
+                .map(|o| o.replacement)
+                .collect()
+        };
+        let cat = "puts [string cat a b c]";
+        let reverse = "puts [string reverse abc]";
+        assert!(folds("tcl8.4", cat).is_empty());
+        assert!(folds("tcl8.5", cat).is_empty());
+        assert!(folds("tcl8.4", reverse).is_empty());
+        assert_eq!(folds("tcl8.5", reverse), vec!["cba".to_string()]);
+        assert_eq!(folds("tcl8.6", cat), vec!["abc".to_string()]);
+    }
+
     #[test]
     fn o129_folds_pure_builtin_cmd_subst() {
         // A pure-builtin cmd-sub with constant
