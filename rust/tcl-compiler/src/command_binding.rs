@@ -16494,8 +16494,17 @@ impl ModuleCommandBindings {
         else {
             return None;
         };
-        let surface = self.baseline.declared_surface.as_ref()?;
-        let command = surface.document_surface(registry).declared_command(head)?;
+        let surface = self
+            .baseline
+            .declared_surface
+            .as_ref()?
+            .document_surface(registry);
+        // Nothing in this world defines the name at any slot, so a relative
+        // name falls back to the global namespace, where a workspace
+        // procedure is declared under its rooted name.
+        let command = surface.declared_command(head).or_else(|| {
+            surface.declared_command(&tcl_registry::rooted_command_descriptor_label(head))
+        })?;
         Some(command.frame_effect)
     }
 
