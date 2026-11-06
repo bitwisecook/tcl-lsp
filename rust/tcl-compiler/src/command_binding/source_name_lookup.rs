@@ -260,14 +260,38 @@ impl OriginalCommandLookup {
             for (original_path, path) in self.candidates.iter().zip(&mut filtered.candidates) {
                 let mut retained = Vec::new();
                 for slot in original_path {
-                    if state.baseline.declared_commands.keys().any(|name| {
-                        super::original_command_table::original_registry_metadata_slot(
-                            self.policy(),
-                            name,
-                        )
+                    // A sibling document's own procedure declares exactly the
+                    // external publication this matcher selects; any other
+                    // declaration may stand for a different implementation.
+                    let surface = state
+                        .baseline
+                        .declared_surface
                         .as_ref()
-                            == Some(slot)
-                    }) {
+                        .map(|contracts| contracts.document_surface(registry));
+                    if state
+                        .baseline
+                        .declared_commands
+                        .iter()
+                        .any(|(name, label)| {
+                            super::original_command_table::original_registry_metadata_slot(
+                                self.policy(),
+                                name,
+                            )
+                            .as_ref()
+                                == Some(slot)
+                                && surface
+                                    .as_ref()
+                                    .and_then(|surface| {
+                                        surface
+                                            .declared_command(label)
+                                            .or_else(|| surface.declared_command(name))
+                                    })
+                                    .is_none_or(|command| {
+                                        command.provenance()
+                                            != tcl_dialect::model::Provenance::WorkspaceTrusted
+                                    })
+                        })
+                    {
                         return None;
                     }
                     let explicit = state.original_catalogue_bindings_for_slot(slot, self.policy());

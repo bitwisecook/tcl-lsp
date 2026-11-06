@@ -1626,12 +1626,23 @@ fn scan_sidecar_lines(
     (cmds, exprs)
 }
 
-/// A declared surface from sidecar-syntax `stub` lines, through the same
-/// grammar as inline and sidecar stubs.
+/// The procedures sibling workspace documents define, declared from their
+/// sidecar-syntax `stub` lines through the same grammar as inline and sidecar
+/// stubs. Each is [`Provenance::WorkspaceTrusted`]: it stands for a source
+/// procedure in another document, not an assistance-only stub.
+///
+/// [`Provenance::WorkspaceTrusted`]: tcl_dialect::model::Provenance::WorkspaceTrusted
 #[must_use]
-pub fn declared_surface_from_stub_lines(content: &str) -> tcl_registry::model::DeclaredSurface {
+pub fn workspace_procedure_declarations(content: &str) -> tcl_registry::model::DeclaredSurface {
     let (cmds, _) = scan_sidecar_lines(content);
-    super::types::build_declared_surface(&cmds)
+    let stubbed = super::types::build_declared_surface(&cmds);
+    let mut surface = tcl_registry::model::DeclaredSurface::new();
+    for (_, command) in stubbed.iter() {
+        let mut command = command.clone();
+        command.declaration.provenance = tcl_dialect::model::Provenance::WorkspaceTrusted;
+        surface.declare(command);
+    }
+    surface
 }
 
 /// Whether the source's nearest ancestor sidecar is readable. The incremental

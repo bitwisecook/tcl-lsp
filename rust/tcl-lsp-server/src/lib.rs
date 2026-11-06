@@ -7289,7 +7289,7 @@ async fn sync_workspace_declared_commands(handles: &EvidenceHandles) -> Vec<Uri>
             .collect::<Vec<_>>();
         let want = (!lines.is_empty()).then(|| {
             Arc::new(
-                tcl_compiler::analyser::utils::declared_surface_from_stub_lines(&lines.join("\n")),
+                tcl_compiler::analyser::utils::workspace_procedure_declarations(&lines.join("\n")),
             )
         });
         let have = file.workspace_declared_commands(&*db);
@@ -15426,18 +15426,27 @@ impl Backend {
             }
         };
         let file_path = path_admission.analyser_path().map(str::to_owned);
+        let workspace_declared_commands = {
+            let db = self.db.lock().await;
+            let db_files = self.db_files.lock().await;
+            db_files
+                .get(uri)
+                .and_then(|file| file.workspace_declared_commands(&*db).clone())
+        };
         let inputs = fresh_analysis_cache::FreshAnalyserInputs {
             disabled: disabled.clone(),
             non_ascii_mode: na_mode,
             extra_commands: extra.clone(),
             pack_key,
             resource: resource.clone(),
+            workspace_declared_commands: workspace_declared_commands.clone(),
         };
         let driver = FreshAnalysisDriver {
             path_admission,
             source_store: Arc::clone(&self.store),
             analyser: Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
                 .with_workspace_class_factories(workspace_class_factories)
+                .with_workspace_declared_commands(workspace_declared_commands)
                 .with_file_path(file_path),
             analyser_inputs_epoch,
             class_factory_generation,

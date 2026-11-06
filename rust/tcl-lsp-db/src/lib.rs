@@ -7787,7 +7787,7 @@ p\uD801 ordinary";
         let stubs = world_preserving_procedure_stubs(&db, lib);
         assert_eq!(*stubs, vec!["stub putz {a}".to_owned()]);
         let surface =
-            tcl_compiler::analyser::utils::declared_surface_from_stub_lines(&stubs.join("\n"));
+            tcl_compiler::analyser::utils::workspace_procedure_declarations(&stubs.join("\n"));
         caller
             .set_workspace_declared_commands(&mut db)
             .to(Some(Arc::new(surface)));
