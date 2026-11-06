@@ -120,9 +120,9 @@ pub fn full_rewrite_span(source: &str, span: Span) -> Span {
 /// span.
 ///
 /// Distinct from [`statement_delete_rewrite_range`], which takes the separator
-/// between two statements and is bounded by where the next one starts. This
-/// one is for a caller that knows the statement owns its line and does not
-/// track a successor.
+/// between two statements and is bounded by where the next one starts. A
+/// statement that shares its line with another keeps its indentation and the
+/// line's newline: only its own trailing blanks go.
 #[must_use]
 pub fn line_delete_span(source: &str, span: Span) -> Span {
     let bytes = source.as_bytes();
@@ -131,16 +131,21 @@ pub fn line_delete_span(source: &str, span: Span) -> Span {
     if start > bytes.len() || end > bytes.len() {
         return span;
     }
-    while start > 0 && matches!(bytes.get(start - 1), Some(b' ' | b'\t')) {
-        start -= 1;
+    let mut indent = start;
+    while indent > 0 && matches!(bytes.get(indent - 1), Some(b' ' | b'\t')) {
+        indent -= 1;
     }
     while matches!(bytes.get(end), Some(b' ' | b'\t')) {
         end += 1;
     }
-    if end < bytes.len() && bytes[end] == b'\n' {
-        end += 1;
-    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
-        end += 2;
+    let newline = match bytes.get(end..) {
+        Some([b'\n', ..]) => 1,
+        Some([b'\r', b'\n', ..]) => 2,
+        _ => 0,
+    };
+    if newline > 0 && (indent == 0 || bytes[indent - 1] == b'\n') {
+        start = indent;
+        end += newline;
     }
     Span::new(
         u32::try_from(start).unwrap_or(span.start()),
@@ -372,6 +377,13 @@ mod tests {
             );
             assert_eq!(&source[deleted.end() as usize..], "  puts $a\n");
         }
+    }
+
+    #[test]
+    fn line_delete_span_keeps_a_shared_line() {
+        let source = "puts a; set x 1  \nputs b\n";
+        let deleted = line_delete_span(source, Span::new(8, 15));
+        assert_eq!(&source[deleted.as_range()], "set x 1  ");
     }
 
     #[test]

@@ -72,7 +72,7 @@ use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
 
-use super::helpers::spans::original_statement_rewrite_span;
+use super::helpers::spans::{line_delete_span, original_statement_rewrite_span};
 use super::{Optimisation, PassContext};
 
 /// Actual source input for the substitution effect gate. Interprocedural
@@ -1424,6 +1424,7 @@ fn emit_dse_entries(
         let Some(rewrite_span) = original_statement_rewrite_span(ctx, e.span) else {
             continue;
         };
+        let rewrite_span = line_delete_span(ctx.source, rewrite_span);
         // Record O109 dead stores (not O126 unused vars) so tools can show
         // them from where Rust determines them. `run` collects these into
         // `ctx.dead_stores`.
