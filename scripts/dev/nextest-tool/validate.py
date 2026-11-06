@@ -101,6 +101,124 @@ def verify_install():
         print(f"retained Nextest custody directory: {work}", flush=True)
 
 
+def build_pinned(work):
+    """Fetch, verify and build the pinned, patched Nextest; return its root."""
+    source = work / "source"
+    source.mkdir()
+    supervise(["git", "init", "-q", str(source)])
+    supervise(
+        [
+            "git",
+            "-C",
+            str(source),
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/nextest-rs/nextest.git",
+        ]
+    )
+    supervise(
+        [
+            "git",
+            "-C",
+            str(source),
+            "fetch",
+            "--depth=1",
+            "origin",
+            f"refs/tags/{PINS['NEXTTEST_TAG']}:refs/tags/{PINS['NEXTTEST_TAG']}",
+        ]
+    )
+    supervise(
+        [
+            "git",
+            "-C",
+            str(source),
+            "checkout",
+            "-q",
+            "--detach",
+            f"refs/tags/{PINS['NEXTTEST_TAG']}",
+        ]
+    )
+    commit = supervise(["git", "-C", str(source), "rev-parse", "HEAD"]).strip()
+    if commit != PINS["NEXTTEST_COMMIT"]:
+        raise RuntimeError(f"unexpected upstream commit: {commit}")
+    manifest = (source / "cargo-nextest/Cargo.toml").read_text()
+    if f'version = "{PINS["NEXTTEST_VERSION"]}"' not in manifest:
+        raise RuntimeError("Nextest package version mismatch")
+    lock = hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest()
+    if lock != PINS["NEXTTEST_LOCK_SHA256"]:
+        raise RuntimeError(f"Cargo.lock mismatch: {lock}")
+    blob = supervise(
+        [
+            "git",
+            "-C",
+            str(source),
+            "rev-parse",
+            "HEAD:nextest-runner/src/reporter/structured/libtest.rs",
+        ]
+    ).strip()
+    if blob != PINS["NEXTTEST_REPORTER_BLOB_SHA1"]:
+        raise RuntimeError(f"reporter source blob mismatch: {blob}")
+    patch = TOOL / "patches/libtest-ignore-lifecycle.patch"
+    patch_hash = hashlib.sha256(patch.read_bytes()).hexdigest()
+    if patch_hash != PINS["NEXTTEST_PATCH_SHA256"]:
+        raise RuntimeError(f"patch hash mismatch: {patch_hash}")
+    supervise(["git", "-C", str(source), "apply", "--check", str(patch)])
+    supervise(["git", "-C", str(source), "apply", str(patch)])
+    root = work / "install-root"
+    target = work / "target"
+    env = os.environ.copy()
+    env["CARGO_TARGET_DIR"] = str(target)
+    env["RUSTC_WRAPPER"] = ""
+    env["RUSTC_WORKSPACE_WRAPPER"] = ""
+    supervise(
+        [
+            "cargo",
+            "install",
+            "--locked",
+            "--path",
+            str(source / "cargo-nextest"),
+            "--root",
+            str(root),
+            "--force",
+            "--no-default-features",
+            "--features",
+            "default-no-update",
+        ],
+        env=env,
+        seconds=900,
+    )
+    return root
+
+
+def cached_build(cache):
+    """The pinned build a previous job left in `cache`, if it still matches.
+
+    The cache key hashes this directory's pins, patch and scripts, so a hit is
+    the same source. The binary must still report the pinned version and match
+    the SHA-256 recorded when it was built; anything else rebuilds.
+    """
+    binary = cache / "bin/cargo-nextest"
+    recorded = cache / "cargo-nextest.sha256"
+    if not (binary.is_file() and os.access(binary, os.X_OK) and recorded.is_file()):
+        return None
+    if hashlib.sha256(binary.read_bytes()).hexdigest() != recorded.read_text().strip():
+        return None
+    version = supervise([str(binary), "nextest", "--version"])
+    if f"cargo-nextest {PINS['NEXTTEST_VERSION']}" not in version:
+        return None
+    return cache
+
+
+def publish_build(root, cache):
+    """Leave a verified build in `cache` for the job's cache save."""
+    binary = root / "bin/cargo-nextest"
+    (cache / "bin").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(binary, cache / "bin/cargo-nextest")
+    digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+    (cache / "cargo-nextest.sha256").write_text(digest + "\n")
+
+
 def main():
     modes = {"--validate-only", "--install", "--verify-install"}
     if len(sys.argv) != 2 or sys.argv[1] not in modes:
@@ -125,91 +243,21 @@ def main():
     initialize(work)
     print(f"private Nextest validation artifacts retained at {work}", flush=True)
     try:
-        source = work / "source"
-        source.mkdir()
-        supervise(["git", "init", "-q", str(source)])
-        supervise(
-            [
-                "git",
-                "-C",
-                str(source),
-                "remote",
-                "add",
-                "origin",
-                "https://github.com/nextest-rs/nextest.git",
-            ]
-        )
-        supervise(
-            [
-                "git",
-                "-C",
-                str(source),
-                "fetch",
-                "--depth=1",
-                "origin",
-                f"refs/tags/{PINS['NEXTTEST_TAG']}:refs/tags/{PINS['NEXTTEST_TAG']}",
-            ]
-        )
-        supervise(
-            [
-                "git",
-                "-C",
-                str(source),
-                "checkout",
-                "-q",
-                "--detach",
-                f"refs/tags/{PINS['NEXTTEST_TAG']}",
-            ]
-        )
-        commit = supervise(["git", "-C", str(source), "rev-parse", "HEAD"]).strip()
-        if commit != PINS["NEXTTEST_COMMIT"]:
-            raise RuntimeError(f"unexpected upstream commit: {commit}")
-        manifest = (source / "cargo-nextest/Cargo.toml").read_text()
-        if f'version = "{PINS["NEXTTEST_VERSION"]}"' not in manifest:
-            raise RuntimeError("Nextest package version mismatch")
-        lock = hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest()
-        if lock != PINS["NEXTTEST_LOCK_SHA256"]:
-            raise RuntimeError(f"Cargo.lock mismatch: {lock}")
-        blob = supervise(
-            [
-                "git",
-                "-C",
-                str(source),
-                "rev-parse",
-                "HEAD:nextest-runner/src/reporter/structured/libtest.rs",
-            ]
-        ).strip()
-        if blob != PINS["NEXTTEST_REPORTER_BLOB_SHA1"]:
-            raise RuntimeError(f"reporter source blob mismatch: {blob}")
-        patch = TOOL / "patches/libtest-ignore-lifecycle.patch"
-        patch_hash = hashlib.sha256(patch.read_bytes()).hexdigest()
-        if patch_hash != PINS["NEXTTEST_PATCH_SHA256"]:
-            raise RuntimeError(f"patch hash mismatch: {patch_hash}")
-        supervise(["git", "-C", str(source), "apply", "--check", str(patch)])
-        supervise(["git", "-C", str(source), "apply", str(patch)])
-        root = work / "install-root"
-        target = work / "target"
+        cache_dir = os.environ.get("TCL_LSP_NEXTEST_CACHE", "")
+        cache = Path(cache_dir) if cache_dir else None
+        if cache is not None and not cache.is_absolute():
+            raise RuntimeError("TCL_LSP_NEXTEST_CACHE must be an absolute path")
+        root = cached_build(cache) if cache is not None else None
+        if root is None:
+            root = build_pinned(work)
+            if cache is not None:
+                publish_build(root, cache)
+        else:
+            print(f"reusing the pinned Nextest build cached at {root}", flush=True)
         env = os.environ.copy()
-        env["CARGO_TARGET_DIR"] = str(target)
+        env["CARGO_TARGET_DIR"] = str(work / "target")
         env["RUSTC_WRAPPER"] = ""
         env["RUSTC_WORKSPACE_WRAPPER"] = ""
-        supervise(
-            [
-                "cargo",
-                "install",
-                "--locked",
-                "--path",
-                str(source / "cargo-nextest"),
-                "--root",
-                str(root),
-                "--force",
-                "--no-default-features",
-                "--features",
-                "default-no-update",
-            ],
-            env=env,
-            seconds=900,
-        )
         binary = root / "bin/cargo-nextest"
         version = supervise([str(binary), "nextest", "--version"])
         if f"cargo-nextest {PINS['NEXTTEST_VERSION']}" not in version:

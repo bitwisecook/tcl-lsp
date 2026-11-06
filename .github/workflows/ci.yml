@@ -1420,8 +1420,20 @@ jobs:
           target=$(bash scripts/dev/persistent-cargo-target.sh prepare tank "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE" "$registration")
           printf 'CARGO_TARGET_DIR=%s\n' "$target" >> "$GITHUB_ENV"
 
+      # The pinned, patched Nextest build takes 3-4 minutes; every job
+      # that needs it reuses one verified build (validate.py checks the
+      # cached binary's version and SHA-256 before trusting it).
+      - name: Cache the pinned cargo-nextest build
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nextest-cache
+          key: nextest-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{ hashFiles('scripts/dev/nextest-tool/**') }}
+
       - name: Install cargo-nextest
         if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        env:
+          TCL_LSP_NEXTEST_CACHE: ${{ runner.temp }}/nextest-cache
         run: bash scripts/dev/nextest-tool/validate.sh --install
 
       - name: Verify cargo-nextest source install resolution
@@ -1773,7 +1785,18 @@ jobs:
           # own cache rather than racing rust-tests-shard on save.
           cache-key: rust-tests-heavy
 
+      # The pinned, patched Nextest build takes 3-4 minutes; every job
+      # that needs it reuses one verified build (validate.py checks the
+      # cached binary's version and SHA-256 before trusting it).
+      - name: Cache the pinned cargo-nextest build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nextest-cache
+          key: nextest-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{ hashFiles('scripts/dev/nextest-tool/**') }}
+
       - name: Install cargo-nextest
+        env:
+          TCL_LSP_NEXTEST_CACHE: ${{ runner.temp }}/nextest-cache
         run: bash scripts/dev/nextest-tool/validate.sh --install
 
       - name: Verify cargo-nextest source install resolution
@@ -2335,9 +2358,21 @@ jobs:
         with:
           version: v0.18.0
 
+      # The pinned, patched Nextest build takes 3-4 minutes; every job
+      # that needs it reuses one verified build (validate.py checks the
+      # cached binary's version and SHA-256 before trusting it).
+      - name: Cache the pinned cargo-nextest build
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nextest-cache
+          key: nextest-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{ hashFiles('scripts/dev/nextest-tool/**') }}
+
       - name: Install cargo-nextest
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         # Archive/list/execute must use the exact same nextest format.
+        env:
+          TCL_LSP_NEXTEST_CACHE: ${{ runner.temp }}/nextest-cache
         run: bash scripts/dev/nextest-tool/validate.sh --install
 
       - name: Verify cargo-nextest source install resolution
@@ -2493,10 +2528,22 @@ jobs:
           toolchain: stable
           cache-key: lsp-e2e
 
+      # The pinned, patched Nextest build takes 3-4 minutes; every job
+      # that needs it reuses one verified build (validate.py checks the
+      # cached binary's version and SHA-256 before trusting it).
+      - name: Cache the pinned cargo-nextest build
+        if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/nextest-cache
+          key: nextest-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{ hashFiles('scripts/dev/nextest-tool/**') }}
+
       - name: Install cargo-nextest
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
         # Keep the machine-readable partition proof and the runner on the
         # same nextest format/version.
+        env:
+          TCL_LSP_NEXTEST_CACHE: ${{ runner.temp }}/nextest-cache
         run: bash scripts/dev/nextest-tool/validate.sh --install
 
       - name: Verify cargo-nextest source install resolution
