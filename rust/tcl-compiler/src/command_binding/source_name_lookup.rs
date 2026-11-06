@@ -145,7 +145,13 @@ impl OriginalCommandLookup {
                     state.original_catalogue_bindings_for_slot(name.slot(), name.policy());
                 let baseline;
                 let bindings = if explicit.is_empty() && !conditional_body {
-                    let key = state.original_command_key_for_slot(name.slot(), name.policy())?;
+                    // A slot whose namespace this closed world does not
+                    // contain has no local occupant; the external matcher
+                    // owns such a declaration.
+                    let Some(key) = state.original_command_key_for_slot(name.slot(), name.policy())
+                    else {
+                        continue;
+                    };
                     baseline = state.original_bindings_for_key(&key)?;
                     baseline.iter().collect::<Vec<_>>()
                 } else {
@@ -260,13 +266,16 @@ impl OriginalCommandLookup {
                         }
                         return None;
                     }
-                    let key = state.original_command_key_for_slot(slot, self.policy())?;
-                    let bindings = state.original_bindings_for_key(&key)?;
-                    if !bindings
-                        .iter()
-                        .all(|binding| matches!(binding, super::MayBinding::Missing))
-                    {
-                        return None;
+                    // A slot whose namespace this closed world does not
+                    // contain is unoccupied, as an explicit Missing row is.
+                    if let Some(key) = state.original_command_key_for_slot(slot, self.policy()) {
+                        let bindings = state.original_bindings_for_key(&key)?;
+                        if !bindings
+                            .iter()
+                            .all(|binding| matches!(binding, super::MayBinding::Missing))
+                        {
+                            return None;
+                        }
                     }
                     if path.contains(slot) {
                         retained.push(slot.clone());

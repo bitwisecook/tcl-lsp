@@ -1047,3 +1047,45 @@ fn definition_reaches_the_colon_proc_via_relative_dispatch_934() {
         "the relative `:` call resolves to the unaddressable-but-reachable proc: {locs:?}"
     );
 }
+
+// A namespace-qualified call into a namespace only a sibling document creates
+// selects that document's declaration; the consumer's own world has no
+// occupant there. A qualified name the sibling never declares stays unknown.
+//   tclsh: `source lib.tcl; ::Lib::bar` ⇒ the sibling's `::Lib::bar` runs.
+mod qualified_cross_document_call {
+    use tcl_lsp_core::original_call_hierarchy::{OriginalCallDocument, prepare};
+
+    fn selected(lib: &str, main: &str, line: u32, col: u32) -> Vec<(String, u32)> {
+        let lib_analysis = super::analyse(lib);
+        let main_analysis = super::analyse(main);
+        let documents = [
+            OriginalCallDocument {
+                uri: "file:///lib.tcl",
+                source: lib,
+                analysis: &lib_analysis,
+            },
+            OriginalCallDocument {
+                uri: "file:///main.tcl",
+                source: main,
+                analysis: &main_analysis,
+            },
+        ];
+        prepare("file:///main.tcl", line, col, &documents, None)
+            .into_iter()
+            .map(|item| (item.name, item.range.start_line))
+            .collect()
+    }
+
+    #[test]
+    fn a_qualified_call_reaches_the_sibling_namespace_declaration() {
+        let lib = "namespace eval Lib { proc bar {} { return 1 } }\n";
+        assert_eq!(selected(lib, "::Lib::bar\n", 0, 2), [("bar".to_owned(), 0)]);
+        let nested = "namespace eval A { namespace eval B { proc f {} {} } }\n";
+        assert_eq!(selected(nested, "A::B::f\n", 0, 4), [("f".to_owned(), 0)]);
+    }
+
+    #[test]
+    fn a_qualified_call_the_sibling_never_declares_stays_unknown() {
+        assert!(selected("proc bar {} { return 1 }\n", "::Lib::bar\n", 0, 2).is_empty());
+    }
+}
