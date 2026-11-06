@@ -97,6 +97,13 @@ impl PartialEq for ModuleRealmMemo {
 impl Eq for ModuleRealmMemo {}
 
 impl RetainedSourceModuleBindings {
+    /// Whether every declaration-time walk of the procedure `identity` left
+    /// the command world unchanged ([`SourceCommandBindings::procedure_preserves_command_world`]).
+    #[must_use]
+    pub fn procedure_preserves_command_world(&self, identity: &str) -> Option<bool> {
+        self.positioned.procedure_preserves_command_world(identity)
+    }
+
     /// The shared document realm for `module`, validated exactly as
     /// [`Self::positioned_for_module`] validates the bindings it wraps.
     pub(crate) fn document_realm_for_module(

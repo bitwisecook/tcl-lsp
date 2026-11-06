@@ -1587,33 +1587,51 @@ pub fn scan_sidecar_stubs(
     while let Some(current) = dir {
         let sidecar = current.join(format!("{dialect}.tcl.stubs"));
         if let Ok(content) = std::fs::read_to_string(&sidecar) {
-            // Sidecar syntax is one declaration per line, without the inline
-            // comment prefix or begin/end markers.  Adapt it into the
-            // canonical scanner rather than maintaining a second parser.
-            let mut adapted = String::from("# tcl-lsp: stubs-begin\n");
-            for line in content.lines() {
-                let trimmed = line.trim_start();
-                if trimmed.starts_with('#') {
-                    adapted.push_str(trimmed);
-                } else {
-                    adapted.push_str("# tcl-lsp: ");
-                    adapted.push_str(line);
-                }
-                adapted.push('\n');
-            }
-            adapted.push_str("# tcl-lsp: stubs-end\n");
-            let (mut cmds, mut exprs) = scan_source_for_stubs(&adapted);
-            for stub in &mut cmds {
-                stub.from_sidecar = true;
-            }
-            for stub in &mut exprs {
-                stub.from_sidecar = true;
-            }
-            return (cmds, exprs);
+            return scan_sidecar_lines(&content);
         }
         dir = current.parent();
     }
     (Vec::new(), Vec::new())
+}
+
+/// Parse sidecar syntax: one declaration per line, without the inline
+/// comment prefix or begin/end markers. It is adapted into the canonical
+/// scanner rather than maintaining a second parser; declaration spans are
+/// synthetic.
+fn scan_sidecar_lines(
+    content: &str,
+) -> (
+    Vec<super::types::StubCommandDef>,
+    Vec<super::types::StubExprDef>,
+) {
+    let mut adapted = String::from("# tcl-lsp: stubs-begin\n");
+    for line in content.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('#') {
+            adapted.push_str(trimmed);
+        } else {
+            adapted.push_str("# tcl-lsp: ");
+            adapted.push_str(line);
+        }
+        adapted.push('\n');
+    }
+    adapted.push_str("# tcl-lsp: stubs-end\n");
+    let (mut cmds, mut exprs) = scan_source_for_stubs(&adapted);
+    for stub in &mut cmds {
+        stub.from_sidecar = true;
+    }
+    for stub in &mut exprs {
+        stub.from_sidecar = true;
+    }
+    (cmds, exprs)
+}
+
+/// A declared surface from sidecar-syntax `stub` lines, through the same
+/// grammar as inline and sidecar stubs.
+#[must_use]
+pub fn declared_surface_from_stub_lines(content: &str) -> tcl_registry::model::DeclaredSurface {
+    let (cmds, _) = scan_sidecar_lines(content);
+    super::types::build_declared_surface(&cmds)
 }
 
 /// Whether the source's nearest ancestor sidecar is readable. The incremental

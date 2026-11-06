@@ -6436,7 +6436,12 @@ async fn refresh_cross_file_evidence(
     // view marks this document's own slot dirty directly — the
     // `refresh_can_change_result` gate above is a call-site-evidence
     // criterion and says nothing about W308 abstentions.
-    let subclass_moved = sync_workspace_subclass_methods(handles).await;
+    let mut subclass_moved = sync_workspace_subclass_methods(handles).await;
+    for moved in sync_workspace_declared_commands(handles).await {
+        if !subclass_moved.contains(&moved) {
+            subclass_moved.push(moved);
+        }
+    }
     if subclass_moved.iter().any(|u| u == uri)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
@@ -7254,6 +7259,54 @@ async fn apply_workspace_class_factories_if_current(
 /// Lock discipline: the index read completes and drops before the `db` lock
 /// is taken (the global order puts `db` before `workspace_index`; holding
 /// neither across the other sidesteps the ordering entirely).
+/// Give every document the procedures the *other* documents define that a
+/// call may trust ([`tcl_lsp_db::world_preserving_procedure_stubs`]) as
+/// declarations, so a cross-file call keeps the rest of the document proved.
+/// A document's own procedures are excluded: its definitions resolve them.
+///
+/// Compare-then-set, like the evidence syncs: an unmoved slice invalidates
+/// nothing. Trusting a declaration only removes widening, so verdicts grow
+/// monotonically and repeated publishes converge.
+async fn sync_workspace_declared_commands(handles: &EvidenceHandles) -> Vec<Uri> {
+    use salsa::Setter as _;
+    let mut db = handles.db.lock().await;
+    let db_files = handles.db_files.lock().await;
+    let stubs: Vec<(Uri, Arc<Vec<String>>)> = db_files
+        .iter()
+        .map(|(uri, &file)| {
+            (
+                uri.clone(),
+                tcl_lsp_db::world_preserving_procedure_stubs(&*db, file),
+            )
+        })
+        .collect();
+    let mut changed = Vec::new();
+    for (uri, &file) in db_files.iter() {
+        let lines = stubs
+            .iter()
+            .filter(|(owner, _)| owner != uri)
+            .flat_map(|(_, lines)| lines.iter().map(String::as_str))
+            .collect::<Vec<_>>();
+        let want = (!lines.is_empty()).then(|| {
+            Arc::new(
+                tcl_compiler::analyser::utils::declared_surface_from_stub_lines(&lines.join("\n")),
+            )
+        });
+        let have = file.workspace_declared_commands(&*db);
+        let matches = match (have.as_ref(), want.as_ref()) {
+            (Some(have), Some(want)) => Arc::ptr_eq(have, want) || **have == **want,
+            (None, None) => true,
+            _ => false,
+        };
+        if matches {
+            continue;
+        }
+        file.set_workspace_declared_commands(&mut *db).to(want);
+        changed.push(uri.clone());
+    }
+    changed
+}
+
 async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> {
     use salsa::Setter as _;
     // The project fold and each document's class list, under one index read.
@@ -33335,6 +33388,7 @@ impl Backend {
             scan_started.elapsed().as_millis()
         );
         sync_workspace_subclass_methods(handles).await;
+        sync_workspace_declared_commands(handles).await;
         workspace_scan_trace!(
             "scan.subclass.end elapsed_ms={}",
             scan_started.elapsed().as_millis()

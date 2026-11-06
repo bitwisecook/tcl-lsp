@@ -4092,6 +4092,9 @@ pub struct SourceCommandBindings {
     recursive_assumptions: BTreeSet<DeferredImplementationId>,
     /// Activations whose assumption failed: their back-edge widens.
     recursive_assumption_refused: BTreeSet<DeferredImplementationId>,
+    /// Per procedure identity, whether its declaration-time body walks left
+    /// the command world unchanged.
+    world_preserving_bodies: BTreeMap<String, bool>,
     active_variable_observers: Vec<variable_observers::ActiveVariableObserver>,
     called_implementations: BTreeSet<DeferredImplementationId>,
     phases: SharedSourceInventory<Vec<SourcePhasePoint>>,
@@ -4161,6 +4164,7 @@ impl PartialEq for SourceCommandBindings {
             && self.active_calls == other.active_calls
             && self.recursive_assumptions == other.recursive_assumptions
             && self.recursive_assumption_refused == other.recursive_assumption_refused
+            && self.world_preserving_bodies == other.world_preserving_bodies
             && self.active_variable_observers == other.active_variable_observers
             && self.called_implementations == other.called_implementations
             && self.phases == other.phases
@@ -8305,9 +8309,23 @@ impl SourceCommandBindings {
             self.active_calls.remove(&implementation);
         }
         self.record_conditional_procedure_result(root, &outcomes, branch.baseline.dialect);
+        let preserves = outcomes.preserves_command_world(incoming);
+        self.world_preserving_bodies
+            .entry(root.identity.clone())
+            .and_modify(|held| *held &= preserves)
+            .or_insert(preserves);
         self.retain_deferred_outcomes(root, &frame, outcomes);
         // Declaration analysis supplies body points; it is not an execution
         // edge and does not alter the document's actual continuation.
+    }
+
+    /// Whether every declaration-time walk of the procedure `identity` (its
+    /// formals unknown) leaves the command world as it found it: the body
+    /// defines, renames and deletes no command, namespace or object, and
+    /// reaches no code that might. `None` when no body of that name was walked.
+    #[must_use]
+    pub fn procedure_preserves_command_world(&self, identity: &str) -> Option<bool> {
+        self.world_preserving_bodies.get(identity).copied()
     }
 
     fn retain_deferred_outcomes(

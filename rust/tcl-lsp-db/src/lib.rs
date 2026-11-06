@@ -665,6 +665,12 @@ pub struct SourceFile {
     /// invalidates analyses that read an external declaration bundle.
     #[returns(copy)]
     pub sidecar_stubs_epoch: u64,
+    /// Procedures other workspace documents declare whose bodies leave the
+    /// command world unchanged, as declarations: a call to one keeps the
+    /// rest of this document proved. `None` means "no workspace view".
+    /// Set by the server (compare-then-set) like the evidence fields above.
+    #[returns(ref)]
+    pub workspace_declared_commands: Option<Arc<DeclaredSurface>>,
 }
 
 impl SourceFile {
@@ -678,7 +684,7 @@ impl SourceFile {
         dialect: String,
         path: Option<String>,
     ) -> Self {
-        Self::with_call_site_evidence(db, text, dialect, path, None, None, None, 0)
+        Self::with_call_site_evidence(db, text, dialect, path, None, None, None, 0, None)
     }
 }
 
@@ -4168,11 +4174,64 @@ fn unit_build_options<'a>(
 #[salsa::tracked(returns(clone))]
 pub fn declared_command_surface(db: &dyn TclDb, file: SourceFile) -> Arc<DeclaredSurface> {
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
-    Arc::new(tcl_compiler::analyser::utils::document_declared_surface(
+    let own = tcl_compiler::analyser::utils::document_declared_surface(
         file.text(db),
         file.path(db).as_deref(),
         file.dialect(db),
-    ))
+    );
+    let Some(workspace) = file.workspace_declared_commands(db) else {
+        return Arc::new(own);
+    };
+    // The document's own declarations win over a workspace procedure's.
+    let mut merged = (**workspace).clone();
+    for (_, command) in own.iter() {
+        merged.declare(command.clone());
+    }
+    Arc::new(merged)
+}
+
+/// The procedures this document defines that a call from another document
+/// may trust, as sidecar-syntax `stub` lines: every declaration-time walk of
+/// the body leaves the command world unchanged. A trailing `args` formal has
+/// no stub spelling, so such a procedure is not declared.
+#[salsa::tracked(returns(clone))]
+pub fn world_preserving_procedure_stubs(db: &dyn TclDb, file: SourceFile) -> Arc<Vec<String>> {
+    let unit = document_compilation_unit(db, file);
+    let Some(bindings) = unit.ir_module.retained_source_bindings.as_deref() else {
+        return Arc::default();
+    };
+    let mut lines = unit
+        .ir_module
+        .procedures
+        .values()
+        .filter(|procedure| {
+            bindings.procedure_preserves_command_world(&procedure.qualified_name) == Some(true)
+        })
+        .filter_map(|procedure| {
+            let formals =
+                tcl_syntax::formal_params::parse_formal_parameters(&procedure.params_raw).ok()?;
+            if formals.last().is_some_and(|formal| formal.name == "args") {
+                return None;
+            }
+            let words = formals
+                .iter()
+                .map(|formal| {
+                    if formal.default.is_some() {
+                        format!("?{}?", formal.name)
+                    } else {
+                        formal.name.clone()
+                    }
+                })
+                .collect::<Vec<_>>();
+            Some(format!(
+                "stub {} {{{}}}",
+                procedure.qualified_name,
+                words.join(" ")
+            ))
+        })
+        .collect::<Vec<_>>();
+    lines.sort_unstable();
+    Arc::new(lines)
 }
 
 /// The shared, memoised [`CompilationUnit`] for a document under a given lexer
