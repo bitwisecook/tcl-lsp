@@ -209,6 +209,10 @@ pub(crate) struct Frame {
     /// opcode can run.
     profile_generation: u64,
     native_policy: Option<crate::compiled::NativeCompilerPolicy>,
+    /// The policy stamp at which this frame's policy checks last passed.
+    policy_current_at: std::cell::Cell<Option<u64>>,
+    /// Distinguishes this activation from any other at the same stack depth.
+    serial: u64,
     /// Command-binding generation last validated for this live activation.
     command_epoch: u64,
     /// Compiler-service generation that produced this activation's bytecode.
@@ -643,6 +647,32 @@ struct EnteredNativeOperation {
     requirements: Vec<tcl_runtime_api::CommandBindingIdentity>,
 }
 
+/// A process-unique activation serial.
+fn next_frame_serial() -> u64 {
+    static NEXT_SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT_SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The current native compiler policy's stamp, projecting the policy itself
+/// only when a frame's checks must compare it.
+pub(crate) struct PolicyAtStamp<'a> {
+    vm: &'a Vm,
+    stamp: u64,
+}
+
+impl<'a> PolicyAtStamp<'a> {
+    fn of(vm: &'a Vm) -> Self {
+        Self {
+            vm,
+            stamp: vm.native_compiler_policy_stamp(),
+        }
+    }
+
+    fn policy(&self) -> crate::compiled::NativeCompilerPolicy {
+        self.vm.native_compiler_policy()
+    }
+}
+
 impl Frame {
     #[cfg(test)]
     pub(crate) fn lambda_registration(&self) -> Option<&crate::interp::CommandSidecarHandle> {
@@ -722,6 +752,8 @@ impl Frame {
             source_namespace,
             profile_generation,
             native_policy: native_cache.map(|stamp| stamp.policy),
+            policy_current_at: std::cell::Cell::new(None),
+            serial: next_frame_serial(),
             command_epoch,
             compiler_generation,
             manifest,
@@ -783,22 +815,14 @@ impl Frame {
         &self,
         current_profile: u64,
         current_compiler: u64,
-        current_policy: &impl std::ops::Deref<Target = crate::compiled::NativeCompilerPolicy>,
+        current_policy: &PolicyAtStamp<'_>,
     ) -> Option<&'static str> {
         if self.each_loop.is_some() {
             None
         } else if self.profile_generation != current_profile {
             Some("cannot continue bytecode after dialect profile changed")
-        } else if self
-            .direct_source_operands
-            .is_some_and(|direct| !direct.is_current(current_policy))
-        {
-            Some("cannot continue direct source after native invocation policy changed")
-        } else if self
-            .native_policy
-            .is_some_and(|policy| policy != **current_policy)
-        {
-            Some("cannot continue bytecode after native invocation policy changed")
+        } else if let Some(message) = self.policy_stale_message(current_policy) {
+            Some(message)
         } else if self
             .compiler_generation
             .is_some_and(|generation| generation != current_compiler)
@@ -807,6 +831,33 @@ impl Frame {
         } else {
             None
         }
+    }
+
+    /// The frame's policy checks, skipped while the current policy keeps the
+    /// stamp at which they last passed.
+    fn policy_stale_message(&self, current: &PolicyAtStamp<'_>) -> Option<&'static str> {
+        if self.direct_source_operands.is_none() && self.native_policy.is_none() {
+            return None;
+        }
+        let stamp = current.stamp;
+        if self.policy_current_at.get() == Some(stamp) {
+            return None;
+        }
+        let policy = current.policy();
+        let message = if self
+            .direct_source_operands
+            .is_some_and(|direct| !direct.is_current(&policy))
+        {
+            Some("cannot continue direct source after native invocation policy changed")
+        } else if self.native_policy.is_some_and(|native| native != policy) {
+            Some("cannot continue bytecode after native invocation policy changed")
+        } else {
+            None
+        };
+        if message.is_none() {
+            self.policy_current_at.set(Some(stamp));
+        }
+        message
     }
 
     #[cfg(test)]
@@ -1679,6 +1730,30 @@ fn bin(vm: &mut Vm, f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
 fn cmp(vm: &mut Vm, f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
     let b = pop(f);
     let a = pop(f);
+    if let (Some(left), Some(right)) = (
+        a.plain_integer_representation(),
+        b.plain_integer_representation(),
+    ) && vm.execution_refusal.is_none()
+        && vm.authored_numeric_context().is_none()
+        && vm.native_invocation_dialect().family() == Some(tcl_dialect::model::Family::Tcl)
+    {
+        let truth = match op {
+            BinOp::Eq => Some(left == right),
+            BinOp::Ne => Some(left != right),
+            BinOp::Lt => Some(left < right),
+            BinOp::Le => Some(left <= right),
+            BinOp::Gt => Some(left > right),
+            BinOp::Ge => Some(left >= right),
+            _ => None,
+        };
+        if let Some(truth) = truth {
+            f.stack.push(expr::native_boolean_result(
+                vm.numeric_policy_context(),
+                truth,
+            ));
+            return Ok(());
+        }
+    }
     match expr::with_original_numeric_context(vm, |context| expr::compare_in(context, op, &a, &b)) {
         Ok(t) => {
             f.stack
@@ -2359,7 +2434,11 @@ impl Vm {
     }
 
     fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
+        // The top activation the previous tick's freshness check accepted, when
+        // that tick resumed it without running anything else.
+        let mut fresh_top: Option<(usize, u64)> = None;
         loop {
+            let top = acts.last().map(|frame| (acts.len(), frame.serial));
             if let Some(original) = acts.last().and_then(|frame| frame.original_target.as_ref()) {
                 let _ = original.check_current(self);
             }
@@ -2394,6 +2473,7 @@ impl Vm {
             // counter is Vm-scoped so it survives the short activations a
             // command-driven loop re-enters (see `limit_check_tick`).
             if let Some(c) = self.limit_check_tick() {
+                fresh_top = None;
                 let c = match self.publish_and_log_completion(acts, c) {
                     Ok(completion) => completion,
                     Err(completion) => return RunExit::Done(completion),
@@ -2403,10 +2483,12 @@ impl Vm {
                 }
                 continue;
             }
-            match self.unwind_stale_compilation_frame(acts, None) {
-                Ok(false) => {}
-                Ok(true) => continue,
-                Err(exit) => return exit,
+            if fresh_top.take().is_none_or(|fresh| Some(fresh) != top) {
+                match self.unwind_stale_compilation_frame(acts, None) {
+                    Ok(false) => {}
+                    Ok(true) => continue,
+                    Err(exit) => return exit,
+                }
             }
             if let Some(completion) = self.native_script_parse_failure(acts) {
                 if let Some(done) = self.settle_completion(acts, completion) {
@@ -2443,8 +2525,12 @@ impl Vm {
                 Ok(true) => continue,
                 Err(exit) => return exit,
             }
+            let checked_top = parent_namespace
+                .is_none()
+                .then(|| acts.last().map(|frame| (acts.len(), frame.serial)))
+                .flatten();
             match self.install_tick(acts, tick) {
-                TickAction::Resume => {}
+                TickAction::Resume => fresh_top = checked_top,
                 TickAction::Complete(completion) => {
                     if let Some(done) = self.settle_completion(acts, completion) {
                         return RunExit::Done(done);
@@ -2460,15 +2546,15 @@ impl Vm {
     }
 
     fn native_script_parse_failure(&mut self, acts: &mut [Frame]) -> Option<Completion<Value>> {
-        if self.native_invocation_dialect().script_parse_timing()
-            != Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript)
+        if acts
+            .last()
+            .is_none_or(|frame| frame.pc != 0 || frame.fatal_tail.is_none())
+            || self.native_invocation_dialect().script_parse_timing()
+                != Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript)
         {
             return None;
         }
         let frame = acts.last_mut()?;
-        if frame.pc != 0 {
-            return None;
-        }
         let tail = frame.fatal_tail.take()?;
         let level = frame.jim_evaluation.procedure_level;
         let location = frame.source_location.clone();
@@ -2818,7 +2904,7 @@ impl Vm {
     ) -> Option<&'static str> {
         let current_profile = self.profile_generation();
         let current_compiler = self.compiler_generation();
-        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
+        let policy = PolicyAtStamp::of(self);
         acts.iter()
             .find_map(|frame| {
                 frame.stale_compilation_message(current_profile, current_compiler, &policy)
@@ -2835,7 +2921,7 @@ impl Vm {
     fn top_activation_stale_message(&self, acts: &[Frame]) -> Option<&'static str> {
         let current_profile = self.profile_generation();
         let current_compiler = self.compiler_generation();
-        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
+        let policy = PolicyAtStamp::of(self);
         acts.last().and_then(|frame| {
             frame
                 .stale_compilation_message(current_profile, current_compiler, &policy)
@@ -2865,7 +2951,7 @@ impl Vm {
                     .resolved_token()
                     .filter(|token| self.native_namespace_token_has_owner(*token))
                 {
-                    Some(token) if &self.namespace_path_for_token(token) == path => None,
+                    Some(token) if self.namespace_token_has_path(token, path) => None,
                     Some(_) => Some("cannot continue bytecode after namespace changed"),
                     None => Some("cannot continue bytecode without namespace coordinates"),
                 }
@@ -2876,7 +2962,7 @@ impl Vm {
     fn current_activation_stack_stale_message(&self, acts: &[Frame]) -> Option<&'static str> {
         let (current_profile, current_compiler) =
             (self.profile_generation(), self.compiler_generation());
-        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
+        let policy = PolicyAtStamp::of(self);
         acts.iter()
             .find_map(|frame| {
                 frame.stale_compilation_message(current_profile, current_compiler, &policy)
@@ -2898,7 +2984,7 @@ impl Vm {
     ) -> Option<&'static str> {
         let (current_profile, current_compiler) =
             (self.profile_generation(), self.compiler_generation());
-        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
+        let policy = PolicyAtStamp::of(self);
         acts.iter()
             .find_map(|frame| {
                 frame.stale_compilation_message(current_profile, current_compiler, &policy)
@@ -2915,7 +3001,7 @@ impl Vm {
         acts: &[Frame],
         namespace: &crate::interp::namespace_context::NamespaceExecutionContext,
     ) -> Option<&'static str> {
-        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
+        let policy = PolicyAtStamp::of(self);
         acts.last().and_then(|frame| {
             frame
                 .stale_compilation_message(
@@ -5337,7 +5423,7 @@ impl Vm {
                     .as_ref()
                     .is_none_or(|required| {
                         required.guard() != tcl_runtime_api::CommandBindingGuard::BeforeArguments
-                            || self.native_compiler_selection_prerequisite_matches(required)
+                            || self.native_compiler_selection_prerequisite_matches_at(required)
                     })
                 && site
                     .requirements
@@ -5414,7 +5500,7 @@ impl Vm {
                 .chunk_native_compiler_selections
                 .contains(&site.prerequisite),
             tcl_runtime_api::CommandBindingGuard::BeforeArguments => {
-                self.native_compiler_selection_prerequisite_matches(&site.prerequisite)
+                self.native_compiler_selection_prerequisite_matches_at(&site.prerequisite)
             }
         };
         if selected {
@@ -8888,27 +8974,40 @@ impl Vm {
             // to carry no `(index)` part), so they are the same arm here.
             Op::LOAD_STK | Op::LOAD_SCALAR_STK => {
                 let name = variable_operand_bytes!(self, pop(f));
-                f.stack.push(variable_try_op!(
-                    self.read_variable_result_bytes(&name, None)
-                ));
+                let value = match self.direct_read(self.direct_named_scalar(&name)) {
+                    Some(value) => value,
+                    None => variable_try_op!(self.read_variable_result_bytes(&name, None)),
+                };
+                f.stack.push(value);
             }
             Op::STORE_STK | Op::STORE_SCALAR_STK => {
                 let value = pop(f);
                 let name = variable_operand_bytes!(self, pop(f));
-                let stored = try_cmd!(self.store_var_result_bytes(&name, value));
+                let stored = match self.direct_store(self.direct_named_scalar(&name)) {
+                    Some(id) => self.direct_write(id, value),
+                    None => try_cmd!(self.store_var_result_bytes(&name, value)),
+                };
                 f.stack.push(stored);
             }
             Op::INCR_STK_IMM | Op::INCR_SCALAR_STK_IMM => {
                 let name = variable_operand_bytes!(self, pop(f));
                 let amount = Value::int(i64::from(imm0(instr)));
-                let updated = variable_try_op!(self.increment_captured_bytes(&name, None, &amount));
+                let direct = self.direct_store(self.direct_named_scalar(&name));
+                let updated = match self.direct_increment(direct, &amount) {
+                    Some(updated) => updated,
+                    None => variable_try_op!(self.increment_captured_bytes(&name, None, &amount)),
+                };
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
             Op::INCR_STK | Op::INCR_SCALAR_STK => {
                 let amount = pop(f);
                 let name = variable_operand_bytes!(self, pop(f));
-                let updated = variable_try_op!(self.increment_captured_bytes(&name, None, &amount));
+                let direct = self.direct_store(self.direct_named_scalar(&name));
+                let updated = match self.direct_increment(direct, &amount) {
+                    Some(updated) => updated,
+                    None => variable_try_op!(self.increment_captured_bytes(&name, None, &amount)),
+                };
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }

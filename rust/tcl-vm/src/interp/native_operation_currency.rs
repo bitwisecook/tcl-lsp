@@ -616,6 +616,12 @@ impl Vm {
             })
     }
 
+    /// Whether a new operation can still be entered: the context epoch has not
+    /// been exhausted.
+    pub(crate) fn native_operation_context_available(&self) -> bool {
+        self.native_operation_context.generation.get().is_some()
+    }
+
     pub(super) fn advance_native_operation_context(&self) {
         self.native_compiler_pass_owner
             .invalidate_ordinary_entry_observation();

@@ -5241,6 +5241,24 @@ impl Value {
             .map_err(Into::into)
     }
 
+    /// The truth of a plain wide-integer or Boolean representation, without
+    /// consulting its string.
+    pub(crate) fn plain_truth(&self) -> Option<bool> {
+        match *self.0.intrep.borrow() {
+            IntRep::Int(value) => Some(value != 0),
+            IntRep::Bool(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The payload of a plain (Tcl 8.5+) wide-integer representation only.
+    pub(crate) fn plain_integer_representation(&self) -> Option<i64> {
+        match *self.0.intrep.borrow() {
+            IntRep::Int(value) => Some(value),
+            _ => None,
+        }
+    }
+
     /// Inspect a native integer conversion without reparsing retained source bytes.
     pub(crate) fn integer_representation(&self) -> Option<i64> {
         match *self.0.intrep.borrow() {

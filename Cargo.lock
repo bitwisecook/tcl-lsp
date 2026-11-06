@@ -4911,6 +4911,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
+ "rustc-hash",
  "serde_json",
  "tcl-bytecode",
  "tcl-cmd-core",

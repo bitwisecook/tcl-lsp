@@ -533,8 +533,87 @@ impl Vm {
         slot: usize,
         element: Option<&[u8]>,
     ) -> Result<Value, Completion<Value>> {
+        if element.is_none()
+            && let Some(value) = self.direct_read(self.direct_compiled_scalar(slot))
+        {
+            return Ok(value);
+        }
         let (name, resolved) = self.compiled_operand(slot, element)?;
         self.read_selected_variable_result_bytes(name.as_bytes(), element, resolved)
+    }
+
+    /// Whether an access can bypass the traced, name-reporting path: no
+    /// refusal, exhausted operation context, alternative storage policy or
+    /// retired world can observe it. C's `TclIsVarDirect*` precondition.
+    fn direct_access_available(&self) -> bool {
+        self.execution_refusal.is_none()
+            && self.native_operation_context_available()
+            && self.observed_names.is_none()
+            && self.observed_frame_storage.is_none()
+            && self.native_invocation_dialect().family() == Some(tcl_dialect::model::Family::Tcl)
+            && !self.dictionary_variable_containers()
+            && self.name_world.borrow().is_live()
+    }
+
+    /// The defined, unobserved scalar cell a resolution selects.
+    fn direct_scalar(&self, resolved: Option<ResolvedVar>) -> Option<VarId> {
+        let resolved = resolved?;
+        let id = resolved.id?;
+        if resolved.base_id != Some(id)
+            || self.var_arena.element_parent(id).is_some()
+            || self.variable_cell_observed(id)
+        {
+            return None;
+        }
+        if let VarTableOwner::Namespace(namespace) = resolved.binding.owner
+            && namespace != tcl_core_types::ROOT_NS
+            && !self.ns_vars.contains_key(&namespace)
+        {
+            return None;
+        }
+        matches!(self.var_arena.get(id)?.state(), Local::Scalar(_)).then_some(id)
+    }
+
+    /// The direct scalar a compiled local names.
+    pub(crate) fn direct_compiled_scalar(&self, slot: usize) -> Option<VarId> {
+        if !self.direct_access_available() {
+            return None;
+        }
+        self.direct_scalar(self.resolve_compiled_local(slot, None))
+    }
+
+    /// The direct scalar a whole variable name resolves to in the current frame.
+    pub(crate) fn direct_named_scalar(&self, name: &[u8]) -> Option<VarId> {
+        if !self.direct_access_available() || self.name_policy_protocol().is_none() {
+            return None;
+        }
+        self.direct_scalar(self.resolve_var_from_bytes(name, self.current_level()))
+    }
+
+    /// A direct scalar that may also be stored: no constant, confinement or
+    /// authored static publication.
+    pub(crate) fn direct_store(&self, id: Option<VarId>) -> Option<VarId> {
+        let id = id?;
+        (!self.const_vars.contains(&id)
+            && !self.limits.confined_stores
+            && self.authored_tmm_static.policy.is_none())
+        .then_some(id)
+    }
+
+    /// The value of a direct scalar.
+    pub(crate) fn direct_read(&self, id: Option<VarId>) -> Option<Value> {
+        match self.var_arena.get(id?)?.state() {
+            Local::Scalar(value) => Some(value.clone()),
+            _ => None,
+        }
+    }
+
+    /// Store into a direct scalar, returning the stored value.
+    pub(crate) fn direct_write(&mut self, id: VarId, value: Value) -> Value {
+        let _ = self
+            .var_arena
+            .replace_state(id, Local::Scalar(value.clone()));
+        value
     }
 
     pub(crate) fn store_compiled_variable_result(
@@ -543,6 +622,11 @@ impl Vm {
         element: Option<&[u8]>,
         value: Value,
     ) -> Result<Value, Completion<Value>> {
+        if element.is_none()
+            && let Some(id) = self.direct_store(self.direct_compiled_scalar(slot))
+        {
+            return Ok(self.direct_write(id, value));
+        }
         let (name, resolved) = self.compiled_operand(slot, element)?;
         let captured = self.capture_selected_update(name.as_bytes(), element, &resolved)?;
         self.with_variable_operation(&captured.cell, |vm| {
@@ -719,8 +803,62 @@ impl Vm {
         element: Option<&[u8]>,
         amount: &Value,
     ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
+        if element.is_none()
+            && let Some(result) =
+                self.direct_increment(self.direct_store(self.direct_compiled_scalar(slot)), amount)
+        {
+            return Ok(result);
+        }
         let (name, resolved) = self.compiled_operand(slot, element)?;
         self.increment_selected_bytes(name.as_bytes(), element, amount, Some(resolved))
+    }
+
+    /// `incr` of a plain wide integer held by a direct scalar, without
+    /// overflow: C's `INST_INCR_SCALAR` fast path. The object is copied when
+    /// shared and otherwise updated in place, exactly as the selected
+    /// increment objects prepare it.
+    pub(crate) fn direct_increment(
+        &mut self,
+        id: Option<VarId>,
+        amount: &Value,
+    ) -> Option<tcl_runtime_api::VariableUpdateResult<Value>> {
+        use tcl_registry::native_rmw::NativeRmwOperation;
+        let id = id?;
+        let dialect = self.native_invocation_dialect();
+        let string = dialect.native_string_protocol()?;
+        dialect.native_rmw_read_policy(NativeRmwOperation::Increment)?;
+        dialect.native_rmw_amount_validation(NativeRmwOperation::Increment)?;
+        if !dialect.native_scalar_getter_protocol().is_some_and(
+            tcl_syntax::scalar_getter::NativeScalarGetterProtocol::supports_number_getter,
+        ) {
+            return None;
+        }
+        let delta = amount.plain_integer_representation()?;
+        let (sum, shared, current) = {
+            let Local::Scalar(current) = self.var_arena.get(id)?.state() else {
+                return None;
+            };
+            let sum = current.plain_integer_representation()?.checked_add(delta)?;
+            (sum, current.native_object_is_shared(), current.clone())
+        };
+        let next = if shared {
+            current.duplicate_native_object_in(string)
+        } else {
+            current
+        };
+        next.store_native_increment_number_checked::<tcl_syntax::value::ValueError>(
+            tcl_syntax::number::Number::Int(sum),
+            dialect,
+            &mut || Ok(()),
+        )
+        .ok()?;
+        let _ = self
+            .var_arena
+            .replace_state(id, Local::Scalar(next.clone()));
+        Some(tcl_runtime_api::VariableUpdateResult {
+            value: next,
+            options: Value::list(Vec::new()),
+        })
     }
 
     pub(crate) fn append_compiled_variable(

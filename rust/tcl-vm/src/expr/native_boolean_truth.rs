@@ -413,6 +413,12 @@ pub(crate) fn boolean_for_vm(
     if let Some(context) = vm.authored_numeric_context() {
         return super::authored_boolean(context, value);
     }
+    if !purpose.requires_expression_result()
+        && let Some(truth) = value.plain_truth()
+        && vm.native_invocation_dialect().family() == Some(tcl_dialect::model::Family::Tcl)
+    {
+        return Ok(truth);
+    }
     let result = (|| {
         let mut ops = OriginalOps::entered(vm)?;
         if purpose.requires_expression_result() {

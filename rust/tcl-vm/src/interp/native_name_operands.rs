@@ -35,6 +35,13 @@ impl Vm {
         &mut self,
         value: &Value,
     ) -> Result<Rc<[u8]>, CmdError> {
+        if self.execution_refusal.is_none()
+            && self.native_operation_context_available()
+            && self.native_invocation_dialect().family() == Some(tcl_dialect::model::Family::Tcl)
+            && let Some(bytes) = value.resident_string_bytes()
+        {
+            return Ok(bytes);
+        }
         self.native_name_operand_bytes_checked_using(value, &|_| Ok(()))
     }
 

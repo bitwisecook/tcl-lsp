@@ -45,6 +45,7 @@ tcl-codegen = { path = "../tcl-codegen" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-dialect = { path = "../tcl-dialect" }
+rustc-hash = { workspace = true }
 # The release-aware `${…}` close rule (`ranges::braced_var_name_end`) the
 # `subst` engine resolves brace-form variable references through — already in
 # the tree via `tcl-syntax`; this makes the edge direct.

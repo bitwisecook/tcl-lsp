@@ -1334,7 +1334,7 @@ impl Default for NativeErrorState {
 
 /// Explicit authored simulation providers, independent of actual native
 /// interpreter registration and object issuers.
-#[derive(Default)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 struct LogicalProviders {
     /// Explicit simulation capability. It never contributes a native compiler
     /// or hardware result receipt; native policy remains independently selected.
@@ -1350,6 +1350,33 @@ struct LogicalProviders {
     /// Explicit compiler-local simulation, separate from name and host authority.
     compiled_variables:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+}
+
+/// Interpreter, command and binding epochs, policy stamp and surface profile.
+type CompilationCommandsKey = (
+    tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    u64,
+    u64,
+    u64,
+    usize,
+);
+
+/// A compilation command inventory and whether it is complete, by key.
+type CompilationCommandsMemo = (
+    CompilationCommandsKey,
+    Vec<tcl_runtime_api::native_compilation::NativeCompilationBinding>,
+    bool,
+);
+
+/// Everything [`Vm::native_compiler_policy`] reads: interned profile handles,
+/// the emulated release and the explicit authored providers.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct NativeCompilerPolicyInputs {
+    pinned: usize,
+    active: Option<usize>,
+    engine: Option<usize>,
+    release: tcl_dialect::TclVersion,
+    providers: LogicalProviders,
 }
 
 #[derive(Clone)]
@@ -1453,6 +1480,22 @@ pub struct InterpState {
     jim_teardown_started: bool,
     native_operation_context: Rc<native_operation_currency::NativeOperationContext>,
     logical_providers: LogicalProviders,
+    /// The last [`Vm::native_compiler_policy`] with the inputs it projects and
+    /// a stamp that changes whenever a projection differs from the previous one.
+    /// The last compilation command inventory with the epochs it was taken at.
+    compilation_commands_memo: RefCell<Option<CompilationCommandsMemo>>,
+    /// Compiler-selection registrations matched at a command-binding epoch.
+    matched_prerequisites: RefCell<(
+        u64,
+        Vec<std::sync::Arc<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite>>,
+    )>,
+    compiler_policy_memo: RefCell<
+        Option<(
+            NativeCompilerPolicyInputs,
+            crate::compiled::NativeCompilerPolicy,
+            u64,
+        )>,
+    >,
     observed_names: Option<execution_name_policy::ObservedNameSelection>,
     observed_frame_storage: Option<execution_name_policy::ObservedFrameStorage>,
     authored_math: Option<authored_math::AuthoredMathState>,
@@ -3815,6 +3858,9 @@ impl InterpState {
             jim_teardown_started: false,
             native_operation_context: Rc::default(),
             logical_providers: LogicalProviders::default(),
+            matched_prerequisites: RefCell::new((0, Vec::new())),
+            compilation_commands_memo: RefCell::new(None),
+            compiler_policy_memo: RefCell::new(None),
             observed_names: None,
             observed_frame_storage: None,
             authored_math: None,
@@ -11924,6 +11970,58 @@ impl Vm {
     }
 
     pub(crate) fn native_compiler_policy(&self) -> crate::compiled::NativeCompilerPolicy {
+        self.stamped_native_compiler_policy().0
+    }
+
+    /// [`Self::native_compiler_policy`] with a stamp that is equal between two
+    /// calls only when they return equal policies.
+    pub(crate) fn stamped_native_compiler_policy(
+        &self,
+    ) -> (crate::compiled::NativeCompilerPolicy, u64) {
+        let stamp = self.native_compiler_policy_stamp();
+        let memo = self.compiler_policy_memo.borrow();
+        let (_, policy, _) = memo.as_ref().expect("stamped compiler policy");
+        (*policy, stamp)
+    }
+
+    /// The stamp of the current [`Self::native_compiler_policy`], projecting it
+    /// again only when one of its inputs has changed.
+    pub(crate) fn native_compiler_policy_stamp(&self) -> u64 {
+        static NEXT_STAMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let address =
+            |profile: &'static tcl_dialect::DialectProfile| std::ptr::from_ref(profile).addr();
+        let inputs = NativeCompilerPolicyInputs {
+            pinned: address(self.pin.profile),
+            active: self.active_native_profile.map(address),
+            engine: self.actual_engine_profile.map(address),
+            release: self.runtime_version,
+            providers: self.logical_providers,
+        };
+        if let Some((memo, _, stamp)) = self.compiler_policy_memo.borrow().as_ref()
+            && *memo == inputs
+        {
+            return *stamp;
+        }
+        let policy = self.project_native_compiler_policy();
+        let mut memo = self.compiler_policy_memo.borrow_mut();
+        let stamp = match memo.as_ref() {
+            Some((_, old, stamp)) if *old == policy => *stamp,
+            _ => NEXT_STAMP.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        };
+        *memo = Some((inputs, policy, stamp));
+        stamp
+    }
+
+    /// Whether `token` currently names exactly the constructed `path`.
+    pub(crate) fn namespace_token_has_path(&self, token: NsId, path: &NamespacePath) -> bool {
+        self.name_world
+            .borrow()
+            .ns_arena
+            .get(token.0 as usize)
+            .is_some_and(|current| current == path)
+    }
+
+    fn project_native_compiler_policy(&self) -> crate::compiled::NativeCompilerPolicy {
         crate::compiled::NativeCompilerPolicy {
             expression_evaluation: self.expression_evaluation_policy(),
             expression_provider: self.logical_providers.expression_parse,
@@ -15667,6 +15765,15 @@ impl Vm {
         })
     }
 
+    /// Whether any script or native observer is registered on this cell.
+    pub(crate) fn variable_cell_observed(&self, id: VarId) -> bool {
+        let observers = &self.variable_observers;
+        observers.script_traces.contains_key(&id)
+            || observers.native_error_cells.contains_key(&id)
+            || observers.precision_cell == Some(id)
+            || observers.env_cell == Some(id)
+    }
+
     fn variable_observers_active(&self) -> bool {
         !self.variable_observers.native_error_cells.is_empty()
             || !self.variable_observers.script_traces.is_empty()
@@ -17562,6 +17669,16 @@ impl Vm {
         };
         let publication_hold =
             invocation.op == "write" && self.authored_tmm_static.policy.is_some();
+        if taken.is_none()
+            && !publication_hold
+            && cell.id.is_none_or(|id| !self.variable_cell_observed(id))
+            && cell
+                .array_id()
+                .is_none_or(|array| !self.variable_cell_observed(array))
+        {
+            original.check_native(self)?;
+            return Ok(Ok(()));
+        }
         if publication_hold && let Some(id) = cell.id {
             self.var_arena.retain_operation(id);
             let reached = self.publish_authored_static_write(id);
@@ -26336,6 +26453,50 @@ impl Vm {
         }
     }
 
+    /// [`Self::native_compiler_selection_prerequisite_matches`], reusing a
+    /// match recorded at the current command-binding epoch. Once bootstrap
+    /// ends every table, path and trace change advances that epoch. Matches
+    /// are keyed by the retained prerequisite allocation itself.
+    pub(crate) fn native_compiler_selection_prerequisite_matches_at(
+        &self,
+        required: &tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite,
+    ) -> bool {
+        use tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite as Required;
+        const MAX_MATCHED: usize = 256;
+        let tracking =
+            self.compilation_epochs.command_semantics.get() == CommandSemantics::Tracking;
+        let epoch = self.trace_deopt_epoch();
+        let registration = match required {
+            Required::Command(registration) | Required::Ensemble(registration) => {
+                Some(registration)
+            }
+            Required::ProcedureHeader(_) => None,
+        };
+        if tracking && let Some(registration) = registration {
+            let memo = self.matched_prerequisites.borrow();
+            if memo.0 == epoch
+                && memo
+                    .1
+                    .iter()
+                    .any(|matched| std::sync::Arc::ptr_eq(matched, registration))
+            {
+                return true;
+            }
+        }
+        let current = self.native_compiler_selection_prerequisite_matches(required);
+        if current
+            && tracking
+            && let Some(registration) = registration
+        {
+            let mut memo = self.matched_prerequisites.borrow_mut();
+            if memo.0 != epoch || memo.1.len() >= MAX_MATCHED {
+                *memo = (epoch, Vec::new());
+            }
+            memo.1.push(std::sync::Arc::clone(registration));
+        }
+        current
+    }
+
     pub(crate) fn native_command_compiler_prerequisite_matches(
         &self,
         required: &tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite,
@@ -26716,7 +26877,34 @@ impl Vm {
         }])
     }
 
+    /// [`Self::project_native_compilation_commands`], reused while no command
+    /// table, binding, trace, policy or surface change has advanced the epochs
+    /// that guard command resolution.
     fn native_compilation_commands(
+        &self,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    ) -> (
+        Vec<tcl_runtime_api::native_compilation::NativeCompilationBinding>,
+        bool,
+    ) {
+        let key = (
+            interpreter,
+            self.compilation_epochs.cmd_epoch.get(),
+            self.trace_deopt_epoch(),
+            self.native_compiler_policy_stamp(),
+            std::ptr::from_ref(self.command_surface_profile).addr(),
+        );
+        if let Some((memo, commands, complete)) = self.compilation_commands_memo.borrow().as_ref()
+            && *memo == key
+        {
+            return (commands.clone(), *complete);
+        }
+        let (commands, complete) = self.project_native_compilation_commands(interpreter);
+        *self.compilation_commands_memo.borrow_mut() = Some((key, commands.clone(), complete));
+        (commands, complete)
+    }
+
+    fn project_native_compilation_commands(
         &self,
         interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
     ) -> (
