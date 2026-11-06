@@ -7800,6 +7800,24 @@ fn i231_messages(source: &str, dialect: &str) -> Vec<String> {
     whole
 }
 
+/// #2375: a decided `if` inside a switch arm or at the switch's join is an
+/// `if`: it is never I231, whatever block the lowering placed it in. tclsh
+/// 8.4 to 9.1 print `A` for each program.
+#[test]
+fn a_decided_if_beside_a_switch_is_never_a_switch_arm() {
+    for source in [
+        "set x a\nswitch -- $x { a {puts A} b {puts B} }\nif {$x eq \"z\"} {puts never}",
+        "set x a\nswitch -- $x { a {puts A; if {$x eq \"z\"} {puts never}} b {puts B} }",
+    ] {
+        let body = in_proc(source);
+        let messages = i231_messages(&body, "tcl8.6");
+        assert!(
+            messages.iter().all(|m| !m.contains("$x eq")),
+            "{body}: {messages:?}"
+        );
+    }
+}
+
 /// `source` as the body of a procedure, which the per-item walk analyses on
 /// its own.
 fn in_proc(source: &str) -> String {

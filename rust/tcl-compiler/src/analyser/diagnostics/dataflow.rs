@@ -3414,9 +3414,9 @@ is renamed or deleted in this file."
     /// path is feasible), emit an Info-level diagnostic so the
     /// LSP can highlight the dead arm.
     ///
-    /// Code selection:
-    /// - Block name starts with ``switch_`` → I231 (switch-arm).
-    /// - Block name starts with ``if_`` → I230 (constant if).
+    /// Code selection, by the branch's own target blocks:
+    /// - a target named ``switch_…`` → I231 (switch-arm).
+    /// - a target named ``if_…`` → I230 (constant if).
     /// - Otherwise → I230 with the generic
     ///   ``"Branch condition '...' is constant"`` message.
     ///
@@ -3469,13 +3469,17 @@ is renamed or deleted in this file."
             // is no loop test, whatever its block's name.
             let is_loop = fu.cfg.loop_nodes.contains_key(false_target);
 
-            let names = [
-                branch.block.as_str(),
+            // The lowering names a branch's own targets after the command
+            // that built it (`if_then` / `if_next`, `switch_arm_body` /
+            // `switch_next` / `switch_default`); the block the branch sits
+            // in names whatever encloses it, so an `if` inside a switch arm
+            // or at the switch's join is still an `if`.
+            let targets = [
                 branch.taken_target.as_str(),
                 branch.not_taken_target.as_str(),
             ];
-            let is_switch = names.iter().any(|n| n.starts_with("switch_"));
-            let is_if = names.iter().any(|n| n.starts_with("if_"));
+            let is_switch = targets.iter().any(|n| n.starts_with("switch_"));
+            let is_if = targets.iter().any(|n| n.starts_with("if_"));
             // Suppress the idiomatic infinite loop `while 1 { … }`:
             // a constant-TRUE loop condition is intentional, not a bug (a
             // constant-FALSE loop still flags its unreachable body).
