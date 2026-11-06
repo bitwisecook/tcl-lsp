@@ -105,10 +105,12 @@ pub struct SourceImage {
     geometry: std::sync::Arc<SourceImageGeometry>,
 }
 
-#[derive(Debug)]
+/// Derived from the bytes on first use and shared across clones, so an image
+/// that is only lexed never pays for a digest or line positions.
+#[derive(Debug, Default)]
 struct SourceImageGeometry {
-    byte_hash: u64,
-    line_index: Option<LineIndex>,
+    byte_hash: std::sync::OnceLock<u64>,
+    line_index: std::sync::OnceLock<Option<LineIndex>>,
 }
 
 impl PartialEq for SourceImage {
@@ -134,7 +136,7 @@ impl Ord for SourceImage {
 }
 impl std::hash::Hash for SourceImage {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        std::hash::Hash::hash(&self.geometry.byte_hash, state);
+        std::hash::Hash::hash(&self.byte_hash(), state);
         std::hash::Hash::hash(&self.channel, state);
     }
 }
@@ -277,21 +279,34 @@ impl SourceImage {
     /// Retain original bytes with an explicitly selected input channel.
     #[must_use]
     pub fn from_bytes(bytes: impl Into<std::sync::Arc<[u8]>>, channel: SourceChannel) -> Self {
-        use std::hash::{Hash, Hasher};
-        let bytes = bytes.into();
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
-        bytes.hash(&mut hash);
-        let geometry = std::sync::Arc::new(SourceImageGeometry {
-            byte_hash: hash.finish(),
-            line_index: u32::try_from(bytes.len())
-                .is_ok()
-                .then(|| LineIndex::from_bytes(&bytes)),
-        });
         Self {
-            bytes,
+            bytes: bytes.into(),
             channel,
-            geometry,
+            geometry: std::sync::Arc::default(),
         }
+    }
+
+    /// Digest of the original bytes, computed once per shared geometry.
+    fn byte_hash(&self) -> u64 {
+        *self.geometry.byte_hash.get_or_init(|| {
+            use std::hash::{Hash, Hasher};
+            let mut hash = std::collections::hash_map::DefaultHasher::new();
+            self.bytes.hash(&mut hash);
+            hash.finish()
+        })
+    }
+
+    /// Line positions of the original bytes, computed once per shared
+    /// geometry; `None` past the `u32` offset range.
+    fn line_index(&self) -> Option<&LineIndex> {
+        self.geometry
+            .line_index
+            .get_or_init(|| {
+                u32::try_from(self.bytes.len())
+                    .is_ok()
+                    .then(|| LineIndex::from_bytes(&self.bytes))
+            })
+            .as_ref()
     }
 
     /// Retain Unicode document bytes with source-channel continuation rules.
@@ -604,9 +619,8 @@ impl<'src> SourceMap<'src> {
             source.bytes(),
             source.channel(),
             source
-                .geometry
-                .line_index
-                .clone()
+                .line_index()
+                .cloned()
                 .unwrap_or_else(|| LineIndex::from_bytes(source.bytes())),
         )
     }
@@ -989,8 +1003,8 @@ mod source_image_hash_tests {
         let first = SourceImage::native(b"first\xff".as_slice());
         let mut second = SourceImage::native(b"second\0".as_slice());
         second.geometry = std::sync::Arc::new(super::SourceImageGeometry {
-            byte_hash: first.geometry.byte_hash,
-            line_index: second.geometry.line_index.clone(),
+            byte_hash: std::sync::OnceLock::from(first.byte_hash()),
+            line_index: std::sync::OnceLock::new(),
         });
         assert_eq!(hash(&first), hash(&second));
         assert_ne!(first, second);
@@ -1024,7 +1038,7 @@ mod immutable_image_geometry_tests {
         let clone = original.clone();
         let independent = SourceImage::document(text);
         let before = hash(&original);
-        assert!(original.geometry.line_index.is_some());
+        assert!(original.line_index().is_some());
         let direct = SourceMap::new(text);
         for offset in 0..=u32::try_from(text.len()).unwrap() {
             assert_eq!(
@@ -1041,7 +1055,7 @@ mod immutable_image_geometry_tests {
             &original.geometry,
             &independent.geometry
         ));
-        assert!(independent.geometry.line_index.is_some());
+        assert!(independent.line_index().is_some());
         assert_eq!(original, independent);
         assert_eq!(original.cmp(&independent), std::cmp::Ordering::Equal);
         assert_eq!(before, hash(&original));

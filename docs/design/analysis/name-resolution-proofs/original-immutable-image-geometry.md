@@ -12,7 +12,7 @@ How can readonly original source geometry reuse immutable work while preserving 
 
 ## Conclusion
 
-SourceImage shares one immutable derived byte-digest/line-index payload across clones. SourceMap::from_image uses that exact byte/channel geometry. Full byte/channel Eq/Hash/Ord semantics exclude the cache. Shared source structure reuses the retained realm image only after complete Document bytes/full configuration match, retaining independent full input/context/Registry/vector checks.
+SourceImage shares one immutable derived byte-digest/line-index payload across clones, computed on first use, so an image that is only lexed never builds line positions. SourceMap::from_image uses that exact byte/channel geometry. Full byte/channel Eq/Hash/Ord semantics exclude the cache. Shared source structure reuses the retained realm image only after complete Document bytes/full configuration match, retaining independent full input/context/Registry/vector checks.
 
 ## Scope
 
@@ -28,7 +28,7 @@ This immutable source byte/channel/digest/line-position cache contract supplies 
 
 ## Consumer bindings
 
-- [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `SourceImage`: Retain immutable bytes/channel and a derived shared geometry payload excluded from identity.
+- [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `SourceImage`: Retain immutable bytes/channel and a derived shared geometry payload, computed on first use and excluded from identity.
 - [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `SourceMap::from_image`: Reuse exact immutable image line positions while preserving bytes/channel.
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `retained_document_image`: Authenticate complete source/channel/full configuration before cloning the same original realm image.
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `matching_document_image`: Require complete Document source bytes before reusing any original image.
