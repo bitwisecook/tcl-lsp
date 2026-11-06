@@ -1314,6 +1314,11 @@ jobs:
       # which outlasts sccache's default ten-minute idle shutdown; otherwise
       # the closing report shows only the post-test listing's requests.
       SCCACHE_IDLE_TIMEOUT: "0"
+      # No DWARF in the shard test binaries: the line tables alone were about
+      # 150 MB of each ~345 MB harness, paid at every link and cache save. A
+      # panic still reports its file and line through `Location`; only
+      # backtrace frames lose theirs.
+      CARGO_PROFILE_TEST_DEBUG: "0"
       RUNNER_MODE: ${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || 'hosted' }}
     concurrency:
       group: rust-tests-${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || format('hosted-{0}-{1}', github.run_id, matrix.shard) }}

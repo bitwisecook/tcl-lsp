@@ -33,6 +33,8 @@
 #   CARGO_TARGET_DIR         -> <worktree-root>/target  (never shared)
 #   CARGO_INCREMENTAL=0      -> smaller target dir, no incremental-cache races
 #   CARGO_PROFILE_DEV_DEBUG=0 -> keeps a dev target dir ~3-4 GB, not ~15 GB
+#   CARGO_PROFILE_TEST_DEBUG=0 -> drops the test profile's line tables too, so a
+#                               full local test build fits on a laptop
 #
 # CARGO_HOME (the registry/git dependency cache) is deliberately left alone:
 # sharing it across worktrees is safe — only workspace-member artefacts
@@ -57,12 +59,14 @@ agent_build_env__main() {
             printf 'export CARGO_TARGET_DIR=%q\n' "${target_dir}"
             printf 'export CARGO_INCREMENTAL=0\n'
             printf 'export CARGO_PROFILE_DEV_DEBUG=0\n'
+            printf 'export CARGO_PROFILE_TEST_DEBUG=0\n'
             ;;
         --check)
             echo "worktree root:            ${worktree_root}"
             echo "CARGO_TARGET_DIR:         ${target_dir}"
             echo "CARGO_INCREMENTAL:        0"
             echo "CARGO_PROFILE_DEV_DEBUG:  0"
+            echo "CARGO_PROFILE_TEST_DEBUG: 0"
             if [ -n "${CARGO_TARGET_DIR:-}" ] \
                 && [ "${CARGO_TARGET_DIR}" != "${target_dir}" ]; then
                 echo "WARNING: CARGO_TARGET_DIR is currently" \
@@ -74,6 +78,7 @@ agent_build_env__main() {
             export CARGO_TARGET_DIR="${target_dir}"
             export CARGO_INCREMENTAL=0
             export CARGO_PROFILE_DEV_DEBUG=0
+            export CARGO_PROFILE_TEST_DEBUG=0
             ;;
         *)
             echo "usage: source agent-build-env.sh | agent-build-env.sh --print | --check" >&2
