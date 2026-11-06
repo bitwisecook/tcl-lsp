@@ -104,6 +104,14 @@ impl RetainedSourceModuleBindings {
         self.positioned.procedure_preserves_command_world(identity)
     }
 
+    /// Every world-preserving procedure with its formals
+    /// ([`SourceCommandBindings::world_preserving_procedures`]).
+    pub fn world_preserving_procedures(
+        &self,
+    ) -> impl Iterator<Item = (&str, &[tcl_syntax::formal_params::FormalParameter])> {
+        self.positioned.world_preserving_procedures()
+    }
+
     /// The shared document realm for `module`, validated exactly as
     /// [`Self::positioned_for_module`] validates the bindings it wraps.
     pub(crate) fn document_realm_for_module(

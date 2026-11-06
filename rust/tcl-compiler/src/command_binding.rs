@@ -4094,7 +4094,8 @@ pub struct SourceCommandBindings {
     recursive_assumption_refused: BTreeSet<DeferredImplementationId>,
     /// Per procedure identity, whether its declaration-time body walks left
     /// the command world unchanged.
-    world_preserving_bodies: BTreeMap<String, bool>,
+    world_preserving_bodies:
+        BTreeMap<String, (bool, Vec<tcl_syntax::formal_params::FormalParameter>)>,
     active_variable_observers: Vec<variable_observers::ActiveVariableObserver>,
     called_implementations: BTreeSet<DeferredImplementationId>,
     phases: SharedSourceInventory<Vec<SourcePhasePoint>>,
@@ -8312,8 +8313,8 @@ impl SourceCommandBindings {
         let preserves = outcomes.preserves_command_world(incoming);
         self.world_preserving_bodies
             .entry(root.identity.clone())
-            .and_modify(|held| *held &= preserves)
-            .or_insert(preserves);
+            .and_modify(|(held, _)| *held &= preserves)
+            .or_insert_with(|| (preserves, root.parameters.clone()));
         self.retain_deferred_outcomes(root, &frame, outcomes);
         // Declaration analysis supplies body points; it is not an execution
         // edge and does not alter the document's actual continuation.
@@ -8325,7 +8326,20 @@ impl SourceCommandBindings {
     /// reaches no code that might. `None` when no body of that name was walked.
     #[must_use]
     pub fn procedure_preserves_command_world(&self, identity: &str) -> Option<bool> {
-        self.world_preserving_bodies.get(identity).copied()
+        self.world_preserving_bodies
+            .get(identity)
+            .map(|(preserves, _)| *preserves)
+    }
+
+    /// Every procedure whose declaration-time body walks all left the
+    /// command world unchanged, with its formals.
+    pub fn world_preserving_procedures(
+        &self,
+    ) -> impl Iterator<Item = (&str, &[tcl_syntax::formal_params::FormalParameter])> {
+        self.world_preserving_bodies
+            .iter()
+            .filter(|(_, (preserves, _))| *preserves)
+            .map(|(identity, (_, formals))| (identity.as_str(), formals.as_slice()))
     }
 
     fn retain_deferred_outcomes(

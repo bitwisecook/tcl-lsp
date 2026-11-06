@@ -4200,19 +4200,10 @@ pub fn world_preserving_procedure_stubs(db: &dyn TclDb, file: SourceFile) -> Arc
     let Some(bindings) = unit.ir_module.retained_source_bindings.as_deref() else {
         return Arc::default();
     };
-    let mut lines = unit
-        .ir_module
-        .procedures
-        .values()
-        .filter(|procedure| {
-            bindings.procedure_preserves_command_world(&procedure.qualified_name) == Some(true)
-        })
-        .filter_map(|procedure| {
-            let formals =
-                tcl_syntax::formal_params::parse_formal_parameters(&procedure.params_raw).ok()?;
-            if formals.last().is_some_and(|formal| formal.name == "args") {
-                return None;
-            }
+    let mut lines = bindings
+        .world_preserving_procedures()
+        .filter(|(_, formals)| formals.last().is_none_or(|formal| formal.name != "args"))
+        .map(|(identity, formals)| {
             let words = formals
                 .iter()
                 .map(|formal| {
@@ -4223,11 +4214,7 @@ pub fn world_preserving_procedure_stubs(db: &dyn TclDb, file: SourceFile) -> Arc
                     }
                 })
                 .collect::<Vec<_>>();
-            Some(format!(
-                "stub {} {{{}}}",
-                procedure.qualified_name,
-                words.join(" ")
-            ))
+            format!("stub {identity} {{{}}}", words.join(" "))
         })
         .collect::<Vec<_>>();
     lines.sort_unstable();
