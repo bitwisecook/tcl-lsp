@@ -1273,21 +1273,37 @@ fn parse_size(s: &str, numbers: NumberSyntax) -> Option<u32> {
     parse_u32(s, numbers).filter(|v| matches!(v, 1 | 2 | 4 | 8))
 }
 
-/// The span of some loop in `func`, if it contains a cycle (back-edge).
+/// The span BPF007 anchors on when `func` contains a cycle: the first loop
+/// in source order, or — for a cycle no loop node records — the block whose
+/// edge closes it. Never a hash map's first entry, never an empty span when
+/// the source has one (#2378).
 fn first_loop_span(func: &Function) -> Option<Span> {
-    if !has_cycle(func) {
-        return None;
-    }
+    let closing = back_edge_source(func)?;
+    let first_loop = func
+        .loop_nodes
+        .values()
+        .map(|node| node.span)
+        .min_by_key(|span| (span.start(), span.end()));
     Some(
-        func.loop_nodes
-            .values()
-            .next()
-            .map_or_else(|| Span::empty(0), |n| n.span),
+        first_loop
+            .or_else(|| block_span(func, &closing))
+            .unwrap_or_else(|| Span::empty(0)),
     )
 }
 
-/// Iterative DFS back-edge detection over the CFG.
-fn has_cycle(func: &Function) -> bool {
+/// The block's jump span, else its last statement's.
+fn block_span(func: &Function, name: &str) -> Option<Span> {
+    let block = func.block_by_name(name)?;
+    block
+        .terminator
+        .as_ref()
+        .and_then(Terminator::span)
+        .or_else(|| block.statements.last().map(Statement::span))
+}
+
+/// Iterative DFS back-edge detection over the CFG: the block whose edge
+/// closes the first cycle found.
+fn back_edge_source(func: &Function) -> Option<String> {
     enum Step {
         Enter(String),
         Exit(String),
@@ -1310,7 +1326,7 @@ fn has_cycle(func: &Function) -> bool {
                 for succ_id in succs {
                     let succ = func.block_name(succ_id).to_owned();
                     match color.get(&succ).copied() {
-                        Some(1) => return true,
+                        Some(1) => return Some(node),
                         Some(2) => {}
                         _ => stack.push(Step::Enter(succ)),
                     }
@@ -1321,7 +1337,7 @@ fn has_cycle(func: &Function) -> bool {
             }
         }
     }
-    false
+    None
 }
 
 #[cfg(test)]
@@ -1450,6 +1466,62 @@ mod tests {
                 .expect_err("a complete braced name cannot fall back to another scalar slot");
             assert_eq!(error.code, BpfDiag::UndefinedVar, "{name}: {error:?}");
         }
+    }
+
+    /// A self-looping `body` block, with one loop node per span.
+    fn looping_function(loop_spans: &[Span]) -> Function {
+        let mut func = Function::new("::handler", "entry");
+        let entry = func.entry;
+        let body = func.intern_block("body");
+        func.blocks.insert(body, CfgBlock::new("body"));
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Goto {
+            target: body,
+            span: None,
+        });
+        func.blocks.get_mut(&body).unwrap().terminator = Some(Terminator::Goto {
+            target: body,
+            span: Some(Span::new(20, 21)),
+        });
+        for (index, span) in loop_spans.iter().enumerate() {
+            let exit = func.intern_block(format!("exit_{index}"));
+            func.loop_nodes.insert(
+                exit,
+                tcl_compiler::cfg::LoopNode {
+                    executed_source: None,
+                    entry_block: entry,
+                    start: entry,
+                    span: *span,
+                    statement: Statement::Barrier {
+                        span: *span,
+                        reason: "loop".into(),
+                        command: "while".into(),
+                        canonical_command: None,
+                        args: vec![],
+                        tokens: None,
+                    },
+                },
+            );
+        }
+        func
+    }
+
+    /// #2378: BPF007 anchors on the first loop in source order, never a hash
+    /// map's first entry, and a cycle no loop node records takes the span of
+    /// the edge that closes it rather than the empty span at offset 0.
+    #[test]
+    fn bpf007_anchors_on_the_first_loop_in_source_order() {
+        let first = Span::new(5, 15);
+        let later = Span::new(30, 40);
+        for spans in [[first, later], [later, first]] {
+            assert_eq!(first_loop_span(&looping_function(&spans)), Some(first));
+        }
+        assert_eq!(
+            first_loop_span(&looping_function(&[])),
+            Some(Span::new(20, 21))
+        );
+        let mut acyclic = Function::new("::handler", "entry");
+        acyclic.blocks.get_mut(&acyclic.entry).unwrap().terminator = None;
+        assert_eq!(first_loop_span(&acyclic), None);
     }
 
     #[test]
