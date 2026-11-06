@@ -170,3 +170,22 @@ pub(crate) fn release_subcommands(
         .push((command, dialect_name.to_string(), leaked));
     leaked
 }
+
+#[cfg(test)]
+mod release_subcommand_tests {
+    /// #2312: `string reverse` arrives in 8.5 and `string cat` in 8.6, so a
+    /// VM pinned to an earlier release dispatches neither (tclsh 8.4.20 and
+    /// 8.5.19 answer `bad option` / `unknown or ambiguous subcommand`).
+    #[test]
+    fn string_subcommands_follow_the_pinned_release() {
+        let subs = |release: &str| {
+            super::release_subcommands(release, "string", tcl_cmd_core::string::SUBCOMMANDS)
+        };
+        assert!(!subs("tcl8.4").contains(&"reverse"));
+        assert!(!subs("tcl8.4").contains(&"cat"));
+        assert!(subs("tcl8.5").contains(&"reverse"));
+        assert!(!subs("tcl8.5").contains(&"cat"));
+        assert!(subs("tcl8.6").contains(&"cat"));
+        assert!(subs("tcl8.4").contains(&"bytelength"));
+    }
+}
