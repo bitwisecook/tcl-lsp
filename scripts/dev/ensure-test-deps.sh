@@ -1058,12 +1058,13 @@ ensure_wasi_sdk() {
     # Integrity pins, per platform, matching what every other tool here carries.
     #
     # Why pinned rather than verified against an upstream sidecar: wasi-sdk
-    # publishes **no checksums at all**.  There is no `SHA256SUMS` asset on the
-    # `wasi-sdk-25` release (the URL 404s), no per-asset `.sha256`, no hashes in
-    # the release body, and the GitHub API reports `digest: null` for the
-    # assets.  The same is true of every wasi-sdk release, so there is no
-    # sidecar to fetch and verify against — a fail-closed check against one
-    # would fire on every run, making wasi-sdk uninstallable that way.
+    # publishes **no checksums at all**.  This was first observed on the
+    # `wasi-sdk-25` release (no `SHA256SUMS` asset — the URL 404s — no
+    # per-asset `.sha256`, no hashes in the release body, and the GitHub API
+    # reporting `digest: null` for the assets), and it holds for every release
+    # since, including the pinned `WASI_SDK_VERSION`.  There is no sidecar to
+    # fetch and verify against — a fail-closed check against one would fire on
+    # every run, making wasi-sdk uninstallable that way.
     #
     # These values were computed from the published tarballs and then
     # corroborated against independent third parties that pin the same

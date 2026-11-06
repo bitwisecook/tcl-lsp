@@ -272,8 +272,11 @@ through it. The canonical example is `pkgooa.c`, which compares
 `Tcl_CopyObjectInstance == tclOOStubsPtr->tcl_CopyObjectInstance`. Under our
 direct-ABI model there is no live stub table, so:
 
-- We ship the `TclOOStubs` / `TclStubs` struct *shapes* so such source
-  *compiles* (validated: `pkgooa.c` compiles in the compile-check).
+- We do **not** yet ship the `TclOOStubs` / `TclStubs` struct shapes:
+  `runtime/rust/include/` holds only `tcl.h` and `tcl_regex_capi.h`, there is
+  no authored `tclOO.h`, and `pkgooa.c` is not in the compile-check
+  (`scripts/check_c_extension_wasm.py::check_compiles`); compiling it fails at
+  `#include "tclOO.h"`. Shipping those shapes is the first step for such source.
 - For such an extension to *behave*, the runtime should expose a **nominal**
   stub table — a real struct populated with our function pointers — even though
   ordinary calls do not route through it. This is the one place our "no binary
