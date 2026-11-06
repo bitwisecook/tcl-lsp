@@ -80,10 +80,8 @@
 //! no execution proof beyond the tclsh fact that the un-inlined program's value
 //! is unchanged.
 
-#[path = "../../../tcl-compiler/tests/support/body_identity.rs"]
-mod body_identity;
-#[path = "../../../tcl-compiler/tests/support/function_identity.rs"]
-mod function_identity;
+use crate::body_identity;
+use crate::function_identity;
 use function_identity::OriginalFixtureFunctions;
 
 use body_identity::fixture_id;

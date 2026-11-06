@@ -60,8 +60,7 @@
 //! node). The un-rotated, header-tested shape is the codegen build's
 //! (`build_cfg_codegen`), pinned in a separate test so both shapes are covered.
 
-#[path = "../support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::fixture_id;
 
 use tcl_compiler::cfg::{CfgModule, Function, Terminator};

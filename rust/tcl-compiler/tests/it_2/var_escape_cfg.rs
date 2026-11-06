@@ -52,8 +52,7 @@
 //! compiler's encoding of "this write is observable elsewhere, so the name must
 //! live in the runtime frame".
 
-#[path = "../support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 #[path = "../support/escape_identity.rs"]
 mod escape_identity;
 use escape_identity::FixtureEscapes;

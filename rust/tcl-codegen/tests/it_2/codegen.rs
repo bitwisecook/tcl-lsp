@@ -68,8 +68,7 @@
 //!     `CfgFunction` with a `Statement::AssignExpr` carrying an
 //!     `ExprNode::Binary`/`Unary`, run through `codegen_function`.
 
-#[path = "../../../tcl-compiler/tests/support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::{fixture_id, fixture_id_if_present};
 
 use std::collections::HashMap;

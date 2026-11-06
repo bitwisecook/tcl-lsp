@@ -26,8 +26,7 @@
 //! found on `PATH`. A release that is not installed is skipped and the
 //! test says which ran; none at all is reported, never skipped silently.
 
-#[path = "../support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::fixture_id;
 
 use std::io::Write as _;
@@ -2792,8 +2791,14 @@ fn a_materialised_child_carries_its_factory_call_span() {
     let call_start = source.find("Configure port 8080 {the port}").unwrap();
     let call_end = call_start + "Configure port 8080 {the port}".len();
     let formal_start = source.find("{x}").unwrap() + 1;
-    let formal_span = tcl_lexer::Span::new(formal_start as u32, formal_start as u32 + 1);
-    let call_span = tcl_lexer::Span::new(call_start as u32, call_end as u32);
+    let formal_span = tcl_lexer::Span::new(
+        u32::try_from(formal_start).unwrap(),
+        u32::try_from(formal_start).unwrap() + 1,
+    );
+    let call_span = tcl_lexer::Span::new(
+        u32::try_from(call_start).unwrap(),
+        u32::try_from(call_end).unwrap(),
+    );
     let read_source = "proc Configure {name} {proc $name {x} {return $x}}\nConfigure used\n";
     let dynamic_source =
         "proc Configure {name} {proc $name {x} {eval $::code}}\nConfigure delegated\n";

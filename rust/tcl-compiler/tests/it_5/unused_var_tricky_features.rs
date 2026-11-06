@@ -47,8 +47,7 @@
 //! identically on `tclsh9.0` — the C Tcl 9 truth oracle — for every construct
 //! here, which uses only 8.4-era scoping semantics). Citations use `// tclsh:`.
 
-#[path = "../support/function_identity.rs"]
-mod function_identity;
+use crate::function_identity;
 use function_identity::OriginalFixtureFunctions;
 
 use tcl_compiler::analyser::Analyser;

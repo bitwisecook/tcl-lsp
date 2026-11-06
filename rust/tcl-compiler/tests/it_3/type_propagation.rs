@@ -41,8 +41,7 @@
 //! (see `mod skipped_divergences`); the only genuine one is `ceil`/`floor`,
 //! where the pass infers `Int` but `tclsh` proves the value is a `Double`.
 
-#[path = "../support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::fixture_id;
 
 use std::collections::HashMap;

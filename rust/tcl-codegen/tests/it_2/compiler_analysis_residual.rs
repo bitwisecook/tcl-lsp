@@ -63,10 +63,8 @@
 //! a deliberate sound over-approximation (it never fires a false W210); those
 //! cases assert the conservative `false` return and say so.
 
-#[path = "../../../tcl-compiler/tests/support/body_identity.rs"]
-mod body_identity;
-#[path = "../../../tcl-compiler/tests/support/function_identity.rs"]
-mod function_identity;
+use crate::body_identity;
+use crate::function_identity;
 use function_identity::OriginalFixtureFunctions;
 
 use body_identity::{fixture_id, fixture_id_if_present};

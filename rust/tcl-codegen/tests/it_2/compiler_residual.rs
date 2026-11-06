@@ -71,8 +71,7 @@
 //! selects is the carrier of that computed value and is what the structural
 //! assertion pins, with the value itself proven against tclsh.
 
-#[path = "../../../tcl-compiler/tests/support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::{fixture_id, fixture_id_if_present};
 
 use std::collections::HashMap;

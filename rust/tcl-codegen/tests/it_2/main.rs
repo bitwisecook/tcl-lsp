@@ -21,6 +21,11 @@
 //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
+#[path = "../../../tcl-compiler/tests/support/body_identity.rs"]
+mod body_identity;
+#[path = "../../../tcl-compiler/tests/support/function_identity.rs"]
+mod function_identity;
+
 mod codegen;
 mod codegen_golden;
 mod compiler_analysis_residual;

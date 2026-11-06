@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#[path = "../support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::fixture_id;
 
 use tcl_compiler::compilation_unit::CompilationUnit;

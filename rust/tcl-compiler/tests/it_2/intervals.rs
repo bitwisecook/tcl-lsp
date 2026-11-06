@@ -92,8 +92,7 @@
 //! bails whenever the command text contains `{*}` (length unknown); the repro
 //! below pins that (no W230).
 
-#[path = "../support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::fixture_id;
 
 use tcl_compiler::analyser::Analyser;

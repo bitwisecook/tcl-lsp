@@ -85,8 +85,7 @@
 #[path = "../support/native_compiled_fixture.rs"]
 mod native_compiled_fixture;
 
-#[path = "../../../tcl-compiler/tests/support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::{fixture_id, fixture_id_if_present};
 
 #[path = "../../../tcl-compiler/tests/support/analysis_body_identity.rs"]

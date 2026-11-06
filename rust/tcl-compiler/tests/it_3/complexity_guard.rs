@@ -68,8 +68,7 @@
 //!     trivial unit) is covered by [`byte_guarded_proc_skips_ssa_and_dataflow`].
 //!     See the `// GAP:`-tagged `force_guard_*` placeholders.
 
-#[path = "../support/function_identity.rs"]
-mod function_identity;
+use crate::function_identity;
 use function_identity::OriginalFixtureFunctions;
 
 use tcl_compiler::cfg::{Block, Function, Terminator};

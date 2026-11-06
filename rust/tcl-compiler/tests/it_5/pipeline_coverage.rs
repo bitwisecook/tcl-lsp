@@ -61,10 +61,8 @@
 //!   observation. They are asserted structurally and flagged `// f5-dialect`
 //!   (iRules events) or noted as compiler-internal at the site.
 
-#[path = "../support/body_identity_lookup.rs"]
-mod body_identity;
-#[path = "../support/function_identity.rs"]
-mod function_identity;
+use crate::body_identity;
+use crate::function_identity;
 use function_identity::OriginalFixtureFunctions;
 
 use body_identity::fixture_id_if_present;

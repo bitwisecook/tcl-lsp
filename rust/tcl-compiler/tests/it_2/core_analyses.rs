@@ -55,8 +55,7 @@
 //! dynamic, nor suppresses a genuine read-before-set), so each is asserted at the
 //! *actual* verdict with an explanatory comment rather than `#[ignore]`d.
 
-#[path = "../support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 use body_identity::fixture_id;
 
 use tcl_compiler::analyser::Analyser;
@@ -172,7 +171,7 @@ fn ty<'a>(
 }
 
 // TestCoreAnalyses — SCCP / liveness / dead-store core analyses.
-mod core_analyses {
+mod sccp_liveness_dead_stores {
     use super::*;
 
     #[test]

@@ -59,8 +59,7 @@
 //! hint — pure subcommands win, so the class-lookup assertions check purity
 //! (documented at the site).
 
-#[path = "../support/function_identity.rs"]
-mod function_identity;
+use crate::function_identity;
 use function_identity::OriginalFixtureFunctions;
 
 use tcl_compiler::command_binding::{

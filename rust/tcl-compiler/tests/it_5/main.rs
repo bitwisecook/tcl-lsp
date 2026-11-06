@@ -21,6 +21,11 @@
 //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
+#[path = "../support/body_identity.rs"]
+mod body_identity;
+#[path = "../support/function_identity.rs"]
+mod function_identity;
+
 mod cfg;
 mod checks;
 mod irules_spec_examples_self_consistent;

@@ -64,8 +64,7 @@
 //! make a write observable in another frame — that scoping behaviour is
 //! confirmed with tclsh and cited next to the structural assertion.
 
-#[path = "../support/body_identity.rs"]
-mod body_identity;
+use crate::body_identity;
 #[path = "../support/escape_identity.rs"]
 mod escape_identity;
 use body_identity::fixture_id;
