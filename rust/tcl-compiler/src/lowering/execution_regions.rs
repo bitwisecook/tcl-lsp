@@ -83,6 +83,23 @@ pub fn declared_surface_package_loader(
     })
 }
 
+/// Names some audited release has beyond `present`; none once a version is
+/// selected, because that version's surface is then exact.
+fn unselected_optional<'a>(
+    version: Option<&str>,
+    possible: impl FnOnce() -> Vec<&'a str>,
+    present: &[&'a str],
+) -> Vec<String> {
+    if version.is_some() {
+        return Vec::new();
+    }
+    possible()
+        .into_iter()
+        .filter(|name| !present.contains(name))
+        .map(str::to_owned)
+        .collect()
+}
+
 /// Adapt explicitly selected stock distribution data to the shared source
 /// kernel. `None` retains the audited intersection without guessing a version.
 #[must_use]
@@ -106,26 +123,9 @@ pub fn stock_body_provider_loader(
         return None;
     }
     let namespace = provider.namespace.to_owned();
-    let optional_commands = if version.is_none() {
-        provider
-            .possible_commands()
-            .into_iter()
-            .filter(|command| !commands.contains(command))
-            .map(str::to_owned)
-            .collect()
-    } else {
-        Vec::new()
-    };
-    let optional_exports = if version.is_none() {
-        provider
-            .possible_exports()
-            .into_iter()
-            .filter(|export| !exports.contains(export))
-            .map(str::to_owned)
-            .collect()
-    } else {
-        Vec::new()
-    };
+    let optional_commands =
+        unselected_optional(version, || provider.possible_commands(), &commands);
+    let optional_exports = unselected_optional(version, || provider.possible_exports(), &exports);
     let (core_heads, required_heads) = if let Some(version) = version {
         let heads = provider
             .versions

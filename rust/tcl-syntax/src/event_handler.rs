@@ -142,40 +142,20 @@ fn finish_word(command: &mut Vec<Vec<Token>>, word: &mut Vec<Token>) {
     }
 }
 
-fn parse_handler(
-    full: &str,
-    text: &str,
-    base: u32,
-    sm: &SourceMap<'_>,
-    words: &[Vec<Token>],
-    is_handler: &impl Fn(&str, u32) -> bool,
-) -> Option<EventHandler> {
-    let [head] = words.first()?.as_slice() else {
-        return None;
-    };
-    let canonical = crate::naming::canonical_written_command(sm.token_text(*head));
-    if !is_handler(&canonical, word_span_at(text, head.span).start()) {
-        return None;
-    }
-    let [event_token] = words.get(1)?.as_slice() else {
-        return None;
-    };
-    let event = sm.token_text(*event_token).to_ascii_uppercase();
-    if event.is_empty()
-        || !event
-            .chars()
-            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_')
-    {
-        return None;
-    }
-    let one = |index: usize| {
-        words
-            .get(index)?
-            .as_slice()
-            .first()
-            .filter(|_| words[index].len() == 1)
-    };
-    let (body_index, priority) = match words.len() {
+/// The single token of word `index`, when that word is one token.
+fn single_token(words: &[Vec<Token>], index: usize) -> Option<&Token> {
+    words
+        .get(index)?
+        .as_slice()
+        .first()
+        .filter(|_| words[index].len() == 1)
+}
+
+/// The body word's index and the declared priority from a handler's
+/// optional `priority N` / `timing on|off` words, in either order.
+fn handler_options(sm: &SourceMap<'_>, words: &[Vec<Token>]) -> Option<(usize, Option<i64>)> {
+    let one = |index: usize| single_token(words, index);
+    Some(match words.len() {
         3 => (2, None),
         5 if one(2).is_some_and(|token| sm.token_text(*token) == "priority") => {
             let value = sm.token_text(*one(3)?).parse::<i64>().ok()?;
@@ -212,8 +192,37 @@ fn parse_handler(
             (6, Some(priority))
         }
         _ => return None,
+    })
+}
+
+fn parse_handler(
+    full: &str,
+    text: &str,
+    base: u32,
+    sm: &SourceMap<'_>,
+    words: &[Vec<Token>],
+    is_handler: &impl Fn(&str, u32) -> bool,
+) -> Option<EventHandler> {
+    let [head] = words.first()?.as_slice() else {
+        return None;
     };
-    let body = one(body_index)?.to_owned();
+    let canonical = crate::naming::canonical_written_command(sm.token_text(*head));
+    if !is_handler(&canonical, word_span_at(text, head.span).start()) {
+        return None;
+    }
+    let [event_token] = words.get(1)?.as_slice() else {
+        return None;
+    };
+    let event = sm.token_text(*event_token).to_ascii_uppercase();
+    if event.is_empty()
+        || !event
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_')
+    {
+        return None;
+    }
+    let (body_index, priority) = handler_options(sm, words)?;
+    let body = single_token(words, body_index)?.to_owned();
     if body.kind != TokenType::Str {
         return None;
     }

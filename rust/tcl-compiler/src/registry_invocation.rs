@@ -591,6 +591,22 @@ fn original_structured_source_selection(
     Some(selected)
 }
 
+/// A word a simulated lookup reads without evaluating anything: a literal, or
+/// one whole scalar variable reference.
+fn simulation_static_word(word: &WordExpr, config: tcl_lexer::LexerConfig) -> bool {
+    match word {
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
+        WordExpr::Variable { .. } => {
+            word.sole_variable_substitution()
+                .is_some_and(|(spelling, _)| {
+                    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+                        .is_some()
+                })
+        }
+        _ => false,
+    }
+}
+
 fn authored_simulation_structure_is_supported(
     registry: &CommandRegistry,
     context: InvocationMetadataContext<'_>,
@@ -640,22 +656,12 @@ fn authored_simulation_structure_is_supported(
             || index == 0
             || roles.iter().any(|(argument, _)| argument + 1 == index)
     };
-    if tokens.words().iter().enumerate().any(|(index, word)| {
-        simulated(index)
-            && match word {
-                WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => false,
-                WordExpr::Variable { .. } => {
-                    word.sole_variable_substitution()
-                        .is_none_or(|(spelling, _)| {
-                            tcl_syntax::naming::whole_scalar_variable_reference_name(
-                                spelling, config,
-                            )
-                            .is_none()
-                        })
-                }
-                _ => true,
-            }
-    }) {
+    if tokens
+        .words()
+        .iter()
+        .enumerate()
+        .any(|(index, word)| simulated(index) && !simulation_static_word(word, config))
+    {
         return None;
     }
     selected.with_metadata_schema(registry, context, realm, |schema| {

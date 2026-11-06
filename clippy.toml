@@ -1,0 +1,5 @@
+# `SourceImage` lazily derives its line index and byte digest into a shared
+# `OnceLock`. Equality, ordering and hashing read only the original bytes and
+# channel (the digest is a pure function of the bytes), so a type holding one is
+# a sound map key. `bytes::Bytes` is clippy's own default entry.
+ignore-interior-mutability = ["bytes::Bytes", "tcl_lexer::SourceImage", "tcl_lexer::source_map::SourceImage"]
