@@ -95,8 +95,9 @@ pub fn runtime_context_for_profile(profile: &DialectProfile) -> RuntimeContext {
 /// itself, and the identity that pin states.
 #[derive(Clone)]
 pub struct PinnedContext {
-    /// The context that was pinned.
-    pub context: RuntimeContext,
+    /// The context that was pinned, shared so that holders can retain and
+    /// compare it by identity without copying its strings.
+    pub context: Arc<RuntimeContext>,
     /// The interned profile of the resolved environment.
     pub profile: &'static DialectProfile,
     /// The registry generation at the context's overlay, held for as long as
@@ -123,7 +124,7 @@ impl PinnedContext {
     ) -> Self {
         let identity = context.identity(&[], intrinsic_table_hash());
         Self {
-            context,
+            context: Arc::new(context),
             profile,
             generation,
             identity,
@@ -368,7 +369,7 @@ mod tests {
         assert!(Arc::ptr_eq(held.commands(), &installed));
         assert!(held.commands().get("overlay::length").is_some());
         assert!(std::ptr::eq(pinned.profile, profile));
-        assert_eq!(pinned.context, context);
+        assert_eq!(*pinned.context, context);
         assert!(
             PinnedContext::for_profile(profile).generation.is_none(),
             "the profile form holds no overlay"

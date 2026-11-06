@@ -29,9 +29,9 @@ use super::{Interp, InterpState};
 use std::{
     cell::Cell,
     rc::{Rc, Weak},
+    sync::Arc,
 };
 use tcl_platform::Host;
-use tcl_registry::InvocationDialect;
 use tcl_runtime_api::{NativeExecutionError, RuntimeContext};
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
@@ -39,8 +39,9 @@ use tcl_syntax::raw_string::NativeValueAccessRefusal;
 pub(crate) struct NativeOperationCurrency {
     interpreter: Weak<InterpState>,
     host: Weak<dyn Host>,
-    context: Rc<RuntimeContext>,
-    dialect: InvocationDialect,
+    context: Arc<RuntimeContext>,
+    profile: &'static tcl_dialect::DialectProfile,
+    version: tcl_dialect::TclVersion,
     epoch: u64,
 }
 
@@ -147,8 +148,9 @@ impl NativeOperationCurrency {
         let receipt = Self {
             interpreter: Rc::downgrade(&interpreter.0),
             host: Rc::downgrade(&host),
-            context: Rc::new(interpreter.runtime_context()),
-            dialect: interpreter.native_invocation_dialect(),
+            context: interpreter.shared_runtime_context(),
+            profile: interpreter.dialect_profile(),
+            version: interpreter.runtime_version(),
             epoch,
         };
         receipt.ensure_current()?;
@@ -168,15 +170,14 @@ impl NativeOperationCurrency {
         if let Some(first) = interpreter.native_execution_refusal() {
             return Err(first);
         }
-        let current_host = interpreter.host();
-        let epoch = interpreter.native_operation_context_epoch();
-        if !Weak::ptr_eq(&self.host, &Rc::downgrade(&current_host))
-            || {
-                let pin = interpreter.0.pin.borrow();
-                pin.context != *self.context
-            }
-            || interpreter.native_invocation_dialect() != self.dialect
-            || epoch != Some(self.epoch)
+        if interpreter.native_operation_context_epoch() != Some(self.epoch)
+            || !std::ptr::addr_eq(
+                Weak::as_ptr(&self.host),
+                Rc::as_ptr(&interpreter.0.host.borrow()),
+            )
+            || interpreter.0.pin.borrow().context != self.context
+            || !std::ptr::eq(interpreter.dialect_profile(), self.profile)
+            || interpreter.runtime_version() != self.version
         {
             return Err(unavailable());
         }

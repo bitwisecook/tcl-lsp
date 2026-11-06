@@ -1720,6 +1720,9 @@ pub struct InterpState {
     /// (`interp create`) or safe interpreter can emulate a different release
     /// from its parent, exactly as each owns its own global namespace.
     runtime_version: Cell<tcl_dialect::TclVersion>,
+    /// `native_invocation_dialect` projected from `dialect_profile` and
+    /// `runtime_version`; cleared whenever either is replaced.
+    invocation_dialect: Cell<Option<tcl_registry::InvocationDialect>>,
     jim_object_context: RefCell<Option<Rc<crate::native_source::NativeJimObjectContext>>>,
     jim_teardown_started: Cell<bool>,
     /// The dialect profile this interpreter validates its builtin command
@@ -2187,6 +2190,7 @@ impl Interp {
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
             runtime_version: Cell::new(version),
+            invocation_dialect: Cell::new(None),
             jim_object_context: RefCell::new(None),
             jim_teardown_started: Cell::new(false),
             // The "no dialect pinned" ingress: the lenient environment,
@@ -2645,7 +2649,13 @@ impl Interp {
     /// The world this interpreter is pinned to.
     #[must_use]
     pub fn runtime_context(&self) -> tcl_runtime_api::RuntimeContext {
-        self.0.pin.borrow().context.clone()
+        tcl_runtime_api::RuntimeContext::clone(&self.0.pin.borrow().context)
+    }
+
+    /// The pinned context itself, retained without copying; a later pin
+    /// installs a new allocation, so pointer equality detects no change.
+    pub(crate) fn shared_runtime_context(&self) -> std::sync::Arc<tcl_runtime_api::RuntimeContext> {
+        std::sync::Arc::clone(&self.0.pin.borrow().context)
     }
 
     /// The identity this interpreter states of itself — its pinned context,
@@ -2687,6 +2697,7 @@ impl Interp {
         }
         self.invalidate_interpreter_policy();
         self.0.dialect_profile.set(profile);
+        self.0.invocation_dialect.set(None);
         if dialect.return_options_protocol()
             == Some(tcl_cmd_core::return_options::ReturnOptionsProtocol::Jim084)
         {
@@ -2701,6 +2712,7 @@ impl Interp {
             .dialect_point
             .set(Some(crate::environment::surface_point(profile)));
         self.0.runtime_version.set(version);
+        self.0.invocation_dialect.set(None);
         self.channels
             .borrow()
             .reset_standard_channels_if_owner(version);
@@ -2908,15 +2920,20 @@ impl Interp {
     }
 
     pub(crate) fn native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        if let Some(dialect) = self.0.invocation_dialect.get() {
+            return dialect;
+        }
         let dialect = tcl_registry::InvocationDialect::of_profile(self.dialect_profile());
-        if dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+        let dialect = if dialect.family() == Some(tcl_dialect::model::Family::Tcl)
             && dialect.tcl_version.is_none()
             && dialect.core_point.is_none()
         {
             tcl_registry::InvocationDialect::for_version(self.runtime_version())
         } else {
             dialect
-        }
+        };
+        self.0.invocation_dialect.set(Some(dialect));
+        dialect
     }
 
     /// The lexer configuration scripts evaluate under: the pinned profile's
@@ -5982,8 +5999,7 @@ impl Interp {
                     })
                 })
                 .map(|(name, binding)| {
-                    let mut fqn = b"::".to_vec();
-                    fqn.extend_from_slice(name);
+                    let fqn = tcl_syntax::naming::root_unrooted_key_bytes(name);
                     (fqn, binding.generation)
                 }),
         );
@@ -6109,8 +6125,7 @@ impl Interp {
                 self.namespaces
                     .borrow_mut()
                     .retire_native_command_node(binding.generation);
-                let mut fqn = b"::".to_vec();
-                fqn.extend_from_slice(&name);
+                let fqn = tcl_syntax::naming::root_unrooted_key_bytes(&name);
                 removed.push((fqn, binding.generation));
             }
         }
@@ -6167,8 +6182,7 @@ impl Interp {
             if binding.generation != generation {
                 return None;
             }
-            let mut fqn = b"::".to_vec();
-            fqn.extend_from_slice(name);
+            let fqn = tcl_syntax::naming::root_unrooted_key_bytes(name);
             Some((fqn, binding.command.clone()))
         })
     }
@@ -10944,8 +10958,7 @@ impl Interp {
             .iter()
             .filter_map(|(name, binding)| match &binding.command {
                 Command::Ensemble(token) if ids.contains(&token.config().ns) => {
-                    let mut fqn = b"::".to_vec();
-                    fqn.extend_from_slice(name);
+                    let fqn = tcl_syntax::naming::root_unrooted_key_bytes(name);
                     Some((fqn, Rc::clone(token)))
                 }
                 _ => None,
@@ -10986,7 +10999,7 @@ impl Interp {
                     .as_ref()
                     .is_none_or(|prefix| name.starts_with(prefix))
             }) {
-                let absolute = [b"::".as_slice(), &name].concat();
+                let absolute = tcl_syntax::naming::root_unrooted_key_bytes(&name);
                 self.var_unset(&absolute);
             }
         }
@@ -11142,8 +11155,7 @@ impl Interp {
                 {
                     return None;
                 }
-                let mut fqn = b"::".to_vec();
-                fqn.extend_from_slice(name);
+                let fqn = tcl_syntax::naming::root_unrooted_key_bytes(name);
                 Some((fqn, Rc::clone(token)))
             }));
             let mut found_new_token = false;
@@ -17421,8 +17433,7 @@ impl Interp {
                 if self.retire_pending_native_ensemble_roles().is_err() {
                     return CommandVisibilityOutcome::Missing;
                 }
-                let mut hidden_fqn = b"::".to_vec();
-                hidden_fqn.extend_from_slice(hidden_name);
+                let hidden_fqn = tcl_syntax::naming::root_unrooted_key_bytes(hidden_name);
                 if let Some(old_fqn) = &old_fqn {
                     self.move_cmd_traces(old_fqn, &hidden_fqn, binding.generation);
                     self.retarget_import_sources(binding.generation, &hidden_fqn);
@@ -17482,8 +17493,7 @@ impl Interp {
         let binding = self.hidden.borrow_mut().remove(hidden_name);
         match binding {
             Some(binding) => {
-                let mut old_hidden_fqn = b"::".to_vec();
-                old_hidden_fqn.extend_from_slice(hidden_name);
+                let old_hidden_fqn = tcl_syntax::naming::root_unrooted_key_bytes(hidden_name);
                 let generation = binding.generation;
                 let ensemble = match &binding.command {
                     Command::Ensemble(token) => Some(Rc::clone(token)),
@@ -17612,8 +17622,7 @@ impl Interp {
         let binding = self.hidden.borrow().get(name).cloned();
         match binding {
             Some(binding) => {
-                let mut fqn = b"::".to_vec();
-                fqn.extend_from_slice(name);
+                let fqn = tcl_syntax::naming::root_unrooted_key_bytes(name);
                 self.dispatch_prebound(argv, Some((fqn, binding)))
             }
             None => self.report_command_visibility_failure(
@@ -17718,8 +17727,7 @@ impl Interp {
                     if Rc::ptr_eq(current, identity)
             )
             .then(|| {
-                let mut fqn = b"::".to_vec();
-                fqn.extend_from_slice(name);
+                let fqn = tcl_syntax::naming::root_unrooted_key_bytes(name);
                 (fqn, binding.generation)
             })
         })
@@ -17748,8 +17756,7 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .retire_native_command_node(binding.generation);
-        let mut fqn = b"::".to_vec();
-        fqn.extend_from_slice(&hidden_name);
+        let fqn = tcl_syntax::naming::root_unrooted_key_bytes(&hidden_name);
         Some((fqn, binding.generation))
     }
 
@@ -17770,8 +17777,7 @@ impl Interp {
                 Command::Ensemble(current) if Rc::ptr_eq(current, identity)
             )
             .then(|| {
-                let mut fqn = b"::".to_vec();
-                fqn.extend_from_slice(name);
+                let fqn = tcl_syntax::naming::root_unrooted_key_bytes(name);
                 (fqn, binding.generation)
             })
         })
@@ -17826,8 +17832,7 @@ impl Interp {
             self.namespaces
                 .borrow_mut()
                 .retire_native_command_node(binding.generation);
-            let mut fqn = b"::".to_vec();
-            fqn.extend_from_slice(&hidden_name);
+            let fqn = tcl_syntax::naming::root_unrooted_key_bytes(&hidden_name);
             Some((fqn, binding.generation))
         });
         if let Some((live_fqn, generation)) = removed_fqn.as_ref() {
@@ -17880,8 +17885,7 @@ impl Interp {
                     if !origins.contains(source_generation) && !retains_token {
                         return None;
                     }
-                    let mut fqn = b"::".to_vec();
-                    fqn.extend_from_slice(name);
+                    let fqn = tcl_syntax::naming::root_unrooted_key_bytes(name);
                     Some((fqn, Rc::clone(identity)))
                 })
                 .collect();

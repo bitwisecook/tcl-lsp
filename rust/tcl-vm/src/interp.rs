@@ -3339,7 +3339,7 @@ impl InterpState {
     }
 
     pub(crate) fn native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {
-        tcl_registry::InvocationDialect::of_profile(self.native_execution_profile())
+        tcl_registry::InvocationDialect::of_static_profile(self.native_execution_profile())
     }
 
     /// Physical engine provenance at bootstrap and compilation ingress. Logical
@@ -3351,7 +3351,7 @@ impl InterpState {
     }
 
     pub(crate) fn actual_native_invocation_dialect(&self) -> tcl_registry::InvocationDialect {
-        tcl_registry::InvocationDialect::of_profile(self.actual_native_execution_profile())
+        tcl_registry::InvocationDialect::of_static_profile(self.actual_native_execution_profile())
     }
 
     /// Retain the actual interpreter objects independently of source grammar.
@@ -7117,8 +7117,9 @@ impl Vm {
         if transaction.source_import_binding.is_none()
             && let Command::Ensemble(token) = command
         {
-            let mut name = b"::".to_vec();
-            name.extend_from_slice(self.command_display_key_bytes(&new_key).as_bytes());
+            let name = tcl_syntax::naming::root_unrooted_key_bytes(
+                self.command_display_key_bytes(&new_key).as_bytes(),
+            );
             token.rename(NameBytes::from(name));
         }
         if let Some(binding) = &transaction.source_import_binding {
@@ -9524,8 +9525,7 @@ impl Vm {
         if import_origin.is_none()
             && let Command::Ensemble(ensemble) = &command
         {
-            let mut name = b"::".to_vec();
-            name.extend_from_slice(token_name.as_bytes());
+            let name = tcl_syntax::naming::root_unrooted_key_bytes(token_name.as_bytes());
             ensemble.rename(NameBytes::from(name));
         }
         self.hidden.commands.insert(token.clone(), command);
@@ -9645,8 +9645,9 @@ impl Vm {
                 .insert(destination.clone(), generation);
         }
         if !imported && let Some(Command::Ensemble(token)) = self.commands.get(&destination) {
-            let mut name = b"::".to_vec();
-            name.extend_from_slice(self.command_display_key_bytes(&destination).as_bytes());
+            let name = tcl_syntax::naming::root_unrooted_key_bytes(
+                self.command_display_key_bytes(&destination).as_bytes(),
+            );
             token.rename(NameBytes::from(name));
         }
         crate::cmd_coro::on_command_exposed(self, &cmd, &destination);
@@ -10962,8 +10963,8 @@ impl Vm {
             .name_policy_protocol()
             .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
             .recipe();
-        let mut report = b"::".to_vec();
-        report.extend_from_slice(self.ns_name_bytes(context).as_bytes());
+        let report =
+            tcl_syntax::naming::root_unrooted_key_bytes(self.ns_name_bytes(context).as_bytes());
         let has_parent = self
             .name_world
             .borrow()
@@ -11726,14 +11727,7 @@ impl Vm {
     }
 
     fn namespace_path_reporting_bytes(path: &NamespacePath) -> NameBytes {
-        let mut bytes = Vec::new();
-        for (index, segment) in path.as_segments().iter().enumerate() {
-            if index != 0 {
-                bytes.extend_from_slice(b"::");
-            }
-            bytes.extend_from_slice(segment.as_bytes());
-        }
-        NameBytes::from(bytes)
+        NameBytes::from(tcl_syntax::naming::native_namespace_key_bytes(path))
     }
 
     /// Exact reporting bytes do not reconstruct namespace identity.
@@ -11937,8 +11931,10 @@ impl Vm {
             eval_object_provider: self.logical_providers.eval_object,
             name_provider: self.logical_providers.names,
             compiled_variable_provider: self.logical_providers.compiled_variables,
-            engine: self.actual_native_execution_profile().cache_key(),
-            invocation: self.native_execution_profile().cache_key(),
+            engine: crate::compiled::NativeProfileReceipt::of(
+                self.actual_native_execution_profile(),
+            ),
+            invocation: crate::compiled::NativeProfileReceipt::of(self.native_execution_profile()),
             quote_provider: self.logical_providers.quote,
             numeric_provider: self.logical_providers.numeric,
         }
@@ -12483,9 +12479,9 @@ impl InterpState {
 
     /// Root exact reporting bytes without interpreting the private placement key.
     pub(crate) fn rooted_command_sidecar_display_bytes(&self, key: &CommandSidecarKey) -> Vec<u8> {
-        let mut display = b"::".to_vec();
-        display.extend_from_slice(self.command_sidecar_display_bytes(key).as_bytes());
-        display
+        tcl_syntax::naming::root_unrooted_key_bytes(
+            self.command_sidecar_display_bytes(key).as_bytes(),
+        )
     }
 
     /// Invalidate the command-resolution memo (M16.4): every command-table /
@@ -14703,8 +14699,7 @@ impl Vm {
             }
         }
         for name in selected {
-            let mut original = b"::".to_vec();
-            original.extend_from_slice(&name);
+            let original = tcl_syntax::naming::root_unrooted_key_bytes(&name);
             self.unset_one_bytes(&original, true)?;
         }
         Ok(())
@@ -17548,6 +17543,14 @@ impl Vm {
     ) -> VariableTraceOutcome {
         let original = variable_cleanup::OriginalVariableCleanup::enter(self);
         original.check_native(self)?;
+        // With no script or native observer, no taken trace and no static
+        // publication, every step below is a balanced no-op.
+        if taken.is_none()
+            && !self.variable_observers_active()
+            && !(invocation.op == "write" && self.authored_tmm_static.policy.is_some())
+        {
+            return Ok(Ok(()));
+        }
         let Some(cell) = located.or_else(|| {
             taken.as_ref().map_or_else(
                 || self.trace_cell_bytes(invocation.name),
@@ -18168,10 +18171,23 @@ impl Vm {
                 "native variable trace reporting policy is unavailable".into(),
             )
         })?;
-        let saved = if groups.is_empty() {
-            None
-        } else {
+        let observers = &self.variable_observers;
+        let callbacks_possible = groups.iter().any(|group| match group {
+            TraceGroup::Live(key) => {
+                observers
+                    .script_traces
+                    .get(key)
+                    .is_some_and(|list| !list.is_empty())
+                    || observers.native_error_cells.contains_key(key)
+                    || observers.precision_cell == Some(*key)
+                    || observers.env_cell == Some(*key)
+            }
+            TraceGroup::Taken(list) => !list.is_empty(),
+        });
+        let saved = if callbacks_possible {
             self.save_native_interp_trace_result()?
+        } else {
+            None
         };
         let reached = self.fire_variable_trace_groups(groups, invocation, cell, policy, scope);
         let restore = !matches!(reached, Ok(Err(_))) || !leave_error_message;
@@ -18405,13 +18421,7 @@ impl Vm {
             .and_then(|owner| owner.command_namespace)
             .and_then(|token| {
                 let namespace = entry.retained_namespace_context(u64::from(token.0)).ok()?;
-                let mut name = b"::".to_vec();
-                for (index, component) in namespace.path.as_segments().iter().enumerate() {
-                    if index != 0 {
-                        name.extend_from_slice(b"::");
-                    }
-                    name.extend_from_slice(component.as_bytes());
-                }
+                let name = tcl_syntax::naming::native_namespace_full_name_bytes(&namespace.path);
                 Some(
                     tcl_runtime_api::native_compiler_pass::NativeCompilerPassProcedure {
                         namespace,
@@ -29846,9 +29856,7 @@ impl Namespaces for Vm {
     }
 
     fn name_bytes(&self, ns: NsId) -> Vec<u8> {
-        let mut report = b"::".to_vec();
-        report.extend_from_slice(self.ns_name_bytes(ns).as_bytes());
-        report
+        tcl_syntax::naming::root_unrooted_key_bytes(self.ns_name_bytes(ns).as_bytes())
     }
 
     fn command_name(&self, cmd: CommandId) -> Option<String> {
@@ -30153,8 +30161,7 @@ impl Namespaces for Vm {
                         "namespace variable query canonicalisation",
                     )
                 })?;
-            let mut report = b"::".to_vec();
-            report.extend_from_slice(canonical.selected());
+            let report = tcl_syntax::naming::root_unrooted_key_bytes(canonical.selected());
             return Ok(Some(report));
         }
         if !self.name_world.borrow().is_live() {
@@ -30381,8 +30388,7 @@ mod family_b_tests {
                     .expect("exact native command key remains addressable");
                 assert!(tokens.insert(token));
                 assert_eq!(vm.command_display_key_bytes(key).as_bytes(), *name);
-                let mut expected = b"::".to_vec();
-                expected.extend_from_slice(name);
+                let expected = tcl_syntax::naming::root_unrooted_key_bytes(name);
                 assert_eq!(Namespaces::command_name_bytes(&vm, token), Some(expected));
             }
             assert_eq!(
@@ -30591,8 +30597,7 @@ mod family_b_tests {
                 vm.register_command_in_slot(slot, Command::Native(Rc::new(TestNative)));
                 let command = Namespaces::find_command_bytes(&vm, namespace, b"p")
                     .expect("local lookup keeps exact namespace token");
-                let mut rooted = b"::".to_vec();
-                rooted.extend_from_slice(segment);
+                let rooted = tcl_syntax::naming::root_unrooted_key_bytes(segment);
                 assert_eq!(
                     Namespaces::find_namespace_bytes(&vm, ROOT_NS, &rooted),
                     Some(namespace)
@@ -31135,8 +31140,8 @@ mod family_b_tests {
                 child.logical_providers.quote
             ),
             (
-                vm.native_compiler_policy().engine,
-                vm.native_compiler_policy().invocation,
+                vm.native_compiler_policy().engine.key(),
+                vm.native_compiler_policy().invocation.key(),
                 vm.native_compiler_policy().quote_provider
             ),
         );

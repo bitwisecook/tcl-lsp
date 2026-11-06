@@ -968,6 +968,26 @@ impl InvocationDialect {
         })
     }
 
+    /// [`Self::of_profile`] for an interned profile, memoised per thread by
+    /// the profile's address: an interned profile is immutable and never
+    /// freed, so its projection cannot change.
+    #[must_use]
+    pub fn of_static_profile(profile: &'static tcl_dialect::DialectProfile) -> Self {
+        thread_local! {
+            static PROJECTED: std::cell::RefCell<Vec<(usize, InvocationDialect)>> =
+                const { std::cell::RefCell::new(Vec::new()) };
+        }
+        let address = std::ptr::from_ref(profile).addr();
+        PROJECTED.with_borrow_mut(|projected| {
+            if let Some((_, dialect)) = projected.iter().find(|(seen, _)| *seen == address) {
+                return *dialect;
+            }
+            let dialect = Self::of_profile(profile);
+            projected.push((address, dialect));
+            dialect
+        })
+    }
+
     /// Project independently owned policies from the selected profile.
     #[must_use]
     pub fn of_profile(profile: &tcl_dialect::DialectProfile) -> Self {

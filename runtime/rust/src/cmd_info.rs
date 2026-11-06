@@ -1114,8 +1114,7 @@ fn info_global(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], var: &[u
             usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
         );
     }
-    let mut qualified = b"::".to_vec();
-    qualified.extend_from_slice(var);
+    let qualified = tcl_syntax::naming::root_unrooted_key_bytes(var);
     match interp.var_get(&qualified) {
         Some(o) => {
             interp.set_result(o);

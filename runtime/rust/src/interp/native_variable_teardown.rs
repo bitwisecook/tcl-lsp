@@ -268,11 +268,10 @@ impl Interp {
             let (receiver, home) = selected;
             let base = home.base.clone();
             let binding = home.binding_id.expect("selected namespace binding");
-            let mut reported = self.namespaces().qualified_name(namespace);
-            if reported != b"::" {
-                reported.extend_from_slice(b"::");
-            }
-            reported.extend_from_slice(&base);
+            let reported = tcl_syntax::naming::rooted_member_key_bytes(
+                &self.namespaces().qualified_name(namespace),
+                &base,
+            );
             let (array, old) = receiver.publish_array_destruction();
             if old.finish(|| current(self)).is_err() {
                 refused = true;

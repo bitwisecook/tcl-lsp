@@ -920,8 +920,7 @@ impl OriginalVariableCleanup {
                 name: name.clone(),
             };
             if self.check(vm).is_ok() {
-                let mut written = b"::".to_vec();
-                written.extend_from_slice(name.as_bytes());
+                let written = tcl_syntax::naming::root_unrooted_key_bytes(name.as_bytes());
                 let _ = self.in_original(vm, |vm| vm.unset_var_bytes(&written));
             } else {
                 let selected = VariableSlot {
@@ -983,12 +982,10 @@ impl OriginalVariableCleanup {
                 )
             });
             if original_nonlink && self.check(vm).is_ok() {
-                let mut written = b"::".to_vec();
-                if !canonical.is_empty() {
-                    written.extend_from_slice(canonical);
-                    written.extend_from_slice(b"::");
-                }
-                written.extend_from_slice(name.as_bytes());
+                let written = tcl_syntax::naming::rooted_member_key_bytes(
+                    &tcl_syntax::naming::root_unrooted_key_bytes(canonical),
+                    name.as_bytes(),
+                );
                 let _ = self.in_original(vm, |vm| {
                     let resolved = super::ResolvedVar {
                         binding: binding.clone(),

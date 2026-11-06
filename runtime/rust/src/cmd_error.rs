@@ -319,7 +319,7 @@ fn catch_compiles_script_word(interp: &Interp, argv: &[*mut TclObj]) -> bool {
 /// Whether a compile procedure can make `name` a local scalar
 /// (`LocalScalarFromToken`): neither qualified nor an array element.
 fn is_local_scalar_name(name: &[u8]) -> bool {
-    !name.windows(2).any(|pair| pair == b"::") && crate::frame::split_array_ref(name).1.is_none()
+    !tcl_syntax::naming::is_qualified(name) && crate::frame::split_array_ref(name).1.is_none()
 }
 
 /// Write `obj` to `name`, routing `arr(a)` to the array *element* rather than

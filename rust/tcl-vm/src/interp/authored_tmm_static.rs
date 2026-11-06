@@ -453,11 +453,10 @@ impl Vm {
         } else if resolved.binding.owner != VarTableOwner::Namespace(namespace) {
             return Ok(());
         }
-        let mut reported = Namespaces::name_bytes(self, namespace);
-        if reported.as_slice() != b"::" {
-            reported.extend_from_slice(b"::");
-        }
-        reported.extend_from_slice(name.as_bytes());
+        let reported = tcl_syntax::naming::rooted_member_key_bytes(
+            &Namespaces::name_bytes(self, namespace),
+            name.as_bytes(),
+        );
         match mutation {
             Mutation::Store(value) => {
                 let captured = self.capture_selected_update(

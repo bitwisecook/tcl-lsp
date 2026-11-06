@@ -163,7 +163,7 @@ pub use native::{
     checked_command_slot_utf8, checked_namespace_path_utf8, constructed_command_address_bytes,
     native_command_full_name_bytes, native_command_source_spelling, native_command_source_word,
     native_constant_failure_verb, native_jim_namespace_source_spelling,
-    native_namespace_full_name_bytes, native_namespace_source_spelling,
+    native_namespace_full_name_bytes, native_namespace_key_bytes, native_namespace_source_spelling,
     native_procedure_compilation_name_input, native_qualified_inventory_report_bytes,
     report_native_c_variable_value_name, report_native_dictionary_missing_key,
     report_native_name_bytes, report_native_namespace_creation_conflict,
@@ -1532,6 +1532,36 @@ pub fn qualify_bytes(prefix: &[u8], name: &[u8]) -> Vec<u8> {
 #[must_use]
 pub fn root_unrooted_key(key: &str) -> String {
     format!("::{key}")
+}
+
+/// Counted-byte twin of [`root_unrooted_key`]: every byte of the constructed
+/// key is retained after exactly one prepended root marker.
+#[must_use]
+pub fn root_unrooted_key_bytes(key: &[u8]) -> Vec<u8> {
+    let mut rooted = Vec::with_capacity(key.len() + 2);
+    rooted.extend_from_slice(b"::");
+    rooted.extend_from_slice(key);
+    rooted
+}
+
+/// A member's rooted reporting key under a rooted constructed namespace key:
+/// the root's members take one marker, any other namespace one separator.
+/// Neither input is reparsed; this supplies no lookup or table identity.
+///
+/// ```
+/// use tcl_syntax::naming::rooted_member_key_bytes;
+/// assert_eq!(rooted_member_key_bytes(b"::", b"v"), b"::v");
+/// assert_eq!(rooted_member_key_bytes(b"::a:", b":v"), b"::a:::v");
+/// ```
+#[must_use]
+pub fn rooted_member_key_bytes(rooted_namespace: &[u8], member: &[u8]) -> Vec<u8> {
+    let mut key = Vec::with_capacity(rooted_namespace.len() + member.len() + 2);
+    key.extend_from_slice(rooted_namespace);
+    if rooted_namespace != b"::" {
+        key.extend_from_slice(b"::");
+    }
+    key.extend_from_slice(member);
+    key
 }
 
 /// Remove exactly the root marker from a **rooted constructed key**.

@@ -240,7 +240,7 @@ fn slots_are_plain_scalars(lvt: &tcl_bytecode::LocalVarTable, body: bool) -> boo
                 let bytes = name.as_bytes();
                 !bytes.is_empty()
                     && !bytes.contains(&b'(')
-                    && !bytes.windows(2).any(|pair| pair == b"::")
+                    && !tcl_syntax::naming::is_qualified(bytes)
             })
         })
 }

@@ -1661,8 +1661,8 @@ fn ns_ensemble_create_entered(
         Ok(slot) => slot,
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
-    let mut reporting = b"::".to_vec();
-    reporting.extend_from_slice(&vm.command_slot_display_bytes(&slot));
+    let reporting =
+        tcl_syntax::naming::root_unrooted_key_bytes(&vm.command_slot_display_bytes(&slot));
     let def = EnsembleDef {
         originals: opts.originals,
         native: None,

@@ -44,6 +44,7 @@ use tcl_lexer::LexerConfig;
 use tcl_registry::hooks::{CodegenHookId, LoweringHookId};
 use tcl_registry::release_compilation::compile_procedure;
 use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_syntax::naming::is_qualified;
 
 use crate::parse::{self, WordBody, WordPart};
 
@@ -122,11 +123,6 @@ fn literal_elements(text: &[u8]) -> Option<Vec<Vec<u8>>> {
         at = element.next;
     }
     Some(elements)
-}
-
-/// Whether `name` is qualified by a namespace.
-fn is_qualified(name: &[u8]) -> bool {
-    name.windows(2).any(|pair| pair == b"::")
 }
 
 impl Scan<'_, '_> {
@@ -471,10 +467,7 @@ impl Scan<'_, '_> {
                 if name.last() == Some(&b')') {
                     return false;
                 }
-                let tail = name
-                    .windows(2)
-                    .rposition(|pair| pair == b"::")
-                    .map_or(name, |at| &name[at + 2..]);
+                let tail = tcl_syntax::naming::written_command_tail(name);
                 if tail.is_empty() {
                     return false;
                 }

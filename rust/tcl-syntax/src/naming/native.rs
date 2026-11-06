@@ -3207,15 +3207,10 @@ pub fn native_qualified_inventory_report_bytes(
         NativeNamespaceReportParts::CConstructed(path) => {
             native_command_full_name_bytes(&ByteCommandSlot::new(path.clone(), member.into()))
         }
-        NativeNamespaceReportParts::JimFlat(flat) => {
-            let mut report = b"::".to_vec();
-            report.extend_from_slice(flat);
-            if !flat.is_empty() {
-                report.extend_from_slice(b"::");
-            }
-            report.extend_from_slice(member);
-            report
-        }
+        NativeNamespaceReportParts::JimFlat(flat) => crate::naming::rooted_member_key_bytes(
+            &crate::naming::root_unrooted_key_bytes(flat),
+            member,
+        ),
     }
 }
 
@@ -3246,13 +3241,26 @@ pub fn constructed_command_address_bytes(slot: &ByteCommandSlot) -> Vec<u8> {
 #[must_use]
 pub fn native_namespace_full_name_bytes(path: &ByteNamespacePath) -> Vec<u8> {
     let mut report = b"::".to_vec();
+    push_namespace_components(&mut report, path);
+    report
+}
+
+/// Unrooted counterpart of [`native_namespace_full_name_bytes`]: the same
+/// constructed components joined without the root marker (empty for root).
+#[must_use]
+pub fn native_namespace_key_bytes(path: &ByteNamespacePath) -> Vec<u8> {
+    let mut key = Vec::new();
+    push_namespace_components(&mut key, path);
+    key
+}
+
+fn push_namespace_components(out: &mut Vec<u8>, path: &ByteNamespacePath) {
     for (index, component) in path.as_segments().iter().enumerate() {
         if index != 0 {
-            report.extend_from_slice(b"::");
+            out.extend_from_slice(b"::");
         }
-        report.extend_from_slice(component.as_bytes());
+        out.extend_from_slice(component.as_bytes());
     }
-    report
 }
 
 /// Written C namespace spelling only when its native address round-trips to

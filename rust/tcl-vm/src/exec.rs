@@ -783,7 +783,7 @@ impl Frame {
         &self,
         current_profile: u64,
         current_compiler: u64,
-        current_policy: &crate::compiled::NativeCompilerPolicy,
+        current_policy: &impl std::ops::Deref<Target = crate::compiled::NativeCompilerPolicy>,
     ) -> Option<&'static str> {
         if self.each_loop.is_some() {
             None
@@ -796,7 +796,7 @@ impl Frame {
             Some("cannot continue direct source after native invocation policy changed")
         } else if self
             .native_policy
-            .is_some_and(|policy| &policy != current_policy)
+            .is_some_and(|policy| policy != **current_policy)
         {
             Some("cannot continue bytecode after native invocation policy changed")
         } else if self
@@ -2818,13 +2818,10 @@ impl Vm {
     ) -> Option<&'static str> {
         let current_profile = self.profile_generation();
         let current_compiler = self.compiler_generation();
+        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
         acts.iter()
             .find_map(|frame| {
-                frame.stale_compilation_message(
-                    current_profile,
-                    current_compiler,
-                    &self.native_compiler_policy(),
-                )
+                frame.stale_compilation_message(current_profile, current_compiler, &policy)
             })
             .or_else(|| {
                 acts.last()
@@ -2838,13 +2835,10 @@ impl Vm {
     fn top_activation_stale_message(&self, acts: &[Frame]) -> Option<&'static str> {
         let current_profile = self.profile_generation();
         let current_compiler = self.compiler_generation();
+        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
         acts.last().and_then(|frame| {
             frame
-                .stale_compilation_message(
-                    current_profile,
-                    current_compiler,
-                    &self.native_compiler_policy(),
-                )
+                .stale_compilation_message(current_profile, current_compiler, &policy)
                 .or_else(|| {
                     self.activation_namespace_stale_message_in_context(
                         frame,
@@ -2880,13 +2874,12 @@ impl Vm {
     }
 
     fn current_activation_stack_stale_message(&self, acts: &[Frame]) -> Option<&'static str> {
+        let (current_profile, current_compiler) =
+            (self.profile_generation(), self.compiler_generation());
+        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
         acts.iter()
             .find_map(|frame| {
-                frame.stale_compilation_message(
-                    self.profile_generation(),
-                    self.compiler_generation(),
-                    &self.native_compiler_policy(),
-                )
+                frame.stale_compilation_message(current_profile, current_compiler, &policy)
             })
             .or_else(|| {
                 acts.last().and_then(|frame| {
@@ -2903,13 +2896,12 @@ impl Vm {
         acts: &[Frame],
         namespace: &crate::interp::namespace_context::NamespaceExecutionContext,
     ) -> Option<&'static str> {
+        let (current_profile, current_compiler) =
+            (self.profile_generation(), self.compiler_generation());
+        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
         acts.iter()
             .find_map(|frame| {
-                frame.stale_compilation_message(
-                    self.profile_generation(),
-                    self.compiler_generation(),
-                    &self.native_compiler_policy(),
-                )
+                frame.stale_compilation_message(current_profile, current_compiler, &policy)
             })
             .or_else(|| {
                 acts.last().and_then(|frame| {
@@ -2923,12 +2915,13 @@ impl Vm {
         acts: &[Frame],
         namespace: &crate::interp::namespace_context::NamespaceExecutionContext,
     ) -> Option<&'static str> {
+        let policy = std::cell::LazyCell::new(|| self.native_compiler_policy());
         acts.last().and_then(|frame| {
             frame
                 .stale_compilation_message(
                     self.profile_generation(),
                     self.compiler_generation(),
-                    &self.native_compiler_policy(),
+                    &policy,
                 )
                 .or_else(|| self.activation_namespace_stale_message_in_context(frame, namespace))
         })

@@ -263,6 +263,52 @@ pub(super) fn original_registry_metadata_slot(
     policy: tcl_syntax::naming::NamePolicyProtocol,
     name: &str,
 ) -> Option<tcl_core_types::ByteCommandSlot> {
+    with_registry_metadata_slot(policy, name, |slot| slot.cloned())
+}
+
+/// Whether a fixed Registry spelling projects to exactly `slot`.
+pub(super) fn registry_metadata_slot_is(
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    name: &str,
+    slot: &tcl_core_types::ByteCommandSlot,
+) -> bool {
+    with_registry_metadata_slot(policy, name, |projected| projected == Some(slot))
+}
+
+/// The projection is pure in its policy and spelling, so each thread retains a
+/// bounded memo of it.
+fn with_registry_metadata_slot<R>(
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    name: &str,
+    read: impl FnOnce(Option<&tcl_core_types::ByteCommandSlot>) -> R,
+) -> R {
+    type Projected = rustc_hash::FxHashMap<
+        tcl_syntax::naming::NamePolicyProtocol,
+        rustc_hash::FxHashMap<Box<str>, Option<tcl_core_types::ByteCommandSlot>>,
+    >;
+    const MAX_PROJECTED: usize = 8192;
+    thread_local! {
+        static PROJECTED: std::cell::RefCell<Projected> = std::cell::RefCell::default();
+    }
+    PROJECTED.with_borrow_mut(|projected| {
+        let names = projected.entry(policy).or_default();
+        if !names.contains_key(name) {
+            if names.len() >= MAX_PROJECTED {
+                names.clear();
+            }
+            names.insert(
+                Box::from(name),
+                project_registry_metadata_slot(policy, name),
+            );
+        }
+        read(names[name].as_ref())
+    })
+}
+
+fn project_registry_metadata_slot(
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    name: &str,
+) -> Option<tcl_core_types::ByteCommandSlot> {
     use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol};
     if !name.is_ascii() || name.as_bytes().contains(&0) {
         return None;
@@ -415,7 +461,32 @@ impl RegistryAdviceSlotMemo {
                 return None;
             }
         }
-        let index = std::sync::Arc::new(RegistryAdviceSlotIndex::new(policy, rows));
+        // Baselines built from one registry snapshot share its descriptor map
+        // allocation, so a fresh baseline adopts the index already derived for it.
+        static SHARED: std::sync::Mutex<Vec<std::sync::Arc<RegistryAdviceSlotIndex>>> =
+            std::sync::Mutex::new(Vec::new());
+        let shared = {
+            let mut shared = SHARED
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            shared.retain(|entry| entry.rows.strong_count() != 0);
+            shared
+                .iter()
+                .find(|entry| entry.matches(policy, rows))
+                .map(std::sync::Arc::clone)
+        };
+        let index = shared.unwrap_or_else(|| {
+            let index = std::sync::Arc::new(RegistryAdviceSlotIndex::new(policy, rows));
+            let mut shared = SHARED
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if shared.len() < MAX_RETAINED_MAPS
+                && !shared.iter().any(|entry| entry.matches(policy, rows))
+            {
+                shared.push(std::sync::Arc::clone(&index));
+            }
+            index
+        });
         let mut entries = self
             .entries
             .lock()
@@ -2195,9 +2266,11 @@ impl ModuleCommandBindings {
                 .as_ref()
                 .map(|(metadata, name)| (metadata, name))
         } else {
-            let mut candidates = self.baseline.catalogue_commands.iter().filter(|(name, _)| {
-                original_registry_metadata_slot(policy, name).as_ref() == Some(&origin)
-            });
+            let mut candidates = self
+                .baseline
+                .catalogue_commands
+                .iter()
+                .filter(|(name, _)| registry_metadata_slot_is(policy, name, &origin));
             let first = candidates.next();
             if candidates.next().is_some() {
                 return None;
@@ -2232,9 +2305,11 @@ impl ModuleCommandBindings {
                     None => None,
                 }
             } else {
-                let mut candidates = self.baseline.catalogue_commands.iter().filter(|(name, _)| {
-                    original_registry_metadata_slot(policy, name).as_ref() == Some(slot)
-                });
+                let mut candidates = self
+                    .baseline
+                    .catalogue_commands
+                    .iter()
+                    .filter(|(name, _)| registry_metadata_slot_is(policy, name, slot));
                 let first = candidates.next();
                 if candidates.next().is_some() {
                     return None;
@@ -2278,9 +2353,10 @@ impl ModuleCommandBindings {
             }
             if declared_index.as_ref().map_or_else(
                 || {
-                    self.baseline.declared_commands.keys().any(|name| {
-                        original_registry_metadata_slot(policy, name).as_ref() == Some(slot)
-                    })
+                    self.baseline
+                        .declared_commands
+                        .keys()
+                        .any(|name| registry_metadata_slot_is(policy, name, slot))
                 },
                 |index| index.slots.contains_key(slot),
             ) {
@@ -2537,9 +2613,7 @@ impl ModuleCommandBindings {
                 {
                     return None;
                 }
-                let metadata_slot = |name: &str| {
-                    original_registry_metadata_slot(policy, name).as_ref() == Some(slot)
-                };
+                let metadata_slot = |name: &str| registry_metadata_slot_is(policy, name, slot);
                 if self
                     .bindings
                     .keys()

@@ -989,6 +989,13 @@ struct NativeRegistrationCache {
     /// The few specs each registry-wide query can select, so those queries
     /// read a handful of specs instead of every registered command.
     query_surfaces: Option<Arc<RegistryQuerySurfaces>>,
+    dialect_semantics: FxHashMap<
+        (
+            crate::InvocationDialect,
+            tcl_dialect::model::InvocationRealm,
+        ),
+        Arc<EffectiveRegistrySemantics>,
+    >,
 }
 
 /// Specs a registry-wide query can select, in the registry's iteration order.
@@ -3808,6 +3815,29 @@ impl CommandRegistry {
     /// presence does not license rule-loader source or native compiler hooks.
     #[must_use]
     pub fn effective_semantics_for_dialect_in_realm(
+        &self,
+        dialect: crate::InvocationDialect,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) -> Arc<EffectiveRegistrySemantics> {
+        if let Some(cached) = self
+            .native_registrations
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .dialect_semantics
+            .get(&(dialect, realm))
+        {
+            return Arc::clone(cached);
+        }
+        let semantics = self.effective_semantics_for_dialect_in_realm_uncached(dialect, realm);
+        self.native_registrations
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .dialect_semantics
+            .insert((dialect, realm), Arc::clone(&semantics));
+        semantics
+    }
+
+    fn effective_semantics_for_dialect_in_realm_uncached(
         &self,
         dialect: crate::InvocationDialect,
         realm: tcl_dialect::model::InvocationRealm,

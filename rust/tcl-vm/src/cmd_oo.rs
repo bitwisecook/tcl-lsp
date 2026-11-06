@@ -419,15 +419,13 @@ fn resolve_class_value(vm: &mut Vm, name: &Value) -> Result<Option<OoId>, Comple
 }
 
 fn display_oo_bytes(vm: &Vm, id: OoId) -> Vec<u8> {
-    let mut result = b"::".to_vec();
-    result.extend_from_slice(
+    tcl_syntax::naming::root_unrooted_key_bytes(
         vm.oo
             .names
             .get(&id)
             .expect("live object retains exact command reporting name")
             .as_bytes(),
-    );
-    result
+    )
 }
 
 fn object_message(vm: &Vm, id: OoId, before: &[u8], after: &[u8]) -> Vec<u8> {

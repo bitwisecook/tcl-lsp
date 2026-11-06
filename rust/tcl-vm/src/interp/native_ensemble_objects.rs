@@ -372,14 +372,12 @@ impl Vm {
                 let target = if def.subcommands.is_some() {
                     name.as_bytes().to_vec()
                 } else {
-                    let mut target = b"::".to_vec();
-                    target.extend_from_slice(&self.command_slot_display_bytes(
+                    tcl_syntax::naming::root_unrooted_key_bytes(&self.command_slot_display_bytes(
                         &super::CommandSlot {
                             namespace: def.namespace,
                             simple: name.clone(),
                         },
-                    ));
-                    target
+                    ))
                 };
                 Value::native_list_constructor(
                     vec![Value::from_native_string_bytes(target)],

@@ -69,6 +69,36 @@ impl CompilerProvenance {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct NativeCompilerCacheEpoch(pub(crate) u64);
 
+/// A selected profile's cache identity. Profiles are interned and their key is
+/// a pure projection, so the same profile handle is a sufficient equality.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NativeProfileReceipt {
+    profile: &'static tcl_dialect::DialectProfile,
+    key: tcl_dialect::DialectProfileKey,
+}
+
+impl NativeProfileReceipt {
+    pub(crate) fn of(profile: &'static tcl_dialect::DialectProfile) -> Self {
+        Self {
+            profile,
+            key: profile.cache_key(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn key(self) -> tcl_dialect::DialectProfileKey {
+        self.key
+    }
+}
+
+impl PartialEq for NativeProfileReceipt {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.profile, other.profile) || self.key == other.key
+    }
+}
+
+impl Eq for NativeProfileReceipt {}
+
 /// Exact physical compiler engine and logical invocation policy of an artifact.
 /// Scoped host activation changes this receipt without changing source grammar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,8 +114,8 @@ pub(crate) struct NativeCompilerPolicy {
     pub(crate) name_provider: Option<tcl_syntax::naming::NamePolicyProtocol>,
     pub(crate) compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
-    pub(crate) engine: tcl_dialect::DialectProfileKey,
-    pub(crate) invocation: tcl_dialect::DialectProfileKey,
+    pub(crate) engine: NativeProfileReceipt,
+    pub(crate) invocation: NativeProfileReceipt,
     pub(crate) quote_provider:
         Option<tcl_registry::invocation_words::LogicalExpressionQuoteProvider>,
     pub(crate) numeric_provider:

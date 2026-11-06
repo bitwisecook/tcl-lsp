@@ -125,7 +125,7 @@ fn complete_installed_core_input_survives_vendor_repins() {
     vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
     vm.active_native_profile = Some(host());
     assert_eq!(vm.selected_source_identity().unwrap(), &expected);
-    assert_eq!(vm.native_core_pin.as_ref().unwrap().context, context);
+    assert_eq!(*vm.native_core_pin.as_ref().unwrap().context, context);
     let mut invalid = context.clone();
     invalid.build = tcl_dialect::model::BuildProfileId::Unknown;
     assert!(vm.pin_context(&invalid).is_err());

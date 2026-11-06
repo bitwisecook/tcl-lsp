@@ -59,11 +59,7 @@ const GLOBAL_ENV: &[u8] = b"::env";
 /// that can reach the global `env` array without going through a link.
 fn tail_is_env(name: &[u8]) -> bool {
     let base = tcl_syntax::naming::split_element_ref_bytes(name).map_or(name, |(base, _)| base);
-    let tail = base
-        .iter()
-        .rposition(|&byte| byte == b':')
-        .map_or(base, |colon| &base[colon + 1..]);
-    tail == ENV
+    tcl_syntax::naming::written_command_tail(base) == ENV
 }
 
 /// Remove the intrinsic registration belonging to this destroyed root only.

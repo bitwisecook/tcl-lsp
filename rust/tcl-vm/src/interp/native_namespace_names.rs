@@ -444,8 +444,7 @@ impl Vm {
             ));
         }
         if self.ns_path(namespace).as_segments().iter().any(|segment| {
-            segment.as_bytes().contains(&0)
-                || segment.as_bytes().windows(2).any(|pair| pair == b"::")
+            segment.as_bytes().contains(&0) || tcl_syntax::naming::is_qualified(segment.as_bytes())
         }) {
             return Err(ValueError::CommandProtocolUnavailable(
                 "constructed namespace component has no native C spelling",

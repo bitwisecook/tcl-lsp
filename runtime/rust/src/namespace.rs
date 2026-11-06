@@ -3406,8 +3406,7 @@ impl Namespaces {
         let input = protocol.variable_root_input(name);
         if protocol.is_jim084() {
             let namespace = self.jim_namespace_bytes(current)?;
-            let mut prefix = b"::".to_vec();
-            prefix.extend_from_slice(namespace);
+            let prefix = tcl_syntax::naming::root_unrooted_key_bytes(namespace);
             return Some((
                 GLOBAL,
                 tcl_syntax::naming::jim_global_variable_key_bytes(&prefix, input.selected()),
@@ -3526,9 +3525,7 @@ impl Namespaces {
             let namespace = self
                 .jim_namespace_bytes(ns)
                 .expect("Jim namespace reporting requires an already reached namespace getter");
-            let mut rooted = b"::".to_vec();
-            rooted.extend_from_slice(namespace);
-            return rooted;
+            return tcl_syntax::naming::root_unrooted_key_bytes(namespace);
         }
         tcl_syntax::naming::native_namespace_full_name_bytes(&self.arena[ns].constructed_path)
     }

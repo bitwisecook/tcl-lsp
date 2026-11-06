@@ -408,6 +408,38 @@ pub struct DialectProfile {
     pub help_terms: &'static [&'static str],
 }
 
+/// A `'static` profile axis compared by value, with pointer identity as a
+/// fast path: keys projected from one interned profile share their slices.
+struct StaticAxis<T: ?Sized + 'static>(&'static T);
+
+impl<T: ?Sized> Clone for StaticAxis<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: ?Sized> Copy for StaticAxis<T> {}
+
+impl<T: ?Sized + std::fmt::Debug> std::fmt::Debug for StaticAxis<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T: ?Sized + Eq> Eq for StaticAxis<T> {}
+
+impl<T: ?Sized + PartialEq> PartialEq for StaticAxis<T> {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.0, other.0) || self.0 == other.0
+    }
+}
+
+impl<T: ?Sized + std::hash::Hash> std::hash::Hash for StaticAxis<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
 /// A value identity for every profile axis, including the execution point,
 /// build, numeric and lexer policies, availability, and library pins.
 ///
@@ -416,17 +448,17 @@ pub struct DialectProfile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DialectProfileKey {
     core_point: Option<crate::model::DialectPoint>,
-    name: &'static str,
-    aliases: &'static [&'static str],
-    display_name: &'static str,
-    short_name: &'static str,
+    name: StaticAxis<str>,
+    aliases: StaticAxis<[&'static str]>,
+    display_name: StaticAxis<str>,
+    short_name: StaticAxis<str>,
     editor_language_id: Option<&'static str>,
-    filenames: &'static [&'static str],
-    file_extensions: &'static [DialectFileExtension],
+    filenames: StaticAxis<[&'static str]>,
+    file_extensions: StaticAxis<[DialectFileExtension]>,
     vendor_surface: Option<SpecProvider>,
-    surface_packages: &'static [PackageFloor<'static>],
-    base_layers: &'static [SurfaceLayer],
-    grammar_union: &'static [SpecProvider],
+    surface_packages: StaticAxis<[PackageFloor<'static>]>,
+    base_layers: StaticAxis<[SurfaceLayer]>,
+    grammar_union: StaticAxis<[SpecProvider]>,
     version_ceiling: Option<TclVersion>,
     signature_base: Option<TclVersion>,
     runtime_base: Option<TclVersion>,
@@ -438,8 +470,8 @@ pub struct DialectProfileKey {
     has_fixed_ensembles: bool,
     vm_runtime_version: TclVersion,
     evaluation_evidence: EvaluationEvidence,
-    libraries: &'static [LibraryPin],
-    help_terms: &'static [&'static str],
+    libraries: StaticAxis<[LibraryPin]>,
+    help_terms: StaticAxis<[&'static str]>,
 }
 
 impl DialectProfileKey {
@@ -449,17 +481,17 @@ impl DialectProfileKey {
     pub fn profile(&self) -> &'static DialectProfile {
         DialectProfile {
             core_point: self.core_point,
-            name: self.name,
-            aliases: self.aliases,
-            display_name: self.display_name,
-            short_name: self.short_name,
+            name: self.name.0,
+            aliases: self.aliases.0,
+            display_name: self.display_name.0,
+            short_name: self.short_name.0,
             editor_language_id: self.editor_language_id,
-            filenames: self.filenames,
-            file_extensions: self.file_extensions,
+            filenames: self.filenames.0,
+            file_extensions: self.file_extensions.0,
             vendor_surface: self.vendor_surface,
-            surface_packages: self.surface_packages,
-            base_layers: self.base_layers,
-            grammar_union: self.grammar_union,
+            surface_packages: self.surface_packages.0,
+            base_layers: self.base_layers.0,
+            grammar_union: self.grammar_union.0,
             version_ceiling: self.version_ceiling,
             signature_base: self.signature_base,
             runtime_base: self.runtime_base,
@@ -471,8 +503,8 @@ impl DialectProfileKey {
             has_fixed_ensembles: self.has_fixed_ensembles,
             vm_runtime_version: self.vm_runtime_version,
             evaluation_evidence: self.evaluation_evidence,
-            libraries: self.libraries,
-            help_terms: self.help_terms,
+            libraries: self.libraries.0,
+            help_terms: self.help_terms.0,
         }
         .intern()
     }
@@ -1554,17 +1586,17 @@ impl DialectProfile {
         } = self;
         DialectProfileKey {
             core_point: *core_point,
-            name,
-            aliases,
-            display_name,
-            short_name,
+            name: StaticAxis(name),
+            aliases: StaticAxis(aliases),
+            display_name: StaticAxis(display_name),
+            short_name: StaticAxis(short_name),
             editor_language_id: *editor_language_id,
-            filenames,
-            file_extensions,
+            filenames: StaticAxis(filenames),
+            file_extensions: StaticAxis(file_extensions),
             vendor_surface: *vendor_surface,
-            surface_packages,
-            base_layers,
-            grammar_union,
+            surface_packages: StaticAxis(surface_packages),
+            base_layers: StaticAxis(base_layers),
+            grammar_union: StaticAxis(grammar_union),
             version_ceiling: *version_ceiling,
             signature_base: *signature_base,
             runtime_base: *runtime_base,
@@ -1576,8 +1608,8 @@ impl DialectProfile {
             has_fixed_ensembles: *has_fixed_ensembles,
             vm_runtime_version: *vm_runtime_version,
             evaluation_evidence: *evaluation_evidence,
-            libraries,
-            help_terms,
+            libraries: StaticAxis(libraries),
+            help_terms: StaticAxis(help_terms),
         }
     }
 
