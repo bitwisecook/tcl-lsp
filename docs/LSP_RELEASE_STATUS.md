@@ -140,9 +140,9 @@ repository gates remain unfinished.
 
 ## Issue-sweep lane (bitwisecook issues, easiest first), 6 November 2026
 
-Closed after verification (proof comment on each): #2082, #2216, #2266,
-#2272, #2291, #2293, #2301, #2302, #2312, #2338, #2343, #2349, #2378, #2402,
-#2430, #2439, #2445.
+Closed after verification (proof comment on each): #2082, #2137, #2138,
+#2216, #2266, #2272, #2291, #2293, #2301, #2302, #2312, #2338, #2343, #2349,
+#2378, #2402, #2430, #2439, #2445.
 
 ### Blocking regression: one proven-dead body empties constant propagation
 
@@ -193,5 +193,8 @@ unverifiable until constants flow again.
   `NativePreflightRequired` (sweep cluster 13).
 - BPF: `while` now reaches `OutOfSubset` before loop detection
   (`bpf-tcl/tests/loops.rs::native_while_still_rejected` fails).
+- spec-studio: five `spectcl_roundtrip` tests fail independently; the
+  whole-registry trip stops at `f5-irules/when` (the rendered `when` is not
+  reloaded).
 - #2253: `cargo xtask dialect-drift` reports 51 sites; wiring the gate needs
   each site threaded first.
