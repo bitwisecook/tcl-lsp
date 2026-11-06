@@ -263,7 +263,11 @@ pub(super) fn original_registry_metadata_slot(
     policy: tcl_syntax::naming::NamePolicyProtocol,
     name: &str,
 ) -> Option<tcl_core_types::ByteCommandSlot> {
-    with_registry_metadata_slot(policy, name, |slot| slot.cloned())
+    with_registry_metadata_slot(
+        policy,
+        name,
+        |slot: Option<&tcl_core_types::ByteCommandSlot>| slot.cloned(),
+    )
 }
 
 /// Whether a fixed Registry spelling projects to exactly `slot`.
@@ -445,6 +449,10 @@ impl RegistryAdviceSlotMemo {
         rows: &std::sync::Arc<AdviceRows>,
     ) -> Option<std::sync::Arc<RegistryAdviceSlotIndex>> {
         const MAX_RETAINED_MAPS: usize = 16;
+        // Baselines built from one registry snapshot share its descriptor map
+        // allocation, so a fresh baseline adopts the index already derived for it.
+        static SHARED: std::sync::Mutex<Vec<std::sync::Arc<RegistryAdviceSlotIndex>>> =
+            std::sync::Mutex::new(Vec::new());
         if rows.len() > MAX_BASELINE_METADATA_NAMES {
             return None;
         }
@@ -461,10 +469,6 @@ impl RegistryAdviceSlotMemo {
                 return None;
             }
         }
-        // Baselines built from one registry snapshot share its descriptor map
-        // allocation, so a fresh baseline adopts the index already derived for it.
-        static SHARED: std::sync::Mutex<Vec<std::sync::Arc<RegistryAdviceSlotIndex>>> =
-            std::sync::Mutex::new(Vec::new());
         let shared = {
             let mut shared = SHARED
                 .lock()
