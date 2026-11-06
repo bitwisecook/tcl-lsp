@@ -2404,6 +2404,24 @@ fn catch_destinations_that_need_resolving_are_not_inlined() {
     );
 }
 
+/// A `return` word with a backslash escape and no `$` or `[` returns the
+/// escape's value: tclsh 8.6.18 and 9.0.4 give `A` for `return \101`,
+/// `return \x41` and `return "\101"`, and a one-character newline for
+/// `return \n`; tclvm pushed the word's source text (#2291).
+#[test]
+fn a_return_word_decodes_its_backslash_escapes() {
+    for (src, want) in [
+        ("proc p {} {return \\101}; p", "A"),
+        ("proc p {} {return \\x41}; p", "A"),
+        ("proc p {} {return \"\\101\"}; p", "A"),
+        ("proc p {} {set z 1; return \\101}; p", "A"),
+        ("proc p {} {return \\n}; p", "\n"),
+        ("proc p {} {return {\\101}}; p", "\\101"),
+    ] {
+        assert_eq!(run(src).1, want, "{src}");
+    }
+}
+
 /// A braced `return` value is literal text: `return {[id 9]}` returns the six
 /// characters `[id 9]` and runs nothing.
 ///

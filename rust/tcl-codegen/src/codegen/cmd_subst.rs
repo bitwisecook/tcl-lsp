@@ -1120,8 +1120,11 @@ impl CodegenCtx<'_> {
         // convention reads as ordinary characters. The template parser decodes
         // each literal run, so `"\$\{x}"` becomes the four-character value
         // `${x}` rather than its six-character spelling. The twin of the same
-        // arm in `emit_value_interpolated`.
-        if crate::codegen::statements::has_escaped_subst_marker(value)
+        // arm in `emit_value_interpolated`. A source word with any other
+        // backslash escape (`return \101`) is decoded the same way: tclsh
+        // pushes its value `A`, never its four-character spelling (#2291).
+        if (crate::codegen::statements::has_escaped_subst_marker(value)
+            || (interpolate && value.contains('\\')))
             && let Some(parts) = parse_subst_template(value, self.lexer_config())
         {
             for part in &parts {
