@@ -801,6 +801,7 @@ fn document_analyser_without_factory_oracle(
         .with_package_provides(config.package_provides(db).clone())
         .with_file_path(file.path(db).clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone())
+        .with_workspace_declared_commands(file.workspace_declared_commands(db).clone())
 }
 
 fn document_analyser(
@@ -2559,6 +2560,9 @@ pub struct ItemBodyKey<'db> {
     ///   Part of the key for the usual reason: a metaclass appearing or
     ///   changing shape elsewhere in the workspace must re-analyse the
     ///   bodies whose creation calls it decides.
+    /// - `.4` — the procedures other documents declare to this one
+    ///   ([`SourceFile::workspace_declared_commands`]), so a cross-file call
+    ///   inside the body is read as the whole-file walk reads it.
     #[returns(ref)]
     pub body_env: (
         (
@@ -2574,6 +2578,7 @@ pub struct ItemBodyKey<'db> {
         Option<tcl_compiler::analyser::SourceInterpreterVisibilitySnapshot>,
         Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
         Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
+        Option<Arc<DeclaredSurface>>,
     ),
     #[returns(ref)]
     pub dialect: String,
@@ -2624,6 +2629,7 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         key.non_ascii(db),
         Some(no_declarations),
         key.body_env(db).2.clone(),
+        key.body_env(db).4.clone(),
     ))
 }
 
@@ -4214,7 +4220,12 @@ pub fn world_preserving_procedure_stubs(db: &dyn TclDb, file: SourceFile) -> Arc
                     }
                 })
                 .collect::<Vec<_>>();
-            format!("stub {identity} {{{}}}", words.join(" "))
+            // A global procedure is declared under the name a bare call
+            // spells; a namespaced one keeps its qualified name.
+            let name = tcl_syntax::naming::unroot_rooted_key(identity)
+                .filter(|tail| !tail.contains("::"))
+                .unwrap_or(identity);
+            format!("stub {name} {{{}}}", words.join(" "))
         })
         .collect::<Vec<_>>();
     lines.sort_unstable();
@@ -4377,6 +4388,7 @@ pub fn file_analysis_incremental(
     let dialect = file.dialect(db).clone();
     let text = file.text(db).clone();
     let workspace_class_factories = file.workspace_class_factories(db).clone();
+    let workspace_declared_commands = file.workspace_declared_commands(db).clone();
     let input = match document_analysis_input(db, file, config) {
         Ok(input) => input,
         Err(miss) => return unavailable_document_analysis(&dialect, miss),
@@ -4420,6 +4432,7 @@ pub fn file_analysis_incremental(
                 body.safe_interp_ctx.clone(),
                 workspace_class_factories.clone(),
                 body.resolved_input.clone(),
+                workspace_declared_commands.clone(),
             ),
             dialect.clone(),
             disabled_vec.clone(),
@@ -6859,7 +6872,7 @@ p\uD801 ordinary";
                 false,
                 Vec::new(),
                 None,
-                ((Vec::new(), Vec::new()), None, None, None),
+                ((Vec::new(), Vec::new()), None, None, None, None),
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -6882,7 +6895,7 @@ p\uD801 ordinary";
             false,
             Vec::new(),
             None,
-            ((Vec::new(), Vec::new()), None, None, None),
+            ((Vec::new(), Vec::new()), None, None, None, None),
             "tcl8.6".to_owned(),
             Vec::new(),
             NonAsciiMode::Default,
@@ -7751,6 +7764,47 @@ p\uD801 ordinary";
             let full = file_analysis(&db, file, cfg);
             assert_eq!(*inc, *full, "incremental != full for:\n{src}");
         }
+    }
+
+    #[test]
+    fn a_sibling_procedure_declared_to_the_caller_keeps_it_proved() {
+        use salsa::Setter as _;
+
+        let mut db = TclDatabase::default();
+        let cfg = cfg(&db);
+        let lib = SourceFile::new(
+            &db,
+            "proc putz {a} { return $a }\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let caller = SourceFile::new(
+            &db,
+            "putz hi\nproc user {} { putz x; putb y }\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let stubs = world_preserving_procedure_stubs(&db, lib);
+        assert_eq!(*stubs, vec!["stub putz {a}".to_owned()]);
+        let surface =
+            tcl_compiler::analyser::utils::declared_surface_from_stub_lines(&stubs.join("\n"));
+        caller
+            .set_workspace_declared_commands(&mut db)
+            .to(Some(Arc::new(surface)));
+        let unknown = |analysis: &AnalysisResult| {
+            analysis
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::W123)
+                .map(|d| d.message.split('\'').nth(1).unwrap_or_default().to_owned())
+                .collect::<Vec<_>>()
+        };
+        let expected = vec!["putb".to_owned()];
+        assert_eq!(unknown(&file_analysis(&db, caller, cfg)), expected);
+        assert_eq!(
+            unknown(&file_analysis_incremental(&db, caller, cfg)),
+            expected
+        );
     }
 
     #[test]

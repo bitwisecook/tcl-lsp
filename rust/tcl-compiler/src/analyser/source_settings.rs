@@ -24,6 +24,7 @@ pub struct OriginalAnalyserSourceSettings {
     workspace_bare_word_classes: HashSet<String>,
     workspace_class_factories: Option<Arc<super::types::ClassFactoryIndex>>,
     workspace_subclass_methods: Option<Arc<super::types::SubclassProvidedMethods>>,
+    workspace_declared_commands: Option<Arc<tcl_registry::model::DeclaredSurface>>,
 }
 impl Hash for OriginalAnalyserSourceSettings {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -51,6 +52,7 @@ impl OriginalAnalyserSourceSettings {
             workspace_bare_word_classes: analyser.workspace_bare_word_classes.clone(),
             workspace_class_factories: analyser.workspace_class_factories.clone(),
             workspace_subclass_methods: analyser.workspace_subclass_methods.clone(),
+            workspace_declared_commands: analyser.workspace_declared_commands.clone(),
         }
     }
     pub(crate) fn apply(&self, analyser: &mut Analyser) {
@@ -74,6 +76,9 @@ impl OriginalAnalyserSourceSettings {
         analyser
             .workspace_subclass_methods
             .clone_from(&self.workspace_subclass_methods);
+        analyser
+            .workspace_declared_commands
+            .clone_from(&self.workspace_declared_commands);
     }
 }
 

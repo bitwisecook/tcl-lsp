@@ -1119,6 +1119,9 @@ pub struct Analyser {
     /// single-file analysis — changes nothing: the warning keeps firing
     /// exactly as the per-file evidence dictates.
     pub workspace_subclass_methods: Option<std::sync::Arc<super::types::SubclassProvidedMethods>>,
+    /// Procedures other workspace documents define that a call may trust,
+    /// as declarations; the document's own declarations win over them.
+    pub workspace_declared_commands: Option<std::sync::Arc<tcl_registry::model::DeclaredSurface>>,
     /// When `true` (the per-item shell walk), `handle_proc_command` / OO method
     /// walks record their body for separate analysis (`deferred_bodies`) instead
     /// of recursing into it immediately.  Set only for the shell pass; the
@@ -1699,6 +1702,7 @@ impl Analyser {
             workspace_bare_word_classes: std::collections::HashSet::new(),
             workspace_class_factories: None,
             workspace_subclass_methods: None,
+            workspace_declared_commands: None,
             defer_proc_bodies: false,
             pack_definer_seen: false,
             structural_rebind: false,
@@ -2039,6 +2043,32 @@ impl Analyser {
         self
     }
 
+    /// Declare the procedures other workspace documents define that a call
+    /// may trust, returning `self` for builder-style chaining.
+    #[must_use]
+    pub fn with_workspace_declared_commands(
+        mut self,
+        commands: Option<std::sync::Arc<tcl_registry::model::DeclaredSurface>>,
+    ) -> Self {
+        self.workspace_declared_commands = commands;
+        self
+    }
+
+    /// `own` over the workspace declarations: the document's own win.
+    pub(super) fn with_workspace_declarations(
+        &self,
+        own: tcl_registry::model::DeclaredSurface,
+    ) -> tcl_registry::model::DeclaredSurface {
+        let Some(workspace) = &self.workspace_declared_commands else {
+            return own;
+        };
+        let mut merged = (**workspace).clone();
+        for (_, command) in own.iter() {
+            merged.declare(command.clone());
+        }
+        merged
+    }
+
     /// Supply the workspace's **subclass-provided method** view — the
     /// instance methods dispatchable on some descendant of each class, with
     /// the descendants written in other documents — so the template-method
@@ -2198,6 +2228,7 @@ impl Analyser {
             self.file_path.as_deref(),
             &input,
             None,
+            self.workspace_declared_commands.as_deref(),
         );
         crate::realm::document_package_index_survey_realm_with_resolved_input(
             source,
@@ -2263,6 +2294,7 @@ impl Analyser {
             self.file_path.as_deref(),
             &input,
             entry,
+            self.workspace_declared_commands.as_deref(),
         );
         crate::realm::document_realm_with_declared_contracts(source, &input, entry, &declarations)
             .with_analyser_source_settings(Arc::new(
@@ -2319,6 +2351,7 @@ impl Analyser {
             self.file_path.as_deref(),
             region.input(),
             Some(&entry),
+            self.workspace_declared_commands.as_deref(),
         );
         if !region.accepts_analyser(self)
             || !entry
@@ -2373,6 +2406,7 @@ impl Analyser {
             self.file_path.as_deref(),
             &input,
             Some(&entry),
+            self.workspace_declared_commands.as_deref(),
         );
         if !point.accepts_child_contracts(contracts.with_options(entry.options())) {
             return None;
@@ -2749,7 +2783,9 @@ impl Analyser {
         self.result
             .diagnostics
             .extend(super::utils::outside_stub_diagnostics(outside));
-        self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
+        self.declared_commands = Some(
+            self.with_workspace_declarations(super::types::build_declared_surface(&overlay_cmds)),
+        );
         self.result.stub_commands = overlay_cmds;
         self.result.stub_expr_defs = overlay_exprs;
     }
@@ -3200,7 +3236,9 @@ impl Analyser {
         self.result
             .diagnostics
             .extend(super::utils::outside_stub_diagnostics(outside));
-        self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
+        self.declared_commands = Some(
+            self.with_workspace_declarations(super::types::build_declared_surface(&overlay_cmds)),
+        );
         self.result.stub_commands = overlay_cmds;
         self.result.stub_expr_defs = overlay_exprs;
 

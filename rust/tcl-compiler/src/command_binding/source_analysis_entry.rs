@@ -36,6 +36,7 @@ impl SourceDeclaredCommandContracts {
         file_path: Option<&str>,
         input: &crate::analyser::ResolvedAnalysisInput,
         entry: Option<&SourceAnalysisEntry>,
+        workspace: Option<&tcl_registry::model::DeclaredSurface>,
     ) -> Arc<Self> {
         // naming.source.original-declared-command-word-contract
         // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
@@ -45,10 +46,12 @@ impl SourceDeclaredCommandContracts {
             file_path,
             input.analyser_profile().name,
         );
-        let mut result = entry
-            .and_then(|entry| entry.declared_commands.as_ref())
-            .cloned()
-            .unwrap_or_default();
+        let mut result = workspace.cloned().unwrap_or_default();
+        if let Some(inherited) = entry.and_then(|entry| entry.declared_commands.as_ref()) {
+            for (_, command) in inherited.iter() {
+                result.declare(command.clone());
+            }
+        }
         let document =
             tcl_registry::model::DocumentCommandSurface::new(context.commands(), Some(&document));
         for name in document.declared_names() {

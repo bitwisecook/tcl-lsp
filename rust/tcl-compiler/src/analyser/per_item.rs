@@ -285,6 +285,7 @@ impl Analyser {
         let disabled = self.disabled_diagnostics.clone();
         let non_ascii = self.non_ascii_mode;
         let factories = self.workspace_class_factories.clone();
+        let workspace = self.workspace_declared_commands.clone();
         let no_declarations = tcl_registry::model::DeclaredSurface::new();
         let mut body_fn = |db: &DeferredBody| {
             analyse_proc_body_isolated(
@@ -294,6 +295,7 @@ impl Analyser {
                 non_ascii,
                 Some(no_declarations.clone()),
                 factories.clone(),
+                workspace.clone(),
             )
         };
         self.analyse_per_item_with(source, dialect, &mut body_fn)
@@ -537,7 +539,9 @@ impl Analyser {
         self.result
             .diagnostics
             .extend(super::utils::outside_stub_diagnostics(outside));
-        self.declared_commands = Some(super::types::build_declared_surface(&stub_cmds));
+        self.declared_commands = Some(
+            self.with_workspace_declarations(super::types::build_declared_surface(&stub_cmds)),
+        );
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
@@ -1548,6 +1552,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     non_ascii: super::state::NonAsciiMode,
     declared_commands: Option<tcl_registry::model::DeclaredSurface>,
     workspace_class_factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
+    workspace_declared_commands: Option<std::sync::Arc<tcl_registry::model::DeclaredSurface>>,
 ) -> BodyFragment {
     // Rebuild into the default-hasher set `Analyser` stores.
     let disabled: std::collections::HashSet<String> = disabled.iter().cloned().collect();
@@ -1559,7 +1564,8 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // `the_per_item_walk_agrees_with_the_whole_file_walk_cross_file`.
     let mut a = Analyser::with_disabled_diagnostics(disabled)
         .with_non_ascii_mode(non_ascii)
-        .with_workspace_class_factories(workspace_class_factories);
+        .with_workspace_class_factories(workspace_class_factories)
+        .with_workspace_declared_commands(workspace_declared_commands);
     if let Some(input) = &db.resolved_input {
         a = a.with_resolved_input(input.for_nested_source());
     }
@@ -2561,6 +2567,7 @@ mod tests {
             super::super::state::NonAsciiMode::Off,
             None,
             None,
+            None,
         );
         assert!(!fragment_needs_original_source_owner(&fragment));
         fragment
@@ -3220,6 +3227,7 @@ mod tests {
             super::super::state::NonAsciiMode::Off,
             None,
             None,
+            None,
         );
         let scalar = fragment
             .global_reads
@@ -3277,6 +3285,7 @@ mod tests {
             "tcl8.6",
             &std::collections::HashSet::<String>::new(),
             super::super::state::NonAsciiMode::Off,
+            None,
             None,
             None,
         );
@@ -3602,6 +3611,7 @@ mod original_configured_entry_tests {
             "tcl9.1",
             &std::collections::HashSet::<String>::new(),
             super::super::state::NonAsciiMode::Off,
+            None,
             None,
             None,
         );

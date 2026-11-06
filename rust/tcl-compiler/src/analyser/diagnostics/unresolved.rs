@@ -168,6 +168,23 @@ impl Analyser {
         KnownNameTiers { candidates }
     }
 
+    /// Whether another workspace document declares `name`, read the way the
+    /// walker reads it: a relative name nothing here defines falls back to
+    /// the global namespace.
+    fn is_workspace_declared(&self, name: &str) -> bool {
+        let (Some(workspace), Some(registry)) = (
+            self.workspace_declared_commands.as_deref(),
+            self.registry.as_deref(),
+        ) else {
+            return false;
+        };
+        let surface = tcl_registry::model::DocumentCommandSurface::new(registry, Some(workspace));
+        surface.declared_command(name).is_some()
+            || surface
+                .declared_command(&tcl_registry::rooted_command_descriptor_label(name))
+                .is_some()
+    }
+
     /// Diagnostic-only presence from the retained positioned lookup. Presence
     /// suppresses an absence advisory without allocating a public target.
     #[must_use]
@@ -190,6 +207,7 @@ impl Analyser {
                 .stub_commands
                 .iter()
                 .any(|stub| stub.name == name)
+            || self.is_workspace_declared(name)
             || self.is_scoped_command_resolved(name, range)
         {
             return Presence::Unknown;

@@ -1289,8 +1289,24 @@ impl Lsp {
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
                 drop(notes);
+                let last = latest.as_ref().map_or_else(
+                    || "none published".to_owned(),
+                    |diags| {
+                        diags
+                            .iter()
+                            .map(|d| {
+                                format!(
+                                    "{} {}",
+                                    d.get("code").and_then(Value::as_str).unwrap_or("?"),
+                                    d.get("message").and_then(Value::as_str).unwrap_or("")
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" | ")
+                    },
+                );
                 panic!(
-                    "diagnostics for {uri:?} never settled within {timeout:?}{}",
+                    "diagnostics for {uri:?} never settled within {timeout:?}; last published: [{last}]{}",
                     latency_barrier_timeout_note()
                 );
             }
