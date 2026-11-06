@@ -137,3 +137,61 @@ taint provenance survives conservative global-write seeding. Production Clippy,
 compiler test build and twelve focused seed/interruption controls pass. The
 exact IMAP4 diagnostic-read coverage blocker remains; #2243 is open. Full
 repository gates remain unfinished.
+
+## Issue-sweep lane (bitwisecook issues, easiest first), 6 November 2026
+
+Closed after verification (proof comment on each): #2082, #2216, #2266,
+#2272, #2291, #2293, #2301, #2302, #2312, #2338, #2343, #2349, #2378, #2402,
+#2430, #2439, #2445.
+
+### Blocking regression: one proven-dead body empties constant propagation
+
+`set n 0; if {$n} {puts a} else {puts b}` gives `n#1 = overdefined`, so
+I230/W240/O100/O102 never fire. The chain, traced at HEAD:
+
+1. The source walk decides the `if` (or proves `$x` raises) and never
+   enters the dead arm, so nothing in it receives a source binding.
+2. Lowering finds no namespace for that body. In authored simulation (no
+   native entry, no Logical name context), `original_body_namespace_context`
+   requires one of those and declines, so the arm becomes the barrier
+   `original body namespace context is unavailable`. Giving authored input
+   the parent's own closed namespace there was tried: the body then lowers,
+   but each call in it still has no binding.
+3. `cfg_builder::source_upvar_effects` gets `None` from
+   `procedure_summary_owners.calls` for an unbound call and emits
+   `<cmd> upvar-aliases a dynamic caller variable`.
+4. `sccp::escaping_names` takes `var_observability`'s flow-insensitive union
+   over every block, dead ones included, so every variable escapes and every
+   typed assignment is overdefined. (`typed_assignment_trusted` stays true;
+   `set` trust is not the cause.)
+
+A dead arm anywhere poisons the whole module, even inside a procedure that
+is never called (`proc p {} {if {$x} {puts a}}`). First-parent bisect:
+good at `84ae94c7f5`, bad at `e803f53f1e`; between them is the unbuildable
+merge `c49ef6fd5d` (490 side-branch commits), whose side tip does not build
+either. The fix belongs to the naming lane: the walk should record bindings
+for an arm it proves dead under the arm's entry state without merging that
+state, or the escape union should exclude blocks proven unentered.
+
+Consequence: the `release_optimiser_safety` witnesses (62/66 pass on real
+tclsh 8.4–9.1) only show preservation while nothing folds, so the miscompile
+issues they cover stay open until this is fixed and they rerun. Residual
+witness failures: #2248, the `after 0 …; update` variant of #2308, and the
+I230/W240 controls (`issue_2341`, `issue_2384_computed_false_loop_is_reported`).
+#2341's message fix is verified on `if {0}` and waits for its control. The
+#2375 classifier change (I230/I231 by the branch's own targets) is local and
+unverifiable until constants flow again.
+
+### Other open findings
+
+- #2309: the false positive is gone, but `socket -server accept` (no port)
+  draws no E002 and its own regression test fails. Selecting the spelled
+  server form in `pick_form` gives a false E003 on the valid form, so the
+  server form's option counting is the defect.
+- `tclvm --tcl-version 8.4` does not start (`no library has been specified
+  for Tcl` from `info library`); per-release VM e2e harnesses fail
+  `NativePreflightRequired` (sweep cluster 13).
+- BPF: `while` now reaches `OutOfSubset` before loop detection
+  (`bpf-tcl/tests/loops.rs::native_while_still_rejected` fails).
+- #2253: `cargo xtask dialect-drift` reports 51 sites; wiring the gate needs
+  each site threaded first.
