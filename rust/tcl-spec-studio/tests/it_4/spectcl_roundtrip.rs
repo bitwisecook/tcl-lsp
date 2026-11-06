@@ -452,6 +452,7 @@ fn stamp_windows_survive_the_round_trip() {
     let spec = tcl_registry::CommandSpec {
         name: "probe::stamped",
         codegen_hook: Some(CodegenHookId::Lassign),
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringLength)),
         codegen_hook_windows: CODEGEN,
         inline_codegen_hook_windows: INLINE,
         semantic_operation_windows: OPERATION,
@@ -469,6 +470,7 @@ fn stamp_windows_survive_the_round_trip() {
         "codegen_hook -native Lassign\n",
         "codegen_hook -native Llength -introduced 9.0\n",
         "inline_codegen_hook -native Expr -retired 9.0\n",
+        "semantic_operation {Intrinsic StringLength}\n",
         "semantic_operation {Intrinsic StringLength} -introduced 9.0 -deprecated 9.1\n",
         "subcommand get { codegen_hook -native Dict -introduced 9.0 }",
     ];
@@ -505,6 +507,13 @@ fn stamp_windows_survive_the_round_trip() {
     assert_eq!(inline[0]["lifecycle"]["retired"], serde_json::json!("9.0"));
     assert_eq!(trip.reloaded["inline_codegen_hook"], Value::Null);
 
+    // #2137: the plain field seeds and reloads like any enumerated field.
+    assert_eq!(
+        trip.reloaded["semantic_operation"]["kind"],
+        serde_json::json!("intrinsic"),
+        "{}",
+        trip.text
+    );
     let operation = windows(&trip.reloaded, "semantic_operation_windows");
     assert_eq!(
         operation[0]["value"]["kind"],
