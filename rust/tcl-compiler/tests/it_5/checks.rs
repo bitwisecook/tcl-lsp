@@ -3876,3 +3876,36 @@ mod recursive_call_command_world {
         }
     }
 }
+
+// A call to a declared command (stub) leaves the command world intact; its
+// stated frame effect bounds what it does to the caller's variables. An
+// undeclared command still widens everything after it.
+mod declared_command_call {
+    use super::*;
+
+    fn stubbed(flags: &str, body: &str) -> String {
+        format!(
+            "# tcl-lsp: stubs-begin\n# tcl-lsp: stub putz {{a}} {flags}\n# tcl-lsp: stubs-end\n{body}"
+        )
+    }
+
+    #[test]
+    fn a_declared_call_keeps_later_unknown_commands_reported() {
+        let src = stubbed("-frame own", "putz hi\nputa hi\n");
+        let found = codes(&src, D);
+        assert!(found.iter().any(|c| c == "W123"), "{found:?}");
+    }
+
+    #[test]
+    fn a_stated_own_frame_keeps_local_reads_proved() {
+        let body = "proc f {b} { putz hi; puts $nope }\nf 1\n";
+        assert!(fires(&stubbed("-frame own", body), D, "W210"));
+        assert!(!fires(&stubbed("", body), D, "W210"));
+    }
+
+    #[test]
+    fn an_undeclared_call_still_widens() {
+        let found = codes("putz hi\nputa hi\nproc f {b} { puts $nope }\nf 1\n", D);
+        assert!(!found.iter().any(|c| c == "W210"), "{found:?}");
+    }
+}

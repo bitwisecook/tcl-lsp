@@ -132,6 +132,17 @@ variable by name (`global`, `upvar #0`, a `::`-qualified name), states
 neither: it leaves `-frame` unstated, or states `caller` when all it does is
 set variables of the frame that calls it, as `argparse` does.
 
+**A declared command leaves the command world intact.** When an authored
+call's literal head names a declared command (a document stub, a sidecar stub,
+or a workspace procedure the server declares) and nothing in the command world
+defines it, the source walker treats the call as one that defines, renames and
+deletes no command, namespace or object: later commands stay proved, so later
+`W123`, read-before-set and navigation answers are kept. This is a deliberate
+trust in the declaration; a stub for a command that does rewrite the command
+table makes those later answers wrong. Variables follow the frame effect below.
+Native, inherited and unknown entries, and an already opaque world, keep the
+undeclared behaviour, and an undeclared command still widens the whole world.
+
 **Unstated is the default, and it widens.** A stub without `-frame`
 (`DeclaredFrameEffect::Unstated`) says nothing of the frame that calls the
 command, so nothing bounds it: like code the module cannot see, the command

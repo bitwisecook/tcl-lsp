@@ -11054,8 +11054,18 @@ impl SourceCommandBindings {
         let incoming = boxed_source_branch(state);
         if binding.unknown {
             let mut residual = incoming.clone();
-            residual.mark_opaque_binding_mutation();
-            residual.loader_handler_unknown = true;
+            if let Some(frame) = incoming.declared_command_frame_effect(context.registry, effective)
+            {
+                // A declared command (document stub, sidecar or workspace
+                // procedure) is trusted to leave the command world intact; its
+                // frame effect bounds what it does to variables.
+                if frame != tcl_registry::model::DeclaredFrameEffect::Stated(None) {
+                    Arc::make_mut(&mut residual.source_variables).widen();
+                }
+            } else {
+                residual.mark_opaque_binding_mutation();
+                residual.loader_handler_unknown = true;
+            }
             outcomes.join(&SourceOutcomes::invocation(
                 &residual,
                 tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
@@ -16432,6 +16442,29 @@ impl ModuleCommandBindings {
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.unclosed_command_world == other.unclosed_command_world
+    }
+
+    /// The frame effect a declared command states when an authored call
+    /// names it literally and nothing in this world defines it.
+    fn declared_command_frame_effect(
+        &self,
+        registry: &CommandRegistry,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+    ) -> Option<tcl_registry::model::DeclaredFrameEffect> {
+        if self.baseline.native_entry.is_some()
+            || self.baseline.unknown_entry
+            || self.has_opaque_domain()
+        {
+            return None;
+        }
+        let crate::registry_invocation::EffectiveInvocationWord::Literal(head) =
+            effective.first()?
+        else {
+            return None;
+        };
+        let surface = self.baseline.declared_surface.as_ref()?;
+        let command = surface.document_surface(registry).declared_command(head)?;
+        Some(command.frame_effect)
     }
 
     fn mark_opaque_binding_mutation(&mut self) {
