@@ -3346,6 +3346,31 @@ proc foo {} {}
         assert!(!stub.flags.contains(super::super::types::StubFlags::LOOP));
     }
 
+    /// #2138: each stub flag lands on the catalogue field it names in the
+    /// declaration the document's command surface answers with.
+    #[test]
+    fn stub_flags_reach_their_declared_command_fields() {
+        use tcl_registry::Traits;
+        let declared = |flags: &str| {
+            cmd_stub(&format!("# tcl-lsp: stub probe {{a}} {flags}"))
+                .unwrap()
+                .to_declared_command()
+        };
+        for (flag, traits) in [
+            ("-barrier", Traits::CREATES_DYNAMIC_BARRIER),
+            ("-loop", Traits::HAS_LOOP_BODY),
+            ("-pure", Traits::PURE),
+            ("-scope_alias", Traits::CREATES_SCOPE_ALIAS),
+            ("-unsafe", Traits::UNSAFE.union(Traits::SAFE_INTERP_HIDDEN)),
+            ("-mutator", Traits::READS_BEFORE_WRITE),
+        ] {
+            assert!(declared(flag).traits.contains(traits), "{flag}");
+            assert!(!declared("").traits.contains(traits), "{flag}");
+        }
+        assert!(!declared("-mutator").side_effects.is_empty());
+        assert!(declared("").side_effects.is_empty());
+    }
+
     #[test]
     fn parse_command_stub_extension_flag() {
         let stub = cmd_stub("# tcl-lsp: stub pkga_calc {sub args} -extension -pure").unwrap();
