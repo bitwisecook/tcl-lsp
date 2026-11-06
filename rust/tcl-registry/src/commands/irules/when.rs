@@ -120,7 +120,7 @@ pub const fn spec() -> CommandSpec {
         // The clause vocabulary of the declaration layout: argument 1 holds
         // the clause keywords and argument 2 the timing values (the value
         // position of a leading `timing` clause). Which of them a given
-        // position takes — a clause keyword at most once and in layout order,
+        // position takes — each clause keyword at most once, in either order,
         // a timing value only after `timing` — is the registry's
         // `irules_event_declaration_slot`, not a per-index table.  Event-name
         // completion at index 0 is handled via `Traits::IS_EVENT_HANDLER`.
@@ -162,10 +162,21 @@ mod tests {
         assert_eq!(slot(&[e, Some("priority")]), Some(Slot::Priority));
         assert_eq!(words(slot(&[e, Some("timing")])), ["enable", "disable"]);
         assert_eq!(slot(&[e, Some("bogus")]), None);
-        // After `priority N` only `timing` may follow; after `timing V` only
-        // the body.
+        // After `priority N` only `timing` may follow, and after `timing V`
+        // only `priority`: F5 documents both orders (#2082).
         assert_eq!(words(slot(&[e, Some("priority"), Some("10")])), ["timing"]);
-        assert_eq!(slot(&[e, Some("timing"), Some("enable")]), Some(Slot::Body));
+        assert_eq!(
+            words(slot(&[e, Some("timing"), Some("enable")])),
+            ["priority"]
+        );
+        assert_eq!(
+            slot(&[e, Some("timing"), Some("on"), Some("priority")]),
+            Some(Slot::Priority)
+        );
+        assert_eq!(
+            slot(&[e, Some("timing"), Some("on"), Some("priority"), Some("10")]),
+            Some(Slot::Body)
+        );
         assert_eq!(
             words(slot(&[e, Some("priority"), Some("10"), Some("timing")])),
             ["enable", "disable"]
@@ -174,11 +185,8 @@ mod tests {
             slot(&[e, Some("priority"), Some("10"), Some("timing"), Some("off")]),
             Some(Slot::Body)
         );
-        // Out-of-order, repeated or rejected clauses leave the layout.
-        assert_eq!(
-            slot(&[e, Some("timing"), Some("on"), Some("priority")]),
-            None
-        );
+        // Repeated or rejected clauses leave the layout.
+        assert_eq!(slot(&[e, Some("timing"), Some("on"), Some("timing")]), None);
         assert_eq!(
             slot(&[e, Some("priority"), Some("1001"), Some("timing")]),
             None
@@ -212,6 +220,7 @@ mod tests {
             &["HTTP_REQUEST", "timing", "on"],
             &["HTTP_REQUEST", "timing", "disable"],
             &["HTTP_REQUEST", "priority", "1000", "timing", "off"],
+            &["HTTP_REQUEST", "timing", "off", "priority", "1000"],
         ] {
             let written: Vec<Option<&str>> = form.iter().copied().map(Some).collect();
             let body_slot =

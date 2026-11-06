@@ -7306,7 +7306,11 @@ impl CommandRegistry {
             [_, TIMING, value, _] => IRULES_TIMING_SPELLINGS
                 .contains(value)
                 .then_some((3, None))?,
-            [_, PRIORITY, priority, TIMING, timing, _] => {
+            // F5 documents both orders: the tmsh synopsis puts `priority`
+            // first, the iRules `when` reference `[timing on|off] [priority
+            // N]` (#2082).
+            [_, PRIORITY, priority, TIMING, timing, _]
+            | [_, TIMING, timing, PRIORITY, priority, _] => {
                 let priority = Self::irules_event_priority(priority)?;
                 IRULES_TIMING_SPELLINGS
                     .contains(timing)
@@ -7338,7 +7342,7 @@ impl CommandRegistry {
     /// non-literal word) — the layout [`Self::irules_event_declaration_shape`]
     /// validates, read one position at a time: the event, then each optional
     /// clause of [`crate::events::IRULES_EVENT_CLAUSES`] at most once and in
-    /// that order, each followed by its value, then the body.
+    /// either order, each followed by its value, then the body.
     ///
     /// Clause keywords are the spec's argument-1 values and timing values its
     /// argument-2 values (the position a leading `timing` clause's value
@@ -7371,13 +7375,12 @@ impl CommandRegistry {
         if active == 0 {
             return Some(Slot::Event);
         }
-        let mut remaining: &[&str] = &IRULES_EVENT_CLAUSES;
+        let mut remaining: Vec<&str> = IRULES_EVENT_CLAUSES.to_vec();
         let mut index = 1;
         while index < active {
             let keyword = words[index];
             let at = remaining.iter().position(|clause| *clause == keyword)?;
-            let clause = remaining[at];
-            remaining = &remaining[at + 1..];
+            let clause = remaining.remove(at);
             if index + 1 == active {
                 return Some(if clause == IRULES_PRIORITY_CLAUSE {
                     Slot::Priority
@@ -17155,6 +17158,7 @@ mod tests {
             ][..],
             &["HTTP_REQUEST", "priority", "0", "body"][..],
             &["HTTP_REQUEST", "priority", "1000", "body"][..],
+            &["HTTP_REQUEST", "timing", "on", "priority", "100", "body"][..],
         ] {
             assert!(declaration("when", valid).is_some());
         }
@@ -17165,7 +17169,9 @@ mod tests {
             &["HTTP_REQUEST", "priority", "-1", "body"][..],
             &["HTTP_REQUEST", "priority", "1001", "body"][..],
             &["HTTP_REQUEST", "timing", "maybe", "body"][..],
-            &["HTTP_REQUEST", "timing", "on", "priority", "100", "body"][..],
+            &["HTTP_REQUEST", "priority", "1", "priority", "2", "body"][..],
+            &["HTTP_REQUEST", "timing", "on", "timing", "off", "body"][..],
+            &["HTTP_REQUEST", "timing", "on", "priority", "1001", "body"][..],
         ] {
             assert!(declaration("when", invalid).is_none());
         }

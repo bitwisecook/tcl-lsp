@@ -421,8 +421,10 @@ pub fn closed_braced_argument_words(
 }
 
 /// The optional clauses of an iRules event declaration
-/// (`when EVENT ?priority N? ?timing V? { body }`), in the only order the
-/// layout accepts. Each clause is its keyword plus one value word.
+/// (`when EVENT ?priority N? ?timing V? { body }`). Each clause is its keyword
+/// plus one value word and appears at most once, in either order: the tmsh
+/// synopsis writes `priority` first, the iRules `when` reference `[timing
+/// on|off] [priority N]` (#2082).
 pub const IRULES_EVENT_CLAUSES: [&str; 2] = [IRULES_PRIORITY_CLAUSE, IRULES_TIMING_CLAUSE];
 
 /// The `priority N` clause keyword of an event declaration.

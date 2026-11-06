@@ -191,17 +191,25 @@ fn parse_handler(
         {
             (4, None)
         }
-        7 if one(2).is_some_and(|token| sm.token_text(*token) == "priority")
-            && sm
-                .token_text(*one(3)?)
-                .parse::<i64>()
-                .is_ok_and(|priority| (0..=1000).contains(&priority))
-            && one(4).is_some_and(|token| sm.token_text(*token) == "timing")
-            && one(5).is_some_and(|token| {
-                matches!(sm.token_text(*token), "on" | "off" | "enable" | "disable")
-            }) =>
-        {
-            (6, sm.token_text(*one(3)?).parse::<i64>().ok())
+        // F5 documents both orders: the tmsh synopsis puts `priority` first,
+        // the iRules `when` reference `[timing on|off] [priority N]` (#2082).
+        7 => {
+            let keyword = |index: usize| one(index).map(|token| sm.token_text(*token));
+            let (priority_at, timing_at) = match (keyword(2)?, keyword(4)?) {
+                ("priority", "timing") => (3, 5),
+                ("timing", "priority") => (5, 3),
+                _ => return None,
+            };
+            let priority = sm.token_text(*one(priority_at)?).parse::<i64>().ok()?;
+            if !(0..=1000).contains(&priority)
+                || !matches!(
+                    sm.token_text(*one(timing_at)?),
+                    "on" | "off" | "enable" | "disable"
+                )
+            {
+                return None;
+            }
+            (6, Some(priority))
         }
         _ => return None,
     };
@@ -372,6 +380,7 @@ mod tests {
             "when HTTP_REQUEST timing on {}",
             "when HTTP_REQUEST timing disable {}",
             "when HTTP_REQUEST priority 100 timing enable {}",
+            "when HTTP_REQUEST timing on priority 100 {}",
             "when HTTP_REQUEST priority 0 {}",
             "when HTTP_REQUEST priority 1000 {}",
         ] {
@@ -386,7 +395,9 @@ mod tests {
             "when HTTP_REQUEST priority -1 {}",
             "when HTTP_REQUEST priority 1001 {}",
             "when HTTP_REQUEST timing maybe {}",
-            "when HTTP_REQUEST timing on priority 100 {}",
+            "when HTTP_REQUEST timing on timing off {}",
+            "when HTTP_REQUEST priority 1 priority 2 {}",
+            "when HTTP_REQUEST timing on priority 1001 {}",
         ] {
             assert!(event_handlers(source, irules()).is_empty(), "{source}");
         }

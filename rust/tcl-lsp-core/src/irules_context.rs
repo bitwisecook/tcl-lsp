@@ -377,14 +377,14 @@ mod tests {
             "when CLIENT_DATA timing on {}\n",
             "when SERVER_DATA priority 20 timing disable {}\n",
             "when HTTP_RESPONSE timing on priority 20 {}\n",
+            "when CLIENT_CLOSED timing on timing off {}\n",
         );
-        assert_eq!(
-            scan_file_events(
-                src,
-                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
-            ),
-            ["CLIENT_DATA", "SERVER_DATA"]
+        let mut events = scan_file_events(
+            src,
+            tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
         );
+        events.sort();
+        assert_eq!(events, ["CLIENT_DATA", "HTTP_RESPONSE", "SERVER_DATA"]);
     }
 
     #[test]

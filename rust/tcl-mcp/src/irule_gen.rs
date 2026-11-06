@@ -1593,11 +1593,15 @@ mod tests {
             "when CLIENT_ACCEPTED pool\n",
             "when CLIENT_DATA timing on { pool timed }\n",
             "when SERVER_DATA priority 10 timing disable { pool ordered }\n",
-            "when HTTP_RESPONSE timing on priority 10 { pool wrong_order }\n",
+            "when HTTP_RESPONSE timing on priority 10 { pool reversed }\n",
+            "when CLIENT_CLOSED timing on timing off { pool doubled }\n",
         );
         let generated = generate_irule_test(&json!({"source": src}));
-        assert_eq!(generated["events"], json!(["CLIENT_DATA", "SERVER_DATA"]));
-        assert_eq!(generated["pools"], json!(["ordered", "timed"]));
+        assert_eq!(
+            generated["events"],
+            json!(["CLIENT_DATA", "SERVER_DATA", "HTTP_RESPONSE"])
+        );
+        assert_eq!(generated["pools"], json!(["ordered", "reversed", "timed"]));
     }
 
     #[test]
