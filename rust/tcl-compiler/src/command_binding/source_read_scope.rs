@@ -112,6 +112,7 @@ impl SourceReadCatalogue {
     }
 
     /// Rejoin advice to this catalogue's actually issued original record.
+    #[expect(dead_code, reason = "not yet wired to a consumer")]
     pub(super) fn owns_original_advice(
         &self,
         site: &CommandAllocationSite,
