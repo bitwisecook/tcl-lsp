@@ -218,6 +218,11 @@ fn options_for(tier: Tier, trust: WorkspaceTrust) -> EvalOptions {
 
 /// The compiled-pack cache directory: [`DIR_ENV`] when set, else
 /// `<OS cache dir>/spectcl`.
+///
+/// This crate's own unit tests never fall back to the per-user directory: a
+/// test that loads a pack without redirecting writes a per-process temporary
+/// directory instead, so concurrent test runs on one machine never share
+/// cache entries (#2302).
 #[must_use]
 pub fn dir() -> PathBuf {
     if let Some(dir) = override_of(|(dir, _)| dir.clone()) {
@@ -228,6 +233,13 @@ pub fn dir() -> PathBuf {
     {
         return PathBuf::from(dir);
     }
+    if cfg!(test) {
+        return std::env::temp_dir().join(format!("tcl-spectcl-cache-test-{}", std::process::id()));
+    }
+    platform_dir()
+}
+
+fn platform_dir() -> PathBuf {
     tcl_userdirs::cache_dir().join("spectcl")
 }
 
@@ -1243,18 +1255,20 @@ speclib mylib 1 {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         redirect_for_test(None);
-        if std::env::var_os(DIR_ENV).is_some_and(|v| !v.is_empty()) {
-            // An operator-configured cache directory is by definition not the
-            // platform default; there is nothing to assert about it.
-            return;
-        }
-        let dir = dir();
+        let dir = platform_dir();
         assert!(dir.ends_with("spectcl"), "{}", dir.display());
         assert!(
             dir.starts_with(tcl_userdirs::cache_dir()),
             "{}",
             dir.display()
         );
+        if std::env::var_os(DIR_ENV).is_none_or(|v| v.is_empty()) {
+            assert!(
+                !super::dir().starts_with(tcl_userdirs::cache_dir()),
+                "a unit test never writes the per-user cache: {}",
+                super::dir().display()
+            );
+        }
     }
 
     #[test]
