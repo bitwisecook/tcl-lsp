@@ -16,7 +16,7 @@ for access).
 | 4 | Monolithic crates compiled twice | **Landed**: the emitters split into `tcl-codegen`; test parity with the base proven | `rust/tcl-codegen`, `docs/design/contracts/project-layout.md` |
 | 5 | Hundreds of fat test binaries | **Landed**: integration tests merged per (crate, shard); no test lost | `rust/*/tests/it_<k>/`, `scripts/dev/rust-test-binary-shards.tsv`, test-tiers contract |
 | 6 | Broken and racing CI caches | **Landed, awaiting first CI run**: shard cache keyed per runner class; sccache outlives the test phase | `.github/workflows/ci.yml`, `scripts/dev/test-rust-tests-runner.sh` |
-| 7 | Exhaustive checks in unoptimised unit tests | **Partly landed**: the registry prerequisite-index test runs its dialects concurrently (75 s → 38 s); coverage unchanged | `rust/tcl-registry/src/registry.rs` |
+| 7 | Exhaustive checks in unoptimised unit tests | **Landed for the registry; the lsp-core depth tests are down 4–8% and blocked on the naming owners**: registration slots indexed per dialect (38 s → 0.6 s, registry harness 51 s → 23 s); lazy image geometry and cached source maps for the depth tests | `rust/tcl-registry/src/registry.rs`, `rust/tcl-lexer/src/source_map.rs`, `rust/tcl-compiler/src/analyser/` |
 | 8 | Version stamp reruns on every cargo call | **Landed**: dev-profile builds no longer re-run the stamp on every call; a no-op `cargo build -p tcl-lsp-server` went from 65 s to 0.3 s | `rust/tcl-version/build.rs` |
 | 9 | Duplicate WASM builds | **Landed, awaiting first CI run**: `lsp-server-wasm` builds the browser module once and `test-ext-web` downloads it | `.github/workflows/ci.yml`, `scripts/dev/test-release-dependency-graph.sh` |
 | 10 | Runner queueing in bursts | **Landed**: superseded resolution-oracle PR runs are cancelled; Dependabot's weekly PRs are spread over the week | `.github/workflows/resolution-oracles.yml`, `.github/dependabot.yml` |
@@ -272,26 +272,98 @@ Open:
 
 ## 7. Exhaustive unit tests
 
+### Registry: fixed
+
 `registry::prerequisite_index_tests::the_prerequisite_index_selects_what_the_full_scan_selects`
-compares the indexed registration lookup with the full scan for every
-identity on seven dialects and two registries (about 66,000 comparisons).
-Measured per dialect, the indexed lookup costs as much as the full scan in an
-unoptimised build: about 2 ms an identity on `tcl8.4` and `irules`, 0.2 ms
-on the others. Removing duplicate identities and building the default
-registry once changed nothing. The cost is in the registration owners
-(`native_registration_exact_descriptor`, TclOO registration,
-`native_registration_compiler_descriptor`). Those are naming-layer owners, and
-the test is their cross-check, so neither the owners nor the coverage
-changed. The dialects now run on their own threads: **75 s → 38 s** wall,
-bounded by `tcl8.4`. Identity keys still come from
-`tcl_syntax::naming::root_unrooted_key`.
+took 138.6 s in the report and 38 s after the earlier per-dialect threads.
+
+Profiling corrected an earlier note here: the indexed lookup was never as
+slow as the scan. The cost was in two other places:
+
+- **The test's own full scan.** It re-ran `best_visible` and
+  `implementation_prerequisites` over every spec for each identity. The scan
+  is now taken once per registry and dialect, and each identity filters it.
+  It is still a flat filter rather than a map, so it stays an independent
+  oracle for the index.
+- **A production naming owner.** `native_registration_lookup` re-walked every
+  visible spec, implementation path and stock-worker contract for each new
+  identity: one full registry scan per distinct command name, for the
+  compiler as well as the test. It now reads a per-dialect `FxHashMap` keyed
+  through `tcl_syntax::naming::unroot_rooted_key`, built once, like
+  `prerequisite_index`. An ambiguous slot keeps answering `None`.
+
+The test now also checks the lookup index against its own scan for every
+spec, member, implementation and stock-worker slot. Results:
+
+- the test: 38 s → **0.6 s**
+- the whole `tcl-registry` lib harness: 51 s → **23 s**, with the same 13
+  failures as HEAD
+
+### lsp-core depth tests: partly fixed, root cause with the naming owners
+
+Measured alone on the current tip, before → after:
+
+| Test | Before | After |
+|---|---|---|
+| `minify::tests::deeply_nested_if_survives_minify` | 616 s | 589 s |
+| `package_resolver::tests::parse_pkg_index_survives_deeply_nested_source_wrapper` | 149 s | 138 s |
+| `minify::tests::guarded_body_keeps_collision_candidates_but_not_absence_authority` | 63 s | (not re-timed) |
+| `executable_regions::…::checked_potential_source_retains_depth_exhaustion_as_incomplete` | 36 s | (not re-timed) |
+
+The report's plan for these does not apply:
+
+- `AGENTS.md` allows `#[ignore]` only for fuzz-shaped tests.
+- The 2000-deep inputs are crash guards set above the measured stack crash
+  floor (`docs/design/compiler/recursive-descent-depth-limits.md`). Cutting
+  them to cap+1 would stop them catching a removed cap.
+
+So the fix has to be in the analyser's cost. Stack samples (gdb, no `perf`)
+put the time in `Analyser::retain_original_static_source_names`, which runs
+once per command and re-lexes source for every ancestor:
+
+- `vendor_source_barriers::capture_in_script_body` re-lexes the whole
+  document and then every enclosing body region. A command at depth d costs
+  d full lexes, which is cubic in nesting.
+- `original_readonly_vendor_source_vector` re-segments the command's own text,
+  which for nested `if`s contains every inner level.
+- `OriginalSourceCommandProjection::capture_with_nested_cuts` re-lexes again.
+
+Landed here:
+
+- **`SourceImage` geometry on first use.** Every image built a whole-input
+  line index and byte digest up front, though most are only lexed. Both are
+  now `OnceLock`s in the shared geometry, so the
+  `naming.source.original-immutable-image-geometry` contract (shared across
+  clones, excluded from identity) is unchanged. Its proof doc says so.
+- **Cached source maps in per-command handlers.** Five analyser call sites had
+  gone back to `SourceMap::new(&self.source)`, the O(document × depth)
+  rescan that `Analyser::source_map`'s doc calls a DoS. They use it again.
+
+Tried and reverted: a thread-local memo of lexed plans per (image, region,
+config, purpose). Every hit cloned a plan as large as the region, and every
+nested region's plan stayed resident. Run time got worse and RSS reached
+3.4 GB.
+
+Proposal for the naming owners: one shared plan per region per analysis.
+`native_script_words_in` would hand out `Arc<NativeScriptWordsPlan>` from a
+per-analysis store, and `capture_region` would iterate it by reference. The
+static-source retention would then lex each region once instead of once per
+descendant command.
+
+### Verification
+
+- `tcl-compiler` lib: 10,224 tests at HEAD and at the parent commit, via a
+  resumable runner because the harness aborts. Failure sets are identical.
+- 11 tests abort or time out on both trees: the `depth_guard` stack-budget
+  tests, several `taint` depth tests and one `ssa` test. These are baseline
+  state of `work`.
 
 Open:
 
-- Why the uncached index path costs as much as the full scan (the naming
-  workstream's registration owners).
-- The `tcl-lsp-core` depth tests (`deeply_nested_*`, 25–181 s): their depths
-  are the property under test, so changing them is the owners' call.
+- The per-region plan sharing above.
+- Five `depth_guard` stack-budget tests abort the `tcl-compiler` lib harness
+  on `work` (stack overflow) or exceed 15 min. Until they're fixed, every
+  plain `cargo test -p tcl-compiler --lib` ends early without a summary.
 
 ## 8. Version stamp
 
@@ -390,3 +462,37 @@ Open:
 
 - Confirm on the first PR after this lands that superseded oracle runs show
   as cancelled.
+
+## Keyed lookups instead of repeated scans
+
+The aim was lookups that scan a large collection for a key on every call.
+
+Converted:
+
+- **`native_registration_lookup`:** a full registry scan per new identity,
+  now a per-dialect slot map (see 7).
+- **Registry-wide queries:** `object_command_method`,
+  `manufacturer_methods` / `is_manufacturer_method`,
+  `is_possible_class_construction_word`, `data_collection_protocol` and
+  `data_collection_collect_command`. Each walked every registered command per
+  call to find a handful of specs. Those specs are now derived once per
+  registry state into the existing derived-data cache, in the same iteration
+  order, and reset on every mutation.
+- **`NamespaceLedger`:** its lazy key index now records each key's row count.
+  `source_namespace_creation` and `retained_scope_for_source_advice` used to
+  scan every row to prove a key unique; they now read the index.
+
+Left as scans, deliberately:
+
+- A grep of keyed `iter().find/position/any` found 27 struct-field sites,
+  1,452 `any(==)` and 4,130 `contains(&)`. Nearly all are per-object lists of
+  a few items (subcommands, class members, abbreviation keywords, timers,
+  array-search handles, a pack's files, one literal word's variables). There a
+  linear scan beats hashing, and several need ordered prefix matching.
+- `HashMap` iteration order would also leak into diagnostics and generated
+  output that are currently deterministic.
+
+Each conversion keeps the original iteration order where it can affect a
+result. Each passes its crate's suite with HEAD's failure set: registry 13/13
+identical, compiler identical across 10,224 tests.
+
