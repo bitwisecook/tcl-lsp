@@ -26,11 +26,12 @@ struct NamespaceGeometry {
 }
 
 /// The world's namespace rows, shared copy-on-write between flow snapshots,
-/// with a lazily built first-row index so a key lookup is not a scan.
+/// with a lazily built index of each key's first row and row count, so a key
+/// lookup is not a scan.
 #[derive(Debug, Clone, Default)]
 struct NamespaceLedger {
     rows: Arc<Vec<NamespaceGeometry>>,
-    first: std::sync::OnceLock<Arc<rustc_hash::FxHashMap<SourceNamespaceKey, usize>>>,
+    first: std::sync::OnceLock<Arc<rustc_hash::FxHashMap<SourceNamespaceKey, (usize, usize)>>>,
 }
 
 impl NamespaceLedger {
@@ -49,16 +50,27 @@ impl NamespaceLedger {
         self.first = std::sync::OnceLock::new();
     }
 
-    /// The first row for `key`, as a scan from the front would find it.
-    fn first_for(&self, key: &SourceNamespaceKey) -> Option<&NamespaceGeometry> {
+    /// `key`'s first row position and its number of rows.
+    fn rows_for(&self, key: &SourceNamespaceKey) -> Option<(usize, usize)> {
         let index = self.first.get_or_init(|| {
-            let mut index = rustc_hash::FxHashMap::default();
+            let mut index = rustc_hash::FxHashMap::<_, (usize, usize)>::default();
             for (position, row) in self.rows.iter().enumerate() {
-                index.entry(row.key.clone()).or_insert(position);
+                index.entry(row.key.clone()).or_insert((position, 0)).1 += 1;
             }
             Arc::new(index)
         });
-        index.get(key).map(|&position| &self.rows[position])
+        index.get(key).copied()
+    }
+
+    /// The first row for `key`, as a scan from the front would find it.
+    fn first_for(&self, key: &SourceNamespaceKey) -> Option<&NamespaceGeometry> {
+        self.rows_for(key).map(|(position, _)| &self.rows[position])
+    }
+
+    /// The row for `key` when it is the only one; a duplicated key has none.
+    fn unique_for(&self, key: &SourceNamespaceKey) -> Option<&NamespaceGeometry> {
+        self.rows_for(key)
+            .and_then(|(position, count)| (count == 1).then(|| &self.rows[position]))
     }
 
     fn has_key(&self, key: &SourceNamespaceKey) -> bool {
@@ -752,12 +764,7 @@ impl OriginalSourceCommandWorld {
         if self.unavailable || self.policy != Some(policy) {
             return None;
         }
-        let mut entries = self.namespaces.iter().filter(|entry| &entry.key == key);
-        let entry = entries.next()?;
-        if entries.next().is_some() {
-            return None;
-        }
-        entry.allocation.as_ref()
+        self.namespaces.unique_for(key)?.allocation.as_ref()
     }
 
     /// Retained declaration geometry, independent of the current publication
@@ -865,9 +872,9 @@ impl OriginalSourceCommandWorld {
         if self.policy != Some(policy) {
             return None;
         }
-        let mut entries = self.namespaces.iter().filter(|entry| &entry.key == key);
-        let entry = entries.next()?;
-        entries.next().is_none().then(|| entry.scope.clone())
+        self.namespaces
+            .unique_for(key)
+            .map(|entry| entry.scope.clone())
     }
 
     pub(super) fn jim_stock_source_effects(
