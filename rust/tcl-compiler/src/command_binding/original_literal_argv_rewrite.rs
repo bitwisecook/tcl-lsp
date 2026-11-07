@@ -449,21 +449,38 @@ fn same_editor_comparison_inversion(
         && same_literal_operator_leaf(right, next_right, original_tokens, candidate_tokens)
 }
 
+/// The other connective of a De Morgan pair, in the same spelling: iRules'
+/// `and`/`or` are the word forms of `&&`/`||`.
+fn demorgan_opposite(op: tcl_syntax::expr::BinOp) -> Option<tcl_syntax::expr::BinOp> {
+    use tcl_syntax::expr::BinOp;
+    match op {
+        BinOp::And => Some(BinOp::Or),
+        BinOp::Or => Some(BinOp::And),
+        BinOp::WordAnd => Some(BinOp::WordOr),
+        BinOp::WordOr => Some(BinOp::WordAnd),
+        _ => None,
+    }
+}
+
+/// The operand of a logical negation, `!` or iRules' word form `not`.
+fn negated(node: &ExprNode<Vec<u8>>) -> Option<&ExprNode<Vec<u8>>> {
+    use tcl_syntax::expr::UnaryOp;
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not | UnaryOp::WordNot,
+            operand,
+        } => Some(operand),
+        _ => None,
+    }
+}
+
 fn same_editor_demorgan_forward(
     original: &ExprNode<Vec<u8>>,
     candidate: &ExprNode<Vec<u8>>,
     original_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
     candidate_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
 ) -> bool {
-    use tcl_syntax::expr::{BinOp, UnaryOp};
-    let ExprNode::Unary {
-        op: UnaryOp::Not,
-        operand,
-    } = original
-    else {
-        return false;
-    };
-    let ExprNode::Binary { op, left, right } = operand.as_ref() else {
+    let Some(ExprNode::Binary { op, left, right }) = negated(original) else {
         return false;
     };
     let ExprNode::Binary {
@@ -474,25 +491,10 @@ fn same_editor_demorgan_forward(
     else {
         return false;
     };
-    let opposite = match op {
-        BinOp::And => BinOp::Or,
-        BinOp::Or => BinOp::And,
-        _ => return false,
-    };
-    let (
-        ExprNode::Unary {
-            op: UnaryOp::Not,
-            operand: next_left,
-        },
-        ExprNode::Unary {
-            op: UnaryOp::Not,
-            operand: next_right,
-        },
-    ) = (next_left.as_ref(), next_right.as_ref())
-    else {
+    let (Some(next_left), Some(next_right)) = (negated(next_left), negated(next_right)) else {
         return false;
     };
-    *next == opposite
+    demorgan_opposite(*op) == Some(*next)
         && same_literal_operator_leaf(left, next_left, original_tokens, candidate_tokens)
         && same_literal_operator_leaf(right, next_right, original_tokens, candidate_tokens)
 }
@@ -503,19 +505,11 @@ fn same_editor_demorgan_reverse(
     original_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
     candidate_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
 ) -> bool {
-    use tcl_syntax::expr::{BinOp, UnaryOp};
-    let ExprNode::Unary {
-        op: UnaryOp::Not,
-        operand,
-    } = candidate
-    else {
-        return false;
-    };
-    let ExprNode::Binary {
+    let Some(ExprNode::Binary {
         op,
         left: next_left,
         right: next_right,
-    } = operand.as_ref()
+    }) = negated(candidate)
     else {
         return false;
     };
@@ -527,25 +521,10 @@ fn same_editor_demorgan_reverse(
     else {
         return false;
     };
-    let opposite = match op {
-        BinOp::And => BinOp::Or,
-        BinOp::Or => BinOp::And,
-        _ => return false,
-    };
-    let (
-        ExprNode::Unary {
-            op: UnaryOp::Not,
-            operand: left,
-        },
-        ExprNode::Unary {
-            op: UnaryOp::Not,
-            operand: right,
-        },
-    ) = (left.as_ref(), right.as_ref())
-    else {
+    let (Some(left), Some(right)) = (negated(left), negated(right)) else {
         return false;
     };
-    *previous == opposite
+    demorgan_opposite(*op) == Some(*previous)
         && same_literal_operator_leaf(left, next_left, original_tokens, candidate_tokens)
         && same_literal_operator_leaf(right, next_right, original_tokens, candidate_tokens)
 }
