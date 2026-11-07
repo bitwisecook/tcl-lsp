@@ -1134,6 +1134,34 @@ fn word_taint_at<S: std::hash::BuildHasher>(
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         return TaintLattice::tainted();
     }
+    // The word's shape is decided in a leaf, so its parse temporaries are not
+    // held on every level of nested substitution.
+    match word_taint_step(word, ctx) {
+        WordTaintStep::Done(taint) => taint,
+        WordTaintStep::Substitution(invocation) => {
+            let (command, args) = &*invocation;
+            substitution_word_taint(word, (command, args), uses, taints, ctx, depth)
+        }
+        WordTaintStep::SourceInterpolation => {
+            source_interpolation_taint(word, uses, taints, ctx, depth)
+                .unwrap_or_else(TaintLattice::tainted)
+        }
+        WordTaintStep::StandaloneInterpolation => {
+            standalone_interpolation_taint(word, word.trim(), uses, taints, ctx, depth)
+        }
+    }
+}
+
+/// How [`word_taint_at`] continues with one word.
+enum WordTaintStep {
+    Done(TaintLattice),
+    Substitution(Box<(String, Vec<String>)>),
+    SourceInterpolation,
+    StandaloneInterpolation,
+}
+
+#[inline(never)]
+fn word_taint_step(word: &str, ctx: TaintCtx<'_>) -> WordTaintStep {
     if ctx.source_word.is_some_and(|source_word| {
         static_word_expr_value(
             source_word,
@@ -1142,7 +1170,7 @@ fn word_taint_at<S: std::hash::BuildHasher>(
         )
         .is_some()
     }) {
-        return TaintLattice::clean();
+        return WordTaintStep::Done(TaintLattice::clean());
     }
     let stripped = word.trim();
 
@@ -1153,7 +1181,7 @@ fn word_taint_at<S: std::hash::BuildHasher>(
             crate::word_subst::whole_word_command_tokens(source_word, ctx.lexer_config())
         {
             let Some(command) = nested.argv_texts.first() else {
-                return TaintLattice::tainted();
+                return WordTaintStep::Done(TaintLattice::tainted());
             };
             let args = nested
                 .argv_texts
@@ -1161,24 +1189,22 @@ fn word_taint_at<S: std::hash::BuildHasher>(
                 .skip(1)
                 .cloned()
                 .collect::<Vec<_>>();
-            return substitution_word_taint(word, (command, &args), uses, taints, ctx, depth);
+            return WordTaintStep::Substitution(Box::new((command.clone(), args)));
         }
     } else if ctx.source.allows_nominal_metadata()
-        && let Some((cmd, args)) =
+        && let Some(invocation) =
             parse_command_substitution_with_config(stripped, ctx.lexer_config())
     {
-        return substitution_word_taint(word, (&cmd, &args), uses, taints, ctx, depth);
+        return WordTaintStep::Substitution(Box::new(invocation));
     }
 
     if !ctx.source.allows_nominal_metadata() {
-        return source_interpolation_taint(word, uses, taints, ctx, depth)
-            .unwrap_or_else(TaintLattice::tainted);
+        return WordTaintStep::SourceInterpolation;
     }
     if stripped.contains('$') || stripped.contains('[') {
-        return standalone_interpolation_taint(word, stripped, uses, taints, ctx, depth);
+        return WordTaintStep::StandaloneInterpolation;
     }
-
-    TaintLattice::clean()
+    WordTaintStep::Done(TaintLattice::clean())
 }
 
 /// Interpolation taint from one retained original image and source word.
@@ -1934,24 +1960,25 @@ fn finish_substitution_taint(
     t
 }
 
-fn substitution_word_taint<S: std::hash::BuildHasher>(
+/// Everything a command substitution's taint needs before the recursive
+/// argument walk, or its answer when no walk is needed. A leaf, so these
+/// temporaries are not held on every level of nested substitution.
+#[inline(never)]
+fn classify_substitution_taint(
     word: &str,
     invocation: (&str, &[String]),
-    uses: &HashMap<Symbol, u32>,
-    taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
-    depth: u32,
-) -> TaintLattice {
+) -> Result<Box<SubstitutionTaintPlan>, TaintLattice> {
     let (cmd, args) = invocation;
     if !ctx.source.allows_nominal_metadata() && ctx.source.metadata.is_none() {
-        return TaintLattice::tainted();
+        return Err(TaintLattice::tainted());
     }
     let nested = retained_taint_substitution(word, ctx);
     let normal = nested
         .as_ref()
         .and_then(|tokens| retained_normal_taint(tokens, ctx));
     if let Some(taint) = normal.as_ref().and_then(normal_result_taint) {
-        return taint;
+        return Err(taint);
     }
     let resolved = nested.as_ref().and_then(|nested| {
         crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
@@ -1961,7 +1988,7 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
         )
     });
     if expression_invocation_yields_boolean(resolved.as_ref(), ctx) {
-        return TaintLattice::clean();
+        return Err(TaintLattice::clean());
     }
     let hosted = nested
         .as_ref()
@@ -1984,12 +2011,12 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
     if hosted.as_ref().is_some_and(|hosted| {
         hosted_substitution_is_taint_source(&hosted.metadata, &hosted.effective, args, ctx.registry)
     }) {
-        return TaintLattice::tainted();
+        return Err(TaintLattice::tainted());
     }
     if ctx.source_tokens.is_some() && point_target.is_none() && normal.is_none() {
         // Missing word provenance or an explicit unknown target cannot
         // inherit a sanitiser/source/transform from the written name.
-        return TaintLattice::tainted();
+        return Err(TaintLattice::tainted());
     }
     let cmd = resolved
         .as_ref()
@@ -2002,7 +2029,7 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
         && ctx.source_tokens.is_none()
         && is_sanitiser(ctx.registry, cmd, &arg_refs)
     {
-        return TaintLattice::clean();
+        return Err(TaintLattice::clean());
     }
     if registry_allowed
         && let Some(t) = source_colour(
@@ -2018,19 +2045,51 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
                 .map(|word| (word, ctx.source.config)),
         )
     {
-        return t;
+        return Err(t);
     }
+    Ok(Box::new(SubstitutionTaintPlan {
+        cmd: cmd.to_owned(),
+        effective_args,
+        effective,
+        normal,
+        nested,
+    }))
+}
+
+/// What [`substitution_word_taint`] carries across its recursive argument walk.
+struct SubstitutionTaintPlan {
+    cmd: String,
+    effective_args: Option<Vec<String>>,
+    effective: Option<crate::registry_invocation::EffectiveCommandWords>,
+    normal: Option<crate::registry_invocation::NormalTaintInvocation>,
+    nested: Option<CommandTokens>,
+}
+
+fn substitution_word_taint<S: std::hash::BuildHasher>(
+    word: &str,
+    invocation: (&str, &[String]),
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+    depth: u32,
+) -> TaintLattice {
+    let plan = match classify_substitution_taint(word, invocation, ctx) {
+        Ok(plan) => plan,
+        Err(taint) => return taint,
+    };
+    let cmd = plan.cmd.as_str();
+    let args = plan.effective_args.as_deref().unwrap_or(invocation.1);
     // Interprocedural: if `cmd` resolves to a known proc with a
     // passthrough parameter, propagate the taint of the matching
     // actual.
     if let Some(t) = interproc_call_taint(
         cmd,
         args,
-        effective.as_ref(),
+        plan.effective.as_ref(),
         uses,
         taints,
         TaintCtx {
-            source_tokens: nested.as_ref().or(ctx.source_tokens),
+            source_tokens: plan.nested.as_ref().or(ctx.source_tokens),
             ..ctx
         },
         depth + 1,
@@ -2045,13 +2104,14 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
     // arbitrary `string range` / `lindex [split ...]` transform.
     let t = substitution_arguments_taint(
         args,
-        effective.as_ref(),
+        plan.effective.as_ref(),
         uses,
         taints,
-        (nested.as_ref(), ctx),
+        (plan.nested.as_ref(), ctx),
         depth,
     );
-    finish_substitution_taint(t, normal.as_ref(), ctx, cmd, &arg_refs)
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    finish_substitution_taint(t, plan.normal.as_ref(), ctx, cmd, &arg_refs)
 }
 
 /// Determine the taint produced by a statement's definition(s).
