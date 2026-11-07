@@ -1020,6 +1020,23 @@ static IS_CLASSES: &[ArgValue] = &[
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "bytelength",
+        // C86 TclCompileBasic1ArgCmd invokes the private worker by its full name.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "bytelength",
+                    slot: "::tcl::string::bytelength",
+                    command: "string",
+                    prepended: &["bytelength"],
+                },
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                hook_from: tcl_dialect::TclVersion::V8_6,
+                arity: Arity::exact(1),
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         arity: Arity::exact(1),
         detail: "Return number of bytes used to represent the string in memory (obsolete; removed in Tcl 9.0 — use `string length` or `encoding convertto`).",
         synopsis: "string bytelength string",

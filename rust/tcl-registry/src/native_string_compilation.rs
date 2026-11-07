@@ -111,12 +111,28 @@ impl crate::CommandRegistry {
         operand_from: usize,
         dialect: crate::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
+        let query = dialect.authoring_query()?;
+        let registration = self.native_registration_exact_descriptor(identity, dialect)?;
+        let monolithic_string = registration
+            .resolve_subcommand_for_dialect("match", Some(query))
+            .and_then(|member| member.native_compilation)
+            .is_some_and(|compiler| {
+                compiler.grammar
+                    == crate::native_compilation::NativeCompilationGrammar::StringMatch(
+                        NativeStringMatchScope::PublicMember,
+                    )
+            });
+        if monolithic_string && c84_member_compiles_out_of_line(words, operand_from) {
+            return Some(crate::native_compilation::NativeCompilationSpec {
+                grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+                operation: SemanticOperationId::Invoke,
+                body: crate::native_compilation::NativeBodyCompilation::Inherit,
+            });
+        }
         if words.shapes().get(operand_from) != Some(&NativeCompilationWordShape::Literal) {
             return None;
         }
         let member = core::str::from_utf8(words.literal(operand_from)?).ok()?;
-        let query = dialect.authoring_query()?;
-        let registration = self.native_registration_exact_descriptor(identity, dialect)?;
         let selected = registration
             .resolve_subcommand_for_dialect(member, Some(query))?
             .native_compilation?;
@@ -137,6 +153,53 @@ impl crate::CommandRegistry {
                 }
         )
         .then_some(selected)
+    }
+}
+
+/// C84 `TclCompileStringCmd` returns `TCL_OUT_LINE_COMPILE` without emitting
+/// anything unless `Tcl_GetIndexFromObj` reads its raw member token, delimiters
+/// included, as one of the members it compiles inline.
+fn c84_member_compiles_out_of_line(words: &NativeCompilerWords<'_>, operand_from: usize) -> bool {
+    const OPTIONS: [&[u8]; 21] = [
+        b"bytelength",
+        b"compare",
+        b"equal",
+        b"first",
+        b"index",
+        b"is",
+        b"last",
+        b"length",
+        b"map",
+        b"match",
+        b"range",
+        b"repeat",
+        b"replace",
+        b"tolower",
+        b"toupper",
+        b"totitle",
+        b"trim",
+        b"trimleft",
+        b"trimright",
+        b"wordend",
+        b"wordstart",
+    ];
+    const INLINE: [&[u8]; 5] = [b"compare", b"equal", b"index", b"length", b"match"];
+    match words.shapes().get(operand_from) {
+        Some(NativeCompilationWordShape::Literal) => {
+            let Some(member) = words.literal(operand_from) else {
+                return false;
+            };
+            let exact = OPTIONS.iter().find(|option| **option == member);
+            let selected = exact.or_else(|| {
+                let mut prefixed = OPTIONS
+                    .iter()
+                    .filter(|option| !member.is_empty() && option.starts_with(member));
+                prefixed.next().filter(|_| prefixed.next().is_none())
+            });
+            selected.is_none_or(|option| !INLINE.contains(option))
+        }
+        Some(NativeCompilationWordShape::Opaque | NativeCompilationWordShape::Expanded) => false,
+        None | Some(_) => true,
     }
 }
 
@@ -388,7 +451,8 @@ mod tests {
                 let selected = registry
                     .native_compilation_for_original_registration("string", &words, 1, dialect)
                     .unwrap();
-                let refined = profile_name == "tcl8.4" && plain_member;
+                let c84 = profile_name == "tcl8.4";
+                let refined = c84 && plain_member;
                 assert_eq!(
                     matches!(
                         selected.grammar,
@@ -398,7 +462,16 @@ mod tests {
                     "{profile_name}/{source:?}",
                 );
                 if !refined {
-                    assert_eq!(selected.grammar, NativeCompilationGrammar::Unresolved);
+                    // C84 compiles every other raw member token out of line.
+                    assert_eq!(
+                        selected.grammar,
+                        if c84 {
+                            NativeCompilationGrammar::NoHook
+                        } else {
+                            NativeCompilationGrammar::Unresolved
+                        },
+                        "{profile_name}/{source:?}"
+                    );
                 }
                 assert!(
                     registry
