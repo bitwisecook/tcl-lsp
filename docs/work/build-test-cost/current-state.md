@@ -636,3 +636,48 @@ Still open:
       a C oracle; several are clock tests.
     - The `naming::rooted_member_key_bytes` doctest in `tcl-syntax`
       returns `::a::::v` where its example expects `::a:::v`.
+
+## Round 3: CI failures fixed or diagnosed
+
+Fixed:
+
+- **VS Code partitions.** `codeActionKinds.test` (3 tests) now sits in
+  partition 2. The counts in the manifest and its three checkers rise to
+  110 files, 1,014 identities and 1,013 passes.
+- **`naming::rooted_member_key_bytes` doctest.** The example miscounted
+  colons; the function matches its prose.
+- **Drift leg.** The pinned C 8.4 formatter comparison needs the built 8.4
+  archive. It now runs as `make test-c84-native-formatter` in
+  runtime-rust-tests, after that job builds the tree, and the drift check
+  skips it. Locally the archive builds but its hash differs from the pin,
+  so it can only pass on the CI image the pin was recorded on.
+- **BPF-Tcl.** No program with an `if` or a child body compiled:
+  - `discard_execution_proofs` did not clear the later `namespace_context`
+    field, so the syntactic body comparison refused.
+  - The closed-effects witness refused every variable in a condition. A
+    plain identifier is a DSL register, so it is now admitted.
+  - A refused phase now gets a diagnostic-only graph, so `while`, unknown
+    commands and coroutines keep their specific diagnostics.
+  - 219 of 219 BPF tests pass.
+- **Python type checks.** Four scripts.
+
+Diagnosed, not fixed. Each was already failing before this work:
+
+- **`tcl-vm` "native compiler preflight provider" (about 25 of it_3's 68
+  failures; similar in codegen and compiler shards).** `throw`, `format`,
+  `lreplace` and `string map`/`is`/`replace` get an `Unknown` compile
+  selection and no named-compiler proof. Codegen therefore marks the unit
+  `ProviderRequired`, and the test VM, which has no provider, refuses it.
+  `throw` and parts of `string`, `dict`, `chan`, `prefix`, `const` and
+  `lfilter` are registered as `NativeCompilationGrammar::Unresolved`,
+  documented as "not yet an authored closed contract". This is unfinished
+  porting of their C compilers, not a regression to patch.
+- **The other it_3 failures** are spread across 20+ sites: namespace,
+  TclOO, release-number and tclsh-parity assertions.
+- **`samples/wasm/budgets.tsv`.** 70 rows drifted, some better and some
+  much worse. For example `13_expr_ops` native lost all 48 native numeric
+  ops and went from 17 to 34 runtime dispatches. Regenerating would claim
+  those regressions without a reason, so it was not regenerated.
+- **SpecTcl string pack.** The `map` and `range` hooks are never
+  attempted on their corpus samples. The `LineIndex` loader change was
+  ruled out: it fails the same with that change reverted.
