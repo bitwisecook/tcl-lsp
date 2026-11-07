@@ -674,10 +674,10 @@ fn authored_simulation_structure_is_supported(
         {
             return Some(());
         }
-        let hook = schema.facts().lowering_hook?;
+        let hook = schema.facts().lowering_hook;
         // A definition stores its body for later calls in the procedure's own
         // frame, so only a fully static name, parameter list and body is modelled.
-        if hook == LoweringHookId::Proc {
+        if hook == Some(LoweringHookId::Proc) {
             return (schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
                 && tokens.words().iter().all(|word| {
                     matches!(
@@ -690,14 +690,16 @@ fn authored_simulation_structure_is_supported(
         if !(bodiless
             || matches!(
                 hook,
-                LoweringHookId::If
-                    | LoweringHookId::Switch
-                    | LoweringHookId::While
-                    | LoweringHookId::For
-                    | LoweringHookId::Foreach
-                    | LoweringHookId::Lmap
-                    | LoweringHookId::Catch
-                    | LoweringHookId::Try
+                Some(
+                    LoweringHookId::If
+                        | LoweringHookId::Switch
+                        | LoweringHookId::While
+                        | LoweringHookId::For
+                        | LoweringHookId::Foreach
+                        | LoweringHookId::Lmap
+                        | LoweringHookId::Catch
+                        | LoweringHookId::Try
+                )
             ))
             || schema.semantics.frame_effect.is_some()
             || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
