@@ -2156,7 +2156,7 @@ fn prepare_method_step(
         .filter(|(namespace, _)| namespace == &obj_ns)
         .map(|(_, body)| body.clone());
     let proc = ProcDef {
-        formals: Default::default(),
+        formals: crate::command::FormalParameterCache::default(),
         native_resources: Rc::default(),
         name: format!("{obj_ns}::{method}"),
         command_ns_id: ns_id,

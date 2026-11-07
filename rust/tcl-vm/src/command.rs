@@ -913,7 +913,7 @@ pub(crate) fn build_lambda_proc(
         )
     };
     let (binding, publication) = vm.define_proc_binding(ProcDef {
-        formals: Default::default(),
+        formals: crate::command::FormalParameterCache::default(),
         native_resources: Rc::default(),
         name: name.clone(),
         command_ns_id,
@@ -2312,7 +2312,7 @@ fn publish_procedure(vm: &mut Vm, input: ProcedurePublication<'_>) -> Completion
     };
     vm.define_proc_binding_with_jim_key(
         ProcDef {
-            formals: Default::default(),
+            formals: crate::command::FormalParameterCache::default(),
             native_resources: Rc::default(),
             name: reg_name,
             command_ns_id: slot.namespace,

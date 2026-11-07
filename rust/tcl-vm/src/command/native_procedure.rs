@@ -428,7 +428,7 @@ mod tests {
 
     fn declaration(body: Value, default: Value) -> NativeProcedureCommand {
         NativeProcedureCommand::new(ProcDef {
-            formals: Default::default(),
+            formals: crate::command::FormalParameterCache::default(),
             native_resources: Rc::default(),
             name: "p".into(),
             command_ns_id: ROOT_NS,

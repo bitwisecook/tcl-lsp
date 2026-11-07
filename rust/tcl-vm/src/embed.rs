@@ -705,7 +705,7 @@ impl Vm {
             })?;
         self.define_proc_binding_with_jim_key(
             crate::command::ProcDef {
-                formals: Default::default(),
+                formals: crate::command::FormalParameterCache::default(),
                 native_resources: std::rc::Rc::default(),
                 name: registered,
                 command_ns_id: slot.namespace,
