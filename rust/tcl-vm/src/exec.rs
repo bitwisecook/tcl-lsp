@@ -728,8 +728,7 @@ impl Frame {
             literal_values: _,
             manifest,
         } = unit;
-        let off2idx = Rc::new(build_off2idx(&asm));
-        let foreach_pairs = Rc::new(pair_foreach(&asm));
+        let (off2idx, foreach_pairs) = frame_indexes(&asm);
         let compiler_generation = (compiler != crate::compiled::CompilerProvenance::NativeScript)
             .then(|| compiler.generation());
         let jim_evaluation_script =
@@ -1214,6 +1213,35 @@ pub(crate) struct TailcallReq {
 pub(crate) enum RunExit {
     Done(Completion<Value>),
     Yielded(YieldReq),
+}
+
+type FrameIndexes = (
+    Rc<rustc_hash::FxHashMap<i32, usize>>,
+    Rc<HashMap<usize, usize>>,
+);
+
+/// The offset and `foreach` pairing indexes of shared, immutable assembly,
+/// built once per live function rather than once per activation.
+fn frame_indexes(asm: &Rc<FunctionAsm>) -> FrameIndexes {
+    thread_local! {
+        static INDEXES: std::cell::RefCell<Vec<(std::rc::Weak<FunctionAsm>, FrameIndexes)>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+    INDEXES.with_borrow_mut(|cache| {
+        if let Some((_, (offsets, pairs))) = cache.iter().rev().find(|(seen, _)| {
+            seen.strong_count() != 0 && std::ptr::eq(seen.as_ptr(), Rc::as_ptr(asm))
+        }) {
+            return (Rc::clone(offsets), Rc::clone(pairs));
+        }
+        cache.retain(|(seen, _)| seen.strong_count() != 0);
+        if cache.len() >= 64 {
+            cache.remove(0);
+        }
+        let offsets = Rc::new(build_off2idx(asm));
+        let pairs = Rc::new(pair_foreach(asm));
+        cache.push((Rc::downgrade(asm), (Rc::clone(&offsets), Rc::clone(&pairs))));
+        (offsets, pairs)
+    })
 }
 
 fn build_off2idx(asm: &FunctionAsm) -> rustc_hash::FxHashMap<i32, usize> {

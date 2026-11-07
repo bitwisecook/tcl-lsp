@@ -536,12 +536,19 @@ impl OriginalVariableCleanup {
             }
             state => Some(state),
         };
-        let _ = self.in_original(vm, |_| drop(default));
-        let _ = self.in_original(vm, |_| drop(key_drain));
+        // Dropping nothing runs no code, so it needs no original context.
+        if default.is_some() {
+            let _ = self.in_original(vm, |_| drop(default));
+        }
+        if key_drain.is_some() {
+            let _ = self.in_original(vm, |_| drop(key_drain));
+        }
         self.purge_binding(vm, raw);
         // The neutral worker kept an unmatched old scalar/name payload until
         // its terminal local drop. This wrapper preserves that distinct phase.
-        let _ = self.in_original(vm, |_| drop(terminal_old));
+        if terminal_old.is_some() {
+            let _ = self.in_original(vm, |_| drop(terminal_old));
+        }
         let _ = self.check(vm);
     }
 }

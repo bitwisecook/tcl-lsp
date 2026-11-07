@@ -54,6 +54,7 @@ impl Vm {
             .collect()
     }
     pub(super) fn advance_native_ensemble_export_epoch(&self, namespace: super::NsId) {
+        self.advance_binding_epoch();
         let mut epochs = self
             .compilation_epochs
             .native_ensemble_namespace_epochs

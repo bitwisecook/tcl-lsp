@@ -1420,6 +1420,22 @@ struct NativeCompilationEpochs {
     command_semantics: std::cell::Cell<CommandSemantics>,
     cmd_resolve_cache: RefCell<CommandResolveCache>,
     cmd_epoch: std::cell::Cell<u64>,
+    /// Advanced by every change any of the above observes, whether or not the
+    /// compiler cache treats it as invalidating.
+    binding_epoch: std::cell::Cell<u64>,
+    /// Compiled functions whose command and procedure bindings last held, with
+    /// the binding stamp they held under.
+    held_bindings: RefCell<Vec<(std::rc::Weak<FunctionAsm>, BindingStamp)>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct BindingStamp {
+    binding_epoch: u64,
+    cmd_epoch: u64,
+    trace_deopt_epoch: u64,
+    interpreter: usize,
+    profile_generation: u64,
+    compiler_generation: u64,
 }
 
 impl Default for NativeCompilationEpochs {
@@ -1427,6 +1443,8 @@ impl Default for NativeCompilationEpochs {
         Self {
             cmd_resolve_cache: RefCell::new((0, HashMap::new())),
             cmd_epoch: std::cell::Cell::new(0),
+            binding_epoch: std::cell::Cell::new(0),
+            held_bindings: RefCell::new(Vec::new()),
             trace_deopt_epoch: std::cell::Cell::new(0),
             native_compiler_epoch: std::cell::Cell::new(NativeCompilerCacheEpoch::default()),
             native_namespace_epochs: HashMap::new(),
@@ -9347,19 +9365,63 @@ impl Vm {
         {
             return false;
         }
-        let commands = asm
-            .command_bindings
+        self.function_bindings_hold(asm, admission)
+            && self.function_identity_claims_match(asm, manifest)
+    }
+
+    fn function_bindings_hold(&self, asm: &FunctionAsm, admission: bool) -> bool {
+        asm.command_bindings
             .iter()
             .filter(|binding| {
                 admission || binding.guard == tcl_runtime_api::CommandBindingGuard::BeforeArguments
             })
-            .all(|binding| self.command_binding_matches(binding));
-        commands
+            .all(|binding| self.command_binding_matches(binding))
             && asm
                 .procedure_bindings
                 .iter()
                 .all(|binding| self.procedure_binding_matches(binding))
-            && self.function_identity_claims_match(asm, manifest)
+    }
+
+    /// [`Self::function_command_bindings_match_with_manifest`] for a retained
+    /// body. Release builds trust bindings that held under an unchanged binding
+    /// stamp; debug builds re-prove them and check the memo agreed.
+    fn retained_function_bindings_match(
+        &self,
+        asm: &Rc<FunctionAsm>,
+        manifest: Option<&ArtefactIdentityManifest>,
+    ) -> bool {
+        if !self.compiled_local_layout_matches(asm)
+            || !self.native_math_table_prerequisite_matches(asm)
+            || !self.native_compiler_prerequisites_match(asm)
+            || !self.function_identity_claims_match(asm, manifest)
+        {
+            return false;
+        }
+        let stamp = self.binding_stamp();
+        let held = self
+            .compilation_epochs
+            .held_bindings
+            .borrow()
+            .iter()
+            .any(|(seen, at)| {
+                *at == stamp
+                    && seen.strong_count() != 0
+                    && std::ptr::eq(seen.as_ptr(), Rc::as_ptr(asm))
+            });
+        if held && !crate::VERIFY_CURRENCY {
+            return true;
+        }
+        let holds = self.function_bindings_hold(asm, true);
+        debug_assert!(!held || holds, "binding stamp outlived a binding change");
+        if holds && !held {
+            let mut memo = self.compilation_epochs.held_bindings.borrow_mut();
+            memo.retain(|(seen, at)| seen.strong_count() != 0 && *at == stamp);
+            if memo.len() >= 32 {
+                memo.remove(0);
+            }
+            memo.push((Rc::downgrade(asm), stamp));
+        }
+        holds
     }
 
     /// What a release that keeps the commands running bytecode compiled
@@ -12016,7 +12078,20 @@ impl Vm {
     }
 
     /// Bump the shared compilation-deopt epoch.
+    fn binding_stamp(&self) -> BindingStamp {
+        let epochs = &self.compilation_epochs;
+        BindingStamp {
+            binding_epoch: epochs.binding_epoch.get(),
+            cmd_epoch: epochs.cmd_epoch.get(),
+            trace_deopt_epoch: epochs.trace_deopt_epoch.get(),
+            interpreter: self.cur.0,
+            profile_generation: self.profile_generation,
+            compiler_generation: self.compiler_generation,
+        }
+    }
+
     pub(crate) fn bump_trace_deopt_epoch(&self) {
+        self.advance_binding_epoch();
         self.compilation_epochs.trace_deopt_epoch.set(
             self.compilation_epochs
                 .trace_deopt_epoch
@@ -12323,6 +12398,7 @@ impl Vm {
         namespace: NsId,
         mutation: tcl_registry::native_procedure::NativeCompilerCacheMutation,
     ) {
+        self.advance_binding_epoch();
         if self.compilation_epochs.command_semantics.get() != CommandSemantics::Tracking
             || tcl_registry::native_procedure::native_compiler_cache_invalidated(
                 self.native_invocation_dialect(),
@@ -12406,6 +12482,7 @@ impl Vm {
         &self,
         mutation: tcl_registry::native_procedure::NativeCompilerCacheMutation,
     ) {
+        self.advance_binding_epoch();
         if self.compilation_epochs.command_semantics.get() != CommandSemantics::Tracking {
             return;
         }
@@ -12662,7 +12739,15 @@ impl InterpState {
     /// `namespace path` / runtime-version mutation routes through here so a
     /// cached `(namespace, name) → key` can never outlive the state it was
     /// computed from.
+    pub(crate) fn advance_binding_epoch(&self) {
+        let epochs = &self.compilation_epochs;
+        epochs
+            .binding_epoch
+            .set(epochs.binding_epoch.get().wrapping_add(1));
+    }
+
     pub(crate) fn bump_cmd_epoch(&self) {
+        self.advance_binding_epoch();
         // Clearing on every mutation makes the resolution memo safe even if its
         // diagnostic epoch saturates. Guard epochs use their own checked,
         // poison-on-exhaustion counters.
@@ -19268,8 +19353,7 @@ impl Vm {
             || body.source_namespace.compiled_path()
                 != Some(&self.ns_path(proc.actual_namespace_id()))
             || body.interpreter != self.native_interpreter_identity()
-            || !self
-                .function_command_bindings_match_with_manifest(&body.asm, body.manifest.as_deref())
+            || !self.retained_function_bindings_match(&body.asm, body.manifest.as_deref())
             || self.step_trace_active()
         {
             return None;
