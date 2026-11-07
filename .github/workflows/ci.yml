@@ -1546,6 +1546,8 @@ jobs:
       - name: Report sccache statistics
         if: always() && needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
+        env:
+          SHARD_ID: ${{ matrix.id }}
         run: |
           if ! command -v sccache >/dev/null 2>&1; then
             echo '::warning::sccache statistics unavailable; compilation ran uncached'
@@ -1563,6 +1565,20 @@ jobs:
           write_errors=$(printf '%s\n' "$stats" | awk '$1 == "Cache" && $2 == "write" && $3 == "errors" { print $NF; exit }')
           if [[ -n "$write_errors" && "$write_errors" != 0 ]]; then
             echo "::warning::sccache reported $write_errors cache write errors"
+          fi
+          # A low Rust hit rate means the shard recompiled most of the
+          # workspace; surface it rather than leave it in the log.
+          rust_rate=$(printf '%s\n' "$stats" | awk '/^Cache hits rate \(Rust\)/ { print $(NF-1); exit }')
+          requests=$(printf '%s\n' "$stats" | awk '/^Compile requests executed/ { print $NF; exit }')
+          {
+            echo "### sccache (${RUNNER_MODE:-hosted} ${SHARD_ID:-})"
+            echo "- Rust hit rate: ${rust_rate:-unknown}%"
+            echo "- compile requests executed: ${requests:-unknown}"
+            echo "- cache write errors: ${write_errors:-0}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "$rust_rate" && -n "$requests" && "$requests" -gt 50 ]] \
+              && awk -v rate="$rust_rate" 'BEGIN { exit !(rate < 70) }'; then
+            echo "::warning::sccache Rust hit rate ${rust_rate}% is below 70% over $requests compilations"
           fi
 
       # Keep final target telemetry independent from test correctness.  This
