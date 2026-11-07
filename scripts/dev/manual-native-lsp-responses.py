@@ -40,6 +40,7 @@ write_lock = threading.Lock()
 
 
 def send(value):
+    assert process.stdin is not None
     body = json.dumps(value).encode()
     with write_lock:
         process.stdin.write(f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
@@ -47,6 +48,7 @@ def send(value):
 
 
 def read():
+    assert process.stdout is not None
     try:
         while True:
             headers = {}

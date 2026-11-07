@@ -28,6 +28,7 @@ from pathlib import Path
 _SPEC = importlib.util.spec_from_file_location(
     "check_tracked_size", Path(__file__).with_name("check-tracked-size.py")
 )
+assert _SPEC is not None and _SPEC.loader is not None
 cts = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = cts
 _SPEC.loader.exec_module(cts)

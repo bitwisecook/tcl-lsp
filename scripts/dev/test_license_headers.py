@@ -28,6 +28,7 @@ from pathlib import Path
 _SPEC = importlib.util.spec_from_file_location(
     "check_license_headers", Path(__file__).with_name("check-license-headers.py")
 )
+assert _SPEC is not None and _SPEC.loader is not None
 clh = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = clh
 _SPEC.loader.exec_module(clh)
