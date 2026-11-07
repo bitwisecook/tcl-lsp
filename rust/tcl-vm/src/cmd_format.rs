@@ -101,8 +101,8 @@ fn scanned_value(v: &Scanned, dialect: tcl_registry::InvocationDialect) -> Value
 }
 
 fn cmd_format(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let syntax = vm.runtime_version().number_syntax();
-    match tcl_cmd_core::format::format_cmd_with_syntax(vm, args, syntax) {
+    let release = vm.runtime_version();
+    match tcl_cmd_core::format::format_cmd_for_release(vm, args, release) {
         Ok(v) => ok(v),
         Err(e) => vm.cmd_error(e),
     }

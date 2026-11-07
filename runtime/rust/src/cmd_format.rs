@@ -32,8 +32,8 @@ pub fn install(interp: &mut Interp) {
 }
 
 fn format_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let syntax = interp.runtime_version().number_syntax();
-    match tcl_cmd_core::format::format_cmd_with_syntax(interp, &argv[1..], syntax) {
+    let release = interp.runtime_version();
+    match tcl_cmd_core::format::format_cmd_for_release(interp, &argv[1..], release) {
         Ok(value) => {
             interp.set_result(value);
             Code::Ok

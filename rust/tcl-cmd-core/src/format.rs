@@ -72,6 +72,34 @@ pub fn format_cmd_with_syntax<O: ValueOps>(
 
 const MAX_RUNTIME_FIELD: usize = i32::MAX as usize;
 
+/// `Tcl_AppendFormatToObj`'s failure with its `TCL FORMAT` error code.
+fn format_error(message: impl Into<String>, kind: &str) -> CmdError {
+    CmdError::with_error_code(message, format!("TCL FORMAT {kind}"))
+}
+
+/// [`format_cmd_with_syntax`] as `release`'s command runs it: C8.4 and C8.5
+/// set no `TCL FORMAT` error codes.
+///
+/// # Errors
+/// The format's own failure.
+pub fn format_cmd_for_release<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    release: tcl_dialect::TclVersion,
+) -> Result<O::Value, CmdError> {
+    format_cmd_with_syntax(ops, args, release.number_syntax()).map_err(|error| {
+        if release < tcl_dialect::TclVersion::V8_6
+            && error
+                .error_code_bytes()
+                .is_some_and(|code| code.starts_with(b"TCL FORMAT "))
+        {
+            CmdError::new_bytes(error.message_bytes().to_vec())
+        } else {
+            error
+        }
+    })
+}
+
 /// C's `overflow` failure (`TCL FORMAT OVERFLOW`): a field the result could
 /// not hold.
 fn value_too_large() -> CmdError {
@@ -106,11 +134,17 @@ fn render<O: ValueOps>(
         let mut spec = match parse_spec_with_limit_diagnostic(bytes, &mut j, usize::MAX) {
             Ok(Some(spec)) => spec,
             Ok(None) => {
-                return Err(CmdError::new(if arg_state.next < args.len() {
-                    "format string ended in middle of field specifier"
+                return Err(if arg_state.next < args.len() {
+                    format_error(
+                        "format string ended in middle of field specifier",
+                        "INCOMPLETE",
+                    )
                 } else {
-                    "not enough arguments for all format specifiers"
-                }));
+                    format_error(
+                        "not enough arguments for all format specifiers",
+                        "FIELDVARMISMATCH",
+                    )
+                });
             }
             Err(ParseSpecError::MissingVerb(partial)) => {
                 // A release that predates the modifier reads its first byte as
@@ -124,8 +158,9 @@ fn render<O: ValueOps>(
                 if let Some(size) = partial.size {
                     reject_unknown_modifier(size, syntax)?;
                 }
-                return Err(CmdError::new(
+                return Err(format_error(
                     "format string ended in middle of field specifier",
+                    "INCOMPLETE",
                 ));
             }
         };
@@ -229,11 +264,14 @@ struct FormatArgState {
 /// (`%n$`) paths — the two differ only in the out-of-range message tclsh uses.
 fn take_arg<'a, V>(args: &'a [V], cur: &mut usize, positional: bool) -> Result<&'a V, CmdError> {
     let arg = args.get(*cur).ok_or_else(|| {
-        CmdError::new(if positional {
-            "\"%n$\" argument index out of range"
+        if positional {
+            format_error("\"%n$\" argument index out of range", "INDEXRANGE")
         } else {
-            "not enough arguments for all format specifiers"
-        })
+            format_error(
+                "not enough arguments for all format specifiers",
+                "FIELDVARMISMATCH",
+            )
+        }
     })?;
     *cur += 1;
     Ok(arg)
@@ -251,15 +289,17 @@ fn consume_conversion_args<'a, O: ValueOps>(
     let positional = fields.arg_index.is_some();
     if positional {
         if state.saw_sequential {
-            return Err(CmdError::new(
+            return Err(format_error(
                 "cannot mix \"%\" and \"%n$\" conversion specifiers",
+                "MIXEDSPECTYPES",
             ));
         }
         state.saw_positional = true;
     } else {
         if state.saw_positional {
-            return Err(CmdError::new(
+            return Err(format_error(
                 "cannot mix \"%\" and \"%n$\" conversion specifiers",
+                "MIXEDSPECTYPES",
             ));
         }
         state.saw_sequential = true;
@@ -267,7 +307,7 @@ fn consume_conversion_args<'a, O: ValueOps>(
     let mut cur = match fields.arg_index {
         Some(n) => n
             .checked_sub(1)
-            .ok_or_else(|| CmdError::new("\"%n$\" argument index out of range"))?,
+            .ok_or_else(|| format_error("\"%n$\" argument index out of range", "INDEXRANGE"))?,
         None => state.next,
     };
     // `*` width / `.*` precision take their values before the conversion
@@ -353,10 +393,10 @@ fn reject_unknown_modifier(
     if size.accepted_under(syntax) {
         Ok(())
     } else {
-        Err(CmdError::new(format!(
-            "bad field specifier \"{}\"",
-            char::from(size.lead_byte())
-        )))
+        Err(format_error(
+            format!("bad field specifier \"{}\"", char::from(size.lead_byte())),
+            "BADTYPE",
+        ))
     }
 }
 
@@ -372,7 +412,7 @@ fn render_spec<O: ValueOps>(
         reject_unknown_modifier(size, syntax)?;
     }
     if verb == b'p' && syntax != tcl_dialect::NumberSyntax::Tcl90 {
-        return Err(CmdError::new("bad field specifier \"p\""));
+        return Err(format_error("bad field specifier \"p\"", "BADTYPE"));
     }
     if spec.size.is_some_and(SizeModifier::is_big)
         && verb == b'u'
@@ -462,10 +502,10 @@ fn render_spec<O: ValueOps>(
             }
             Ok(justify(&s, spec))
         }
-        other => Err(CmdError::new(format!(
-            "bad field specifier \"{}\"",
-            char::from(other)
-        ))),
+        other => Err(format_error(
+            format!("bad field specifier \"{}\"", char::from(other)),
+            "BADTYPE",
+        )),
     }
 }
 
