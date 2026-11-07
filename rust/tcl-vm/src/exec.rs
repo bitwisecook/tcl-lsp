@@ -7627,6 +7627,13 @@ impl Vm {
             // `TCL_NUMBER_INT` = 2, `TCL_NUMBER_BIG` = 3, `TCL_NUMBER_DOUBLE` = 4,
             // `TCL_NUMBER_NAN` = 5. The `string is integer/double` inline forms
             // test this against `<= 3` (integer) or `!= 0` (double/any numeric).
+            Op::IS_EMPTY => {
+                let empty = pop(f).native_is_empty();
+                let result = self
+                    .native_c_execution_boolean(empty, tcl_dialect::TclVersion::V9_1)
+                    .unwrap_or_else(|_| Value::int(i64::from(empty)));
+                f.stack.push(result);
+            }
             Op::NUMERIC_TYPE => {
                 let version = self.runtime_version();
                 let v = pop(f);

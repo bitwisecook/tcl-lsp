@@ -2394,6 +2394,26 @@ impl Value {
     pub fn has_list_representation(&self) -> bool {
         matches!(*self.0.intrep.borrow(), IntRep::List { .. })
     }
+
+    /// C9.1 `Tcl_IsEmpty`: a resident string's length; otherwise a
+    /// dictionary's size, a list's length, or a length-one number or boolean;
+    /// otherwise the generated string's.
+    #[must_use]
+    pub fn native_is_empty(&self) -> bool {
+        if let Some(bytes) = self.resident_string_bytes() {
+            return bytes.is_empty();
+        }
+        let known = match &*self.0.intrep.borrow() {
+            IntRep::Dict(rep) => Some(rep.with_pairs(<[_]>::is_empty)),
+            IntRep::List { items, .. } => Some(items.is_empty()),
+            IntRep::Int(_) | IntRep::Big { .. } | IntRep::Double(_) | IntRep::Bool(_) => {
+                Some(false)
+            }
+            _ => None,
+        };
+        known.unwrap_or_else(|| self.string_bytes().is_empty())
+    }
+
     #[cfg(test)]
     pub(crate) fn native_expression_cache_present(&self) -> bool {
         matches!(*self.0.intrep.borrow(), IntRep::Expression(_))

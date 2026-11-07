@@ -3528,8 +3528,9 @@ impl CodegenCtx<'_> {
         true
     }
 
-    /// `TclCompileStringIsCmd` (C8.6/C9.0): the subject, then the class
-    /// branch's own test sequence.
+    /// `TclCompileStringIsCmd` (C8.6 to C9.1): the subject, then the class
+    /// branch's own test sequence. C9.1 tests emptiness with `isEmpty` and
+    /// drops the first of two objects with `swap`.
     fn append_native_string_is_tasks(
         &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
@@ -3548,9 +3549,9 @@ impl CodegenCtx<'_> {
                 self.append_string_is_character_tasks(class, strict, version, operations);
             }
             Class::Boolean | Class::True | Class::False => {
-                self.append_string_is_boolean_tasks(recipe.class, strict, operations);
+                self.append_string_is_boolean_tasks(recipe.class, strict, version, operations);
             }
-            Class::Double => self.append_string_is_double_tasks(strict, operations),
+            Class::Double => self.append_string_is_double_tasks(strict, version, operations),
             Class::Integer | Class::Wide | Class::Entier => {
                 self.append_string_is_integer_tasks(recipe.class, strict, version, operations);
             }
@@ -3603,16 +3604,44 @@ impl CodegenCtx<'_> {
             Task::Literal(b"0".to_vec()),
             is_jump(Op::JUMP1, &over2),
             Task::Label(over),
-            Task::Literal(Vec::new()),
-            is_op(Op::STR_NEQ),
-            Task::Label(over2),
         ]);
+        operations.extend(Self::string_is_empty_tasks(version, true));
+        operations.push(Task::Label(over2));
+    }
+
+    /// C8.6/C9.0 compare against "" where C9.1 emits `isEmpty`.
+    fn string_is_empty_tasks(
+        version: tcl_dialect::TclVersion,
+        negate: bool,
+    ) -> Vec<NativeEmissionTask> {
+        if version >= tcl_dialect::TclVersion::V9_1 {
+            let mut tasks = vec![is_op(Op::IS_EMPTY)];
+            if negate {
+                tasks.push(is_op(Op::LNOT));
+            }
+            tasks
+        } else {
+            vec![
+                NativeEmissionTask::Literal(Vec::new()),
+                is_op(if negate { Op::STR_NEQ } else { Op::STR_EQ }),
+            ]
+        }
+    }
+
+    /// C8.6/C9.0 `reverse 2` where C9.1 emits `swap`.
+    fn string_is_swap_task(version: tcl_dialect::TclVersion) -> NativeEmissionTask {
+        if version >= tcl_dialect::TclVersion::V9_1 {
+            is_op(Op::SWAP)
+        } else {
+            NativeEmissionTask::Operation(Op::REVERSE, vec![Operand::Imm(2)])
+        }
     }
 
     fn append_string_is_boolean_tasks(
         &mut self,
         class: tcl_registry::native_string_is_compilation::NativeStringIsClass,
         strict: bool,
+        version: tcl_dialect::TclVersion,
         operations: &mut Vec<NativeEmissionTask>,
     ) {
         use NativeEmissionTask as Task;
@@ -3620,16 +3649,12 @@ impl CodegenCtx<'_> {
         operations.push(is_op(Op::TRY_CVT_TO_BOOLEAN));
         if class == Class::Boolean {
             if strict {
-                operations.extend([
-                    Task::Operation(Op::REVERSE, vec![Operand::Imm(2)]),
-                    is_op(Op::POP),
-                ]);
+                operations.extend([Self::string_is_swap_task(version), is_op(Op::POP)]);
             } else {
                 let (over, over2) = (self.fresh_label("is_over"), self.fresh_label("is_over2"));
+                operations.push(is_jump(Op::JUMP_TRUE1, &over));
+                operations.extend(Self::string_is_empty_tasks(version, false));
                 operations.extend([
-                    is_jump(Op::JUMP_TRUE1, &over),
-                    Task::Literal(Vec::new()),
-                    is_op(Op::STR_EQ),
                     is_jump(Op::JUMP1, &over2),
                     Task::Label(over),
                     is_op(Op::POP),
@@ -3642,6 +3667,24 @@ impl CodegenCtx<'_> {
         let over = self.fresh_label("is_over");
         let truth = class == Class::True;
         operations.push(is_jump(Op::JUMP_TRUE1, &over));
+        if version >= tcl_dialect::TclVersion::V9_1 {
+            let over2 = self.fresh_label("is_over2");
+            if strict {
+                operations.extend([is_op(Op::POP), Task::Literal(b"0".to_vec())]);
+            } else {
+                operations.push(is_op(Op::IS_EMPTY));
+            }
+            operations.extend([
+                is_jump(Op::JUMP1, &over2),
+                Task::Label(over),
+                is_op(Op::LNOT),
+            ]);
+            if truth {
+                operations.push(is_op(Op::LNOT));
+            }
+            operations.push(Task::Label(over2));
+            return;
+        }
         if strict {
             operations.extend([
                 is_op(Op::POP),
@@ -3662,6 +3705,7 @@ impl CodegenCtx<'_> {
     fn append_string_is_double_tasks(
         &mut self,
         strict: bool,
+        version: tcl_dialect::TclVersion,
         operations: &mut Vec<NativeEmissionTask>,
     ) {
         use NativeEmissionTask as Task;
@@ -3676,10 +3720,9 @@ impl CodegenCtx<'_> {
             ]);
         } else {
             let empty = self.fresh_label("is_empty");
+            operations.push(is_op(Op::DUP));
+            operations.extend(Self::string_is_empty_tasks(version, false));
             operations.extend([
-                is_op(Op::DUP),
-                Task::Literal(Vec::new()),
-                is_op(Op::STR_EQ),
                 is_jump(Op::JUMP_TRUE1, &empty),
                 is_op(Op::NUMERIC_TYPE),
                 is_jump(Op::JUMP_TRUE1, &satisfied),
@@ -3717,11 +3760,12 @@ impl CodegenCtx<'_> {
                 is_op(Op::DUP),
                 is_jump(Op::JUMP_TRUE1, &test),
                 is_op(Op::POP),
-                Task::Literal(Vec::new()),
-                is_op(Op::STR_EQ),
+            ]);
+            operations.extend(Self::string_is_empty_tasks(version, false));
+            operations.extend([
                 is_jump(Op::JUMP1, &end),
                 Task::Label(test),
-                Task::Operation(Op::REVERSE, vec![Operand::Imm(2)]),
+                Self::string_is_swap_task(version),
                 is_op(Op::POP),
             ]);
         }

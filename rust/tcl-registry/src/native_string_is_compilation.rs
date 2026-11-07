@@ -16,11 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The measured non-strict ASCII branch of C's `StringIs` compiler.
+//! C8.6 to C9.1's `TclCompileStringIsCmd` over a compile-known class.
 //!
-//! C8.6/9.0/9.1 compile exactly one original subject followed by `STR_CLASS`
-//! ASCII. Class/options outside this branch stay unknown: their native
-//! compiler can have different getters, preparation, errors and instructions.
+//! The subject is compiled once, followed by the class branch's test. A
+//! dynamic class, `-failindex` and other options stay unknown here.
 
 use crate::SemanticOperationId;
 use crate::native_compilation::{
@@ -190,13 +189,6 @@ fn select_class(
         3 if strict_option(arguments[1], literal(from + 1).as_deref()) => true,
         _ => return Err(Selection::Unknown),
     };
-    // C9.1 rewrote every branch but non-strict STR_CLASS around `isEmpty`
-    // and `swap`, which have no portable instruction here.
-    if version >= TclVersion::V9_1
-        && (strict || !matches!(class, NativeStringIsClass::Character(_)))
-    {
-        return Err(Selection::Unknown);
-    }
     Ok((class, strict))
 }
 
@@ -961,14 +953,21 @@ mod tests {
             (TclVersion::V9_0, b"string is d $s", None),
             // GotLiteral needs at least two bytes of `-strict`.
             (TclVersion::V9_0, b"string is upper - $s", None),
-            // C9.1 keeps only non-strict STR_CLASS without `isEmpty`.
             (
                 TclVersion::V9_1,
                 b"string is upper $s",
                 Some((Class::Character(10), false)),
             ),
-            (TclVersion::V9_1, b"string is upper -strict $s", None),
-            (TclVersion::V9_1, b"string is boolean $s", None),
+            (
+                TclVersion::V9_1,
+                b"string is upper -strict $s",
+                Some((Class::Character(10), true)),
+            ),
+            (
+                TclVersion::V9_1,
+                b"string is boolean $s",
+                Some((Class::Boolean, false)),
+            ),
         ] {
             let source_words = words(source, version);
             let original =

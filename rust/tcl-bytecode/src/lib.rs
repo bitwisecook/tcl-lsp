@@ -420,6 +420,9 @@ pub enum Op {
     /// Portable control recipes also use this stack operation independently
     /// of older native reverse instruction encodings.
     SWAP,
+    /// C9.1 `isEmpty`: pop a value, push whether its string is empty without
+    /// generating one for a dictionary or a length-known representation.
+    IS_EMPTY,
     REVERSE,
     NUMERIC_TYPE,
     TRY_CVT_TO_BOOLEAN,
@@ -807,6 +810,7 @@ impl Op {
             Self::CONST_STK => "constStk",
             Self::RETURN_STK => "returnStk",
             Self::SWAP => "swap",
+            Self::IS_EMPTY => "isEmpty",
             Self::VERIFY_DICT => "verifyDict",
             Self::DICT_GET => "dictGet",
             Self::DICT_PUT => "dictPut",
@@ -945,6 +949,7 @@ impl Op {
                 | Self::PUSH_RETURN_OPTS
                 | Self::RETURN_STK
                 | Self::SWAP
+                | Self::IS_EMPTY
                 | Self::FOREACH_STEP
                 | Self::FOREACH_END
                 | Self::LMAP_COLLECT
@@ -3417,6 +3422,7 @@ mod tests {
                 Op::RETURN_STK => (Op::RETURN_STK.mnemonic(), Op::RETURN_STK.size()),
                 Op::REVERSE => (Op::REVERSE.mnemonic(), Op::REVERSE.size()),
                 Op::SWAP => (Op::SWAP.mnemonic(), Op::SWAP.size()),
+                Op::IS_EMPTY => (Op::IS_EMPTY.mnemonic(), Op::IS_EMPTY.size()),
                 Op::NUMERIC_TYPE => (Op::NUMERIC_TYPE.mnemonic(), Op::NUMERIC_TYPE.size()),
                 Op::TRY_CVT_TO_BOOLEAN => (
                     Op::TRY_CVT_TO_BOOLEAN.mnemonic(),
@@ -3662,6 +3668,7 @@ mod tests {
             Op::RETURN_STK,
             Op::REVERSE,
             Op::SWAP,
+            Op::IS_EMPTY,
             Op::NUMERIC_TYPE,
             Op::TRY_CVT_TO_BOOLEAN,
             Op::STR_CLASS,
