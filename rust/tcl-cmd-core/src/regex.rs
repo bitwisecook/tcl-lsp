@@ -857,6 +857,9 @@ static REGEXP_NAMES: [&str; 11] = [
     "--",
 ];
 static REGEXP_OPTIONS: OptionTable<'static> = OptionTable::exact_only("option", &REGEXP_NAMES);
+// `Tcl_GetIndexFromObj`'s noun is "switch" through 8.5, as for `regsub`:
+//   tclsh8.4.20 / 8.5.19: bad switch "-bogus": must be -all, -about, ...
+static REGEXP_OPTIONS_8_4: OptionTable<'static> = OptionTable::exact_only("switch", &REGEXP_NAMES);
 
 /// Drive `regexp` over the engine `E` and value-ops `O` for `version`. `args`
 /// is the command's arguments **without** the command name.
@@ -921,7 +924,12 @@ fn regexp_option_scan(
         if name.first() != Some(&b'-') {
             break;
         }
-        let idx = args.option(i, &REGEXP_OPTIONS)?;
+        let options = if version < TclVersion::V8_6 {
+            &REGEXP_OPTIONS_8_4
+        } else {
+            &REGEXP_OPTIONS
+        };
+        let idx = args.option(i, options)?;
         i += 1;
         match idx {
             RE_ALL => c.all = true,

@@ -92,7 +92,71 @@ impl NativeRegexpInstruction {
 /// Whether this release's regexp compiler is modelled here.
 #[must_use]
 pub const fn modelled(version: TclVersion) -> bool {
-    matches!(version, TclVersion::V9_0 | TclVersion::V9_1)
+    // C8.6's compiler and TclReToGlob match C9 apart from the latter's
+    // unused quantifier out-parameter. C8.4 has its own plain-pattern
+    // rewrite ([`c84_pattern`]); C8.5 also short-cuts an empty pattern.
+    matches!(
+        version,
+        TclVersion::V8_4 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
+    )
+}
+
+/// What C8.4's `TclCompileRegexpCmd` makes of a literal pattern.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum C84Pattern {
+    /// Empty: C pushes "1" without compiling the subject (not modelled).
+    Empty,
+    /// A plain string once anchors and outer `.*` are set aside: the literal
+    /// to compare, and whether both ends are anchored.
+    Plain(Vec<u8>, bool),
+    /// Anything else compiles out of line.
+    Declined,
+}
+
+/// C8.4's rewrite: a leading `^`, an unescaped trailing `$`, then a leading
+/// or trailing `.*`; what remains must hold none of `*+?{}()[].\|^$`.
+pub(crate) fn c84_pattern(pattern: &[u8]) -> C84Pattern {
+    let mut end = pattern.len();
+    if end == 0 {
+        return C84Pattern::Empty;
+    }
+    let mut start = 0;
+    let mut left = pattern[0] == b'^';
+    if left {
+        start = 1;
+    }
+    let mut right = pattern[end - 1] == b'$' && (end == 1 || pattern[end - 2] != b'\\');
+    if right {
+        end -= 1;
+    }
+    if end > start + 1 && pattern[start] == b'.' && pattern[start + 1] == b'*' {
+        start += 2;
+        left = false;
+    }
+    if end > start + 2
+        && pattern[end - 3] != b'\\'
+        && pattern[end - 2] == b'.'
+        && pattern[end - 1] == b'*'
+    {
+        end -= 2;
+        right = false;
+    }
+    let body = &pattern[start.min(end)..end];
+    if body.iter().any(|byte| b"*+?{}()[].\\|^$".contains(byte)) {
+        return C84Pattern::Declined;
+    }
+    if left && right {
+        return C84Pattern::Plain(body.to_vec(), true);
+    }
+    let mut literal = Vec::with_capacity(body.len() + 2);
+    if !left {
+        literal.push(b'*');
+    }
+    literal.extend_from_slice(body);
+    if !right {
+        literal.push(b'*');
+    }
+    C84Pattern::Plain(literal, false)
 }
 
 /// The bytes of a `TCL_TOKEN_SIMPLE_WORD`, or `None` for any other token.
@@ -138,7 +202,7 @@ pub fn select_original(
     match recipe(words, operand_from, version) {
         Ok(_) => NativeCompilationSelection::Inline {
             operation,
-            guard: NativeCompilationGuard::BeforeArguments,
+            guard: NativeCompilationGuard::for_c_version(version),
         },
         Err(selection) => selection,
     }
@@ -196,6 +260,25 @@ fn recipe(
     let [pattern, subject] = &arguments[index..] else {
         return Err(Selection::Generic);
     };
+    if version == TclVersion::V8_4 {
+        // C8.4 rejects a leading `-` even after `--`.
+        let bytes = projected_simple(pattern)
+            .filter(|bytes| bytes.first() != Some(&b'-'))
+            .ok_or(Selection::Generic)?;
+        let matcher = match c84_pattern(bytes) {
+            C84Pattern::Plain(literal, true) if !nocase => NativeRegexpMatcher::Equal(literal),
+            C84Pattern::Plain(literal, _) => NativeRegexpMatcher::Glob {
+                pattern: literal,
+                nocase,
+            },
+            C84Pattern::Empty => return Err(Selection::Unknown),
+            C84Pattern::Declined => return Err(Selection::Generic),
+        };
+        return Ok(NativeRegexpInstruction {
+            matcher,
+            subject: subject.operand.clone(),
+        });
+    }
     let glob = match projected_simple(pattern) {
         Some(bytes) if bytes.first() == Some(&b'-') && !saw_last => {
             return Err(Selection::Generic);
@@ -233,6 +316,7 @@ mod tests {
         let profile = match version {
             TclVersion::V9_1 => "tcl9.1",
             TclVersion::V8_6 => "tcl8.6",
+            TclVersion::V8_5 => "tcl8.5",
             _ => "tcl9.0",
         };
         let parsed = native_script_words_in(
@@ -389,7 +473,7 @@ mod tests {
     #[test]
     fn unmodelled_releases_stay_unselected() {
         assert_eq!(
-            select(b"regexp -- $re $s", TclVersion::V8_6).unwrap_err(),
+            select(b"regexp -- $re $s", TclVersion::V8_5).unwrap_err(),
             NativeCompilationSelection::Unknown
         );
     }

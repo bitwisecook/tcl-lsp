@@ -5772,8 +5772,8 @@ fn info_commands_grammar(
 
 // TclCompileRegexpCmd in all pinned C releases accepts only -nocase
 // abbreviations and -- before exactly two matching operands. Captures and
-// other options invoke the live handler. The C9 instructions are modelled in
-// `native_regexp_compilation`; earlier releases remain unselected.
+// other options invoke the live handler. C8.4, C8.6 and C9 are modelled in
+// `native_regexp_compilation`; C8.5 remains unselected.
 fn regexp_grammar(
     words: InvocationWords<'_>,
     shapes: &[NativeCompilationWordShape],
@@ -5804,6 +5804,19 @@ fn regexp_grammar(
     });
     if literal_shape(shapes[index]) && words.arguments().literal_at(index).is_none() {
         Selection::Unknown
+    } else if version == TclVersion::V8_4 {
+        use crate::native_regexp_compilation::{C84Pattern, c84_pattern};
+        match pattern
+            .filter(|pattern| pattern.first() != Some(&b'-'))
+            .map(c84_pattern)
+        {
+            Some(C84Pattern::Plain(..)) => Selection::Inline {
+                operation,
+                guard: NativeCompilationGuard::for_c_version(version),
+            },
+            Some(C84Pattern::Empty) => Selection::Unknown,
+            Some(C84Pattern::Declined) | None => Selection::Generic,
+        }
     } else if pattern.is_some_and(|pattern| pattern.first() == Some(&b'-')) && !saw_last {
         Selection::Generic
     } else {
@@ -8270,17 +8283,18 @@ mod tests {
 
     // tclsh 9.0.4/9.1.0 `regexp $re $s`: loadScalar1; loadScalar1; regexp +3.
     // The pre-9 regexp compilers are unmodelled.
+    /// A plain literal pattern: C8.4 compiles it under its chunk-entry guard,
+    /// C8.5 is unmodelled, and C8.6+ compiles it before its arguments.
     fn regexp_selection(
         native: NativeCompilationSpec,
         version: TclVersion,
     ) -> NativeCompilationSelection {
-        if version >= TclVersion::V9_0 {
-            NativeCompilationSelection::Inline {
+        match version {
+            TclVersion::V8_5 => NativeCompilationSelection::Unknown,
+            _ => NativeCompilationSelection::Inline {
                 operation: native.operation,
-                guard: NativeCompilationGuard::BeforeArguments,
-            }
-        } else {
-            NativeCompilationSelection::Unknown
+                guard: NativeCompilationGuard::for_c_version(version),
+            },
         }
     }
 
@@ -8298,9 +8312,15 @@ mod tests {
         let compilation = context(NativeCompilationFrame::ProcedureCode);
         for version in TclVersion::ALL {
             let dialect = Some(InvocationDialect::for_version(version));
+            // C8.4 compiles only a literal pattern; a substituted one declines.
+            let expected = if version == TclVersion::V8_4 {
+                NativeCompilationSelection::Generic
+            } else {
+                regexp_selection(native, version)
+            };
             assert_eq!(
                 native.select(words, &shapes, dialect, compilation),
-                regexp_selection(native, version),
+                expected,
                 "{version:?}"
             );
             assert_eq!(
