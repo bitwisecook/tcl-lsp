@@ -784,7 +784,10 @@ impl Analyser {
                 let Some(tokens) = stmt.tokens() else {
                     continue;
                 };
-                if !context.missing_rebound_command(tokens) {
+                // An auto-loadable sibling class is absent here and created
+                // by the stock `unknown` handler's load, not renamed.
+                if !context.missing_rebound_command(tokens) || self.is_workspace_autoloaded(command)
+                {
                     continue;
                 }
                 self.result

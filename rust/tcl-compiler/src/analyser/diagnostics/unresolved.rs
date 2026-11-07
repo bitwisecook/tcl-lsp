@@ -189,7 +189,7 @@ impl Analyser {
     /// Whether a sibling workspace file is offered to auto-load `name`: the
     /// stock `unknown` handler sources it on the absent call, as `auto_load`
     /// does from a `tclIndex` entry.
-    fn is_workspace_autoloaded(&self, name: &str) -> bool {
+    pub(super) fn is_workspace_autoloaded(&self, name: &str) -> bool {
         let rooted = tcl_registry::rooted_command_descriptor_label(name);
         self.workspace_source_modules
             .as_deref()
