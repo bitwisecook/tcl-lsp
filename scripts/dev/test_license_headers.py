@@ -65,9 +65,15 @@ class FixTests(unittest.TestCase):
         self.assertTrue(clh.check(fixed))
 
     def test_generated_and_foreign_licences_are_exempt(self):
-        self.assertTrue(clh.exempt_by_content("// @generated — do not edit.\nfn f() {}\n"))
-        self.assertTrue(clh.exempt_by_content("// SPDX-License-Identifier: MIT\nfn f() {}\n"))
-        self.assertFalse(clh.exempt_by_content("// SPDX-License-Identifier: AGPL-3.0-or-later\n"))
+        self.assertTrue(
+            clh.exempt_by_content("// @generated — do not edit.\nfn f() {}\n")
+        )
+        self.assertTrue(
+            clh.exempt_by_content("// SPDX-License-Identifier: MIT\nfn f() {}\n")
+        )
+        self.assertFalse(
+            clh.exempt_by_content("// SPDX-License-Identifier: AGPL-3.0-or-later\n")
+        )
 
 
 class RepoTests(unittest.TestCase):

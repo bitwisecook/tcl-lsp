@@ -1849,6 +1849,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
+ "rustc-hash",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-codegen",

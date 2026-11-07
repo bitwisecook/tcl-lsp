@@ -66,7 +66,12 @@ NOTICE = """\
 // SPDX-License-Identifier: AGPL-3.0-or-later
 """
 
-LICENSE_MARKERS = ("tcl-lsp —", "Copyright (C)", "SPDX-License-Identifier", "GNU Affero")
+LICENSE_MARKERS = (
+    "tcl-lsp —",
+    "Copyright (C)",
+    "SPDX-License-Identifier",
+    "GNU Affero",
+)
 YEAR = re.compile(r"Copyright \(C\) (\d{4}(?:[-–]\d{4})?)")
 SPDX = re.compile(r"SPDX-License-Identifier:\s*(\S+)")
 
@@ -146,7 +151,9 @@ def candidates(root: Path) -> tuple[list[str], list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--fix", action="store_true", help="rewrite failing notices in place")
+    parser.add_argument(
+        "--fix", action="store_true", help="rewrite failing notices in place"
+    )
     parser.add_argument("--root", type=Path, default=Path.cwd())
     args = parser.parse_args(argv)
 
