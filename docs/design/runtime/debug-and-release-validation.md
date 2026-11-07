@@ -31,7 +31,14 @@ pub(crate) const VERIFY_CURRENCY: bool = cfg!(debug_assertions);
 - **Semantic freshness.** Bytecode staleness after a profile, compiler, policy
   or namespace change, command-binding epochs and compiled-selection
   prerequisites are not gated: they decide what runs, not whether an
-  invariant held.
+  invariant held. A retained procedure body's command and procedure bindings
+  are memoised instead: release trusts them while the binding stamp (a binding
+  epoch advanced by every command, trace, namespace-resolver, compiler-cache
+  and ensemble-export change, with the command and trace epochs, current
+  interpreter and profile and compiler generations) is unchanged since they
+  last held. Debug builds re-prove them on every call and assert that the
+  memo agreed, so a mutation path that skips the epoch fails the debug
+  suite.
 
 ## What release skips
 
