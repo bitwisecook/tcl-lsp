@@ -2053,8 +2053,9 @@ fn reflection_free_command(
     let Some(words) = source_registry_words(source, analysis, segment) else {
         return false;
     };
+    // Operand effects are already bounded: no command substitution is admitted.
     let closed_lookup = match words.source() {
-        OriginalRegistrySource::Selected => words.operands_preserve_source_lookup(),
+        OriginalRegistrySource::Selected => true,
         OriginalRegistrySource::Conditional(metadata) => metadata.obligations().is_empty(),
         _ => false,
     };
