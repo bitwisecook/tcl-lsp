@@ -6625,6 +6625,27 @@ impl RegistryInvocationShape {
         if self.hosted_source.is_some() {
             return self.with_source_schema(registry, context, tokens, apply);
         }
+        // A hosted rule body has no native operand layout; its own hosted
+        // catalogue entry describes the same command's schema.
+        if context
+            .source_analysis_input()
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
+            && tokens.source_binding.as_ref().is_some_and(|binding| {
+                binding
+                    .original_conditional_operand_layout_advice(tokens, registry)
+                    .is_none()
+            })
+        {
+            let hosted = Self::from_hosted_source(registry, context, tokens)?;
+            if hosted.command != self.command {
+                return None;
+            }
+            return hosted
+                .hosted_source
+                .as_deref()?
+                .shape()
+                .with_source_schema(registry, context, apply);
+        }
         if self.effective.words.is_empty()
             || self.effective.words.len() != self.effective.origins.len()
             || self.effective.origins.iter().any(|origin| {
