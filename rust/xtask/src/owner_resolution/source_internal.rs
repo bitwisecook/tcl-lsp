@@ -42,6 +42,8 @@ struct Row {
 
 struct SourceModule {
     access_scope: String,
+    /// Declared plain `pub`, so another crate may name it.
+    public: bool,
     source: PathBuf,
     file: syn::File,
 }
@@ -49,7 +51,14 @@ struct SourceModule {
 struct CrateModules {
     name: String,
     modules: BTreeMap<String, SourceModule>,
+    /// Dependency crates by extern name, for routes another crate's owner
+    /// serves. Paths into them resolve with [`EXTERN_CALLER`] access only.
+    externs: BTreeMap<String, CrateModules>,
 }
+
+/// The caller of a path resolved from another crate: only plain `pub`
+/// modules, items and re-exports are reachable.
+const EXTERN_CALLER: &str = "<extern>";
 
 fn parse(markdown: &str) -> Result<Vec<Row>, String> {
     let Some((_, tail)) = markdown.split_once(START) else {
@@ -104,8 +113,9 @@ pub(super) fn validate(root: &Path, markdown: &str) -> (Coverage, Vec<String>) {
     for row in rows {
         let checked = (|| {
             let package_root = crate_root(&row.source)?;
-            if crate_root(&row.consumer_source)? != package_root {
-                return Err("foreign consumer crate".into());
+            let consumer_root = crate_root(&row.consumer_source)?;
+            if consumer_root != package_root {
+                return check_foreign_route(root, &row, &package_root, &consumer_root);
             }
             let cache_key = (package_root.clone(), CrateModules::direct_self_scope(&row));
             if !cached.contains_key(&cache_key) {
@@ -147,6 +157,86 @@ pub(super) fn validate(root: &Path, markdown: &str) -> (Coverage, Vec<String>) {
         }
     }
     (coverage, errors)
+}
+
+/// A route whose consumer is another crate: only a `static` call of a plain
+/// `pub fn`, reached through the consumer's declared dependency on the owner
+/// crate and plain `pub` modules or re-exports there.
+fn check_foreign_route(
+    root: &Path,
+    row: &Row,
+    owner_root: &Path,
+    consumer_root: &Path,
+) -> Result<(), String> {
+    if row.route != "static" {
+        return Err("a foreign consumer crate supports only a static route".into());
+    }
+    let owner = CrateModules::load_with_scope(root, owner_root, [&row.module, "crate"], false)?;
+    if owner.name != row.crate_name {
+        return Err("Cargo package identity differs".into());
+    }
+    {
+        let module = owner
+            .modules
+            .get(&row.module)
+            .ok_or("missing owner module")?;
+        if module.source != Path::new(&row.source) {
+            return Err("registered file does not implement its actual module".into());
+        }
+        let declaration =
+            declaration(&module.file, &row.entry).ok_or("missing owner declaration")?;
+        if declaration.owner_type.is_some()
+            || declaration.signature.is_none()
+            || !matches!(declaration.visibility, syn::Visibility::Public(_))
+            || visibility_name(declaration.visibility) != row.visibility
+            || !super::file_attrs_preserve_routes(&module.file.attrs)
+        {
+            return Err("a foreign route owner must be a plain `pub fn`".into());
+        }
+    }
+    let mut consumer =
+        CrateModules::load_with_scope(root, consumer_root, [&row.consumer_module, "crate"], false)?;
+    let module = consumer
+        .modules
+        .get(&row.consumer_module)
+        .ok_or("missing consumer module")?;
+    if module.source != Path::new(&row.consumer_source) {
+        return Err("registered file does not implement its actual module".into());
+    }
+    if !declares_dependency(root, consumer_root, &owner.name)? {
+        return Err("consumer crate does not depend on the owner crate".into());
+    }
+    let extern_name = owner.name.replace('-', "_");
+    let target = format!("{extern_name}::{}::{}", row.module, row.entry);
+    consumer.externs.insert(extern_name, owner);
+    if !consumer.check_foreign_static_row(row, &target) {
+        return Err("declaration, visibility or actual consumer route does not resolve".into());
+    }
+    Ok(())
+}
+
+/// Whether `crate_root`'s manifest names `dependency` as an ordinary,
+/// unrenamed `[dependencies]` entry.
+fn declares_dependency(root: &Path, crate_root: &Path, dependency: &str) -> Result<bool, String> {
+    let cargo = std::fs::read_to_string(root.join(crate_root).join("Cargo.toml"))
+        .map_err(|error| error.to_string())?;
+    let mut section = "";
+    for raw in cargo.lines() {
+        let line = raw.trim();
+        if line.starts_with('[') {
+            section = line;
+            continue;
+        }
+        if section != "[dependencies]" {
+            continue;
+        }
+        if let Some((key, value)) = line.split_once('=')
+            && key.trim() == dependency
+        {
+            return Ok(!value.contains("package"));
+        }
+    }
+    Ok(false)
 }
 
 fn crate_root(source: &str) -> Result<PathBuf, String> {
@@ -227,11 +317,15 @@ impl CrateModules {
             Self::crate_source(root, crate_root, &cargo)?,
             "crate",
             required,
-            "crate",
+            ("crate", true),
             direct_self,
             &mut modules,
         )?;
-        Ok(Self { name, modules })
+        Ok(Self {
+            name,
+            modules,
+            externs: BTreeMap::new(),
+        })
     }
 
     fn crate_source(root: &Path, crate_root: &Path, cargo: &str) -> Result<PathBuf, String> {
@@ -292,7 +386,7 @@ impl CrateModules {
         source: PathBuf,
         module: &str,
         required: [&str; 2],
-        access_scope: &str,
+        (access_scope, public): (&str, bool),
         direct_self: bool,
         modules: &mut BTreeMap<String, SourceModule>,
     ) -> Result<(), String> {
@@ -358,7 +452,7 @@ impl CrateModules {
                 path.clone(),
                 &child_name,
                 required,
-                &scope,
+                (&scope, matches!(child.vis, syn::Visibility::Public(_))),
                 direct_self,
                 modules,
             )?;
@@ -368,6 +462,7 @@ impl CrateModules {
                 module.into(),
                 SourceModule {
                     access_scope: access_scope.into(),
+                    public,
                     source,
                     file,
                 },
@@ -385,7 +480,11 @@ impl CrateModules {
             let Some(item) = self.modules.get(current) else {
                 return false;
             };
-            if caller != item.access_scope
+            if caller == EXTERN_CALLER {
+                if !item.public {
+                    return false;
+                }
+            } else if caller != item.access_scope
                 && !caller.starts_with(&format!("{}::", item.access_scope))
             {
                 return false;
@@ -421,6 +520,13 @@ impl CrateModules {
         };
         if depth > 16 {
             return None;
+        }
+        if let Some(dependency) = self.externs.get(first) {
+            // Another crate's owner: resolved from that crate's root, where
+            // only plain `pub` modules, items and re-exports are reachable.
+            return dependency
+                .resolve_parts("crate", tail, depth + 1, EXTERN_CALLER)
+                .map(|identity| format!("{first}::{identity}"));
         }
         if first == "crate" {
             for index in (1..parts.len()).rev() {
@@ -660,6 +766,54 @@ impl CrateModules {
             return None;
         }
         Some(owner)
+    }
+
+    /// The consumer half of a foreign static route: some call in the consumer
+    /// body resolves, through the consumer crate's paths, to `target`.
+    fn check_foreign_static_row(&self, row: &Row, target: &str) -> bool {
+        let Some(consumer_module) = self.modules.get(&row.consumer_module) else {
+            return false;
+        };
+        if !super::file_attrs_preserve_routes(&consumer_module.file.attrs) {
+            return false;
+        }
+        let Some(consumer) = declaration_in_mode(
+            &consumer_module.file,
+            &row.consumer_entry,
+            true,
+            false,
+            false,
+        ) else {
+            return false;
+        };
+        if consumer.impl_generics.is_some_and(|generics| {
+            generics
+                .params
+                .iter()
+                .any(|parameter| !matches!(parameter, syn::GenericParam::Lifetime(_)))
+        }) {
+            return false;
+        }
+        let (Some(signature), Some(body)) = (consumer.signature, consumer.body) else {
+            return false;
+        };
+        let mut calls = ConsumerReferences {
+            modules: self,
+            row,
+            target: target.to_owned(),
+            consumer,
+            locals: BTreeMap::new(),
+            shadowed: BTreeSet::new(),
+            type_import_shadows: BTreeSet::new(),
+            matched: false,
+            invalid: false,
+        };
+        if !Self::initialise_consumer_parameters(&mut calls, signature) {
+            return false;
+        }
+        calls.visit_signature(signature);
+        calls.visit_block(body);
+        calls.matched && !calls.invalid
     }
 
     fn check_row(&self, row: &Row) -> bool {
@@ -1161,6 +1315,9 @@ fn visibility_scope(visibility: &syn::Visibility, owner: &str) -> Option<String>
 }
 
 fn accessible(visibility: &syn::Visibility, owner: &str, consumer: &str) -> bool {
+    if consumer == EXTERN_CALLER {
+        return matches!(visibility, syn::Visibility::Public(_));
+    }
     visibility_scope(visibility, owner)
         .is_some_and(|scope| consumer == scope || consumer.starts_with(&format!("{scope}::")))
 }
@@ -2346,6 +2503,7 @@ mod tests {
                             .rsplit_once("::")
                             .map_or("crate", |(parent, _)| parent)
                             .into(),
+                        public: false,
                         source: PathBuf::from(format!(
                             "rust/fixture/src/{}.rs",
                             module.replace("::", "/")
@@ -2355,6 +2513,7 @@ mod tests {
                 )
             })
             .collect(),
+            externs: BTreeMap::new(),
         };
         let row = Row {
             surface: "source".into(),
@@ -3738,5 +3897,160 @@ mod file_route_tests {
             assert!(coverage.is_empty());
             assert_ne!(failures.len(), 0);
         }
+    }
+
+    fn two_crates(
+        owner_lib: &str,
+        owner_files: &[(&str, &str)],
+        consumer: &str,
+        consumer_cargo: &str,
+    ) -> Fixture {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let sequence = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let directory = std::env::temp_dir().join(format!(
+            "source-owner-foreign-{}-{sequence}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(directory.join("rust/b/src")).unwrap();
+        std::fs::create_dir_all(directory.join("rust/a/src")).unwrap();
+        std::fs::write(
+            directory.join("rust/b/Cargo.toml"),
+            "[package]\nname = \"b\"\n",
+        )
+        .unwrap();
+        std::fs::write(directory.join("rust/b/src/lib.rs"), owner_lib).unwrap();
+        for (file, contents) in owner_files {
+            std::fs::write(directory.join("rust/b/src").join(file), contents).unwrap();
+        }
+        std::fs::write(directory.join("rust/a/Cargo.toml"), consumer_cargo).unwrap();
+        std::fs::write(directory.join("rust/a/src/lib.rs"), "mod user;").unwrap();
+        std::fs::write(directory.join("rust/a/src/user.rs"), consumer).unwrap();
+        Fixture(directory)
+    }
+
+    const DEPENDS: &str = "[package]\nname = \"a\"\n\n[dependencies]\nb = { path = \"../b\" }\n";
+
+    fn foreign_manifest(
+        owner_source: &str,
+        owner_module: &str,
+        visibility: &str,
+        route: &str,
+    ) -> String {
+        format!(
+            "{START}\n| Surface | Owner source | Crate | Owner module | Entry | Visibility | Consumer source | Consumer module | Consumer entry | Route |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| source | `{owner_source}` | `b` | `{owner_module}` | `tool` | {visibility} | `rust/a/src/user.rs` | `crate::user` | `consume` | `{route}` |\n{END}"
+        )
+    }
+
+    #[test]
+    fn foreign_static_routes_resolve_through_public_paths_only() {
+        let direct = foreign_manifest("rust/b/src/util.rs", "crate::util", "pub", "static");
+        let reexported = foreign_manifest("rust/b/src/inner.rs", "crate::inner", "pub", "static");
+        let accepted = [
+            (
+                two_crates(
+                    "pub mod util;",
+                    &[("util.rs", "pub fn tool() {}")],
+                    "fn consume() { b::util::tool(); }",
+                    DEPENDS,
+                ),
+                &direct,
+            ),
+            (
+                two_crates(
+                    "pub mod util;",
+                    &[("util.rs", "pub fn tool() {}")],
+                    "use b::util::tool; fn consume() { tool(); }",
+                    DEPENDS,
+                ),
+                &direct,
+            ),
+            (
+                two_crates(
+                    "mod inner; pub use inner::tool;",
+                    &[("inner.rs", "pub fn tool() {}")],
+                    "fn consume() { b::tool(); }",
+                    DEPENDS,
+                ),
+                &reexported,
+            ),
+        ];
+        for (fixture, manifest) in &accepted {
+            let (coverage, problems) = validate(&fixture.0, manifest);
+            assert!(problems.is_empty(), "{problems:?}");
+            assert_eq!(coverage.len(), 1);
+        }
+        let crate_only =
+            foreign_manifest("rust/b/src/util.rs", "crate::util", "pub(crate)", "static");
+        let rejected = [
+            (
+                two_crates(
+                    "pub mod util;",
+                    &[("util.rs", "pub(crate) fn tool() {}")],
+                    "fn consume() { b::util::tool(); }",
+                    DEPENDS,
+                ),
+                &crate_only,
+            ),
+            (
+                two_crates(
+                    "pub(crate) mod util;",
+                    &[("util.rs", "pub fn tool() {}")],
+                    "fn consume() { b::util::tool(); }",
+                    DEPENDS,
+                ),
+                &direct,
+            ),
+            (
+                two_crates(
+                    "mod inner; pub(crate) use inner::tool;",
+                    &[("inner.rs", "pub fn tool() {}")],
+                    "fn consume() { b::tool(); }",
+                    DEPENDS,
+                ),
+                &reexported,
+            ),
+            (
+                two_crates(
+                    "pub mod util;",
+                    &[("util.rs", "pub fn tool() {}")],
+                    "fn consume() { b::util::tool(); }",
+                    "[package]\nname = \"a\"\n",
+                ),
+                &direct,
+            ),
+            (
+                two_crates(
+                    "pub mod util;",
+                    &[("util.rs", "pub fn tool() {}")],
+                    "fn consume() { b::util::tool(); }",
+                    "[package]\nname = \"a\"\n\n[dependencies]\nb = { path = \"../b\", package = \"c\" }\n",
+                ),
+                &direct,
+            ),
+            (
+                two_crates(
+                    "pub mod util;",
+                    &[("util.rs", "pub fn tool() {}")],
+                    "fn consume() { b::util::other(); }",
+                    DEPENDS,
+                ),
+                &direct,
+            ),
+        ];
+        for (fixture, manifest) in &rejected {
+            let (coverage, problems) = validate(&fixture.0, manifest);
+            assert!(coverage.is_empty(), "{manifest}");
+            assert_ne!(problems.len(), 0);
+        }
+        let typed = foreign_manifest("rust/b/src/util.rs", "crate::util", "pub", "type");
+        let fixture = two_crates(
+            "pub mod util;",
+            &[("util.rs", "pub fn tool() {}")],
+            "fn consume() { b::util::tool(); }",
+            DEPENDS,
+        );
+        let (coverage, problems) = validate(&fixture.0, &typed);
+        assert!(coverage.is_empty());
+        assert_ne!(problems.len(), 0);
     }
 }

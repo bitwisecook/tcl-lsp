@@ -773,9 +773,11 @@ calls `single_command_source_parts` (from `codegen::cmd_subst`),
 `inlining::frame`), `original_literal_argument_data_for_module` (from
 `codegen::wasm::backend`) and `matches_foreach_header` (from
 `codegen::emitter::loop_blocks`) through their `#[doc(hidden)] pub` entry
-points. The owners are unchanged and the public table still checks their
-declarations; the first two keep verified in-crate routes, the last two have
-no checked consumer route until the checker resolves `tcl_compiler::` paths.
+points. The source-route checker follows a `static` route into another crate
+when the consumer's manifest depends on the owner crate and every module and
+re-export on the path is plain `pub`, so the three free-function routes are
+checked from `tcl-codegen` below. The method route keeps its verified in-crate
+consumer.
 
 <!-- owner-resolution-source-manifest -->
 | Surface | Owner source | Crate | Owner module | Entry | Visibility | Consumer source | Consumer module | Consumer entry | Route |
@@ -1555,6 +1557,10 @@ no checked consumer route until the checker resolves `tcl_compiler::` paths.
 | Original branch child operand source | `rust/tcl-compiler/src/math_function_binding.rs` | `tcl-compiler` | `crate::math_function_binding` | `ExpressionMathBindings::original_expression_child_operand` | pub(crate) | `rust/tcl-compiler/src/optimiser/branch_folding.rs` | `crate::optimiser::branch_folding` | `original_branch_child_word` | `producer:crate::math_function_binding::ExpressionMathBindings::for_module_statement` |
 | Physical original condition direct reads | `rust/tcl-compiler/src/math_function_binding/physical_condition.rs` | `tcl-compiler` | `crate::math_function_binding::physical_condition` | `ExpressionMathBindings::physical_condition_reads` | pub(crate) | `rust/tcl-compiler/src/optimiser/code_sinking.rs` | `crate::optimiser::code_sinking` | `original_condition_reads_store_cell` | `producer:crate::math_function_binding::ExpressionMathBindings::for_module_statement` |
 | Original autoload index filename data | `rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs` | `tcl-lsp-core` | `crate::package_resolver::original_names::index_loader` | `IndexLoader::collect_word_in_plan` | pub(in crate::package_resolver) | `rust/tcl-lsp-core/src/package_resolver.rs` | `crate::package_resolver` | `collect_source_targets` | `producer:crate::package_resolver::original_names::index_loader::IndexLoader::standalone` |
+| Configured single-command lexical projection | `rust/tcl-compiler/src/word_subst.rs` | `tcl-compiler` | `crate::word_subst` | `single_command_source_parts` | pub | `rust/tcl-codegen/src/codegen/cmd_subst.rs` | `crate::codegen::cmd_subst` | `is_single_command_body` | `static` |
+| Original source value components | `rust/tcl-compiler/src/registry_invocation/original_word_data.rs` | `tcl-compiler` | `crate::registry_invocation::original_word_data` | `original_literal_argument_data_for_module` | pub | `rust/tcl-codegen/src/codegen/wasm/backend.rs` | `crate::codegen::wasm::backend` | `original_assignment_name` | `static` |
+| Typed codegen list iteration | `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` | `tcl-compiler` | `crate::cfg_builder::cfg_lower` | `matches_foreach_header` | pub | `rust/tcl-codegen/src/codegen/emitter/loop_blocks.rs` | `crate::codegen::emitter::loop_blocks` | `detect_foreach` | `static` |
+
 <!-- end-owner-resolution-source-manifest -->
 
 ### Shared entries the owner gate cannot check
