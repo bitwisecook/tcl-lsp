@@ -909,6 +909,18 @@ struct State {
     incoming: BTreeSet<String>,
 }
 impl State {
+    /// Whether `name` is defined, or is an array an element store made
+    /// exist: an authored read of `$c(x)` names the array `c`, and
+    /// `set c(x) 1` defines `c(x)`.
+    fn defines_array_or_name(&self, name: &str) -> bool {
+        self.defined.contains(name)
+            || self.defined.iter().any(|defined| {
+                defined
+                    .strip_prefix(name)
+                    .is_some_and(|element| element.starts_with('(') && element.ends_with(')'))
+            })
+    }
+
     fn join(&mut self, other: &Self) -> bool {
         let old = self.clone();
         self.defined.retain(|name| other.defined.contains(name));
@@ -4550,7 +4562,7 @@ impl Builder<'_> {
                 report.conditional_handler_literals.insert(site, literals);
             }
             for (name, span) in &node.authored_reads {
-                if !state.defined.contains(name)
+                if !state.defines_array_or_name(name)
                     && !state.uncertain_writes.contains(name)
                     && !state.aliases.contains(name)
                 {
@@ -4732,7 +4744,7 @@ impl Builder<'_> {
                         .or_default()
                         .push(*span);
                 }
-                if !state.defined.contains(name)
+                if !state.defines_array_or_name(name)
                     && !accumulator_defined
                     && !state.aliases.contains(name)
                 {

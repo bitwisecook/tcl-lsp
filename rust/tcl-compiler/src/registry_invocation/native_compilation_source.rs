@@ -163,8 +163,67 @@ pub fn original_native_compiler_words(
     offset: u32,
     config: LexerConfig,
 ) -> Option<Vec<NativeWord>> {
-    OriginalSourceCommandProjection::capture(image, words, offset, config)
-        .map(|original| original.native)
+    recent_capture(image, words, offset, config).map(|original| original.native.clone())
+}
+
+/// One recent capture. The weak handle pins the image allocation, so a live
+/// image at the same address is that allocation.
+struct RecentCapture {
+    bytes: std::sync::Weak<[u8]>,
+    channel: tcl_lexer::SourceChannel,
+    offset: u32,
+    config: LexerConfig,
+    words: Vec<WordExpr>,
+    original: Option<std::sync::Arc<OriginalSourceCommandProjection>>,
+}
+
+const RECENT_CAPTURES: usize = 16;
+
+/// The capture is a pure function of its inputs, and many consumers ask for
+/// the same command in turn: re-parsing it each time made a long command cost
+/// its length per consumer (#2422).
+fn recent_capture(
+    image: &SourceImage,
+    words: &[WordExpr],
+    offset: u32,
+    config: LexerConfig,
+) -> Option<std::sync::Arc<OriginalSourceCommandProjection>> {
+    thread_local! {
+        static RECENT: std::cell::RefCell<std::collections::VecDeque<RecentCapture>> =
+            const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+    }
+    let bytes = image.shared_bytes();
+    let channel = image.channel();
+    let hit = RECENT.with_borrow_mut(|recent| {
+        let at = recent.iter().position(|entry| {
+            std::ptr::addr_eq(entry.bytes.as_ptr(), std::sync::Arc::as_ptr(&bytes))
+                && entry.channel == channel
+                && entry.offset == offset
+                && entry.config == config
+                && entry.words == words
+        })?;
+        let entry = recent.remove(at)?;
+        let original = entry.original.clone();
+        recent.push_front(entry);
+        Some(original)
+    });
+    if let Some(original) = hit {
+        return original;
+    }
+    let original = OriginalSourceCommandProjection::capture(image, words, offset, config)
+        .map(std::sync::Arc::new);
+    RECENT.with_borrow_mut(|recent| {
+        recent.truncate(RECENT_CAPTURES - 1);
+        recent.push_front(RecentCapture {
+            bytes: std::sync::Arc::downgrade(&bytes),
+            channel,
+            offset,
+            config,
+            words: words.to_vec(),
+            original: original.clone(),
+        });
+    });
+    original
 }
 
 /// Derived lexical geometry for one unchanged complete selected source vector.

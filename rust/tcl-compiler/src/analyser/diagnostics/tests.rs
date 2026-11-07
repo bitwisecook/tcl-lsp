@@ -7815,6 +7815,18 @@ fn a_decided_if_beside_a_switch_is_never_a_switch_arm() {
             messages.iter().all(|m| !m.contains("$x eq")),
             "{body}: {messages:?}"
         );
+        let result = Analyser::new().analyse(&body, "tcl8.6");
+        let i230: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::I230)
+            .map(|d| d.message.as_str())
+            .collect();
+        assert_eq!(
+            i230,
+            ["Condition '$x eq \"z\"' is always false; the consequent branch is unreachable"],
+            "{body}"
+        );
     }
 }
 
@@ -18777,4 +18789,12 @@ fn w210_reads_after_lassign_and_dict_with_are_set_2501_2502() {
         assert!(w210(source).is_empty(), "{source}: {:?}", w210(source));
     }
     assert_eq!(w210("proc f {} { puts $never }\n").len(), 1);
+}
+
+/// An element store makes its array exist, so reading that element right
+/// after draws no read-before-set warning; tclsh 8.4 to 9.1 print `1`.
+#[test]
+fn an_element_store_defines_its_array_for_a_later_element_read() {
+    let source = "proc q {} {\n set c(x) 1\n puts $c(x)\n}\nq\n";
+    assert_eq!(w210_codes(source), [] as [String; 0], "{source}");
 }

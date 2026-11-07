@@ -460,7 +460,23 @@ impl<V: Clone> VariableCellTable<V> {
         Arc::make_mut(&mut self.0).entry(key.into())
     }
 }
+impl<V: Clone> VariableCellTable<V> {
+    /// Keep the entries `keep` accepts, copying a shared table only when an
+    /// entry actually goes: a join of two states that agree is then free.
+    pub fn retain_where(&mut self, mut keep: impl FnMut(&VariableCellKey, &V) -> bool) {
+        if self.0.iter().all(|(key, value)| keep(key, value)) {
+            return;
+        }
+        Arc::make_mut(&mut self.0).retain(|key, value| keep(key, value));
+    }
+}
 impl<V> VariableCellTable<V> {
+    /// Whether both tables are one shared allocation, so they agree on
+    /// every cell without comparing any.
+    #[must_use]
+    pub fn shares(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
     /// Query one exact domain-separated cell.
     pub fn get<Q: VariableCellKeyQuery + ?Sized>(&self, key: &Q) -> Option<&V> {
         self.0.get(key.variable_cell_key().as_ref())

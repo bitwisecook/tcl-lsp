@@ -572,20 +572,19 @@ impl AdviceInvocationContext<'_> {
         let interpreter = schema.semantics.body_interpreter.resolve_with(|ordinal| {
             std::str::from_utf8(invocation.arguments.get(ordinal)?.value.as_deref()?).ok()
         });
+        // The invocation's facts resolve the whole command: once, not per
+        // argument, which made a long literal command quadratic (#2422).
+        let facts = schema.facts();
         for (ordinal, word) in invocation.arguments.iter().enumerate() {
-            if (schema.facts().script_lookup_scope(ordinal).is_none()
-                && schema.facts().command_prefix_arity(ordinal).is_none())
+            if (facts.script_lookup_scope(ordinal).is_none()
+                && facts.command_prefix_arity(ordinal).is_none())
                 || word.original.group().expand
             {
                 continue;
             }
-            let Some((prefix, owned_registration)) = self.source_callback_prefix(
-                &word.original,
-                &schema.facts(),
-                ordinal,
-                graph,
-                &registration,
-            ) else {
+            let Some((prefix, owned_registration)) =
+                self.source_callback_prefix(&word.original, &facts, ordinal, graph, &registration)
+            else {
                 continue;
             };
             tape.retain_callback_target(Self::source_callback_lookup(

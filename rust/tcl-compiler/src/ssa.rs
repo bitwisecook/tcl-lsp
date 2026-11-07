@@ -1894,8 +1894,28 @@ impl<'a> SsaSourceView<'a> {
         dynamic_trace: bool,
         registry: &CommandRegistry,
     ) -> Option<bool> {
+        self.externally_mutable_given(
+            symbol,
+            names,
+            dynamic_trace,
+            self.ssa.has_opaque_native_accesses(),
+            registry,
+        )
+    }
+
+    /// [`Self::externally_mutable_by`] with whether the function's running
+    /// code has opaque native accesses already decided by the caller.
+    #[must_use]
+    pub fn externally_mutable_given(
+        self,
+        symbol: Symbol,
+        names: &HashSet<String>,
+        dynamic_trace: bool,
+        opaque_native_accesses: bool,
+        registry: &CommandRegistry,
+    ) -> Option<bool> {
         let key = self.ssa.cell_key(symbol)?;
-        if self.ssa.has_opaque_native_accesses()
+        if opaque_native_accesses
             || dynamic_trace
             || key
                 .authored_spelling()
@@ -3468,17 +3488,27 @@ impl SsaFunction {
     /// argument inventory. Empty named maps cannot establish absence of reads.
     #[must_use]
     pub fn has_opaque_native_accesses(&self) -> bool {
+        self.has_opaque_native_accesses_in(&|_| true)
+    }
+
+    /// [`Self::has_opaque_native_accesses`] over only the blocks `admit`
+    /// accepts: a block that never runs accesses nothing.
+    #[must_use]
+    pub fn has_opaque_native_accesses_in(&self, admit: &dyn Fn(BlockId) -> bool) -> bool {
         self.point_contexts
             .as_ref()
-            .is_some_and(PointResolveContexts::has_unknown_source_arguments)
-            || crate::ir::statements_have_opaque_native_accesses(self.blocks.values().flat_map(
-                |block| {
-                    block
-                        .statements
-                        .iter()
-                        .map(|statement| &statement.statement)
-                },
-            ))
+            .is_some_and(|points| points.has_unknown_source_arguments_in(admit))
+            || crate::ir::statements_have_opaque_native_accesses(
+                self.blocks
+                    .iter()
+                    .filter(|(id, _)| admit(**id))
+                    .flat_map(|(_, block)| {
+                        block
+                            .statements
+                            .iter()
+                            .map(|statement| &statement.statement)
+                    }),
+            )
     }
 
     /// A trivial SSA shell — no blocks, no dominance information — used when

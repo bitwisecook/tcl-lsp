@@ -1146,6 +1146,15 @@ impl super::SourceInvocationBinding {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<&tcl_lexer::SourceImage> {
+        Some(self.original_argument_source(tokens)?.source_image())
+    }
+
+    /// The source origin [`Self::original_argument_source_image`] reads,
+    /// whose lexical memo serves every capture of its commands.
+    pub(crate) fn original_argument_source(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<&super::SourceOriginId> {
         self.original_argument_lexer_config(tokens)?;
         let source = if let Some(original) = &self.original_written_words {
             &original.site.source
@@ -1154,7 +1163,7 @@ impl super::SourceInvocationBinding {
         } else {
             &self.invocation_site()?.source
         };
-        Some(source.source_image())
+        Some(source)
     }
 
     fn original_word_vector_config(

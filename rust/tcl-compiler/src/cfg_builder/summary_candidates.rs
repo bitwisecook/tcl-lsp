@@ -165,14 +165,11 @@ pub(super) fn original_head(tokens: &CommandTokens) -> Option<String> {
     let binding = tokens.source_binding.as_ref()?;
     let site = binding.invocation_site()?;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
-    let words = crate::registry_invocation::original_native_compiler_words(
-        site.source.source_image(),
-        tokens.words(),
-        site.offset,
-        config,
-    )?;
+    let original = site
+        .source
+        .original_lexical_command(tokens.words(), site.offset, config)?;
     String::from_utf8(tcl_syntax::word_rules::original_static_word_source_bytes(
-        words.first()?,
+        original.native_words().first()?,
     )?)
     .ok()
 }

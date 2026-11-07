@@ -171,14 +171,13 @@ impl LiftedCallCollection {
         let original_image = (|| {
             let binding = tokens.source_binding.as_ref()?;
             (binding.original_argument_lexer_config(tokens)? == config).then_some(())?;
-            let image = binding.original_argument_source_image(tokens)?;
-            crate::registry_invocation::original_native_compiler_words(
-                image,
+            let origin = binding.original_argument_source(tokens)?;
+            origin.original_lexical_command(
                 tokens.words(),
                 tokens.argv.first()?.start(),
                 config,
             )?;
-            Some(image.clone())
+            Some(origin.source_image().clone())
         })();
         Self {
             original_image,
@@ -693,8 +692,7 @@ fn original_call_context(
                 return None;
             }
             let site = binding.original_logical_source_site_for_name_roles(tokens, registry)?;
-            crate::registry_invocation::original_native_compiler_words(
-                site.source.source_image(),
+            site.source.original_lexical_command(
                 tokens.words(),
                 site.offset,
                 input.lexer_config(),
@@ -710,12 +708,8 @@ fn original_call_context(
         return None;
     }
     let site = binding.invocation_site()?;
-    crate::registry_invocation::original_native_compiler_words(
-        site.source.source_image(),
-        tokens.words(),
-        site.offset,
-        original_config,
-    )?;
+    site.source
+        .original_lexical_command(tokens.words(), site.offset, original_config)?;
     Some(site.offset)
 }
 
@@ -1756,6 +1750,45 @@ pub enum NestedWordsDecline {
 /// Returns [`NestedWordsDecline`] when the spelling is not a single complete
 /// `[…]` command, or when it carries no words at all.
 pub fn nested_command_words(
+    spelling: &str,
+    source: &SourceSite,
+    config: tcl_lexer::LexerConfig,
+) -> Result<CommandTokens, NestedWordsDecline> {
+    // A pure function of its inputs that many consumers ask of the same word
+    // in turn: re-segmenting a long substitution for each made it cost its
+    // length per consumer (#2422).
+    type Recent = (
+        String,
+        SourceSite,
+        tcl_lexer::LexerConfig,
+        Result<CommandTokens, NestedWordsDecline>,
+    );
+    const RECENT_WORDS: usize = 8;
+    thread_local! {
+        static RECENT: std::cell::RefCell<std::collections::VecDeque<Recent>> =
+            const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+    }
+    let hit = RECENT.with_borrow_mut(|recent| {
+        let at = recent.iter().position(|(text, site, at_config, _)| {
+            *at_config == config && site == source && text == spelling
+        })?;
+        let entry = recent.remove(at)?;
+        let answer = entry.3.clone();
+        recent.push_front(entry);
+        Some(answer)
+    });
+    if let Some(answer) = hit {
+        return answer;
+    }
+    let answer = nested_command_words_uncached(spelling, source, config);
+    RECENT.with_borrow_mut(|recent| {
+        recent.truncate(RECENT_WORDS - 1);
+        recent.push_front((spelling.to_owned(), source.clone(), config, answer.clone()));
+    });
+    answer
+}
+
+fn nested_command_words_uncached(
     spelling: &str,
     source: &SourceSite,
     config: tcl_lexer::LexerConfig,

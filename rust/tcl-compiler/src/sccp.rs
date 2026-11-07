@@ -5082,7 +5082,7 @@ pub(crate) fn evaluate_branch_under<S: std::hash::BuildHasher>(
 /// document configuration; a root `Raw` is an unparsed condition, not
 /// an operand, and stays undecided, as does any `Raw` text the owner does
 /// not prove.
-fn with_whole_variable_operands(
+pub(crate) fn with_whole_variable_operands(
     condition: &ExprNode,
     config: tcl_lexer::LexerConfig,
 ) -> Option<ExprNode> {

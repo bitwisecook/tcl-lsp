@@ -515,28 +515,77 @@ fn solve_value_facts(
         policy,
         extra_escaping,
         trace,
-        folds,
+        ..
     } = *inputs;
     let preds = compute_predecessors(cfg);
-    let (mut values, grammar) = seed_value_facts(cfg, ssa, param_constants, policy, trace.registry);
+    let (values, grammar) = seed_value_facts(cfg, ssa, param_constants, policy, trace.registry);
 
     // Retained point contexts describe actual read and write observers and
     // contents origins. A later alias, opaque call or unreachable branch must
     // not retroactively erase an earlier definition. Carrierless compatibility
     // SSA still uses the conservative whole-function exposure summary.
-    let escaping = compatibility_escaping(cfg, ssa, trace, extra_escaping);
+    let mut escaping = compatibility_escaping(cfg, ssa, trace, extra_escaping);
+    // A name a variable trace or a stored callback writes changes whenever
+    // they run (`after idle {set ::go 0}; update`), which no point context
+    // states; the execution solver treats them the same way.
+    if ssa.point_contexts.is_some() {
+        trace.extend_module_escaping(&mut escaping);
+    }
+    // A block the solve proves never runs accesses nothing, so the opaque
+    // native accesses of such a block (an arm the walk proves dead, whose
+    // calls it binds nothing for) leave the running code's values alone.
+    // Solve first without them and again with them only when a block that
+    // runs has one, as the execution solver does with its hazards (#2375).
+    let mut opaque_native_accesses = false;
+    loop {
+        let solved = solve_value_facts_once(
+            (cfg, ssa),
+            (inputs, purpose),
+            (&preds, values.clone(), grammar),
+            &escaping,
+            opaque_native_accesses,
+        );
+        if opaque_native_accesses
+            || !ssa
+                .has_opaque_native_accesses_in(&|id| solved.result.executable_blocks.contains(&id))
+        {
+            return solved;
+        }
+        opaque_native_accesses = true;
+    }
+}
+
+fn solve_value_facts_once(
+    (cfg, ssa): (&CfgFunction, &SsaFunction),
+    (inputs, purpose): (&ValueFactInputs<'_>, SolverPurpose),
+    (preds, mut values, grammar): (
+        &HashMap<BlockId, HashSet<BlockId>>,
+        HashMap<ValueKey, LatticeValue>,
+        tcl_dialect::LexerGrammar,
+    ),
+    escaping: &HashSet<String>,
+    opaque_native_accesses: bool,
+) -> SolvedValueFacts {
+    let ValueFactInputs {
+        param_constants,
+        policy,
+        trace,
+        folds,
+        ..
+    } = *inputs;
     let required_math_invocations = MathDependencies::for_parameters(purpose, param_constants);
     let reference_config =
-        crate::value_transfer::LatticeDriver::new(trace, folds, policy, &escaping)
+        crate::value_transfer::LatticeDriver::new(trace, folds, policy, escaping)
             .with_cfg_metadata(&cfg.metadata_context)
             .source_reference_lexer_config();
     let store_inputs = StoreInputs {
         reference_config,
         math_dependencies: Some(&required_math_invocations),
         cfg: Some(cfg),
-        escaping: &escaping,
+        escaping,
         policy,
         has_dynamic_variable_trace: trace.writes_any_variable() && ssa.point_contexts.is_none(),
+        opaque_native_accesses,
         folds,
         registry: trace.registry,
     };
@@ -566,8 +615,7 @@ fn solve_value_facts(
                     continue;
                 };
 
-                let incoming_exec =
-                    incoming_executable_predecessors(*bn, &preds, &executable_edges);
+                let incoming_exec = incoming_executable_predecessors(*bn, preds, &executable_edges);
 
                 // Phi nodes (not at entry, only when some predecessor is
                 // executable).
@@ -595,6 +643,7 @@ fn solve_value_facts(
                     policy,
                     grammar,
                     registry: trace.registry,
+                    reference_config,
                 };
                 if sccp_process_terminator(
                     *bn,
@@ -616,7 +665,7 @@ fn solve_value_facts(
     finish_value_facts(
         (cfg, ssa),
         (inputs, purpose, grammar),
-        (&order, &escaping),
+        (&order, escaping),
         required_math_invocations,
         SettledValueFactState {
             values,
@@ -665,6 +714,11 @@ fn finish_value_facts(
             policy,
             grammar,
             registry: trace.registry,
+            reference_config: crate::value_transfer::LatticeDriver::new(
+                trace, folds, policy, escaping,
+            )
+            .with_cfg_metadata(&cfg.metadata_context)
+            .source_reference_lexer_config(),
         },
     );
 
@@ -942,6 +996,9 @@ struct StoreInputs<'a> {
     escaping: &'a HashSet<String>,
     policy: FoldPolicy,
     has_dynamic_variable_trace: bool,
+    /// Whether the code the solve treats as running has opaque native
+    /// accesses ([`SsaFunction::has_opaque_native_accesses_in`]).
+    opaque_native_accesses: bool,
     folds: Option<BuiltinFoldInputs<'a>>,
     registry: &'a CommandRegistry,
 }
@@ -1067,6 +1124,7 @@ fn sccp_process_statements(
         escaping,
         policy,
         has_dynamic_variable_trace,
+        opaque_native_accesses,
         folds,
         registry,
     } = *store;
@@ -1121,8 +1179,13 @@ fn sccp_process_statements(
         }
         for (&var, ver) in &stmt_ssa.defs {
             let val = if ssa.cell_key(var).is_none_or(|cell| observed.contains(cell))
-                || lookup.externally_mutable_by(var, escaping, has_dynamic_variable_trace, registry)
-                    != Some(false)
+                || lookup.externally_mutable_given(
+                    var,
+                    escaping,
+                    has_dynamic_variable_trace,
+                    opaque_native_accesses,
+                    registry,
+                ) != Some(false)
                 || ssa.is_array_root_refresh_version(var, *ver)
                 || stmt_ssa.destruction_defs.contains(&var)
             {
@@ -1189,6 +1252,7 @@ struct TerminatorInputs<'a> {
     /// The document's lexer grammar — the branch condition's `Raw` operand
     /// texts are re-read under it when their variables are collected.
     grammar: tcl_dialect::LexerGrammar,
+    reference_config: Option<tcl_lexer::LexerConfig>,
 }
 
 /// Process a block's terminator: mark the matching outgoing edges
@@ -1209,6 +1273,7 @@ fn sccp_process_terminator(
         policy,
         grammar,
         registry,
+        reference_config,
     } = *inputs;
     let mut changed = false;
     let Some(block) = cfg.blocks.get(&bn) else {
@@ -1249,6 +1314,7 @@ fn sccp_process_terminator(
                     registry,
                     policy,
                     grammar,
+                    reference_config,
                 },
             );
             let targets: Vec<BlockId> = match decision {
@@ -3000,6 +3066,9 @@ struct BranchFold<'a> {
     registry: &'a CommandRegistry,
     policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
+    /// The document configuration a `Raw` whole-variable operand (the
+    /// flattened `switch` subject) is read under.
+    reference_config: Option<tcl_lexer::LexerConfig>,
 }
 
 fn branch_decision(
@@ -3011,6 +3080,12 @@ fn branch_decision(
     values: &HashMap<ValueKey, LatticeValue>,
     fold: BranchFold<'_>,
 ) -> Option<bool> {
+    // The flattened `switch` compares its subject as a `Raw` whole-variable
+    // operand, which the evaluator reads only as that variable (#2375).
+    let resolved = fold
+        .reference_config
+        .and_then(|config| crate::sccp::with_whole_variable_operands(condition, config));
+    let condition = resolved.as_ref().unwrap_or(condition);
     loop_summary_decision(cfg, ssa, bn, condition, values, fold).or_else(|| {
         let math = branch_math_bindings(cfg, bn);
         let math = if fold
@@ -5287,6 +5362,7 @@ mod tests {
                     escaping: &escaping,
                     policy: FoldPolicy::default(),
                     has_dynamic_variable_trace: false,
+                    opaque_native_accesses: false,
                     folds: None,
                     registry: &CommandRegistry::build_default(),
                 },

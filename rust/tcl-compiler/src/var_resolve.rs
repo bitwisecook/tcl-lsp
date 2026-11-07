@@ -3388,8 +3388,10 @@ impl ResolveContext {
         self.captured_cells.join(&other.captured_cells);
         self.dictionary_scopes
             .retain(|source, activation| other.dictionary_scopes.get(source) == Some(activation));
-        self.contents_kinds
-            .retain(|key, kind| other.contents_kinds.get(key) == Some(kind));
+        if !self.contents_kinds.shares(&other.contents_kinds) {
+            self.contents_kinds
+                .retain_where(|key, kind| other.contents_kinds.get(key) == Some(kind));
+        }
         self.join_contents_presence(other);
         for (key, slot) in &other.contents_presence_slots {
             self.contents_presence_slots
@@ -3397,8 +3399,10 @@ impl ResolveContext {
                 .or_insert_with(|| std::sync::Arc::clone(slot));
         }
         self.join_contents_origins(other);
-        self.constant_values
-            .retain(|name, value| other.constant_values.get(name) == Some(value));
+        if !self.constant_values.shares(&other.constant_values) {
+            self.constant_values
+                .retain_where(|name, value| other.constant_values.get(name) == Some(value));
+        }
         self.join_value_representations(other, &integer_contents);
         match (&self.caller, &other.caller) {
             (Some(left), Some(right)) if left != right => {
@@ -3568,6 +3572,11 @@ impl ResolveContext {
     }
 
     fn join_contents_presence(&mut self, other: &Self) {
+        // One shared table holds the same presence for every cell on both
+        // sides; walking it would copy it for no change.
+        if self.contents_presence.shares(&other.contents_presence) {
+            return;
+        }
         let keys: HashSet<_> = self
             .contents_presence
             .keys()
@@ -3598,16 +3607,16 @@ impl ResolveContext {
                             other.contents_presence(slot)
                         })
                 });
-            self.contents_presence.insert(
-                key,
-                if left == right {
-                    left
-                } else if left != ContentsPresence::Unknown && right != ContentsPresence::Unknown {
-                    ContentsPresence::DefinedOrUndefined
-                } else {
-                    ContentsPresence::Unknown
-                },
-            );
+            let joined = if left == right {
+                left
+            } else if left != ContentsPresence::Unknown && right != ContentsPresence::Unknown {
+                ContentsPresence::DefinedOrUndefined
+            } else {
+                ContentsPresence::Unknown
+            };
+            if self.contents_presence.get(&key) != Some(&joined) {
+                self.contents_presence.insert(key, joined);
+            }
         }
     }
 
@@ -3652,12 +3661,15 @@ impl ResolveContext {
     fn join_contents_origins(&mut self, other: &Self) {
         self.contents_source_proofs
             .joined(&other.contents_source_proofs);
-        let names: HashSet<_> = self
-            .contents_origins
-            .keys()
-            .chain(other.contents_origins.keys())
-            .cloned()
-            .collect();
+        let names: HashSet<_> = if self.contents_origins.shares(&other.contents_origins) {
+            HashSet::new()
+        } else {
+            self.contents_origins
+                .keys()
+                .chain(other.contents_origins.keys())
+                .cloned()
+                .collect()
+        };
         for name in names {
             let left = self
                 .contents_origins
@@ -3669,7 +3681,10 @@ impl ResolveContext {
                 .get(&name)
                 .cloned()
                 .unwrap_or_else(|| other.incoming_contents_origin(&name));
-            self.contents_origins.insert(name, left.joined(&right));
+            let joined = left.joined(&right);
+            if self.contents_origins.get(&name) != Some(&joined) {
+                self.contents_origins.insert(name, joined);
+            }
         }
         self.closed_array_roots
             .retain(|key| other.closed_array_roots.contains(key));
@@ -3698,12 +3713,15 @@ impl ResolveContext {
     }
 
     fn join_alias_bindings(&mut self, other: &Self) {
-        let keys: HashSet<_> = self
-            .alias_bindings
-            .keys()
-            .chain(other.alias_bindings.keys())
-            .cloned()
-            .collect();
+        let keys: HashSet<_> = if self.alias_bindings.shares(&other.alias_bindings) {
+            HashSet::new()
+        } else {
+            self.alias_bindings
+                .keys()
+                .chain(other.alias_bindings.keys())
+                .cloned()
+                .collect()
+        };
         for key in keys {
             if self.name_alias_bindings.contains_key(&key)
                 && self.name_alias_bindings.get(&key) == other.name_alias_bindings.get(&key)

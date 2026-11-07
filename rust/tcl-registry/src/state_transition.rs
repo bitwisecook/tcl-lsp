@@ -1192,18 +1192,22 @@ impl StateTransitions {
         positional_shape: bool,
     ) {
         for argument_index in 0..arguments.len() {
-            let Some(subject) = TransitionSubject::from_argument(arguments, argument_index) else {
-                continue;
-            };
+            // A literal word widens nothing: skip it before building (and
+            // copying) its subject (#2422).
             let Some(word) = arguments.get(argument_index) else {
                 continue;
             };
-            if word.literal().is_some()
-                || (word.native_bytes().is_some()
-                    && self
-                        .facts
-                        .iter()
-                        .any(|fact| fact.transition.represents_native_identity_subject(&subject)))
+            if word.literal().is_some() {
+                continue;
+            }
+            let Some(subject) = TransitionSubject::from_argument(arguments, argument_index) else {
+                continue;
+            };
+            if word.native_bytes().is_some()
+                && self
+                    .facts
+                    .iter()
+                    .any(|fact| fact.transition.represents_native_identity_subject(&subject))
             {
                 continue;
             }

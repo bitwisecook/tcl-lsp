@@ -458,6 +458,14 @@ impl PointResolveContexts {
         !self.unknown_argument_points.is_empty()
     }
 
+    /// [`Self::has_unknown_source_arguments`] over only the blocks `admit`
+    /// accepts: a block that never runs evaluates no argument.
+    pub(crate) fn has_unknown_source_arguments_in(&self, admit: &dyn Fn(BlockId) -> bool) -> bool {
+        self.unknown_argument_points
+            .iter()
+            .any(|(block, _)| admit(*block))
+    }
+
     pub(crate) fn source_arguments_unknown_at(
         &self,
         block: BlockId,
