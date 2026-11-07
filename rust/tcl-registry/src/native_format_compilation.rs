@@ -52,6 +52,101 @@ pub(crate) fn dynamic_format_word_declines(
             .all(|shape| !matches!(shape, Shape::Opaque | Shape::Expanded))
 }
 
+/// [`select`] plus `TclCompileFormatCmd`'s all-literal branch: when every
+/// argument is compile-known, C runs `Tcl_Format` and pushes its result.
+/// A format that fails compiles to its syntax error, which stays unmodelled.
+pub(crate) fn select_with_values(
+    values: &dyn Fn(usize) -> Option<Vec<u8>>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    context: NativeCompilationContext,
+    operation: SemanticOperationId,
+) -> NativeCompilationSelection {
+    match static_result(values, shapes, version, context, operation) {
+        StaticFormat::Folded(_) => NativeCompilationSelection::Inline {
+            operation,
+            guard: NativeCompilationGuard::BeforeArguments,
+        },
+        StaticFormat::Unfolded => NativeCompilationSelection::Unknown,
+        StaticFormat::NotStatic => {
+            select(values(0).as_deref(), shapes, version, context, operation)
+        }
+    }
+}
+
+/// The all-literal branch's outcome.
+enum StaticFormat {
+    /// Some argument is substituted, or the context does not compile.
+    NotStatic,
+    /// `Tcl_Format`'s result.
+    Folded(Vec<u8>),
+    /// `Tcl_Format` fails or cannot be folded here.
+    Unfolded,
+}
+
+/// Fold `format` when every argument is compile-known in a compiling context.
+fn static_result(
+    values: &dyn Fn(usize) -> Option<Vec<u8>>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    context: NativeCompilationContext,
+    operation: SemanticOperationId,
+) -> StaticFormat {
+    use NativeCompilationWordShape as Shape;
+    if operation != SemanticOperationId::Invoke
+        || !matches!(
+            version,
+            TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
+        )
+        || context.mode != NativeCompilationMode::BytecodeObject
+        || context.frame == NativeCompilationFrame::Unknown
+        || shapes.is_empty()
+        || shapes
+            .iter()
+            .any(|shape| matches!(shape, Shape::Opaque | Shape::Expanded | Shape::Substituted))
+    {
+        return StaticFormat::NotStatic;
+    }
+    let Some(literals) = (0..shapes.len()).map(values).collect::<Option<Vec<_>>>() else {
+        return StaticFormat::NotStatic;
+    };
+    let arguments = literals.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    crate::value_transfer::builtins::compile_time_format(version, &arguments)
+        .map_or(StaticFormat::Unfolded, StaticFormat::Folded)
+}
+
+/// The folded literal of an all-literal `format`, as [`select_with_values`]
+/// selects it.
+pub(crate) fn static_instruction(
+    values: &dyn Fn(usize) -> Option<Vec<u8>>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    context: NativeCompilationContext,
+) -> Option<crate::native_instruction_plan::NativeFormatStringInstruction> {
+    use crate::native_instruction_plan::{
+        NativeFormatLiteralAllocation, NativeFormatStringInstruction, NativeFormatStringPiece,
+    };
+    let StaticFormat::Folded(folded) = static_result(
+        values,
+        shapes,
+        version,
+        context,
+        SemanticOperationId::Invoke,
+    ) else {
+        return None;
+    };
+    // 8.6/9.0 PushLiteral; 9.1 PUSH_OBJ adds an unshared literal object.
+    let literal_allocation = if version == TclVersion::V9_1 {
+        NativeFormatLiteralAllocation::PrivateString
+    } else {
+        NativeFormatLiteralAllocation::Registered
+    };
+    Some(NativeFormatStringInstruction {
+        pieces: vec![NativeFormatStringPiece::Literal(folded)],
+        literal_allocation,
+    })
+}
+
 pub(crate) fn select(
     format: Option<&[u8]>,
     shapes: &[NativeCompilationWordShape],
@@ -130,6 +225,15 @@ pub(crate) fn instruction(
     };
     if operand_from == 0 {
         return None;
+    }
+    let shapes = words.shapes().get(operand_from..)?;
+    if let Some(folded) = static_instruction(
+        &|index| words.literal(operand_from + index).map(<[u8]>::to_vec),
+        shapes,
+        version,
+        context,
+    ) {
+        return Some(folded);
     }
     let format = words.literal(operand_from)?;
     let shapes = words.shapes().get(operand_from..)?;

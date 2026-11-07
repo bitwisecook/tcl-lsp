@@ -1965,8 +1965,8 @@ impl NativeCompilationSpec {
             ) {
                 return Visits(Self::original_generic_word_visits(words));
             }
-            let selection = crate::native_format_compilation::select(
-                words.literal(operand_from),
+            let selection = crate::native_format_compilation::select_with_values(
+                &|index| words.literal(operand_from + index).map(<[u8]>::to_vec),
                 &words.shapes()[operand_from..],
                 version,
                 context,
@@ -3091,8 +3091,8 @@ impl NativeCompilationSpec {
             ) {
                 return Some(NativeCompilationSelection::Generic);
             }
-            return Some(crate::native_format_compilation::select(
-                words.literal(operand_from),
+            return Some(crate::native_format_compilation::select_with_values(
+                &|index| words.literal(operand_from + index).map(<[u8]>::to_vec),
                 &words.shapes()[operand_from..],
                 version,
                 context,
@@ -4367,8 +4367,13 @@ impl NativeCompilationSpec {
                 substitution_template_compiler_grammar(words, shapes, version, self.operation)
             }
             NativeCompilationGrammar::FormatStringConcat => {
-                crate::native_format_compilation::select(
-                    words.arguments().literal_at(0).map(str::as_bytes),
+                crate::native_format_compilation::select_with_values(
+                    &|index| {
+                        words
+                            .arguments()
+                            .literal_at(index)
+                            .map(|word| word.as_bytes().to_vec())
+                    },
                     shapes,
                     version,
                     context,

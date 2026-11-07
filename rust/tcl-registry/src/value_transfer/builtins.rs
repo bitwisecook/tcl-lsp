@@ -770,6 +770,34 @@ impl FormatTemplateSemantics {
     }
 }
 
+/// `TclCompileFormatCmd`'s all-literal branch: what `Tcl_Format` makes of
+/// `arguments` (template first) at compile time in `release`, through the
+/// same shared core and conversion gates as [`FORMAT_TEMPLATE`]. `None` when
+/// the format fails or the core declines.
+#[must_use]
+pub fn compile_time_format(
+    release: tcl_dialect::TclVersion,
+    arguments: &[&[u8]],
+) -> Option<Vec<u8>> {
+    let template = std::str::from_utf8(arguments.first()?).ok()?;
+    let gated = tcl_syntax::format::version_gated_uses(template);
+    if gated.iter().any(|gated| gated.min > release) {
+        return None;
+    }
+    let profile = tcl_dialect::DialectProfile::find(release.dialect_profile_name())?;
+    let context = super::context::AnalysisContext::detached(Some(profile));
+    let mut budget = super::context::Budget::unbounded();
+    let mut ops = ConstOps::admit(&context, &mut budget, FormatTemplateSemantics::NEEDS).ok()?;
+    let values = arguments
+        .iter()
+        .map(|argument| ConstValue::bytes(argument, super::const_ops::Representation::String))
+        .collect::<Vec<_>>();
+    let result =
+        tcl_cmd_core::format::format_cmd_with_syntax(&mut ops, &values, release.number_syntax())
+            .ok()?;
+    ops.take(result).ok().map(|value| value.bytes)
+}
+
 impl CommandSemantics for FormatTemplateSemantics {
     fn identity(&self) -> &'static str {
         NativeEvalId::FormatTemplate.as_str()

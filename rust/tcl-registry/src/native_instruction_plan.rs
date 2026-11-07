@@ -783,8 +783,8 @@ fn original_decline_preparations(
         ) {
             return Some(Ok(Vec::new()));
         }
-        let selection = crate::native_format_compilation::select(
-            words.literal(operand_from),
+        let selection = crate::native_format_compilation::select_with_values(
+            &|index| words.literal(operand_from + index).map(<[u8]>::to_vec),
             words.shapes().get(operand_from..)?,
             dialect.tcl_version?,
             context,
