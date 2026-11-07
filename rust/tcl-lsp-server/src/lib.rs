@@ -7344,22 +7344,17 @@ async fn sync_workspace_source_modules(handles: &EvidenceHandles) -> Vec<Uri> {
             let mut names = classes_by_uri.get(uri.as_str())?.clone();
             names.sort_unstable();
             names.dedup();
-            let text: Arc<str> = Arc::from(file.text(&*db).as_str());
             let path = file
                 .path(&*db)
                 .clone()
                 .unwrap_or_else(|| uri.as_str().to_owned());
-            let implementation = format!("workspace:{}", uri.as_str());
             Some((
                 uri.clone(),
-                tcl_compiler::command_binding::TrustedSourceModuleLoader::new(
-                    tcl_dialect::model::Family::Tcl,
+                tcl_compiler::command_binding::TrustedSourceModuleLoader::workspace_document(
                     path,
-                    None,
-                    implementation,
-                    &text,
-                )
-                .with_autoload(names),
+                    file.text(&*db),
+                    names,
+                ),
             ))
         })
         .collect();

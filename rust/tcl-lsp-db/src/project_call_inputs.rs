@@ -21,7 +21,7 @@
 use super::{
     AnalyserConfig, CallSiteEvidence, DeclaredSurface, DispatchComponents, FileDecls,
     FileSourceTarget, ItemTree, Project, SourceFile, TclDb, conditional_source_links,
-    document_analyser, document_analysis_input, merge_dispatch_components, project_token_inputs,
+    document_analyser, merge_dispatch_components, project_token_inputs,
 };
 use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
@@ -58,7 +58,7 @@ pub(super) fn file_project_source_facts(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Option<Arc<FileProjectSourceFacts>> {
-    let input = document_analysis_input(db, file, config).ok()?;
+    let input = crate::walked_document_input(db, file, config).ok()?;
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
     let mut analyser = document_analyser(db, file, config)
         .with_resolved_input((*input).clone())
@@ -190,7 +190,7 @@ fn file_call_site_evidence_for_inputs(
     project: Project,
 ) -> Option<Arc<CallSiteEvidence>> {
     let (config, structure) = checked_file(db, file, project)?;
-    let input = document_analysis_input(db, file, config).ok()?;
+    let input = crate::walked_document_input(db, file, config).ok()?;
     let known = project_proc_names_for_inputs(db, project)?
         .iter()
         .cloned()

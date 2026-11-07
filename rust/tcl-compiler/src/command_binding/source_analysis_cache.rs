@@ -92,7 +92,7 @@ impl SourceAnalysisCacheKey {
                 incoming_formals: options.incoming_formals.to_vec(),
                 declared_commands: options.declared_commands.cloned(),
                 trusted_package_loaders: options.trusted_package_loaders.to_vec(),
-                trusted_source_modules: options.trusted_source_modules.to_vec(),
+                trusted_source_modules: options.effective_source_modules().to_vec(),
                 unknown_entry: options.unknown_entry,
                 invocation_dialect: options.invocation_dialect,
                 compiled_variable_provider: options.compiled_variable_provider,

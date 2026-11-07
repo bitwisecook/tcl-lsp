@@ -1256,6 +1256,25 @@ impl TrustedSourceModuleLoader {
         }
     }
 
+    /// A sibling workspace document offered for auto-loading. It keeps the
+    /// document's own authored origin, so what it declares is the same
+    /// declaration the document's analysis retains, whichever loads it.
+    #[must_use]
+    pub fn workspace_document(path: String, text: &str, names: Vec<String>) -> Self {
+        let image = tcl_lexer::SourceImage::document(text);
+        Self {
+            required_core_family: tcl_dialect::model::Family::Tcl,
+            path,
+            encoding: None,
+            source: ExecutedScriptSource {
+                text: image.clone(),
+                origin: Arc::new(SourceOriginId::authored_image(image)),
+                mapping: ExecutedScriptMapping::Contiguous { base: 0 },
+            },
+            autoload: names,
+        }
+    }
+
     /// The same contract, auto-loadable for each of `names` (rooted).
     #[must_use]
     pub fn with_autoload(mut self, names: Vec<String>) -> Self {
@@ -16199,14 +16218,7 @@ impl ModuleCommandBindings {
             .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
             .collect(),
         );
-        baseline.trusted_source_modules = if options.trusted_source_modules.is_empty() {
-            options
-                .logical_source_input
-                .or(options.vendor_source_input)
-                .map_or_else(Vec::new, |input| input.workspace_source_modules().to_vec())
-        } else {
-            options.trusted_source_modules.to_vec()
-        };
+        baseline.trusted_source_modules = options.effective_source_modules().to_vec();
         baseline.trusted_loaders = options
             .trusted_package_loaders
             .iter()

@@ -819,6 +819,18 @@ fn document_analyser(
         .with_workspace_class_factories(file.workspace_class_factories(db).clone())
 }
 
+/// [`document_analysis_input`] for a consumer that walks the source. The input
+/// carries the document's workspace modules without comparing on them, so the
+/// consumer also depends on the field itself.
+pub(crate) fn walked_document_input(
+    db: &dyn salsa::Database,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Result<Arc<tcl_compiler::analyser::ResolvedAnalysisInput>, OverlayMiss> {
+    let _modules = file.workspace_source_modules(db);
+    document_analysis_input(db, file, config)
+}
+
 /// The checked document input shared by analysis and compilation. This query
 /// resolves context only; it performs no source walk and depends on no CU query.
 ///
@@ -878,7 +890,7 @@ pub fn file_analysis(
     config: AnalyserConfig,
 ) -> Arc<AnalysisResult> {
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
-    let input = match document_analysis_input(db, file, config) {
+    let input = match walked_document_input(db, file, config) {
         Ok(input) => input,
         Err(miss) => return unavailable_document_analysis(file.dialect(db), miss),
     };
@@ -929,7 +941,7 @@ pub fn file_original_procedure_facts(
     file: SourceFile,
     config: AnalyserConfig,
 ) -> Option<Arc<FileOriginalProcedureFacts>> {
-    let input = document_analysis_input(db, file, config).ok()?;
+    let input = walked_document_input(db, file, config).ok()?;
     let analysis = file_analysis(db, file, config);
     let (image, source_config) =
         tcl_compiler::source_graph::current_analysis(file.text(db), &analysis)?;
@@ -1389,7 +1401,7 @@ pub fn file_call_site_evidence(
     let own = config.and_then(|config| file_original_procedure_facts(db, file, config));
     let scanned = match config {
         Some(config) => {
-            if let Ok(input) = document_analysis_input(db, file, config) {
+            if let Ok(input) = walked_document_input(db, file, config) {
                 let external: Vec<_> = project_original_procedure_facts(db, project)
                     .iter()
                     .filter(|(provider, _)| *provider != file)
@@ -4290,7 +4302,7 @@ pub fn compilation_unit_for_config<'db>(
     cfg: LexerCfgKey<'db>,
     config: AnalyserConfig,
 ) -> Option<Arc<CompilationUnit>> {
-    let input = document_analysis_input(db, file, config).ok()?;
+    let input = walked_document_input(db, file, config).ok()?;
     let registry = input.borrowed_context_registry().commands();
     let external = file.external_call_sites(db).clone();
     let declared = declared_command_surface(db, file);
@@ -4316,7 +4328,7 @@ pub fn proc_taint_solve_for_config<'db>(
     cfg: LexerCfgKey<'db>,
     config: AnalyserConfig,
 ) -> Option<Arc<CheckSolve>> {
-    let input = document_analysis_input(db, file, config).ok()?;
+    let input = walked_document_input(db, file, config).ok()?;
     let registry = input.borrowed_context_registry().commands();
     let external = file.external_call_sites(db).clone();
     let declared = declared_command_surface(db, file);
@@ -4395,7 +4407,7 @@ pub fn file_analysis_incremental(
     let text = file.text(db).clone();
     let workspace_class_factories = file.workspace_class_factories(db).clone();
     let workspace_declared_commands = file.workspace_declared_commands(db).clone();
-    let input = match document_analysis_input(db, file, config) {
+    let input = match walked_document_input(db, file, config) {
         Ok(input) => input,
         Err(miss) => return unavailable_document_analysis(&dialect, miss),
     };
@@ -4539,7 +4551,7 @@ pub fn compiler_check_diagnostics_if_available(
     config: AnalyserConfig,
 ) -> Option<Arc<CompilerDiagnostics>> {
     let dialect = file.dialect(db).clone();
-    let Ok(input) = document_analysis_input(db, file, config) else {
+    let Ok(input) = walked_document_input(db, file, config) else {
         return None;
     };
     let registry: &CommandRegistry = input.borrowed_context_registry().commands();
@@ -8900,7 +8912,7 @@ p\uD801 ordinary";
         caller: String,
     ) -> SummaryDependencyProbe {
         let dialect = file.dialect(db);
-        let input = document_analysis_input(db, file, analysis_config)
+        let input = walked_document_input(db, file, analysis_config)
             .expect("actual selected document input");
         let registry = input.borrowed_context_registry().commands();
         let declared = declared_command_surface(db, file);

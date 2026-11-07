@@ -174,6 +174,21 @@ pub(crate) fn source_input_dialect(
 }
 
 impl<'a> SourceAnalysisOptions<'a> {
+    /// The driver's file contracts, else the sibling workspace files the
+    /// document input offers for auto-loading.
+    pub(crate) fn effective_source_modules(&self) -> &'a [TrustedSourceModuleLoader] {
+        if self.trusted_source_modules.is_empty() {
+            self.logical_source_input
+                .or(self.vendor_source_input)
+                .map_or(
+                    &[],
+                    crate::analyser::ResolvedAnalysisInput::workspace_source_modules,
+                )
+        } else {
+            self.trusted_source_modules
+        }
+    }
+
     /// Source-only driver options from the positive retained Logical input.
     /// The exact word grammar and dialect are kept together; this supplies
     /// no native entry, compiler admission or hosted execution context.

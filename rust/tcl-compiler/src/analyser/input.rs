@@ -23,6 +23,9 @@ use std::sync::Arc;
 /// The exact profile, availability generation and whole-source configuration
 /// supplied by a driver. Clones retain the same immutable generation for cache
 /// keys; independently assembled generations conservatively invalidate them.
+/// The workspace modules it offers are per-document and take no part in its
+/// identity: documents of one configuration share an input, and each consumer
+/// keys the modules it reads separately.
 /// An extracted body explicitly projects the retained input to nested source.
 #[derive(Clone)]
 pub struct ResolvedAnalysisInput {
@@ -187,7 +190,6 @@ impl PartialEq for ResolvedAnalysisInput {
             && self.unit_profile.cache_key() == other.unit_profile.cache_key()
             && self.config == other.config
             && self.vendor_source_policy == other.vendor_source_policy
-            && self.workspace_source_modules == other.workspace_source_modules
             && Arc::ptr_eq(&self.context, &other.context)
     }
 }
@@ -200,7 +202,6 @@ impl std::hash::Hash for ResolvedAnalysisInput {
         self.unit_profile.cache_key().hash(state);
         self.config.hash(state);
         self.vendor_source_policy.hash(state);
-        self.workspace_source_modules.hash(state);
         Arc::as_ptr(&self.context).hash(state);
     }
 }

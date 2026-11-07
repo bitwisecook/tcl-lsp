@@ -352,6 +352,89 @@ pub(crate) fn method_at_command<'a>(
     )
 }
 
+/// A method a command dispatches to whose declaration lives in another
+/// document's source, reached through a sibling class the document
+/// auto-loaded. Only its declaration site, name extent and side are retained:
+/// the declaring document's own analysis owns the metadata.
+#[derive(Debug, Clone)]
+pub(crate) struct ForeignReceiverMethod {
+    pub(crate) declaration: tcl_compiler::command_binding::CommandAllocationSite,
+    pub(crate) name_span: Span,
+    pub(crate) side: tcl_compiler::analyser::types::MemberSide,
+    pub(crate) selector: Span,
+    pub(crate) selector_input: SignatureSourceNameInput,
+}
+
+/// [`method_at_command`]'s selection for a method declared in another
+/// document's authored source. The dispatch proof is the same retained
+/// receiver entry; only the declaration's owner differs.
+pub(crate) fn foreign_method_at_command(
+    analysis: &AnalysisResult,
+    source: &str,
+    command: &SegmentedCommand,
+) -> Option<ForeignReceiverMethod> {
+    let realm = analysis.retained_command_realm()?;
+    let config = analysis.body_lexer_config?;
+    let tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, command);
+    let head = tokens.word_exprs.first()?;
+    let selector = command.argv.get(1)?.span;
+    let offset = head.source().span.start();
+    let binding = realm.invocation_at_source(command.name(), offset);
+    if !matches!(binding.source_origin()?.kind(), SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
+    {
+        return None;
+    }
+    let method = binding.original_written_name_input(&tokens, 1)?;
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        &method
+    else {
+        return None;
+    };
+    let entry = if let Some((_, entry, _)) =
+        binding.receiver_self_method_entry(analysis.resolved_registry()?)
+    {
+        entry.clone()
+    } else if head.sole_variable_substitution().is_some() {
+        realm
+            .variable_accesses_for_invocation_args(offset)
+            .iter()
+            .filter_map(|access| binding.object_receiver_method_entry(access, head))
+            .map(|(_, entry, _)| entry.clone())
+            .find(SourceReceiverMethodEntry::is_exported)?
+    } else if let Some((_, entry, _)) = binding.frozen_object_receiver_method_entry(head) {
+        entry.clone()
+    } else if let Some((_, entry, _)) = binding.named_object_receiver_method_entry() {
+        entry.clone()
+    } else {
+        let (class, entry) = binding.class_definition_method_entry()?;
+        if !class.prepended.is_empty() {
+            return None;
+        }
+        entry.clone()
+    };
+    if !entry.is_exported()
+        || entry.declaring_object().is_some()
+        || !matches!(entry.declaration().source.kind(), SourceOriginKind::Authored(bytes)
+            if bytes.as_ref() != source.as_bytes())
+        || !matches!(
+            entry.frame(),
+            tcl_compiler::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+        )
+    {
+        return None;
+    }
+    Some(ForeignReceiverMethod {
+        declaration: entry.declaration().clone(),
+        name_span: entry.name_source().span,
+        side: match entry.receiver() {
+            SourceMethodReceiver::Instance => tcl_compiler::analyser::types::MemberSide::Instance,
+            SourceMethodReceiver::Class => tcl_compiler::analyser::types::MemberSide::ClassObject,
+        },
+        selector,
+        selector_input: method,
+    })
+}
+
 /// Captured prefix names in independently selected deferred operands. The
 /// original capture supplies declaration identity; registration supplies only
 /// its role, never proof that a future callback executes this method.

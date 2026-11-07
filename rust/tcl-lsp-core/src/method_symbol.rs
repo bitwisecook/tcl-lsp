@@ -68,6 +68,13 @@ enum Target {
         call_point: bool,
     },
     OwnObject(Box<OwnObjectMethod>),
+    /// A method declared in another document's authored source, selected by
+    /// its declaration site, name extent and side.
+    ForeignDeclaration {
+        declaration: CommandAllocationSite,
+        name_span: Span,
+        call_point: bool,
+    },
     SourceClassCall(Box<OriginalSourceConstructorCall>),
     /// An [incr Tcl] `Class::proc` call (user contract D): the qualifier joins
     /// its source class, the final segment names a class-side member.
@@ -97,6 +104,7 @@ impl OriginalMethodQuery {
         match &mut self.target {
             Target::Declaration { call_point, .. } => *call_point = false,
             Target::OwnObject(own) => own.call_point = false,
+            Target::ForeignDeclaration { call_point, .. } => *call_point = false,
             Target::SourceClassCall(_)
             | Target::SourceClassProcCall(_)
             | Target::ClassLookup { .. } => {}
@@ -445,6 +453,27 @@ fn temporal_query(
     ))
 }
 
+fn foreign_query(
+    analysis: &AnalysisResult,
+    foreign: crate::receiver_identity::ForeignReceiverMethod,
+) -> Option<OriginalMethodQuery> {
+    let (consumer_image, consumer_config) = consumer_currency(analysis)?;
+    Some(OriginalMethodQuery {
+        class_input: None,
+        selector_input: foreign.selector_input,
+        side: foreign.side,
+        span: foreign.selector,
+        is_declaration: false,
+        consumer_image,
+        consumer_config,
+        target: Target::ForeignDeclaration {
+            declaration: foreign.declaration,
+            name_span: foreign.name_span,
+            call_point: true,
+        },
+    })
+}
+
 fn command_query(
     source: &str,
     analysis: &AnalysisResult,
@@ -452,6 +481,11 @@ fn command_query(
 ) -> ControlFlow<Option<OriginalMethodQuery>> {
     if let Some(selected) = crate::receiver_identity::method_at_command(analysis, source, command) {
         return ControlFlow::Break(temporal_query(analysis, &selected));
+    }
+    if let Some(foreign) =
+        crate::receiver_identity::foreign_method_at_command(analysis, source, command)
+    {
+        return ControlFlow::Break(foreign_query(analysis, foreign));
     }
     // A known object has no declaration-only substitute for a missing entry.
     if crate::receiver_identity::class_at_command_head(analysis, source, command).is_some() {
@@ -1033,6 +1067,36 @@ fn candidate_for_records(
     procedures: &[&SourceDeclarationMetadata<ProcDef>],
 ) -> ControlFlow<Option<OriginalMethodCandidate>> {
     match &query.target {
+        Target::ForeignDeclaration {
+            declaration,
+            name_span,
+            call_point,
+        } => {
+            let mut selected = records.iter().flat_map(|(uri, record)| {
+                record
+                    .metadata()
+                    .original_members
+                    .declarations()
+                    .filter(|method| {
+                        method.side() == query.side
+                            && method.declaration().site() == declaration
+                            && method.metadata().name_span == *name_span
+                    })
+                    .map(move |method| (uri, record, method))
+            });
+            let Some((uri, record, method)) = selected.next() else {
+                return ControlFlow::Break(None);
+            };
+            if selected.next().is_some() {
+                return ControlFlow::Break(None);
+            }
+            ControlFlow::Break(Some(owned_candidate(
+                uri,
+                record,
+                method.clone(),
+                *call_point,
+            )))
+        }
         Target::Declaration {
             class,
             method,
