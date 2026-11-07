@@ -74,26 +74,47 @@ pub(crate) struct NativeCompilerCacheEpoch(pub(crate) u64);
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct NativeProfileReceipt {
     profile: &'static tcl_dialect::DialectProfile,
-    key: tcl_dialect::DialectProfileKey,
+    key: &'static tcl_dialect::DialectProfileKey,
 }
 
 impl NativeProfileReceipt {
     pub(crate) fn of(profile: &'static tcl_dialect::DialectProfile) -> Self {
         Self {
             profile,
-            key: profile.cache_key(),
+            key: interned_cache_key(profile),
         }
     }
 
     #[cfg(test)]
     pub(crate) fn key(self) -> tcl_dialect::DialectProfileKey {
-        self.key
+        *self.key
     }
+}
+
+/// One shared key per profile, so receipts stay small and cheap to copy.
+fn interned_cache_key(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> &'static tcl_dialect::DialectProfileKey {
+    type Interned = Vec<(usize, &'static tcl_dialect::DialectProfileKey)>;
+    thread_local! {
+        static KEYS: std::cell::RefCell<Interned> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    let address = std::ptr::from_ref(profile).addr();
+    KEYS.with_borrow_mut(|keys| {
+        if let Some((_, key)) = keys.iter().find(|(seen, _)| *seen == address) {
+            return *key;
+        }
+        let key: &'static _ = Box::leak(Box::new(profile.cache_key()));
+        keys.push((address, key));
+        key
+    })
 }
 
 impl PartialEq for NativeProfileReceipt {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self.profile, other.profile) || self.key == other.key
+        std::ptr::eq(self.profile, other.profile)
+            || std::ptr::eq(self.key, other.key)
+            || self.key == other.key
     }
 }
 
