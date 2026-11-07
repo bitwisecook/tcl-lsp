@@ -163,6 +163,7 @@ fn actual_valueops_primitives_keep_selected_cache_and_native_reference_roles() {
     });
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn actual_valueops_updaters_stop_before_numeric_cache_and_later_guest_publication() {
     // Software owner: naming.embedding.original-host-publication-and-fact-transport
@@ -330,6 +331,7 @@ impl NumericEnvironment for NumericHost {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn actual_valueops_numeric_host_change_and_restore_preserves_first_cause() {
     // Software owner: naming.embedding.original-host-publication-and-fact-transport

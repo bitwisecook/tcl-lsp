@@ -136,6 +136,7 @@ fn stored(interp: &mut Interp, value: &Owned) -> Result<(), Code> {
     interp.assign_original_named_variable(name.as_ptr(), value.as_ptr())
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn captured_compatibility_link_publishes_before_retirement_outside_owner_borrows() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -221,6 +222,7 @@ fn captured_compatibility_link_does_not_adopt_missing_or_recreated_target() {
     assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn captured_compatibility_dictionary_getter_refusal_stops_copy_and_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

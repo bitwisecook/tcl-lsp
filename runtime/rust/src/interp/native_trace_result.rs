@@ -444,6 +444,7 @@ mod settlement_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_script_and_native_trace_settlement_separate_host_from_guest_failure() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -624,6 +625,7 @@ mod settlement_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_trace_result_retirement_is_checked_after_saved_owner_restoration() {
         // naming.embedding.original-host-publication-and-fact-transport

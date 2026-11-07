@@ -59,6 +59,12 @@ struct EnteredAllocator {
 }
 thread_local! {
     static ENTERED: RefCell<Vec<Rc<EnteredAllocator>>> = const { RefCell::new(Vec::new()) };
+    /// The one entry every unpooled scope pushes: it shadows an outer pool and
+    /// never allocates, so its scopes need not be told apart.
+    static UNPOOLED: Rc<EnteredAllocator> = Rc::new(EnteredAllocator {
+        pool: None,
+        current: Rc::new(|| false),
+    });
 }
 #[derive(Clone)]
 pub(crate) struct JimAllocationScope {
@@ -67,7 +73,22 @@ pub(crate) struct JimAllocationScope {
 struct ScopeOwner(Rc<EnteredAllocator>);
 impl JimAllocationScope {
     pub(crate) fn enter(pool: Option<Rc<JimPool>>, current: Rc<dyn Fn() -> bool>) -> Self {
-        let entered = Rc::new(EnteredAllocator { pool, current });
+        let Some(pool) = pool else {
+            return Self::unpooled();
+        };
+        let entered = Rc::new(EnteredAllocator {
+            pool: Some(pool),
+            current,
+        });
+        ENTERED.with(|stack| stack.borrow_mut().push(Rc::clone(&entered)));
+        Self {
+            _owner: Rc::new(ScopeOwner(entered)),
+        }
+    }
+
+    /// A scope in which constructed objects are unpooled.
+    pub(crate) fn unpooled() -> Self {
+        let entered = UNPOOLED.with(Rc::clone);
         ENTERED.with(|stack| stack.borrow_mut().push(Rc::clone(&entered)));
         Self {
             _owner: Rc::new(ScopeOwner(entered)),
@@ -83,7 +104,7 @@ impl Drop for ScopeOwner {
             let mut stack = stack.borrow_mut();
             let index = stack
                 .iter()
-                .position(|entry| Rc::ptr_eq(entry, &self.0))
+                .rposition(|entry| Rc::ptr_eq(entry, &self.0))
                 .expect("entered allocator");
             stack.remove(index)
         });

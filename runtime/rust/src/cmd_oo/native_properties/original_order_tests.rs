@@ -400,6 +400,7 @@ fn original_property_replacement_matches_incoming_hash_and_cache_reference_stage
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_property_old_retirement_refuses_before_any_hash_getter_or_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -459,6 +460,7 @@ fn original_property_old_retirement_refuses_before_any_hash_getter_or_adoption()
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_property_hash_refusal_preserves_reached_string_and_stops_later_keys() {
     // naming.embedding.original-host-publication-and-fact-transport

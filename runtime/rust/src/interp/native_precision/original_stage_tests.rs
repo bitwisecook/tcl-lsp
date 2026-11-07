@@ -405,6 +405,7 @@ fn original_precision_c84_decimal_worker_keeps_c_int_narrowing_and_no_reset() {
     obj::set_double_precision(selected, prior_precision);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_precision_string_and_numeric_callbacks_stop_before_publication_on_aba() {
     // naming.embedding.original-host-publication-and-fact-transport

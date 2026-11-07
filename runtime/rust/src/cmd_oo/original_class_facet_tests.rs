@@ -214,6 +214,7 @@ fn demotion_and_promotion_cannot_refresh_an_original_class_facet_continuation() 
     reset_observers();
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_class_reports_check_reached_operands_before_current_facet_access() {
     // naming.tcloo.original-introspection-target-continuation

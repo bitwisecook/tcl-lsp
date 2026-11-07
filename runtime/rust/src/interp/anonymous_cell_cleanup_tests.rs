@@ -119,6 +119,7 @@ static OLD: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 #[test]
 fn original_anonymous_unset_retires_outside_borrows_before_original_context_and_frame_checks() {
     // naming.embedding.original-host-publication-and-fact-transport

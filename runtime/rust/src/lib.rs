@@ -56,6 +56,11 @@
 // dead code, so the allow is scoped to that target alone.
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
 
+/// Whether entered operations re-prove, at each stage, that the interpreter
+/// world they captured is still current. Debug builds verify; release builds
+/// keep only retained-refusal propagation.
+pub(crate) const VERIFY_CURRENCY: bool = cfg!(debug_assertions);
+
 // The bignum rung of the numeric tower (libtommath `mp_int` FFI + the
 // `TCL_BIGNUM_TYPE` obj rep). Compiled only when `build.rs` links libtommath
 // (`have_tommath`); the rest of the runtime builds without it.

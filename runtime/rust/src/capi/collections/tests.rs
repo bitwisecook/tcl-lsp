@@ -207,6 +207,7 @@ fn error_code_keeps_unreached_original_updater(action: u8) {
     });
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_outputs() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -280,6 +281,7 @@ fn original_collection_updaters_keep_reached_string_and_stop_before_cache_or_out
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_collection_retirement_runs_once_before_later_cache_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -96,6 +96,7 @@ fn well_formed_native_utf16_is_a_lossless_host_view() {
     });
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn a_stale_entered_operation_cannot_consume_an_existing_unicode_cache() {
     leak_free(|| {
@@ -137,6 +138,7 @@ fn generic_or_profile_only_construction_cannot_issue_a_native_getter() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn getter_callbacks_cannot_refresh_the_original_constructor_entry() {
     leak_free(|| {
@@ -200,6 +202,7 @@ static REENTRANT_FREE_TYPE: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_free_callback_cannot_publish_a_stale_unicode_view() {
     leak_free(|| {

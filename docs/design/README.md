@@ -374,6 +374,9 @@ exports, and the ladder toward C tcltest parity.
   interpreter-wide hidden-commands table, `interp hide` / `expose` /
   `invokehidden` semantics and C's observable check order, and the
   `info commands` / `info procs` / `namespace which -command` walkers.
+- [debug-and-release-validation.md](runtime/debug-and-release-validation.md) —
+  which per-operation currency re-proofs run only in debug builds, and what
+  release builds keep.
 - [family-b-routing.md](runtime/family-b-routing.md) — the Family-B contract
   across both runtimes: which command families are lifted to shared cores,
   and the boundaries where a command cannot be a shared body.

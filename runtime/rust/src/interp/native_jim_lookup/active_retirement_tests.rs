@@ -306,6 +306,7 @@ fn original_jim_previous_workers_retire_after_current_outside_namespace_borrows(
         .native_execution_refusal()
         .is_none());
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_final_retirement_preserves_first_host_and_restored_context_refusals() {
     // naming.embedding.original-host-publication-and-fact-transport

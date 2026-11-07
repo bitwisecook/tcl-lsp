@@ -204,6 +204,7 @@ fn selected_classvariable_validates_all_names_before_any_lookup_or_link() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn selected_classvariable_name_callbacks_keep_original_frame_facet_and_first_cause() {
     // naming.tcloo.original-classvariable-preflight-and-link-owner

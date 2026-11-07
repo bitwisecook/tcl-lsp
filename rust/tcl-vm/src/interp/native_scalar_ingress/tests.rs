@@ -170,6 +170,7 @@ fn original_c84_wide_ingress_requires_actual_receipt_and_unchanged_queried_abi()
     assert_eq!(first.native_object_snapshot(), before);
     assert!(first.resident_string_bytes().is_none());
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_c84_wide_ingress_stops_before_abi_after_actual_host_context_or_descriptor_withdrawal() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -157,6 +157,7 @@ fn first(interpreter: &Interp, mode: u8) {
         _ => unreachable!(),
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn active_original_method_frames_retire_all_reached_records_outside_oo_borrow() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -237,6 +237,7 @@ fn original_proc_replacement_checks_retirement_and_holder_before_incoming_adopti
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_registration_temporary_retires_before_outer_publication_settlement() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -481,6 +482,7 @@ static HEADER_BODY: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiler_header_keeps_the_published_proc_binding_between_actual_getters() {
     // naming.embedding.original-host-publication-and-fact-transport

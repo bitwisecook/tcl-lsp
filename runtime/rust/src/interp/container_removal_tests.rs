@@ -275,6 +275,7 @@ impl NativeVariableObserver<Interp> for Unset {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_byte_unsets_retire_actual_owners_outside_all_storage_borrows() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -345,6 +346,7 @@ fn original_removal_allows_reached_refill_but_refuses_a_reborn_frame() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_detached_array_finishes_member_owners_after_first_refusal_before_later_traces() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -549,6 +551,7 @@ impl NativeVariableObserver<Interp> for OriginalUnset {
             .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_c_unset_keeps_the_transferred_dummy_owner_through_trace_before_retirement() {
     // naming.embedding.original-host-publication-and-fact-transport

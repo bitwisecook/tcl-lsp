@@ -3733,6 +3733,7 @@ mod original_jim_import_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_vm_jim_import_keeps_first_host_and_restored_context_terminal() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -3861,6 +3862,7 @@ mod original_jim_parent_current_holder_tests {
 mod original_c_parent_current_holder_tests {
     use super::*;
 
+    #[cfg(debug_assertions)]
     #[test]
     fn parent_without_operand_uses_the_entered_namespace_incarnation() {
         for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

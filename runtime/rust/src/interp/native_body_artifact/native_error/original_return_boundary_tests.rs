@@ -215,6 +215,7 @@ fn first(actual: &Interp, error: &tcl_cmd_core::CmdError, mode: u8) {
         ));
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_return_options_key_stops_on_frame_host_context_and_carried_record_change() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -275,6 +276,7 @@ fn original_return_options_key_stops_on_frame_host_context_and_carried_record_ch
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_return_info_string_keeps_frame_and_private_role_before_second_getter() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -332,6 +334,7 @@ fn original_return_info_string_keeps_frame_and_private_role_before_second_getter
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_return_stack_string_refuses_before_list_backing_and_private_stack_adoption() {
     // naming.error.original-private-error-stack-header

@@ -102,6 +102,7 @@ fn observer(
     (calls, drops)
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_trace_epilogue_releases_original_operations_and_keeps_child_storage() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -134,6 +135,7 @@ fn original_trace_epilogue_releases_original_operations_and_keeps_child_storage(
     vm.switch_to(original_id);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_owned_variable_teardown_keeps_first_cause_and_releases_its_real_trace_roles() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -179,6 +181,7 @@ fn original_owned_variable_teardown_keeps_first_cause_and_releases_its_real_trac
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_variable_finish_refuses_unbalanced_frame_and_allows_balanced_reentry() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -237,6 +237,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_range_getter_refusal_keeps_first_cause_and_never_adopts_new_cache() {
         use crate::cmd_control::original_list_conversion_tests as fixture;

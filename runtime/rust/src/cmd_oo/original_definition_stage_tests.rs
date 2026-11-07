@@ -212,6 +212,7 @@ fn visible(interpreter: &Interp, name: &[u8], export: bool) -> bool {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn class_operand_withdrawal_cannot_recreate_a_class_facet_on_the_original_object() {
     // naming.tcloo.original-definition-getter-and-effect-owner
@@ -246,6 +247,7 @@ fn class_operand_withdrawal_cannot_recreate_a_class_facet_on_the_original_object
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn definition_namespace_checks_original_target_after_kind_and_namespace_getters() {
     // naming.tcloo.original-definition-getter-and-effect-owner
@@ -361,6 +363,7 @@ fn method_deletion_distinguishes_withdrawn_target_before_later_lookup_or_retirem
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn selected_c91_visibility_keeps_reached_first_flag_when_a_later_operand_refuses() {
     // naming.tcloo.original-definition-getter-and-effect-owner

@@ -106,6 +106,7 @@ fn delete_observer(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_procedure_publication_receipt_survives_actual_caller_cleanup_without_rebinding() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -184,6 +185,7 @@ fn original_procedure_publication_receipt_survives_actual_caller_cleanup_without
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn scripted_stock_root_consumes_actual_publication_before_metadata_after_delete_callback() {
     // naming.embedding.original-host-publication-and-fact-transport

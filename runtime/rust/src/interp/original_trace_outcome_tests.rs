@@ -108,6 +108,7 @@ fn original_trace_facades_keep_the_complete_host_cause_outside_guest_values() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_trace_read_update_and_array_wrappers_refuse_before_guest_wrapping() {
     // naming.embedding.original-host-publication-and-fact-transport

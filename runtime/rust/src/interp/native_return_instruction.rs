@@ -1053,6 +1053,7 @@ mod original_syntax_transport_tests {
         drop(options);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_syntax_result_getter_keeps_borrowed_header_and_full_first_cause() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1114,6 +1115,7 @@ mod original_syntax_transport_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_syntax_shared_info_copy_checks_real_duplicate_before_adoption() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1301,6 +1303,7 @@ mod original_syntax_transport_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_syntax_literal_action_transports_reached_header_retirement_refusal() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1376,6 +1379,7 @@ mod original_syntax_transport_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_builder_syntax_retains_callback_cause_before_formatter_or_cache() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1423,6 +1427,7 @@ mod original_syntax_transport_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_error_stack_replacement_checks_real_retirement_and_owner_aba() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1492,6 +1497,7 @@ mod original_syntax_transport_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_error_converters_check_real_primary_retirement_before_backing_adoption() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1594,6 +1600,7 @@ mod original_syntax_transport_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_completion_reads_keep_original_borrowed_roles_and_full_callback_cause() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1675,6 +1682,7 @@ mod original_syntax_transport_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_completion_options_read_real_carried_key_before_duplicate_or_overlay() {
         // naming.embedding.original-host-publication-and-fact-transport

@@ -132,6 +132,7 @@ static ORIGINAL: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(updater),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 #[test]
 fn original_binary_numeric_updater_withdrawal_stops_before_data_and_guest_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

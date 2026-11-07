@@ -9615,6 +9615,7 @@ mod jim_result_publication_tests {
         ObserverCleanup(identity)
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_result_publication_retires_old_slot_before_mandatory_publication() {
         // VM software retirement observer; the original Jim primitive window
@@ -9785,6 +9786,7 @@ mod jim_result_publication_tests {
         assert!(body.value().resident_string_bytes().is_none());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_info_body_primitive_publication_allows_deletion_and_preserves_first_refusal() {
         // A direct capsule/setter window after prior-result installation;

@@ -142,6 +142,7 @@ fn original_oo_lookup_keeps_stringless_command_and_import_token_roles() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_oo_getter_keeps_full_cause_before_command_cache_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

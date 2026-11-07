@@ -109,6 +109,7 @@ fn cleanup(interpreter: &mut Interp) {
     OWNER.with(|owner| *owner.borrow_mut() = None);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_array_default_replacement_retires_outside_borrows_after_actual_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -163,6 +164,7 @@ fn original_array_default_replacement_retires_outside_borrows_after_actual_publi
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_array_default_unset_retires_selected_default_before_first_cause_settlement() {
     // naming.embedding.original-host-publication-and-fact-transport

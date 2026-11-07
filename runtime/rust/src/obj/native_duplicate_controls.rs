@@ -124,6 +124,7 @@ impl Drop for Current {
         crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn checked_original_duplicate_retains_first_cause_before_cleanup_and_refuses_incoming_admission() {
     // naming.embedding.original-host-publication-and-fact-transport

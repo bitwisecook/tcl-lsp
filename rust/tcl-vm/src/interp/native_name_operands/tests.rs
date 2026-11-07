@@ -205,6 +205,7 @@ fn original_name_selected_string_uses_actual_compound_formatter_without_referenc
     assert!(vm.execution_refusal.is_none());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_caller_check_stops_a_compound_getter_after_reentrant_frame_change() {
     for change in [false, true] {
@@ -295,6 +296,7 @@ fn original_name_formatter_withdrawal_retains_exact_first_cause_and_stops_later_
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_inherits_context_before_resident_read_after_actual_host_change_and_restore() {
     // naming.embedding.original-host-publication-and-fact-transport

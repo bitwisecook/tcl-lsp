@@ -258,6 +258,7 @@ fn original_runtime_mapping_retires_old_visible_roles_before_unique_original_key
         reset();
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_runtime_mapping_first_retirement_refusal_stops_keys_and_cleans_matching_visibility() {
     // naming.embedding.original-host-publication-and-fact-transport

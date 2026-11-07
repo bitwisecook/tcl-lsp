@@ -100,6 +100,7 @@ static BODY: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 #[test]
 fn original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication()
 {

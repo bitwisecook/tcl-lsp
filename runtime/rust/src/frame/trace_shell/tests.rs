@@ -171,6 +171,7 @@ fn assert_first(interpreter: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_trace_member_key_removal_retires_outside_storage_and_checks_the_same_frame_and_member()
 {
@@ -224,6 +225,7 @@ fn original_trace_member_key_removal_retires_outside_storage_and_checks_the_same
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_trace_root_key_withdrawal_preserves_a_callback_reborn_cell_and_first_refusal() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -316,6 +318,7 @@ impl Drop for Observer {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_native_observer_removal_keeps_saved_cleanup_entered_through_actual_callback_drop() {
     // naming.embedding.original-host-publication-and-fact-transport

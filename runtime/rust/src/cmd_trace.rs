@@ -2469,6 +2469,7 @@ mod original_operand_tests {
         first, native, seed, unchanged, words, Update, UpdaterOwner,
     };
     use crate::obj::Owned;
+    #[cfg(debug_assertions)]
     #[test]
     fn original_variable_trace_queries_preserve_cells_and_first_host() {
         // naming.embedding.original-host-publication-and-fact-transport

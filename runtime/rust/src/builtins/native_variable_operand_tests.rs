@@ -278,6 +278,7 @@ fn original_unset_successful_rows_preserve_sequential_original_names() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_increment_first_refusal_retains_selected_reached_operand_and_amount_hold() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -330,6 +331,7 @@ fn original_increment_first_refusal_retains_selected_reached_operand_and_amount_
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_unset_prefix_effect_survives_host_refusal_without_reading_later_name() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -399,6 +401,7 @@ impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp> for 
         Ok(())
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_increment_write_callback_keeps_reached_store_before_first_cause_settlement() {
     // naming.embedding.original-host-publication-and-fact-transport

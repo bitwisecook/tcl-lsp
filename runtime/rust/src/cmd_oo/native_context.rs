@@ -1241,6 +1241,7 @@ mod original_forward_prefix_tests {
         assert_eq!(snapshot(member.as_ptr()), (0, 1, false));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn forward_worker_member_refusal_keeps_reached_bytes_and_stops_result_publication() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1615,6 +1616,7 @@ mod residual_original_argument_tests {
         (target, caller)
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn class_factory_original_name_refusal_stops_namespace_and_later_operand_effects() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1662,6 +1664,7 @@ mod residual_original_argument_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_selector_refusal_stops_cache_dispatch_and_keeps_later_header_unread() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1704,6 +1707,7 @@ mod residual_original_argument_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn slot_selected_list_preserves_parse_refusal_and_stops_before_cache_after_callback() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1769,6 +1773,7 @@ mod residual_original_argument_tests {
         interpreter.oo_leave_definition(caller);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn property_script_refusal_stops_later_name_and_accessor_publication() {
         // naming.embedding.original-host-publication-and-fact-transport

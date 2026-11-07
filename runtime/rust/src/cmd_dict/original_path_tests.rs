@@ -97,6 +97,7 @@ fn assert_original_cause(interpreter: &Interp, change: bool) {
         assert_eq!(first.reason, "first original dict command getter");
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_dictionary_subcommand_getter_refuses_before_name_and_worker_effects() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -134,6 +135,7 @@ fn original_dictionary_subcommand_getter_refuses_before_name_and_worker_effects(
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_dictionary_key_refusal_retains_early_empty_publication_and_stops_later_keys() {
     // naming.embedding.original-host-publication-and-fact-transport

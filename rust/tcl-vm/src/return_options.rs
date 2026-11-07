@@ -704,6 +704,7 @@ mod original_checked_return_tests {
         scope.check(&mut vm).unwrap();
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_return_numeric_scope_stops_callback_change_before_continuation() {
         // naming.embedding.original-host-publication-and-fact-transport

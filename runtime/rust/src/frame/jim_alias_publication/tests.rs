@@ -197,6 +197,7 @@ fn role(interpreter: &Interp, level: usize, name: &[u8]) -> Rc<OriginalJimLinkTa
     };
     Rc::clone(link.original_jim_target.as_ref().unwrap())
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_link_detaches_before_getter_and_retires_visible_old_pointer_before_assignment() {
     // naming.embedding.original-host-publication-and-fact-transport

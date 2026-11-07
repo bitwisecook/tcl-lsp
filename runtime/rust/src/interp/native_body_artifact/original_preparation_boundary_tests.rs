@@ -198,6 +198,7 @@ fn profiles(substitution: bool) -> &'static [&'static str] {
         &["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_preparation_source_string_keeps_frame_and_currency_before_cache_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -284,6 +285,7 @@ fn original_preparation_old_primary_retirement_checks_real_frame_and_primary_aba
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_preparation_borrowed_name_table_stops_at_actual_first_updater_without_extra_native_hold(
 ) {

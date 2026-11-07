@@ -7197,6 +7197,7 @@ mod original_import_alias_tests {
         OWNER.with(|owner| owner.borrow_mut().take());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_import_retains_reached_list_getter_first_cause_before_publication() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -7585,6 +7586,7 @@ mod original_namespace_continuation_tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_namespace_path_checks_prior_targets_and_original_member_backing_before_commit() {
         for mode in [1, 2, 3, 4, 5] {
@@ -7614,6 +7616,7 @@ mod original_namespace_continuation_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_namespace_unknown_validates_original_list_and_frame_before_replacing_handler() {
         for mode in [1, 2, 3, 6] {
@@ -7638,6 +7641,7 @@ mod original_namespace_continuation_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_namespace_unknown_checks_retired_handler_callback_before_new_publication() {
         for mode in [1, 2, 3, 6] {
@@ -7670,6 +7674,7 @@ mod original_namespace_continuation_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_namespace_upvar_checks_namespace_before_target_getter_and_alias_publication() {
         for mode in [1, 2, 3, 4, 6] {

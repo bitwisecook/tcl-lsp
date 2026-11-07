@@ -127,6 +127,7 @@ fn original_switch_scalar_retirement_checks_frame_and_first_host_before_cache() 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_switch_lower_refusal_precedes_string_mutation_and_later_stage() {
     // naming.embedding.original-host-publication-and-fact-transport

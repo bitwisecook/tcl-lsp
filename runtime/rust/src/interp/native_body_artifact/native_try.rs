@@ -797,6 +797,7 @@ mod tests {
             }
         }
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_compiled_try_trap_checks_frame_before_options_backing_adoption() {
         // naming.embedding.original-host-publication-and-fact-transport

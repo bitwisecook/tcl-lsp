@@ -143,6 +143,7 @@ fn original_callback_batch_retains_formatter_failure_before_changed_name_owner()
     );
     drop(scope);
 }
+#[cfg(debug_assertions)]
 #[test]
 fn supplied_callback_name_scope_keeps_original_frame_before_string_stages() {
     // naming.embedding.original-host-publication-and-fact-transport

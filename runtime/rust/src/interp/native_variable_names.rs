@@ -3401,6 +3401,7 @@ mod tests {
         code
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_upvar_free_callback_checks_currency_before_cells_and_aliases() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -3457,6 +3458,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_compiled_upvar_free_callback_refuses_later_slot_binding() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -5474,6 +5476,7 @@ mod original_assignment_tests {
         WRITES.with(|selected| selected.set(0));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_c_assignment_releases_old_value_before_trace_with_cell_borrows_released() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -5537,6 +5540,7 @@ mod original_assignment_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_assignment_updates_actual_cached_cell_before_retirement_callback() {
         // naming.embedding.original-host-publication-and-fact-transport

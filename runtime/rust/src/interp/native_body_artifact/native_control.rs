@@ -1693,6 +1693,7 @@ mod constant_owner_tests {
         assert!(interpreter.native_execution_refusal().is_none());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_constant_entry_cannot_revive_after_context_restore_or_first_host() {
         // naming.embedding.original-host-publication-and-fact-transport

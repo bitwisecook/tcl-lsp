@@ -521,6 +521,7 @@ mod tests {
             .is_none());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn withdrawn_jim_tailcall_refuses_invocation_and_releases_its_actual_list_and_worker() {
         let mut interpreter = jim();

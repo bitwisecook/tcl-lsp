@@ -458,6 +458,7 @@ mod tests {
         assert!(interp.variable_storage_matches(names.variable_lookup_policy()));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn absent_vendor_policy_cannot_reinterpret_selected_jim_storage() {
         let mut interp = Interp::with_native_core(
@@ -486,6 +487,7 @@ mod tests {
         assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Jim));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn authored_names_require_compatible_existing_storage_without_native_authority() {
         let mut interp = Interp::new();

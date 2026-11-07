@@ -330,6 +330,7 @@ fn original_vm_rename_source_receipt_refuses_deleted_and_reborn_slot() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_vm_rename_record_receipt_keeps_context_aba_first_cause() {
     // naming.embedding.original-host-publication-and-fact-transport

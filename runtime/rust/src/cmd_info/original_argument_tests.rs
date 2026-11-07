@@ -260,6 +260,7 @@ fn original_info_default_failed_lookup_leaves_destination_getter_unreached() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_info_getter_first_cause_stops_later_operands_and_result_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -342,6 +343,7 @@ fn original_info_exists_public_row_preserves_original_name_on_all_six_providers(
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_info_direct_name_workers_stop_before_result_after_getter_refusal() {
     // naming.embedding.original-host-publication-and-fact-transport

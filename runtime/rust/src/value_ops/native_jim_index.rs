@@ -1271,6 +1271,7 @@ mod tests {
         assert!(error.native_execution_refusal().is_some());
         drop(allocation);
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_indexed_string_count_refuses_before_later_indices_and_cache_adoption() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1317,6 +1318,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_indexed_list_conversion_refuses_before_backing_adoption() {
         // naming.embedding.original-host-publication-and-fact-transport

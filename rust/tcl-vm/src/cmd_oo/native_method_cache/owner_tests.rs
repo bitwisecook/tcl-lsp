@@ -220,6 +220,7 @@ impl NativeCommand for WithdrawContext {
         ok(Value::string("LATER_GUEST"))
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_vm_method_callback_context_restore_keeps_first_host_and_reached_cache() {
     // naming.tcloo.original-method-cache-and-active-call-lifetime
@@ -258,6 +259,7 @@ fn original_vm_method_callback_context_restore_keeps_first_host_and_reached_cach
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_vm_method_key_refuses_inherited_context_before_string_and_cache() {
     // naming.tcloo.original-method-cache-and-active-call-lifetime

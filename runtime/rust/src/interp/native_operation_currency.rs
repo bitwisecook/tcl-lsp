@@ -162,6 +162,13 @@ impl NativeOperationCurrency {
         let _diagnostic = super::constructor_diagnostics::WorkMeasurement::new(
             super::constructor_diagnostics::Work::Currency,
         );
+        if !crate::VERIFY_CURRENCY {
+            let state = self.interpreter.upgrade().ok_or_else(unavailable)?;
+            if !state.native_compilation.borrow().refused() {
+                return Ok(());
+            }
+            return Interp(state).native_execution_refusal().map_or(Ok(()), Err);
+        }
         if self.interpreter.upgrade().is_some_and(|state| {
             state.native_operation_context_epoch.get() == Some(self.epoch)
                 && !state.native_compilation.borrow().refused()
@@ -283,11 +290,16 @@ impl NativeOperationScope {
         } else {
             None
         };
-        let observed = Rc::clone(&currency);
-        let allocation = crate::obj::JimAllocationScope::enter(
-            pool,
-            Rc::new(move || observed.ensure_current().is_ok()),
-        );
+        let allocation = match pool {
+            Some(pool) => {
+                let observed = Rc::clone(&currency);
+                crate::obj::JimAllocationScope::enter(
+                    Some(pool),
+                    Rc::new(move || observed.ensure_current().is_ok()),
+                )
+            }
+            None => crate::obj::JimAllocationScope::unpooled(),
+        };
         let entry = Rc::new(NativeOperationEntry::Current(currency.clone()));
         interpreter
             .entered_native_operations
@@ -324,12 +336,17 @@ impl NativeOperationScope {
         } else {
             None
         };
-        let saved_allocation = saved.clone();
-        let target = interpreter.clone();
-        let allocation = crate::obj::JimAllocationScope::enter(
-            pool,
-            Rc::new(move || saved_allocation.check(&target).is_ok()),
-        );
+        let allocation = match pool {
+            Some(pool) => {
+                let saved_allocation = saved.clone();
+                let target = interpreter.clone();
+                crate::obj::JimAllocationScope::enter(
+                    Some(pool),
+                    Rc::new(move || saved_allocation.check(&target).is_ok()),
+                )
+            }
+            None => crate::obj::JimAllocationScope::unpooled(),
+        };
         let entry = Rc::new(match &saved.original {
             Ok(currency) => NativeOperationEntry::Current(Rc::new(currency.clone())),
             Err(first) => NativeOperationEntry::RefusedCleanup(first.clone()),
@@ -600,6 +617,7 @@ mod tests {
         assert!(interpreter.native_execution_refusal().is_none());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_argument_early_retirement_does_not_refresh_a_surviving_context_receipt() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -630,6 +648,7 @@ mod tests {
         assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_nested_operation_stops_before_a_later_store_after_context_restore() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -786,6 +805,7 @@ mod tests {
         Code::Ok
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_script_trace_refusal_stops_the_later_script_command() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -843,6 +863,7 @@ mod tests {
         set_from_any_proc: None,
     };
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_string_updater_retains_reached_bytes_and_refuses_later_guest_capture() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -946,6 +967,7 @@ mod tests {
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn operation_context_aba_and_first_host_do_not_refresh_original_receipts() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -999,6 +1021,7 @@ mod tests {
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn actual_logical_ingress_changes_context_without_granting_native_purpose() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1027,6 +1050,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn unchanged_pin_and_exhausted_context_epoch_keep_distinct_admission() {
         // naming.embedding.original-host-publication-and-fact-transport

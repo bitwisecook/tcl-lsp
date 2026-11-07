@@ -21,6 +21,7 @@ use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
 use crate::obj;
 use std::cell::Cell;
+#[cfg(debug_assertions)]
 #[test]
 fn original_array_for_length_retirement_refuses_before_array_and_script_getters() {
     // naming.embedding.original-host-publication-and-fact-transport

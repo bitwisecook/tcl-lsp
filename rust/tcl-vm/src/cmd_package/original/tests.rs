@@ -185,6 +185,7 @@ impl NativeCommand for Withdraw {
         ok(Value::string("LATER_GUEST"))
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_package_unknown_and_loader_restore_before_original_currency_settlement() {
     // naming.embedding.original-host-publication-and-fact-transport

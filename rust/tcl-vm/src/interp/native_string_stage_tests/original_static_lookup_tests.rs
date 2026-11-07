@@ -151,6 +151,7 @@ fn original_static_lookup_stops_retired_compound_before_cache_and_guest_projecti
     assert_eq!(vm.finish_host_execution(guest).unwrap_err(), first);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_index_mirror_checks_actual_currency_after_retirement_before_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -336,6 +337,7 @@ fn original_jim_cat_preserves_prior_full_host_before_later_operand_or_materializ
     assert_eq!(vm.finish_host_execution(completion).unwrap_err(), first);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_cat_authored_routing_checks_inherited_currency_without_native_issuer() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -392,6 +392,7 @@ fn original_property_slot_composition_keeps_original_headers_and_empty_append_is
     assert_eq!(second.native_object_reference_count(), 1);
     assert!(vm.execution_refusal.is_none());
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_property_facet_and_restored_context_refuse_before_setter_effects() {
     // naming.embedding.original-host-publication-and-fact-transport

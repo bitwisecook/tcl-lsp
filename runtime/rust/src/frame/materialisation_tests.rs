@@ -168,6 +168,7 @@ fn cause(interpreter: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_formal_metadata_retires_before_adoption_under_the_same_frame_and_cell() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -282,6 +283,7 @@ fn array(interpreter: &mut Interp) -> (RetainedArrayCell, ArrayTarget) {
     (array, target)
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_search_string_keeps_the_same_node_birth_without_a_native_snapshot_hold() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -363,6 +365,7 @@ fn original_search_string_keeps_the_same_node_birth_without_a_native_snapshot_ho
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_done_search_retires_its_actual_handle_before_result_publication_outside_borrows() {
     // naming.embedding.original-host-publication-and-fact-transport

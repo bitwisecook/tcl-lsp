@@ -113,6 +113,7 @@ fn assert_refusal(interpreter: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_result_retirement_stops_later_exception_and_counter_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -144,6 +145,7 @@ fn original_result_retirement_stops_later_exception_and_counter_publication() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_exception_retirement_observes_reached_state_without_a_live_borrow() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -268,6 +270,7 @@ fn write_byte_error(interpreter: &mut Interp, writer: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_byte_error_authors_retire_displaced_options_outside_the_exception_borrow() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -399,6 +402,7 @@ static CAPTURE_RETIREMENT: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_error_capture_checks_each_retired_role_before_the_next_projection() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -468,6 +472,7 @@ fn original_error_capture_checks_each_retired_role_before_the_next_projection() 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_return_error_retirement_refuses_before_prepared_result_and_options_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -504,6 +509,7 @@ fn original_return_error_retirement_refuses_before_prepared_result_and_options_p
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_private_error_field_retirement_keeps_the_published_operand_and_stops_its_getter() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -623,6 +629,7 @@ fn lazy_error_info(interpreter: &Interp, mode: u8) -> OriginalLazyErrorInfo {
     (value, updates, frees, references, current_role)
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_private_error_info_getter_keeps_its_real_role_without_an_exception_borrow() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -670,6 +677,7 @@ fn original_private_error_info_getter_keeps_its_real_role_without_an_exception_b
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_error_info_append_checks_the_reached_getter_before_later_cache_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -732,6 +740,7 @@ fn original_error_info_append_checks_the_reached_getter_before_later_cache_publi
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_portable_error_reporting_stops_after_private_info_retirement() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -961,6 +970,7 @@ impl SavedErrorBoundary {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_saved_error_cleanup_attaches_the_expired_entry_before_real_retirement() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1014,6 +1024,7 @@ fn original_saved_error_cleanup_attaches_the_expired_entry_before_real_retiremen
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_saved_error_cleanup_preserves_withdrawn_same_target_and_failed_capture() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1113,6 +1124,7 @@ fn original_saved_error_cleanup_refuses_foreign_target_before_any_state_install(
     assert_eq!(crate::counters::double_free_count(), 0);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_trace_replacement_retires_outside_borrow_before_checked_readers() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1357,6 +1369,7 @@ fn original_jim_consumed_trace_cleanup_keeps_the_failed_entry_during_destructor_
     });
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_result_reset_retires_complete_exception_before_later_return_state() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1392,6 +1405,7 @@ fn original_result_reset_retires_complete_exception_before_later_return_state() 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_private_reset_checks_each_real_retirement_before_the_next_field() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1497,6 +1511,7 @@ static ORIGINAL_RESET_HEADER: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_private_reset_decrement_keeps_each_raw_role_without_a_native_reference() {
     // naming.embedding.original-host-publication-and-fact-transport

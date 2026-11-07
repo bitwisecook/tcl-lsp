@@ -2100,6 +2100,7 @@ mod original_completion_capture_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_completion_capture_refuses_restored_context_before_abi_publication() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -2311,6 +2312,7 @@ mod original_completion_capture_tests {
         crate::interp::Code::from_int(SCRIPT_CODE.with(Cell::get))
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_public_completion_keeps_before_body_currency_and_reached_script_effects() {
         // naming.embedding.original-host-publication-and-fact-transport

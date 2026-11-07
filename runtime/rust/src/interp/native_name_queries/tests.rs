@@ -156,6 +156,7 @@ fn declaration(
         },
     )
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_procedure_query_retains_selected_binding_through_reached_defaults_and_body() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -231,6 +232,7 @@ fn generic_proc_body_preserves_first_host_without_missing_procedure_or_default_g
     assert!(unsafe { (*defaults[0].as_ptr()).bytes.is_null() });
     assert_eq!(interpreter.result_obj(), REACHED.with(Cell::get));
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_alias_query_checks_actual_generation_and_namespace_after_lazy_member_callbacks() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -485,6 +487,7 @@ mod jim_procedure_namespace_tests {
         assert!(actual.native_execution_refusal().is_none());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn jim_original_body_query_keeps_declaration_holder_and_first_cause_inside_body_getter() {
         for mode in [0, 1, 2, 3, 4, 5, 6] {
@@ -522,6 +525,7 @@ mod jim_procedure_namespace_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn jim_original_body_query_stops_after_original_name_callback_before_cache_and_body() {
         for mode in [1, 2, 5, 6] {
@@ -798,6 +802,7 @@ mod jim_procedure_namespace_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn jim_original_body_value_rechecks_caller_and_selected_declaration_before_publication() {
         for mode in [1, 2, 3] {
@@ -840,6 +845,7 @@ mod jim_procedure_namespace_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn jim_original_body_value_name_callbacks_refuse_before_body_result_or_cache() {
         for mode in [1, 2, 5, 6] {

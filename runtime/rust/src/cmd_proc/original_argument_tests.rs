@@ -165,6 +165,7 @@ fn original_procedure_definition_matches_jim_formal_name_and_deferred_body_gette
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_shared_body_refusal_stops_before_formals_and_procedure_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

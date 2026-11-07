@@ -213,6 +213,7 @@ fn original_usage_projection_keeps_actual_rewrite_counts_and_leaves_operands_unr
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_usage_first_getter_refusal_stops_later_header_and_guest_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -243,6 +244,7 @@ fn original_usage_first_getter_refusal_stops_later_header_and_guest_publication(
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_procedure_argv_zero_refusal_precedes_real_body_getter_and_activation() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -293,6 +295,7 @@ fn original_usage_rewrite_birth_refuses_nested_and_clear_recreate_aba() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_rewrite_retirement_reenters_extracted_owner_and_keeps_first_cause() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -318,6 +321,7 @@ fn original_rewrite_retirement_reenters_extracted_owner_and_keeps_first_cause() 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_handler_prefix_retirement_reenters_after_extraction_before_success() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -404,6 +408,7 @@ fn original_ensemble_arity_and_selector_refusals_precede_target_publication() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_procedure_body_getter_refusal_keeps_real_declaration_and_frame_cleanup() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -673,6 +678,7 @@ fn original_unknown_current_guest_results_keep_true_prefix_and_reparse_contracts
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_unknown_member_refusal_stops_later_getter_and_real_dispatch() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -717,6 +723,7 @@ fn original_unknown_member_refusal_stops_later_getter_and_real_dispatch() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_unknown_result_primary_retirement_refuses_before_list_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -779,6 +786,7 @@ fn original_unknown_result_primary_retirement_refuses_before_list_adoption() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_unknown_returned_string_refusal_stops_result_list_and_guest_context() {
     // naming.embedding.original-host-publication-and-fact-transport

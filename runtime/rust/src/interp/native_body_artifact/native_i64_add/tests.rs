@@ -243,6 +243,7 @@ impl tcl_platform::Host for EpochHost {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn reached_numeric_context_change_is_terminal_without_body_replay() {
     let host = Rc::new(EpochHost {

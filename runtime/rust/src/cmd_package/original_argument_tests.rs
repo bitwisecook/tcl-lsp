@@ -86,6 +86,7 @@ static ORIGINAL: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_package_selector_refusal_precedes_later_arguments_and_database_effects() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -247,6 +248,7 @@ impl Drop for Directory {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_package_filesystem_results_are_checked_before_continue_load_or_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -359,6 +361,7 @@ fn loader(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         _ => unreachable!(),
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_package_loader_cleanup_precedes_first_cause_or_guest_settlement() {
     // naming.embedding.original-host-publication-and-fact-transport

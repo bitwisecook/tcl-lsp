@@ -258,6 +258,7 @@ fn original_native_constructor_keeps_selected_inventory_and_checked_host_values(
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_native_bootstrap_stops_after_each_reached_host_callback_mutates_context() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -309,6 +310,7 @@ fn original_native_bootstrap_stops_after_each_reached_host_callback_mutates_cont
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_host_setter_preserves_old_globals_when_a_reached_callback_changes_host() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -428,6 +430,7 @@ fn original_native_bootstrap_reports_storage_failure_and_stops_later_installatio
     assert_eq!(interp.entered_native_operation_count(), 0);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_hidden_error_shell_installer_refuses_stale_entry_without_retirement() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -447,6 +450,7 @@ fn original_hidden_error_shell_installer_refuses_stale_entry_without_retirement(
     assert_eq!(interp.entered_native_operation_count(), 0);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_previous_host_retirement_cannot_refresh_the_outer_setter_entry() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -509,6 +513,7 @@ impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp> for 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_native_bootstrap_keeps_reached_write_and_stops_after_its_host_observer() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -591,6 +596,7 @@ static BOOTSTRAP_RESULT_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_bootstrap_reporting_retirement_preserves_the_reached_first_cause() {
     // naming.embedding.original-host-publication-and-fact-transport

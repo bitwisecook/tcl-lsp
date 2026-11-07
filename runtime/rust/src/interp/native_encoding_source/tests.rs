@@ -93,6 +93,7 @@ fn original_source_argument_encoding_is_consumed_and_missing_file_precedes_looku
     );
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_system_reset_and_catalogue_callback_keep_original_currency() {
     // naming.encoding.original-byte-name-lookup-and-source-order
@@ -213,6 +214,7 @@ fn original_filename_external_zero_refuses_before_open_and_keeps_report_bytes() 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_filename_supplied_codec_checks_currency_before_open() {
     // naming.embedding.original-host-publication-and-fact-transport

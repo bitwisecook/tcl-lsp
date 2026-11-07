@@ -167,6 +167,7 @@ fn first(interpreter: &Interp, mode: u8) {
         ));
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_cache_retirement_keeps_reached_store_result_and_first_cause() {
     // naming.embedding.original-host-publication-and-fact-transport

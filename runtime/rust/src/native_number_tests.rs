@@ -417,6 +417,7 @@ mod currency {
         assert_eq!(unsafe { (*value).ref_count }, references);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn modern_increment_retains_reached_updater_and_stops_before_numeric_cache_or_store() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -462,6 +463,7 @@ mod currency {
         });
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn legacy_increment_amount_and_receiver_use_the_original_guarded_scalar_stages() {
         // naming.embedding.original-host-publication-and-fact-transport

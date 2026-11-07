@@ -492,6 +492,7 @@ mod tests {
             .unwrap(),
         )
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_comparison_updater_stops_before_second_operand_cache_and_lexical_fallback() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -608,6 +609,7 @@ mod tests {
         assert_eq!(CALLS.with(Cell::get), 1);
         crate::codegen_abi::tcl_runtime_set_current_interp(std::ptr::null_mut());
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_arithmetic_updater_preserves_first_refusal_before_second_operand_and_kernel() {
         // naming.embedding.original-host-publication-and-fact-transport

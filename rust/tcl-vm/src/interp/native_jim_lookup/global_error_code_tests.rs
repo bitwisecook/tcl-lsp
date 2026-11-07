@@ -305,6 +305,7 @@ fn catch_try_quiet_global_capture_matches_original_reached_message_and_options()
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_error_code_capture_does_not_cross_interpreter_ownership() {
     let mut original = jim();

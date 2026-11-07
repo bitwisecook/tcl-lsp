@@ -125,6 +125,7 @@ fn original_name_dispatch_checks_enter_and_leave_before_later_work() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_dispatch_retains_deferred_body_scope_through_refused_cleanup() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -149,6 +150,7 @@ fn original_name_dispatch_retains_deferred_body_scope_through_refused_cleanup() 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_dispatch_carries_tailcall_owner_into_replacement() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -179,6 +181,7 @@ fn original_name_dispatch_carries_tailcall_owner_into_replacement() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_dispatch_keeps_parked_coroutine_receipt_without_reissuing_it() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -463,6 +466,7 @@ fn original_name_dispatch_probe_checks_saved_currency_before_callback() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_dispatch_injection_refusal_stops_older_callbacks_and_body() {
     // naming.embedding.original-host-publication-and-fact-transport

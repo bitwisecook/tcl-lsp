@@ -227,6 +227,7 @@ fn original_checked_string_and_concat_keep_actual_formatter_children_and_referen
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_checked_compound_string_stops_after_first_reached_formatter_refusal() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -309,6 +310,7 @@ fn original_checked_compound_string_stops_after_first_reached_formatter_refusal(
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_string_facade_refuses_wrong_protocol_and_withdrawn_scope_before_host_acquisition() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -503,6 +505,7 @@ fn original_string_facade_retains_child_header_refusal_after_live_root_shimmer()
     assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_resident_string_checks_owner_and_protocol_without_querying_formatter_host() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -794,6 +797,7 @@ fn original_scalar_compound_formatter_withdrawal_stops_before_later_numeric_work
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_number_and_failure_string_providers_check_currentness_before_interpretation() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -951,6 +955,7 @@ fn original_expression_source_keeps_live_root_child_refusal_before_cache_replace
     assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_expression_cache_publication_checks_actual_header_before_replacement() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1517,6 +1522,7 @@ fn original_binary_maxlen_retired_header_refuses_before_guest_line_length_and_da
     );
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_numeric_command_scope_stops_host_aba_before_backend_and_retires_unpublished_result() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1597,6 +1603,7 @@ fn original_numeric_command_prior_host_cause_remains_typed_before_guest_defaults
     assert_eq!(vm.finish_host_execution(prior).unwrap_err(), first);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_debug_retired_header_stops_supported_boolean_before_flag_or_guest_error() {
     // naming.embedding.original-host-publication-and-fact-transport

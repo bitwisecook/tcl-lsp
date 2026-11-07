@@ -155,6 +155,7 @@ fn original_callback_host_cause_stops_later_rows_and_restores_the_real_result() 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_callback_host_aba_keeps_reached_effects_without_a_later_observer() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -409,6 +410,7 @@ fn original_saved_trace_currency_is_descriptive_until_same_target_mandatory_clea
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_saved_trace_cleanup_keeps_changed_currency_and_refuses_foreign_target() {
     // naming.embedding.original-host-publication-and-fact-transport

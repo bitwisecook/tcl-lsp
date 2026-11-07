@@ -171,6 +171,7 @@ fn original_name_consumer_keeps_restored_nested_frame_and_namespace_contexts() {
     assert!(formatter.calls.borrow().is_empty());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_consumer_refuses_reborn_same_level_before_the_next_getter() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -259,6 +260,7 @@ fn original_name_consumer_reached_formatter_withdraws_the_table_before_later_ope
     unchanged_result(&vm, &result);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_consumer_host_change_and_restore_keeps_the_first_context_cause() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -472,6 +474,7 @@ fn configure_ensemble(
     )
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn ensemble_list_configuration_keeps_original_objects_and_checks_reached_caller_stages() {
     for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -546,6 +549,7 @@ fn ensemble_list_configuration_keeps_original_objects_and_checks_reached_caller_
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn ensemble_map_dictionary_conversion_keeps_original_members_and_caller_checks() {
     for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -622,6 +626,7 @@ fn ensemble_map_dictionary_conversion_keeps_original_members_and_caller_checks()
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn ensemble_map_nested_prefix_list_getter_checks_the_original_caller() {
     for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -711,6 +716,7 @@ fn original_jim_namespace_holder_withdrawal_refuses_invalid_and_retired_births()
     assert!(!vm.native_namespace_token_has_owner(replacement));
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_namespace_consumer_rejects_foreign_world_with_same_numeric_slot() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -878,6 +884,7 @@ fn original_variable_name_array_worker_keeps_current_counted_header_and_cell_rol
     assert!(vm.execution_refusal.is_none());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_consumer_rejects_foreign_world_before_same_spelled_namespace_getter() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1138,6 +1145,7 @@ fn original_name_selected_compiled_slot_refuses_replacement_before_the_next_gett
     );
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_explicit_namespace_refuses_reborn_target_before_the_next_getter() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1178,6 +1186,7 @@ fn original_name_explicit_namespace_refuses_reborn_target_before_the_next_getter
     );
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_dictionary_tuple_checks_real_retirement_before_adopting_children() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -1246,6 +1255,7 @@ fn original_jim_dictionary_tuple_checks_real_retirement_before_adopting_children
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn selected_namespace_retirement_keeps_only_the_actual_entered_incarnation() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
@@ -1282,6 +1292,7 @@ fn selected_namespace_retirement_keeps_only_the_actual_entered_incarnation() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn current_namespace_projection_refuses_same_spelled_replacement() {
     let mut vm =
@@ -1301,6 +1312,7 @@ fn current_namespace_projection_refuses_same_spelled_replacement() {
     assert!(scope.current_namespace_token(&mut vm).is_err());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn unrelated_namespace_retirement_cannot_issue_the_entered_operation_receipt() {
     let mut vm =
@@ -1323,6 +1335,7 @@ fn unrelated_namespace_retirement_cannot_issue_the_entered_operation_receipt() {
     );
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn selected_ancestor_retirement_retains_the_actual_entered_child() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

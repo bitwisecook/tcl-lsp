@@ -213,6 +213,7 @@ fn exercise(profile: &str, stage: u8, mutation: u8) {
     STAGE.set(0);
     CHANGE.set(0);
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_increment_checks_cow_number_string_and_retirement_before_later_stages() {
     // naming.embedding.original-host-publication-and-fact-transport

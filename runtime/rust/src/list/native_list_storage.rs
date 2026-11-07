@@ -814,6 +814,7 @@ mod original_range_retirement_controls {
             crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
         }
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_range_retirement_checks_first_cause_without_working_header_reference() {
         // naming.embedding.original-host-publication-and-fact-transport

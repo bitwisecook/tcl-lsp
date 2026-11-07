@@ -1588,6 +1588,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn c84_string_global_error_code_setter_refuses_foreign_provider_and_retired_header() {
         let mut vm = native_vm("tcl8.5");

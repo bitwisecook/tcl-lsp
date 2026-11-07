@@ -88,6 +88,7 @@ fn jim_cat_multiple_original_operands_create_unknown_count_string_backing() {
     );
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn jim_cat_refuses_retired_and_foreign_original_getters_without_rebuilding() {
     // naming.source.jim-original-concatenation-ownership

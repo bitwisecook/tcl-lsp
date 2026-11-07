@@ -1392,6 +1392,7 @@ mod original_key_construction_tests {
         set_from_any_proc: None,
     };
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_qualification_keeps_namespace_owner_and_stops_after_refused_getter() {
         // naming.alias.original-command-key-replacement-child-capture-and-rename

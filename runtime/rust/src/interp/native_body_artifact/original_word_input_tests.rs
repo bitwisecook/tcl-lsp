@@ -112,6 +112,7 @@ fn assert_first(actual: &Interp, mode: u8) {
         ));
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_word_cat_keeps_entered_frame_inside_first_string_before_later_component() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -185,6 +186,7 @@ fn original_compiled_word_cat_keeps_entered_frame_inside_first_string_before_lat
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_word_cat_checks_after_genuine_component_retirement_before_returning_result() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -275,6 +277,7 @@ fn command_component(actual: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         Code::Ok
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_command_component_restores_saved_metadata_before_refusal_settlement() {
     // naming.embedding.original-host-publication-and-fact-transport

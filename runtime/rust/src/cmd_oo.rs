@@ -11860,6 +11860,7 @@ mod original_argument_tests {
         assert_eq!(interpreter.get_obj_result(), prior);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn define_target_callback_stops_before_body_and_definition_effects() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -11894,6 +11895,7 @@ mod original_argument_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn method_name_callback_withdraws_later_formal_body_and_installation_stages() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -11932,6 +11934,7 @@ mod original_argument_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn definition_frame_reporting_runs_updaters_outside_frame_borrow_and_cleans_refusal() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -11997,6 +12000,7 @@ mod original_argument_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn retired_method_callback_stops_before_later_name_and_result_publication() {
         // naming.embedding.original-host-publication-and-fact-transport

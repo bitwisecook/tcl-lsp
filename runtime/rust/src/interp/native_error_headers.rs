@@ -1569,6 +1569,7 @@ mod original_prepared_stack_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_prepared_stack_members_retire_outside_borrows_and_stop_on_episode_aba() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1679,6 +1680,7 @@ mod original_prepared_stack_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_stack_configuration_publishes_roles_before_mandatory_header_retirement() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1926,6 +1928,7 @@ mod original_carried_option_tests {
         drop(interpreter.exc.replace(ExceptionState::default()));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_carried_option_retirement_stops_new_body_and_preserves_reached_publication() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -2004,6 +2007,7 @@ mod original_carried_option_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_carried_option_key_getter_keeps_actual_roles_and_refuses_before_publication() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -2108,6 +2112,7 @@ mod original_carried_option_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_saved_option_cleanup_finishes_result_restore_after_host_or_context_withdrawal() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -2188,6 +2193,7 @@ mod original_carried_option_tests {
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_procedure_option_body_start_refusal_still_tears_down_the_real_frame() {
         // naming.embedding.original-host-publication-and-fact-transport

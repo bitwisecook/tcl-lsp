@@ -21209,6 +21209,7 @@ mod tests {
         });
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_exposure_cleanup_preserves_host_and_context_first_causes_before_retargeting() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -21706,6 +21707,7 @@ mod tests {
         });
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn idle_original_delete_procedure_runs_before_publication_and_preserves_first_refusal() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -22468,6 +22470,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn stock_root_installation_keeps_the_actual_publication_receipt_after_retirement() {
         // Software contract: naming.embedding.original-host-publication-and-fact-transport
@@ -26288,6 +26291,7 @@ mod c86_original_source_text_tests {
         assert_eq!(MARKS.with(Cell::get), 0);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn selected_source_producer_does_not_fall_back_after_change_and_restore() {
         let mut interpreter = native();

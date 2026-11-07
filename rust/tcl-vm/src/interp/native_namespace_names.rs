@@ -730,6 +730,7 @@ impl tcl_cmd_core::namespace::NamespaceDeleteBackend for Vm {
 mod original_jim_canonical_ownership_tests {
     use super::*;
 
+    #[cfg(debug_assertions)]
     #[test]
     fn absolute_canonical_name_retains_the_explicit_prefix_liveness_requirement() {
         for retired in [false, true] {
@@ -765,6 +766,7 @@ mod original_jim_canonical_ownership_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn absolute_canonical_name_rechecks_the_explicit_prefix_after_the_original_getter() {
         for retire in [false, true] {

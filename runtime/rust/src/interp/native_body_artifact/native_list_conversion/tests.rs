@@ -168,6 +168,7 @@ fn original_compiled_group_retirement_keeps_frame_check_after_header_is_released
     assert_eq!(interpreter.frames.borrow().top_level(), 1);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_expansion_members_keep_same_frame_and_first_cause_before_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -229,6 +230,7 @@ fn original_compiled_expansion_members_keep_same_frame_and_first_cause_before_ad
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_dictionary_prepare_retains_frame_and_first_cause_before_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport

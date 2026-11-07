@@ -111,6 +111,7 @@ fn assert_first(actual: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_substitution_chunk_cat_checks_before_later_chunk_and_retains_first_cleanup_cause() {
     // naming.embedding.original-host-publication-and-fact-transport

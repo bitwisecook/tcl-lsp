@@ -260,6 +260,7 @@ fn reset_observers() {
     REACHED.with(|result| *result.borrow_mut() = None);
     INCOMING.with(|member| member.set(std::ptr::null_mut()));
 }
+#[cfg(debug_assertions)]
 #[test]
 fn declaration_replacement_retires_old_headers_outside_borrow_after_new_adoption() {
     // Software adoption and callback transport; Native variable-map chronology is separate.

@@ -554,6 +554,7 @@ fn original_frame_level_missing_environment_is_terminal_only_at_reached_numeric_
     assert!(interp.native_execution_refusal().is_none());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_frame_level_callbacks_cannot_restore_currency_before_script_or_cache() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -593,6 +594,7 @@ fn original_frame_level_callbacks_cannot_restore_currency_before_script_or_cache
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_frame_level_numeric_callbacks_stop_after_reached_environment_effect() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -671,6 +673,7 @@ fn original_frame_level_lease_refuses_retired_header_and_replaced_current_activa
     pop_frame(&mut interp);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn compiled_frame_and_single_script_list_use_same_original_operation() {
     // naming.embedding.original-host-publication-and-fact-transport

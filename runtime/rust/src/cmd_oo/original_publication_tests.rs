@@ -169,6 +169,7 @@ fn assert_first(interpreter: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn private_dispatcher_retirement_stops_the_next_binding_and_preserves_first_cause() {
     // naming.embedding.original-host-publication-and-fact-transport

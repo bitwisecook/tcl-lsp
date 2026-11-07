@@ -119,6 +119,7 @@ fn original_call_frame_cleanup_refuses_real_same_level_replacement_and_keeps_new
     vm.pop_ns();
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_parked_call_cleanup_retires_original_state_and_preserves_the_child_activation() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -155,6 +156,7 @@ fn original_parked_call_cleanup_retires_original_state_and_preserves_the_child_a
     vm.switch_to(original_id);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_dispatch_cleanup_restores_captured_depth_without_decrementing_the_child() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -227,6 +229,7 @@ impl NativeCommand for ForwardObserver {
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_namespace() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -278,6 +278,7 @@ mod tests {
         assert_eq!(foreign.get_obj_result(), current);
         assert!(foreign.native_execution_refusal().is_some());
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn withdrawn_jim_result_observation_keeps_first_refusal_and_cannot_resurrect_header() {
         let mut actual = native_jim();

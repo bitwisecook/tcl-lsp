@@ -317,6 +317,7 @@ fn original_jim_copied_child_is_published_before_later_conversion_failure() {
     drop(lease);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_dictionary_getter_refusal_stops_later_keys_and_never_adopts_a_recreated_cell() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -373,6 +374,7 @@ fn original_jim_dictionary_getter_refusal_stops_later_keys_and_never_adopts_a_re
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_tuple_retirement_refuses_before_root_lookup_or_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -533,6 +535,7 @@ fn original_jim_cached_dictionary_and_scalar_roots_keep_their_selected_copy_role
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_variable_cache_retirement_refuses_before_root_conversion_and_key_getter() {
     // naming.embedding.original-host-publication-and-fact-transport

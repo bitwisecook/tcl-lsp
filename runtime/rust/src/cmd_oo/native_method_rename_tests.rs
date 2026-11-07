@@ -403,6 +403,7 @@ fn original_rename_verdict_and_counted_headers_match_reached_stock_worker_stages
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_destination_callback_cannot_replace_source_identity_or_first_cause() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -451,6 +452,7 @@ fn original_destination_callback_cannot_replace_source_identity_or_first_cause()
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_old_name_retirement_observes_destination_then_stops_later_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

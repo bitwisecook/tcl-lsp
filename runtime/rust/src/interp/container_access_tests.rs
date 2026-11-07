@@ -172,6 +172,7 @@ fn query(interpreter: &Interp, route: u8) -> bool {
         _ => unreachable!(),
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_container_queries_check_the_reached_getter_before_dictionary_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -214,6 +215,7 @@ fn original_container_queries_check_the_reached_getter_before_dictionary_adoptio
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_container_conversion_retires_the_primary_outside_all_storage_borrows() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -320,6 +322,7 @@ fn original_container_queries_keep_existing_reference_roles_across_all_native_pr
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_container_transition_retires_real_member_keys_before_root_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

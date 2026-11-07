@@ -237,6 +237,7 @@ fn original_tuple_consumer_refuses_a_foreign_original_context_before_child_prepa
     result_unchanged(&vm, &result);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_tuple_consumer_preserves_prior_host_and_restored_context_refusals() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -362,6 +363,7 @@ fn original_parked_tuple_context_refuses_foreign_target_before_entry_or_result_p
     no_scalar_query(&foreign_host);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_parked_tuple_context_refuses_restored_host_and_retires_same_target_state() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -396,6 +398,7 @@ fn original_parked_tuple_context_refuses_restored_host_and_retires_same_target_s
     no_scalar_query(&host);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_pending_dictionary_accept_uses_saved_context_and_stops_withdrawn_currency() {
     // naming.embedding.original-host-publication-and-fact-transport

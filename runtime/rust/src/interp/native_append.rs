@@ -1026,6 +1026,7 @@ mod original_c84_counted_append_tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_c84_seed_getter_refuses_before_any_global_setter() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1070,6 +1071,7 @@ mod original_c84_counted_append_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_c84_counted_worker_checks_getter_and_primary_retirement_before_write() {
         // naming.error.c84-publication-order
@@ -1207,6 +1209,7 @@ mod original_c84_counted_append_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_c84_error_caller_preserves_reached_seed_and_blocks_later_code_and_result() {
         // naming.error.c84-publication-order
@@ -1618,6 +1621,7 @@ mod original_c84_pending_scalar_tests {
         set_from_any_proc: None,
     };
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_c84_cow_publishes_pending_allocation_and_settles_only_the_same_live_role() {
         // naming.error.c84-publication-order

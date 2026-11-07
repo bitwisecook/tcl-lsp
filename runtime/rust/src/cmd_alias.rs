@@ -3369,6 +3369,7 @@ pub(crate) mod original_operand_tests {
         assert_eq!(interp.entered_native_operation_count(), 0);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_alias_reads_stop_before_later_prefix_and_publication() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -3470,6 +3471,7 @@ pub(crate) mod original_operand_tests {
         arguments.finish(Code::Ok).as_int() as i32
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_alias_prefix_refusal_is_reached_only_at_actual_invocation() {
         // naming.alias.original-object-prefix-capture-query-invocation-lifetime
@@ -3548,6 +3550,7 @@ pub(crate) mod original_operand_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_interpreter_options_and_names_keep_actual_read_order_and_refusal() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -3601,6 +3604,7 @@ pub(crate) mod original_operand_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_interpreter_path_reads_selected_list_and_original_elements() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -3648,6 +3652,7 @@ pub(crate) mod original_operand_tests {
         Code::Other(7)
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_hidden_child_result_getter_preserves_namespace_cleanup_and_first_cause() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -3693,6 +3698,7 @@ pub(crate) mod original_operand_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_child_alias_adapters_keep_guest_code_result_and_typed_refusal() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -3748,6 +3754,7 @@ pub(crate) mod original_operand_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_child_handle_alias_reads_the_selected_operand_before_publication() {
         // naming.alias.original-object-prefix-capture-query-invocation-lifetime
@@ -3851,6 +3858,7 @@ mod original_rename_operation_tests {
         Code::Ok
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_rename_observers_keep_reached_effects_and_stop_later_result_publication() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -4784,6 +4792,7 @@ mod original_alias_key_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_key_retirement_runs_before_value_cleanup_without_adopting_replacement() {
         // naming.alias.original-command-key-replacement-child-capture-and-rename
@@ -4834,6 +4843,7 @@ mod original_alias_key_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_replacement_refusal_keeps_occupied_key_and_reached_name_result() {
         // naming.alias.original-command-key-replacement-child-capture-and-rename

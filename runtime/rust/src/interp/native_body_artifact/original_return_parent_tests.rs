@@ -221,6 +221,7 @@ fn original_parent_return_and_both_syntax_ports_keep_the_entered_frame_before_ke
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_errorcode_uses_selected_old_role_before_incoming_hold_without_capi_counter() {
     // naming.error.original-explicit-error-code-header-setter
@@ -348,6 +349,7 @@ static OLD_RESULT: TclObjType = TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 #[test]
 fn original_parent_result_retirement_checks_frame_before_later_error_metadata() {
     // naming.embedding.original-host-publication-and-fact-transport

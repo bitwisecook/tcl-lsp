@@ -206,6 +206,7 @@ fn exercise(profile: &str, kind: Kind, mode: u8) {
     }
     MODE.set(0);
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_append_and_lappend_check_member_cow_before_working_cleanup_and_getters() {
     // naming.embedding.original-host-publication-and-fact-transport

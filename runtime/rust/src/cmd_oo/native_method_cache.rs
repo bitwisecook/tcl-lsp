@@ -1277,6 +1277,7 @@ mod original_ownership_tests {
         update_string_proc: Some(update_selector),
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     #[test]
     fn original_cache_retirement_callback_cannot_publish_a_fresh_world_stamp() {
         // naming.embedding.original-host-publication-and-fact-transport

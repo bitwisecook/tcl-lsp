@@ -123,6 +123,7 @@ pub(crate) fn host(first: &NativeExecutionError) {
         if reason.reason == "original List consumer retirement")
     );
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_each_variable_copy_retirement_refuses_before_value_and_body_getters() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -259,6 +259,7 @@ impl Drop for Observer {
         assert!(interpreter.check_entered_native_operation().is_err());
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_native_observer_name_getter_keeps_original_scope_through_failed_incoming_cleanup() {
     // naming.embedding.original-host-publication-and-fact-transport

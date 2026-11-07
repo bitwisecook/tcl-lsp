@@ -1776,6 +1776,7 @@ mod original_slot_boundary_tests {
             .strings()
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_property_slot_list_callback_stops_before_cache_and_storage() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1825,6 +1826,7 @@ mod original_slot_boundary_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_property_slot_member_callback_stops_later_member_and_reference_stages() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1862,6 +1864,7 @@ mod original_slot_boundary_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_property_slot_retirement_runs_outside_borrow_and_checks_before_epoch() {
         // naming.embedding.original-host-publication-and-fact-transport

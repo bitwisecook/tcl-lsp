@@ -145,6 +145,7 @@ fn original_capi_error_code_setter_retains_lazy_header_without_a_string_getter()
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_capi_error_code_setter_retirement_keeps_first_cause_and_reached_storage() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -372,6 +373,7 @@ fn original_header_observer(name: &str) -> &'static str {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_error_code_decrement_keeps_the_selected_raw_header_role_without_a_native_hold() {
     // naming.error.original-explicit-error-code-header-setter

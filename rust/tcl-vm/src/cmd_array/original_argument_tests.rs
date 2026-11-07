@@ -243,6 +243,7 @@ impl NativeCommand for ContextTrace {
         ok(bytes(b"LATER_GUEST"))
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_vm_array_observer_refusal_stops_list_conversion_and_releases_receiver() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -207,6 +207,7 @@ fn check_reached(interpreter: &Interp, argument: &obj::Owned, mode: u8, class: b
     assert_eq!(interpreter.entered_native_operation_count(), 0);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn shared_method_reports_keep_original_receiver_before_name_getters_and_table_access() {
     // naming.tcloo.original-introspection-target-continuation
@@ -259,6 +260,7 @@ fn shared_method_reports_keep_original_receiver_before_name_getters_and_table_ac
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn object_reports_refuse_withdrawn_receivers_before_relation_namespace_or_report_derivation() {
     // naming.tcloo.original-introspection-target-continuation
@@ -302,6 +304,7 @@ fn object_reports_refuse_withdrawn_receivers_before_relation_namespace_or_report
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn isa_missing_precondition_leaves_relation_unread_but_selected_receiver_withdrawal_refuses() {
     // naming.tcloo.original-introspection-target-continuation

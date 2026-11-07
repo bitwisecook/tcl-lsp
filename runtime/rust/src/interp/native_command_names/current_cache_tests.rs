@@ -122,6 +122,7 @@ fn finish(interpreter: &Interp, original: &obj::Owned, mode: u8) {
     REACHED.with(|owner| *owner.borrow_mut() = None);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_cache_retirement_checks_actual_currency_and_binding_before_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -152,6 +153,7 @@ fn original_cache_retirement_checks_actual_currency_and_binding_before_adoption(
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_unresolved_c8_cache_stops_after_reached_retirement_and_c9_keeps_primary() {
     // naming.embedding.original-host-publication-and-fact-transport

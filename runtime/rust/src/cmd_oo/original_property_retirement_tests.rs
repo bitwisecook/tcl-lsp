@@ -164,6 +164,7 @@ fn assert_first(interpreter: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn property_registration_refusal_stops_later_direction_and_epoch_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -233,6 +234,7 @@ fn property_registration_refusal_stops_later_direction_and_epoch_publication() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn mandatory_property_retirement_releases_both_caches_before_original_members() {
     // naming.property.original-slot-storage-reference-order
@@ -277,6 +279,7 @@ fn mandatory_property_retirement_releases_both_caches_before_original_members() 
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn property_invalidation_retires_stale_lists_outside_borrows_and_transports_first_cause() {
     // naming.embedding.original-host-publication-and-fact-transport

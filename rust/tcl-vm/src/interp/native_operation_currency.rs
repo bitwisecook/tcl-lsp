@@ -277,6 +277,9 @@ impl SavedExecutionTarget {
         if let Err(first) = &self.currency {
             return Err(retain_first(vm, first.clone()));
         }
+        if !crate::VERIFY_CURRENCY {
+            return Ok(());
+        }
         if !self.owns_target(vm) || !vm.interp_is_current(self.interpreter) {
             return Err(retain_first(vm, unavailable()));
         }
@@ -452,6 +455,9 @@ impl NativeOperationCurrency {
         if let Some(first) = vm.execution_refusal.clone() {
             return Err(first);
         }
+        if !crate::VERIFY_CURRENCY {
+            return Ok(());
+        }
         let current = self.owns_saved_target(vm, interpreter)
             && vm.st_of(interpreter).is_some_and(|state| {
                 self.owner.generation.get() == Some(generation)
@@ -525,9 +531,12 @@ impl NativeOperationScope {
         } else {
             None
         };
+        let Some(pool) = pool else {
+            return Ok(crate::value::JimAllocationScope::unpooled());
+        };
         let current = currency.clone();
         Ok(crate::value::JimAllocationScope::enter(
-            pool,
+            Some(pool),
             Rc::new(move || {
                 current.allocation_permit.get()
                     && current.owner.selected.get()
@@ -716,6 +725,7 @@ mod tests {
         scope.check(&mut vm).unwrap();
         assert!(vm.execution_refusal.is_none());
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_vm_context_receipt_refuses_host_profile_compiler_and_pack_change_restore() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -762,6 +772,7 @@ mod tests {
             assert_eq!(vm.execution_refusal, Some(first));
         }
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_vm_nested_receipt_cannot_reissue_after_context_change_or_poison() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -782,6 +793,7 @@ mod tests {
         assert!(NativeOperationScope::enter(&mut vm).is_err());
         assert_eq!(vm.execution_refusal, Some(first));
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_vm_parent_and_child_receipts_keep_independent_parked_owners() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -948,6 +960,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_saved_execution_checks_same_target_currency_before_entry_and_keeps_cleanup() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1195,6 +1208,7 @@ mod tests {
         assert!(!vm.native_operation_context.has_entered_operation());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_retirement_policies_keep_direct_current_callback_selection_and_hold_schedule() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1238,6 +1252,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_retirement_parked_target_preserves_latest_work_selection_or_entry_caller() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1646,6 +1661,7 @@ mod tests {
             assert!(NativeOperationScope::enter_native(&mut vm).is_err());
         }
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_observed_readonly_transition_does_not_refresh_ended_native_currency() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1711,6 +1727,7 @@ mod tests {
         assert_eq!(vm.execution_refusal, Some(first));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_observed_transition_checks_actual_cache_retirement_before_next_stage() {
         // naming.embedding.original-host-publication-and-fact-transport

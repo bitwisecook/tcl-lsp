@@ -165,6 +165,7 @@ fn assert_first(interpreter: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_c_alias_retirement_keeps_metadata_without_postponing_its_native_role() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -253,6 +254,7 @@ fn original_c_alias_retirement_keeps_metadata_without_postponing_its_native_role
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_generic_link_publication_retires_old_scalar_after_actual_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport

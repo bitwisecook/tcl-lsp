@@ -97,6 +97,7 @@ fn original_source_opens_before_lookup_and_consumes_selected_encoding() {
     assert!(vm.execution_refusal.is_none());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_catalogue_callback_header_withdrawal_preserves_first_host_before_guest() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -279,6 +280,7 @@ fn original_filename_utf8_conversion_preserves_counted_header_and_lookup_effects
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_filename_converter_retains_header_refusal_before_open() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -149,6 +149,7 @@ fn assert_updater_cause(interpreter: &Interp, mode: u8) {
     assert!(CALLBACK_OK.with(Cell::get));
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_child_usage_getter_keeps_first_host_and_restored_context() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -205,6 +206,7 @@ fn original_child_option_getter_refuses_recreated_allocation_before_query() {
     assert!(CALLBACK_OK.with(Cell::get));
     assert_eq!(interpreter.result_obj(), prior);
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_child_invokehidden_usage_refuses_before_later_hidden_name() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -255,6 +257,7 @@ fn original_result_append_keeps_actual_inplace_and_shared_header_roles() {
         assert!(interpreter.native_execution_refusal().is_none());
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_result_append_getter_refuses_before_suffix_or_replacement_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -336,6 +339,7 @@ fn original_c_api_result_append_retirement_observes_reached_publication_and_firs
     );
     assert_eq!(GETS.with(|value| *value.borrow()), [0; 4]);
 }
+#[cfg(debug_assertions)]
 #[cfg(have_tommath)]
 #[test]
 fn original_word_expression_result_consumes_true_owned_role_after_getter_and_retirement() {

@@ -1391,6 +1391,7 @@ mod original_expression_completion_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_expression_completion_preserves_guest_codes_and_rejects_changed_worlds() {
         // naming.embedding.original-host-publication-and-fact-transport

@@ -86,6 +86,7 @@ fn original_authored_operand_neutral_utf8_keeps_raw_units_and_legacy_scalar_work
     assert!(owner.finish(&mut vm).is_err());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_authored_operand_detects_frame_birth_and_original_host_aba_without_entry() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -189,6 +190,7 @@ fn original_authored_operand_retainer_precedes_native_compound_backing_retiremen
     assert!(owner.finish(&mut vm.borrow_mut()).is_err());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_authored_operand_successful_formatter_frame_change_stops_cache_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport

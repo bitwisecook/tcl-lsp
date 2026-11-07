@@ -317,6 +317,7 @@ fn original_array_for_selected_rejections_leave_later_member_getters_unreached()
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_array_operand_refusal_keeps_prefix_effect_and_stops_later_key() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -433,6 +434,7 @@ impl NativeVariableObserver<Interp> for Write {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_array_set_old_value_retirement_stops_before_write_observer() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -545,6 +547,7 @@ fn original_array_for_assigns_actual_retained_key_without_synthesizing_a_header(
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_array_set_existing_dictionary_checks_each_reached_key_and_retirement() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -152,6 +152,9 @@ impl OriginalVariableCleanup {
             retain(vm, first);
         }
         current?;
+        if !crate::VERIFY_CURRENCY {
+            return Ok(());
+        }
         if !self.physical(vm)
             || vm.current_level() != self.level
             || vm.resolution_stacks.ns_id_stack.len() != self.namespace_depth

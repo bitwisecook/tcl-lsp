@@ -171,6 +171,7 @@ fn original_coroutine_concat_keeps_frame_inside_source_conversion_before_tailcal
         actual.frames.borrow_mut().pop();
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_coroutine_name_checks_reached_last_result_retirement_before_success() {
     // naming.embedding.original-host-publication-and-fact-transport

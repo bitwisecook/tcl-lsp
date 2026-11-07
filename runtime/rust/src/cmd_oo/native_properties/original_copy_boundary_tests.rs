@@ -101,6 +101,7 @@ static REPORT: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 #[test]
 fn original_property_table_copy_checks_retirement_after_member_getter_before_query() {
     // naming.embedding.original-host-publication-and-fact-transport

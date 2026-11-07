@@ -96,6 +96,7 @@ static ORIGINAL_UPDATER: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_argv_callback_refusal_keeps_borrowed_words_and_completion_output() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -129,6 +130,7 @@ fn original_argv_callback_refusal_keeps_borrowed_words_and_completion_output() {
     tcl_runtime_set_current_interp(ptr::null_mut());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_intrinsic_and_guard_getters_refuse_before_dispatch_or_fallback() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -226,6 +228,7 @@ fn original_intrinsic_and_guard_getters_refuse_before_dispatch_or_fallback() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_compound_word_preserves_counted_bytes_and_refuses_after_updater_effects() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -255,6 +258,7 @@ fn original_compound_word_preserves_counted_bytes_and_refuses_after_updater_effe
     tcl_runtime_set_current_interp(ptr::null_mut());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 #[cfg(have_tommath)]
 fn original_legacy_eval_getter_refusal_adopts_input_without_running_source() {

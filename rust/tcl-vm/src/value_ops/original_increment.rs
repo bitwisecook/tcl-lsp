@@ -259,6 +259,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_increment_adapters_refuse_retired_inputs_before_prepare_probe_and_store() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -298,6 +299,7 @@ mod tests {
         assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_increment_store_checks_withdrawal_before_cache_or_string_invalidation() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -340,6 +342,7 @@ mod tests {
             assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
         }
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_increment_adapter_refuses_actual_scope_aba_after_probe_before_store() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -424,6 +427,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_wide_expression_refuses_retired_header_before_context_or_guest_work() {
         // naming.embedding.original-host-publication-and-fact-transport

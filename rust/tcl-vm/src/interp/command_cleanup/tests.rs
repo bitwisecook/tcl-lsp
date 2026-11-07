@@ -227,6 +227,7 @@ fn original_recursive_delete_unlinks_once_and_outer_owner_retires_captured_imple
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_command_cleanup_keeps_first_cause_and_retires_only_original_child_table() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -463,6 +464,7 @@ impl NativeCommand for EnterChild {
         crate::interp::ok(Value::empty())
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_delete_trace_epilogue_preserves_child_stack_and_original_trace_gate() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -1178,6 +1178,7 @@ mod get_date_fields_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn reached_real_getter_context_table_or_row_effect_retains_first_host_cause() {
         use core_clock::NativeClockDateOps;

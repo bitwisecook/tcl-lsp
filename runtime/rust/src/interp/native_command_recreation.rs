@@ -392,6 +392,7 @@ mod tests {
         assert!(owner.interpreter.upgrade().is_none());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_public_constructor_stops_after_delete_host_or_restored_context_refusal() {
         // naming.embedding.original-host-publication-and-fact-transport

@@ -212,6 +212,7 @@ fn cause(interpreter: &Interp, mode: u8) {
         _ => unreachable!(),
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_byte_stores_retire_actual_old_owner_outside_all_storage_borrows() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -251,6 +252,7 @@ fn original_byte_stores_retire_actual_old_owner_outside_all_storage_borrows() {
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_scalar_store_stops_before_write_trace_after_retirement_refusal() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -304,6 +306,7 @@ fn original_byte_store_cannot_adopt_a_recreated_binding_after_old_release() {
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_release_global_storage_retires_before_next_owned_bootstrap_slot() {
     // naming.embedding.original-host-publication-and-fact-transport

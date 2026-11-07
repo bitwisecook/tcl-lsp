@@ -127,6 +127,7 @@ fn consumed_receiver_inputs_retire_once_before_every_early_refusal() {
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn receiver_write_trace_retains_reached_store_and_stops_guest_publication() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -175,6 +176,7 @@ fn receiver_write_trace_retains_reached_store_and_stops_guest_publication() {
         tcl_runtime_set_current_interp(ptr::null_mut());
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn receiver_read_trace_refuses_before_owned_result_or_missing_read_error() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -212,6 +214,7 @@ fn receiver_read_trace_refuses_before_owned_result_or_missing_read_error() {
         tcl_runtime_set_current_interp(ptr::null_mut());
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn neutral_try_getter_retains_original_access_refusal_before_fast_path_output() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -301,6 +304,7 @@ fn unavailable_trace_admission_and_current_invalid_slots_keep_ownership_separate
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn guarded_definition_keeps_the_original_head_getter_and_first_context_refusal() {
     for guarded in [false, true] {

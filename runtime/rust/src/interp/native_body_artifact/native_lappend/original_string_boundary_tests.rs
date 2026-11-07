@@ -253,6 +253,7 @@ fn exercise(profile: &str, mode: u8, source_callback: bool) {
     RECEIVER.with(|owner| owner.borrow_mut().take());
     actual.frames.borrow_mut().pop();
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_string_append_checks_actual_cow_retirement_before_cache_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -264,6 +265,7 @@ fn original_compiled_string_append_checks_actual_cow_retirement_before_cache_ado
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_string_append_checks_source_getter_before_mutation_and_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

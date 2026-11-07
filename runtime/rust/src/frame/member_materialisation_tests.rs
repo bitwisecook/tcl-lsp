@@ -203,6 +203,7 @@ fn cause(interpreter: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_c_member_birth_precedes_search_retirement_and_keeps_the_selected_parent() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -295,6 +296,7 @@ fn original_c_alias_selection_cannot_adopt_a_rebound_or_restored_alias_after_ret
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_c_member_receipt_refuses_late_member_rebirth_before_receiver_capture() {
     // naming.embedding.original-host-publication-and-fact-transport

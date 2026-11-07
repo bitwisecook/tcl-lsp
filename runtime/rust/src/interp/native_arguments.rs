@@ -284,6 +284,7 @@ mod tests {
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_argument_getter_first_host_or_context_restore_stops_later_read_and_effect() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -350,6 +351,7 @@ mod tests {
         interpreter.set_result_bytes(b"reached original worker");
         Code::Other(7)
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_dispatch_owns_currency_before_worker_and_preserves_reached_guest_state() {
         // naming.embedding.original-host-publication-and-fact-transport

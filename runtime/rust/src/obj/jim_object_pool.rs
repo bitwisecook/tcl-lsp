@@ -66,12 +66,31 @@ struct EnteredAllocator {
 }
 thread_local! {
     static ENTERED: RefCell<Vec<Rc<EnteredAllocator>>> = const { RefCell::new(Vec::new()) };
+    /// The one entry every unpooled scope pushes: it shadows an outer pool and
+    /// never allocates, so its scopes need not be told apart.
+    static UNPOOLED: Rc<EnteredAllocator> = Rc::new(EnteredAllocator {
+        pool: None,
+        current: Rc::new(|| false),
+    });
 }
 
 pub(crate) struct JimAllocationScope(Rc<EnteredAllocator>);
 impl JimAllocationScope {
     pub(crate) fn enter(pool: Option<Rc<JimPool>>, current: Rc<dyn Fn() -> bool>) -> Self {
-        let entered = Rc::new(EnteredAllocator { pool, current });
+        let Some(pool) = pool else {
+            return Self::unpooled();
+        };
+        let entered = Rc::new(EnteredAllocator {
+            pool: Some(pool),
+            current,
+        });
+        ENTERED.with(|stack| stack.borrow_mut().push(Rc::clone(&entered)));
+        Self(entered)
+    }
+
+    /// A scope in which constructed objects are unpooled.
+    pub(crate) fn unpooled() -> Self {
+        let entered = UNPOOLED.with(Rc::clone);
         ENTERED.with(|stack| stack.borrow_mut().push(Rc::clone(&entered)));
         Self(entered)
     }
@@ -82,7 +101,7 @@ impl Drop for JimAllocationScope {
             let mut stack = stack.borrow_mut();
             let index = stack
                 .iter()
-                .position(|entry| Rc::ptr_eq(entry, &self.0))
+                .rposition(|entry| Rc::ptr_eq(entry, &self.0))
                 .expect("entered allocation scope");
             stack.remove(index)
         });
@@ -297,6 +316,7 @@ mod tests {
         assert_eq!(host_observed.current_ptr().unwrap(), host.as_ptr());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn constructor_scope_is_withdrawn_by_actual_host_change_and_suppressed_for_c_entry() {
         let interpreter = interpreter();

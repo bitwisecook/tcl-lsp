@@ -117,6 +117,7 @@ mod original_lookup_boundary_tests {
     use crate::cmd_control::original_list_conversion_tests as fixture;
     use std::cell::Cell;
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_compiled_dictionary_lookup_refusal_precedes_missing_and_default_results() {
         // naming.embedding.original-host-publication-and-fact-transport

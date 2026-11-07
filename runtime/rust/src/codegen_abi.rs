@@ -4229,6 +4229,7 @@ mod tests {
         });
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn boxed_primitive_host_change_and_restore_stops_before_cache_and_output() {
         // Software currency: naming.embedding.original-host-publication-and-fact-transport
@@ -4270,6 +4271,7 @@ mod tests {
         });
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn scalar_abi_query_change_and_restore_cannot_issue_or_refresh_a_receipt() {
         // Software currency: naming.embedding.original-host-publication-and-fact-transport
@@ -4353,6 +4355,7 @@ mod tests {
         set_from_any_proc: None,
     };
 
+    #[cfg(debug_assertions)]
     #[test]
     fn boxed_primitive_updater_change_and_restore_keeps_only_reached_string_effects() {
         // Software stages: naming.embedding.original-host-publication-and-fact-transport
@@ -4392,6 +4395,7 @@ mod tests {
         });
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn entered_expression_number_updater_stops_before_cache_and_truth_output() {
         // Software stages: naming.embedding.original-host-publication-and-fact-transport

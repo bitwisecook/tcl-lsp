@@ -895,6 +895,7 @@ mod selected_report_parts_tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn selected_jim_report_checks_first_cause_original_caller_and_target_after_reached_getter() {
         for mode in [1, 2, 3, 4, 5] {

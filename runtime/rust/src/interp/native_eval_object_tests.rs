@@ -152,6 +152,7 @@ fn fixture() -> (Interp, Rc<EvalHost>) {
     (interp, host)
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_eval_formatter_refuses_later_getter_and_restores_actual_frame() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -194,6 +195,7 @@ fn original_eval_formatter_refuses_later_getter_and_restores_actual_frame() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_eval_updater_keeps_reached_bytes_and_refuses_script_entry() {
     // naming.embedding.original-host-publication-and-fact-transport

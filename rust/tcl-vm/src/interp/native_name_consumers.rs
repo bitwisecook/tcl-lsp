@@ -107,6 +107,9 @@ impl OriginalNameConsumerState {
         require_absent_frame: bool,
         require: impl Fn(&mut Vm, bool, &'static str) -> Result<(), CmdError>,
     ) -> Result<(), CmdError> {
+        if !crate::VERIFY_CURRENCY {
+            return Ok(());
+        }
         let world_current = Rc::ptr_eq(&self.world, &vm.name_world)
             && self.world.borrow().is_live()
             && self.namespace_owner.borrow().as_ref().is_none_or(|owner| {

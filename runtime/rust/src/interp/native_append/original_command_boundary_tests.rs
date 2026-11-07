@@ -127,6 +127,7 @@ fn reset() {
     LATER_GETTERS.set(0);
     REFS.set(-1);
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_command_append_captures_frame_before_name_and_blocks_later_sources() {
     // naming.embedding.original-host-publication-and-fact-transport

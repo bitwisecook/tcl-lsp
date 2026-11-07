@@ -826,6 +826,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_host_change_and_restore_cannot_revive_entered_boolean_operation() {
         // Software contract: naming.embedding.original-host-publication-and-fact-transport
@@ -1105,6 +1106,7 @@ mod tests {
         set_from_any_proc: None,
     };
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_numeric_instruction_getter_first_host_and_aba_stop_cache_and_owned_result() {
         // naming.embedding.original-host-publication-and-fact-transport

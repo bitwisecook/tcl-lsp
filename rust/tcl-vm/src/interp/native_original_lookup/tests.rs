@@ -189,6 +189,7 @@ fn original_lookup_checks_reached_string_failure_before_cache_or_miss() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_lookup_cache_hit_preserves_first_cause_after_context_change_and_restore() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -476,6 +477,7 @@ fn original_jim_lookup_holder_getter_checks_the_lookup_world_at_the_provider_que
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_jim_materialisation_checks_the_independent_lookup_operand_before_string_or_token() {
     // naming.embedding.original-host-publication-and-fact-transport

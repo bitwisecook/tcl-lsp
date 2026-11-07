@@ -1539,6 +1539,7 @@ mod original_apply_frame_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_apply_level_query_keeps_members_and_reached_getter_first_cause() {
         // naming.embedding.original-host-publication-and-fact-transport

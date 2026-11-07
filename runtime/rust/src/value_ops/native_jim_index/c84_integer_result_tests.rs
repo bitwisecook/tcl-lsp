@@ -153,6 +153,7 @@ fn original_c84_index_integer_result_has_its_actual_long_descriptor_and_receivin
     assert_eq!(unsafe { (*members[0]).ref_count }, 1);
     assert!(!obj::has_string_rep(members[0]));
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_c84_index_result_refuses_stale_foreign_and_overwidth_before_selected_construction() {
     // naming.embedding.original-host-publication-and-fact-transport

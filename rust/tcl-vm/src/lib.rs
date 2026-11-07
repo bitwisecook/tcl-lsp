@@ -40,6 +40,12 @@ macro_rules! eprintln {
     };
 }
 
+/// Whether entered operations re-prove, at each stage, that the interpreter
+/// world, frame and namespace they captured are still current. Debug builds
+/// verify; release builds keep only retained-refusal propagation, so a host
+/// refusal still stops execution while unchanged-world re-proofs are skipped.
+pub(crate) const VERIFY_CURRENCY: bool = cfg!(debug_assertions);
+
 pub mod debug;
 pub mod embed;
 pub mod error;

@@ -411,6 +411,7 @@ fn original_active_alias_keeps_only_its_genuine_forwarded_argument_roles() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_deletion_retains_first_cause_and_finishes_actual_import_cleanup() {
     // naming.embedding.original-host-publication-and-fact-transport

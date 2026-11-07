@@ -117,6 +117,7 @@ fn original_frame_numeric_unavailable_cannot_become_a_guest_bad_level_or_default
     assert_eq!(original.native_object_snapshot(), before);
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_frame_numeric_scope_preserves_first_refusal_before_callback_continuation() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -362,6 +363,7 @@ fn original_frame_single_script_list_checks_header_before_default_selection() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_frame_list_worker_checks_header_after_ok_and_guest_error() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -330,6 +330,7 @@ fn original_variable_mapping_allows_recursive_roster_and_ordinary_method_changes
     drop(worker);
     names.finish(&mut vm).unwrap();
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_variable_mapping_refuses_changed_facet_and_context_before_any_incoming_role() {
     // naming.embedding.original-host-publication-and-fact-transport

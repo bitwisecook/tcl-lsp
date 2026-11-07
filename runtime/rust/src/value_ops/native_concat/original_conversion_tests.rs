@@ -50,6 +50,7 @@ static ORIGINAL_STRING: TclObjType = TclObjType {
     update_string_proc: Some(original_string),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 #[test]
 fn original_concat_first_getter_refusal_stops_later_getters_and_result_publication() {
     // naming.embedding.original-host-publication-and-fact-transport

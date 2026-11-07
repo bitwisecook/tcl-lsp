@@ -103,6 +103,7 @@ fn original_procedure_header_string_adapter_uses_the_selected_formatter_and_stop
     assert_eq!(host.acquisitions.get(), 1);
     assert!(vm.execution_refusal.is_none());
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_procedure_header_string_adapter_preserves_the_entered_refusal_before_formatting() {
     // naming.embedding.original-host-publication-and-fact-transport

@@ -144,6 +144,7 @@ fn first(interpreter: &Interp, mode: u8) {
         _ => assert!(interpreter.native_execution_refusal().is_none()),
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_property_sort_stops_after_first_callback_without_cache_or_ref_inflation() {
     // Callback safety is a software owner control; native sort chronology is separate.
@@ -206,6 +207,7 @@ fn original_property_sort_stops_after_first_callback_without_cache_or_ref_inflat
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_stale_property_cache_retirement_refuses_before_rebuilt_cache_adoption() {
     // Existing derived cache and real class slot mutation issue every role.

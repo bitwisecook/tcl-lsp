@@ -176,6 +176,7 @@ fn exercise(profile: &str, mode: u8) {
     }
     MODE.set(0);
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_compiled_lappend_checks_same_receiver_and_frame_before_list_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -195,6 +196,7 @@ fn original_compiled_lappend_keeps_current_conversion_and_real_native_roles() {
         exercise(profile, 0);
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_argument_list_concat_checks_source_free_before_target_mutation_and_full_range() {
     // naming.embedding.original-host-publication-and-fact-transport

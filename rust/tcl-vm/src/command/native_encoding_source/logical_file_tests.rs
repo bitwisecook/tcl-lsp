@@ -194,6 +194,7 @@ fn logical_file_ascii_empty_dash_and_nul_keep_original_filename_kernel() {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn logical_file_provider_withdrawal_and_restore_cannot_revive_entry() {
     let (mut vm, stages) = supplied();
@@ -211,6 +212,7 @@ fn logical_file_provider_withdrawal_and_restore_cannot_revive_entry() {
     assert!(names.finish(&mut vm).is_err());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn logical_file_read_header_withdrawal_keeps_first_error_and_closes_once() {
     let (mut vm, stages) = supplied();

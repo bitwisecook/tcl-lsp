@@ -106,6 +106,7 @@ fn original_c84_search_long_results_preserve_wide_operands_and_true_list_member_
     assert!(members[0].resident_string_bytes().is_none());
     assert_eq!(members[0].native_object_reference_count(), 1);
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_c84_index_result_keeps_first_cause_without_querying_a_refreshed_target() {
     // naming.embedding.original-host-publication-and-fact-transport

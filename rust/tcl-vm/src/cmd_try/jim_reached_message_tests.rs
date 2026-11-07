@@ -230,6 +230,7 @@ fn software_stage_selected_names_keep_their_actual_headers_after_parent_shimmer(
     assert!(vm.execution_refusal.is_none());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn software_stage_empty_selected_names_still_require_the_original_caller() {
     let mut vm = jim();

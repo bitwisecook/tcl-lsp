@@ -183,6 +183,7 @@ fn cause(interpreter: &Interp, mode: u8) {
         _ => assert!(interpreter.native_execution_refusal().is_none()),
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn whole_object_and_class_payloads_retire_outside_borrows_after_actual_lifecycle_withdrawal() {
     // Source lifecycle and software callback transport, not Native aggregate order.
@@ -236,6 +237,7 @@ fn whole_object_and_class_payloads_retire_outside_borrows_after_actual_lifecycle
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn cached_original_name_retirement_stops_later_rename_publication_on_first_refusal() {
     for mode in 0..3 {
@@ -297,6 +299,7 @@ fn install_partial(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     drop(forward);
     Code::Ok
 }
+#[cfg(debug_assertions)]
 #[test]
 fn partial_definition_and_constructor_failures_finish_original_record_and_namespace_cleanup() {
     for constructor in [false, true] {

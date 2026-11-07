@@ -164,6 +164,7 @@ fn first_is_original(interpreter: &Interp, mode: u8) {
     }
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_stock_family_replacement_retires_configuration_outside_borrows_before_continuation() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -254,6 +255,7 @@ fn original_stock_family_cleanup_restores_reached_records_after_first_refusal_wi
     assert!(scope.currency().ensure_current_or_refuse().is_err());
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_stock_refresh_checks_new_root_after_the_extracted_old_configuration_retires() {
     // naming.embedding.original-host-publication-and-fact-transport

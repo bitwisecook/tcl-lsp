@@ -974,18 +974,27 @@ impl InvocationDialect {
     #[must_use]
     pub fn of_static_profile(profile: &'static tcl_dialect::DialectProfile) -> Self {
         thread_local! {
+            static LAST: std::cell::Cell<Option<(usize, InvocationDialect)>> =
+                const { std::cell::Cell::new(None) };
             static PROJECTED: std::cell::RefCell<Vec<(usize, InvocationDialect)>> =
                 const { std::cell::RefCell::new(Vec::new()) };
         }
         let address = std::ptr::from_ref(profile).addr();
-        PROJECTED.with_borrow_mut(|projected| {
+        if let Some((seen, dialect)) = LAST.get()
+            && seen == address
+        {
+            return dialect;
+        }
+        let dialect = PROJECTED.with_borrow_mut(|projected| {
             if let Some((_, dialect)) = projected.iter().find(|(seen, _)| *seen == address) {
                 return *dialect;
             }
             let dialect = Self::of_profile(profile);
             projected.push((address, dialect));
             dialect
-        })
+        });
+        LAST.set(Some((address, dialect)));
+        dialect
     }
 
     /// Project independently owned policies from the selected profile.

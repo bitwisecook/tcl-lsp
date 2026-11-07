@@ -1062,6 +1062,7 @@ mod tests {
         );
         assert_eq!(original.native_object_type_name(), "int");
     }
+    #[cfg(debug_assertions)]
     #[test]
     fn original_jim_index_cache_cannot_revive_a_retired_header_through_a_lifetime_lease() {
         // naming.embedding.original-host-publication-and-fact-transport

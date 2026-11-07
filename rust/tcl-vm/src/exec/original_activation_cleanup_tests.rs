@@ -230,6 +230,7 @@ fn original_activation_abort_preserves_callback_reborn_call_and_namespace_in_par
     vm.pop_ns();
     assert_eq!(vm.execution_refusal, Some(first));
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_activation_unwind_keeps_saved_target_after_last_frame_before_leave_callback() {
     // naming.embedding.original-host-publication-and-fact-transport

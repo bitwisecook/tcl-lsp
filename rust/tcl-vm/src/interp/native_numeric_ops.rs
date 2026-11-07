@@ -133,6 +133,9 @@ impl<'a> OriginalNumericOps<'a> {
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         let mut vm = self.vm.borrow_mut();
         self.scope.check_native(&mut vm)?;
+        if !crate::VERIFY_CURRENCY {
+            return Ok(());
+        }
         if let Err(refusal) = value.original_native_header_currentness() {
             return Err(
                 vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(refusal))
@@ -1022,6 +1025,7 @@ mod tests {
         scope.check(&mut vm).unwrap();
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_numeric_facade_refuses_withdrawn_currency_before_host_or_cache() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1393,6 +1397,7 @@ mod tests {
         assert!(jim.native_jim_object_context().unwrap().is_live());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_value_error_numeric_seam_returns_the_retained_host_cause_at_completion() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1422,6 +1427,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_list_index_and_info_numeric_consumers_keep_their_selected_purposes() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1616,6 +1622,7 @@ mod tests {
         scope.check_native(&mut vm).unwrap();
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_value_environment_retains_header_refusal_before_the_next_host_worker() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1683,6 +1690,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_scalar_facade_preserves_retired_header_cause_through_quiet_value_error() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1834,6 +1842,7 @@ mod tests {
         assert!(vm.execution_refusal.is_none());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_arithmetic_context_stops_each_reached_worker_on_header_retirement() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1953,6 +1962,7 @@ mod tests {
         assert!(vm.execution_refusal.is_none());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn original_arithmetic_cache_checks_the_actual_header_before_replacement() {
         // naming.embedding.original-host-publication-and-fact-transport

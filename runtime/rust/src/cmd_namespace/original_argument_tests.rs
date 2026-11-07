@@ -458,6 +458,7 @@ fn compare_namespace_patterns(engine: &str, capture: &str) -> usize {
     compared
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn original_namespace_getter_refusal_keeps_prefix_effects_and_later_argument_unread() {
     // naming.embedding.original-host-publication-and-fact-transport
