@@ -42,6 +42,7 @@ pub(super) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
     if InvocationMetadataContext::for_module(registry, module).is_none() {
         return DeferredWrites {
             any: true,
+            reads_any: true,
             ..Default::default()
         };
     }
@@ -315,6 +316,24 @@ impl SourceScan<'_> {
                 crate::script_binds::Ownership::Bindings,
             );
             self.include(&effects);
+            // What the callback reads, through the same footprint walk: a
+            // store it observes is no dead store where it is registered.
+            let reads = crate::ir_helpers::script_value_possible_writes_with_metadata_context(
+                text,
+                self.registry,
+                initial,
+                &context.namespace,
+                Some(context.metadata),
+                context.config,
+            );
+            self.out.reads_any |= reads.opaque;
+            for name in &reads.read_names {
+                crate::variable_observation_names::record_variable_write_name(
+                    &mut self.out.reads,
+                    name,
+                    crate::variable_observation_names::VariableWriteObservationPurpose::DeferredGlobal,
+                );
+            }
         }
         let mut state = initial.clone();
         for words in tokenise_command_words(text, context.config) {

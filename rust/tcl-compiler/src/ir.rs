@@ -2923,6 +2923,12 @@ pub struct DeferredWrites {
     /// ([`Self::any_beyond`]). Empty when [`Self::any`] has a contribution no
     /// site names.
     pub any_sites: std::collections::BTreeSet<crate::command_binding::CommandAllocationSite>,
+    /// The literal names a callback script reads, kept as [`Self::names`]
+    /// keeps them. A store the code that registers the callback makes to one
+    /// is observed when the callback runs (`after 0 {puts $x}`; `update`).
+    pub reads: std::collections::BTreeSet<String>,
+    /// A callback reads a name the scan cannot enumerate.
+    pub reads_any: bool,
 }
 
 impl DeferredWrites {
@@ -2930,6 +2936,12 @@ impl DeferredWrites {
     #[must_use]
     pub fn is_clear(&self) -> bool {
         self.names.is_empty() && !self.any
+    }
+
+    /// Whether a callback may read the global `name` (no leading `::`).
+    #[must_use]
+    pub fn may_read(&self, name: &str) -> bool {
+        self.reads_any || self.reads.contains(name)
     }
 
     /// [`Self::any`] once the statements at `excluded` sites are known never
@@ -2948,6 +2960,8 @@ pub static NO_DEFERRED_WRITES: DeferredWrites = DeferredWrites {
     names: std::collections::BTreeSet::new(),
     any: false,
     any_sites: std::collections::BTreeSet::new(),
+    reads: std::collections::BTreeSet::new(),
+    reads_any: false,
 };
 
 /// One selected class-relation member and its original enclosing definer.

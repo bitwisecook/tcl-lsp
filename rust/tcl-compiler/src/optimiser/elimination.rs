@@ -1256,6 +1256,19 @@ fn dead_store_name_observed(
     }) || var.starts_with("::")
         || ctx.cross_event_vars.contains(var)
         || ctx.cross_event_vars.contains(base)
+        // A callback runs at the global frame, so at the top level a name it
+        // reads is this store's variable: `set x 5; after 0 {puts $x};
+        // update; set x 6` prints 5 (#2308).
+        || is_top_level
+            && ctx.ir_module.is_some_and(|module| {
+                module.deferred_writes.reads_any
+                    || crate::variable_observation_names::variable_name_may_be_observed(
+                        &module.deferred_writes.reads,
+                        base,
+                        false,
+                        crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
+                    )
+            })
 }
 
 /// Whether the store `chain` defines is one the name-level SSA cannot call

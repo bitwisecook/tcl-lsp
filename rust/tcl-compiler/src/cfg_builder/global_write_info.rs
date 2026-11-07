@@ -361,6 +361,20 @@ pub(crate) fn detect_global_write_bodies_with_registry(
         edges.insert(*id, calls);
         rows.insert(*id, info);
     }
+    // A callee that writes its caller's frame through `upvar 1 $name`, called
+    // with a `::`-qualified name, writes that global: `proc c {} {bump ::g}`
+    // writes `::g` (#2410).
+    let frames = super::detect_upvar_bodies_with_registry(module, registry);
+    for (id, procedure) in module.original_source_procedure_bodies() {
+        let Some(row) = rows.get_mut(id) else {
+            continue;
+        };
+        for name in
+            qualified_caller_frame_writes(&procedure.body, &owners, &frames, module, registry)
+        {
+            insert_outer_name(&mut row.names, &name);
+        }
+    }
     loop {
         let prior = rows.clone();
         for (id, callees) in &edges {
@@ -1574,6 +1588,75 @@ fn project_script_writes(
 
 /// Original issued callees in direct statements, substitutions and nested bodies.
 /// Incomplete source receipts leave an opaque edge in the summary graph.
+/// The `::`-qualified names the procedures `body` calls write in its frame
+/// through their caller-frame summaries ([`super::upvar_info::UpvarInfo`]),
+/// projected onto each call's own words: such a name is a global, whichever
+/// frame the alias was made from.
+fn qualified_caller_frame_writes(
+    body: &Script,
+    owners: &super::OriginalProcedureSummaryOwners,
+    frames: &HashMap<crate::ir::ProcedureId, super::upvar_info::UpvarInfo>,
+    module: &Module,
+    registry: &tcl_registry::CommandRegistry,
+) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    let config = module.lexer_config;
+    let mut visit = |tokens: &crate::ir::CommandTokens| {
+        let Some(calls) = owners.calls(tokens, registry) else {
+            return;
+        };
+        for (callee, words) in calls {
+            let (Some(info), Some(procedure)) =
+                (frames.get(&callee), module.procedures.get(&callee))
+            else {
+                continue;
+            };
+            let facts = words
+                .words
+                .iter()
+                .skip(1)
+                .map(|word| {
+                    crate::registry_invocation::effective_invocation_word(
+                        word,
+                        config.escapes,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let arguments = facts
+                .iter()
+                .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+                .collect::<Vec<_>>();
+            let effects = info.caller_side_effects(
+                tcl_registry::InvocationArguments::structured(&arguments),
+                &procedure.params,
+            );
+            names.extend(
+                effects
+                    .defs
+                    .into_iter()
+                    .filter(|name| name.starts_with("::")),
+            );
+        }
+    };
+    let mut pending = vec![body];
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            pending.extend(statement.child_scripts());
+            let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
+                continue;
+            };
+            if statement.is_executable_invocation() {
+                visit(tokens);
+            }
+            for child in owners.children(tokens, registry).unwrap_or_default() {
+                visit(&child);
+            }
+        }
+    }
+    names
+}
+
 pub(super) fn direct_call_targets(
     body: &Script,
     owners: &super::OriginalProcedureSummaryOwners,

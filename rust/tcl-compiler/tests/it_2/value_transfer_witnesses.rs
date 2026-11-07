@@ -9855,3 +9855,28 @@ fn code_that_never_runs_keeps_the_function_constant() {
         "1\n5\n",
     );
 }
+
+/// A store a callback reads is no dead store where it is registered: `after
+/// 0 {puts $x}` run by `update` prints 5, so `set x 5` stays (#2308). A
+/// callee that writes its caller's frame through `upvar 1 $name`, called
+/// with `::g`, writes the global, so the top level's later read of `g` is
+/// not the stale 1 (#2410). tclsh 8.4 to 9.1 print the same before and after
+/// the optimiser.
+#[test]
+fn a_callback_read_and_a_qualified_upvar_write_keep_their_stores() {
+    prints_under_every_release(
+        "set x 5\nafter 0 {puts $x}\nupdate\nset x 6\nputs $x\n",
+        "5\n6\n",
+    );
+    prints_under_every_release(
+        "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\nset g 1\n\
+         proc c {} {bump ::g; return $::g}\nputs [c]\nputs $g\n",
+        "2\n2\n",
+    );
+    prints_under_every_release(
+        "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
+         proc twice {name} {upvar 1 $name w; bump w; bump w}\nset g 1\n\
+         proc c {} {twice ::g}\nc\nputs $g\n",
+        "3\n",
+    );
+}
