@@ -1944,6 +1944,12 @@ jobs:
           test "${statuses[0]}" = 0
           test "${statuses[1]}" = 0
 
+      # The positive C 8.4 formatter comparison needs the archive the step
+      # above just built, so it runs here rather than in the drift leg.
+      - name: make test-c84-native-formatter (pinned C 8.4 integer formatter)
+        if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        run: make test-c84-native-formatter
+
       # libtommath, for the same reason `wasm-real-link` fetches it: without
       # the source `runtime/rust`'s build script prints a `cargo:warning` and
       # builds with the bignum backend DISABLED, which un-registers `expr` and
