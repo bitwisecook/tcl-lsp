@@ -205,6 +205,7 @@ pub mod native_list_assignment;
 pub mod native_list_index;
 pub mod native_list_index_compilation;
 pub mod native_list_operations_compilation;
+pub mod native_list_replace_compilation;
 pub mod native_lowering;
 pub mod native_namespace_code;
 /// Authenticated native C namespace-name primary semantics.

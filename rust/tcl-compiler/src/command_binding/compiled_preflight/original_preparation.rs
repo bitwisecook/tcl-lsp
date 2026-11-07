@@ -255,6 +255,9 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::StringReplace(recipe) => {
                 self.original_operands(words, recipe.compiled_words(), context)
             }
+            NativeInstructionPlan::ListReplace(recipe) => {
+                self.original_operands(words, recipe.compiled_words(), context)
+            }
             NativeInstructionPlan::StringRange(recipe) => {
                 self.original_operands(words, recipe.compiled_words(), context)
             }

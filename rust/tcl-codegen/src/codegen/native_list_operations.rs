@@ -146,6 +146,60 @@ impl CodegenCtx<'_> {
         true
     }
 
+    pub(super) fn append_native_list_replace_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_list_replace_compilation::NativeListReplaceInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<Task>,
+    ) -> bool {
+        use tcl_registry::native_list_replace_compilation::{
+            NativeListReplaceInstruction as Replace, NativeListReplaceStep as Step,
+        };
+        let operation = |op, operands: &[i32]| {
+            Task::Operation(op, operands.iter().copied().map(Operand::Imm).collect())
+        };
+        match recipe {
+            Replace::Replace { operands } => {
+                let count = super::super::bytecode_imm(operands.len());
+                for operand in operands {
+                    if !Self::list_operand(command, operand, operations) {
+                        return false;
+                    }
+                }
+                let op = if version >= tcl_dialect::TclVersion::V9_1 {
+                    Op::LREPLACE
+                } else {
+                    Op::LREPLACE4
+                };
+                // TCL_LREPLACE4_END_IS_LAST
+                operations.push(operation(op, &[count, 1]));
+            }
+            Replace::Splice(steps) => {
+                for step in steps {
+                    match step {
+                        Step::Operand(operand) => {
+                            if !Self::list_operand(command, operand, operations) {
+                                return false;
+                            }
+                        }
+                        Step::List(count) => operations
+                            .push(operation(Op::LIST, &[super::super::bytecode_imm(count)])),
+                        Step::Dup => operations.push(operation(Op::DUP, &[])),
+                        Step::Over(depth) => operations
+                            .push(operation(Op::OVER, &[super::super::bytecode_imm(depth)])),
+                        Step::Reverse(count) => operations
+                            .push(operation(Op::REVERSE, &[super::super::bytecode_imm(count)])),
+                        Step::Range(range) => operations.push(Task::NativeListRange(range)),
+                        Step::Concat => operations.push(operation(Op::LIST_CONCAT, &[])),
+                        Step::Pop => operations.push(operation(Op::POP, &[])),
+                        Step::Empty => operations.push(Task::Literal(Vec::new())),
+                    }
+                }
+            }
+        }
+        true
+    }
+
     fn list_operand(
         command: &tcl_lexer::NativeScriptCommandWords,
         operand: NativeCompilerWordOperand,

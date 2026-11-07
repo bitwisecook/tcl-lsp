@@ -2891,6 +2891,8 @@ impl CodegenCtx<'_> {
         Some(guard)
     }
 
+    // One arm per instruction plan: the dispatch is exhaustive by design.
+    #[allow(clippy::too_many_lines)]
     fn append_native_registered_tasks(
         &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
@@ -2978,6 +2980,9 @@ impl CodegenCtx<'_> {
             }
             NativeInstructionPlan::StringReplace(recipe) => {
                 Self::append_native_string_replace_tasks(command, &recipe, version, operations)
+            }
+            NativeInstructionPlan::ListReplace(recipe) => {
+                Self::append_native_list_replace_tasks(command, recipe, version, operations)
             }
             NativeInstructionPlan::StringOperand(recipe) => {
                 Self::append_native_string_operand_tasks(command, recipe, version, operations)

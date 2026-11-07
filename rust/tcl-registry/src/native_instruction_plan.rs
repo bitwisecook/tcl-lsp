@@ -133,6 +133,8 @@ pub enum NativeInstructionPlan {
     StringRange(crate::native_string_range_compilation::NativeStringRangeInstruction),
     /// `TclCompileStringReplaceCmd`'s recipe.
     StringReplace(crate::native_string_replace_compilation::NativeStringReplaceInstruction),
+    /// `TclCompileLreplaceCmd`'s recipe.
+    ListReplace(crate::native_list_replace_compilation::NativeListReplaceInstruction),
     /// Read the selected original variable operand.
     Load {
         /// Exact index of the target in the complete original word vector.
@@ -1182,6 +1184,14 @@ fn selected_string_slice_instruction_plan(
                 version,
             )
             .map(NativeInstructionPlan::StringRange)
+        }
+        NativeCompilationGrammar::ListReplacement => {
+            crate::native_list_replace_compilation::compile_native_list_replace(
+                words,
+                operand_from,
+                version,
+            )
+            .map(NativeInstructionPlan::ListReplace)
         }
         _ => return None,
     };

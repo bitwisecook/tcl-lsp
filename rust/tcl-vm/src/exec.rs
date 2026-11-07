@@ -6416,12 +6416,14 @@ impl Vm {
                     }
                 }
             }
-            Op::LREPLACE => {
+            // C9.1 renamed INST_LREPLACE4; only the lreplace mode has no
+            // separately selected insertion recipe.
+            Op::LREPLACE if imm_at(instr, 1) != 1 => {
                 return Tick::Return(
                     self.refuse_host_command("original List insertion recipe unavailable".into()),
                 );
             }
-            Op::LREPLACE4 => {
+            Op::LREPLACE4 | Op::LREPLACE => {
                 let argc = usize::try_from(imm0(instr)).unwrap_or(0);
                 let mode = imm_at(instr, 1);
                 let take = f.stack.len().saturating_sub(argc);
