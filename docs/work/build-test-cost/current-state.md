@@ -681,3 +681,45 @@ Diagnosed, not fixed. Each was already failing before this work:
 - **SpecTcl string pack.** The `map` and `range` hooks are never
   attempted on their corpus samples. The `LineIndex` loader change was
   ruled out: it fails the same with that change reverted.
+
+## Round 4: porting the unmodelled C compilers
+
+The preflight refusals diagnosed above are unfinished ports. Each compiler
+is ported one at a time from the pinned C sources, checked form by form
+against tclsh, and pushed on its own. No VM plain-dispatch fallback was
+added. it_3 went from 596 passed / 65 failed to 608 / 53.
+
+| Compiler | Releases now modelled | Notes |
+|---|---|---|
+| `throw` | 8.6, 9.0, 9.1 | Literal, empty-type (`BADEXCEPTION`) and dynamic type-check branches. |
+| `const` | 9.0, 9.1 | `CONST_IMM`/`CONST_STK`; `try` handler variables and `-during` fixed alongside. |
+| `dict create` | 8.6, 9.0 (9.1 constant) | Constant fold, `DICT_PUT` and the worker path. |
+| `string is` | 8.6, 9.0; 9.1 non-strict character classes | Every class, prefix and `-strict`. |
+| `regexp` | 8.4, 8.6, 9.0, 9.1 | 8.4 literal-pattern branch; 8.4 guard is chunk entry. |
+| `format` | 8.6, 9.0, 9.1 | All-literal fold; the dynamic branch's `%s`/`%%` concat and its generic declines. |
+| `string range` | 8.6, 9.0, 9.1 | Constant and non-constant index branches. |
+| `string map` | 8.6, 9.0, 9.1 | Inline `STR_MAP`, empty-key identity, Basic2Arg, and the failed-member `INVOKE_REPLACE` path. |
+| `string bytelength` | 8.6 | Basic1Arg named invocation. |
+| C8.4 `string` | 8.4 | Out-of-line members select an ordinary invocation. |
+| C8.5 `string map`/`range` | 8.5 | NULL compileProc selects an ordinary invocation. |
+
+Bugs these ports exposed and fixed:
+
+- **`STR_RANGE_IMM`.** The VM read C index encodings as plain integers, so
+  `string range $s 2 end` returned an empty string.
+- **`end+1` encoding.** On releases with a 64-bit `Tcl_Size`, C reports
+  `end+1` as a range error, which takes the non-constant path. That
+  depends on the target's width, so it is now refused rather than encoded
+  as `after`.
+- **`format %c` on 8.x.** `TCL_UTF_MAX` 3 releases turn a scalar past
+  U+FFFF into U+FFFD, both at run time and in compile-time folds.
+
+Still unmodelled:
+
+- `format`'s compile-time syntax-error branch (`TclCompileSyntaxError`).
+- 8.5 `regexp`.
+- 9.1 `string is` beyond non-strict character classes (it needs
+  `IS_EMPTY`).
+- `lreplace`.
+- `tcl::unsupported::representation`.
+- Nested `subst`.
