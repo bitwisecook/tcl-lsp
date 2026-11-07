@@ -218,4 +218,252 @@ impl CodegenCtx<'_> {
             });
         Some(tasks)
     }
+
+    /// `CompileDictEachCmd`: iterate under a catch range that releases the
+    /// iterator, with the body in its own loop range.
+    pub(super) fn native_dictionary_each_tasks(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: NativeControlCompilation<
+            tcl_registry::native_dictionary_each_compilation::NativeDictionaryEachInstruction,
+        >,
+    ) -> Option<Vec<Task>> {
+        let NativeControlOutcome::Inline(instruction) = recipe.outcome else {
+            return None;
+        };
+        let (mut tasks, temporaries) = Self::native_declaration_tasks(recipe.preparations);
+        let info = temporaries.last()?.clone();
+        let collect = if instruction.collect {
+            Some(temporaries.first()?.clone())
+        } else {
+            None
+        };
+        let temporary = |op, slot: &Temporary, operands: Vec<Operand>| {
+            Task::NativeTemporaryOperation(op, std::rc::Rc::clone(slot), operands)
+        };
+        let local = |op, name: &[u8]| Task::NamespaceLocalOperation(op, name.to_vec());
+        let operation = |op| Task::Operation(op, vec![]);
+        if instruction.version == tcl_dialect::TclVersion::V8_5 {
+            return self.native_dictionary_for_c85_tasks(command, &instruction, &info, tasks);
+        }
+        let iteration = self.fresh_label("native_dict_each");
+        let body_start = self.fresh_label("native_dict_each_body");
+        let body_end = self.fresh_label("native_dict_each_body_end");
+        let step = self.fresh_label("native_dict_each_step");
+        let handler = self.fresh_label("native_dict_each_handler");
+        let end = self.fresh_label("native_dict_each_end");
+        let finish = self.fresh_label("native_dict_each_break");
+        if let Some(collect) = &collect {
+            tasks.extend([
+                Task::Literal(Vec::new()),
+                temporary(Op::STORE_SCALAR1, collect, vec![]),
+                operation(Op::POP),
+            ]);
+        }
+        tasks.push(Self::native_namespace_word_task(
+            &command.words,
+            instruction.dictionary.clone(),
+        )?);
+        let original = command.words.first()?;
+        tasks.extend([
+            Task::BeginNativeCatch(handler.clone()),
+            temporary(Op::DICT_FIRST, &info, vec![]),
+            Task::Operation(Op::JUMP_TRUE4, vec![Operand::Label(end.clone())]),
+            Task::Label(iteration.clone()),
+            local(Op::STORE_SCALAR1, &instruction.key),
+            operation(Op::POP),
+            local(Op::STORE_SCALAR1, &instruction.value),
+            operation(Op::POP),
+            Task::Label(body_start.clone()),
+            Task::ControlScript(
+                original.image().clone(),
+                NativeControlBody {
+                    operand: instruction.body.clone(),
+                    script: Some(instruction.body_span),
+                },
+                NativeCompiledBodyContext::ProtectedLoop,
+                original.config(),
+            ),
+        ]);
+        if let Some(collect) = &collect {
+            tasks.push(local(Op::LOAD_SCALAR1, &instruction.key));
+            if instruction.version >= tcl_dialect::TclVersion::V9_1 {
+                tasks.push(operation(Op::SWAP));
+                tasks.push(temporary(Op::DICT_SET, collect, vec![Operand::Imm(1)]));
+            } else {
+                tasks.push(Task::Operation(Op::OVER, vec![Operand::Imm(1)]));
+                tasks.push(temporary(Op::DICT_SET, collect, vec![Operand::Imm(1)]));
+                tasks.push(operation(Op::POP));
+            }
+        }
+        tasks.extend([
+            operation(Op::POP),
+            Task::Label(body_end.clone()),
+            Task::Label(step.clone()),
+            temporary(Op::DICT_NEXT, &info, vec![]),
+            Task::Operation(Op::JUMP_FALSE4, vec![Operand::Label(iteration)]),
+            Task::Operation(Op::JUMP4, vec![Operand::Label(end.clone())]),
+        ]);
+        tasks.extend(Self::native_dictionary_each_exit_tasks(
+            &info,
+            collect.as_ref(),
+            handler,
+            end,
+            finish.clone(),
+        ));
+        self.inline_loop_regions
+            .push(super::super::InlineLoopRegion {
+                start: body_start,
+                end: body_end,
+                continue_target: Some(step),
+                break_target: finish,
+            });
+        Some(tasks)
+    }
+
+    /// C8.5's `TclCompileDictForCmd`: `DICT_FIRST` precedes the catch range,
+    /// and each exit releases the iterator before leaving it.
+    fn native_dictionary_for_c85_tasks(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        instruction: &tcl_registry::native_dictionary_each_compilation::NativeDictionaryEachInstruction,
+        info: &Temporary,
+        mut tasks: Vec<Task>,
+    ) -> Option<Vec<Task>> {
+        let release = || {
+            Task::NativeTemporaryOperation(
+                Op::UNSET_SCALAR,
+                std::rc::Rc::clone(info),
+                vec![Operand::Imm(0)],
+            )
+        };
+        let operation = |op| Task::Operation(op, vec![]);
+        let local = |op, name: &[u8]| Task::NamespaceLocalOperation(op, name.to_vec());
+        let iteration = self.fresh_label("native_dict_for");
+        let body_start = self.fresh_label("native_dict_for_body");
+        let body_end = self.fresh_label("native_dict_for_body_end");
+        let step = self.fresh_label("native_dict_for_step");
+        let finish = self.fresh_label("native_dict_for_break");
+        let handler = self.fresh_label("native_dict_for_handler");
+        let empty = self.fresh_label("native_dict_for_empty");
+        let end = self.fresh_label("native_dict_for_end");
+        let original = command.words.first()?;
+        tasks.extend([
+            Self::native_namespace_word_task(&command.words, instruction.dictionary.clone())?,
+            Task::NativeTemporaryOperation(Op::DICT_FIRST, std::rc::Rc::clone(info), vec![]),
+            Task::Operation(Op::JUMP_TRUE4, vec![Operand::Label(empty.clone())]),
+            Task::BeginNativeCatch(handler.clone()),
+            Task::Label(iteration.clone()),
+            local(Op::STORE_SCALAR1, &instruction.key),
+            operation(Op::POP),
+            local(Op::STORE_SCALAR1, &instruction.value),
+            operation(Op::POP),
+            Task::Label(body_start.clone()),
+            Task::ControlScript(
+                original.image().clone(),
+                NativeControlBody {
+                    operand: instruction.body.clone(),
+                    script: Some(instruction.body_span),
+                },
+                NativeCompiledBodyContext::ProtectedLoop,
+                original.config(),
+            ),
+            operation(Op::POP),
+            Task::Label(body_end.clone()),
+            Task::Label(step.clone()),
+            Task::NativeTemporaryOperation(Op::DICT_NEXT, std::rc::Rc::clone(info), vec![]),
+            Task::Operation(Op::JUMP_FALSE4, vec![Operand::Label(iteration)]),
+            operation(Op::POP),
+            operation(Op::POP),
+            Task::Label(finish.clone()),
+            release(),
+            Task::EndNativeCatchBranch,
+            Task::Operation(Op::JUMP4, vec![Operand::Label(end.clone())]),
+            Task::Label(handler),
+            operation(Op::PUSH_RETURN_OPTS),
+            operation(Op::PUSH_RESULT),
+            release(),
+            Task::EndNativeCatch,
+            operation(Op::RETURN_STK),
+            Task::Label(empty),
+            operation(Op::POP),
+            operation(Op::POP),
+            release(),
+            Task::Label(end),
+            Task::Literal(Vec::new()),
+        ]);
+        self.inline_loop_regions
+            .push(super::super::InlineLoopRegion {
+                start: body_start,
+                end: body_end,
+                continue_target: Some(step),
+                break_target: finish,
+            });
+        Some(tasks)
+    }
+
+    /// The catch handler that releases the iterator and re-raises, then the
+    /// normal and `break` exits that release it and push the result.
+    fn native_dictionary_each_exit_tasks(
+        info: &Temporary,
+        collect: Option<&Temporary>,
+        handler: String,
+        end: String,
+        finish: String,
+    ) -> Vec<Task> {
+        let temporary = |op, slot: &Temporary, operands: Vec<Operand>| {
+            Task::NativeTemporaryOperation(op, std::rc::Rc::clone(slot), operands)
+        };
+        let operation = |op| Task::Operation(op, vec![]);
+        let mut tasks = vec![
+            Task::Label(handler),
+            operation(Op::PUSH_RETURN_OPTS),
+            operation(Op::PUSH_RESULT),
+            Task::EndNativeCatchBranch,
+            temporary(Op::UNSET_SCALAR, info, vec![Operand::Imm(0)]),
+        ];
+        if let Some(collect) = collect {
+            tasks.push(temporary(Op::UNSET_SCALAR, collect, vec![Operand::Imm(0)]));
+        }
+        tasks.extend([
+            operation(Op::RETURN_STK),
+            Task::Label(end),
+            operation(Op::POP),
+            operation(Op::POP),
+            Task::Label(finish),
+            Task::EndNativeCatch,
+            temporary(Op::UNSET_SCALAR, info, vec![Operand::Imm(0)]),
+        ]);
+        match collect {
+            Some(collect) => tasks.extend([
+                temporary(Op::LOAD_SCALAR1, collect, vec![]),
+                temporary(Op::UNSET_SCALAR, collect, vec![Operand::Imm(0)]),
+            ]),
+            None => tasks.push(Task::Literal(Vec::new())),
+        }
+        tasks
+    }
+
+    /// The leading local declarations of a control recipe, with the
+    /// anonymous temporaries in declaration order.
+    fn native_declaration_tasks(
+        preparations: Vec<NativeControlPreparationStep>,
+    ) -> (Vec<Task>, Vec<Temporary>) {
+        let mut tasks = Vec::new();
+        let mut temporaries = Vec::new();
+        for step in preparations {
+            match step {
+                NativeControlPreparationStep::DeclareLocal(name) => {
+                    tasks.push(Task::DeclareNamespaceLocal(name));
+                }
+                NativeControlPreparationStep::DeclareAnonymousLocal => {
+                    let slot = std::rc::Rc::new(std::cell::Cell::new(None));
+                    tasks.push(Task::DeclareNativeTemporary(std::rc::Rc::clone(&slot)));
+                    temporaries.push(slot);
+                }
+                _ => break,
+            }
+        }
+        (tasks, temporaries)
+    }
 }

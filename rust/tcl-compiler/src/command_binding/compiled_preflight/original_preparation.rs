@@ -44,6 +44,11 @@ impl CompilerTraversal<'_> {
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
         let (steps, generic, rejection) = match recipe {
+            NativeInstructionPlan::DictionaryEach(recipe) => (
+                recipe.preparations.as_slice(),
+                matches!(recipe.outcome, NativeControlOutcome::Generic),
+                None,
+            ),
             NativeInstructionPlan::DictionaryScope(recipe) => (
                 recipe.preparations.as_slice(),
                 matches!(recipe.outcome, NativeControlOutcome::Generic),
@@ -1080,17 +1085,7 @@ fn entered_context(
     body: tcl_registry::native_compilation::NativeCompiledBodyContext,
     enclosing: tcl_registry::native_compilation::NativeCompilationContext,
 ) -> Option<tcl_registry::native_compilation::NativeCompilationContext> {
-    use tcl_registry::native_compilation::NativeCompiledBodyContext;
-    Some(match body {
-        NativeCompiledBodyContext::Inherit => enclosing,
-        NativeCompiledBodyContext::ExceptionRange => enclosing.with_inline_exception_range(),
-        NativeCompiledBodyContext::Loop => {
-            tcl_registry::native_compilation::NativeCompilationContext {
-                loop_depth: enclosing.loop_depth.checked_add(1)?,
-                ..enclosing
-            }
-        }
-    })
+    body.entered_context(enclosing)
 }
 
 fn expression_has_unretained_local_visits(

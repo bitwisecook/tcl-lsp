@@ -97,6 +97,10 @@ impl Builder<'_> {
                             loop_depth: previous.loop_depth.checked_add(1).ok_or_else(|| unavailable("native control loop compiler depth"))?,
                             ..previous
                         },
+                        tcl_registry::native_compilation::NativeCompiledBodyContext::ProtectedLoop => Context {
+                            loop_depth: previous.loop_depth.checked_add(1).ok_or_else(|| unavailable("native control loop compiler depth"))?,
+                            ..previous.with_inline_exception_range()
+                        },
                     };
                     let result = self.script(*span, depth + 1);
                     self.context = previous;

@@ -2069,6 +2069,12 @@ impl CodegenCtx<'_> {
                     tcl_registry::native_compilation::NativeCompiledBodyContext::ExceptionRange => {
                         saved.with_inline_exception_range()
                     }
+                    tcl_registry::native_compilation::NativeCompiledBodyContext::ProtectedLoop => {
+                        tcl_registry::native_compilation::NativeCompilationContext {
+                            loop_depth: saved.loop_depth + 1,
+                            ..saved.with_inline_exception_range()
+                        }
+                    }
                 };
                 self.native_compilation = entered;
                 pending.push(Task::ControlContext(saved));
@@ -2911,6 +2917,7 @@ impl CodegenCtx<'_> {
             | NativeInstructionPlan::Error(_)
             | NativeInstructionPlan::Coroutine(_)
             | NativeInstructionPlan::Each(_)
+            | NativeInstructionPlan::DictionaryEach(_)
             | NativeInstructionPlan::Expression(_)
             | NativeInstructionPlan::Control(_)
             | NativeInstructionPlan::Try(_)
@@ -3100,6 +3107,9 @@ impl CodegenCtx<'_> {
                 self.native_coroutine_tasks(command, recipe)
             }
             NativeInstructionPlan::Each(recipe) => self.native_each_tasks(command, recipe),
+            NativeInstructionPlan::DictionaryEach(recipe) => {
+                self.native_dictionary_each_tasks(command, recipe)
+            }
             NativeInstructionPlan::Expression(recipe) => {
                 self.native_expression_tasks(command, recipe)
             }

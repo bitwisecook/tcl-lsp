@@ -141,6 +141,12 @@ pub enum NativeInstructionPlan {
     StringRange(crate::native_string_range_compilation::NativeStringRangeInstruction),
     /// `TclCompileStringReplaceCmd`'s recipe.
     StringReplace(crate::native_string_replace_compilation::NativeStringReplaceInstruction),
+    /// `CompileDictEachCmd`'s `dict for`/`dict map` loop.
+    DictionaryEach(
+        crate::native_control_compilation::NativeControlCompilation<
+            crate::native_dictionary_each_compilation::NativeDictionaryEachInstruction,
+        >,
+    ),
     /// `TclCompileLreplaceCmd`'s recipe.
     ListReplace(crate::native_list_replace_compilation::NativeListReplaceInstruction),
     /// Read the selected original variable operand.
@@ -1226,6 +1232,27 @@ fn selected_dictionary_instruction_plan(
         )
         .map(NativeInstructionPlan::DictionaryScope)
         .map_err(|_| Unavailable::OperandGeometry);
+    }
+    if matches!(
+        command,
+        crate::native_dictionary::NativeDictionaryCommand::For
+            | crate::native_dictionary::NativeDictionaryCommand::Map
+    ) {
+        return crate::native_dictionary_each_compilation::compile_native_dictionary_each(
+            words,
+            from,
+            version,
+            context,
+            command == crate::native_dictionary::NativeDictionaryCommand::Map,
+        )
+        .filter(|recipe| {
+            matches!(
+                recipe.outcome,
+                crate::native_control_compilation::NativeControlOutcome::Inline(_)
+            )
+        })
+        .map(NativeInstructionPlan::DictionaryEach)
+        .ok_or(Unavailable::OperandGeometry);
     }
     if command == crate::native_dictionary::NativeDictionaryCommand::Create {
         return crate::native_dictionary_compilation::compile_native_dictionary_create(

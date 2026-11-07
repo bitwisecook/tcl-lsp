@@ -281,6 +281,9 @@ pub enum NativeCompiledBodyContext {
     Loop,
     /// Enter a protected native try body, handler or finally script.
     ExceptionRange,
+    /// Enter a loop range nested inside the compiler's own catch range
+    /// (`dict for`/`dict map`).
+    ProtectedLoop,
 }
 
 impl NativeCompiledBodyContext {
@@ -297,6 +300,10 @@ impl NativeCompiledBodyContext {
             Self::Loop => NativeCompilationContext {
                 loop_depth: enclosing.loop_depth.checked_add(1)?,
                 ..enclosing
+            },
+            Self::ProtectedLoop => NativeCompilationContext {
+                loop_depth: enclosing.loop_depth.checked_add(1)?,
+                ..enclosing.with_inline_exception_range()
             },
         })
     }
