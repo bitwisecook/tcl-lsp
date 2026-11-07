@@ -622,3 +622,17 @@ Still open:
     - The VS Code partition manifest. `codeActionKinds.test` was added on
       4 November without a partition.
   - Shards 2 and 4 lost their runners mid-run.
+- CI run 5 (`42340307964`, tip `a557fbe`):
+  - The nextest cache hit in all ten nextest jobs. "Install cargo-nextest"
+    took 3-12 s, against 150-245 s when built from source.
+  - `cargo-deny` and the lockfile drift check passed, and ruff passed.
+  - `ty` and `pyright` then flagged unnarrowed Optionals in four scripts,
+    two of them from this work. Fixed; both are clean locally.
+  - Further steps can now run, and they fail on faults unrelated to this
+    work:
+    - The drift leg's `check-tcl-reference-toolchains` needs a C 8.4
+      source tree the job does not fetch.
+    - 104 `tcl-runtime` unit tests fail. Several need `TCL_LSP_JIMSH` or
+      a C oracle; several are clock tests.
+    - The `naming::rooted_member_key_bytes` doctest in `tcl-syntax`
+      returns `::a::::v` where its example expects `::a:::v`.
