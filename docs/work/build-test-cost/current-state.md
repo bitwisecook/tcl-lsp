@@ -687,7 +687,9 @@ Diagnosed, not fixed. Each was already failing before this work:
 The preflight refusals diagnosed above are unfinished ports. Each compiler
 is ported one at a time from the pinned C sources, checked form by form
 against tclsh, and pushed on its own. No VM plain-dispatch fallback was
-added. it_3 went from 596 passed / 65 failed to 608 / 53.
+added. it_3 went from 596 passed / 65 failed to 608 / 53. Each later port
+below left it_3 unchanged, because the remaining failures need other
+work.
 
 | Compiler | Releases now modelled | Notes |
 |---|---|---|
@@ -696,9 +698,11 @@ added. it_3 went from 596 passed / 65 failed to 608 / 53.
 | `dict create` | 8.6, 9.0 (9.1 constant) | Constant fold, `DICT_PUT` and the worker path. |
 | `string is` | 8.6, 9.0; 9.1 non-strict character classes | Every class, prefix and `-strict`. |
 | `regexp` | 8.4, 8.6, 9.0, 9.1 | 8.4 literal-pattern branch; 8.4 guard is chunk entry. |
-| `format` | 8.6, 9.0, 9.1 | All-literal fold; the dynamic branch's `%s`/`%%` concat and its generic declines. |
+| `format` | 8.6, 9.0, 9.1 | All-literal fold; `TclCompileSyntaxError` for template failures; the dynamic branch's `%s`/`%%` concat and its generic declines. |
 | `string range` | 8.6, 9.0, 9.1 | Constant and non-constant index branches. |
 | `string map` | 8.6, 9.0, 9.1 | Inline `STR_MAP`, empty-key identity, Basic2Arg, and the failed-member `INVOKE_REPLACE` path. |
+| `string replace` | 8.6, 9.0, 9.1 | Every constant-index recipe, `genericReplace`, and 9.1's `SWAP`. |
+| `lreplace` | 8.6, 9.0, 9.1 | 9.x `LREPLACE4`/`LREPLACE`; 8.6's list-range splice and its declines. |
 | `string bytelength` | 8.6 | Basic1Arg named invocation. |
 | C8.4 `string` | 8.4 | Out-of-line members select an ordinary invocation. |
 | C8.5 `string map`/`range` | 8.5 | NULL compileProc selects an ordinary invocation. |
@@ -713,13 +717,26 @@ Bugs these ports exposed and fixed:
   as `after`.
 - **`format %c` on 8.x.** `TCL_UTF_MAX` 3 releases turn a scalar past
   U+FFFF into U+FFFD, both at run time and in compile-time folds.
+- **`format` error codes.** Template failures now carry C 8.6+'s
+  `TCL FORMAT <kind>` codes; 8.4/8.5 keep `NONE`.
+- **8.4/8.5 `lreplace`.** The command now raises "list doesn't contain
+  element" and uses its `?element element ...?` usage string.
 
-Still unmodelled:
+Still unmodelled or refused by design:
 
-- `format`'s compile-time syntax-error branch (`TclCompileSyntaxError`).
 - 8.5 `regexp`.
 - 9.1 `string is` beyond non-strict character classes (it needs
   `IS_EMPTY`).
-- `lreplace`.
 - `tcl::unsupported::representation`.
 - Nested `subst`.
+- **Width-dependent indices.** On 9.x, C's encoding of `end+1` and of
+  absolute indices beyond `INT_MAX` depends on the target's `Tcl_Size`
+  width, so these are refused. The literal-index vectors in it_3 exercise
+  exactly these cases.
+- **8.4 expression errors.** In 8.4 an expression syntax error fails
+  compilation of the whole enclosing body, which is broader than one
+  compile procedure. `expr {foo}`, `{2 ** 3}`, `{08}` and `{sin 1}` are
+  refused, and `(1` reports "premature end" where 8.4 says "looking for
+  close parenthesis".
+- **`format %d` of a bignum.** C truncates through the host `long`; the
+  static fold leaves it to the runtime path.
