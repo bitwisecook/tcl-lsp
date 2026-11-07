@@ -103,6 +103,7 @@ fn numeric(vm: &Vm, value: i64) -> Value {
 }
 fn declaration(body: Value, defaults: &[Value]) -> NativeProcedureCommand {
     NativeProcedureCommand::new(ProcDef {
+        formals: Default::default(),
         native_resources: Rc::default(),
         name: "p".into(),
         command_ns_id: tcl_core_types::ROOT_NS,

@@ -85,6 +85,19 @@ pub struct Param {
     pub default: Option<Value>,
 }
 
+/// Formal records built once from a declaration's parameters. A clone starts
+/// empty, so a copied and then modified declaration builds its own.
+#[derive(Default)]
+pub(crate) struct FormalParameterCache(
+    std::cell::OnceCell<Rc<[tcl_syntax::formal_params::ByteFormalParameter]>>,
+);
+
+impl Clone for FormalParameterCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
 /// A user procedure retaining its original source and optional prepared body.
 #[derive(Clone)]
 pub struct ProcDef {
@@ -104,6 +117,7 @@ pub struct ProcDef {
     pub params: Vec<Param>,
     /// Native formal parsing and activation policy captured at definition.
     pub parameter_grammar: tcl_dialect::ParameterGrammar,
+    pub(crate) formals: FormalParameterCache,
     /// Whether the selected native parameter grammar contains a variadic catch-all.
     pub has_args: bool,
     /// Original Jim formal-list object retained by the declaration. C owns
@@ -135,8 +149,12 @@ pub struct ProcDef {
 }
 
 impl ProcDef {
-    pub(crate) fn formal_parameters(&self) -> Vec<tcl_syntax::formal_params::ByteFormalParameter> {
-        formal_parameters(&self.params, self.parameter_grammar)
+    pub(crate) fn formal_parameters(&self) -> Rc<[tcl_syntax::formal_params::ByteFormalParameter]> {
+        Rc::clone(
+            self.formals
+                .0
+                .get_or_init(|| formal_parameters(&self.params, self.parameter_grammar).into()),
+        )
     }
 }
 
@@ -895,6 +913,7 @@ pub(crate) fn build_lambda_proc(
         )
     };
     let (binding, publication) = vm.define_proc_binding(ProcDef {
+        formals: Default::default(),
         native_resources: Rc::default(),
         name: name.clone(),
         command_ns_id,
@@ -2293,6 +2312,7 @@ fn publish_procedure(vm: &mut Vm, input: ProcedurePublication<'_>) -> Completion
     };
     vm.define_proc_binding_with_jim_key(
         ProcDef {
+            formals: Default::default(),
             native_resources: Rc::default(),
             name: reg_name,
             command_ns_id: slot.namespace,

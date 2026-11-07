@@ -25410,6 +25410,7 @@ impl Vm {
             .ok()?;
         self.define_proc_binding_with_jim_key_and_namespace_helper(
             ProcDef {
+                formals: Default::default(),
                 native_resources: Rc::default(),
                 name: registered.clone(),
                 command_ns_id: slot.namespace,
