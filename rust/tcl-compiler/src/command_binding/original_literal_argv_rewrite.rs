@@ -449,6 +449,47 @@ fn same_editor_comparison_inversion(
         && same_literal_operator_leaf(right, next_right, original_tokens, candidate_tokens)
 }
 
+/// The same operator and leaf checks for a hosted operand, which has no
+/// selected native handler envelope. Variable reads are admitted because
+/// hosted iRules source cannot register a variable trace; numeric orderings,
+/// whose inversion depends on NaN-free values, are not.
+pub(crate) fn hosted_operator_rewrite_holds(
+    original: &[u8],
+    candidate: &[u8],
+    profile: &'static tcl_dialect::DialectProfile,
+    config: LexerConfig,
+    kind: crate::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind,
+) -> bool {
+    let mut parser = ExprParseContext::for_profile(profile);
+    parser.lexer_grammar = config.grammar_over(parser.lexer_grammar);
+    let (CheckedExprParse::Parsed(original_tree), CheckedExprParse::Parsed(candidate_tree)) = (
+        tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(original, &parser),
+        tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(candidate, &parser),
+    ) else {
+        return false;
+    };
+    if numeric_ordering(&original_tree)
+        || numeric_ordering(&candidate_tree)
+        || !variable_leaf_expression(&original_tree)
+        || !variable_leaf_expression(&candidate_tree)
+    {
+        return false;
+    }
+    let (Some(original_tokens), Some(candidate_tokens)) = (
+        expression_syntax_signature(original, &parser, config),
+        expression_syntax_signature(candidate, &parser, config),
+    ) else {
+        return false;
+    };
+    same_editor_operator_rewrite(
+        &original_tree,
+        &candidate_tree,
+        &original_tokens,
+        &candidate_tokens,
+        kind,
+    )
+}
+
 /// The other connective of a De Morgan pair, in the same spelling: iRules'
 /// `and`/`or` are the word forms of `&&`/`||`.
 fn demorgan_opposite(op: tcl_syntax::expr::BinOp) -> Option<tcl_syntax::expr::BinOp> {

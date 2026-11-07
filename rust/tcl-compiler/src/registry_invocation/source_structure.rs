@@ -2057,6 +2057,7 @@ fn reflection_free_command(
     let closed_lookup = match words.source() {
         OriginalRegistrySource::Selected => true,
         OriginalRegistrySource::Conditional(metadata) => metadata.obligations().is_empty(),
+        OriginalRegistrySource::Vendor(metadata) => hosted_lookup_closed(metadata),
         _ => false,
     };
     closed_lookup
@@ -2069,6 +2070,78 @@ fn reflection_free_command(
                 )
         }) == Some(true)
         && reflection_free_bodies(source, analysis, &words, context, depth + 1)
+}
+
+/// A hosted schema whose only obligations are that its coordinates are
+/// authored and its parent body may not be entered: lookup itself is closed.
+fn hosted_lookup_closed(
+    metadata: &crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+) -> bool {
+    use crate::command_binding::VendorCatalogueSourceObligation as Obligation;
+    let barriers = metadata.authored_barriers();
+    !barriers.has_unknown_transitions()
+        && !barriers.has_nominal_command_name_hazard()
+        && metadata.obligations().iter().all(|obligation| {
+            matches!(
+                obligation,
+                Obligation::AuthoredSourceCoordinates | Obligation::StoredScriptBodyApplicability
+            )
+        })
+}
+
+/// The hosted counterpart of [`original_expression_operator_rewrite`]: the
+/// same single Expr operand, reflection-free bodies and operator proof, under
+/// a closed hosted lookup instead of a selected native handler.
+fn hosted_expression_operator_rewrite(
+    source: &str,
+    analysis: &AnalysisResult,
+    words: &OriginalRegistryWords,
+    metadata: &crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+    context: &tcl_registry::model::ContextRegistry,
+    (argument, candidate, kind): (usize, &str, OriginalExpressionOperatorRewriteKind),
+) -> Option<OriginalExpressionOperatorRewrite> {
+    use tcl_registry::hooks::LoweringHookId;
+    let input = analysis.resolved_input.as_ref()?;
+    let image = tcl_lexer::SourceImage::document(source);
+    let roles = words.roles()?;
+    if !metadata.matches_source(&image, input.lexer_config())
+        || !metadata.matches_registry(context.commands())
+        || !hosted_lookup_closed(metadata)
+        || !roles.contains(&(argument, tcl_registry::ArgRole::Expr))
+        || roles
+            .iter()
+            .filter(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+            .count()
+            != 1
+        || candidate
+            .bytes()
+            .any(|byte| matches!(byte, b'{' | b'}' | b'\\'))
+        || !reflection_free_bodies(source, analysis, words, context, 0)
+    {
+        return None;
+    }
+    let hook = words.with_source_schema(context, |schema| schema.facts().lowering_hook)??;
+    if !matches!(hook, LoweringHookId::If | LoweringHookId::Expr) {
+        return None;
+    }
+    let original = words.original_argument_word(argument)?.clone();
+    if original.group().kind != tcl_lexer::WordKind::Braced || original.group().expand {
+        return None;
+    }
+    let content = original.content_span().ok()?;
+    let bytes = original.image().bytes().get(content.as_range())?;
+    crate::command_binding::hosted_operator_rewrite_holds(
+        bytes,
+        candidate.as_bytes(),
+        input.unit_profile(),
+        input.lexer_config(),
+        kind,
+    )
+    .then(|| OriginalExpressionOperatorRewrite {
+        original,
+        replacement: format!("{{{candidate}}}"),
+        input: input.clone(),
+    })
 }
 
 /// Authenticate an explicit editor operator intent on one whole original
@@ -2086,6 +2159,16 @@ pub fn original_expression_operator_rewrite(
     let words = source_registry_words(source, analysis, segment)?;
     let input = analysis.resolved_input.as_ref()?;
     let context = input.context_registry();
+    if let OriginalRegistrySource::Vendor(metadata) = words.source() {
+        return hosted_expression_operator_rewrite(
+            source,
+            analysis,
+            &words,
+            metadata,
+            &context,
+            (argument, candidate, kind),
+        );
+    }
     if !matches!(words.source(), OriginalRegistrySource::Selected)
         || !words.operands_preserve_source_lookup()
         || !words

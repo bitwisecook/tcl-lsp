@@ -204,9 +204,11 @@ pub(crate) use source_transition_advice::{
     original_single_command_substitution_words, original_single_command_substitution_words_in_plan,
 };
 mod original_literal_argv_rewrite;
-pub(crate) use original_literal_argv_rewrite::configured_expression_syntax_gaps;
 pub use original_literal_argv_rewrite::{
     OriginalExpressionGapCompaction, OriginalLiteralExpressionBracing,
+};
+pub(crate) use original_literal_argv_rewrite::{
+    configured_expression_syntax_gaps, hosted_operator_rewrite_holds,
 };
 mod expression_operand_advice;
 mod formal_call_advice;
