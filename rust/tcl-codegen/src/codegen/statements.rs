@@ -2976,6 +2976,9 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::StringRange(recipe) => {
                 Self::append_native_string_range_tasks(command, recipe, version, operations)
             }
+            NativeInstructionPlan::StringReplace(recipe) => {
+                Self::append_native_string_replace_tasks(command, &recipe, version, operations)
+            }
             NativeInstructionPlan::StringOperand(recipe) => {
                 Self::append_native_string_operand_tasks(command, recipe, version, operations)
             }

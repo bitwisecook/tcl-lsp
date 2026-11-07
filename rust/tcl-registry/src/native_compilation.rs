@@ -894,6 +894,8 @@ pub enum NativeCompilationGrammar {
     StringMap(crate::native_scalar_compilation::NativeScalarScope),
     /// Original C9 range compiler with represented compile-known indices.
     StringRange(crate::native_scalar_compilation::NativeScalarScope),
+    /// `TclCompileStringReplaceCmd` over its original words.
+    StringReplace(crate::native_scalar_compilation::NativeScalarScope),
     /// C8.6+ original trim subject and explicit/default character set.
     StringTrim {
         /// Public member or actual private worker operand layout.
@@ -1842,6 +1844,52 @@ impl NativeCompilationSpec {
         }
     }
 
+    fn original_string_replace_name_effects(
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        scope: crate::native_scalar_compilation::NativeScalarScope,
+        dialect: InvocationDialect,
+    ) -> NativeOriginalCompilerNameEffects {
+        use crate::native_control_compilation::NativeControlPreparationStep::Word;
+        use NativeOriginalCompilerNameEffects::{FixedLookup, Unknown, Visits};
+        let Some(version) = dialect.tcl_version else {
+            return Unknown;
+        };
+        if words.shapes()[0].compiler_head(Some(dialect)) != Some(true) {
+            return Unknown;
+        }
+        if let Some(recipe) =
+            crate::native_string_replace_compilation::compile_native_string_replace(
+                words,
+                operand_from,
+                scope,
+                version,
+            )
+        {
+            return Visits(recipe.compiled_words().into_iter().map(Word).collect());
+        }
+        match crate::native_string_replace_compilation::select_original(
+            words,
+            operand_from,
+            scope,
+            version,
+        ) {
+            NativeCompilationSelection::Generic => {
+                Visits(Self::original_generic_word_visits(words))
+            }
+            // INVOKE_REPLACE prepares the words before its command literal.
+            NativeCompilationSelection::NamedInvocation { .. }
+                if (0..words.original_words().len())
+                    .all(|index| words.literal(index).is_some()) =>
+            {
+                FixedLookup(
+                    &crate::native_string_replace_compilation::STRING_REPLACE_IMPLEMENTATION,
+                )
+            }
+            _ => Unknown,
+        }
+    }
+
     fn original_generic_word_visits(
         words: &crate::native_compiler_words::NativeCompilerWords<'_>,
     ) -> Vec<crate::native_control_compilation::NativeControlPreparationStep> {
@@ -1891,6 +1939,9 @@ impl NativeCompilationSpec {
             } else {
                 effects
             };
+        }
+        if let NativeCompilationGrammar::StringReplace(scope) = self.grammar {
+            return Self::original_string_replace_name_effects(words, operand_from, scope, dialect);
         }
         if let NativeCompilationGrammar::StringRange(scope) = self.grammar {
             return self.original_string_range_name_effects(
@@ -2206,6 +2257,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::FormatStringConcat
             | NativeCompilationGrammar::StringMap(_)
             | NativeCompilationGrammar::StringRange(_)
+            | NativeCompilationGrammar::StringReplace(_)
             | NativeCompilationGrammar::HookFrom(_)
             | NativeCompilationGrammar::Regsub
             | NativeCompilationGrammar::ProcedureHookFrom(_)
@@ -2281,6 +2333,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::StringIsAscii(_)
             | NativeCompilationGrammar::StringMap(_)
             | NativeCompilationGrammar::StringRange(_)
+            | NativeCompilationGrammar::StringReplace(_)
             | NativeCompilationGrammar::StringOperand { .. }
             | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::Tailcall
@@ -2525,9 +2578,11 @@ impl NativeCompilationSpec {
         let version = dialect.tcl_version?;
         if matches!(
             self.grammar,
-            NativeCompilationGrammar::StringMap(_) | NativeCompilationGrammar::StringRange(_)
+            NativeCompilationGrammar::StringMap(_)
+                | NativeCompilationGrammar::StringRange(_)
+                | NativeCompilationGrammar::StringReplace(_)
         ) {
-            // C85 registers both members with a NULL compileProc.
+            // C85 registers these members with a NULL compileProc.
             return match version {
                 TclVersion::V8_5 => Some(false),
                 version => (version >= TclVersion::V8_6).then_some(true),
@@ -2643,6 +2698,8 @@ impl NativeCompilationSpec {
             ) | NativeCompilationGrammar::StringMap(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
             ) | NativeCompilationGrammar::StringRange(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | NativeCompilationGrammar::StringReplace(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
             ) | NativeCompilationGrammar::StringOperand {
                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
@@ -2768,6 +2825,15 @@ impl NativeCompilationSpec {
             .then_some(crate::native_string_range_compilation::STRING_RANGE_IMPLEMENTATION);
         }
         if self.grammar
+            == NativeCompilationGrammar::StringReplace(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            )
+        {
+            return (dialect.tcl_version >= Some(TclVersion::V8_6)
+                && dialect.family() == Some(Family::Tcl))
+            .then_some(crate::native_string_replace_compilation::STRING_REPLACE_IMPLEMENTATION);
+        }
+        if self.grammar
             == NativeCompilationGrammar::StringMap(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
             )
@@ -2831,7 +2897,9 @@ impl NativeCompilationSpec {
         }
         if matches!(
             self.grammar,
-            NativeCompilationGrammar::StringMap(_) | NativeCompilationGrammar::StringRange(_)
+            NativeCompilationGrammar::StringMap(_)
+                | NativeCompilationGrammar::StringRange(_)
+                | NativeCompilationGrammar::StringReplace(_)
         ) {
             return self.operation == SemanticOperationId::Invoke
                 && self.body == NativeBodyCompilation::Inherit;
@@ -3043,6 +3111,36 @@ impl NativeCompilationSpec {
         )
     }
 
+    fn select_original_string_slice_words(
+        self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        version: TclVersion,
+        context: NativeCompilationContext,
+    ) -> Option<NativeCompilationSelection> {
+        match self.grammar {
+            NativeCompilationGrammar::StringReplace(scope) => {
+                Some(crate::native_string_replace_compilation::select_original(
+                    words,
+                    operand_from,
+                    scope,
+                    version,
+                ))
+            }
+            NativeCompilationGrammar::StringRange(scope) => {
+                Some(crate::native_string_range_compilation::select_original(
+                    words,
+                    operand_from,
+                    scope,
+                    version,
+                    self,
+                    context,
+                ))
+            }
+            _ => None,
+        }
+    }
+
     fn select_original_registered_words(
         self,
         words: &crate::native_compiler_words::NativeCompilerWords<'_>,
@@ -3138,15 +3236,10 @@ impl NativeCompilationSpec {
                 self.operation,
             ));
         }
-        if let NativeCompilationGrammar::StringRange(scope) = self.grammar {
-            return Some(crate::native_string_range_compilation::select_original(
-                words,
-                operand_from,
-                scope,
-                version,
-                self,
-                context,
-            ));
+        if let Some(selection) =
+            self.select_original_string_slice_words(words, operand_from, version, context)
+        {
+            return Some(selection);
         }
         if let NativeCompilationGrammar::MathOperator(operator) = self.grammar {
             return Some(
@@ -3745,6 +3838,9 @@ impl NativeCompilationSpec {
                     crate::native_scalar_compilation::NativeScalarScope::PublicMember
                 )
                 | NativeCompilationGrammar::StringRange(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
+                | NativeCompilationGrammar::StringReplace(
                     crate::native_scalar_compilation::NativeScalarScope::PublicMember
                 )
                 | NativeCompilationGrammar::StringOperand {
@@ -4586,9 +4682,9 @@ impl NativeCompilationSpec {
                 1,
             ),
             // The map probe requires the exact retained compiler words.
-            NativeCompilationGrammar::StringMap(_) | NativeCompilationGrammar::StringRange(_) => {
-                NativeCompilationSelection::Unknown
-            }
+            NativeCompilationGrammar::StringMap(_)
+            | NativeCompilationGrammar::StringRange(_)
+            | NativeCompilationGrammar::StringReplace(_) => NativeCompilationSelection::Unknown,
             NativeCompilationGrammar::StringOperand { scope, operation } => {
                 crate::native_string_operand_compilation::select_shapes(
                     shapes,

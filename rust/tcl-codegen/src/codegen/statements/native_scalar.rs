@@ -200,4 +200,102 @@ impl CodegenCtx<'_> {
         }
         true
     }
+
+    pub(super) fn append_native_string_replace_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: &tcl_registry::native_string_replace_compilation::NativeStringReplaceInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use tcl_registry::native_string_replace_compilation::NativeStringReplaceOperation as Replace;
+        const END: i32 = -2;
+        let word =
+            |operand: &tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand| {
+                Self::native_namespace_word_task(&command.words, operand.clone())
+            };
+        let range = |first: i32, last: i32| {
+            NativeEmissionTask::SwitchOperation(
+                Op::STR_RANGE_IMM,
+                vec![Operand::Imm(first), Operand::Imm(last)],
+                version,
+            )
+        };
+        let swap = || {
+            if version >= tcl_dialect::TclVersion::V9_1 {
+                NativeEmissionTask::Operation(Op::SWAP, vec![])
+            } else {
+                NativeEmissionTask::Operation(Op::REVERSE, vec![Operand::Imm(2)])
+            }
+        };
+        let concat = || NativeEmissionTask::Operation(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
+        let Some(subject) = word(&recipe.subject) else {
+            return false;
+        };
+        operations.push(subject);
+        let replacement = match &recipe.replacement {
+            Some(operand) => match word(operand) {
+                Some(task) => Some(task),
+                None => return false,
+            },
+            None => None,
+        };
+        match recipe.operation {
+            Replace::Unchanged => {
+                if let Some(replacement) = replacement {
+                    operations.push(replacement);
+                    operations.push(NativeEmissionTask::Operation(Op::POP, vec![]));
+                }
+            }
+            Replace::Empty => {
+                operations.push(NativeEmissionTask::Operation(Op::POP, vec![]));
+                operations.push(NativeEmissionTask::Literal(Vec::new()));
+            }
+            Replace::Range(coordinates) => {
+                operations.push(range(
+                    coordinates.first.encoded(),
+                    coordinates.last.encoded(),
+                ));
+            }
+            Replace::Splice { head, tail } => {
+                operations.push(NativeEmissionTask::Operation(Op::DUP, vec![]));
+                operations.push(range(0, head.encoded()));
+                operations.push(swap());
+                operations.push(range(tail.encoded(), END));
+                operations.push(concat());
+            }
+            Replace::Prefix { tail } => {
+                let Some(replacement) = replacement else {
+                    return false;
+                };
+                operations.push(replacement);
+                operations.push(swap());
+                match tail {
+                    None => operations.push(NativeEmissionTask::Operation(Op::POP, vec![])),
+                    Some(tail) => {
+                        operations.push(range(tail.encoded(), END));
+                        operations.push(concat());
+                    }
+                }
+            }
+            Replace::Suffix { head } => {
+                let Some(replacement) = replacement else {
+                    return false;
+                };
+                operations.push(range(0, head.encoded()));
+                operations.push(replacement);
+                operations.push(concat());
+            }
+            Replace::Generic => {
+                for operand in [&recipe.first, &recipe.last] {
+                    let Some(task) = word(operand) else {
+                        return false;
+                    };
+                    operations.push(task);
+                }
+                operations.push(replacement.unwrap_or(NativeEmissionTask::Literal(Vec::new())));
+                operations.push(NativeEmissionTask::Operation(Op::STR_REPLACE, vec![]));
+            }
+        }
+        true
+    }
 }

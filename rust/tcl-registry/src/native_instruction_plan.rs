@@ -131,6 +131,8 @@ pub enum NativeInstructionPlan {
     StringOperand(crate::native_string_operand_compilation::NativeStringOperandInstruction),
     /// Original subject and compile-known C9 range coordinates.
     StringRange(crate::native_string_range_compilation::NativeStringRangeInstruction),
+    /// `TclCompileStringReplaceCmd`'s recipe.
+    StringReplace(crate::native_string_replace_compilation::NativeStringReplaceInstruction),
     /// Read the selected original variable operand.
     Load {
         /// Exact index of the target in the complete original word vector.
@@ -1116,13 +1118,10 @@ fn selected_projected_instruction_plan(
             version,
         ));
     }
-    if let NativeCompilationGrammar::StringRange(scope) = spec.grammar {
-        return Some(selected_string_range_instruction_plan(
-            words,
-            operand_from,
-            scope,
-            version,
-        ));
+    if let Some(plan) =
+        selected_string_slice_instruction_plan(spec.grammar, words, operand_from, version)
+    {
+        return Some(plan);
     }
     if let NativeCompilationGrammar::StringOperand { scope, operation } = spec.grammar {
         return Some(
@@ -1159,21 +1158,34 @@ fn selected_projected_instruction_plan(
     })
 }
 
-fn selected_string_range_instruction_plan(
+fn selected_string_slice_instruction_plan(
+    grammar: NativeCompilationGrammar,
     words: &NativeCompilerWords<'_>,
     operand_from: usize,
-    scope: crate::native_scalar_compilation::NativeScalarScope,
     version: tcl_dialect::TclVersion,
-) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
-    use NativeInstructionPlanUnavailable as Unavailable;
-    crate::native_string_range_compilation::compile_native_string_range(
-        words,
-        operand_from,
-        scope,
-        version,
-    )
-    .map(NativeInstructionPlan::StringRange)
-    .ok_or(Unavailable::OperandGeometry)
+) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
+    let plan = match grammar {
+        NativeCompilationGrammar::StringReplace(scope) => {
+            crate::native_string_replace_compilation::compile_native_string_replace(
+                words,
+                operand_from,
+                scope,
+                version,
+            )
+            .map(NativeInstructionPlan::StringReplace)
+        }
+        NativeCompilationGrammar::StringRange(scope) => {
+            crate::native_string_range_compilation::compile_native_string_range(
+                words,
+                operand_from,
+                scope,
+                version,
+            )
+            .map(NativeInstructionPlan::StringRange)
+        }
+        _ => return None,
+    };
+    Some(plan.ok_or(NativeInstructionPlanUnavailable::OperandGeometry))
 }
 
 fn selected_dictionary_instruction_plan(

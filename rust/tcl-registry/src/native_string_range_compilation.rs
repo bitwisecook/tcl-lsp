@@ -65,6 +65,18 @@ pub struct NativeStringRangeInstruction {
     pub operation: NativeStringRangeOperation,
 }
 
+impl NativeStringRangeInstruction {
+    /// Original words the recipe compiles, in order.
+    #[must_use]
+    pub fn compiled_words(&self) -> Vec<NativeCompilerWordOperand> {
+        let mut words = vec![self.operand.clone()];
+        if let NativeStringRangeOperation::Indices { first, last } = &self.operation {
+            words.extend([first.clone(), last.clone()]);
+        }
+        words
+    }
+}
+
 /// Select only the represented C9 literal-index compiler branch.
 #[must_use]
 pub fn select_original(

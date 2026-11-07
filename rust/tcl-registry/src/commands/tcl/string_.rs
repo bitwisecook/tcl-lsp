@@ -1942,6 +1942,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "replace",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringReplace(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringReplace)),
         // S110: 8.6 always builds the result from the Unicode rep
         // (`StringRplcCmd` → `Tcl_GetUnicodeFromObj`; tclsh 8.6.14-verified —
