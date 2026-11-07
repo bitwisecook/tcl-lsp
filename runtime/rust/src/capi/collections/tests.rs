@@ -358,10 +358,7 @@ fn original_collection_empty_and_abstract_length_keep_their_actual_cache_purpose
             assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
         }
         let mut interpreter = native(TclVersion::V9_0);
-        let protocol = interpreter
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interpreter.invocation_string_protocol().unwrap();
         let plan = match tcl_cmd_core::lseq::decode(&[b"1", b"3", b"1"]) {
             Ok(plan) => plan,
             Err(_) => panic!("original arithmetic-series operands must decode"),
@@ -615,10 +612,7 @@ fn original_collection_dictionary_members_require_their_retained_protocol() {
     for foreign in [false, true] {
         leak_free(|| {
             let mut interpreter = native(TclVersion::V8_6);
-            let protocol = interpreter
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = interpreter.invocation_string_protocol().unwrap();
             let key = obj::Owned::fresh(obj::new_string_bytes(b"original-key"));
             let member = obj::Owned::fresh(obj::new_string_bytes(b"original-member"));
             let value = obj::Owned::fresh(

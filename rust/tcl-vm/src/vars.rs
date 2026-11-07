@@ -19,7 +19,7 @@
 //! Stable variable-cell storage shared by frames and namespace tokens.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use tcl_core_types::{NameBytes, NsId, VarId};
@@ -304,7 +304,7 @@ pub(crate) struct VarArena {
     birth: Rc<()>,
     hash_recipe: std::cell::Cell<Option<tcl_core_types::NativeHashRecipe>>,
     next: u64,
-    cells: HashMap<VarId, VarCell>,
+    cells: rustc_hash::FxHashMap<VarId, VarCell>,
     released_statics: Rc<RefCell<Vec<VarId>>>,
     released_native_alias_entries: Vec<(VarBinding, VarId)>,
 }
@@ -965,8 +965,8 @@ impl VarArena {
 
     /// Follow link cells to the storage cell Tcl operations observe.
     pub(crate) fn resolve(&self, mut id: VarId) -> Option<VarId> {
-        let mut visited = HashSet::new();
-        while visited.insert(id) {
+        // A chain longer than the arena revisits a cell, so it is a cycle.
+        for _ in 0..=self.cells.len() {
             match self.get(id).map(|cell| &cell.state) {
                 Some(VarState::Link(target)) => id = *target,
                 // The interpreter's shared resolver owns selected-frame name

@@ -372,9 +372,7 @@ impl OriginalNameConsumerScope {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<crate::value::NativeDictionarySearch, CmdError> {
         self.check(vm)?;
-        let selected = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol();
+        let selected = vm.actual_native_string_protocol();
         self.require(
             vm,
             selected == Some(protocol),

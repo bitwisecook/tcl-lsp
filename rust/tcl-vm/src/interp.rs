@@ -714,6 +714,13 @@ struct NativeCachedModule {
 
 /// The accepted original prefix root and the setter's reached native length.
 /// The length supplies no cached List or member-object identity.
+#[derive(Clone, Copy)]
+struct ActualNativeProtocols {
+    string: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    name: Option<tcl_syntax::naming::NativeNameProtocol>,
+    name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+}
+
 #[derive(Clone)]
 struct NativeUnknownHandler {
     root: Value,
@@ -1470,6 +1477,8 @@ pub struct InterpState {
     /// grammar, logical emulation and command availability. An absent explicit
     /// engine supplies no measured Native execution point; availability cannot set it.
     actual_engine_profile: Option<&'static tcl_dialect::DialectProfile>,
+    /// Native protocols of the last actual execution profile, keyed by its address.
+    actual_protocols: std::cell::Cell<Option<(usize, ActualNativeProtocols)>>,
     /// Full context of the genuinely bootstrapped core, independent of user source.
     /// Selecting a profile cannot create or renew this core receipt.
     native_core_pin: Option<tcl_registry::model::PinnedContext>,
@@ -1534,7 +1543,7 @@ pub struct InterpState {
     /// spellings. A retained and recreated `::N` therefore remain disjoint.
     ns_vars: HashMap<NsId, VarTable>,
     /// Stable cells declared through TIP 677 `const`.
-    const_vars: HashSet<VarId>,
+    const_vars: rustc_hash::FxHashSet<VarId>,
     /// Command table (builtins + user procs), keyed by canonical name — a
     /// builtin's simple name, or a proc's namespace-qualified name without the
     /// leading `::` (e.g. `foo::bar`; a global proc is just `bar`).
@@ -2077,9 +2086,59 @@ struct CommandIdentityIndex {
     slot_by_key: HashMap<String, CommandSlot>,
     display_by_key: HashMap<String, tcl_core_types::NameBytes>,
     next_storage_key: u64,
-    generations: HashMap<String, u64>,
+    generations: CommandGenerations,
     next_generation: u64,
     handles: RefCell<CmdArena>,
+}
+
+/// Live command token generations by key, indexed both ways. One generation
+/// may stay bound under several keys.
+#[derive(Default)]
+struct CommandGenerations {
+    by_key: HashMap<String, u64>,
+    keys: rustc_hash::FxHashMap<u64, Vec<String>>,
+}
+
+impl CommandGenerations {
+    fn insert(&mut self, key: String, generation: u64) -> Option<u64> {
+        let previous = self.by_key.insert(key.clone(), generation);
+        if let Some(previous) = previous {
+            self.forget(previous, &key);
+        }
+        self.keys.entry(generation).or_default().push(key);
+        previous
+    }
+
+    fn remove(&mut self, key: &str) -> Option<u64> {
+        let generation = self.by_key.remove(key)?;
+        self.forget(generation, key);
+        Some(generation)
+    }
+
+    fn forget(&mut self, generation: u64, key: &str) {
+        if let Some(keys) = self.keys.get_mut(&generation) {
+            keys.retain(|indexed| indexed != key);
+            if keys.is_empty() {
+                self.keys.remove(&generation);
+            }
+        }
+    }
+
+    fn get(&self, key: &str) -> Option<&u64> {
+        self.by_key.get(key)
+    }
+
+    fn contains_key(&self, key: &str) -> bool {
+        self.by_key.contains_key(key)
+    }
+
+    fn key_of(&self, generation: u64) -> Option<&String> {
+        self.keys.get(&generation)?.first()
+    }
+
+    fn is_bound(&self, generation: u64) -> bool {
+        self.keys.contains_key(&generation)
+    }
 }
 
 /// External command handles intern one exact command-token generation. Names
@@ -2155,10 +2214,11 @@ pub(crate) struct NativeFixedMathCall {
 #[derive(Default)]
 struct VariableObservers {
     /// Script registrations are oldest-first within their stable cell.
-    script_traces: HashMap<VarId, Vec<VarTrace>>,
+    script_traces: rustc_hash::FxHashMap<VarId, Vec<VarTrace>>,
     /// Native registration is hidden from script trace introspection/removal.
     precision_cell: Option<VarId>,
-    native_error_cells: HashMap<VarId, tcl_registry::special_vars::NativeErrorStorageVariable>,
+    native_error_cells:
+        rustc_hash::FxHashMap<VarId, tcl_registry::special_vars::NativeErrorStorageVariable>,
     /// The global `env` array cell C's `TclSetupEnv` hooks to the host
     /// environment (`EnvTraceProc`): hidden from script trace introspection
     /// and removal, and run after the script traces on the array.
@@ -3397,6 +3457,42 @@ impl InterpState {
         tcl_registry::InvocationDialect::of_static_profile(self.actual_native_execution_profile())
     }
 
+    fn actual_native_protocols(&self) -> ActualNativeProtocols {
+        let profile = self.actual_native_execution_profile();
+        let key = std::ptr::from_ref(profile).addr();
+        if let Some((seen, protocols)) = self.actual_protocols.get()
+            && seen == key
+        {
+            return protocols;
+        }
+        let actual = tcl_registry::InvocationDialect::of_static_profile(profile);
+        let name = actual.native_name_protocol();
+        let protocols = ActualNativeProtocols {
+            string: actual.native_string_protocol(),
+            name,
+            name_policy: name.and_then(|recipe| {
+                let policy = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
+                    actual.execution_point()?,
+                )?;
+                (policy.recipe() == recipe).then_some(policy)
+            }),
+        };
+        self.actual_protocols.set(Some((key, protocols)));
+        protocols
+    }
+
+    pub(crate) fn actual_native_string_protocol(
+        &self,
+    ) -> Option<tcl_syntax::native_string::NativeStringProtocol> {
+        self.actual_native_protocols().string
+    }
+
+    pub(crate) fn actual_native_name_protocol(
+        &self,
+    ) -> Option<tcl_syntax::naming::NativeNameProtocol> {
+        self.actual_native_protocols().name
+    }
+
     /// Retain the actual interpreter objects independently of source grammar.
     pub(crate) fn native_jim_object_context(
         &self,
@@ -3449,9 +3545,7 @@ impl InterpState {
         &self,
         observer: impl FnOnce(&Value) -> R,
     ) -> Result<R, tcl_syntax::value::ValueError> {
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol();
+        let protocol = self.actual_native_string_protocol();
         if protocol == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) {
             return Ok(self
                 .native_jim_object_context()?
@@ -3474,9 +3568,7 @@ impl InterpState {
     }
 
     pub(crate) fn reset_native_jim_result(&mut self) -> Result<(), tcl_syntax::value::ValueError> {
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol();
+        let protocol = self.actual_native_string_protocol();
         if protocol == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) {
             let context = self.native_jim_object_context()?;
             context.publish_result(&context.empty_object());
@@ -3505,9 +3597,7 @@ impl InterpState {
         &mut self,
         value: Value,
     ) -> Result<crate::NativeObjectLifetimeLease, tcl_syntax::value::ValueError> {
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol();
+        let protocol = self.actual_native_string_protocol();
         let lease = value.native_lifetime_lease();
         if protocol == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) {
             self.native_jim_object_context()?.publish_result(&value);
@@ -3530,8 +3620,7 @@ impl InterpState {
 
     pub(crate) fn set_native_c_return_state(&mut self, code: i32, level: i64) {
         if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+            .actual_native_string_protocol()
             .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
             .is_some()
         {
@@ -3617,11 +3706,7 @@ impl InterpState {
         {
             return Some(selected);
         }
-        let actual = self.actual_native_invocation_dialect();
-        let recipe = actual.native_name_protocol()?;
-        let policy =
-            tcl_syntax::naming::NamePolicyProtocol::for_native_point(actual.execution_point()?)?;
-        (policy.recipe() == recipe).then_some(policy)
+        self.actual_native_protocols().name_policy
     }
 
     /// Select compiler-local semantics independently of native name lookup.
@@ -3661,8 +3746,7 @@ impl InterpState {
             return Ok(bytes);
         }
         let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+            .actual_native_string_protocol()
             .ok_or(tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable)?;
         value.native_string_bytes_with_integer_formatter(
             protocol,
@@ -3852,6 +3936,7 @@ impl InterpState {
             framework_builtins: Vec::new(),
             active_native_profile: None,
             actual_engine_profile: None,
+            actual_protocols: std::cell::Cell::new(None),
             native_core_pin: None,
             jim_object_context: RefCell::new(None),
             native_c_result: RefCell::new(None),
@@ -3875,7 +3960,7 @@ impl InterpState {
             #[cfg(test)]
             actual_dictionary_search_entries: 0,
             ns_vars: HashMap::new(),
-            const_vars: HashSet::new(),
+            const_vars: rustc_hash::FxHashSet::default(),
             commands: HashMap::new(),
             name_world: Rc::new(RefCell::new(NativeNameWorld::new(owner, interpreter))),
             alias_registrations: NativeAliasRegistrationTable::default(),
@@ -4030,8 +4115,7 @@ impl Vm {
             })?,
             return_state: self.native_errors.native_c_return_state,
             stack: self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
+                .actual_native_string_protocol()
                 .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
                 .is_some_and(tcl_dialect::TclVersion::has_error_stack)
                 .then(|| self.native_errors.error_stack.clone()),
@@ -4269,9 +4353,7 @@ impl Vm {
                 .retire_ordinary_entry_observation();
         }
         if let Some(state) = self.st_of(id)
-            && state
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
+            && state.actual_native_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             let retired = {
@@ -5980,10 +6062,8 @@ impl Vm {
             world
                 .command_identity
                 .generations
-                .iter()
-                .find_map(|(name, candidate)| {
-                    (*candidate == generation).then(|| CommandSidecarKey::visible(name))
-                })
+                .key_of(generation)
+                .map(|name| CommandSidecarKey::visible(name))
         };
         let raw_key = live_key
             .or_else(|| {
@@ -7354,8 +7434,7 @@ impl Vm {
                 .borrow()
                 .command_identity
                 .generations
-                .values()
-                .any(|current| *current == token);
+                .is_bound(token);
             if !remains_bound {
                 self.note_jim_command_unpublished(token);
             }
@@ -7906,12 +7985,9 @@ impl Vm {
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "original alias defining interpreter",
                 ))?;
-        let defining_protocol = defining_state
-            .actual_native_invocation_dialect()
-            .native_name_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original alias defining physical name policy",
-            ))?;
+        let defining_protocol = defining_state.actual_native_name_protocol().ok_or(
+            ValueError::CommandProtocolUnavailable("original alias defining physical name policy"),
+        )?;
         if defining_protocol.is_jim084() {
             // Selected Jim publication admits cycles and reaches no loop worker.
             return Ok(false);
@@ -7956,12 +8032,11 @@ impl Vm {
                 )?;
                 let result = (|| {
                     let bytes = target.read(vm, target_operand)?;
-                    let protocol = vm
-                        .actual_native_invocation_dialect()
-                        .native_name_protocol()
-                        .ok_or(ValueError::CommandProtocolUnavailable(
+                    let protocol = vm.actual_native_name_protocol().ok_or(
+                        ValueError::CommandProtocolUnavailable(
                             "original alias target physical name policy",
-                        ))?;
+                        ),
+                    )?;
                     let selected_slot = protocol
                         .command_lookup_slot(tcl_syntax::naming::NativeNameContext::root(), &bytes)
                         .map_err(|_| {
@@ -12952,8 +13027,8 @@ impl Vm {
         world
             .command_identity
             .generations
-            .iter()
-            .find_map(|(key, generation)| (*generation == token).then(|| key.clone()))
+            .key_of(token)
+            .cloned()
             .or_else(|| {
                 world.ns_deferral.retained.values().find_map(|record| {
                     record
@@ -17977,12 +18052,11 @@ impl Vm {
     ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
         scope.check(self)?;
         let reached = if native_result {
-            let protocol = self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            let protocol = self.actual_native_string_protocol().ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original variable trace result String protocol",
-                ))?;
+                ),
+            )?;
             let objects = native_numeric_ops::OriginalNumericOps::in_original_scope(self, scope)?;
             objects.string(original, protocol)
         } else {
@@ -18519,9 +18593,7 @@ impl Vm {
             .check(self)
             .map_err(|error| self.original_name_cmd_error(error))?;
 
-        if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+        if self.actual_native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             let reached = self.prepare_native_jim_script_unit(
@@ -19078,6 +19150,15 @@ impl Vm {
         &mut self,
         command: crate::command::NativeProcedureCommand,
     ) -> Result<crate::command::PreparedProcedureActivation, TclError> {
+        self.ensure_proc_traced_with(command, None)
+    }
+
+    /// `current` is a body the caller has just selected for this declaration.
+    fn ensure_proc_traced_with(
+        &mut self,
+        command: crate::command::NativeProcedureCommand,
+        current: Option<CompiledUnit>,
+    ) -> Result<crate::command::PreparedProcedureActivation, TclError> {
         let proc = command.declaration();
         let Some(protocol) = tcl_registry::native_procedure::procedure_activation_protocol(
             self.actual_native_invocation_dialect(),
@@ -19105,7 +19186,7 @@ impl Vm {
                 proc.actual_namespace_context().context(),
             )?
             .with_source_location(proc.body_src.source_location())
-        } else if let Some(body) = self.current_native_procedure_body(&proc) {
+        } else if let Some(body) = current.or_else(|| self.current_native_procedure_body(&proc)) {
             body
         } else {
             let body = self
@@ -19217,23 +19298,26 @@ impl Vm {
             "native procedure activation issuer",
         ))?;
         self.require_original_jim_import_traversal(&proc)?;
+        let current = protocol
+            .retains_prepared_body()
+            .then(|| self.current_native_procedure_body(&proc))
+            .flatten();
         if protocol.retains_prepared_body()
-            && self.current_native_procedure_body(&proc).is_none()
+            && current.is_none()
             && protocol.recompilation_action(
                 NativeProcedureCompilationPurpose::CommandBody,
                 proc.native_reference_count(),
             ) == Some(NativeProcedureRecompileAction::ReplaceSharedDeclaration)
         {
-            let strings = self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            let strings = self.actual_native_string_protocol().ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "native procedure source duplication issuer",
-                ))?;
+                ),
+            )?;
             let replacement = proc.duplicate_for_native_recompilation(strings);
             command.replace_declaration(&replacement);
         }
-        self.ensure_proc_traced(command)
+        self.ensure_proc_traced_with(command, current)
     }
 
     // Frames.
@@ -22252,8 +22336,7 @@ impl Vm {
         }
         if !matches!(cell.state(), Local::Undefined)
             || !self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
+                .actual_native_string_protocol()
                 .is_some_and(|protocol| {
                     protocol
                         .tcl_version()
@@ -24161,9 +24244,7 @@ impl Vm {
             .existing_string_representation()
             .map(|text| text.to_string());
         self.native_invocation.original_name = Some(
-            if self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
+            if self.actual_native_string_protocol()
                 == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
             {
                 // Jim's invocation metadata borrows argv[0]. The active
@@ -24884,8 +24965,7 @@ impl Vm {
         {
             ErrorStackFrame::Call(Value::native_list_constructor(
                 frame.call_argv.iter().map(Value::clone).collect(),
-                self.actual_native_invocation_dialect()
-                    .native_string_protocol()
+                self.actual_native_string_protocol()
                     .expect("selected C error stack"),
             ))
         } else {
@@ -27781,9 +27861,7 @@ impl Vm {
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
         }
-        if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+        if self.actual_native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return self.eval_native_jim_source_bytes(src.as_bytes(), None);
@@ -28138,9 +28216,7 @@ impl Vm {
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
         }
-        if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+        if self.actual_native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return self.eval_native_jim_source_bytes(source.bytes(), location);
@@ -28277,9 +28353,7 @@ impl Vm {
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
         }
-        if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+        if self.actual_native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return self.eval_native_jim_source_bytes(src.as_bytes(), location);
@@ -28636,9 +28710,7 @@ impl Vm {
         value: &Value,
         purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
     ) -> Result<PreparedScript, TclError> {
-        if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+        if self.actual_native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return Ok(PreparedScript {

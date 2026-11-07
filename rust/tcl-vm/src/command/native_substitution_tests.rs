@@ -90,10 +90,7 @@ fn original_compiled_substitution_matches_counted_native_flags_and_completions()
     for (engine, rows) in SUBSTITUTION_OWNER_ROWS {
         for (source, input) in inputs.iter().enumerate() {
             let mut vm = actual(engine);
-            let protocol = vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = vm.actual_native_string_protocol().unwrap();
             let original = Value::new_native_string_bytes(decode(input).as_slice());
             for flags in (0..=7).rev() {
                 for label in ["ROOT", "ROOT_REPEAT"] {
@@ -217,11 +214,8 @@ fn original_substitution_changes_namespace_and_borrowed_local_cache_without_proc
         let q_cache = original.native_substitution_cache().unwrap();
         assert!(!Rc::ptr_eq(&p_cache, &q_cache));
         assert_ne!(p_cache.substitution_layout, q_cache.substitution_layout);
-        let duplicate = original.duplicate_native_object_in(
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
-        );
+        let duplicate =
+            original.duplicate_native_object_in(vm.actual_native_string_protocol().unwrap());
         assert_eq!(duplicate.native_object_type_name(), "none");
         assert!(duplicate.native_substitution_cache().is_none());
     }

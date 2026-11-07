@@ -293,11 +293,7 @@ mod tests {
                 assert_eq!(
                     result
                         .result
-                        .native_string_bytes(
-                            vm.actual_native_invocation_dialect()
-                                .native_string_protocol()
-                                .unwrap()
-                        )
+                        .native_string_bytes(vm.actual_native_string_protocol().unwrap())
                         .unwrap()
                         .as_ref(),
                     hex(fields[5]).as_slice(),

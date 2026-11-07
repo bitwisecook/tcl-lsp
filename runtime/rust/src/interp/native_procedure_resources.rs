@@ -541,7 +541,7 @@ impl ProcDef {
             return Ok(false);
         };
         if selected != Some(self.body.checked_ptr()?)
-            || actual.native_invocation_dialect().native_string_protocol()
+            || actual.invocation_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

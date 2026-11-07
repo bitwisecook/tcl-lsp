@@ -60,10 +60,7 @@ fn original_numeric_search_sort_public_predicates_match_independent_native645_an
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
-        let protocol = ops
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = ops.invocation_string_protocol().unwrap();
         let originals = row.input.map(make);
         let members = originals[..2].iter().flatten().copied().collect::<Vec<_>>();
         // Original fresh-zero children are owned only by this constructor List.

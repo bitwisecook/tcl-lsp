@@ -155,7 +155,7 @@ impl Interp {
     }
 
     pub(super) fn child_eval_original(&mut self, name: &[u8], arguments: &[*mut TclObj]) -> Code {
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return self.eval_original_jim_child(name, arguments);
@@ -1077,10 +1077,7 @@ mod completion_capture_tests {
             let head = obj::Owned::fresh(obj::new_string_bytes(b"original_metadata"));
             let script = obj::Owned::fresh(crate::list::new_list_obj_native(
                 &[head.as_ptr(), original.as_ptr()],
-                parent
-                    .native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap(),
+                parent.invocation_string_protocol().unwrap(),
             ));
             parent.set_result_bytes(b"PARENT RESULT\0\xff");
             let prior = parent.result_obj();

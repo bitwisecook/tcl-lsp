@@ -56,10 +56,7 @@ fn assert_row(
         "{label}"
     );
     assert_eq!(same, fields[2] == "1", "{label}");
-    let protocol = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-        .unwrap();
+    let protocol = vm.actual_native_string_protocol().unwrap();
     assert_eq!(
         result
             .result

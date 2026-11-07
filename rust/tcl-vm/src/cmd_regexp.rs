@@ -341,12 +341,9 @@ impl core_re::NativeRegsubObjects for Vm {
     }
     fn regex_duplicate(&mut self, value: &Value) -> Result<Value, tcl_syntax::value::ValueError> {
         value.check_native_header()?;
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "actual regsub duplicate",
-            ))?;
+        let protocol = self.actual_native_string_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("actual regsub duplicate"),
+        )?;
         Ok(value.duplicate_native_object_in(protocol))
     }
     fn regex_members(

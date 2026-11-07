@@ -53,6 +53,14 @@ pub(super) enum NativeOperationEntry {
 }
 
 impl NativeOperationEntry {
+    /// Release currency proves only refusal; a caller that has just checked
+    /// refusal needs no further proof for its own interpreter's entry.
+    fn current_without_proof(&self, interpreter: &Interp) -> bool {
+        !crate::VERIFY_CURRENCY
+            && matches!(self, Self::Current(currency)
+                if std::ptr::eq(Weak::as_ptr(&currency.interpreter), Rc::as_ptr(&interpreter.0)))
+    }
+
     fn check(&self, interpreter: &Interp) -> Result<(), NativeExecutionError> {
         match self {
             Self::Current(currency) => currency.ensure_current_or_refuse(),
@@ -122,8 +130,27 @@ fn unavailable() -> NativeExecutionError {
     ))
 }
 
+enum Issued {
+    Inherited(Rc<NativeOperationCurrency>),
+    Fresh(NativeOperationCurrency),
+}
+
 impl NativeOperationCurrency {
     pub(crate) fn issue(interpreter: &Interp) -> Result<Self, NativeExecutionError> {
+        Ok(match Self::issue_entered(interpreter)? {
+            Issued::Inherited(currency) => currency.as_ref().clone(),
+            Issued::Fresh(currency) => currency,
+        })
+    }
+
+    fn issue_shared(interpreter: &Interp) -> Result<Rc<Self>, NativeExecutionError> {
+        Ok(match Self::issue_entered(interpreter)? {
+            Issued::Inherited(currency) => currency,
+            Issued::Fresh(currency) => Rc::new(currency),
+        })
+    }
+
+    fn issue_entered(interpreter: &Interp) -> Result<Issued, NativeExecutionError> {
         if let Some(first) = interpreter.native_execution_refusal() {
             return Err(first);
         }
@@ -135,9 +162,11 @@ impl NativeOperationCurrency {
             .last()
             .cloned();
         if let Some(inherited) = inherited {
-            inherited.check(interpreter)?;
+            if !inherited.current_without_proof(interpreter) {
+                inherited.check(interpreter)?;
+            }
             return match inherited.as_ref() {
-                NativeOperationEntry::Current(currency) => Ok(currency.as_ref().clone()),
+                NativeOperationEntry::Current(currency) => Ok(Issued::Inherited(currency.clone())),
                 NativeOperationEntry::RefusedCleanup(first) => Err(first.clone()),
             };
         }
@@ -154,7 +183,7 @@ impl NativeOperationCurrency {
             epoch,
         };
         receipt.ensure_current()?;
-        Ok(receipt)
+        Ok(Issued::Fresh(receipt))
     }
 
     pub(crate) fn ensure_current(&self) -> Result<(), NativeExecutionError> {
@@ -270,11 +299,11 @@ impl NativeSavedCleanupScope {
 
 impl NativeOperationScope {
     pub(crate) fn enter(interpreter: &Interp) -> Result<Self, NativeExecutionError> {
-        let currency = Rc::new(NativeOperationCurrency::issue(interpreter)?);
-        currency.ensure_current_or_refuse()?;
-        let pool = if interpreter
-            .native_invocation_dialect()
-            .native_string_protocol()
+        let currency = NativeOperationCurrency::issue_shared(interpreter)?;
+        if crate::VERIFY_CURRENCY {
+            currency.ensure_current_or_refuse()?;
+        }
+        let pool = if interpreter.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             Some(
@@ -323,9 +352,7 @@ impl NativeOperationScope {
         saved.ensure_target(interpreter)?;
         let current = saved.check(interpreter);
         let pool = if current.is_ok()
-            && interpreter
-                .native_invocation_dialect()
-                .native_string_protocol()
+            && interpreter.invocation_string_protocol()
                 == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             interpreter
@@ -446,8 +473,17 @@ impl Interp {
         if let Some(first) = self.native_execution_refusal() {
             return Err(first);
         }
-        let entered = self.entered_native_operations.borrow().last().cloned();
-        entered.map_or(Ok(()), |entry| entry.check(self))
+        let entered = {
+            let entered = self.entered_native_operations.borrow();
+            let Some(entry) = entered.last() else {
+                return Ok(());
+            };
+            if entry.current_without_proof(self) {
+                return Ok(());
+            }
+            entry.clone()
+        };
+        entered.check(self)
     }
 }
 

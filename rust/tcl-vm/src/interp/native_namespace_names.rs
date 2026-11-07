@@ -403,9 +403,7 @@ impl Vm {
         let Some(path) = world.ns_arena.get(namespace.0 as usize) else {
             return false;
         };
-        if self
-            .actual_native_invocation_dialect()
-            .native_name_protocol()
+        if self.actual_native_name_protocol()
             == Some(tcl_syntax::naming::NativeNameProtocol::Jim084)
         {
             // Jim publishes an original namespace object holder, independently

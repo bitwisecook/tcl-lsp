@@ -66,11 +66,8 @@ fn level_reference_reselects_current_frames_in_thirty_native_windows() {
         compare_level_reference(&mut vm, &original, records.next().unwrap());
         other.push_call_frame(None, vec![]);
         compare_level_reference(&mut other, &original, records.next().unwrap());
-        let duplicate = original.duplicate_native_object_in(
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
-        );
+        let duplicate =
+            original.duplicate_native_object_in(vm.actual_native_string_protocol().unwrap());
         drop(original);
         compare_level_reference(&mut other, &duplicate, records.next().unwrap());
         assert!(records.next().is_none());

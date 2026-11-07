@@ -130,10 +130,7 @@ fn namespace_stores_match_native_existing_root_fresh_and_declared_controls() {
                 fields[2].parse::<i64>().unwrap(),
                 "{engine}/{label}: {result:?}"
             );
-            let protocol = vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = vm.actual_native_string_protocol().unwrap();
             assert_eq!(
                 result
                     .result

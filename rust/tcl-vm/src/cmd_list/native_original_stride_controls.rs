@@ -37,10 +37,7 @@ fn original_stride_guest_and_header_predicates_match_native644() {
     for row in ROWS {
         let mut ops =
             crate::native_fixture::core(crate::environment::profile_for_dialect(row.dialect));
-        let protocol = ops
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = ops.actual_native_string_protocol().unwrap();
         let stride = word(&unhex(row.stride));
         let container =
             Value::native_list_constructor(Vec::new(), protocol).into_native_reference();

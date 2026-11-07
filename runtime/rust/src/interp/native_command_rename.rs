@@ -138,10 +138,7 @@ impl Interp {
     ) -> Result<Vec<u8>, ValueError> {
         let unavailable =
             || ValueError::CommandProtocolUnavailable("alias rename diagnostic binding");
-        let recipe = self
-            .native_invocation_dialect()
-            .native_name_protocol()
-            .ok_or_else(unavailable)?;
+        let recipe = self.invocation_name_protocol().ok_or_else(unavailable)?;
         let namespaces = self.namespaces.borrow();
         let current = self.current_ns();
         let generation = namespaces

@@ -1076,8 +1076,7 @@ fn invokehidden_in_original(
 ) -> Code {
     use tcl_syntax::naming::NativeHiddenInvocationOption;
     let Some(grammar) = interp
-        .native_invocation_dialect()
-        .native_name_protocol()
+        .invocation_name_protocol()
         .and_then(|protocol| protocol.hidden_invocation_grammar().ok())
     else {
         return interp.report_cmd_error(

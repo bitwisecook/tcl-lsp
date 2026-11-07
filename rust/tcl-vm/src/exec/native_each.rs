@@ -118,9 +118,7 @@ impl Vm {
         auxiliary: &std::sync::Arc<NativeEachAuxiliary>,
         collect: bool,
     ) -> Tick {
-        let actual = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol();
+        let actual = self.actual_native_string_protocol();
         if actual != Some(NativeStringProtocol::C(auxiliary.version)) {
             return Tick::Return(
                 self.refuse_host_command("foreign compiled foreach issuer".into()),
@@ -423,10 +421,7 @@ mod tests {
                     "{}/{label}: {completion:?}",
                     profile.name
                 );
-                let strings = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let strings = vm.actual_native_string_protocol().unwrap();
                 assert_eq!(
                     completion
                         .result

@@ -325,10 +325,7 @@ fn original_jim_static_duplicate_cleanup_retires_only_fresh_unbound_cells() {
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Same original List children and copied member references; failed install discards both fresh cells.
     let mut vm = native("jim");
-    let protocol = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-        .unwrap();
+    let protocol = vm.actual_native_string_protocol().unwrap();
     let first = Value::new_native_string_bytes(b"FIRST".as_slice());
     let second = Value::new_native_string_bytes(b"SECOND".as_slice());
     let specifier = |value: Value| {

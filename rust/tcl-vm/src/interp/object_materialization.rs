@@ -129,8 +129,7 @@ impl crate::Vm {
         if value.is_native_compound() {
             self.object_protocol()
         } else {
-            self.actual_native_invocation_dialect()
-                .native_string_protocol()
+            self.actual_native_string_protocol()
         }
     }
 
@@ -240,11 +239,7 @@ mod tests {
         assert_eq!(vm.list_len(&list), Ok(1));
         assert!(vm.list_elements(&list).unwrap()[0].is_same_object(&member));
         vm.set_dialect_profile(unknown_jim());
-        assert!(
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol()
-                .is_some()
-        );
+        assert!(vm.actual_native_string_protocol().is_some());
         assert!(vm.object_materialization().is_none());
         assert!(vm.list_len(&member).is_err());
         assert!(vm.list_elements(&member).is_err());

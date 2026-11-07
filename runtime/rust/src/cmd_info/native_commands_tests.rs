@@ -110,10 +110,7 @@ fn original_info_commands_matches_all_110_native_pattern_object_windows() {
             }
             let members = crate::list::list_elements_native_checked(
                 interp.result_obj(),
-                interp
-                    .native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap(),
+                interp.invocation_string_protocol().unwrap(),
             )
             .unwrap();
             assert_eq!(members.len().to_string(), fields[4], "{row}");

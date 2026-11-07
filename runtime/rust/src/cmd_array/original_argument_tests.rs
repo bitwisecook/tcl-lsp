@@ -71,10 +71,7 @@ fn text(bytes: &[u8]) -> Owned {
 fn list(interp: &Interp, members: &[*mut TclObj]) -> Owned {
     Owned::fresh(crate::list::new_list_obj_native(
         members,
-        interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap(),
+        interp.invocation_string_protocol().unwrap(),
     ))
 }
 fn reset(mode: u8, refusal: u8, payloads: &[(u8, &[u8])]) {
@@ -566,10 +563,7 @@ fn original_jim_array_set_existing_dictionary_checks_each_reached_key_and_retire
         // Convert the exact actual borrowed variable root to Dictionary first.
         crate::dict::ensure_dict_native(
             seed.as_ptr(),
-            interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
+            interp.invocation_string_protocol().unwrap(),
         )
         .unwrap();
         drop(seed);

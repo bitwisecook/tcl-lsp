@@ -75,10 +75,7 @@ fn original_option_backing_withdrawal_stops_later_coordinate_without_protective_
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
-        let protocol = ops
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = ops.invocation_string_protocol().unwrap();
         let first = obj::Owned::fresh(obj::alloc_typed(&FIRST, 0));
         let last = obj::Owned::fresh(obj::alloc_typed(&LAST, 0));
         let path = obj::Owned::fresh(list::new_list_obj_native(

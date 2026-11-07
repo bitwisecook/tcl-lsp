@@ -220,7 +220,7 @@ mod imp {
             Err(error) => return interp.report_cmd_error(error),
         };
         let name = interp.namespaces().command_fqn_at(slot.0, &slot.1);
-        let Some(protocol) = interp.native_invocation_dialect().native_string_protocol() else {
+        let Some(protocol) = interp.invocation_string_protocol() else {
             return interp.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original coroutine invocation List",
@@ -368,7 +368,7 @@ mod imp {
                     b"TCL COROUTINE YIELDTO_IN_DELETED",
                 );
             }
-            let Some(protocol) = interp.native_invocation_dialect().native_string_protocol() else {
+            let Some(protocol) = interp.invocation_string_protocol() else {
                 return interp.report_cmd_error(
                     tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "original yieldto List issuer",
@@ -755,7 +755,7 @@ fn yieldto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"TCL COROUTINE YIELDTO_IN_DELETED",
         );
     }
-    let Some(protocol) = interp.native_invocation_dialect().native_string_protocol() else {
+    let Some(protocol) = interp.invocation_string_protocol() else {
         return interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "original yieldto invocation List",
@@ -813,12 +813,11 @@ fn original_prefix(
     interp: &mut Interp,
     argv: &[*mut TclObj],
 ) -> Result<imp::OriginalHandoff, tcl_syntax::value::ValueError> {
-    let protocol = interp
-        .native_invocation_dialect()
-        .native_string_protocol()
-        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+    let protocol = interp.invocation_string_protocol().ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "original coroutine prefix List issuer",
-        ))?;
+        ),
+    )?;
     Ok(imp::OriginalHandoff(obj::Owned::fresh(
         crate::list::new_list_obj_native(argv, protocol),
     )))
@@ -904,7 +903,7 @@ pub(crate) fn coro_resume_command(interp: &mut Interp, argv: &[*mut TclObj]) -> 
         );
     };
     let value = if imp::yielded_to(interp, name) {
-        let Some(protocol) = interp.native_invocation_dialect().native_string_protocol() else {
+        let Some(protocol) = interp.invocation_string_protocol() else {
             return interp.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original coroutine resume List",

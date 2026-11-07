@@ -183,10 +183,7 @@ mod tests {
             fields[1].parse::<i64>().unwrap(),
             "{label}: {result:?}"
         );
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         let actual = result.result.native_string_bytes(protocol).unwrap();
         let observed = if label.ends_with("_OBJECT_VARS_AFTER_STATIC")
             || label.ends_with("_OBJECT_VARS_AFTER_DYNAMIC")

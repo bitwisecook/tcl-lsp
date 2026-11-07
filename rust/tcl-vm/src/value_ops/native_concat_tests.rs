@@ -21,10 +21,7 @@ use crate::{interp::Vm, value::Value};
 use tcl_syntax::value::ValueOps;
 include!("../../../tcl-cmd-core/tests/data/native_concat/cases.rs");
 fn original(vm: &mut Vm, input: Input) -> Value {
-    let protocol = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-        .unwrap();
+    let protocol = vm.actual_native_string_protocol().unwrap();
     match input {
         Input::Bytes(bytes) => Value::new_native_string_bytes(bytes),
         Input::List(members) | Input::Rendered(members) => {
@@ -66,10 +63,7 @@ fn original_concat_matches_all_twenty_native_windows_per_engine() {
         let mut vm = crate::native_fixture::core(
             tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
         );
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         for case in 0..20 {
             let input = inputs(case);
             let values: Vec<_> = input.iter().map(|&item| original(&mut vm, item)).collect();
@@ -201,10 +195,7 @@ fn string_concat_does_not_issue_a_canonical_list_guarantee() {
         ];
         let result = tcl_cmd_core::list::concat_selected(&mut vm, &values).unwrap();
         assert_eq!(&*vm.native_concat_string_bytes(&result).unwrap(), b"{ foo");
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         let parsed = vm.native_object_list_elements_in(&result, protocol);
         if protocol.is_jim084() {
             assert_eq!(parsed.unwrap().elements().unwrap().len(), 1);

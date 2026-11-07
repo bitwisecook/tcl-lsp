@@ -530,8 +530,7 @@ impl Interp {
 
     fn native_default_error_code(&self, bytes: &[u8]) -> obj::Owned {
         let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .expect("native private error code issuer");
         let words = tcl_syntax::list::split_native_list_bytes(bytes, protocol)
             .expect("structured native error classification list");

@@ -40,8 +40,7 @@ pub fn install(interp: &mut Interp) {
         interp.register_stock_builtin(&full, mathop);
     }
     if interp
-        .native_invocation_dialect()
-        .native_string_protocol()
+        .invocation_string_protocol()
         .and_then(|protocol| protocol.tcl_version())
         .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5)
     {

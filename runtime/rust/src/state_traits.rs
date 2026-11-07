@@ -453,12 +453,11 @@ impl VarStore for Interp {
         if self.variable_container_model() == tcl_dialect::VariableContainerModel::DictionaryValue {
             return native_dictionary_array_pairs(self, target)?
                 .map(|pairs| {
-                    let protocol = self
-                        .native_invocation_dialect()
-                        .native_string_protocol()
-                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    let protocol = self.invocation_string_protocol().ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                             "variable container",
-                        ))?;
+                        ),
+                    )?;
                     pairs
                         .into_iter()
                         .map(|(key, _)| crate::dict::native_object_bytes(key, protocol))
@@ -514,12 +513,9 @@ impl VarStore for Interp {
                     tcl_runtime_api::ArrayInvalidation::Unset,
                 ));
             };
-            let protocol = self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "variable container",
-                ))?;
+            let protocol = self.invocation_string_protocol().ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable("variable container"),
+            )?;
             for (name, value) in pairs {
                 if crate::dict::native_object_bytes(name, protocol)? == key {
                     tcl_syntax::value::ValueOps::pin_value(self, &value);
@@ -624,8 +620,7 @@ fn native_dictionary_array_pairs(
         return Ok(None);
     };
     let protocol = interp
-        .native_invocation_dialect()
-        .native_string_protocol()
+        .invocation_string_protocol()
         .filter(|protocol| protocol.is_jim084())
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "Jim dictionary array",
@@ -711,12 +706,9 @@ impl Procs for Interp {
         &self,
         name: &[u8],
     ) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
-        let protocol = self
-            .native_invocation_dialect()
-            .native_name_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "formal introspection",
-            ))?;
+        let protocol = self.invocation_name_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("formal introspection"),
+        )?;
         Ok(protocol
             .formal_enumeration_name_input(name)
             .selected()
@@ -762,12 +754,9 @@ impl Procs for Interp {
         &self,
         name: &[u8],
     ) -> Result<Option<Self::Value>, tcl_syntax::value::ValueError> {
-        let protocol = self
-            .native_invocation_dialect()
-            .native_name_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "formal introspection",
-            ))?;
+        let protocol = self.invocation_name_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("formal introspection"),
+        )?;
         if !protocol.is_jim084() {
             return Ok(None);
         }

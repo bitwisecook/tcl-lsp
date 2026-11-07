@@ -249,11 +249,7 @@ fn capture_namespace(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 pub(crate) fn jim_fixture_namespace(interpreter: &mut Interp, name: &[u8]) -> JimFixtureNamespace {
-    assert!(interpreter
-        .native_invocation_dialect()
-        .native_name_protocol()
-        .unwrap()
-        .is_jim084());
+    assert!(interpreter.invocation_name_protocol().unwrap().is_jim084());
     CAPTURED_NAMESPACE.with(|captured| captured.borrow_mut().take());
     let _cleanup = FixtureCleanup(|| {
         CAPTURED_NAMESPACE.with(|captured| captured.borrow_mut().take());

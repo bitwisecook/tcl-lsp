@@ -623,9 +623,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 _ => err("no library has been specified for Tcl"),
             },
             "script"
-                if vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
+                if vm.actual_native_string_protocol()
                     == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) =>
             {
                 if rest.len() > 1 {
@@ -1180,12 +1178,7 @@ mod tests {
         );
         let mut unavailable = Vm::without_native_engine();
         unavailable.set_dialect_profile(actual);
-        assert!(
-            unavailable
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .is_none()
-        );
+        assert!(unavailable.actual_native_string_protocol().is_none());
         assert!(
             unavailable
                 .try_invoke_command("info", &[Value::string("loaded"), Value::string("")])

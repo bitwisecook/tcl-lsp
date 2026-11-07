@@ -213,8 +213,7 @@ fn objects(
 ) -> Result<PrivateObjects, CmdError> {
     let arguments = OriginalArguments::enter(interpreter, &[result, source])?;
     let protocol = interpreter
-        .native_invocation_dialect()
-        .native_string_protocol()
+        .invocation_string_protocol()
         .filter(|protocol| protocol.tcl_version().is_some())
         .ok_or(ValueError::CommandProtocolUnavailable(
             "private original C append issuer",

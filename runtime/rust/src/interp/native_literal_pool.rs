@@ -1076,10 +1076,7 @@ mod tests {
     fn private_list_members_are_fresh_originals_not_global_string_registrations() {
         for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut interp = interp(version);
-            let protocol = interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = interp.invocation_string_protocol().unwrap();
             let source = obj::Owned::fresh(obj::new_string_bytes(b"source"));
             let array = interp
                 .create_native_literal_array(

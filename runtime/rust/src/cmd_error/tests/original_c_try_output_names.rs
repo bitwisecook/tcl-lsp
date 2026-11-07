@@ -70,10 +70,7 @@ fn original_c_try_retains_selected_handler_member_names_and_validates_before_bod
                 Owned::fresh(obj::new_wide_int_obj(777)),
                 Owned::fresh(obj::new_wide_int_obj(888)),
             ];
-            let protocol = actual
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = actual.invocation_string_protocol().unwrap();
             let vars = Owned::fresh(if mode == 4 {
                 obj::new_string_bytes(b"{")
             } else {

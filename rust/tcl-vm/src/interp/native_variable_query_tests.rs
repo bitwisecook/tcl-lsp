@@ -28,10 +28,7 @@ fn compare_queries(engine: &str, observation: &str) {
         .unwrap();
     assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
     assert!(vm.refused_completion().is_none(), "{engine}");
-    let protocol = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-        .unwrap();
+    let protocol = vm.actual_native_string_protocol().unwrap();
     let bytes = completion.result.native_string_bytes(protocol).unwrap();
     let actual = std::str::from_utf8(bytes.as_ref()).unwrap();
     let (actual_identity, actual_queries) = actual.split_once('\n').unwrap();

@@ -95,6 +95,24 @@ impl JimAllocationScope {
         }
     }
 }
+impl JimAllocationScope {
+    pub(crate) fn is_unpooled(&self) -> bool {
+        UNPOOLED.with(|unpooled| Rc::ptr_eq(&self._owner.0, unpooled))
+    }
+
+    /// Whether the innermost entered allocator is the shared unpooled entry,
+    /// so entering another unpooled scope would change nothing.
+    pub(crate) fn innermost_is_unpooled() -> bool {
+        ENTERED
+            .try_with(|stack| {
+                stack
+                    .borrow()
+                    .last()
+                    .is_some_and(|top| UNPOOLED.with(|unpooled| Rc::ptr_eq(top, unpooled)))
+            })
+            .unwrap_or(false)
+    }
+}
 impl Drop for ScopeOwner {
     fn drop(&mut self) {
         // During thread exit the stack may already be destroyed; then there

@@ -60,9 +60,7 @@ impl OriginalAuthoredOperandScope {
             entered,
             names,
             host: vm.host_rc(),
-            strings: vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol(),
+            strings: vm.actual_native_string_protocol(),
             objects,
         };
         original.check(vm)?;

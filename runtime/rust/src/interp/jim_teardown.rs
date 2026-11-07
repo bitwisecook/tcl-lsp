@@ -158,7 +158,7 @@ impl JimInterpreterTeardown for Interp {
 impl Drop for Interp {
     fn drop(&mut self) {
         if Rc::strong_count(&self.0) == 1
-            && self.native_invocation_dialect().native_string_protocol()
+            && self.invocation_string_protocol()
                 == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             self.retire_jim_interpreter();

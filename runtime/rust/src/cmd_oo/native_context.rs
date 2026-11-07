@@ -594,8 +594,7 @@ impl Interp {
                 let value = obj::Owned::fresh(obj::new_string_bytes(bytes));
                 if alive {
                     if let Some(protocol) = self
-                        .native_invocation_dialect()
-                        .native_string_protocol()
+                        .invocation_string_protocol()
                         .filter(|protocol| protocol.tcl_version().is_some())
                     {
                         obj::set_native_append_string(

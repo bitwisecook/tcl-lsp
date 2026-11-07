@@ -181,10 +181,7 @@ mod tests {
                     native[1].parse::<i64>().unwrap(),
                     "{engine}/{label}"
                 );
-                let protocol = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = vm.actual_native_string_protocol().unwrap();
                 assert_bytes(&completion, &native, protocol, (engine, label, "bytes"));
                 comparisons += 1;
                 if completion.code == tcl_core_types::Code::Ok {

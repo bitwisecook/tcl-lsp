@@ -92,10 +92,7 @@ fn original_try_vectors_keep_native_handler_bindings_and_finally_completion() {
                 Code::from_int(fields[1].parse().unwrap()),
                 "{name}/{label}: {completion:?}"
             );
-            let protocol = vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = vm.actual_native_string_protocol().unwrap();
             assert_eq!(
                 completion
                     .result

@@ -1036,12 +1036,9 @@ fn snapshot_value(interp: &Interp, original: *mut TclObj) -> Result<Value, Engin
         Cache::List {
             canonical: true, ..
         } => {
-            let protocol = interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or_else(|| {
-                    EngineError::ExecutionRefusal("native List snapshot issuer unavailable".into())
-                })?;
+            let protocol = interp.invocation_string_protocol().ok_or_else(|| {
+                EngineError::ExecutionRefusal("native List snapshot issuer unavailable".into())
+            })?;
             if crate::list::native_string_protocol(original) != Some(protocol) {
                 return Err(EngineError::ExecutionRefusal(
                     "foreign native List snapshot issuer".into(),
@@ -1057,14 +1054,11 @@ fn snapshot_value(interp: &Interp, original: *mut TclObj) -> Result<Value, Engin
             )
         }
         Cache::Dictionary { .. } => {
-            let protocol = interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or_else(|| {
-                    EngineError::ExecutionRefusal(
-                        "native Dictionary snapshot issuer unavailable".into(),
-                    )
-                })?;
+            let protocol = interp.invocation_string_protocol().ok_or_else(|| {
+                EngineError::ExecutionRefusal(
+                    "native Dictionary snapshot issuer unavailable".into(),
+                )
+            })?;
             if crate::dict::native_string_protocol(original) != Some(protocol) {
                 return Err(EngineError::ExecutionRefusal(
                     "foreign native Dictionary snapshot issuer".into(),

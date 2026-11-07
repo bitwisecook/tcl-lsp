@@ -263,10 +263,7 @@ fn captured_compatibility_dictionary_copy_keeps_original_and_new_owned_members()
     reset(0);
     let mut interp = native();
     let _current = Current::enter(&mut interp);
-    let protocol = interp
-        .native_invocation_dialect()
-        .native_string_protocol()
-        .unwrap();
+    let protocol = interp.invocation_string_protocol().unwrap();
     let key = Owned::fresh(obj::new_string_bytes(b"k"));
     let old = Owned::fresh(obj::new_string_bytes(b"OLD"));
     let root = Owned::fresh(

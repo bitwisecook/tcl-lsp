@@ -92,11 +92,7 @@ fn original_c84_search_long_results_preserve_wide_operands_and_true_list_member_
     )
     .unwrap_or_else(|error| panic!("C84 search failed: {:?}", error.message));
     let members = searched
-        .native_object_list_elements(
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
-        )
+        .native_object_list_elements(vm.actual_native_string_protocol().unwrap())
         .unwrap();
     assert_eq!(members.len(), 1);
     assert_eq!(

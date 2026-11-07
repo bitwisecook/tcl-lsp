@@ -48,7 +48,7 @@ fn name_key(vm: &mut OriginalPackage<'_>, operand: &Value) -> Result<NameBytes, 
             tcl_dialect::TclVersion::V8_4,
         ))
     } else {
-        vm.actual_native_invocation_dialect().native_name_protocol()
+        vm.actual_native_name_protocol()
     }) else {
         return Err(vm.refuse_host_command("package name policy is unavailable".to_owned()));
     };
@@ -2580,10 +2580,7 @@ mod tests {
                 fields[0],
                 fields[1]
             );
-            let strings = vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let strings = vm.actual_native_string_protocol().unwrap();
             assert_eq!(
                 completion
                     .result
@@ -2692,10 +2689,7 @@ mod tests {
                     fields[2],
                     "{engine} {name}"
                 );
-                let strings = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let strings = vm.actual_native_string_protocol().unwrap();
                 assert_eq!(
                     completion
                         .result

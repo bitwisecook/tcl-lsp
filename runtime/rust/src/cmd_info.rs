@@ -567,7 +567,7 @@ fn info_cmd_original(
             Code::Ok
         }
         b"script" => {
-            if interp.native_invocation_dialect().native_string_protocol()
+            if interp.invocation_string_protocol()
                 == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
             {
                 if argv.len() > 3 {

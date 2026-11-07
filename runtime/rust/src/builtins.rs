@@ -520,7 +520,7 @@ fn incr_original(
         return c;
     }
     if let Some(amount) = legacy_amount {
-        if interp.native_invocation_dialect().native_string_protocol()
+        if interp.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return interp.increment_native_jim_original(argv[1], amount);
@@ -872,8 +872,7 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let last = argv[argv.len() - 1];
     if interp
-        .native_invocation_dialect()
-        .native_string_protocol()
+        .invocation_string_protocol()
         .is_some_and(|protocol| protocol.is_jim084())
     {
         let flags = u8::from(!flags.vars)

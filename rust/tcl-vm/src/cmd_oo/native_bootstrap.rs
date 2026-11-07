@@ -286,10 +286,7 @@ fn names(vm: &Vm, values: &BTreeSet<String>) -> Vec<NameBytes> {
 }
 
 pub(super) fn capture(vm: &Vm, entry: &NativeCompilationEntry) -> Option<NativeOoClassInventory> {
-    let version = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()?
-        .tcl_version()?;
+    let version = vm.actual_native_string_protocol()?.tcl_version()?;
     if version < tcl_dialect::TclVersion::V8_6 || !entry.closed {
         return None;
     }

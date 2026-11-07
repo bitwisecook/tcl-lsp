@@ -545,8 +545,7 @@ impl Vm {
         // Cross-interpreter original object sharing is selected explicitly.
         // Jim original objects carry interpreter contexts and are not donated.
         if !self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+            .actual_native_string_protocol()
             .is_some_and(|protocol| {
                 matches!(
                     protocol,

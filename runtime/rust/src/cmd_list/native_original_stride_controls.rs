@@ -45,10 +45,7 @@ fn original_stride_guest_and_header_predicates_match_native644() {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
-        let protocol = ops
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = ops.invocation_string_protocol().unwrap();
         let stride = obj::Owned::fresh(obj::new_string_bytes(&unhex(row.stride)));
         let container = obj::Owned::fresh(list::new_list_obj_native(&[], protocol));
         let name = obj::Owned::fresh(obj::new_string_bytes(if row.case < 9 {

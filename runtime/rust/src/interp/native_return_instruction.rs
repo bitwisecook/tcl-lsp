@@ -945,10 +945,7 @@ mod original_syntax_transport_tests {
                     let parent = state.parent.get();
                     obj::change_type(parent, core::ptr::null(), 0);
                     unsafe { obj::set_string_rep(parent, b"RESTORED MEMBERS") };
-                    let protocol = interpreter
-                        .native_invocation_dialect()
-                        .native_string_protocol()
-                        .unwrap();
+                    let protocol = interpreter.invocation_string_protocol().unwrap();
                     crate::list::list_elements_native_checked(parent, protocol).unwrap();
                 }
                 _ => {}
@@ -1320,10 +1317,7 @@ mod original_syntax_transport_tests {
                 let (old, arm, updates, frees, references, _) = original(&interpreter, mode, true);
                 interpreter.set_original_c_error_code(old.as_ptr()).unwrap();
                 drop(old);
-                let strings = interpreter
-                    .native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let strings = interpreter.invocation_string_protocol().unwrap();
                 let key = Owned::fresh(obj::new_string_bytes(b"-errorcode"));
                 let code = Owned::fresh(obj::new_string_bytes(b"SOURCE SYNTAX CODE"));
                 let options = Owned::fresh(
@@ -1438,10 +1432,7 @@ mod original_syntax_transport_tests {
                 crate::counters::reset();
                 {
                     let interpreter = native(name);
-                    let strings = interpreter
-                        .native_invocation_dialect()
-                        .native_string_protocol()
-                        .unwrap();
+                    let strings = interpreter.invocation_string_protocol().unwrap();
                     let (old, arm, updates, frees, references, parent) =
                         original(&interpreter, mode, true);
                     let tag = Owned::fresh(obj::new_string_bytes(b"INNER"));
@@ -1513,10 +1504,7 @@ mod original_syntax_transport_tests {
                     crate::counters::reset();
                     {
                         let mut interpreter = native(name);
-                        let strings = interpreter
-                            .native_invocation_dialect()
-                            .native_string_protocol()
-                            .unwrap();
+                        let strings = interpreter.invocation_string_protocol().unwrap();
                         let (value, arm, updates, frees, references, _) =
                             original(&interpreter, mode, true);
                         let spelling: &[u8] = if operation == 0 {
@@ -1728,10 +1716,7 @@ mod original_syntax_transport_tests {
                     assert_eq!(interpreter.get_obj_result(), prior);
                     if mode == 7 {
                         let options = Owned::fresh(reached.unwrap());
-                        let strings = interpreter
-                            .native_invocation_dialect()
-                            .native_string_protocol()
-                            .unwrap();
+                        let strings = interpreter.invocation_string_protocol().unwrap();
                         let pairs =
                             crate::dict::native_dict_pairs(options.as_ptr(), strings).unwrap();
                         assert!(pairs.iter().any(|&(original_key, original_value)| {

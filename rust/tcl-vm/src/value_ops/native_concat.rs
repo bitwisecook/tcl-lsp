@@ -24,8 +24,7 @@ use tcl_syntax::native_string::{NativeStringProtocol, NativeStringStorageIdentit
 use tcl_syntax::value::{NativeConcatFirstElement, NativeConcatListShape as Shape, ValueError};
 
 fn protocol(vm: &Vm) -> Result<NativeStringProtocol, ValueError> {
-    vm.actual_native_invocation_dialect()
-        .native_string_protocol()
+    vm.actual_native_string_protocol()
         .ok_or(ValueError::CommandProtocolUnavailable(
             "native concat string issuer",
         ))

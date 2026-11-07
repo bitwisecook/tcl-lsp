@@ -310,14 +310,7 @@ fn make_cat(interp: &mut Interp, kind: i32) -> Owned {
         9 => crate::dict::new_dict_obj(&[]),
         10 => {
             let value = obj::new_string_bytes(b"A");
-            obj::native_unicode_units(
-                value,
-                interp
-                    .native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap(),
-            )
-            .unwrap();
+            obj::native_unicode_units(value, interp.invocation_string_protocol().unwrap()).unwrap();
             value
         }
         11 => obj::new_string_bytes(b"A\0Z"),

@@ -235,8 +235,7 @@ impl NativeIndexOps for Vm {
             })
     }
     fn index_c_version(&self) -> Option<tcl_dialect::TclVersion> {
-        self.actual_native_invocation_dialect()
-            .native_string_protocol()
+        self.actual_native_string_protocol()
             .and_then(NativeStringProtocol::tcl_version)
     }
     fn original_c_option_path(
@@ -490,11 +489,7 @@ impl NativeIndexOps for Vm {
         if !eligible {
             return Ok(None);
         }
-        if original.native_byte_array_protocol()
-            != self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-        {
+        if original.native_byte_array_protocol() != self.actual_native_string_protocol() {
             return Err(ValueError::CommandProtocolUnavailable(
                 "original C binary selection issuer",
             )
@@ -619,8 +614,7 @@ impl NativeIndexOps for Vm {
         let operation = NativeOperationScope::enter(self)?;
         operation.check(self)?;
         let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+            .actual_native_string_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original counted C String constructor",
@@ -669,11 +663,7 @@ impl NativeIndexOps for Vm {
             proper: true,
         } = snapshot.cache
         {
-            if original.native_byte_array_protocol()
-                != self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-            {
+            if original.native_byte_array_protocol() != self.actual_native_string_protocol() {
                 return Err(ValueError::CommandProtocolUnavailable(
                     "original C binary backing issuer",
                 )
@@ -816,11 +806,7 @@ impl NativeIndexOps for Vm {
         &mut self,
         original: &Value,
     ) -> Result<Option<Vec<Value>>, CmdError> {
-        if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            != Some(NativeStringProtocol::Jim084)
-        {
+        if self.actual_native_string_protocol() != Some(NativeStringProtocol::Jim084) {
             return Err(
                 ValueError::CommandProtocolUnavailable("original Jim Index path issuer").into(),
             );

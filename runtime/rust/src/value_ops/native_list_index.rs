@@ -107,8 +107,7 @@ impl NativeListIndexOps for Interp {
     type Members = Vec<*mut TclObj>;
     type OptionMembers = RuntimeOptionMembers;
     fn index_version(&self) -> Result<TclVersion, ValueError> {
-        self.native_invocation_dialect()
-            .native_string_protocol()
+        self.invocation_string_protocol()
             .and_then(|protocol| protocol.tcl_version())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C ListIndex issuer",
@@ -576,8 +575,7 @@ impl Interp {
         last: *mut TclObj,
     ) -> Result<RuntimeIndexOwner, CmdError> {
         if self
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .is_some_and(|protocol| protocol.tcl_version().is_some())
         {
             return native_list_index::command_range(self, &list, &first, &last);
@@ -602,8 +600,7 @@ impl Interp {
         check: native_list_index::NativeListIndexCheck<'_, Self>,
     ) -> Result<RuntimeIndexOwner, CmdError> {
         if self
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .is_some_and(|protocol| protocol.tcl_version().is_some())
         {
             return if path && indices.len() == 1 {

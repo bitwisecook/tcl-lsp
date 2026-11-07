@@ -448,13 +448,7 @@ mod tests {
             names.authority(),
             tcl_syntax::naming::NamePolicyAuthority::Native
         );
-        assert_eq!(
-            names.recipe(),
-            interp
-                .native_invocation_dialect()
-                .native_name_protocol()
-                .unwrap(),
-        );
+        assert_eq!(names.recipe(), interp.invocation_name_protocol().unwrap(),);
         assert!(interp.variable_storage_matches(names.variable_lookup_policy()));
     }
 
@@ -506,10 +500,7 @@ mod tests {
             names.authority(),
             tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
         );
-        assert!(interp
-            .native_invocation_dialect()
-            .native_name_protocol()
-            .is_none());
+        assert!(interp.invocation_name_protocol().is_none());
         assert!(interp.variable_storage_matches(tcl_dialect::VariableLookupPolicy::Tcl));
     }
 

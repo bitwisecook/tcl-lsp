@@ -80,10 +80,7 @@ fn compare_public_rows(engine: &str, observation: &str) {
             "{engine}: {}",
             row[0]
         );
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         assert_eq!(
             completion
                 .result

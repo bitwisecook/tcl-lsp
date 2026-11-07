@@ -268,11 +268,7 @@ fn legacy_operation_objects_match_native_counted_and_cstring_controls() {
                 assert_eq!(
                     result
                         .result
-                        .native_string_bytes(
-                            vm.actual_native_invocation_dialect()
-                                .native_string_protocol()
-                                .unwrap()
-                        )
+                        .native_string_bytes(vm.actual_native_string_protocol().unwrap())
                         .unwrap_or_else(|error| panic!(
                             "{engine}/{row_label}: {error:?}, type {}",
                             result.result.native_object_type_name()

@@ -207,8 +207,7 @@ impl Vm {
 
     fn require_constant_protocol(&mut self) -> Result<(), Completion<Value>> {
         if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+            .actual_native_string_protocol()
             .is_some_and(|protocol| {
                 protocol
                     .tcl_version()

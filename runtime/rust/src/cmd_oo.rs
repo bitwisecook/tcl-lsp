@@ -11590,10 +11590,7 @@ mod original_call_argv_tests {
         let member = obj::Owned::fresh(obj::new_string_bytes(b"ORIGINAL"));
         obj::Owned::fresh(list::new_list_obj_native(
             &[member.as_ptr()],
-            interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
+            interp.invocation_string_protocol().unwrap(),
         ))
     }
     #[test]
@@ -11623,10 +11620,7 @@ mod original_call_argv_tests {
                     assert_eq!(observed[0].last(), Some(&(argument.as_ptr() as usize)));
                 });
                 let stack = interp.original_error_stack_value();
-                let protocol = interp
-                    .native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = interp.invocation_string_protocol().unwrap();
                 let flat = list::list_elements_native_checked(stack.as_ptr(), protocol).unwrap();
                 let calls: Vec<_> = flat
                     .chunks_exact(2)
@@ -11691,10 +11685,7 @@ mod original_call_argv_tests {
                     &[argv.iter().map(|value| *value as usize).collect::<Vec<_>>()]
                 )
             });
-            let protocol = interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = interp.invocation_string_protocol().unwrap();
             let stack = interp.original_error_stack_value();
             let flat = list::list_elements_native_checked(stack.as_ptr(), protocol).unwrap();
             let calls: Vec<_> = flat
@@ -11733,10 +11724,7 @@ mod original_call_argv_tests {
                 assert_eq!(observed.borrow().as_slice(), &[Vec::new()]);
             });
             assert_eq!(native_detail(version, "destructor", "frame", "objc="), 0);
-            let protocol = interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = interp.invocation_string_protocol().unwrap();
             let stack = interp.original_error_stack_value();
             let parts = list::list_elements_native_checked(stack.as_ptr(), protocol).unwrap();
             assert!(!parts

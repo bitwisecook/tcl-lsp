@@ -25,10 +25,7 @@ use crate::{
 use tcl_syntax::value::ValueOps;
 include!("../../../../rust/tcl-cmd-core/tests/data/native_concat/cases.rs");
 fn original(interp: &mut Interp, input: Input) -> obj::Owned {
-    let protocol = interp
-        .native_invocation_dialect()
-        .native_string_protocol()
-        .unwrap();
+    let protocol = interp.invocation_string_protocol().unwrap();
     obj::Owned::fresh(match input {
         Input::Bytes(bytes) => obj::new_string_bytes(bytes),
         Input::List(members) | Input::Rendered(members) => {
@@ -75,10 +72,7 @@ fn original_concat_matches_all_twenty_native_windows_per_engine() {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         for case in 0..20 {
             let input = inputs(case);
             let values: Vec<_> = input
@@ -249,10 +243,7 @@ fn concat_uses_original_abstract_index_before_element_materialisation() {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .unwrap();
-            let protocol = interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = interp.invocation_string_protocol().unwrap();
             let plan = tcl_cmd_core::lseq::decode(&[b"1", b"3", b"1"])
                 .unwrap_or_else(|_| panic!("original native arithmetic-series input"));
             let series = tcl_cmd_core::lseq::prepare_series(&plan).unwrap().unwrap();
@@ -323,10 +314,7 @@ fn string_concat_does_not_issue_a_canonical_list_guarantee() {
             &*interp.native_object_string_bytes(result.as_ptr()).unwrap(),
             b"{ foo"
         );
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         if protocol.is_jim084() {
             crate::native_source::bind_context(
                 result.as_ptr(),

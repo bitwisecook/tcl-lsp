@@ -138,9 +138,7 @@ impl Vm {
             || names != tcl_syntax::naming::NamePolicyProtocol::authored_tcl(c84)
             || self.name_policy_protocol() != Some(names)
             || self.compiled_variable_protocol() != Some(variables)
-            || self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
+            || self.actual_native_string_protocol()
                 != Some(NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0))
         {
             return None;

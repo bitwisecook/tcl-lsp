@@ -74,8 +74,7 @@ impl Operation {
     fn protocol(&self) -> Result<NativeStringProtocol, CmdError> {
         self.check()?;
         self.interpreter
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .ok_or_else(|| {
                 ValueError::CommandProtocolUnavailable("original C API String protocol").into()
             })

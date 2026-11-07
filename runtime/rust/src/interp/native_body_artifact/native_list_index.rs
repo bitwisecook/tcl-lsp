@@ -329,10 +329,7 @@ mod original_objects {
         for &(engine, _) in TABLES {
             let mut interp = super::super::tests::interpreter(engine);
             let child = obj::Owned::fresh(new_string(b"MEMBER"));
-            let protocol = interp
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = interp.invocation_string_protocol().unwrap();
             let list = obj::Owned::fresh(crate::list::new_list_obj_native(
                 &[child.as_ptr()],
                 protocol,

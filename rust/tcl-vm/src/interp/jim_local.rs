@@ -251,14 +251,11 @@ impl Vm {
                 let name = original_names
                     .read(self, &record.original)
                     .and_then(|bytes| {
-                        let protocol = self
-                            .actual_native_invocation_dialect()
-                            .native_name_protocol()
-                            .ok_or_else(|| {
-                                self.refuse_original_jim_local_cleanup(
-                                    "original Jim local cleanup hash protocol",
-                                )
-                            })?;
+                        let protocol = self.actual_native_name_protocol().ok_or_else(|| {
+                            self.refuse_original_jim_local_cleanup(
+                                "original Jim local cleanup hash protocol",
+                            )
+                        })?;
                         protocol
                             .jim_command_table_comparison(&bytes)
                             .map(super::NameBytes::from)

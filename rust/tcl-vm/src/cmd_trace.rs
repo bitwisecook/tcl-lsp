@@ -58,9 +58,7 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 "wrong # args: should be \"trace option ?arg ...?\"",
             );
         };
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol();
+        let protocol = vm.actual_native_string_protocol();
         let option = match core_trace::resolve_option_original(vm, sub, protocol) {
             Ok(o) => o,
             Err(e) => return vm.cmd_error(e),

@@ -573,12 +573,11 @@ impl Interp {
         };
         let reached: Result<Option<Vec<Vec<u8>>>, CmdError> = (|| {
             check(self)?;
-            let protocol = self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "original alias List protocol",
-                ))?;
+            let protocol =
+                self.invocation_string_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "original alias List protocol",
+                    ))?;
             let members = crate::list::list_elements_native_with_currency(
                 original.as_ptr(),
                 protocol,

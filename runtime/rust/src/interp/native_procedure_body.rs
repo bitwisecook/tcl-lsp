@@ -29,8 +29,7 @@ impl Interp {
         procedure: Option<&std::rc::Rc<super::ProcDef>>,
     ) -> Result<(), ValueError> {
         if !self
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .is_some_and(|protocol| protocol.tcl_version().is_some())
         {
             return Ok(());
@@ -329,10 +328,7 @@ mod tests {
             tcl_syntax::scalar_getter::NativeNumberGetterKind::Number,
         )
         .is_err());
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         assert!(crate::dict::native_object_bytes(pointer, protocol).is_err());
         assert_eq!(
             unsafe {

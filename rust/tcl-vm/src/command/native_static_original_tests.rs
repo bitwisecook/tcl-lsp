@@ -30,9 +30,7 @@ fn string(bytes: &[u8]) -> Value {
 fn list(vm: &Vm, members: &[&Value]) -> Value {
     Value::native_list_constructor(
         members.iter().map(|value| (*value).clone()).collect(),
-        vm.actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap(),
+        vm.actual_native_string_protocol().unwrap(),
     )
 }
 fn call(vm: &mut Vm, head: &[u8], arguments: &[&Value]) -> Completion<Value> {
@@ -62,11 +60,7 @@ fn assert_row(
     assert_eq!(
         result
             .result
-            .native_string_bytes(
-                vm.actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap()
-            )
+            .native_string_bytes(vm.actual_native_string_protocol().unwrap())
             .unwrap()
             .as_ref(),
         unhex(native[3]),
@@ -325,11 +319,7 @@ fn original_jim_static_links_match_native_frame_storage_reuse_boundaries() {
             assert_eq!(
                 completion
                     .result
-                    .native_string_bytes(
-                        vm.actual_native_invocation_dialect()
-                            .native_string_protocol()
-                            .unwrap()
-                    )
+                    .native_string_bytes(vm.actual_native_string_protocol().unwrap())
                     .unwrap()
                     .as_ref(),
                 unhex(expected[2]),

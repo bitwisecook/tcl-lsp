@@ -225,11 +225,7 @@ mod tests {
         )
     }
     fn protocol(context: &Context) -> tcl_syntax::native_string::NativeStringProtocol {
-        context
-            .0
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap()
+        context.0.invocation_string_protocol().unwrap()
     }
     #[test]
     fn original_list_membership_stops_after_reached_list_needle_or_member_first_host() {

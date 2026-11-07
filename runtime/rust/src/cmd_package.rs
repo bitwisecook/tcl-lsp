@@ -1257,12 +1257,9 @@ impl Interp {
         let Some(name) = self.packages.borrow().file_names.last().cloned() else {
             return Ok(());
         };
-        let strings = self
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "package source string",
-            ))?;
+        let strings = self.invocation_string_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("package source string"),
+        )?;
         let header = {
             let mut state = self.packages.borrow_mut();
             state

@@ -900,8 +900,7 @@ fn empty_literal_world_entry_is_original_capture_and_registration_scoped() {
         let pool = crate::literal_pool::NativeLiteralPool::create(
             &vm.native_literal_world,
             &table,
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol(),
+            vm.actual_native_string_protocol(),
             ROOT_NS,
             &tcl_runtime_api::ByteNamespacePath::root(),
         )

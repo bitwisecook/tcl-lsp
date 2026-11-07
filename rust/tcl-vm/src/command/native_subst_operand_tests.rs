@@ -86,11 +86,7 @@ fn assert_borrowed_row(
         .collect();
     let actual = result
         .result
-        .native_string_bytes(
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
-        )
+        .native_string_bytes(vm.actual_native_string_protocol().unwrap())
         .unwrap_or_else(|error| panic!("{engine}/{label}: {error:?}"));
     assert_eq!(actual.as_ref(), expected, "{engine}/{label}");
 }

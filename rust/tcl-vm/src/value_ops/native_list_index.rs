@@ -72,8 +72,7 @@ impl NativeListIndexOps for Vm {
     type Members = NativeListItems;
     type OptionMembers = VmOptionMembers;
     fn index_version(&self) -> Result<TclVersion, ValueError> {
-        self.actual_native_invocation_dialect()
-            .native_string_protocol()
+        self.actual_native_string_protocol()
             .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C ListIndex issuer",
@@ -296,8 +295,7 @@ impl Vm {
         last_index: &Value,
     ) -> Result<Value, CmdError> {
         if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+            .actual_native_string_protocol()
             .is_some_and(|protocol| protocol.tcl_version().is_some())
         {
             return native_list_index::command_range(self, list, first, last_index);
@@ -311,8 +309,7 @@ impl Vm {
         path: bool,
     ) -> Result<Value, CmdError> {
         if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+            .actual_native_string_protocol()
             .is_some_and(|protocol| protocol.tcl_version().is_some())
         {
             return if path && indices.len() == 1 {

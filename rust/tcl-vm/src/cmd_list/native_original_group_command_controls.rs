@@ -216,10 +216,7 @@ fn original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_an
             for command in [false, true] {
                 let mut vm =
                     crate::native_fixture::core(crate::environment::profile_for_dialect(profile));
-                let protocol = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = vm.actual_native_string_protocol().unwrap();
                 let keys: Vec<_> = [b"2".as_slice(), b"A", b"1", b"B"]
                     .into_iter()
                     .take(count)
@@ -320,10 +317,7 @@ fn original_guest_compare_failure_preserves_result_and_native651_context() {
     // Carried options must preserve the same suffix for the next restore owner.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(profile));
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         let returned = word(b"CALLBACK");
         RETURNED.set(Some(argument(&returned)));
         CALLBACK_ERROR.set(true);

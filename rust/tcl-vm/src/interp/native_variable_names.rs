@@ -3404,11 +3404,8 @@ mod tests {
                 )
             };
             rows.push(observe("converted", &handle));
-            let copy = handle.duplicate_native_object_in(
-                vm.actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap(),
-            );
+            let copy =
+                handle.duplicate_native_object_in(vm.actual_native_string_protocol().unwrap());
             rows.push(observe("duplicate", &copy));
             assert!(vm.read_original_named_variable(&handle).is_err());
             rows.push(observe("missing", &handle));
@@ -3466,11 +3463,8 @@ mod tests {
                         .is_same_object(&value)
                 );
                 rows.push(observe(version, case, "read", &original));
-                let copy = original.duplicate_native_object_in(
-                    vm.actual_native_invocation_dialect()
-                        .native_string_protocol()
-                        .unwrap(),
-                );
+                let copy = original
+                    .duplicate_native_object_in(vm.actual_native_string_protocol().unwrap());
                 rows.push(observe(version, case, "duplicate", &copy));
                 drop(copy);
                 for name in [b"missing".as_slice(), b"42".as_slice(), b"arr".as_slice()] {
@@ -3576,11 +3570,7 @@ mod tests {
                 .unwrap()
             };
             rows.push(observe("stored"));
-            let copy = name.duplicate_native_object_in(
-                vm.actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap(),
-            );
+            let copy = name.duplicate_native_object_in(vm.actual_native_string_protocol().unwrap());
             rows.push(observe("duplicated"));
             drop(copy);
             assert!(vm.unset_var_bytes(b"arr"));

@@ -29,8 +29,7 @@ use tcl_syntax::value::{NativeConcatFirstElement, NativeConcatListShape as Shape
 
 fn protocol(interp: &Interp) -> Result<NativeStringProtocol, ValueError> {
     interp
-        .native_invocation_dialect()
-        .native_string_protocol()
+        .invocation_string_protocol()
         .ok_or(ValueError::CommandProtocolUnavailable(
             "native concat string issuer",
         ))

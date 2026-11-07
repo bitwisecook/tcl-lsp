@@ -83,10 +83,7 @@ fn grouped_sort_and_original_comparator_result_public_predicates_match_native651
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         let originals = row.input.map(make);
         let members = originals[..row.count]
             .iter()
@@ -216,10 +213,7 @@ fn original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_an
                     tcl_registry::special_vars::NativeBootstrapInputs::default(),
                 )
                 .unwrap();
-                let protocol = interp
-                    .native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = interp.invocation_string_protocol().unwrap();
                 let keys: Vec<_> = [b"2".as_slice(), b"A", b"1", b"B"]
                     .into_iter()
                     .take(count)
@@ -327,10 +321,7 @@ fn original_guest_compare_failure_preserves_result_and_native651_context() {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         let returned = obj::Owned::fresh(obj::new_string_bytes(b"CALLBACK"));
         RETURNED.set(returned.as_ptr());
         CALLBACK_ERROR.set(true);

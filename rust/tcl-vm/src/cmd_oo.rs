@@ -604,7 +604,7 @@ fn property_slot(vm: &mut Vm, args: &[Value], obj: bool, writable: bool) -> Comp
             );
         };
         let Some(tcl_syntax::naming::NativeNameProtocol::C(version)) =
-            vm.actual_native_invocation_dialect().native_name_protocol()
+            vm.actual_native_name_protocol()
         else {
             return vm.refuse_host_command("native property slot naming unavailable".to_owned());
         };
@@ -2612,10 +2612,7 @@ fn self_outside_method(vm: &mut Vm) -> Completion<Value> {
     let Some(original) = vm.invoked_name_value() else {
         return vm.refuse_host_command("original self invocation head is unavailable".into());
     };
-    let Some(protocol) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-    else {
+    let Some(protocol) = vm.actual_native_string_protocol() else {
         return vm
             .refuse_host_command("native self invocation string getter is unavailable".into());
     };

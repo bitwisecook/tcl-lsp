@@ -498,10 +498,7 @@ fn definition_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 pub(crate) fn helper_context_error(vm: &mut Vm, head: &[u8]) -> Completion<Value> {
-    let Some(protocol) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-    else {
+    let Some(protocol) = vm.actual_native_string_protocol() else {
         return vm.refuse_host_command("native method context error protocol unavailable".into());
     };
     let mut message = head.to_vec();

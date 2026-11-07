@@ -403,7 +403,7 @@ fn trace_cmd_original(
     if argv.len() < 2 {
         return interp.wrong_args(b"trace option ?arg ...?");
     }
-    let protocol = interp.native_invocation_dialect().native_string_protocol();
+    let protocol = interp.invocation_string_protocol();
     let selected = core_trace::resolve_option_original(interp, &argv[1], protocol);
     if let Err(error) = arguments.check() {
         return interp.report_cmd_error(error);

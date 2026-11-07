@@ -1398,6 +1398,15 @@ struct ArrayOperationTarget {
     target: crate::vars::ArrayCellTarget,
 }
 
+#[derive(Clone, Copy)]
+struct InvocationProtocols {
+    string: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    name: Option<tcl_syntax::naming::NativeNameProtocol>,
+    /// `None` when the execution point selects no policy, `Some(None)` when it
+    /// selects a different recipe from the native name protocol.
+    name_policy: Option<Option<tcl_syntax::naming::NamePolicyProtocol>>,
+}
+
 pub struct InterpState {
     /// Owned native cache authority; neither allocation addresses nor display names issue it.
     native_command_interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
@@ -1723,6 +1732,8 @@ pub struct InterpState {
     /// `native_invocation_dialect` projected from `dialect_profile` and
     /// `runtime_version`; cleared whenever either is replaced.
     invocation_dialect: Cell<Option<tcl_registry::InvocationDialect>>,
+    /// Native protocols of `invocation_dialect`, cleared with it.
+    invocation_protocols: Cell<Option<InvocationProtocols>>,
     jim_object_context: RefCell<Option<Rc<crate::native_source::NativeJimObjectContext>>>,
     jim_teardown_started: Cell<bool>,
     /// The dialect profile this interpreter validates its builtin command
@@ -2191,6 +2202,7 @@ impl Interp {
             debug_frame: Cell::new(false),
             runtime_version: Cell::new(version),
             invocation_dialect: Cell::new(None),
+            invocation_protocols: Cell::new(None),
             jim_object_context: RefCell::new(None),
             jim_teardown_started: Cell::new(false),
             // The "no dialect pinned" ingress: the lenient environment,
@@ -2698,6 +2710,7 @@ impl Interp {
         self.invalidate_interpreter_policy();
         self.0.dialect_profile.set(profile);
         self.0.invocation_dialect.set(None);
+        self.0.invocation_protocols.set(None);
         if dialect.return_options_protocol()
             == Some(tcl_cmd_core::return_options::ReturnOptionsProtocol::Jim084)
         {
@@ -2713,6 +2726,7 @@ impl Interp {
             .set(Some(crate::environment::surface_point(profile)));
         self.0.runtime_version.set(version);
         self.0.invocation_dialect.set(None);
+        self.0.invocation_protocols.set(None);
         self.channels
             .borrow()
             .reset_standard_channels_if_owner(version);
@@ -2751,7 +2765,7 @@ impl Interp {
         // Re-attest only the actual untouched stock String allocation and map.
         self.attest_stock_string_implementation();
         self.seal_native_compiler_attachments();
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             match self.native_jim_object_context() {
@@ -2805,7 +2819,7 @@ impl Interp {
         &self,
         values: &[*mut TclObj],
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return Ok(());
@@ -2934,6 +2948,38 @@ impl Interp {
         };
         self.0.invocation_dialect.set(Some(dialect));
         dialect
+    }
+
+    fn invocation_protocols(&self) -> InvocationProtocols {
+        if let Some(protocols) = self.0.invocation_protocols.get() {
+            return protocols;
+        }
+        let dialect = self.native_invocation_dialect();
+        let name = dialect.native_name_protocol();
+        let protocols = InvocationProtocols {
+            string: dialect.native_string_protocol(),
+            name,
+            name_policy: name.and_then(|recipe| {
+                let protocol = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
+                    dialect.execution_point()?,
+                )?;
+                Some((protocol.recipe() == recipe).then_some(protocol))
+            }),
+        };
+        self.0.invocation_protocols.set(Some(protocols));
+        protocols
+    }
+
+    pub(crate) fn invocation_string_protocol(
+        &self,
+    ) -> Option<tcl_syntax::native_string::NativeStringProtocol> {
+        self.invocation_protocols().string
+    }
+
+    pub(crate) fn invocation_name_protocol(
+        &self,
+    ) -> Option<tcl_syntax::naming::NativeNameProtocol> {
+        self.invocation_protocols().name
     }
 
     /// The lexer configuration scripts evaluate under: the pinned profile's
@@ -5350,7 +5396,7 @@ impl Interp {
             return None;
         }
         let (original_body, body, import_source) = body;
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             if let Err(error) = self.native_jim_object_context() {
@@ -5400,7 +5446,7 @@ impl Interp {
             Some((file @ Some(_), line)) => (file, line.saturating_sub(1)),
             _ => (None, 0),
         };
-        let jim = self.native_invocation_dialect().native_string_protocol()
+        let jim = self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084);
         let jim_namespace = if jim {
             self.namespaces_mut().take_jim_namespace_owner(ns)
@@ -6546,7 +6592,7 @@ impl Interp {
         &mut self,
         namespace: NsId,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return Ok(());
@@ -7619,7 +7665,7 @@ impl Interp {
         frame.file = Some(Rc::from(name));
         frame.line_base = 0;
         self.next_evaluation.set(Some(evaluation));
-        let code = if self.native_invocation_dialect().native_string_protocol()
+        let code = if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             self.eval_native_jim_source_unpublished(script, name, frame)
@@ -7940,7 +7986,7 @@ impl Interp {
             self.leave_namespace_activation(popped);
             return self.report_cmd_error(error.into());
         }
-        let jim_body = if self.native_invocation_dialect().native_string_protocol()
+        let jim_body = if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             Some(match original_body {
@@ -10029,13 +10075,11 @@ impl Interp {
     }
 
     pub(crate) fn name_policy_protocol(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
-        let dialect = self.native_invocation_dialect();
-        if let Some(recipe) = dialect.native_name_protocol() {
-            let protocol = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
-                dialect.execution_point()?,
-            )?;
-            return (protocol.recipe() == recipe).then_some(protocol);
+        let protocols = self.invocation_protocols();
+        if protocols.name.is_some() {
+            return protocols.name_policy.flatten();
         }
+        let dialect = self.native_invocation_dialect();
         let names = dialect.authored_logical_name_simulation(self.logical_name_provider.get()?)?;
         self.variable_storage_matches(names.variable_lookup_policy())
             .then_some(names)
@@ -13684,12 +13728,11 @@ impl Interp {
             original
         };
         let bytes = if let Some(original) = original {
-            let protocol = self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            let protocol = self.invocation_string_protocol().ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "private error-code string",
-                ));
+                ),
+            );
             let reached = protocol
                 .and_then(|protocol| crate::dict::native_object_bytes(original.as_ptr(), protocol));
             scope.currency().ensure_current_or_refuse()?;
@@ -14097,7 +14140,7 @@ impl Interp {
             }
         }
         let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
-        let code = if self.native_invocation_dialect().native_string_protocol()
+        let code = if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             // Jim's source entry evaluates an original String through the Script
@@ -14204,7 +14247,7 @@ impl Interp {
         &mut self,
         chunk: &[u8],
     ) -> Result<tcl_runtime_api::ScriptCompletion, tcl_runtime_api::NativeExecutionError> {
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             // Jim's source entry owns its own script evaluation.
@@ -14620,7 +14663,7 @@ impl Interp {
         }
         // Jim's control workers evaluate the same original object through
         // Script; Source primary fields are independent of C TIP280 locations.
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return self.eval_generic_control_body(body);
@@ -15004,7 +15047,7 @@ impl Interp {
             Err(error) => return Err(self.report_cmd_error(error.into())),
         };
         let list_dispatch = protocol.dispatches_list(purpose, &snapshot);
-        let jim_script = self.native_invocation_dialect().native_string_protocol()
+        let jim_script = self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084);
         if list_dispatch || jim_script {
             return Ok(Box::new(PreparedOriginalBodyEvaluation {
@@ -16392,7 +16435,7 @@ impl Interp {
                 }
             }
             let _jim_invocation = self.borrow_jim_invocation(argv, source);
-            if self.native_invocation_dialect().native_string_protocol()
+            if self.invocation_string_protocol()
                 == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
             {
                 let context = match self.native_jim_object_context() {
@@ -17320,15 +17363,12 @@ impl Interp {
         self.children
             .borrow_mut()
             .insert(name.clone(), child.clone());
-        let (namespace, tail) = if self
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .is_some_and(|protocol| {
-                !matches!(
-                    protocol,
-                    tcl_syntax::native_string::NativeStringProtocol::Jim084
-                )
-            }) {
+        let (namespace, tail) = if self.invocation_string_protocol().is_some_and(|protocol| {
+            !matches!(
+                protocol,
+                tcl_syntax::native_string::NativeStringProtocol::Jim084
+            )
+        }) {
             self.namespaces
                 .borrow_mut()
                 .command_c_api_publication_at(self.current_ns.get(), &name)
@@ -18357,7 +18397,7 @@ impl Interp {
             return self.error(b"too many nested cross-interpreter calls");
         }
         let mut parent = Interp(parent_state);
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return self.dispatch_original_jim_parent_alias(&mut parent, original_prefix, argv);
@@ -18583,7 +18623,7 @@ impl Interp {
                 Ok(original) => crate::obj::Owned::fresh(original),
                 Err(error) => return self.report_cmd_error(error),
             };
-            let Some(strings) = self.native_invocation_dialect().native_string_protocol() else {
+            let Some(strings) = self.invocation_string_protocol() else {
                 return self.report_cmd_error(
                     tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "original tailcall List issuer",
@@ -18610,7 +18650,7 @@ impl Interp {
         if !self.replace_pending_tailcall(None) {
             return self.error(b"tailcall can only be called from a proc, lambda or method");
         }
-        let Some(protocol) = self.native_invocation_dialect().native_string_protocol() else {
+        let Some(protocol) = self.invocation_string_protocol() else {
             return self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original tailcall List issuer",
@@ -18661,7 +18701,7 @@ impl Interp {
     }
 
     pub(crate) fn invoke_original_namespace_list(&mut self, original: *mut TclObj) -> Code {
-        let Some(protocol) = self.native_invocation_dialect().native_string_protocol() else {
+        let Some(protocol) = self.invocation_string_protocol() else {
             return self.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original coroutine List issuer",

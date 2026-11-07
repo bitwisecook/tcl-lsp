@@ -24,9 +24,7 @@ use tcl_runtime_api::jim_interpreter::{JimInterpreterObjectRole as Role, JimInte
 impl Vm {
     pub(super) fn retire_jim_interpreter(&mut self) {
         if self.jim_teardown_started
-            || self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
+            || self.actual_native_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return;

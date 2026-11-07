@@ -266,10 +266,7 @@ fn original_lambda_namespace_objects_match_constructor_and_getter_controls() {
                 });
                 let parameters = Owned::fresh(obj::new_string_bytes(b""));
                 let body = Owned::fresh(obj::new_string_bytes(b"namespace current"));
-                let protocol = interp
-                    .native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = interp.invocation_string_protocol().unwrap();
                 let lambda = Owned::fresh(crate::list::new_list_obj_native(
                     &[parameters.as_ptr(), body.as_ptr(), namespace.as_ptr()],
                     protocol,
@@ -343,7 +340,7 @@ fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
                 });
                 let parameters = Owned::fresh(obj::new_string_bytes(b""));
                 let body = Owned::fresh(obj::new_string_bytes(b"namespace current"));
-                let protocol = interp.native_invocation_dialect().native_string_protocol().unwrap();
+                let protocol = interp.invocation_string_protocol().unwrap();
                 let lambda = Owned::fresh(crate::list::new_list_obj_native(
                     &[parameters.as_ptr(), body.as_ptr(), namespace.as_ptr()], protocol,
                 ));

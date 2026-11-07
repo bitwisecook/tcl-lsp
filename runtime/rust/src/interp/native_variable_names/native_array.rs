@@ -379,14 +379,11 @@ impl Interp {
                     ValueError::CommandProtocolUnavailable("original Jim array-set worker").into(),
                 ));
             }
-            let protocol = self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or_else(|| {
-                    self.report_cmd_error(
-                        ValueError::CommandProtocolUnavailable("original Jim array String").into(),
-                    )
-                })?;
+            let protocol = self.invocation_string_protocol().ok_or_else(|| {
+                self.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("original Jim array String").into(),
+                )
+            })?;
             let length = ValueOps::list_len(self, &values);
             arguments
                 .check()

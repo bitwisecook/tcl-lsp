@@ -221,7 +221,7 @@ pub(crate) struct Frame {
     compiler_generation: Option<u64>,
     /// The manifest of the module this activation's unit came from.
     manifest: Option<std::sync::Arc<tcl_runtime_api::ArtefactIdentityManifest>>,
-    off2idx: Rc<HashMap<i32, usize>>,
+    off2idx: Rc<rustc_hash::FxHashMap<i32, usize>>,
     /// `FOREACH_START` index → paired `FOREACH_STEP` index (the implicit jump).
     foreach_pairs: Rc<HashMap<usize, usize>>,
     pc: usize,
@@ -1216,7 +1216,7 @@ pub(crate) enum RunExit {
     Yielded(YieldReq),
 }
 
-fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
+fn build_off2idx(asm: &FunctionAsm) -> rustc_hash::FxHashMap<i32, usize> {
     asm.instructions
         .iter()
         .enumerate()
@@ -1603,7 +1603,11 @@ fn char_find(hay: &str, needle: &str, last: bool) -> i64 {
     })
 }
 
-fn label_to_idx(asm: &FunctionAsm, off2idx: &HashMap<i32, usize>, label: &str) -> Option<usize> {
+fn label_to_idx(
+    asm: &FunctionAsm,
+    off2idx: &rustc_hash::FxHashMap<i32, usize>,
+    label: &str,
+) -> Option<usize> {
     let off = *asm.labels.get(label)?;
     let off_i32 = i32::try_from(off).ok()?;
     Some(
@@ -1704,7 +1708,7 @@ pub(crate) type LoggedCommand = (Vec<u8>, u32, Vec<(String, u32)>);
 /// Resolve a jump operand (`Operand::Label`) to a target instruction index.
 fn jump_target(
     asm: &FunctionAsm,
-    off2idx: &HashMap<i32, usize>,
+    off2idx: &rustc_hash::FxHashMap<i32, usize>,
     instr: &Instruction,
 ) -> Option<usize> {
     label_to_idx(asm, off2idx, label0(instr)?)
@@ -5996,9 +6000,7 @@ impl Vm {
                     return Tick::Return(err("strcat: stack underflow"));
                 }
                 let parts = f.stack.split_off(f.stack.len() - n);
-                if let Some(protocol) = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
+                if let Some(protocol) = self.actual_native_string_protocol()
                     && protocol.tcl_version().is_some()
                 {
                     let value = try_core!(tcl_cmd_core::native_cat::concatenate_compiled(
@@ -8775,8 +8777,7 @@ impl Vm {
                 let key = pop(f);
                 let original = pop(f);
                 if !self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
+                    .actual_native_string_protocol()
                     .is_some_and(|protocol| {
                         protocol
                             .tcl_version()
@@ -9394,12 +9395,9 @@ impl Vm {
 
     fn tcloo_next_list(&mut self, f: &mut Frame, nextto: bool) -> Result<(), Completion<Value>> {
         let original = pop(f);
-        let protocol = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or_else(|| {
-                self.refuse_host_command("native helper List protocol unavailable".to_owned())
-            })?;
+        let protocol = self.actual_native_string_protocol().ok_or_else(|| {
+            self.refuse_host_command("native helper List protocol unavailable".to_owned())
+        })?;
         let members = self
             .native_object_list_elements_in(&original, protocol)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
@@ -10044,9 +10042,7 @@ impl Vm {
                 res.options
                     .report_native_compound_ownership("deliver-sync-options");
             }
-            let protocol = self
-                .actual_native_invocation_dialect()
-                .native_string_protocol();
+            let protocol = self.actual_native_string_protocol();
             let present = res
                 .options
                 .native_return_options_nonempty(protocol)
@@ -10064,9 +10060,7 @@ impl Vm {
     /// Build the generation-bearing empty unit used by scanner activations at
     /// the moment their native command hands control to the trampoline.
     fn current_placeholder_unit(&mut self) -> crate::compiled::CompiledUnit {
-        if self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+        if self.actual_native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             return crate::compiled::CompiledUnit::native_driver(
@@ -11793,10 +11787,7 @@ impl Vm {
     }
 
     fn tick_original_invocation(&mut self, frame: &mut Frame, original: Value) -> Tick {
-        let Some(protocol) = self
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-        else {
+        let Some(protocol) = self.actual_native_string_protocol() else {
             return Tick::Return(
                 self.refuse_host_command("original coroutine invocation List issuer".into()),
             );

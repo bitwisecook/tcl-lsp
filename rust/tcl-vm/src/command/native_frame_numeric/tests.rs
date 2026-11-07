@@ -317,10 +317,7 @@ fn original_frame_single_script_list_checks_header_before_default_selection() {
             let mut vm =
                 crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
             vm.push_call_frame(None, vec![]);
-            let protocol = vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = vm.actual_native_string_protocol().unwrap();
             let mut owner = Some(Value::native_list_constructor(
                 vec![Value::string("set"), Value::string("x")],
                 protocol,
@@ -374,10 +371,7 @@ fn original_frame_list_worker_checks_header_after_ok_and_guest_error() {
             for guest_error in [false, true] {
                 let mut vm =
                     crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
-                let protocol = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = vm.actual_native_string_protocol().unwrap();
                 let mut owner = Some(Value::native_list_constructor(
                     vec![Value::string("set"), Value::string("x")],
                     protocol,

@@ -1243,7 +1243,7 @@ impl Interp {
         obj::check_native_liveness(value)?;
         obj::native_frame_level_cache_in(value, self.native_invocation_dialect())?;
         if obj::native_instruction_name::cache(value).is_some_and(|name| {
-            self.native_invocation_dialect().native_string_protocol()
+            self.invocation_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::C(
                     name.version(),
                 ))
@@ -2039,12 +2039,11 @@ impl ValueOps for Interp {
     ) -> Result<Option<Self::Value>, ValueError> {
         obj::check_native_liveness(*value)?;
         if crate::native_arithseries::is_series(*value) {
-            let protocol = self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "abstract native Index",
-                ))?;
+            let protocol =
+                self.invocation_string_protocol()
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "abstract native Index",
+                    ))?;
             return crate::native_arithseries::index_in(*value, index, protocol);
         }
         Ok(self.list_elements(value)?.into_iter().nth(index))

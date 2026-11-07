@@ -1792,8 +1792,7 @@ fn native_ensemble_map_prefix_input<'a>(
         "ensemble map-prefix construction",
     );
     let protocol = interp
-        .native_invocation_dialect()
-        .native_name_protocol()
+        .invocation_name_protocol()
         .ok_or_else(|| unavailable.clone())?;
     let report = interp.namespaces().qualified_name(namespace);
     let has_parent = interp.namespaces().parent(namespace).is_some();

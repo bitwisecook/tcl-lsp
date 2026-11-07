@@ -511,8 +511,7 @@ fn compiled_string_replace(
         Settlement::Ranges => return None,
         Settlement::Runtime => {
             let chars = if interp
-                .native_invocation_dialect()
-                .native_string_protocol()
+                .invocation_string_protocol()
                 .is_some_and(|protocol| protocol.tcl_version().is_some())
             {
                 match tcl_cmd_core::index::NativeIndexOps::index_character_count(interp, &argv[2]) {

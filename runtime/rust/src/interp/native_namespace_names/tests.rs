@@ -663,10 +663,7 @@ fn logical_namespace_creation_keeps_its_explicit_simulation_and_internal_owner()
     );
     let policy = interp.name_policy_protocol().unwrap();
     assert_eq!(policy.authority(), NamePolicyAuthority::AuthoredSimulation);
-    assert!(interp
-        .native_invocation_dialect()
-        .native_name_protocol()
-        .is_none());
+    assert!(interp.invocation_name_protocol().is_none());
     assert!(interp.set_logical_source_word_provider(
         tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
         crate::environment::profile_for_dialect("tcl8.6"),
@@ -678,10 +675,7 @@ fn logical_namespace_creation_keeps_its_explicit_simulation_and_internal_owner()
         .namespaces()
         .find_namespace(GLOBAL, b"::logical_created")
         .is_some());
-    assert!(interp
-        .native_invocation_dialect()
-        .native_name_protocol()
-        .is_none());
+    assert!(interp.invocation_name_protocol().is_none());
 }
 
 mod selected_report_parts_tests {

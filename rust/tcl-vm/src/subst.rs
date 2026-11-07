@@ -650,8 +650,7 @@ fn concatenate_word_values(vm: &mut Vm, mut values: Vec<Value>) -> Result<Value,
         return Ok(values.pop().expect("sole completed word component"));
     }
     if let Some(protocol) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
+        .actual_native_string_protocol()
         .filter(|protocol| protocol.tcl_version().is_some())
     {
         return tcl_cmd_core::native_cat::concatenate_compiled(

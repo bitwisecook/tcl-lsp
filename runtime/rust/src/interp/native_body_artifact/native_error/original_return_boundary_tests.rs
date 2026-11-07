@@ -187,15 +187,8 @@ fn entered(profile: &str) -> Interp {
 }
 fn options(actual: &Interp, pairs: &[(*mut TclObj, *mut TclObj)]) -> obj::Owned {
     obj::Owned::fresh(
-        crate::dict::new_dict_obj_native(
-            pairs,
-            None,
-            actual
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
-        )
-        .unwrap(),
+        crate::dict::new_dict_obj_native(pairs, None, actual.invocation_string_protocol().unwrap())
+            .unwrap(),
     )
 }
 fn first(actual: &Interp, error: &tcl_cmd_core::CmdError, mode: u8) {

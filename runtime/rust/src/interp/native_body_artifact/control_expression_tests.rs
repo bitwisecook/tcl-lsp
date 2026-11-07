@@ -224,8 +224,7 @@ fn compiled_syntax_context_retains_same_native_message_and_options() {
             .original_inner_context()
             .expect("original innerContext");
         let strings = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .unwrap();
         let members = crate::list::list_elements_native_checked(context, strings).unwrap();
         assert_eq!(members.len(), 3);
@@ -350,8 +349,7 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
                 .original_inner_context()
                 .expect("original innerContext");
             let strings = interp
-                .native_invocation_dialect()
-                .native_string_protocol()
+                .invocation_string_protocol()
                 .unwrap();
             let members = crate::list::list_elements_native_checked(context, strings).unwrap();
             assert_eq!(members.len(), 3);

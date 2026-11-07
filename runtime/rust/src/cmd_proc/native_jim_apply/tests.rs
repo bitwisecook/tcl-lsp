@@ -68,10 +68,7 @@ fn original_first_substitutions_get_namespace_only_when_command_lookup_is_reache
         crate::native_source::bind_context(namespace.as_ptr(), &context).unwrap();
         let parameters = Owned::fresh(obj::new_string_bytes(formal.as_bytes()));
         let body = Owned::fresh(obj::new_string_bytes(body.as_bytes()));
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         let lambda = Owned::fresh(crate::list::new_list_obj_native(
             &[parameters.as_ptr(), body.as_ptr(), namespace.as_ptr()],
             protocol,
@@ -163,10 +160,7 @@ fn original_frame_arguments_stay_stringless_and_keep_their_actual_list_identity(
         crate::native_source::bind_context(argument.as_ptr(), &context).unwrap();
         let parameters = Owned::fresh(obj::new_string_bytes(formal.as_bytes()));
         let body = Owned::fresh(obj::new_string_bytes(body.as_bytes()));
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         let lambda = Owned::fresh(crate::list::new_list_obj_native(
             &[parameters.as_ptr(), body.as_ptr(), namespace.as_ptr()],
             protocol,

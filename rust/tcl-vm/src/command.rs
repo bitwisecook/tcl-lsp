@@ -1139,16 +1139,13 @@ fn check_renamed_alias_loop(
         false
     };
     if loops {
-        let reported = vm
-            .actual_native_invocation_dialect()
-            .native_name_protocol()
-            .and_then(|recipe| {
-                let (_, source) = vm.command_slot_parts(old_key)?;
-                let (_, destination) = vm.command_slot_parts(key)?;
-                recipe
-                    .rename_alias_loop_name(source.as_bytes(), destination.as_bytes())
-                    .map(<[u8]>::to_vec)
-            });
+        let reported = vm.actual_native_name_protocol().and_then(|recipe| {
+            let (_, source) = vm.command_slot_parts(old_key)?;
+            let (_, destination) = vm.command_slot_parts(key)?;
+            recipe
+                .rename_alias_loop_name(source.as_bytes(), destination.as_bytes())
+                .map(<[u8]>::to_vec)
+        });
         vm.forget_rename_destination(key);
         let Some(reported) = reported else {
             return Err(
@@ -1897,8 +1894,7 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // placeholder; on the native `invoke_command` fallback it runs via a nested
     // drive (not yieldable, as before).
     let original = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
+        .actual_native_string_protocol()
         .filter(|protocol| protocol.is_jim084())
         .map(|_| string.native_lifetime_lease());
     let uses_compiled_template = compiled.is_some();
@@ -1908,8 +1904,7 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         control: crate::subst::SubstitutionControl::Command,
         template: if uses_compiled_template
             || vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
+                .actual_native_string_protocol()
                 .is_some_and(tcl_syntax::native_string::NativeStringProtocol::is_jim084)
         {
             Vec::<u8>::new().into()

@@ -1131,7 +1131,7 @@ impl Interp {
                 return Err(self.report_cmd_error(error.into()));
             }
         }
-        if self.native_invocation_dialect().native_string_protocol()
+        if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             let namespace = match meta.jim_namespace {
@@ -1355,7 +1355,7 @@ impl Interp {
                     len,
                 } => {
                     let value = self.new_list_object(&call_args[start..start + len]);
-                    let original = if self.native_invocation_dialect().native_string_protocol()
+                    let original = if self.invocation_string_protocol()
                         == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
                     {
                         match crate::frame::OriginalJimVariadic::capture(value) {

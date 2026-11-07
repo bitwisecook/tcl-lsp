@@ -65,10 +65,7 @@ fn original_search_sort_public_outcomes_and_child_cache_match_native636() {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
-        let protocol = ops
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = ops.invocation_string_protocol().unwrap();
         let version = protocol.tcl_version();
         let mut owners = Vec::new();
         let mut observed = [None, None];

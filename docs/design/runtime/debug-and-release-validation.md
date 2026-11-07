@@ -43,10 +43,21 @@ pub(crate) const VERIFY_CURRENCY: bool = cfg!(debug_assertions);
 | VM | `OriginalVariableCleanup::check` | physical frame, level, namespace depth and activation |
 | VM | `OriginalNumericOps::current_for_value_native` | object header currentness |
 | Runtime | `NativeOperationCurrency::ensure_current` | epoch, host, pinned context, profile and release |
+| Runtime | `Interp::check_entered_native_operation`, inherited `NativeOperationCurrency::issue` | re-check of the interpreter's own entered currency after its refusal check |
+| Runtime | `NativeOperationScope::enter` | re-check of a just-issued currency |
 
 In release, an operation whose world changes under it continues against the
 changed world instead of refusing, as C Tcl does. Tests that assert those
 refusals are therefore debug-only; they run in every debug test build.
+
+## Shared entries
+
+Independently of the switch, nested entry reuses work that is identical by
+construction. A nested runtime scope shares its inherited currency instead of
+copying it. A nested VM scope, or a saved cleanup whose currency has the same
+issue as the innermost live entry, reuses that entry when both it and the
+innermost allocator are unpooled and the engine is not Jim, since a fresh
+unpooled entry would shadow nothing.
 
 ## Adding a gate
 

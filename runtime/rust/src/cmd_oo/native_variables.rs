@@ -205,10 +205,7 @@ mod tests {
             interp.result_bytes()
         );
         let actual = interp.result_bytes();
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         let observed = if label.ends_with("_OBJECT_VARS_AFTER_STATIC")
             || label.ends_with("_OBJECT_VARS_AFTER_DYNAMIC")
         {

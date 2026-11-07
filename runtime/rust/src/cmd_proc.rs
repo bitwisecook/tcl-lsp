@@ -456,12 +456,9 @@ fn split_formal_objects(
     protocol: tcl_syntax::naming::NativeNameProtocol,
 ) -> Result<Vec<Owned>, CmdError> {
     let pointer = value.as_ptr();
-    let string_protocol = interp
-        .native_invocation_dialect()
-        .native_string_protocol()
-        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-            "formal list producer",
-        ))?;
+    let string_protocol = interp.invocation_string_protocol().ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable("formal list producer"),
+    )?;
     if matches!(
         protocol.tcl_version(),
         Some(tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)
@@ -581,13 +578,12 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let original = Owned::retain(argv[1]);
     if interp
-        .native_invocation_dialect()
-        .native_string_protocol()
+        .invocation_string_protocol()
         .is_some_and(|protocol| protocol.tcl_version().is_some())
     {
         return apply_native_c(interp, argv, &original, protocol, diagnostics);
     }
-    if interp.native_invocation_dialect().native_string_protocol()
+    if interp.invocation_string_protocol()
         == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
     {
         return native_jim_apply::apply(interp, argv, &original, diagnostics);
@@ -624,7 +620,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(bytes) => bytes,
             Err(error) => return interp.report_cmd_error(error.into()),
         };
-        let Some(recipe) = interp.native_invocation_dialect().native_name_protocol() else {
+        let Some(recipe) = interp.invocation_name_protocol() else {
             return interp.report_cmd_error(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "lambda namespace recipe",
@@ -729,7 +725,7 @@ fn lambda_namespace_lookup_error(
         Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(report.message, code),
         None => tcl_cmd_core::CmdError::new_bytes(report.message),
     };
-    if interp.native_invocation_dialect().native_string_protocol() == Some(report.string_protocol) {
+    if interp.invocation_string_protocol() == Some(report.string_protocol) {
         error = error.with_native_string_result(report.string_protocol);
     }
     interp.report_cmd_error(error)

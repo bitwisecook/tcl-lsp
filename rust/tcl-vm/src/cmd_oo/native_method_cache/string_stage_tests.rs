@@ -169,10 +169,7 @@ fn original_method_cache_string_uses_captured_formatter_before_all_record_upgrad
         drop(chain);
         assert_eq!(formatter.selected.strong_count(), 1);
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         assert_eq!(
             OriginalNumericOps::in_original_scope(&mut vm, &scope)
                 .unwrap()

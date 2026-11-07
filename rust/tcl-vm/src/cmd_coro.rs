@@ -265,10 +265,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Ok(namespace) => namespace,
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        let Some(protocol) = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-        else {
+        let Some(protocol) = vm.actual_native_string_protocol() else {
             return vm.refuse_host_command("original coroutine invocation List issuer".into());
         };
         let mut original = Vec::with_capacity(words.len() + 1);
@@ -582,10 +579,7 @@ fn resume_delivery_value(
     match kind {
         SuspendKind::Yield => Ok(args.first().cloned().unwrap_or_else(Value::empty)),
         SuspendKind::YieldTo => {
-            let Some(protocol) = vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-            else {
+            let Some(protocol) = vm.actual_native_string_protocol() else {
                 return Err(vm.refuse_host_command("original coroutine resume List issuer".into()));
             };
             Ok(Value::native_list_constructor(args.to_vec(), protocol))
@@ -790,8 +784,7 @@ pub(crate) fn request_yieldto(vm: &mut Vm, words: &[Value]) -> Result<(), Comple
     let namespace = tcl_cmd_core::namespace::current_original(vm)
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     let protocol = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
+        .actual_native_string_protocol()
         .ok_or_else(|| vm.refuse_host_command("original yieldto List issuer".into()))?;
     let mut members = Vec::with_capacity(words.len() + 1);
     members.push(namespace);
@@ -819,10 +812,7 @@ pub(crate) fn request_yieldto_original(
     original: Value,
 ) -> Result<(), Completion<Value>> {
     check_relay_boundary(vm)?;
-    let Some(protocol) = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-    else {
+    let Some(protocol) = vm.actual_native_string_protocol() else {
         return Err(vm.refuse_host_command("original yieldto List issuer".into()));
     };
     let members = vm
@@ -845,10 +835,7 @@ fn invoke_original_relay(vm: &mut Vm, original: &Value) -> Completion<Value> {
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
     let reached = (|| {
-        let Some(protocol) = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-        else {
+        let Some(protocol) = vm.actual_native_string_protocol() else {
             return vm.refuse_host_command("original yieldto List issuer".into());
         };
         let members = match vm.native_object_list_elements_in(original, protocol) {

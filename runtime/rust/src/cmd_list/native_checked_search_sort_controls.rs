@@ -94,10 +94,7 @@ fn checked_original_search_sort_key_and_pattern_refusals_keep_first_cause_and_re
             LATER.set(0);
             FREED.set(0);
             REFS.set(0);
-            let protocol = ops
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = ops.invocation_string_protocol().unwrap();
             let first = obj::Owned::fresh(obj::alloc_typed(&FIRST, 0));
             let last = obj::Owned::fresh(obj::alloc_typed(&LAST, 0));
             let plain = obj::Owned::fresh(obj::new_string_bytes(b"A"));
@@ -178,10 +175,7 @@ fn original_numeric_primitives_preserve_first_refusal_before_keys_and_mandatory_
             LATER.set(0);
             FREED.set(0);
             REFS.set(0);
-            let protocol = ops
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = ops.invocation_string_protocol().unwrap();
             let first = obj::Owned::fresh(obj::alloc_typed(&FIRST, 0));
             let last = obj::Owned::fresh(obj::alloc_typed(&LAST, 0));
             let plain = obj::Owned::fresh(obj::new_string_bytes(b"1"));

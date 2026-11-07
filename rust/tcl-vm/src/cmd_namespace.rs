@@ -2916,9 +2916,7 @@ mod original_export_tests {
     fn pending_list(vm: &Vm) -> Value {
         Value::native_list_constructor(
             vec![Value::new_native_string_bytes(b"unreached".as_slice())],
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
+            vm.actual_native_string_protocol().unwrap(),
         )
     }
 
@@ -3109,10 +3107,7 @@ mod original_ensemble_tests {
                 assert_eq!(query.code, Code::Ok, "{release}");
                 let snapshot = ns_ensemble_configure(&mut vm, &[Value::string(command)]);
                 assert_eq!(snapshot.code, Code::Ok, "{release}");
-                let protocol = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = vm.actual_native_string_protocol().unwrap();
                 let entries = snapshot
                     .result
                     .native_object_list_elements(protocol)

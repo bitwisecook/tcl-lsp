@@ -29,10 +29,7 @@ fn original_format_single_value_retains_its_actual_list_object() {
             interp.eval_str(b"proc p {value} {format {%s} $value}"),
             Code::Ok
         );
-        let protocol = interp
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = interp.invocation_string_protocol().unwrap();
         let value = obj::Owned::fresh(crate::list::new_list_obj_native(&[], protocol));
         let head = obj::Owned::fresh(new_string(b"p"));
         assert_eq!(

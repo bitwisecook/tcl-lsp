@@ -393,6 +393,20 @@ fn retain_first(vm: &mut Vm, cause: NativeExecutionError) -> NativeExecutionErro
     vm.retain_native_execution_refusal(cause)
 }
 impl NativeOperationCurrency {
+    fn same_issue(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.owner, &other.owner)
+            && self.generation == other.generation
+            && Rc::ptr_eq(&self.authorised_generation, &other.authorised_generation)
+            && Rc::ptr_eq(&self.allocation_permit, &other.allocation_permit)
+            && self.interpreter == other.interpreter
+            && std::sync::Arc::ptr_eq(&self.context, &other.context)
+            && std::ptr::eq(self.profile, other.profile)
+            && self.engine.map(std::ptr::from_ref) == other.engine.map(std::ptr::from_ref)
+            && Rc::ptr_eq(&self.host, &other.host)
+    }
+}
+
+impl NativeOperationCurrency {
     fn capture_fields(vm: &mut Vm) -> Result<Self, NativeExecutionError> {
         if let Some(first) = vm.execution_refusal.clone() {
             return Err(first);
@@ -499,14 +513,21 @@ impl NativeOperationScope {
         Ok(original)
     }
 
+    /// An unpooled entry with the same currency is indistinguishable from a
+    /// fresh one while no pool shadows it, so nested entry can share it.
+    fn reusable(vm: &Vm, entered: &EnteredOperation) -> bool {
+        entered._allocation.is_unpooled()
+            && crate::value::JimAllocationScope::innermost_is_unpooled()
+            && vm.actual_native_string_protocol()
+                != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+    }
+
     fn allocation_scope(
         vm: &mut Vm,
         currency: &NativeOperationCurrency,
         permit_new_context: bool,
     ) -> Result<crate::value::JimAllocationScope, NativeExecutionError> {
-        let pool = if vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
+        let pool = if vm.actual_native_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {
             if permit_new_context {
@@ -549,6 +570,9 @@ impl NativeOperationScope {
         let inherited = Self::current_entered(vm)?;
         let owner = Rc::clone(&vm.native_operation_context);
         let currency = if let Some(original) = inherited {
+            if Self::reusable(vm, &original.entered) {
+                return Ok(original);
+            }
             original.currency().clone()
         } else {
             NativeOperationCurrency::capture_fields(vm)?
@@ -572,6 +596,18 @@ impl NativeOperationScope {
             return Err(retain_first(vm, unavailable()));
         }
         let _ = original.check_saved_target(vm, interpreter);
+        let innermost = {
+            let mut records = original.owner.entered.borrow_mut();
+            records.retain(|record| record.strong_count() != 0);
+            records.last().and_then(Weak::upgrade)
+        };
+        if let Some(entered) = innermost
+            && entered.currency.same_issue(original)
+            && Self::reusable(vm, &entered)
+        {
+            let _ = original.check_saved_target(vm, interpreter);
+            return Ok(Self { entered });
+        }
         let allocation = Self::allocation_scope(vm, original, false)?;
         let entered = Rc::new(EnteredOperation {
             currency: original.clone(),
@@ -1501,9 +1537,7 @@ mod tests {
         let original = OriginalOperationObservation::capture(&mut vm).unwrap();
         let issued = outer.currency().generation;
         let identity = vm.native_interpreter_identity();
-        let strings = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol();
+        let strings = vm.actual_native_string_protocol();
         let objects = vm.object_materialization();
         original
             .replace_observed_inputs(&mut vm, Some(names), None, false)
@@ -1517,11 +1551,7 @@ mod tests {
         assert_eq!(outer.currency().generation, issued);
         assert_eq!(inner.currency().generation, issued);
         assert_eq!(vm.native_interpreter_identity(), identity);
-        assert_eq!(
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol(),
-            strings
-        );
+        assert_eq!(vm.actual_native_string_protocol(), strings);
         assert_eq!(vm.object_materialization(), objects);
         assert!(outer.currency().current_generation() > issued);
         original
@@ -1544,20 +1574,12 @@ mod tests {
                 &mut vm,
             )
             .unwrap();
-        assert!(
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol()
-                .is_none()
-        );
+        assert!(vm.actual_native_string_protocol().is_none());
         original
             .replace_observed_inputs(&mut vm, Some(names), None, false)
             .unwrap();
         assert!(!vm.native_operation_context.has_entered_operation());
-        assert!(
-            vm.actual_native_invocation_dialect()
-                .native_string_protocol()
-                .is_none()
-        );
+        assert!(vm.actual_native_string_protocol().is_none());
         let resident = Value::string("RESIDENT");
         assert_eq!(
             original.string(&mut vm, &resident).unwrap().as_ref(),

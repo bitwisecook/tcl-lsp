@@ -705,10 +705,7 @@ mod tests {
             right.native_scalar_cache(),
             Some(Cache::Tcl84Long(4_294_967_296))
         );
-        let string = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let string = vm.actual_native_string_protocol().unwrap();
         assert_eq!(
             left.native_string_bytes(string).unwrap().as_ref(),
             b"4294967296"

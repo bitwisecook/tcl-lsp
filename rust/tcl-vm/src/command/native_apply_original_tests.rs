@@ -55,10 +55,7 @@ fn assert_row(
         "{label}"
     );
     assert_eq!(same, native[2] == "1", "{label}/identity");
-    let protocol = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-        .unwrap();
+    let protocol = vm.actual_native_string_protocol().unwrap();
     assert_eq!(
         completion
             .result
@@ -301,10 +298,7 @@ fn original_lambda_namespace_objects_match_constructor_and_getter_controls() {
                 } else {
                     Value::new_native_string_bytes(original)
                 };
-                let protocol = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = vm.actual_native_string_protocol().unwrap();
                 let lambda = Value::native_list_constructor(
                     vec![
                         Value::new_native_string_bytes(b"".as_slice()),
@@ -358,10 +352,7 @@ fn jim_lambda_keeps_absent_original_namespace_objects_without_c_lookup() {
             .eval_source("namespace eval Caller {proc launch {lambda} {apply $lambda}}")
             .unwrap();
         assert_eq!(setup.code, tcl_runtime_api::Code::Ok);
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         let namespace = Value::new_native_string_bytes(original);
         let lambda = Value::native_list_constructor(
             vec![
@@ -460,10 +451,7 @@ fn original_lambda_missing_namespaces_match_native_result_and_error_code() {
                 } else {
                     Value::new_native_string_bytes(original)
                 };
-                let protocol = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = vm.actual_native_string_protocol().unwrap();
                 let lambda = Value::native_list_constructor(
                     vec![
                         Value::new_native_string_bytes(b"".as_slice()),
@@ -522,10 +510,7 @@ fn jim_lambda_preflight_leaves_unentered_namespace_objects_stringless() {
     ] {
         let mut vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         let namespace = Value::int(42);
         let parameters = if required {
             Value::new_native_string_bytes(b"required".as_slice())
@@ -591,10 +576,7 @@ fn jim_lambda_unreached_command_lookup_keeps_original_namespace_unmaterialized()
     for (label, source) in [("COMMENT_BODY", "# only a comment"), ("INVALID_BODY", "{")] {
         let mut vm =
             crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         let namespace = Value::int(42);
         let context =
             crate::interp::OriginalJimNamespaceContext::for_lambda(&mut vm, &namespace).unwrap();
@@ -659,10 +641,7 @@ fn jim_lambda_unreached_command_lookup_keeps_original_namespace_unmaterialized()
 fn jim_lambda_temporary_publication_keeps_the_original_execution_namespace_separate() {
     let mut vm =
         crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jimtcl"));
-    let protocol = vm
-        .actual_native_invocation_dialect()
-        .native_string_protocol()
-        .unwrap();
+    let protocol = vm.actual_native_string_protocol().unwrap();
     let namespace = Value::int(42);
     let lambda = Value::native_list_constructor(
         vec![

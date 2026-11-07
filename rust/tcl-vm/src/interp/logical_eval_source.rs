@@ -88,10 +88,7 @@ impl crate::Vm {
             || self.name_policy_protocol() != Some(names)
             || self.compiled_variable_protocol() != Some(variables)
             || strings != c9
-            || self
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                != Some(strings)
+            || self.actual_native_string_protocol() != Some(strings)
         {
             return Err(unavailable());
         }

@@ -257,8 +257,7 @@ impl NativeIndexOps for Interp {
         })
     }
     fn index_c_version(&self) -> Option<tcl_dialect::TclVersion> {
-        self.native_invocation_dialect()
-            .native_string_protocol()
+        self.invocation_string_protocol()
             .and_then(|protocol| protocol.tcl_version())
     }
     fn original_c_option_path(
@@ -383,8 +382,7 @@ impl NativeIndexOps for Interp {
     fn index_sort_copy(&mut self, original: &*mut TclObj) -> Result<RuntimeIndexKey, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*original])?;
         let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original sort List copy issuer",
@@ -428,12 +426,11 @@ impl NativeIndexOps for Interp {
     ) -> Result<RuntimeIndexKey, CmdError> {
         let arguments = OriginalArguments::enter(self, &members)?;
         arguments.check_for(self)?;
-        let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original sort List issuer",
-            ))?;
+        let protocol =
+            self.invocation_string_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original sort List issuer",
+                ))?;
         let list = crate::list::new_list_obj_native(&members, protocol);
         if held {
             Ok(RuntimeIndexKey::held(obj::Owned::fresh(list)))
@@ -447,12 +444,11 @@ impl NativeIndexOps for Interp {
         members: &[*mut TclObj],
     ) -> Result<(), CmdError> {
         let arguments = OriginalArguments::enter(self, &[list.pointer])?;
-        let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original sort List append issuer",
-            ))?;
+        let protocol =
+            self.invocation_string_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original sort List append issuer",
+                ))?;
         crate::list::append_prepared_native_elements_using(
             list.pointer,
             members,
@@ -469,12 +465,11 @@ impl NativeIndexOps for Interp {
         members: &[*mut TclObj],
     ) -> Result<(), CmdError> {
         let arguments = OriginalArguments::enter(self, &[list.pointer])?;
-        let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original sort List replacement issuer",
-            ))?;
+        let protocol =
+            self.invocation_string_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original sort List replacement issuer",
+                ))?;
         crate::list::replace_prepared_native_range_using(
             list.pointer,
             first,
@@ -542,8 +537,7 @@ impl NativeIndexOps for Interp {
         if !eligible {
             return Ok(None);
         }
-        if crate::bytearray::native_string_protocol(*original)
-            != self.native_invocation_dialect().native_string_protocol()
+        if crate::bytearray::native_string_protocol(*original) != self.invocation_string_protocol()
         {
             return Err(ValueError::CommandProtocolUnavailable(
                 "original C binary selection issuer",
@@ -599,8 +593,7 @@ impl NativeIndexOps for Interp {
     ) -> Result<tcl_cmd_core::string::NativeCStringStorage, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*original])?;
         let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C String storage issuer",
@@ -637,8 +630,7 @@ impl NativeIndexOps for Interp {
         }
         let arguments = OriginalArguments::enter(self, &[])?;
         let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original counted C String constructor",
@@ -671,8 +663,7 @@ impl NativeIndexOps for Interp {
     fn index_c_unicode_units(&mut self, original: &*mut TclObj) -> Result<Rc<[u32]>, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*original])?;
         let protocol = self
-            .native_invocation_dialect()
-            .native_string_protocol()
+            .invocation_string_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original C Unicode issuer",
@@ -697,7 +688,7 @@ impl NativeIndexOps for Interp {
         } = snapshot.cache
         {
             if crate::bytearray::native_string_protocol(*original)
-                != self.native_invocation_dialect().native_string_protocol()
+                != self.invocation_string_protocol()
             {
                 return Err(ValueError::CommandProtocolUnavailable(
                     "original C binary backing issuer",
@@ -836,24 +827,22 @@ impl NativeIndexOps for Interp {
         index: usize,
     ) -> Result<Option<tcl_cmd_core::index::IndexResult<*mut TclObj>>, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*value])?;
-        let reached = if crate::native_arithseries::is_series(*value) {
-            let protocol = self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "abstract native Index",
-                ))?;
-            crate::native_arithseries::index_in(*value, index, protocol)
-                .map(|member| member.map(tcl_cmd_core::index::IndexResult::Created))
-                .map_err(Into::into)
-        } else {
-            self.index_list_elements(value).map(|members| {
-                members
-                    .into_iter()
-                    .nth(index)
-                    .map(tcl_cmd_core::index::IndexResult::Borrowed)
-            })
-        };
+        let reached =
+            if crate::native_arithseries::is_series(*value) {
+                let protocol = self.invocation_string_protocol().ok_or(
+                    ValueError::CommandProtocolUnavailable("abstract native Index"),
+                )?;
+                crate::native_arithseries::index_in(*value, index, protocol)
+                    .map(|member| member.map(tcl_cmd_core::index::IndexResult::Created))
+                    .map_err(Into::into)
+            } else {
+                self.index_list_elements(value).map(|members| {
+                    members
+                        .into_iter()
+                        .nth(index)
+                        .map(tcl_cmd_core::index::IndexResult::Borrowed)
+                })
+            };
         arguments.check_original_for(self, 0, *value)?;
         reached
     }
@@ -861,9 +850,7 @@ impl NativeIndexOps for Interp {
         &mut self,
         original: &*mut TclObj,
     ) -> Result<Option<Vec<*mut TclObj>>, CmdError> {
-        if self.native_invocation_dialect().native_string_protocol()
-            != Some(NativeStringProtocol::Jim084)
-        {
+        if self.invocation_string_protocol() != Some(NativeStringProtocol::Jim084) {
             return Err(
                 ValueError::CommandProtocolUnavailable("original Jim Index path issuer").into(),
             );
@@ -885,9 +872,7 @@ impl NativeJimIndexObjects for Interp {
     type Scope = RuntimeJimIndexScope;
     fn jim_index_scope(&mut self, original: &*mut TclObj) -> Result<Self::Scope, CmdError> {
         let scope = OriginalArguments::enter(self, &[*original])?;
-        if self.native_invocation_dialect().native_string_protocol()
-            != Some(NativeStringProtocol::Jim084)
-        {
+        if self.invocation_string_protocol() != Some(NativeStringProtocol::Jim084) {
             return Err(ValueError::CommandProtocolUnavailable("original Jim Index issuer").into());
         }
         Ok(RuntimeJimIndexScope(scope))
@@ -990,12 +975,9 @@ pub(crate) fn list_length_using<E: From<ValueError>>(
     let reached = (|interpreter: &mut Interp| -> Result<usize, E> {
         obj::check_native_liveness(*value)?;
         if crate::native_arithseries::is_series(*value) {
-            let protocol = interpreter
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "abstract native Length",
-                ))?;
+            let protocol = interpreter.invocation_string_protocol().ok_or(
+                ValueError::CommandProtocolUnavailable("abstract native Length"),
+            )?;
             return crate::native_arithseries::length_in(*value, protocol)?
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "abstract native Length",

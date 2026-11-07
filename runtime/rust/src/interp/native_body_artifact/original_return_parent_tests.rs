@@ -127,15 +127,8 @@ fn entered(profile: &str, syntax: bool) -> (Interp, Rc<NativeBodyArtifact>) {
 }
 fn original_options(actual: &Interp, pairs: &[(*mut TclObj, *mut TclObj)]) -> obj::Owned {
     obj::Owned::fresh(
-        crate::dict::new_dict_obj_native(
-            pairs,
-            None,
-            actual
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap(),
-        )
-        .unwrap(),
+        crate::dict::new_dict_obj_native(pairs, None, actual.invocation_string_protocol().unwrap())
+            .unwrap(),
     )
 }
 fn first(actual: &Interp, mode: u8) {

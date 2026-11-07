@@ -488,10 +488,7 @@ fn ensemble_list_configuration_keeps_original_objects_and_checks_reached_caller_
                 else {
                     panic!("actual selected ensemble");
                 };
-                let protocol = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .unwrap();
+                let protocol = vm.actual_native_string_protocol().unwrap();
                 let original = Value::int(42);
                 let later =
                     Value::native_list_constructor(vec![Value::string("-prefixes")], protocol);
@@ -558,10 +555,7 @@ fn ensemble_map_dictionary_conversion_keeps_original_members_and_caller_checks()
             let crate::command::Command::Ensemble(token) = vm.lookup_command("::E").unwrap() else {
                 panic!("actual selected ensemble");
             };
-            let protocol = vm
-                .actual_native_invocation_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let protocol = vm.actual_native_string_protocol().unwrap();
             let key = Value::int(42);
             let key_lease = key.native_lifetime_lease();
             let prefix = Value::native_list_constructor(
@@ -634,10 +628,7 @@ fn ensemble_map_nested_prefix_list_getter_checks_the_original_caller() {
         let crate::command::Command::Ensemble(token) = vm.lookup_command("::E").unwrap() else {
             panic!("actual selected ensemble");
         };
-        let protocol = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-            .unwrap();
+        let protocol = vm.actual_native_string_protocol().unwrap();
         let prefix = Value::int(42);
         let prefix_lease = prefix.native_lifetime_lease();
         let original = Value::from_native_dictionary_cache(vec![(Value::string("member"), prefix)]);
