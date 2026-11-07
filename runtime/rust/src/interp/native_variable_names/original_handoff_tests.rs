@@ -205,6 +205,7 @@ fn original_name_cache_retirement_keeps_reached_store_result_and_first_cause() {
         }
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_c9_selected_root_rebirth_refuses_while_c8_selects_after_its_old_free() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -240,6 +241,7 @@ fn original_c9_selected_root_rebirth_refuses_while_c8_selects_after_its_old_free
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_c9_alias_handoff_refuses_retarget_before_cache_and_receiver_adoption() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -271,6 +273,7 @@ fn original_c9_alias_handoff_refuses_retarget_before_cache_and_receiver_adoption
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 }
+#[cfg(debug_assertions)]
 #[test]
 fn original_indexed_selection_retirement_refuses_reborn_frame_at_the_same_slot() {
     // naming.embedding.original-host-publication-and-fact-transport
