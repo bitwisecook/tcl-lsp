@@ -141,7 +141,11 @@ impl CodegenCtx<'_> {
                     }
                 }
             }
-            Plan::Set { .. } => return false,
+            Plan::Set {
+                target,
+                indices,
+                value,
+            } => return self.list_set_tasks(command, target, indices, value, operations),
         }
         true
     }
@@ -197,6 +201,41 @@ impl CodegenCtx<'_> {
                 }
             }
         }
+        true
+    }
+
+    /// `TclCompileLsetCmd`: the variable word, then every index and the
+    /// value, then copies of the name parts for the load and store.
+    fn list_set_tasks(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        target: NativeListVariableOperand,
+        indices: Vec<NativeCompilerWordOperand>,
+        value: NativeCompilerWordOperand,
+        operations: &mut Vec<Task>,
+    ) -> bool {
+        let Some((slot, array)) = self.list_target(command, target, operations) else {
+            return false;
+        };
+        let arguments = indices.len() + 2;
+        for operand in indices.into_iter().chain(std::iter::once(value)) {
+            if !Self::list_operand(command, operand, operations) {
+                return false;
+            }
+        }
+        let over = |depth: usize| operation(Op::OVER, &[super::super::bytecode_imm(depth)]);
+        match (slot.is_none(), array) {
+            (true, true) => operations.extend([over(arguments), over(arguments)]),
+            (true, false) | (false, true) => operations.push(over(arguments - 1)),
+            (false, false) => {}
+        }
+        operations.push(variable_access(slot, array, false));
+        operations.push(if arguments == 3 {
+            operation(Op::LSET_LIST, &[])
+        } else {
+            operation(Op::LSET_FLAT, &[super::super::bytecode_imm(arguments)])
+        });
+        operations.push(variable_access(slot, array, true));
         true
     }
 

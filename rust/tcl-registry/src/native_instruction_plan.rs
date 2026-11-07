@@ -1336,6 +1336,20 @@ fn selected_container_and_string_instruction_plan(
             .map(NativeInstructionPlan::ListOperations)
             .map_err(|_| Unavailable::OperandGeometry)
         }
+        // TclCompileLsetCmd: every release from 8.4, the variable word first.
+        NativeCompilationGrammar::ArityFrom { .. }
+            if spec.operation
+                == crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListSet) =>
+        {
+            crate::native_list_operations_compilation::compile_native_list_operation(
+                words,
+                operand_from,
+                version,
+                crate::native_list_operations_compilation::NativeListOperationKind::Set,
+            )
+            .map(NativeInstructionPlan::ListOperations)
+            .map_err(|_| Unavailable::OperandGeometry)
+        }
         NativeCompilationGrammar::ListInsertion if version >= tcl_dialect::TclVersion::V8_6 => {
             crate::native_list_operations_compilation::compile_native_list_operation(
                 words,
