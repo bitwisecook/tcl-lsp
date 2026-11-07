@@ -777,10 +777,13 @@ impl TraceInputs<'_> {
     }
 
     /// `self` with a callback that writes a computed name read as a trace on
-    /// one, which is how it can change any variable.
+    /// one, which is how it can change any variable, except one registered
+    /// only by statements at sites [`DeferredWrites::any_sites`] names: those
+    /// [`RunHazards`] charges to the blocks that hold them.
     fn with_callback_writes_as_traces(self) -> Self {
         Self {
-            has_dynamic_variable_trace: self.writes_any_variable(),
+            has_dynamic_variable_trace: self.has_dynamic_variable_trace
+                || self.deferred_writes.any && self.deferred_writes.any_sites.is_empty(),
             ..self
         }
     }
@@ -931,7 +934,7 @@ pub fn sccp_with_builtin_folds(
         folds,
         module: ModuleRun::NONE,
     };
-    drive(|round| solve(&inputs, round))
+    drive_escaping(&inputs)
 }
 
 /// A known analysis body; an outer `None` retains unavailable body identity.
@@ -1019,7 +1022,113 @@ impl<'a> ModuleRun<'a> {
 /// of the module ([`ModuleRun`]).
 #[must_use]
 pub(crate) fn sccp_in_module(inputs: &SolveInputs<'_>) -> SccpResult {
-    drive(|round| solve(inputs, round))
+    drive_escaping(inputs)
+}
+
+/// What a run must assume of the whole function when only the blocks an
+/// `executable` filter admits can run: the names it keeps overdefined
+/// ([`escaping_names`]) and whether a computed name may write or destroy any
+/// place ([`crate::dynamic_names::dynamic_name_barrier_in`]).
+#[derive(Clone, PartialEq, Eq)]
+struct RunHazards {
+    escaping: HashSet<String>,
+    computed_writes: bool,
+    caller_frame: crate::dynamic_names::DynamicNameBarrier,
+}
+
+impl RunHazards {
+    fn of(inputs: &SolveInputs<'_>, executable: &dyn Fn(&BlockId) -> bool) -> Self {
+        let trace = inputs.trace.with_callback_writes_as_traces();
+        let names = crate::dynamic_names::dynamic_name_barrier_in(
+            inputs.cfg,
+            trace.registry,
+            solve_lexer_config(trace),
+            executable,
+        );
+        Self {
+            escaping: escaping_names(
+                inputs.cfg,
+                &trace,
+                inputs.extra_escaping,
+                inputs.module.owned,
+                executable,
+            ),
+            computed_writes: names.writes
+                || names.destroys
+                || callback_writes_any(inputs.cfg, trace.deferred_writes, executable),
+            caller_frame: inputs.cfg.caller_frame_barrier_in(executable),
+        }
+    }
+
+    fn covers(&self, other: &Self) -> bool {
+        other.escaping.is_subset(&self.escaping)
+            && (self.computed_writes || !other.computed_writes)
+            && self.caller_frame.union(other.caller_frame) == self.caller_frame
+    }
+
+    fn absorb(&mut self, other: Self) {
+        self.escaping.extend(other.escaping);
+        self.computed_writes |= other.computed_writes;
+        self.caller_frame = self.caller_frame.union(other.caller_frame);
+    }
+}
+
+/// Whether a callback a statement registers may write any variable, leaving
+/// out the statements at sites this function holds in blocks `executable`
+/// rejects: those never run, so they register nothing. A site this function
+/// does not hold is another function's, which may run.
+fn callback_writes_any(
+    cfg: &CfgFunction,
+    deferred: &crate::ir::DeferredWrites,
+    executable: &dyn Fn(&BlockId) -> bool,
+) -> bool {
+    if !deferred.any || deferred.any_sites.is_empty() {
+        return deferred.any;
+    }
+    let skipped: HashSet<&crate::command_binding::CommandAllocationSite> = cfg
+        .blocks
+        .iter()
+        .filter(|(id, _)| !executable(id))
+        .flat_map(|(_, block)| &block.statements)
+        .filter_map(|statement| {
+            statement
+                .tokens()?
+                .source_binding
+                .as_ref()?
+                .invocation_site()
+        })
+        .collect();
+    deferred.any_beyond(|site| skipped.contains(site))
+}
+
+/// [`drive`] under the whole-function hazards its own executable blocks
+/// carry.
+///
+/// A block that never runs aliases nothing and writes no computed name, but
+/// which blocks run is what the solve decides, and a hazard makes values
+/// overdefined. So the hazards start from what no block contributes and grow
+/// by what the blocks each solve leaves executable contribute, until a
+/// solve's blocks contribute nothing new. Larger hazards only make more
+/// values overdefined and more blocks executable, so they rise and the loop
+/// ends; the last solve ran under every hazard its executable blocks carry.
+/// Without this, one arm the source walk proves dead (lowered as an opaque
+/// call because the walk binds nothing in it) made every variable of the
+/// function external, so not even the condition that kills the arm could be
+/// decided.
+fn drive_escaping(inputs: &SolveInputs<'_>) -> SccpResult {
+    let every_block = RunHazards::of(inputs, &|_| true);
+    let mut hazards = RunHazards::of(inputs, &|_| false);
+    if hazards.covers(&every_block) {
+        return drive(|round| solve(inputs, round, &every_block));
+    }
+    loop {
+        let result = drive(|round| solve(inputs, round, &hazards));
+        let needed = RunHazards::of(inputs, &|id| result.executable_blocks.contains(id));
+        if hazards.covers(&needed) {
+            return result;
+        }
+        hazards.absorb(needed);
+    }
 }
 
 /// The solver's rounds over `solve`, one run of the solver each. A loop the
@@ -1122,13 +1231,12 @@ fn solve_lexer_config(trace: TraceInputs<'_>) -> tcl_lexer::LexerConfig {
 }
 
 /// One run of the solver ([`sccp_with_builtin_folds`]).
-fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
+fn solve(inputs: &SolveInputs<'_>, round: &Round, hazards: &RunHazards) -> Solved {
     let SolveInputs {
         cfg,
         ssa,
         param_constants,
         policy,
-        extra_escaping,
         trace,
         ..
     } = *inputs;
@@ -1139,7 +1247,7 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     let grammar = solve_grammar(trace);
     seed_live_in_roots(cfg, ssa, &mut values, grammar);
 
-    let escaping = escaping_names(cfg, &trace, extra_escaping, inputs.module.owned);
+    let escaping = hazards.escaping.clone();
     // Every command-specific answer below comes from the registry's
     // declaration for the resolved invocation, through one driver whose
     // context is this run's identity.
@@ -1151,9 +1259,15 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     let facts = branch_facts(cfg, (trace.registry, config, policy), &driver);
     // The existence rung runs beside the values, over the same executable
     // blocks and edges, when the caller asks for it.
-    let mut existence = trace
-        .existence
-        .map(|entry| ExistenceRun::new(cfg, ssa, entry, (&escaping, &facts), trace.registry));
+    let mut existence = trace.existence.map(|entry| {
+        ExistenceRun::new(
+            cfg,
+            ssa,
+            entry,
+            (&escaping, &facts, hazards.caller_frame),
+            trace.registry,
+        )
+    });
     if let Some(run) = &existence {
         driver.existence_places(run.query_only.clone());
         driver.existence_external(run.external.clone());
@@ -1161,7 +1275,7 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
     // Every refinement, in order: the existence rung's, which it carries
     // itself, and every other domain's, which the sweep reads through the
     // blocks they hold in, the state enumerated loops leave among them.
-    let external = external_places((cfg, &trace), (&escaping, config));
+    let external = external_places(&trace, &escaping, hazards.computed_writes);
     let mut others = value_refinements(&facts, ssa, &external);
     if let Round::Published(exits) = round {
         others.extend_from_slice(exits);
@@ -1176,7 +1290,9 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
         ssa,
         preds: &preds,
         escaping: &escaping,
-        has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
+        // A computed name any executable block writes or destroys may be any
+        // place, as a trace on a computed name may observe any.
+        has_dynamic_variable_trace: trace.has_dynamic_variable_trace || hazards.computed_writes,
         grammar,
         driver: &driver,
         regions: &regions,
@@ -1321,9 +1437,14 @@ fn escaping_names(
     trace: &TraceInputs<'_>,
     extra_escaping: &HashSet<String>,
     owned: Option<&HashSet<String>>,
+    executable: &dyn Fn(&BlockId) -> bool,
 ) -> HashSet<String> {
-    let mut escaping = crate::var_observability::analyse_var_observability(cfg, trace.registry)
-        .escaping_var_names();
+    let mut escaping = crate::var_observability::analyse_executable_var_observability(
+        cfg,
+        trace.registry,
+        executable,
+    )
+    .escaping_var_names();
     if let Some(owned) = owned {
         escaping.retain(|name| !owned.contains(name));
     }
@@ -1906,7 +2027,11 @@ impl ExistenceRun {
         cfg: &CfgFunction,
         ssa: &SsaFunction,
         entry: ExistenceEntry<'_>,
-        (escaping, facts): (&HashSet<String>, &[BranchFact]),
+        (escaping, facts, caller_frame): (
+            &HashSet<String>,
+            &[BranchFact],
+            crate::dynamic_names::DynamicNameBarrier,
+        ),
         registry: &CommandRegistry,
     ) -> Self {
         // The SSA's symbols, then a slot per place only an existence query
@@ -1940,7 +2065,7 @@ impl ExistenceRun {
             .zip(&mutable)
             .map(|(name, &mutable)| mutable || linked_elsewhere(name, entry, registry, dialect))
             .collect();
-        let caller_frame = Clobber::of_names(cfg.caller_frame_barrier);
+        let caller_frame = Clobber::of_names(caller_frame);
         let entry_state: Vec<Existence> = names
             .iter()
             .zip(&mutable)
@@ -2339,23 +2464,20 @@ fn existence_guards(facts: &[BranchFact]) -> Vec<(String, BlockId)> {
 /// place once a computed name anywhere in the function may write or destroy
 /// any.
 fn external_places<'a>(
-    (cfg, trace): (&'a CfgFunction, &'a TraceInputs<'a>),
-    (escaping, config): (&'a HashSet<String>, tcl_lexer::LexerConfig),
+    trace: &'a TraceInputs<'a>,
+    escaping: &'a HashSet<String>,
+    computed_writes: bool,
 ) -> impl Fn(&str) -> bool + 'a {
     let dialect = Some(tcl_registry::special_vars::surface_query_for_profile(
         trace.registry.profile(),
     ));
-    let computed_names = std::cell::OnceCell::new();
     move |name: &str| {
-        is_externally_mutable(name, escaping, trace.has_dynamic_variable_trace)
+        computed_writes
+            || is_externally_mutable(name, escaping, trace.has_dynamic_variable_trace)
             || escaping.contains(place_base(name))
             || trace
                 .existence
                 .is_some_and(|entry| linked_elsewhere(name, entry, trace.registry, dialect))
-            || *computed_names.get_or_init(|| {
-                let names = crate::dynamic_names::dynamic_name_barrier(cfg, trace.registry, config);
-                names.writes || names.destroys
-            })
     }
 }
 
@@ -5143,10 +5265,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         return (resolved, folded);
     }
     // Command substitution.
-    if value.starts_with('[')
-        && value.ends_with(']')
-        && let Some(folded) = driver.fold_cmd_subst(value, uses, values, ssa)
-    {
+    if let Some(folded) = driver.fold_cmd_subst(value, uses, values, ssa) {
         return folded;
     }
     (LatticeValue::Overdefined, None)

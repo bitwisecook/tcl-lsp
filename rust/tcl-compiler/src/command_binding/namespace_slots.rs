@@ -658,7 +658,17 @@ impl ModuleCommandBindings {
         purpose: PublicationPurpose,
     ) -> Option<SourceCommandKey> {
         let current = current.namespace_key();
-        if let SourceNamespaceKey::Authored(current) = current.as_ref() {
+        if let SourceNamespaceKey::Authored(authored) = current.as_ref() {
+            // Lookup keys a name by the selected policy's slot wherever it
+            // can (`source_keys_checked`); a definition published under the
+            // flat authored spelling was then never found by the lookups
+            // after it.
+            if let Some(key) =
+                self.original_authored_publication_key(current.as_ref(), name, purpose)
+            {
+                return Some(key);
+            }
+            let current = authored;
             let key = tcl_syntax::naming::qualify(current, name);
             let key = if matches!(purpose, PublicationPurpose::Procedure) {
                 tcl_registry::native_procedure::published_procedure_key(key, self.baseline.dialect)?

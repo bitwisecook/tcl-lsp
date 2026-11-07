@@ -794,6 +794,16 @@ pub fn whole_var_ref(
     Ok(scan_var_ref(source, 0, config)?.filter(|reference| reference.next == source.len()))
 }
 
+/// Whether `word` is exactly one command substitution, `[` through its own
+/// closing `]` with nothing after: `[a b]` is, `[a][b]` and `[a]x` are not
+/// (their first bracket closes before the end). The close is
+/// [`command_subst_close`]'s, under `config`.
+#[must_use]
+pub fn is_whole_command_substitution(word: &[u8], config: LexerConfig) -> bool {
+    word.first() == Some(&b'[')
+        && command_subst_close(word, 0, SubstFlags::default(), config) == Ok(word.len())
+}
+
 /// Where the `[` command substitution at `at` closes — one byte **past** the
 /// `]` — or the error C reports for it.
 ///
@@ -1486,6 +1496,25 @@ mod template_policy_tests {
 #[cfg(test)]
 mod tests {
     use crate::{INVALID_CHARACTER_IN_ARRAY_INDEX, MISSING_CLOSE_BRACE_FOR_VAR};
+
+    /// #2396: `[a][b]` starts with `[` and ends with `]` but is two
+    /// substitutions joined, not one.
+    #[test]
+    fn a_whole_command_substitution_closes_at_the_word_end() {
+        let config = crate::lexer::LexerConfig::default();
+        for whole in ["[a b]", "[a [b] c]", "[a {]} b]", "[a \"]\"]"] {
+            assert!(
+                super::is_whole_command_substitution(whole.as_bytes(), config),
+                "{whole}"
+            );
+        }
+        for not in ["[a][b]", "[a]x", "x[a]", "[a", "a", ""] {
+            assert!(
+                !super::is_whole_command_substitution(not.as_bytes(), config),
+                "{not}"
+            );
+        }
+    }
 
     #[test]
     fn original_bracket_boundaries_keep_selected_variable_name_grammar() {

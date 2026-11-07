@@ -301,13 +301,7 @@ pub fn is_pure_cmd_subst(value: &str) -> bool {
 }
 
 pub(super) fn is_pure_cmd_subst_with_config(value: &str, config: tcl_lexer::LexerConfig) -> bool {
-    value.starts_with('[')
-        && tcl_lexer::word_parts::command_subst_close(
-            value.as_bytes(),
-            0,
-            tcl_lexer::word_parts::SubstFlags::default(),
-            config,
-        ) == Ok(value.len())
+    tcl_lexer::word_parts::is_whole_command_substitution(value.as_bytes(), config)
 }
 
 /// Standalone default-grammar query for a script command terminator.

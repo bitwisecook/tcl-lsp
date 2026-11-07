@@ -972,7 +972,8 @@ impl CfgBuilder<'_> {
         self.push_statement(block_name, stmt.clone());
         // A command an arm runs is inside the statement, so the scans of the
         // statements the graph lowers never reach it.
-        for effect in self.opaque_arm_effects(stmt) {
+        for effect in self.in_barrier_block(block_name, |builder| builder.opaque_arm_effects(stmt))
+        {
             self.block_mut(block_name).statements.push(effect);
         }
         if !self.faithful_exceptions {

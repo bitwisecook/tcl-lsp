@@ -1487,6 +1487,22 @@ impl EvaluatedCommandSubstitutions {
             CommandSubstitutionIndex::InFrame(index) => &self.in_frame_commands[index],
         })
     }
+
+    /// [`Self::all_commands`] without the ordinary commands `keep` rejects;
+    /// in-frame commands are always kept.
+    pub(crate) fn all_commands_keeping<'s>(
+        &'s self,
+        keep: impl Fn(&[CommandWord]) -> bool + 's,
+    ) -> impl Iterator<Item = &'s Vec<CommandWord>> {
+        self.evaluation_order
+            .iter()
+            .filter_map(move |index| match *index {
+                CommandSubstitutionIndex::Ordinary(index) => {
+                    Some(&self.commands[index]).filter(|words| keep(words))
+                }
+                CommandSubstitutionIndex::InFrame(index) => Some(&self.in_frame_commands[index]),
+            })
+    }
 }
 
 /// Recover the commands executed by `[...]` substitutions in `stmt` using the

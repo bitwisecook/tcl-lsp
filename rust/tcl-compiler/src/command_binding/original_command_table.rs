@@ -2060,6 +2060,49 @@ impl ModuleCommandBindings {
             .collect()
     }
 
+    /// The slot an authored namespace publishes `name` into under the
+    /// selected name policy: the protocol's own publication slot for the
+    /// namespace's scope, keyed as [`Self::original_command_key_for_slot`]
+    /// keys the lookup that reads it. `None` where lookup itself takes no
+    /// policy path (a non-ASCII or NUL name, no selected policy, an opaque
+    /// domain) or the slot has no unique retained namespace.
+    pub(super) fn original_authored_publication_key(
+        &self,
+        current: &SourceNamespaceKey,
+        name: &str,
+        purpose: super::namespace_slots::PublicationPurpose,
+    ) -> Option<SourceCommandKey> {
+        use super::namespace_slots::PublicationPurpose;
+        if !name.is_ascii() || name.as_bytes().contains(&0) {
+            return None;
+        }
+        let policy = self
+            .baseline
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)?;
+        let query = self.original_command_world.query_view(self);
+        if query.selected_policy()? != policy || self.has_opaque_domain() {
+            return None;
+        }
+        let bytes = name.as_bytes();
+        let scope = if bytes.starts_with(b"::") {
+            SignatureNamespaceScope::root(Some(policy))
+        } else {
+            query.world().scope(current, policy)?
+        };
+        let context = scope.context()?;
+        let recipe = policy.recipe();
+        let slot = match purpose {
+            PublicationPurpose::Procedure => recipe.command_publication_slot(context, bytes),
+            PublicationPurpose::Rename => recipe.rename_destination_slot(context, bytes),
+            PublicationPurpose::Alias => recipe.alias_publication_slot(context, bytes),
+            PublicationPurpose::Command => recipe.command_c_api_publication_slot(context, bytes),
+            PublicationPurpose::Object => recipe.oo_object_publication_slot(context, bytes),
+        }
+        .ok()?;
+        self.original_command_key_for_slot(&slot, policy)
+    }
+
     fn original_command_slot_paths_for_bytes(
         &self,
         current: &SourceNamespaceKey,

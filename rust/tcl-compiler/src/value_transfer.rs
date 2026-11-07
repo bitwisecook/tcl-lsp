@@ -4102,6 +4102,15 @@ impl<'a> LatticeDriver<'a> {
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
     ) -> Option<(LatticeValue, Option<FoldedType>)> {
+        // Only a word that is one whole command substitution: `[a][b]` also
+        // starts with `[` and ends with `]`, but its value is the two
+        // results joined (#2396).
+        if !tcl_lexer::word_parts::is_whole_command_substitution(
+            value.as_bytes(),
+            self.lexer_config,
+        ) {
+            return None;
+        }
         if let Some(folded) = self.fold_cmd_subst_routes(value, uses, values, ssa) {
             return Some(folded);
         }

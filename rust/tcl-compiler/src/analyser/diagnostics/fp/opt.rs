@@ -508,7 +508,9 @@ fn fp_opt_11_non_numeric_literal_still_rewrites() {
 
 #[test]
 fn string_comparison_rewrite_requires_the_actual_numeric_producer() {
-    let source = "proc f {raw} {set a [expr {$raw + 0}]; if {$a == \"hello\"} {puts yes} else {puts no}}\nf 7\n";
+    // The argument is unknown: with `f 7` the call's constant reaches the
+    // body and the whole condition folds before any comparison rewrite.
+    let source = "proc f {raw} {set a [expr {$raw + 0}]; if {$a == \"hello\"} {puts yes} else {puts no}}\nf [gets stdin]\n";
     let registry = static_context_for(D).commands();
     let dialect = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let optimisations = optimise_with_dialect(source, registry, dialect);

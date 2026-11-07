@@ -460,6 +460,21 @@ pub fn analyse_var_observability<'a>(
     )
 }
 
+/// [`analyse_var_observability`] over the blocks `executable` admits.
+#[must_use]
+pub fn analyse_executable_var_observability<'a>(
+    cfg: &'a CfgFunction,
+    registry: &'a CommandRegistry,
+    executable: &dyn Fn(&BlockId) -> bool,
+) -> VarObservability<'a> {
+    analyse_var_observability_in(
+        cfg,
+        registry,
+        standalone_observability_context(registry),
+        executable,
+    )
+}
+
 /// Alias and trace hazards under one retained metadata generation.
 /// The same context is retained for point queries and whole-function replay.
 /// Missing or foreign metadata supplies no unobserved-cell or execution proof.
@@ -469,9 +484,22 @@ pub fn analyse_var_observability_with_metadata_context<'a>(
     registry: &'a CommandRegistry,
     context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
 ) -> VarObservability<'a> {
+    analyse_var_observability_in(cfg, registry, context, &|_| true)
+}
+
+/// [`analyse_var_observability_with_metadata_context`] over the blocks
+/// `executable` admits. A block that never runs aliases and traces nothing:
+/// it is skipped, and its exit state reaches no successor.
+#[must_use]
+pub fn analyse_var_observability_in<'a>(
+    cfg: &'a CfgFunction,
+    registry: &'a CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    executable: &dyn Fn(&BlockId) -> bool,
+) -> VarObservability<'a> {
     let mut preds: HashMap<BlockId, Vec<BlockId>> =
         cfg.blocks.keys().map(|id| (*id, Vec::new())).collect();
-    for &id in cfg.blocks.keys() {
+    for &id in cfg.blocks.keys().filter(|id| executable(id)) {
         for succ in cfg.block_successors(id) {
             if let Some(v) = preds.get_mut(&succ) {
                 v.push(id);
@@ -479,7 +507,8 @@ pub fn analyse_var_observability_with_metadata_context<'a>(
         }
     }
 
-    let order = cfg.reverse_postorder();
+    let mut order = cfg.reverse_postorder();
+    order.retain(|id| executable(id));
     let mut block_entry: HashMap<BlockId, State> = cfg
         .blocks
         .keys()

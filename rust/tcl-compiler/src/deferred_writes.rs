@@ -174,11 +174,16 @@ fn include_original_callback_procedure_writes(
                 }
                 let summaries = writes
                     .get_or_init(|| detect_global_write_procs_with_registry(module, registry));
+                // Raised here, `any` names no site: every statement may.
                 let Some(summary) = summaries.get(&id) else {
                     effects.any = true;
+                    effects.any_sites.clear();
                     continue;
                 };
-                effects.any |= summary.opaque_global_frame;
+                if summary.opaque_global_frame {
+                    effects.any = true;
+                    effects.any_sites.clear();
+                }
                 for name in &summary.names {
                     Scan::note_name(effects, name);
                 }
@@ -1064,13 +1069,23 @@ mod tests {
             "after 10 $script",
             "proc p {} $body",
             "proc p {} {after 10 $script}",
-            "proc after args {}; after 10 {set ::done VALUE}",
         ] {
             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
                 source, registry, false, profile,
             );
             assert!(scan_module(&unit.ir_module, registry).any, "{source}");
         }
+        // A closed call to a source procedure registers only what that
+        // procedure's own scanned body registers: this `after` is the empty
+        // procedure the module defines, not the event-loop command.
+        let shadowed = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "proc after args {}; after 10 {set ::done VALUE}",
+            registry,
+            false,
+            profile,
+        );
+        let effects = scan_module(&shadowed.ir_module, registry);
+        assert!(!effects.any && effects.names.is_empty(), "{effects:?}");
     }
 
     #[test]

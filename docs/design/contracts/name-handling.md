@@ -4532,3 +4532,58 @@ issuer, live lookup, callback or execution permission is cached.
 Logical namespace source descent resolves the exact retained Logical input, Registry and original static argv. Its conditional source frame and Logical script activation supply geometry and source bindings without a Native entry. A current Logical procedure with one statically selected Return may retain only a quiet source continuation: Tcl and Jim formal-binding plans must agree without caller links, and the exact source schema must prove its completion and no lookup mutation. Unknown, dynamic, expanded, foreign or mutating bodies stay opaque. Logical source points cannot issue Native dispatch, handler or compiled receipts; fresh authoring keeps its independent purpose.
 
 Delegated namespace source flow may cover only its registered parent legacy interpreter-state bridge after exact literal argv, arity, script flow and matching Ensure/legacy-effect receipts. The SCRIPT callback remains delegated to the conditional body walk, and independently declared policy effects remain visible and blocking. This source projection leaves ordinary Native facts unchanged.
+
+## Code that never runs and closed calls to source procedures
+
+A block the solver leaves unexecuted contributes no whole-function hazard to
+SCCP (`sccp::RunHazards`): the escaping names, computed-name writes and
+caller-frame barrier start from what no block contributes and grow by what
+the blocks each solve leaves executable contribute, until a solve adds
+nothing. The CFG records the caller-frame barrier per block for this
+(`Function::caller_frame_barriers`, `caller_frame_barrier_in`), and
+`var_observability` and `dynamic_names` take an executable-block filter. A
+callback the deferred-write scan cannot read is charged to the original
+invocation site of the statement that registers it
+(`DeferredWrites::any_sites`); a function's solve leaves out a site it holds
+in a block it proves never runs, and keeps every site another function holds.
+A procedure definition leaves its body's commands to the scan of that body,
+where they are placed. An
+`if` arm, loop body or arm after a raising condition that the solver decides
+never runs therefore no longer makes every variable of the function
+external.
+
+Still open: inside a procedure body, an unbound never-entered call in a
+dead arm gets the opaque caller-frame barrier, and the point contexts that
+resolve names (computed before SCCP) join it into the block after the `if`,
+so a read there stays unresolved. Making those contexts executability-aware
+is the remaining step.
+
+`SourceRuntimeReachability::NotEntered` is not used for this. The source walk
+proves it for a fresh interpreter, where an unset top-level variable read
+raises; SCCP and the diagnostics assume a top-level global may already exist
+when the script is sourced. A consumer that skipped `NotEntered` commands
+would mix the two models (`while {$x < 10} {incr x}` would lose its write).
+
+An authored namespace publishes a command under the selected name policy's own
+publication slot whenever one is selected
+(`original_authored_publication_key`), so the key a definition installs is the
+key lookup (`source_keys_checked`) reads. The flat `Authored` spelling remains
+only where lookup takes no policy path. A plain same-invocation body with no
+Native entry and no Logical context keeps its parent's closed authored
+namespace.
+
+A closed call whose every target is a user procedure called with its written
+words (`SourceInvocationBinding::targets_only_source_procedures`) registers no
+callback, names no computed variable and writes no variable by itself: the
+procedure's own body and summary state what it does. This holds for a
+statement and for a lifted `[...]` call alike; the CFG builder reads the
+lifted call's frame effects from the same summaries and leaves it out of the
+registry's write projection. Under supplied metadata SSA takes the summary
+names merged onto such a call as may-definitions (`switch_may_defs`), since its
+definite definitions come from the resolved invocation. An unknown or possibly
+absent lookup, a registry-backed target or an alias prefix keeps the call
+opaque. A callee's static storage (Jim `proc … {{n 0}}`) is the callable's,
+not the caller frame's, so its reads are not caller SSA reads. Likewise a read
+the walk captured inside a callee it followed belongs to the callee's
+activation: SSA keeps a captured read only when its cell has no activation or
+the point's own, as it already did for an invocation's execution reads.

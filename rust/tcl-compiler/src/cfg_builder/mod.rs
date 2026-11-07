@@ -495,6 +495,12 @@ pub(crate) struct CfgBuilder<'a> {
     /// [`crate::dynamic_names::dynamic_name_barrier`] folds into the
     /// function's blindness lattice.
     caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier,
+    /// [`Self::caller_frame_barrier`] by the block the raising statement goes
+    /// into ([`Self::barrier_block`]); the remainder no block owns.
+    caller_frame_barriers: HashMap<String, crate::dynamic_names::DynamicNameBarrier>,
+    caller_frame_barrier_unplaced: crate::dynamic_names::DynamicNameBarrier,
+    /// The block the statements now being invalidated are pushed into.
+    barrier_block: Option<String>,
     /// Caller-frame names a callee may touch through an `upvar` alias or
     /// `uplevel` write — see [`CfgBuilder::record_alias_observed`].  Drained
     /// into [`crate::cfg::Function::alias_observed_vars`].
@@ -672,6 +678,9 @@ impl<'a> CfgBuilder<'a> {
             branch_command_joins: HashMap::new(),
             body_scripts: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
+            caller_frame_barriers: HashMap::new(),
+            caller_frame_barrier_unplaced: crate::dynamic_names::DynamicNameBarrier::default(),
+            barrier_block: None,
             alias_observed_vars: std::collections::BTreeSet::new(),
             depth: 0,
             // dialect-drift-ok: the builder's own default; the pipeline
@@ -1496,29 +1505,45 @@ impl<'a> CfgBuilder<'a> {
     /// ([`crate::dynamic_names`]).
     fn record_caller_frame_barrier(&mut self, stmt: &Statement) {
         let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
+        let mut raised = crate::dynamic_names::DynamicNameBarrier::default();
         if embedded.opaque {
-            self.caller_frame_barrier = self
-                .caller_frame_barrier
-                .union(crate::dynamic_names::DynamicNameBarrier::OPAQUE_SCRIPT);
+            raised = raised.union(crate::dynamic_names::DynamicNameBarrier::OPAQUE_SCRIPT);
         }
         let direct = self.direct_upvar_effects(stmt);
         let embedded = self.upvar_effects_from_commands(
             &embedded.commands,
             self.original_tokens_for_statement(stmt),
         );
-        self.caller_frame_barrier = self
-            .caller_frame_barrier
+        raised = raised
             .union(direct.frame_barrier)
             .union(embedded.frame_barrier);
         if direct.opaque_arguments || embedded.opaque_arguments {
-            self.caller_frame_barrier =
-                self.caller_frame_barrier
-                    .union(crate::dynamic_names::DynamicNameBarrier {
-                        writes: true,
-                        destroys: false,
-                        reads: false,
-                    });
+            raised = raised.union(crate::dynamic_names::DynamicNameBarrier {
+                writes: true,
+                destroys: false,
+                reads: false,
+            });
         }
+        self.caller_frame_barrier = self.caller_frame_barrier.union(raised);
+        match &self.barrier_block {
+            Some(block) => {
+                let own = self.caller_frame_barriers.entry(block.clone()).or_default();
+                *own = own.union(raised);
+            }
+            None => {
+                self.caller_frame_barrier_unplaced =
+                    self.caller_frame_barrier_unplaced.union(raised);
+            }
+        }
+    }
+
+    /// Run `f` with the caller-frame barriers it records owned by `block`,
+    /// the block its statements are pushed into.
+    fn in_barrier_block<R>(&mut self, block: &str, f: impl FnOnce(&mut Self) -> R) -> R {
+        let outer = self.barrier_block.replace(block.to_owned());
+        let result = f(self);
+        self.barrier_block = outer;
+        result
     }
 
     /// The `defs`-widening half of [`Self::apply_upvar_invalidation`], with
@@ -1797,8 +1822,17 @@ impl<'a> CfgBuilder<'a> {
         // `x` whatever word carried it.
         // The call-graph consumers above deliberately do not — see
         // `EvaluatedCommandSubstitutions::in_frame_commands`.
+        // A call the walk binds only to source procedures writes through its
+        // body, which the summaries above already account for; the registry
+        // knows nothing of it and would call it opaque.
+        let summarised = self.summarised_embedded_heads(self.original_tokens_for_statement(stmt));
         let writes = crate::ir_helpers::variable_write_effects_from_commands(
-            embedded.all_commands(),
+            embedded.all_commands_keeping(|words| {
+                words
+                    .first()
+                    .and_then(crate::ir_helpers::CommandWord::literal)
+                    .is_none_or(|head| !summarised.contains(head))
+            }),
             self.registry,
         );
         embedded_opaque_global |= writes.opaque;
@@ -1995,6 +2029,37 @@ impl<'a> CfgBuilder<'a> {
             }
         }
         combined
+    }
+
+    /// Heads of the statement's lifted calls that every binding the walk
+    /// records for that spelling resolves only to source procedures, whose
+    /// frame effects [`Self::upvar_effects_from_commands`] and
+    /// [`Self::global_write_defs_from_commands`] read from their summaries.
+    fn summarised_embedded_heads(&self, tokens: Option<&CommandTokens>) -> FxHashSet<String> {
+        let Some(children) = tokens.and_then(|tokens| {
+            self.procedure_summary_owners
+                .children(tokens, self.registry)
+        }) else {
+            return FxHashSet::default();
+        };
+        let mut summarised = FxHashSet::default();
+        let mut other = FxHashSet::default();
+        for child in &children {
+            let Some(head) = summary_candidates::original_head(child) else {
+                continue;
+            };
+            if child
+                .source_binding
+                .as_ref()
+                .is_some_and(|binding| binding.targets_only_source_procedures())
+            {
+                summarised.insert(head);
+            } else {
+                other.insert(head);
+            }
+        }
+        summarised.retain(|head| !other.contains(head));
+        summarised
     }
 
     fn global_write_defs_from_commands(
@@ -2297,7 +2362,9 @@ impl<'a> CfgBuilder<'a> {
             self.push_statement(current, stmt.clone());
             return;
         }
-        for s in self.apply_upvar_invalidation(stmt.clone()) {
+        for s in self.in_barrier_block(current, |builder| {
+            builder.apply_upvar_invalidation(stmt.clone())
+        }) {
             self.push_statement(current, s);
         }
         // A runtime binding check can replay a specialised command through a
@@ -2465,6 +2532,19 @@ impl<'a> CfgBuilder<'a> {
             .collect();
         func.body_scripts = std::mem::take(&mut self.body_scripts);
         func.caller_frame_barrier = self.caller_frame_barrier;
+        func.caller_frame_barrier_unplaced = self.caller_frame_barrier_unplaced;
+        for (block, barrier) in std::mem::take(&mut self.caller_frame_barriers) {
+            match self.block_ids.get(&block) {
+                Some(id) => {
+                    let own = func.caller_frame_barriers.entry(*id).or_default();
+                    *own = own.union(barrier);
+                }
+                None => {
+                    func.caller_frame_barrier_unplaced =
+                        func.caller_frame_barrier_unplaced.union(barrier);
+                }
+            }
+        }
         func.declared_frame_effects = self.command_bindings.declared_frame_effects();
         func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);
         func
@@ -3456,13 +3536,15 @@ impl<'a> CfgBuilder<'a> {
 
         let mut written = BTreeSet::new();
         crate::ssa::nested_writes(body, self.registry, &mut written);
-        for effect in self.opaque_script_effects(
-            *span,
-            &[body],
-            written,
-            false,
-            "a command the catch body runs may write any name",
-        ) {
+        for effect in self.in_barrier_block(current, |builder| {
+            builder.opaque_script_effects(
+                *span,
+                &[body],
+                written,
+                false,
+                "a command the catch body runs may write any name",
+            )
+        }) {
             self.block_mut(current).statements.push(effect);
         }
         let mut catch_defs: Vec<String> = result_var.iter().chain(options_var).cloned().collect();
@@ -3534,13 +3616,15 @@ impl<'a> CfgBuilder<'a> {
                 crate::ssa::nested_writes(script, self.registry, &mut written);
             }
             let mut try_defs: Vec<_> = written.iter().cloned().collect();
-            for effect in self.opaque_script_effects(
-                *span,
-                &scripts,
-                written,
-                false,
-                "a command the try body or its handlers run may write any name",
-            ) {
+            for effect in self.in_barrier_block(current, |builder| {
+                builder.opaque_script_effects(
+                    *span,
+                    &scripts,
+                    written,
+                    false,
+                    "a command the try body or its handlers run may write any name",
+                )
+            }) {
                 self.block_mut(current).statements.push(effect);
             }
             dedup_preserve_order(&mut try_defs);

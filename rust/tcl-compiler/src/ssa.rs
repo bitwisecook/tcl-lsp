@@ -4635,7 +4635,8 @@ fn defs_of_in_context(
 /// prior one, the solver joins the two, and existence is unknown afterwards.
 /// The statement the CFG builder puts after such a `switch` for the names a
 /// callee its arms call writes ([`crate::ir::SyntheticMarker::ArmWrites`])
-/// states them as its own definitions, and they are may-definitions too.
+/// states them as its own definitions, and they are may-definitions too, as
+/// are the callee-summary names merged onto a call under supplied metadata.
 /// Every other statement kind returns nothing.
 pub(crate) fn switch_may_defs(stmt: &Statement, registry: &CommandRegistry) -> Vec<String> {
     switch_may_defs_in_context(stmt, SsaInvocationContext::standalone(registry))
@@ -4652,6 +4653,23 @@ fn switch_may_defs_in_context(
     {
         return defs
             .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+    }
+    // Under supplied metadata a call's definite definitions come from its
+    // resolved invocation, so the callee-summary names the CFG builder merged
+    // onto it (`upvar 1 g x; set x 9`, `global g`) are possible writes the
+    // statement leaves as they were when the callee does not reach them.
+    if let Statement::Call { defs, .. } = stmt
+        && !selection.standalone
+        && !defs.is_empty()
+    {
+        let definite = defs_of_in_context(stmt, Some(selection));
+        return defs
+            .iter()
+            .filter(|name| !definite.contains(name))
             .cloned()
             .collect::<BTreeSet<_>>()
             .into_iter()
@@ -7665,17 +7683,32 @@ fn invocation_read_bindings(
         .source_tokens_at(block, index)
         .into_iter()
         .flat_map(|tokens| {
+            // A callee's static storage belongs to the callable, not to any
+            // caller frame: the caller cannot reach it, so the callee's reads
+            // of it are not caller SSA reads.
             crate::place_bridge::invocation_execution_read_places(tokens, registry)
                 .into_iter()
+                .filter_map(|place| crate::var_resolve::canonical_binding_value_key(&place))
+                .filter(|key| !is_callable_storage(key))
                 .chain(
                     crate::place_bridge::invocation_argument_execution_read_places_at(
                         points, block, index, registry,
-                    ),
+                    )
+                    .into_iter()
+                    .filter_map(|place| crate::var_resolve::canonical_binding_value_key(&place)),
                 )
         })
-        .filter_map(|place| crate::var_resolve::canonical_binding_value_key(&place))
         .filter_map(|key| invocation_read_key_in_context(key, context))
         .collect()
+}
+
+/// Whether `key` is a callable's own static storage (Jim `proc … {{n 0}}`).
+fn is_callable_storage(key: &VariableCellKey) -> bool {
+    matches!(
+        key,
+        VariableCellKey::RetainedSlot(slot)
+            if matches!(slot.as_ref(), crate::raw_binding::RawBindingSlotId::Callable { .. })
+    )
 }
 
 /// Execution inventories retain all physical subtree reads. Foreign callee
@@ -7697,6 +7730,14 @@ fn source_read_bindings(
     index: usize,
     registry: &CommandRegistry,
 ) -> Vec<(String, VariableCellKey)> {
+    // A captured read the walk made inside a callee it followed is of the
+    // callee's own frame: like an invocation's execution reads, a cell of
+    // another activation is no SSA cell of this function.
+    let context = if index == usize::MAX {
+        points.before_terminator(block)
+    } else {
+        points.before_statement(block, index)
+    };
     points
         .source_reads_at(block, index)
         .iter()
@@ -7704,6 +7745,7 @@ fn source_read_bindings(
             let name = crate::var_resolve::canonical_binding_value_key(&source_read_place(
                 access, registry,
             ))?;
+            let name = invocation_read_key_in_context(name, context)?;
             Some((source_read_name_with_config(access, registry)?, name))
         })
         .collect()
@@ -8112,11 +8154,17 @@ fn intern_terminator_reads(
     for (&id, block) in &func.blocks {
         let mut symbols = HashMap::new();
         let authored = authored_scalar_source_variable(&walk.points, id, usize::MAX, registry);
+        // A read only the walk's captured binding resolves names the
+        // function-wide symbol only where a statement agrees with it
+        // ([`project_ssa_source_names`]).
+        let captured = source_read_bindings(&walk.points, id, usize::MAX, registry);
         for (source, _) in crate::def_use::terminator_read_vars(block.terminator.as_ref(), config) {
             if let Some(name) =
                 canonical_variable_key(&source, walk.points.before_terminator(id), registry)
             {
                 symbols.insert(source, walk.interner.intern(&name));
+            } else if captured.iter().any(|(held, _)| *held == source) {
+                walk.captured_terminator_names.insert(source);
             } else if !authored
                 .as_ref()
                 .is_some_and(|(_, name, definition)| !definition.is_definition() && name == &source)
@@ -8124,7 +8172,6 @@ fn intern_terminator_reads(
                 walk.unknown_source_names.insert(source);
             }
         }
-        let captured = source_read_bindings(&walk.points, id, usize::MAX, registry);
         for (source, _) in &captured {
             symbols.remove(source);
         }
@@ -8243,6 +8290,9 @@ struct RenameWalk<'a> {
     points: PointResolveContexts,
     point_symbols: HashMap<(BlockId, usize), HashMap<String, Symbol>>,
     unknown_source_names: HashSet<String>,
+    /// Terminator reads the context cannot resolve but the walk's captured
+    /// binding does ([`intern_terminator_reads`]).
+    captured_terminator_names: HashSet<String>,
 }
 
 impl<'a> RenameWalk<'a> {
@@ -8295,6 +8345,7 @@ impl<'a> RenameWalk<'a> {
             points,
             point_symbols: HashMap::new(),
             unknown_source_names: HashSet::new(),
+            captured_terminator_names: HashSet::new(),
         }
     }
 
@@ -9191,6 +9242,17 @@ fn project_ssa_source_names(walk: &mut RenameWalk<'_>, func: &cfg::Function) {
     for name in &walk.unknown_source_names {
         walk.interner.source_symbols.remove(name);
     }
+    for name in &walk.captured_terminator_names {
+        let symbol = walk.interner.source_symbols.get(name).copied();
+        let agreed = symbol.is_some_and(|symbol| {
+            walk.point_symbols.iter().any(|(&(_, index), symbols)| {
+                index != usize::MAX && symbols.get(name) == Some(&symbol)
+            })
+        });
+        if !agreed {
+            walk.interner.source_symbols.remove(name);
+        }
+    }
     let mut source_names: HashMap<Symbol, Vec<&String>> = HashMap::new();
     for names in walk.point_symbols.values() {
         for (source, &symbol) in names {
@@ -9797,9 +9859,12 @@ pub fn is_effect_marker(stmt: &Statement) -> bool {
 }
 
 /// Whether `stmt` states may-definitions of the kind [`switch_may_defs`]
-/// returns: an opaque `switch`, or a marker.
+/// returns: an opaque `switch`, a marker, or a call carrying callee-summary
+/// names.
 pub(crate) fn has_arm_may_defs(stmt: &Statement) -> bool {
-    matches!(stmt, Statement::Switch { .. }) || is_effect_marker(stmt)
+    matches!(stmt, Statement::Switch { .. })
+        || is_effect_marker(stmt)
+        || matches!(stmt, Statement::Call { defs, .. } if !defs.is_empty())
 }
 
 /// Whether `stmt` is a statement the CFG builder synthesised to carry an

@@ -999,9 +999,9 @@ fn build_full_sccp_artifacts(
             source_metadata_input: inputs.source_metadata_input,
             registry: inputs.registry,
             traced_variables: inputs.trace_facts.traced_variables,
-            has_dynamic_variable_trace: inputs.trace_facts.has_dynamic_variable_trace
-                || dynamic_names.writes
-                || dynamic_names.destroys,
+            // SCCP adds the computed-name barrier of the blocks it finds
+            // executable itself (`sccp::RunHazards`).
+            has_dynamic_variable_trace: inputs.trace_facts.has_dynamic_variable_trace,
             deferred_writes: inputs.trace_facts.deferred_writes,
             analysis_context: inputs.analysis_context,
             existence: (tier == AnalysisTier::Deep).then_some(existence),

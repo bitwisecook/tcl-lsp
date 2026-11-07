@@ -457,6 +457,12 @@ pub struct Function {
     /// everything downstream of it) run per function with only the CFG in
     /// hand.  Cleared for any CFG built without an upvar context.
     pub caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier,
+    /// [`Self::caller_frame_barrier`] split by the block whose statement
+    /// raised it, so a consumer that knows which blocks run can discount a
+    /// block that never does ([`Self::caller_frame_barrier_in`]).
+    pub caller_frame_barriers: HashMap<BlockId, crate::dynamic_names::DynamicNameBarrier>,
+    /// The part of [`Self::caller_frame_barrier`] no block owns.
+    pub caller_frame_barrier_unplaced: crate::dynamic_names::DynamicNameBarrier,
     /// The commands the document declares as plain calls, with the frame
     /// effect each declaration states ([`crate::ir::DeclaredFrameEffects`]),
     /// as the module's command table holds them: the per-function
@@ -602,6 +608,8 @@ impl Function {
             branch_command_joins: HashMap::new(),
             body_scripts: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
+            caller_frame_barriers: HashMap::new(),
+            caller_frame_barrier_unplaced: crate::dynamic_names::DynamicNameBarrier::default(),
             declared_frame_effects: std::sync::Arc::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             block_names: Vec::new(),
@@ -629,6 +637,21 @@ impl Function {
         self.block_names.push(name.clone());
         self.name_to_id.insert(name, id);
         id
+    }
+
+    /// [`Self::caller_frame_barrier`] over the blocks `executable` admits,
+    /// with the part no block owns.
+    #[must_use]
+    pub fn caller_frame_barrier_in(
+        &self,
+        executable: impl Fn(&BlockId) -> bool,
+    ) -> crate::dynamic_names::DynamicNameBarrier {
+        self.caller_frame_barriers
+            .iter()
+            .filter(|(id, _)| executable(id))
+            .fold(self.caller_frame_barrier_unplaced, |barrier, (_, own)| {
+                barrier.union(*own)
+            })
     }
 
     /// The display name of block `id`.

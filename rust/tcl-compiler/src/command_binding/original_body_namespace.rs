@@ -153,8 +153,21 @@ impl SourceInvocationBinding {
             if entry.retained_namespace_context(native.token).ok().as_ref() != Some(native) {
                 return None;
             }
-        } else if !input.has_logical_source_name_context() || !advice.closed_logical_source_lookup()
+        } else if input.has_logical_source_name_context() {
+            if !advice.closed_logical_source_lookup() {
+                return None;
+            }
+        } else if advice.snapshot.state.baseline.native_entry.is_some()
+            || !advice.closed_lookup()
+            || advice.has_opaque_handler_alternatives()
         {
+            // Authored simulation (no native entry, no Logical name context)
+            // retains the parent's own closed authored namespace: a plain,
+            // same-invocation body of the current interpreter runs where its
+            // parent runs. The walk enters every body that may run, so this
+            // is reached for an arm it proves never runs; that body then
+            // lowers with its commands bound `NotEntered` instead of as one
+            // opaque barrier.
             return None;
         }
         let invocation =

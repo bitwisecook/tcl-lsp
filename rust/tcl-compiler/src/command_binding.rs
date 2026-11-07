@@ -1529,6 +1529,23 @@ pub struct SourceInvocationBinding {
 }
 
 impl SourceInvocationBinding {
+    /// Whether this invocation's lookup is closed and every implementation
+    /// it may reach is a user procedure called with its written words: no
+    /// unknown or possibly absent lookup (the `unknown` handler runs), no
+    /// registry-backed handler and no alias prefix. What such a call does
+    /// beyond its own frame is its procedure summary's to state; this
+    /// grants no summary, frame or completion.
+    pub(crate) fn targets_only_source_procedures(&self) -> bool {
+        !self.unknown
+            && !self.may_be_absent
+            && !self.targets.is_empty()
+            && self.targets.iter().all(|target| {
+                target.kind == BindingKind::Proc
+                    && !target.registry_backed
+                    && target.prepended.is_empty()
+            })
+    }
+
     /// Passive process-local address only; this supplies no source or lookup authority.
     pub(crate) fn source_cut_trace_dispatch_origin(&self) -> Option<*const SourceOriginId> {
         self.dispatch_site

@@ -9291,7 +9291,13 @@ fn an_embedded_call_applies_its_summary() {
 /// `dialect`.
 fn top_level_value(source: &str, dialect: &str, var: &str) -> LatticeValue {
     let unit = unit_of(source, dialect);
-    let symbol = unit.top_level.ssa.var_symbol(var).expect("the variable");
+    // The supplied-metadata SSA keys a source name by its resolved cell, so
+    // the name is matched against the interned display names.
+    let ssa = &unit.top_level.ssa;
+    let symbol = ssa
+        .variable_symbols()
+        .find(|symbol| ssa.var_name(*symbol) == var)
+        .unwrap_or_else(|| panic!("no `{var}` in {source}"));
     unit.top_level
         .sccp
         .values
@@ -9784,4 +9790,68 @@ fn a_raising_substitution_is_labelled_by_its_completion() {
     );
     let unit = summarised_unit(source, "tcl8.6");
     assert_eq!(answers_for(&unit, "::p", "string"), ["evaluated"]);
+}
+
+/// Code that never runs widens nothing: an `if` arm a decided condition
+/// rules out, a loop body false on entry, and a call to a closed user
+/// procedure, direct or in a `[...]`, leave `n` a constant. Before, each made every
+/// variable of the function external, and not even the condition that kills
+/// the arm could be decided. A callee that
+/// writes the caller's `n` through `upvar` or `uplevel` still leaves it
+/// unknown. tclsh 8.4 to 9.1 print the same for each program before and
+/// after the optimiser.
+#[test]
+fn code_that_never_runs_keeps_the_function_constant() {
+    let zero = LatticeValue::Const(ConstValue::Int(0));
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        for source in [
+            "set n 0\nif {$n} {puts a} else {puts b}\nputs $n\n",
+            "set n 0\nwhile {$n} {puts a}\nputs $n\n",
+            "proc p {} {return 1}\np\nset n 0\nif {$n} {puts a}\nputs $n\n",
+        ] {
+            assert_eq!(
+                top_level_value(source, dialect, "n"),
+                zero,
+                "{dialect}: {source}"
+            );
+        }
+        for writer in [
+            "proc p {} {upvar 1 n v; set v 5}\n",
+            "proc p {} {uplevel 1 {set n 5}}\n",
+        ] {
+            for call in ["p", "puts [p]", "set r [p]"] {
+                let source = format!("{writer}set n 0\n{call}\nif {{$n}} {{puts five}}\n");
+                assert_ne!(
+                    top_level_value(&source, dialect, "n"),
+                    zero,
+                    "{dialect}: {source}"
+                );
+            }
+        }
+        assert_eq!(
+            top_level_value(
+                "proc p {} {return 1}\nset n 0\nputs [p]\nif {$n} {puts a}\nputs $n\n",
+                dialect,
+                "n"
+            ),
+            zero,
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(
+        "set n 0\nif {$n} {puts a} else {puts b}\nputs $n\n",
+        "b\n0\n",
+    );
+    prints_under_every_release(
+        "proc p {} {return 1}\np\nset n 0\nif {$n} {puts a}\nputs $n\n",
+        "0\n",
+    );
+    prints_under_every_release(
+        "proc p {} {upvar 1 n v; set v 5}\nset n 0\np\nif {$n} {puts five}\n",
+        "five\n",
+    );
+    prints_under_every_release(
+        "proc p {} {upvar 1 n v; set v 5; return 1}\nset n 0\nputs [p]\nputs $n\n",
+        "1\n5\n",
+    );
 }

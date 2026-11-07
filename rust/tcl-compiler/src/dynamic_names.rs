@@ -618,7 +618,7 @@ pub fn dynamic_name_barrier_in(
     config: LexerConfig,
     executable: impl Fn(&crate::cfg::BlockId) -> bool,
 ) -> DynamicNameBarrier {
-    let mut barrier = cfg.caller_frame_barrier;
+    let mut barrier = cfg.caller_frame_barrier_in(&executable);
     for (id, block) in &cfg.blocks {
         if !executable(id) {
             continue;
@@ -874,9 +874,16 @@ fn scan_call_with_tokens(
         }) {
             scan_materialized_names(tokens, commands, barrier);
         }
+        // A closed call to user procedures names nothing computed in this
+        // frame by itself: what the procedures do to the caller's frame is
+        // their summaries', which the CFG records as the caller-frame
+        // barrier (opaque where a summary is missing).
         if invocation.is_none()
             && names.as_ref().is_none_or(
                 crate::registry_invocation::PossibleVariableNameOperands::unknown_residual,
+            )
+            && !tokens.source_binding.as_ref().is_some_and(
+                crate::command_binding::SourceInvocationBinding::targets_only_source_procedures,
             )
         {
             *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
@@ -1021,9 +1028,16 @@ fn scan_original_substitutions(
                 scan_materialized_names(tokens, commands, barrier);
             }
         }
+        // A closed call to user procedures names nothing computed in this
+        // frame by itself: what the procedures do to the caller's frame is
+        // their summaries', which the CFG records as the caller-frame
+        // barrier (opaque where a summary is missing).
         if invocation.is_none()
             && names.as_ref().is_none_or(
                 crate::registry_invocation::PossibleVariableNameOperands::unknown_residual,
+            )
+            && !tokens.source_binding.as_ref().is_some_and(
+                crate::command_binding::SourceInvocationBinding::targets_only_source_procedures,
             )
         {
             *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);

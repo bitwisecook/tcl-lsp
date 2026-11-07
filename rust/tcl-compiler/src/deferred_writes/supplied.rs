@@ -51,6 +51,7 @@ pub(super) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
         procedures: OnceCell::new(),
         original_frame_declarations: OnceCell::new(),
         out: DeferredWrites::default(),
+        unsited: false,
     };
     let mut pending = vec![&module.top_level];
     pending.extend(module.procedures.values().map(|procedure| &procedure.body));
@@ -59,8 +60,11 @@ pub(super) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
     while let Some(script) = pending.pop() {
         for statement in &script.statements {
             pending.extend(statement.child_scripts());
-            scan.statement(script, statement);
+            scan.sited_statement(script, statement);
         }
+    }
+    if scan.unsited {
+        scan.out.any_sites.clear();
     }
     scan.out
 }
@@ -72,6 +76,8 @@ struct SourceScan<'a> {
     original_frame_declarations:
         OnceCell<std::collections::HashSet<&'a crate::command_binding::CommandAllocationSite>>,
     out: DeferredWrites,
+    /// A statement raised [`DeferredWrites::any`] without an original site.
+    unsited: bool,
 }
 
 struct ScriptValue {
@@ -117,18 +123,62 @@ impl SourceScan<'_> {
                     .collect::<HashSet<_>>()
             })
             .contains(site);
-        native
-            || self.module.procedures.iter().any(|(id, procedure)| {
-                self.module.procedure_ids.owns(*id)
-                    && procedure.declaration_site.as_ref() == Some(site)
-                    && self
-                        .module
-                        .retained_source_bindings
+        native || self.scans_retained_procedure_at(site)
+    }
+
+    /// Whether `site` declares a procedure this module retains, whose body
+    /// this scan reads among the module's procedures.
+    fn scans_retained_procedure_at(
+        &self,
+        site: &crate::command_binding::CommandAllocationSite,
+    ) -> bool {
+        self.module.procedures.iter().any(|(id, procedure)| {
+            self.module.procedure_ids.owns(*id)
+                && procedure.declaration_site.as_ref() == Some(site)
+                && self
+                    .module
+                    .retained_source_bindings
+                    .as_ref()
+                    .is_some_and(|owner| owner.matches_original_procedure_summary(*id, procedure))
+        })
+    }
+
+    /// A call whose every target is a procedure this scan reads registers
+    /// nothing by being called: a callback the procedure registers is read
+    /// from its own body. An alias prefix, a registry-backed target, an
+    /// unknown or possibly absent binding keeps the call opaque.
+    fn calls_scanned_procedures_only(&self, tokens: &CommandTokens) -> bool {
+        tokens.source_binding.as_ref().is_some_and(|binding| {
+            binding.targets_only_source_procedures()
+                && binding.targets.iter().all(|target| {
+                    target
+                        .implementation_allocation
                         .as_ref()
-                        .is_some_and(|owner| {
-                            owner.matches_original_procedure_summary(*id, procedure)
+                        .is_some_and(|allocation| {
+                            self.scans_retained_procedure_at(&allocation.site)
                         })
-            })
+                })
+        })
+    }
+
+    /// [`Self::statement`], recording the statement's original invocation
+    /// site when it alone raises [`DeferredWrites::any`].
+    fn sited_statement(&mut self, script: &Script, statement: &Statement) {
+        let before = std::mem::replace(&mut self.out.any, false);
+        self.statement(script, statement);
+        if self.out.any {
+            let site = script
+                .retained_source_tokens_for_statement(statement)
+                .and_then(|tokens| tokens.source_binding.as_ref()?.invocation_site())
+                .cloned();
+            match site {
+                Some(site) => {
+                    self.out.any_sites.insert(site);
+                }
+                None => self.unsited = true,
+            }
+        }
+        self.out.any |= before;
     }
 
     fn statement(&mut self, script: &Script, statement: &Statement) {
@@ -149,8 +199,16 @@ impl SourceScan<'_> {
             .flat_map(|child| child.statements.iter())
             .map(|child| child.span().start())
             .collect::<std::collections::BTreeSet<_>>();
+        // Likewise the commands inside the body of a procedure this scan
+        // reads as its own script: they are scanned, and placed, there.
+        let retained_body = self
+            .retains_original_frame_definition(tokens)
+            .then(|| tokens.words().last().map(|word| word.source().span))
+            .flatten();
         for (offset, binding) in &tokens.nested_bindings {
-            if lowered_children.contains(offset) {
+            if lowered_children.contains(offset)
+                || retained_body.is_some_and(|body| body.start() <= *offset && *offset < body.end())
+            {
                 continue;
             }
             let Some((_, mut nested)) = binding.original_recorded_command() else {
@@ -186,7 +244,7 @@ impl SourceScan<'_> {
         let Some(invocation) =
             original_callback_invocation_with_metadata_context(self.registry, metadata, tokens)
         else {
-            self.out.any = true;
+            self.out.any |= !self.calls_scanned_procedures_only(tokens);
             return;
         };
         let selected = invocation.with_metadata_schema(

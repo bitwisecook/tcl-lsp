@@ -2917,6 +2917,12 @@ pub struct DeferredWrites {
     /// A callback writes, destroys or binds a name computed at run time, so
     /// any variable may change at any time.
     pub any: bool,
+    /// The original invocation sites of the statements that alone raised
+    /// [`Self::any`], when every contribution has one: a function whose
+    /// solve proves such a statement's block never runs may leave it out
+    /// ([`Self::any_beyond`]). Empty when [`Self::any`] has a contribution no
+    /// site names.
+    pub any_sites: std::collections::BTreeSet<crate::command_binding::CommandAllocationSite>,
 }
 
 impl DeferredWrites {
@@ -2925,12 +2931,23 @@ impl DeferredWrites {
     pub fn is_clear(&self) -> bool {
         self.names.is_empty() && !self.any
     }
+
+    /// [`Self::any`] once the statements at `excluded` sites are known never
+    /// to run.
+    #[must_use]
+    pub fn any_beyond(
+        &self,
+        excluded: impl Fn(&crate::command_binding::CommandAllocationSite) -> bool,
+    ) -> bool {
+        self.any && (self.any_sites.is_empty() || self.any_sites.iter().any(|site| !excluded(site)))
+    }
 }
 
 /// The fact of a build with no module to scan: no callback writes anything.
 pub static NO_DEFERRED_WRITES: DeferredWrites = DeferredWrites {
     names: std::collections::BTreeSet::new(),
     any: false,
+    any_sites: std::collections::BTreeSet::new(),
 };
 
 /// One selected class-relation member and its original enclosing definer.
