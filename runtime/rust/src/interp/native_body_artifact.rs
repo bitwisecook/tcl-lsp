@@ -1145,6 +1145,17 @@ impl Builder<'_> {
                 Operation::Coroutine(self.coroutine_operation(&captured, recipe, depth)?)
             }
             NativeInstructionPlan::Error(recipe) => {
+                // Throw's type-check stage has no runtime body step; generic
+                // dispatch runs it.
+                if recipe.steps.iter().any(|step| {
+                    matches!(
+                        step,
+                        tcl_registry::native_error_compilation::NativeErrorStep::Pop
+                            | tcl_registry::native_error_compilation::NativeErrorStep::ThrowTypeCheck
+                    )
+                }) {
+                    return Ok(None);
+                }
                 Operation::Error(self.error_operation(&captured, recipe, depth)?)
             }
             NativeInstructionPlan::DictionaryScope(recipe) => {

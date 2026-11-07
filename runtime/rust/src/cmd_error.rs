@@ -1213,7 +1213,10 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(parts) if !parts.is_empty() => {}
         // A malformed type list reports the list parse error verbatim
         // (error-8.8/8.11); a well-formed but empty list is the type error.
-        Ok(_) => return interp.set_error(b"type must be non-empty list"),
+        Ok(_) => {
+            interp.set_result_bytes(b"type must be non-empty list");
+            return interp.set_error_state(b"TCL OPERATION THROW BADEXCEPTION");
+        }
         Err(e) => return interp.set_error(&crate::parse::list_error_message(&ecode, e)),
     }
     interp.set_result(argv[2]);

@@ -59,6 +59,9 @@ impl Builder<'_> {
                 }
                 NativeErrorStep::DictionaryPut => ErrorStep::DictionaryPut,
                 NativeErrorStep::ReturnError => ErrorStep::ReturnError,
+                NativeErrorStep::Pop | NativeErrorStep::ThrowTypeCheck => {
+                    unreachable!("throw recipes are declined before preparation")
+                }
             });
         }
         Ok(ErrorOperation {
