@@ -178,7 +178,22 @@ pub fn infer_from_body(params: &str, body: &str, dialect: &str) -> InferredFacts
 /// The compilation unit of `source` with its interprocedural summaries.
 fn unit_of(source: &str, dialect: &str) -> CompilationUnit {
     let registry = crate::environment::store_for_dialect(dialect);
-    CompilationUnit::build_for_dialect(source, registry, false, dialect).with_interprocedural(
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
+    // The source is a whole file, as the analyser reads it: the file grammar
+    // decides its leading BOM, and a unit under another configuration owns
+    // none of the analyser's declarations.
+    CompilationUnit::build_with_options(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+    )
+    .with_interprocedural(
         registry,
         tcl_lsp_core::optional_profile_for_dialect(dialect),
     )
@@ -943,6 +958,29 @@ mod tests {
                     && !effect.writes),
             "{reads:?}"
         );
+
+        // A global read is a read of state outside the frame, by
+        // substitution or by the command form, as a statement or nested
+        // (#2332).
+        for body in [
+            "return $::seen",
+            "return $::ns::v",
+            "global g; return $g",
+            "set ::seen",
+            "set y [set ::seen]",
+        ] {
+            let substituted = infer_from_body("x", body, "tcl9.0");
+            assert!(!substituted.pure, "{body}: {substituted:?}");
+            assert!(
+                substituted
+                    .side_effects
+                    .iter()
+                    .any(|effect| effect.target == SideEffectTarget::Variable
+                        && effect.reads
+                        && !effect.writes),
+                "{body}: {substituted:?}"
+            );
+        }
 
         let calls = infer_from_body("cb x", "$cb [$cb $x]", "tcl9.0");
         assert_eq!(calls.callback_slots, vec![0], "{calls:?}");

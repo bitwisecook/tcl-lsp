@@ -3462,6 +3462,45 @@ fn scan_normal_visible_writes(
         });
 }
 
+/// Project normal physical reads of namespace storage as reads of global
+/// state: `set ::seen` and `[set ::seen]` read the global as `$::seen` does
+/// (#2332). An unnamed or dynamic place is an unknown read.
+fn scan_normal_visible_reads(
+    tokens: &crate::ir::CommandTokens,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    let Some(context) = ctx.metadata_context() else {
+        return;
+    };
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return;
+    };
+    let Some(normal) = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        ctx.registry,
+        Some(context.as_ref().into()),
+        tokens,
+    ) else {
+        return;
+    };
+    for place in normal.read_places(&binding.variable_context, ctx.registry) {
+        let owner = place.cell.as_ref().map(|cell| &cell.owner);
+        if place.dynamic || place.observed || owner.is_none() {
+            facts.mark_impure();
+            facts.effect_reads |= EffectRegion::GLOBAL_STATE | EffectRegion::UNKNOWN_STATE;
+        } else if matches!(
+            owner,
+            Some(
+                crate::place::CellOwner::Namespace(_)
+                    | crate::place::CellOwner::NamespaceIdentity(_)
+            )
+        ) {
+            facts.mark_impure();
+            facts.effect_reads |= EffectRegion::GLOBAL_STATE;
+        }
+    }
+}
+
 /// Candidate class metadata contributes callback reachability only. It does
 /// not prove the receiver's implementation, effects or method execution.
 fn scan_candidate_method_callbacks(
@@ -3723,6 +3762,7 @@ fn scan_positioned_invocation(
             return true;
         };
         scan_resolved_aliases(&resolved, defs, positioned, facts);
+        scan_normal_visible_reads(tokens, positioned, facts);
         if let Some(presented) = resolved
             .arguments
             .iter()
@@ -4001,6 +4041,7 @@ fn scan_statement(
     if let Some(tokens) = retained_tokens {
         scan_original_variable_read_effects(tokens, ctx, facts);
         scan_normal_visible_writes(tokens, ctx, facts);
+        scan_normal_visible_reads(tokens, ctx, facts);
     }
     if scan_positioned_invocation(stmt, ctx, facts) {
         return;
