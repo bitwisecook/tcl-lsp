@@ -23993,12 +23993,8 @@ impl Backend {
             return Ok(ControlFlow::Break(Ok(None)));
         };
         let selected = if member {
-            tcl_lsp_core::original_declaration::select_at_offset(
-                uri.as_str(),
-                &doc.text,
-                analysis,
-                offset,
-            )
+            self.original_member_identity_at(uri, &doc.text, analysis, (pos, offset), &documents)
+                .await?
         } else {
             original_command_rename::select_in_documents(&owners, uri.as_str(), offset)
         };
@@ -24078,6 +24074,55 @@ impl Backend {
         }
     }
 
+    /// A consumer's member call selects the declaration its loaded class
+    /// retains in the owner's document; the owner's analysis supplies the
+    /// identity, never the consumer's reporting names.
+    async fn original_member_identity_at(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        (pos, offset): (Position, u32),
+        documents: &[OriginalDocumentSnapshot],
+    ) -> DocumentSourceResult<
+        std::ops::ControlFlow<
+            Option<tcl_lsp_core::original_declaration::OriginalDeclarationIdentity>,
+        >,
+    > {
+        use std::ops::ControlFlow;
+        let local = tcl_lsp_core::original_declaration::select_at_offset(
+            uri.as_str(),
+            source,
+            analysis,
+            offset,
+        );
+        if !matches!(local, ControlFlow::Break(None)) {
+            return Ok(local);
+        }
+        let ControlFlow::Break(Some(candidate)) = self
+            .original_method_candidate_at(uri, source, analysis, pos)
+            .await?
+        else {
+            return Ok(ControlFlow::Break(None));
+        };
+        if candidate.uri() == uri.as_str() {
+            return Ok(ControlFlow::Break(None));
+        }
+        Ok(ControlFlow::Break(
+            documents
+                .iter()
+                .find(|(owner, _, _)| owner == candidate.uri())
+                .and_then(|(owner, owner_source, owner_analysis)| {
+                    tcl_lsp_core::original_declaration::OriginalDeclarationIdentity::for_member_candidate(
+                        owner,
+                        owner_source,
+                        owner_analysis,
+                        &candidate,
+                    )
+                }),
+        ))
+    }
+
     async fn original_command_prepare_tier(
         &self,
         uri: &Uri,
@@ -24119,12 +24164,8 @@ impl Backend {
             return Ok(ControlFlow::Break(None));
         };
         let selected = if member {
-            tcl_lsp_core::original_declaration::select_at_offset(
-                uri.as_str(),
-                &doc.text,
-                analysis,
-                offset,
-            )
+            self.original_member_identity_at(uri, &doc.text, analysis, (pos, offset), &documents)
+                .await?
         } else {
             original_command_rename::select_in_documents(&owners, uri.as_str(), offset)
         };

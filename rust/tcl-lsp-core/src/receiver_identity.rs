@@ -81,6 +81,30 @@ pub(crate) fn original_class<'a>(
         .then_some(declaration.metadata())
 }
 
+/// Whether every lookup of this dispatch reaches the same class command, so
+/// its words are the class's own method operands rather than a script.
+pub(crate) fn class_command_at(
+    analysis: &AnalysisResult,
+    source: &str,
+    command: &SegmentedCommand,
+) -> bool {
+    let (Some(realm), Some(config)) = (
+        analysis.retained_command_realm(),
+        analysis.body_lexer_config,
+    ) else {
+        return false;
+    };
+    let tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, command);
+    let Some(head) = tokens.word_exprs.first() else {
+        return false;
+    };
+    let binding = realm.invocation_at_source(command.name(), head.source().span.start());
+    !binding.unknown
+        && !binding.may_be_absent
+        && matches!(binding.targets.as_slice(), [target]
+            if target.kind == tcl_compiler::command_binding::BindingKind::Class)
+}
+
 /// Original instance class at the authentic post-argument command head,
 /// independently of whether its written selector names an existing method.
 pub(crate) fn class_at_command_head<'a>(

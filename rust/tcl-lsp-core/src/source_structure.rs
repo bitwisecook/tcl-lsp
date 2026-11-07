@@ -497,6 +497,24 @@ impl SourceSyntaxCoverage {
         None
     }
 
+    /// [`Self::applicability`] where the caller independently proved each
+    /// command whose schema is missing; any other such command stays open.
+    pub(crate) fn complete_with_proved_commands(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+        proved: impl Fn(Span) -> bool,
+    ) -> bool {
+        self.matches(source, analysis)
+            && self.structure.package_census.as_ref().is_some_and(|state| {
+                state
+                    .unavailable
+                    .iter()
+                    .chain(&state.syntax_unavailable)
+                    .all(|span| proved(*span))
+            })
+    }
+
     /// Complete means every represented selected script syntax body was
     /// inspected; missing schemas, including absent heads, stay incomplete.
     pub fn applicability(

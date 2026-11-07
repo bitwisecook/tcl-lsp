@@ -369,8 +369,9 @@ fn requests(
     Ok(requests)
 }
 
-/// Plan a bounded instance-table rename in one complete current source owner.
-/// The current ordinary class roster includes builtin collisions. Inherited
+/// Plan a bounded instance-table rename in one complete current source owner
+/// and the consumers that dispatch to it through a class loaded from that
+/// owner. The current ordinary class roster includes builtin collisions. Inherited
 /// families, class-object tables, own-object configurations, generated members,
 /// name mutations and unknown receivers remain separate unsupported obligations.
 /// Every direct call is joined by its actual selected canonical declaration.
@@ -488,15 +489,128 @@ fn validate_member_roster(
     Ok(())
 }
 
+/// A consumer reaches the member only through a class it loaded from the
+/// owner's current source, so each call is joined by that declaration site.
+/// A selector the consumer may dispatch with an unknown receiver withdraws
+/// the edit rather than leaving a call that no longer names the member.
+fn consumer_requests(
+    document: OriginalDeclarationDocument<'_>,
+    method: &OriginalSourceMethodMetadata,
+    wanted: &[u8],
+) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalMemberRenameRefusal> {
+    let site = method.declaration().site();
+    let old = method.original_name_input().bytes();
+    let mut requests = Vec::new();
+    let mut touched = false;
+    let mut refusal = None;
+    let proved = std::cell::RefCell::new(HashSet::new());
+    let visit = crate::executable_regions::visit_checked_analysis_executable_commands_proving(
+        document.source,
+        document.analysis,
+        &mut |command, _, _| {
+            if crate::receiver_identity::class_at_command_head(
+                document.analysis,
+                document.source,
+                command,
+            )
+            .is_some()
+                || crate::receiver_identity::class_command_at(
+                    document.analysis,
+                    document.source,
+                    command,
+                )
+            {
+                proved.borrow_mut().insert(command.span);
+            }
+            let Some(foreign) = crate::receiver_identity::foreign_method_at_command(
+                document.analysis,
+                document.source,
+                command,
+            ) else {
+                if crate::receiver_identity::method_at_command(
+                    document.analysis,
+                    document.source,
+                    command,
+                )
+                .is_none()
+                    && command
+                        .texts
+                        .first()
+                        .is_some_and(|head| head.contains(['$', '[']))
+                    && command.texts.get(1).map(String::as_bytes) == Some(old)
+                {
+                    refusal = Some(OriginalMemberRenameRefusal::IncompleteCoverage);
+                    return true;
+                }
+                return false;
+            };
+            proved.borrow_mut().insert(command.span);
+            if foreign.declaration.source != site.source {
+                return false;
+            }
+            touched = true;
+            if foreign.declaration != *site
+                || foreign.name_span != method.metadata().name_span
+                || foreign.side != method.side()
+            {
+                return false;
+            }
+            if foreign.selector_input.original_word_key().is_none()
+                || !crate::original_name_edit::original_input_matches_source(
+                    document.source,
+                    document.analysis,
+                    &foreign.selector_input,
+                    foreign.selector,
+                )
+            {
+                refusal = Some(OriginalMemberRenameRefusal::UneditableInput);
+                return true;
+            }
+            requests.push((foreign.selector_input, wanted.into()));
+            false
+        },
+        |span| proved.borrow().contains(&span),
+    );
+    if let Some(refusal) = refusal {
+        return Err(refusal);
+    }
+    if touched && visit != crate::executable_regions::PotentialSourceVisit::Complete {
+        return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+    }
+    Ok(requests)
+}
+
+fn document_edits(
+    document: OriginalDeclarationDocument<'_>,
+    requests: &[(SignatureSourceNameInput, NameBytes)],
+) -> Result<Vec<WorkspaceTextEdit>, OriginalMemberRenameRefusal> {
+    let edits = crate::original_name_edit::original_name_input_edits(
+        &SourceImage::document(document.source),
+        requests,
+    )
+    .ok_or(OriginalMemberRenameRefusal::UneditableInput)?;
+    Ok(edits
+        .into_iter()
+        .map(|edit| WorkspaceTextEdit {
+            uri: document.uri.to_owned(),
+            span: edit.span(),
+            new_text: edit.text().to_owned(),
+        })
+        .collect())
+}
+
 fn original_member_rename_units(
     documents: &[OriginalDeclarationDocument<'_>],
     identity: &OriginalDeclarationIdentity,
     wanted: &[u8],
 ) -> Result<Vec<WorkspaceTextEdit>, OriginalMemberRenameRefusal> {
-    let [document] = documents else {
-        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
-    };
-    if document.uri != identity.uri() {
+    let mut owners = documents
+        .iter()
+        .filter(|document| document.uri == identity.uri());
+    let document = owners
+        .next()
+        .ok_or(OriginalMemberRenameRefusal::AmbiguousOwner)?;
+    if owners.next().is_some() {
         return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
     }
     if !identity.is_current(document.uri, document.source, document.analysis) {
@@ -575,24 +689,26 @@ fn original_member_rename_units(
 
     validate_member_roster(method, &roster, input, wanted)?;
     let requests = requests(*document, class, method, &roster, wanted)?;
-    let edits = crate::original_name_edit::original_name_input_edits(
-        &SourceImage::document(document.source),
-        &requests,
-    )
-    .ok_or(OriginalMemberRenameRefusal::UneditableInput)?;
-    Ok(edits
-        .into_iter()
-        .map(|edit| WorkspaceTextEdit {
-            uri: document.uri.to_owned(),
-            span: edit.span(),
-            new_text: edit.text().to_owned(),
-        })
-        .collect())
+    let mut edits = document_edits(*document, &requests)?;
+    for consumer in documents.iter().filter(|other| other.uri != document.uri) {
+        if consumer
+            .analysis
+            .original_class_declarations()
+            .any(|other| other.name().slot() == class.name().slot())
+        {
+            return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
+        }
+        let requests = consumer_requests(*consumer, method, wanted)?;
+        if !requests.is_empty() {
+            edits.extend(document_edits(*consumer, &requests)?);
+        }
+    }
+    Ok(edits)
 }
 
 /// Workspace adapter for the same bounded current source-family protocol.
-/// A foreign or multi-owner family remains an explicit missing obligation;
-/// this never selects members by reporting names across documents.
+/// The owner's family stays closed; consumers join only by the declaration
+/// site their loaded class retains, never by reporting names.
 ///
 /// # Errors
 /// Returns the edit planner's independently missing obligation.
@@ -602,30 +718,21 @@ pub fn original_member_prepare_span_in(
     cursor_uri: &str,
     cursor: u32,
 ) -> Result<Span, OriginalMemberRenameRefusal> {
-    let [document] = documents else {
-        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
-    };
-    if document.uri != cursor_uri {
-        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
-    }
-    original_member_prepare_span(*document, identity, cursor)
-}
-
-/// Validate the same atomic family and coverage obligations before offering an
-/// original static selector/name extent. Readonly values cannot supply edits.
-///
-/// # Errors
-/// Returns the edit planner's independently missing obligation.
-pub fn original_member_prepare_span(
-    document: OriginalDeclarationDocument<'_>,
-    identity: &OriginalDeclarationIdentity,
-    cursor: u32,
-) -> Result<Span, OriginalMemberRenameRefusal> {
+    let document = documents
+        .iter()
+        .find(|document| document.uri == cursor_uri)
+        .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?;
+    let owner = documents
+        .iter()
+        .find(|document| document.uri == identity.uri())
+        .ok_or(OriginalMemberRenameRefusal::AmbiguousOwner)?;
     let method = identity
-        .method_metadata(document.analysis)
+        .method_metadata(owner.analysis)
         .ok_or(OriginalMemberRenameRefusal::StaleSource)?;
-    original_member_rename_units(&[document], identity, method.original_name_input().bytes())?;
-    let input = if identity.span().start() <= cursor && cursor < identity.span().end() {
+    original_member_rename_units(documents, identity, method.original_name_input().bytes())?;
+    let input = if document.uri != identity.uri() {
+        consumer_selector_at(*document, method, cursor)?
+    } else if identity.span().start() <= cursor && cursor < identity.span().end() {
         identity
             .input()
             .ok_or(OriginalMemberRenameRefusal::UneditableInput)?
@@ -641,6 +748,51 @@ pub fn original_member_prepare_span(
     };
     crate::original_name_edit::original_static_name_value_span(&input, 0..input.bytes().len())
         .ok_or(OriginalMemberRenameRefusal::UneditableInput)
+}
+
+fn consumer_selector_at(
+    document: OriginalDeclarationDocument<'_>,
+    method: &OriginalSourceMethodMetadata,
+    cursor: u32,
+) -> Result<SignatureSourceNameInput, OriginalMemberRenameRefusal> {
+    let mut selected = None;
+    crate::executable_regions::visit_analysis_executable_commands(
+        document.source,
+        document.analysis,
+        &mut |command, _, _| {
+            if !(command.span.start() <= cursor && cursor <= command.span.end()) {
+                return false;
+            }
+            if let Some(foreign) = crate::receiver_identity::foreign_method_at_command(
+                document.analysis,
+                document.source,
+                command,
+            ) && foreign.selector.start() <= cursor
+                && cursor <= foreign.selector.end()
+                && foreign.declaration == *method.declaration().site()
+                && foreign.name_span == method.metadata().name_span
+                && foreign.side == method.side()
+            {
+                selected = Some(foreign.selector_input);
+                return true;
+            }
+            false
+        },
+    );
+    selected.ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)
+}
+
+/// Validate the same atomic family and coverage obligations before offering an
+/// original static selector/name extent. Readonly values cannot supply edits.
+///
+/// # Errors
+/// Returns the edit planner's independently missing obligation.
+pub fn original_member_prepare_span(
+    document: OriginalDeclarationDocument<'_>,
+    identity: &OriginalDeclarationIdentity,
+    cursor: u32,
+) -> Result<Span, OriginalMemberRenameRefusal> {
+    original_member_prepare_span_in(&[document], identity, document.uri, cursor)
 }
 
 #[cfg(test)]

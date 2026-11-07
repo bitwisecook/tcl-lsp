@@ -153,6 +153,33 @@ pub(crate) fn visit_checked_analysis_executable_commands_with_regions(
     visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
     completed_regions: &mut Vec<(tcl_lexer::Span, u32)>,
 ) -> PotentialSourceVisit {
+    checked_visit(source, analysis, visitor, completed_regions, |coverage| {
+        coverage.applicability(source, analysis)
+            == Some(crate::SourceSyntaxCoverageApplicability::Complete)
+    })
+}
+
+/// The checked traversal, where commands without a registry schema count as
+/// covered only once `proved` accepts them after the visit.
+#[must_use]
+pub(crate) fn visit_checked_analysis_executable_commands_proving(
+    source: &str,
+    analysis: &AnalysisResult,
+    visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
+    proved: impl Fn(tcl_lexer::Span) -> bool,
+) -> PotentialSourceVisit {
+    checked_visit(source, analysis, visitor, &mut Vec::new(), |coverage| {
+        coverage.complete_with_proved_commands(source, analysis, proved)
+    })
+}
+
+fn checked_visit(
+    source: &str,
+    analysis: &AnalysisResult,
+    visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
+    completed_regions: &mut Vec<(tcl_lexer::Span, u32)>,
+    applicable: impl FnOnce(&crate::SourceSyntaxCoverage) -> bool,
+) -> PotentialSourceVisit {
     completed_regions.clear();
     let Some((config, registry, identities)) = analysis_walk_inputs(source, analysis) else {
         return PotentialSourceVisit::Unavailable;
@@ -214,11 +241,7 @@ pub(crate) fn visit_checked_analysis_executable_commands_with_regions(
                 .iter()
                 .all(|(span, depth)| region_keys.contains(&(span.start(), span.end(), *depth)))
         });
-    if coverage.applicability(source, analysis)
-        == Some(crate::SourceSyntaxCoverageApplicability::Complete)
-        && all_regions
-        && observed.iter().all(|seen| *seen)
-    {
+    if all_regions && applicable(&coverage) && observed.iter().all(|seen| *seen) {
         completed_regions.extend(regions);
         PotentialSourceVisit::Complete
     } else {
