@@ -19656,7 +19656,7 @@ impl Vm {
                 ) {
                     let variables = variable_cleanup::OriginalVariableCleanup::enter(vm);
                     variables.purge_binding(vm, raw);
-                } else {
+                } else if !vm.retire_plain_local(raw) {
                     vm.destroy_owned_variable(&name, raw, None);
                 }
             });
@@ -21954,6 +21954,22 @@ impl Vm {
     /// detached. The stable cell identity remains available while callbacks
     /// run, but any value or trace recreated through an alias is forcibly
     /// discarded because the owner itself is dying.
+    /// Retire a plain scalar local directly, as C's `TclDeleteVars` frees an
+    /// untraced variable: with no observer on the cell and no Jim storage,
+    /// nothing can observe the general cleanup driver's stages.
+    fn retire_plain_local(&mut self, raw: VarId) -> bool {
+        if self.variable_cell_observed(raw)
+            || self.uses_native_jim_lookup()
+            || !self.var_arena.is_plain_scalar_local(raw)
+        {
+            return false;
+        }
+        drop(self.var_arena.take_state(raw));
+        self.const_vars.remove(&raw);
+        self.var_arena.release_binding(raw);
+        true
+    }
+
     fn destroy_owned_variable(
         &mut self,
         name: impl AsRef<[u8]>,

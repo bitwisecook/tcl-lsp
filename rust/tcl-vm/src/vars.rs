@@ -963,6 +963,27 @@ impl VarArena {
         self.drive_retirement(VariableRetirement::detach(id))
     }
 
+    /// A scalar bound only by its frame, with no alias, pin, operation,
+    /// static, element or scalar-retirement role.
+    pub(crate) fn is_plain_scalar_local(&self, id: VarId) -> bool {
+        self.cells.get(&id).is_some_and(|cell| {
+            matches!(cell.state, VarState::Scalar(_))
+                && cell.bindings == 1
+                && cell.link_refs == 0
+                && cell.pins == 0
+                && cell.operation_refs == 0
+                && cell.static_refs == 0
+                && cell.parent.is_none()
+                && cell.scalar_retirement.is_none()
+                && cell.native_element_key.is_none()
+        })
+    }
+
+    /// Release one binding and collect the cell once nothing holds it.
+    pub(crate) fn release_binding(&mut self, id: VarId) {
+        let _ = self.drive_retirement(VariableRetirement::unbind(id));
+    }
+
     /// Follow link cells to the storage cell Tcl operations observe.
     pub(crate) fn resolve(&self, mut id: VarId) -> Option<VarId> {
         // A chain longer than the arena revisits a cell, so it is a cycle.
