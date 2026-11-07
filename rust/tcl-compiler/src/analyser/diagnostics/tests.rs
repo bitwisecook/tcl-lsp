@@ -18828,3 +18828,25 @@ fn w211_reads_an_existence_test_by_the_element_it_names() {
         "{literal}"
     );
 }
+
+/// #2323: a loop inside a command substitution binds its variables and runs
+/// its body in this frame, so neither its loop variable nor a name its body
+/// writes keeps the value it held before. tclsh 8.5 to 9.1 print `changed`
+/// for each program.
+#[test]
+fn i230_never_reports_a_condition_over_a_name_a_substituted_loop_writes() {
+    assert_no_i230(&[
+        "proc q {} {set a old; set r [foreach a {x} {}]; if {$a eq \"old\"} {puts same} else {puts changed}}\nq\n",
+        "proc q {} {set x 1; set r [foreach v 1 {incr x}]; if {$x == 1} {puts same} else {puts changed}}\nq\n",
+        "proc q {} {set x 1; set r [lmap v {1 2} {incr x}]; if {$x == 1} {puts same} else {puts changed}}\nq\n",
+        "proc q {} {set x 1; set r [while {$x < 3} {incr x}]; if {$x == 1} {puts same} else {puts changed}}\nq\n",
+    ]);
+}
+
+/// #2323: a name a `catch` body inside a substitution may write is not read
+/// by that statement, so it is not read before it is set there.
+#[test]
+fn w210_does_not_report_a_name_a_substituted_catch_body_writes() {
+    let source = "proc p {f} {\n    set rc [catch {set fd [open $f]} err]\n    if {$rc} {return}\n    puts [read $fd]\n}\n";
+    assert_eq!(w210_codes(source), [] as [String; 0], "{source}");
+}

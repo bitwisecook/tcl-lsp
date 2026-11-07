@@ -1452,6 +1452,10 @@ pub(crate) struct EvaluatedCommandSubstitutions {
     /// which is where the variable reads of that word sit: no command word of
     /// [`Self::in_frame_commands`] holds them.
     pub in_frame_texts: Vec<String>,
+    /// The names a loop the substitutions run binds per iteration (`a` of
+    /// `[foreach a {x} {}]`). A loop over nothing binds none, so each is a
+    /// possible write the statement also reads.
+    pub may_bound_names: Vec<String>,
     /// Indices into both inventories in the order the shared walk evaluates
     /// them. Keeping the classifications separate must not move an earlier
     /// expression's nested invocation after a later sibling substitution.
@@ -1887,20 +1891,85 @@ fn walk_in_frame_words(
         walk_text(&word.text, &expression_context, depth + 1, reach, out);
     }
 
-    walk_protected_scripts(words, (lookup, &args, shift), context, depth, out);
+    walk_clause_scripts(
+        words,
+        (lookup, &args, shift),
+        context,
+        depth,
+        out,
+        |timing| timing == tcl_registry::ClauseTiming::Protected,
+    );
+    // A loop's body and fixtures run zero or more times in this frame, and
+    // its header binds its variables on each iteration: what they write the
+    // statement may write, as a protected script's commands may (#2323).
+    walk_clause_scripts(
+        words,
+        (lookup, &args, shift),
+        context,
+        depth,
+        out,
+        |timing| {
+            matches!(
+                timing,
+                tcl_registry::ClauseTiming::PerIteration
+                    | tcl_registry::ClauseTiming::LoopFixture(_)
+            )
+        },
+    );
+    record_loop_binders(words, (lookup, &args, shift), context, out);
 }
 
-/// Descend the scripts the call `words` runs as protected — the ones its
-/// clause plan places at [`tcl_registry::ClauseTiming::Protected`], the body
-/// of a `catch` or a `try` — where each is known text ([`walk_in_frame_words`]
-/// says which). `callee` is the command the call reaches, its argv after any
-/// words an alias prepends, and how many those are.
-fn walk_protected_scripts(
+/// Record the names the call's loop-variable lists bind
+/// ([`EvaluatedCommandSubstitutions::may_bound_names`]); a list that is
+/// run-time data may bind any name.
+fn record_loop_binders(
+    words: &[CommandWord],
+    (lookup, args, shift): (&str, &[&str], usize),
+    context: &SubstitutionWalkContext<'_>,
+    out: &mut EvaluatedCommandSubstitutions,
+) {
+    for index in
+        context
+            .registry
+            .arg_indices_for_role(lookup, args, tcl_registry::ArgRole::LoopVarList)
+    {
+        let Some(source_index) = index.checked_sub(shift) else {
+            continue;
+        };
+        let Some(word) = words.get(source_index + 1) else {
+            continue;
+        };
+        let names = if word.braced_literal {
+            Some(word.text.as_str())
+        } else {
+            word.literal().filter(|_| !word.raw.contains('\\'))
+        }
+        .and_then(|list| tcl_syntax::list::split_list(list).ok());
+        let Some(names) = names else {
+            out.opaque = true;
+            continue;
+        };
+        for name in names {
+            if !name.is_empty() && !out.may_bound_names.iter().any(|known| *known == name) {
+                out.may_bound_names.push(name.into_owned());
+            }
+        }
+    }
+}
+
+/// Descend the scripts the call `words` runs at a clause timing `admit`
+/// accepts — a protected script ([`tcl_registry::ClauseTiming::Protected`]:
+/// the body of a `catch` or a `try`), or a loop's body — where each is known
+/// text ([`walk_in_frame_words`] says which). Their commands may not run, so
+/// they are recorded as protected. `callee` is the command the call reaches,
+/// its argv after any words an alias prepends, and how many those are.
+fn walk_clause_scripts(
     words: &[CommandWord],
     (lookup, args, shift): (&str, &[&str], usize),
     context: &SubstitutionWalkContext<'_>,
     depth: u32,
     out: &mut EvaluatedCommandSubstitutions,
+    admit: impl Fn(tcl_registry::ClauseTiming) -> bool,
 ) {
     let protected: Vec<usize> = context
         .registry
@@ -1908,7 +1977,7 @@ fn walk_protected_scripts(
         .map(|plan| {
             plan.clauses
                 .iter()
-                .filter(|clause| clause.timing == tcl_registry::ClauseTiming::Protected)
+                .filter(|clause| admit(clause.timing))
                 .flat_map(|clause| clause.operands(tcl_registry::ArgRole::Body))
                 .collect()
         })
@@ -2936,7 +3005,7 @@ mod tests {
     /// `eval` — and a script that is run-time data is not known text: the walk
     /// is incomplete.
     #[test]
-    fn a_protected_script_is_descended_and_no_other_body_is() {
+    fn a_protected_script_or_loop_body_is_descended_and_no_other_body_is() {
         let one = recovered("[catch {incr x}]");
         assert_eq!(heads(&one.commands), ["catch"]);
         assert_eq!(heads(&one.in_frame_commands), ["incr"]);
@@ -2963,12 +3032,16 @@ mod tests {
         let nested_quoted = recovered("[catch \"catch {incr x}\"]");
         assert_eq!(heads(&nested_quoted.in_frame_commands), ["catch", "incr"]);
 
-        for other in [
-            "[if {1} {incr x}]",
-            "[eval {incr x}]",
-            "[foreach v {1} {incr x}]",
-            "[while {1} {incr x}]",
-        ] {
+        // A loop's body runs zero or more times in this frame, so it is
+        // descended as a protected script is; its header's names are bound.
+        let looped = recovered("[foreach v {1} {incr x}]");
+        assert_eq!(heads(&looped.protected_commands), ["incr"]);
+        assert_eq!(looped.may_bound_names, ["v"]);
+        let tested = recovered("[while {1} {incr x}]");
+        assert_eq!(heads(&tested.protected_commands), ["incr"]);
+        assert!(tested.may_bound_names.is_empty());
+
+        for other in ["[if {1} {incr x}]", "[eval {incr x}]"] {
             let embedded = recovered(other);
             assert!(
                 !heads(&embedded.in_frame_commands).contains(&"incr")

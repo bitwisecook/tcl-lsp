@@ -1836,7 +1836,11 @@ impl<'a> CfgBuilder<'a> {
             self.registry,
         );
         embedded_opaque_global |= writes.opaque;
-        for d in writes.names {
+        for d in writes
+            .names
+            .into_iter()
+            .chain(embedded.may_bound_names.iter().cloned())
+        {
             if !embedded_extras.contains(&d) {
                 embedded_extras.push(d);
             }
@@ -1900,11 +1904,17 @@ impl<'a> CfgBuilder<'a> {
         &self,
         embedded: &crate::ir_helpers::EvaluatedCommandSubstitutions,
     ) -> Vec<String> {
-        crate::ir_helpers::variable_write_effects_from_commands(
+        let mut names = crate::ir_helpers::variable_write_effects_from_commands(
             embedded.protected_commands.iter(),
             self.registry,
         )
-        .names
+        .names;
+        for name in &embedded.may_bound_names {
+            if !names.contains(name) {
+                names.push(name.clone());
+            }
+        }
+        names
     }
 
     /// Protect incoming values read around a substitution write.
@@ -2150,7 +2160,10 @@ impl<'a> CfgBuilder<'a> {
             self.global_write_defs_from_commands(&embedded.commands, self.original_tokens_at(span));
         opaque_global |= embedded.opaque || opaque_upvar;
         opaque_global |= writes.opaque;
-        for name in global_defs {
+        for name in global_defs
+            .into_iter()
+            .chain(embedded.may_bound_names.iter().cloned())
+        {
             if !defs.contains(&name) {
                 defs.push(name);
             }

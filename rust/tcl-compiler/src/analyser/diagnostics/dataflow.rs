@@ -2643,6 +2643,22 @@ is renamed or deleted in this file."
             if span.is_empty() || declaration.advice.is_some_and(|advice| !advice.owns(span)) {
                 continue;
             }
+            // The effects a statement's substitutions state read each name
+            // they may write, so the store before stays live where the write
+            // does not happen (`set rc [catch {set fd [open $f]}]`); that use
+            // is no read the source makes (#2323).
+            if let Some(Statement::Call { defs, .. }) = stmt_opt
+                && matches!(
+                    stmt_opt.and_then(Statement::synthetic_marker),
+                    Some(
+                        crate::ir::SyntheticMarker::WordEffects(_)
+                            | crate::ir::SyntheticMarker::Condition
+                    )
+                )
+                && defs.iter().any(|defined| defined == var)
+            {
+                continue;
+            }
             let Some(use_id) = fu.ssa.block_id(&use_site.block) else {
                 continue;
             };
