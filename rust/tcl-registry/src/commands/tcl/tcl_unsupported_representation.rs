@@ -43,6 +43,13 @@ fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
         runtime_backing: RuntimeBacking::shipped(name),
+        // Created by Tcl_CreateObjCommand (8.6) or its unsupported
+        // command table (9.x) without a compileProc.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Both engines describe the argument they were handed and run
         // nothing: `cmd_representation` (`tcl-vm/src/cmd_info.rs`) and
         // `representation_cmd` (`runtime/rust/src/cmd_info.rs`).

@@ -87,6 +87,13 @@ fn make_spec(name: &'static str) -> CommandSpec {
         // excluded on the version axis alone — no separate per-dialect
         // exclusion, and no disable list.
         surface: Some(SpecSurface::TCL86_PLUS),
+        // Created by Tcl_CreateObjCommand (8.6) or its unsupported
+        // command table (9.x) without a compileProc.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
