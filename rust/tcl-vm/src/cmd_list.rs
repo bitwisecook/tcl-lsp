@@ -204,10 +204,20 @@ fn cmd_linsert(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let release = vm.runtime_version();
     let [list, from, to, rest @ ..] = args else {
-        return err_wrong_args(vm, "lreplace list first last ?element ...?");
+        return err_wrong_args(
+            vm,
+            if release < tcl_dialect::TclVersion::V8_6 {
+                "lreplace list first last ?element element ...?"
+            } else {
+                "lreplace list first last ?element ...?"
+            },
+        );
     };
-    adapt(vm, |vm| list_core::lreplace(vm, list, from, to, rest))
+    adapt(vm, |vm| {
+        list_core::lreplace_for(vm, list, from, to, rest, Some(release))
+    })
 }
 
 /// `ledit listVar first last ?element ...?` — the in-place `lreplace` (Tcl 9)

@@ -312,6 +312,20 @@ pub fn lreplace<O: NativeIndexOps>(
     last: &O::Value,
     elements: &[O::Value],
 ) -> Result<O::Value, CmdError> {
+    lreplace_for(ops, value, first, last, elements, None)
+}
+
+/// [`lreplace`] as `release`'s command runs it: C8.4 and C8.5 refuse a
+/// first index past the end of a non-empty list.
+pub fn lreplace_for<O: NativeIndexOps>(
+    ops: &mut O,
+    value: &O::Value,
+    first: &O::Value,
+    last: &O::Value,
+    elements: &[O::Value],
+    release: Option<TclVersion>,
+) -> Result<O::Value, CmdError> {
+    let first_spec = first;
     index::run_created_index_result(ops, |ops| {
         let prepared = index::prepare_jim_indices(ops, &[first, last])?;
         let mut elems = ops.index_list_elements(value)?;
@@ -326,6 +340,14 @@ pub fn lreplace<O: NativeIndexOps>(
                 index::resolve_value(ops, last, len)?,
             ),
         };
+        if release.is_some_and(|release| release < TclVersion::V8_6)
+            && len > 0
+            && usize::try_from(first.max(0)).is_ok_and(|first| first >= len)
+        {
+            let mut message = b"list doesn't contain element ".to_vec();
+            message.extend_from_slice(&ops.as_bytes(first_spec));
+            return Err(CmdError::new_bytes(message));
+        }
         let (lo, end) = replace_range(first, last, len);
         elems.splice(lo..end, elements.iter().cloned());
         Ok(ops.new_list(elems))
