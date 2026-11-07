@@ -2048,11 +2048,9 @@ impl<'a> CfgBuilder<'a> {
             let Some(head) = summary_candidates::original_head(child) else {
                 continue;
             };
-            if child
-                .source_binding
-                .as_ref()
-                .is_some_and(|binding| binding.targets_only_source_procedures())
-            {
+            if child.source_binding.as_ref().is_some_and(
+                super::command_binding::SourceInvocationBinding::targets_only_source_procedures,
+            ) {
                 summarised.insert(head);
             } else {
                 other.insert(head);

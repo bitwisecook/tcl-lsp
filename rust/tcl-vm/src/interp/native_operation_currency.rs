@@ -622,7 +622,7 @@ impl NativeOperationScope {
         let allocation = Self::allocation_scope(vm, &currency, true)?;
         let entered = Rc::new(EnteredOperation {
             currency,
-            allocation: allocation,
+            allocation,
         });
         owner.entered.borrow_mut().push(Rc::downgrade(&entered));
         Ok(Self { entered })
@@ -653,7 +653,7 @@ impl NativeOperationScope {
         let allocation = Self::allocation_scope(vm, original, false)?;
         let entered = Rc::new(EnteredOperation {
             currency: original.clone(),
-            allocation: allocation,
+            allocation,
         });
         original
             .owner
