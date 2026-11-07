@@ -450,12 +450,11 @@ fn invert_comparison_flips_equality_operator() {
 }
 
 #[test]
-fn invert_comparison_flips_relational_operator() {
-    // `$a <= $b` inverts to `$a > $b`.
-    //
-    // tclsh: `$a <= $b` ≡ `!($a > $b)` —
-    //   set a 3; set b 5; list [expr {$a <= $b}] [expr {!($a > $b)}] -> 1 1
-    //   (verified tclsh8.6 + tclsh9.0).
+fn invert_comparison_of_unknown_numbers_is_disabled() {
+    // `$a <= $b` -> `$a > $b` is a negation only over non-NaN values:
+    //   set a NaN; set b 1; list [expr {$a < $b}] [expr {$a >= $b}] -> 0 0
+    //   (verified tclsh8.6 + tclsh9.0). With operands of unknown value the
+    //   action stays visible but disabled rather than editing.
     let src = "while {$a <= $b} { incr a }\n";
     let analysis = analyse(src);
     // `while {` is 7 chars; `$a <= $b` spans cols 7..15.
@@ -465,12 +464,9 @@ fn invert_comparison_flips_relational_operator() {
         Some(&analysis),
         &report_of(&analysis, src),
     );
-    let inv = find(&actions, "Invert comparison").expect("an invert-comparison rewrite");
-    assert_eq!(
-        inv.edits[0].new_text, "$a > $b",
-        "<= should invert to >: {:?}",
-        inv.edits[0].new_text,
-    );
+    let inv = find(&actions, "Invert comparison").expect("an invert-comparison entry");
+    assert!(inv.edits.is_empty(), "{inv:?}");
+    assert!(inv.disabled.is_some(), "{inv:?}");
 }
 
 #[test]
@@ -481,7 +477,8 @@ fn invert_comparison_flips_tip461_string_ordering_operator() {
     // tclsh 9.0: `$a lt $b` ≡ `!($a ge $b)` for any string pair (a total
     // order, same identity as the numeric/`<=` case above).
     let src = "if {$a lt $b} { puts hi }\n";
-    let analysis = analyse(src);
+    // Tcl 8.6 has no `lt` operator (`invalid bareword "lt"`).
+    let analysis = analyse_dialect(src, "tcl9.0");
     // `if {` is 4 chars; `$a lt $b` spans cols 4..12.
     let actions = code_actions(
         src,

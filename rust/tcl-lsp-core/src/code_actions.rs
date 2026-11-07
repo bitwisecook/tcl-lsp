@@ -5284,6 +5284,7 @@ mod original_expression_action_tests {
             ("if {!(1 && 0)} {}", "!(1 && 0)", "!1 || !0"),
             ("expr {!1 || !0}", "!1 || !0", "!(1 && 0)"),
             ("expr {1 == 0}", "1 == 0", "1 != 0"),
+            ("expr {$a == $b}", "$a == $b", "$a != $b"),
         ] {
             let analysis = Analyser::new().analyse(source, "tcl8.6");
             let proposed = selected_actions(source, &analysis, selected);
@@ -5293,7 +5294,7 @@ mod original_expression_action_tests {
         }
         for (source, selected) in [
             ("if {1 == 1} {} elseif {[incr x]} {}", "1 == 1"),
-            ("expr {$a == $b}", "$a == $b"),
+            ("expr {$a < $b}", "$a < $b"),
             ("expr {1 < 2}", "1 < 2"),
             ("if {!(1 && 0)} {info frame -1}", "!(1 && 0)"),
             ("expr {1 && (2 == 3)}", "2 == 3"),
@@ -5317,10 +5318,13 @@ mod original_expression_action_tests {
         assert_eq!(proposed[0].edits.len(), 1);
         assert_eq!(proposed[0].edits[0].new_text, "!1 || !0");
         assert!(proposed[0].disabled.is_none());
+        let body = "if {!(1 && 0)} {puts yes}";
+        let proposed = actions(body, &Analyser::new().analyse(body, "tcl8.6"));
+        assert_eq!(proposed[0].edits.len(), 1, "a reflection-free body: {proposed:?}");
         for unavailable in [
             "expr {!(1 && 0)}; info frame 0",
             "if {!(1 && 0)} {info frame -1}",
-            "if {!(1 && 0)} {puts yes}",
+            "if {!(1 && 0)} {puts [info frame 0]}",
         ] {
             let analysis = Analyser::new().analyse(unavailable, "tcl8.6");
             let proposed = actions(unavailable, &analysis);

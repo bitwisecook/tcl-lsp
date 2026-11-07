@@ -1985,6 +1985,91 @@ impl OriginalExpressionOperatorRewrite {
     }
 }
 
+const REFLECTION_FREE_BODY_DEPTH: u32 = 16;
+
+/// Every body of `words` runs only registry commands, selected or under a
+/// closed conditional lookup, that neither
+/// reflect command names nor introspect or call into the current frame, have
+/// no command substitution, and whose own bodies hold the same. Such a body
+/// cannot observe the written text of the command that encloses it.
+fn reflection_free_bodies(
+    source: &str,
+    analysis: &AnalysisResult,
+    words: &OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+    depth: u32,
+) -> bool {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return false;
+    };
+    let image = tcl_lexer::SourceImage::document(source);
+    let Some(bodies) = words.source_script_bodies_for_mutation_coverage(context) else {
+        return false;
+    };
+    bodies.iter().all(|body| {
+        if !body.matches_source(&image, input.lexer_config()) || !body.matches_context(context) {
+            return false;
+        }
+        let Some(commands) = body.original_commands(context) else {
+            return false;
+        };
+        if commands.is_empty() {
+            return true;
+        }
+        if depth >= REFLECTION_FREE_BODY_DEPTH {
+            return false;
+        }
+        let content = body.content_span();
+        let Some(text) = source.get(content.as_range()) else {
+            return false;
+        };
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(
+            text,
+            content.start(),
+            input.lexer_config(),
+        );
+        segments.len() == commands.len()
+            && segments
+                .iter()
+                .all(|segment| reflection_free_command(source, analysis, segment, context, depth))
+    })
+}
+
+fn reflection_free_command(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    context: &tcl_registry::model::ContextRegistry,
+    depth: u32,
+) -> bool {
+    if segment
+        .word_fragments
+        .iter()
+        .flatten()
+        .any(|fragment| fragment.token.kind == tcl_lexer::TokenType::Cmd)
+    {
+        return false;
+    }
+    let Some(words) = source_registry_words(source, analysis, segment) else {
+        return false;
+    };
+    let closed_lookup = match words.source() {
+        OriginalRegistrySource::Selected => words.operands_preserve_source_lookup(),
+        OriginalRegistrySource::Conditional(metadata) => metadata.obligations().is_empty(),
+        _ => false,
+    };
+    closed_lookup
+        && words.with_source_schema(context, |schema| {
+            schema.facts().arg_roles_complete
+                && !schema.facts().traits.intersects(
+                    tcl_registry::Traits::REFLECTS_COMMAND_NAMES
+                        | tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION
+                        | tcl_registry::Traits::INVOKES_USER_PROC,
+                )
+        }) == Some(true)
+        && reflection_free_bodies(source, analysis, &words, context, depth + 1)
+}
+
 /// Authenticate an explicit editor operator intent on one whole original
 /// expression. This admits neither arbitrary parsed replacements nor nested
 /// body/source reflection, command substitutions or function evaluation.
@@ -2019,15 +2104,8 @@ pub fn original_expression_operator_rewrite(
     })? {
         return None;
     }
-    for body in words.source_script_bodies_for_mutation_coverage(&context)? {
-        if !body.matches_source(
-            &tcl_lexer::SourceImage::document(source),
-            input.lexer_config(),
-        ) || !body.matches_context(&context)
-            || !body.original_commands(&context)?.is_empty()
-        {
-            return None;
-        }
+    if !reflection_free_bodies(source, analysis, &words, &context, 0) {
+        return None;
     }
     let original = words.original_argument_word(argument)?.clone();
     let image = tcl_lexer::SourceImage::document(source);

@@ -379,6 +379,7 @@ fn same_literal_operator_leaf(
 ) -> bool {
     let inert = match old {
         ExprNode::Literal { .. } => true,
+        ExprNode::Var { text, .. } => !text.contains(&b'['),
         ExprNode::String { text, .. } => std::str::from_utf8(text)
             .ok()
             .and_then(tcl_syntax::expr::ast::fixed_string_operand)
@@ -437,6 +438,10 @@ fn same_editor_comparison_inversion(
         BinOp::StrNe => BinOp::StrEq,
         BinOp::In => BinOp::Ni,
         BinOp::Ni => BinOp::In,
+        BinOp::StrLt => BinOp::StrGe,
+        BinOp::StrGe => BinOp::StrLt,
+        BinOp::StrLe => BinOp::StrGt,
+        BinOp::StrGt => BinOp::StrLe,
         _ => return false,
     };
     *next == opposite
@@ -575,7 +580,18 @@ fn finite_editor_operator_trees(
     if policy.preparation_context().is_none_or(|context| {
         context.native_syntax != parser.native_syntax
             || context.lexer_grammar != parser.lexer_grammar
-    }) || !pure_expression(&original)
+    }) {
+        return None;
+    }
+    // A NaN operand makes `<` and `>=` both false, so a numeric ordering
+    // rewrite is exact only over proved finite values. Every other admitted
+    // rewrite keeps the same operands in the same order whatever they hold.
+    let value_independent = !numeric_ordering(&original) && !numeric_ordering(&candidate);
+    if value_independent {
+        if !variable_leaf_expression(&original) || !variable_leaf_expression(&candidate) {
+            return None;
+        }
+    } else if !pure_expression(&original)
         || !pure_expression(&candidate)
         || !finite_native_literal_result(&original, policy)
         || !finite_native_literal_result(&candidate, policy)
@@ -1269,6 +1285,75 @@ fn brace_required<T>(tokens: &CommandTokens, stage: &str, value: Option<T>) -> O
     value.or_else(|| brace_refusal(tokens, stage))
 }
 
+fn numeric_ordering(tree: &ExprNode<Vec<u8>>) -> bool {
+    use tcl_syntax::expr::ast::BinOp;
+    let mut pending = vec![tree];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Binary { op, left, right } => {
+                if matches!(op, BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge) {
+                    return true;
+                }
+                pending.push(right);
+                pending.push(left);
+            }
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                pending.push(false_branch);
+                pending.push(true_branch);
+                pending.push(condition);
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// [`pure_expression`] that also admits plain variable reads. Callers have
+/// already proved the variables untraced; an index holding a command
+/// substitution is still refused.
+fn variable_leaf_expression(tree: &ExprNode<Vec<u8>>) -> bool {
+    let mut pending = vec![tree];
+    let mut visited = 0_u32;
+    while let Some(node) = pending.pop() {
+        visited += 1;
+        if visited > 4096 {
+            return false;
+        }
+        match node {
+            ExprNode::Var { text, .. } => {
+                if text.contains(&b'[') {
+                    return false;
+                }
+            }
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Binary { left, right, .. } => {
+                pending.push(right);
+                pending.push(left);
+            }
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                pending.push(false_branch);
+                pending.push(true_branch);
+                pending.push(condition);
+            }
+            leaf => {
+                if !pure_expression(leaf) {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
 fn pure_expression(tree: &ExprNode<Vec<u8>>) -> bool {
     let mut pending = vec![tree];
     let mut visited = 0_u32;
@@ -1404,7 +1489,7 @@ mod tests {
     }
 
     #[test]
-    fn original_editor_operator_rewrite_keeps_normality_empty_bodies_and_literal_order() {
+    fn original_editor_operator_rewrite_keeps_reflection_free_bodies_and_leaf_order() {
         // naming.core.original-expression-source-selection
         // docs/design/analysis/name-resolution-proofs/original-expression-source-selection.md
         use crate::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind::{
@@ -1421,6 +1506,9 @@ mod tests {
                 ("if {1 == 0} {}", "1 != 0", InvertComparison),
                 ("expr {1 != 0}", "1 == 0", InvertComparison),
                 ("expr {1 eq 0}", "1 ne 0", InvertComparison),
+                ("expr {!($a && $b)}", "!$a || !$b", DeMorgan),
+                ("if {$a == $b} {puts yes}", "$a != $b", InvertComparison),
+                ("if {!(1 && 0)} {puts yes}", "!1 || !0", DeMorgan),
             ] {
                 let proof = operator_receipt(source, profile, candidate, kind)
                     .unwrap_or_else(|| panic!("{profile}: {source} -> {candidate}"));
@@ -1451,7 +1539,6 @@ mod tests {
             ("expr {!(1 && 0)}", "!0 || !1", DeMorgan),
             ("expr {!(1 && 0)}", "!1 && !0", DeMorgan),
             ("expr {!(1 && 0)}", "!1 || !2", DeMorgan),
-            ("expr {!($a && $b)}", "!$a || !$b", DeMorgan),
             ("expr {!($a([child]) && 1)}", "!$a([child]) || !1", DeMorgan),
             ("expr {!([child] && 1)}", "![child] || !1", DeMorgan),
             ("expr {!(rand() && 1)}", "!rand() || !1", DeMorgan),
@@ -1472,7 +1559,6 @@ mod tests {
             ),
             ("proc p {} {expr {!(1 && 0)}}", "!1 || !0", DeMorgan),
             ("expr {!(1 && 0)}; info frame 0", "!1 || !0", DeMorgan),
-            ("if {!(1 && 0)} {puts yes}", "!1 || !0", DeMorgan),
             ("if {!(1 && 0)} {info frame -1}", "!1 || !0", DeMorgan),
             ("if {!(1 && 0)} {$body}", "!1 || !0", DeMorgan),
             ("if {!(1 && 0)}", "!1 || !0", DeMorgan),
@@ -1494,6 +1580,9 @@ mod tests {
                 DeMorgan,
             ),
             ("if {1 < 0} {}", "1 >= 0", InvertComparison),
+            ("if {$a < $b} {}", "$a >= $b", InvertComparison),
+            ("if {$a == $b} {puts [info frame 0]}", "$a != $b", InvertComparison),
+            ("if {$a == $b} {proc_call}", "$a != $b", InvertComparison),
             ("if {1 == 0} {}", "0 != 1", InvertComparison),
             ("if {1 == 0} {}", "1 != 2", InvertComparison),
         ] {
