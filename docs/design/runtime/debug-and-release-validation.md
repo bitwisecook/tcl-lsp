@@ -53,6 +53,8 @@ pub(crate) const VERIFY_CURRENCY: bool = cfg!(debug_assertions);
 | Runtime | `Interp::check_entered_native_operation`, inherited `NativeOperationCurrency::issue` | re-check of the interpreter's own entered currency after its refusal check |
 | Runtime | `NativeOperationScope::enter` | re-check of a just-issued currency |
 | Runtime | `NativeOriginalNameCell::check` | selected variable cell and table identity |
+| VM | `activation_namespace_stale_message_in_context` | frame namespace ownership and path while the name-world generation, namespace token and actual profile are unchanged |
+| VM | `lookup_resolved_command_in_context` | second resolution of a dispatch head already resolved under unchanged command, binding, trace and name-world epochs |
 | VM | `SavedExecutionTarget::settle_in_original` | re-entry and re-proof around cleanup whose currency is already the current interpreter's innermost live entry |
 
 In release, an operation whose world changes under it continues against the
