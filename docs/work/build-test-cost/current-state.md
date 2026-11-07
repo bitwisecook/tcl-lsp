@@ -586,11 +586,18 @@ Still open:
 
 - **Per-region plan sharing (item 7).** One shared plan per region per
   analysis, in the naming owners' static-source retention.
-- **Command-trace observers and nested loops.** Eight nested two-element
-  `foreach` loops under a `trace add command` observer exhaust 14 GB.
-  `unrelated_command_observer_keeps_structured_bodies_within_stack_budget`
-  (now an assertion failure) and `ssa::…scalar_alias_write_after_unset…`
-  (OOM-killed) come from this.
+- **Two tcl-compiler tests now fail fast instead of crashing or hanging.**
+  They are real faults for the compiler owners:
+  - `unrelated_command_observer_keeps_structured_bodies_within_stack_budget`
+    (46 s, 0 of 62 levels). A `trace add command` on an unrelated proc
+    makes even a two-level literal `foreach` nest lower to opaque `Call`s.
+    Without the trace the nest stays structured. The unrolling budget is
+    not involved: depth 2 is well inside it.
+  - `ssa::…scalar_alias_write_after_unset_reaches_both_spellings` (0.8 s).
+    Its failure messages printed the whole SSA with `{:#?}`, which tried to
+    allocate 12 GB. They now print a per-statement outline. The fault:
+    after `upvar 0 x y; unset x; set y NEW`, `puts $x` reads the new
+    version but `puts $y` reads a later one.
 - CI run 3 (`42324892928`):
   - `test-ext-web` used `lsp-server-wasm`'s module, so item 9 is confirmed.
   - The nextest cache missed on its first run, because every job started
