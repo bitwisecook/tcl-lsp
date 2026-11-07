@@ -41,8 +41,8 @@ pub enum NativeInstructionPlan {
     MathOperator(crate::native_mathop_compilation::NativeMathopInstruction),
     /// Original scalar operands followed by the selected native getter.
     Scalar(crate::native_scalar_compilation::NativeScalarInstruction),
-    /// C9 empty-key `StringMap` returns this original subject object unchanged.
-    StringMapIdentity(crate::native_compiler_word_projection::NativeCompilerWordOperand),
+    /// `TclCompileStringMapCmd`'s inline two-element literal map.
+    StringMap(crate::native_string_map_compilation::NativeStringMapInstruction),
     /// Original namespace/frame operands and actual selected native operation.
     Introspection(crate::native_introspection_compilation::NativeIntrospectionInstruction),
     /// Original counted namespace string operand and selected compiler program.
@@ -1243,14 +1243,9 @@ fn selected_container_and_string_instruction_plan(
     use NativeInstructionPlanUnavailable as Unavailable;
     Some(match spec.grammar {
         NativeCompilationGrammar::StringMap(scope) => {
-            crate::native_string_map_compilation::identity_subject(
-                words,
-                operand_from,
-                scope,
-                version,
-            )
-            .map(NativeInstructionPlan::StringMapIdentity)
-            .ok_or(Unavailable::OperandGeometry)
+            crate::native_string_map_compilation::instruction(words, operand_from, scope, version)
+                .map(NativeInstructionPlan::StringMap)
+                .ok_or(Unavailable::OperandGeometry)
         }
         NativeCompilationGrammar::FormatStringConcat => {
             crate::native_format_compilation::instruction(words, operand_from, version, context)

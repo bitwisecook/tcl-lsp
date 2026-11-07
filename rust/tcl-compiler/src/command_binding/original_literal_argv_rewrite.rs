@@ -1581,7 +1581,11 @@ mod tests {
             ),
             ("if {1 < 0} {}", "1 >= 0", InvertComparison),
             ("if {$a < $b} {}", "$a >= $b", InvertComparison),
-            ("if {$a == $b} {puts [info frame 0]}", "$a != $b", InvertComparison),
+            (
+                "if {$a == $b} {puts [info frame 0]}",
+                "$a != $b",
+                InvertComparison,
+            ),
             ("if {$a == $b} {proc_call}", "$a != $b", InvertComparison),
             ("if {1 == 0} {}", "0 != 1", InvertComparison),
             ("if {1 == 0} {}", "1 != 2", InvertComparison),

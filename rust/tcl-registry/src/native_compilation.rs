@@ -1758,29 +1758,7 @@ impl NativeCompilationSpec {
             return Preserved;
         }
         if let NativeCompilationGrammar::StringMap(scope) = self.grammar {
-            return if words.shapes()[0].compiler_head(Some(dialect)) == Some(true)
-                && matches!(
-                    crate::native_string_map_compilation::select_original(
-                        words,
-                        operand_from,
-                        scope,
-                        version
-                    ),
-                    NativeCompilationSelection::NamedInvocation { .. }
-                ) {
-                let from = operand_from
-                    + usize::from(
-                        scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
-                    );
-                NativeOriginalCompilerNameEffects::FixedLookupThenVisits {
-                    lookup: &crate::native_string_map_compilation::STRING_MAP_IMPLEMENTATION,
-                    visits: (from..words.original_words().len())
-                        .map(|index| crate::native_control_compilation::NativeControlPreparationStep::Word(crate::native_compiler_word_projection::NativeCompilerWordOperand::Original(index)))
-                        .collect(),
-                }
-            } else {
-                Unknown
-            };
+            return Self::original_string_map_name_effects(words, operand_from, scope, dialect);
         }
         if self.preserves_names_before_original_arguments(words, operand_from, Some(dialect)) {
             return Preserved;
@@ -1807,6 +1785,58 @@ impl NativeCompilationSpec {
                     // The BasicNArg wrapper declines before command literal preparation.
                     Preserved
                 }
+            }
+            _ => Unknown,
+        }
+    }
+
+    fn original_string_map_name_effects(
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        scope: crate::native_scalar_compilation::NativeScalarScope,
+        dialect: InvocationDialect,
+    ) -> NativeOriginalCompilerNameEffects {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand::Original;
+        use crate::native_control_compilation::NativeControlPreparationStep::Word;
+        use NativeOriginalCompilerNameEffects::{
+            FixedLookup, FixedLookupThenVisits, Unknown, Visits,
+        };
+        let Some(version) = dialect.tcl_version else {
+            return Unknown;
+        };
+        if words.shapes()[0].compiler_head(Some(dialect)) != Some(true) {
+            return Unknown;
+        }
+        let from = operand_from
+            + usize::from(
+                scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            );
+        let lookup = &crate::native_string_map_compilation::STRING_MAP_IMPLEMENTATION;
+        match crate::native_string_map_compilation::select_original(
+            words,
+            operand_from,
+            scope,
+            version,
+        ) {
+            NativeCompilationSelection::NamedInvocation {
+                protocol: NativeNamedInvocationProtocol::Direct,
+                ..
+            } => FixedLookupThenVisits {
+                lookup,
+                visits: (from..words.original_words().len())
+                    .map(|index| Word(Original(index)))
+                    .collect(),
+            },
+            // INVOKE_REPLACE prepares the words before its command literal.
+            NativeCompilationSelection::NamedInvocation { .. }
+                if (0..words.original_words().len())
+                    .all(|index| words.literal(index).is_some()) =>
+            {
+                FixedLookup(lookup)
+            }
+            NativeCompilationSelection::Inline { .. } => Visits(vec![Word(Original(from + 1))]),
+            NativeCompilationSelection::Generic => {
+                Visits(Self::original_generic_word_visits(words))
             }
             _ => Unknown,
         }
@@ -2493,11 +2523,15 @@ impl NativeCompilationSpec {
             return None;
         }
         let version = dialect.tcl_version?;
-        if matches!(self.grammar, NativeCompilationGrammar::StringMap(_)) {
-            return (version == TclVersion::V9_0).then_some(true);
-        }
-        if matches!(self.grammar, NativeCompilationGrammar::StringRange(_)) {
-            return (version >= TclVersion::V8_6).then_some(true);
+        if matches!(
+            self.grammar,
+            NativeCompilationGrammar::StringMap(_) | NativeCompilationGrammar::StringRange(_)
+        ) {
+            // C85 registers both members with a NULL compileProc.
+            return match version {
+                TclVersion::V8_5 => Some(false),
+                version => (version >= TclVersion::V8_6).then_some(true),
+            };
         }
         Some(match self.grammar {
             NativeCompilationGrammar::NoHook => false,
@@ -2738,7 +2772,7 @@ impl NativeCompilationSpec {
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
             )
         {
-            return (dialect.tcl_version == Some(TclVersion::V9_0)
+            return (dialect.tcl_version >= Some(TclVersion::V8_6)
                 && dialect.family() == Some(Family::Tcl))
             .then_some(crate::native_string_map_compilation::STRING_MAP_IMPLEMENTATION);
         }

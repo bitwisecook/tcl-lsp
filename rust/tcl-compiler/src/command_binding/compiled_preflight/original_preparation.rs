@@ -247,8 +247,10 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Scalar(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }
-            NativeInstructionPlan::StringMapIdentity(operand) => {
-                self.original_operands(words, std::iter::once(operand.clone()), context)
+            NativeInstructionPlan::StringMap(recipe) => {
+                use tcl_registry::native_string_map_compilation::NativeStringMapInstruction as Map;
+                let (Map::Identity(subject) | Map::Pair { subject, .. }) = recipe;
+                self.original_operands(words, std::iter::once(subject.clone()), context)
             }
             NativeInstructionPlan::StringRange(recipe) => {
                 let mut operands = vec![recipe.operand.clone()];

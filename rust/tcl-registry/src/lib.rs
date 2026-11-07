@@ -165,7 +165,7 @@ pub mod native_regexp_compilation;
 pub mod native_scalar_compilation;
 pub mod native_string_compilation;
 pub mod native_string_is_compilation;
-mod native_string_map_compilation;
+pub mod native_string_map_compilation;
 pub mod native_string_operand_compilation;
 pub mod native_string_range_compilation;
 pub mod native_string_trim_compilation;

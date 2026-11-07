@@ -1305,7 +1305,7 @@ impl Builder<'_> {
             // These plans decline a native body artifact, as an unavailable plan does.
             NativeInstructionPlan::Regexp(_)
             | NativeInstructionPlan::ClockRead(_)
-            | NativeInstructionPlan::StringMapIdentity(_)
+            | NativeInstructionPlan::StringMap(_)
             | NativeInstructionPlan::Constant { .. }
             | NativeInstructionPlan::DictionaryCreate(_)
             | NativeInstructionPlan::StringIs(_) => return Ok(None),

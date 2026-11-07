@@ -1813,7 +1813,11 @@ mod tests {
         };
         assert_eq!(
             original.original_instruction(words),
-            Some(&NativeInstructionPlan::StringMapIdentity(Word::Original(3)))
+            Some(&NativeInstructionPlan::StringMap(
+                tcl_registry::native_string_map_compilation::NativeStringMapInstruction::Identity(
+                    Word::Original(3)
+                )
+            ))
         );
         assert_eq!(
             original

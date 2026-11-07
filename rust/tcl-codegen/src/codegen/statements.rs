@@ -2932,7 +2932,7 @@ impl CodegenCtx<'_> {
             selected @ (NativeInstructionPlan::ClockRead(_)
             | NativeInstructionPlan::Break
             | NativeInstructionPlan::Continue
-            | NativeInstructionPlan::StringMapIdentity(_)) => {
+            | NativeInstructionPlan::StringMap(_)) => {
                 Self::append_native_leaf_tasks(command, selected, operations)
             }
 
@@ -3019,11 +3019,26 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::Continue => {
                 operations.push(Task::Operation(Op::CONTINUE, vec![]));
             }
-            NativeInstructionPlan::StringMapIdentity(operand) => {
-                let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
+            NativeInstructionPlan::StringMap(recipe) => {
+                use tcl_registry::native_string_map_compilation::NativeStringMapInstruction as Map;
+                let (literals, subject) = match recipe {
+                    Map::Identity(subject) => (None, subject),
+                    Map::Pair {
+                        key,
+                        replacement,
+                        subject,
+                    } => (Some([key, replacement]), subject),
+                };
+                if let Some(literals) = &literals {
+                    operations.extend(literals.iter().cloned().map(Task::Literal));
+                }
+                let Some(task) = Self::native_namespace_word_task(&command.words, subject) else {
                     return false;
                 };
                 operations.push(task);
+                if literals.is_some() {
+                    operations.push(Task::Operation(Op::STR_MAP, vec![]));
+                }
             }
             _ => return false,
         }
