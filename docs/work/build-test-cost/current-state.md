@@ -496,3 +496,95 @@ Each conversion keeps the original iteration order where it can affect a
 result. Each passes its crate's suite with HEAD's failure set: registry 13/13
 identical, compiler identical across 10,224 tests.
 
+## Round 2: the follow-ups
+
+Done in this round, each verified against the parent commit's failure set
+for its crate:
+
+- **Test debuginfo off in the CI shards and the agent environment.**
+  `CARGO_PROFILE_TEST_DEBUG=0`; about 150 MB of line tables per test harness.
+- **Verified cargo-nextest build cache.** Every nextest job (5 shards, heavy,
+  the lsp-e2e archive and 3 partitions) spent 150-245 s compiling the pinned,
+  patched Nextest. `validate.py` now takes `TCL_LSP_NEXTEST_CACHE`. A cached
+  binary is used only if it still reports the pinned version and matches the
+  SHA-256 recorded when it was built; the reporter smoke checks run either
+  way. Locally: cold 206 s, warm 3 s.
+- **`tcl` start-up.** `tcl-lexer` (opt-level 2) and `xxhash-rust` (3) are
+  optimised in the dev profile, and the pack segmenter uses `LineIndex`.
+  A debug `tcl diag` went from 1.3 s to 0.7-0.86 s. Demand-driven pack
+  loading had already landed upstream.
+- **Lint and build blockers on the tip.**
+  - Two unused methods failed every `CARGO_BUILD_WARNINGS=deny` build;
+    they now carry `#[expect(dead_code)]` with a reason.
+  - 245 `mutable_key_type` false positives from the lazy `SourceImage`
+    geometry; `clippy.toml` exempts the type.
+  - Duplicate `#[path]` support modules left by the test-binary merge.
+  - A test that no longer compiled (`interned_gc`).
+  - About 45 upstream clippy findings.
+  - Workspace clippy and `cargo fmt --check` are clean.
+- **Stack-budget and hang fixes** (crash list from item 7):
+  - Source binding, lowering and taint recursions held whole-function
+    temporaries across their recursive calls in the dev profile. Each now
+    decides in `#[inline(never)]` leaves and carries one boxed plan across
+    the call. Measured: `walk_prepared_source_target` 3,120 -> 560 B,
+    `lower_default` 27.9 -> 6.8 KB, `substitution_word_taint` 5.8 -> 1.3 KB.
+  - The materialized-footprint walk now caps re-evaluated bodies at
+    `MAX_SOURCE_NEST_DEPTH`; the 256 bracket-text cap had let a deep body
+    reach 1.6 MB.
+  - Exact literal-list `foreach` unrolling multiplied with nesting
+    (2^62 body walks). It now spends from a per-walk budget of 4,096
+    iterations, then takes the general join-until-stable walk.
+  - Now passing: `the_source_walk_cap_fits_its_stack_budget`,
+    `source_bindings_with_computed_conditions_fit_the_shared_stack_budget`,
+    `proved_structured_bodies_fit_the_shared_stack_budget` (about 300 s) and
+    `taint::tests::deeply_nested_taint_walks_survive`.
+- **Slow-test budget.** nextest's default profile reports SLOW each minute and
+  ends a test at 20 minutes; a hang had held shard 5/5 for 6,315 s.
+- **sccache report.** The shard job summary shows the Rust hit rate, and the
+  job warns below 70%.
+- **Cross-crate owner routes.** The source-route checker follows a `static`
+  route into a dependency crate through plain `pub` paths only. The three
+  free-function routes from `tcl-codegen` into `tcl-compiler` are checked. The
+  gate's other 95 problems on the tip are unchanged.
+
+Decided against, with the evidence:
+
+- **Build-once test archive (5.3).** Per-shard compile is 254-325 s. One
+  producer compiling the union of all shards would put roughly twice that,
+  plus archive transfer, in front of every shard. Hosted minutes cost nothing
+  here and wall time is what matters, so it would be a net loss. The nextest
+  cache removed the bigger per-shard cost.
+- **Splitting `tcl-lsp-server/src/lib.rs` (73k lines).** Modules within one
+  crate compile as one unit with incremental off, so a module split buys no
+  build time. A crate split means untangling `Backend` while other sessions
+  edit the file daily.
+- **Dropping `aws-lc-sys`.** It costs about 65 CPU-seconds, off the critical
+  path. `ring` would drop `rustls`'s post-quantum key exchange and change
+  `russh`'s backend for SSH to BIG-IPs. That is the BIG-IP client owners'
+  call.
+- **Thinner `xtask`.** Only `wasm-backing` needs `tcl-vm` and `tcl-runtime`.
+  An opt-in feature would make the CI drift leg build `xtask` twice (batch
+  and single gates). As a default feature it changes nothing.
+- **Shared wasm32 cache key.** The three wasm jobs build different
+  workspaces, lockfiles and targets. A shared key would only make them
+  overwrite each other.
+- **History rewrite.** It would force-push a branch others push to many times
+  an hour. Not done without an explicit go-ahead.
+
+Still open:
+
+- **Per-region plan sharing (item 7).** One shared plan per region per
+  analysis, in the naming owners' static-source retention.
+- **Command-trace observers and nested loops.** Eight nested two-element
+  `foreach` loops under a `trace add command` observer exhaust 14 GB.
+  `unrelated_command_observer_keeps_structured_bodies_within_stack_budget`
+  (now an assertion failure) and `ssa::…scalar_alias_write_after_unset…`
+  (OOM-killed) come from this.
+- **`the_analyser_stops_at_the_shared_cap`** still exceeds 15 minutes.
+- CI run 3 (`42324892928`):
+  - `test-ext-web` used `lsp-server-wasm`'s module, so item 9 is confirmed.
+  - The nextest cache missed on its first run, because every job started
+    together. The next run should hit.
+  - The lint leg got as far as three newer upstream `too_many_lines`
+    findings in `tcl-vm`, now fixed.
+
