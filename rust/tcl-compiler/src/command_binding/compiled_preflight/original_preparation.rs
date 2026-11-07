@@ -251,7 +251,11 @@ impl CompilerTraversal<'_> {
                 self.original_operands(words, std::iter::once(operand.clone()), context)
             }
             NativeInstructionPlan::StringRange(recipe) => {
-                self.original_operands(words, std::iter::once(recipe.operand.clone()), context)
+                let mut operands = vec![recipe.operand.clone()];
+                if let tcl_registry::native_string_range_compilation::NativeStringRangeOperation::Indices { first, last } = &recipe.operation {
+                    operands.extend([first.clone(), last.clone()]);
+                }
+                self.original_operands(words, operands, context)
             }
             NativeInstructionPlan::StringOperand(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)

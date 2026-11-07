@@ -40,13 +40,20 @@ pub(crate) const STRING_RANGE_IMPLEMENTATION: NativeCompilerImplementationLookup
         prepended: &["range"],
     };
 
-/// Original compiler action after preparing the subject only.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Original compiler action after preparing the subject.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeStringRangeOperation {
     /// POP the prepared subject and PUSH the compiled empty literal, without a getter.
     Empty,
     /// `STR_RANGE_IMM`; the empty-subject branch keeps that original stack object.
     Immediate(NativeCompiledListRange),
+    /// `nonConstantIndices`: push both original index words, then `STR_RANGE`.
+    Indices {
+        /// The original first-index word.
+        first: NativeCompilerWordOperand,
+        /// The original last-index word.
+        last: NativeCompilerWordOperand,
+    },
 }
 
 /// Compile-known coordinates grant no current command or interpreter authority.
@@ -82,8 +89,8 @@ pub fn select_original(
     }
 }
 
-/// Project the actual C9 index-encoding branch from complete original words.
-/// Dynamic indices, uncertain widths and other releases retain refusal.
+/// Project the C8.6+ index-encoding branch from complete original words.
+/// Uncertain index widths and releases without the compiler retain refusal.
 #[must_use]
 pub fn compile_native_string_range(
     words: &NativeCompilerWords<'_>,
@@ -91,7 +98,7 @@ pub fn compile_native_string_range(
     scope: NativeScalarScope,
     version: TclVersion,
 ) -> Option<NativeStringRangeInstruction> {
-    if version != TclVersion::V9_0
+    if version < TclVersion::V8_6
         || words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version)
         || operand_from == 0
         || words
@@ -115,19 +122,60 @@ pub fn compile_native_string_range(
     let [subject, first, last] = projected.get(from..)? else {
         return None;
     };
-    let first = std::str::from_utf8(first.literal.as_deref()?).ok()?;
-    let last = std::str::from_utf8(last.literal.as_deref()?).ok()?;
-    let first = tcl_cmd_core::index::compiled_list_bound_in(first, version, 0, -1).ok()??;
-    let last = tcl_cmd_core::index::compiled_list_bound_in(last, version, -1, -2).ok()??;
-    let operation = if first.encoded() == -1 || last.encoded() == -1 {
-        NativeStringRangeOperation::Empty
+    let indices = NativeStringRangeOperation::Indices {
+        first: first.operand.clone(),
+        last: last.operand.clone(),
+    };
+    let after = if version < TclVersion::V9_0 {
+        i32::MAX
     } else {
-        NativeStringRangeOperation::Immediate(NativeCompiledListRange { first, last })
+        -1
+    };
+    let operation = match index_token(first, version, 0, after)? {
+        IndexToken::Dynamic => indices,
+        IndexToken::Constant(first) if first.encoded() == after => {
+            NativeStringRangeOperation::Empty
+        }
+        IndexToken::Constant(first) => match index_token(last, version, -1, -2)? {
+            IndexToken::Dynamic => indices,
+            IndexToken::Constant(last) if last.encoded() == -1 => NativeStringRangeOperation::Empty,
+            IndexToken::Constant(last) => {
+                NativeStringRangeOperation::Immediate(NativeCompiledListRange { first, last })
+            }
+        },
     };
     Some(NativeStringRangeInstruction {
         operand: subject.operand.clone(),
         operation,
     })
+}
+
+/// `TclGetIndexFromToken`'s outcome for one original index word.
+enum IndexToken {
+    Constant(tcl_syntax::native_compiled_index::NativeCompiledListIndex),
+    /// The non-constant branch: the word is pushed for `STR_RANGE`.
+    Dynamic,
+}
+
+/// `None` keeps refusal where the encoded width is not known.
+fn index_token(
+    word: &crate::native_compiler_word_projection::NativeProjectedCompilerWord,
+    version: TclVersion,
+    before: i32,
+    after: i32,
+) -> Option<IndexToken> {
+    let Some(text) = word
+        .literal
+        .as_deref()
+        .and_then(|literal| std::str::from_utf8(literal).ok())
+    else {
+        return Some(IndexToken::Dynamic);
+    };
+    Some(
+        tcl_cmd_core::index::compiled_list_bound_in(text, version, before, after)
+            .ok()?
+            .map_or(IndexToken::Dynamic, IndexToken::Constant),
+    )
 }
 
 #[cfg(test)]
@@ -196,7 +244,8 @@ mod tests {
             assert_eq!((range.first.encoded(), range.last.encoded()), (2, -2));
         }
         for source in [
-            "string range [side_effect] end+1 end",
+            "string range [side_effect] end+2 end",
+            "string range $s end+2 [side_effect]",
             "string range $s 0 -1",
         ] {
             assert_eq!(
@@ -209,16 +258,47 @@ mod tests {
     }
 
     #[test]
+    fn non_constant_indices_push_both_original_words_for_str_range() {
+        for (source, first, last) in [
+            ("string range $s $first end", 3, 4),
+            ("string range $s 2 $last", 3, 4),
+            ("string range $s bad end", 3, 4),
+            ("string range $s 2 bad", 3, 4),
+        ] {
+            for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+                assert_eq!(
+                    original(source, NativeScalarScope::PublicMember, version)
+                        .unwrap()
+                        .operation,
+                    NativeStringRangeOperation::Indices {
+                        first: NativeCompilerWordOperand::Original(first),
+                        last: NativeCompilerWordOperand::Original(last),
+                    },
+                    "{source}"
+                );
+            }
+        }
+        // C8.6 encodes `end+1` as TCL_INDEX_AFTER before reaching the last word.
+        assert_eq!(
+            original(
+                "string range $s end+1 [side_effect]",
+                NativeScalarScope::PublicMember,
+                TclVersion::V8_6
+            )
+            .unwrap()
+            .operation,
+            NativeStringRangeOperation::Empty
+        );
+    }
+
+    #[test]
     fn original_unknown_indices_arity_expansion_and_other_releases_stay_unavailable() {
         for source in [
-            "string range $s $first end",
-            "string range $s 2 $last",
-            "string range $s bad end",
-            "string range $s 2 bad",
             "string range $s 2",
             "string range $s 2 end extra",
             "string ra $s 2 end",
             "string range {*}$args",
+            // C9 `end+1` depends on the target's Tcl_Size width.
             "string range $s end+1 [side_effect]",
         ] {
             assert!(
@@ -226,12 +306,7 @@ mod tests {
                 "{source}"
             );
         }
-        for version in [
-            TclVersion::V8_4,
-            TclVersion::V8_5,
-            TclVersion::V8_6,
-            TclVersion::V9_1,
-        ] {
+        for version in [TclVersion::V8_4, TclVersion::V8_5] {
             assert!(
                 original(
                     "string range $s 2 end",

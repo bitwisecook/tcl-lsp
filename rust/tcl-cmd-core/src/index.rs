@@ -1449,7 +1449,9 @@ pub fn compiler_encodable_in(spec: &str, syntax: tcl_dialect::IndexSyntax) -> Op
     let value = value?;
     let end_relative = spec.starts_with("end");
     if end_relative {
-        return (value > -i64::from(i32::MAX)).then_some(true);
+        // `end+1` keeps no end-offset rep, so a wider Tcl_Size reports a
+        // range error where an int-sized one encodes `after`.
+        return (value > -i64::from(i32::MAX) && value != 1).then_some(true);
     }
     if parse_int_whole(spec, syntax.numbers).is_none()
         && parse_int_prefix(spec.trim_start(), syntax.numbers)?.0 < 0

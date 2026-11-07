@@ -1909,11 +1909,16 @@ impl NativeCompilationSpec {
             version,
         )
         .map_or(Unknown, |recipe| {
-            Visits(vec![
-                crate::native_control_compilation::NativeControlPreparationStep::Word(
-                    recipe.operand,
-                ),
-            ])
+            use crate::native_control_compilation::NativeControlPreparationStep::Word;
+            let mut visits = vec![Word(recipe.operand)];
+            if let crate::native_string_range_compilation::NativeStringRangeOperation::Indices {
+                first,
+                last,
+            } = recipe.operation
+            {
+                visits.extend([Word(first), Word(last)]);
+            }
+            Visits(visits)
         })
     }
 
@@ -2488,11 +2493,11 @@ impl NativeCompilationSpec {
             return None;
         }
         let version = dialect.tcl_version?;
-        if matches!(
-            self.grammar,
-            NativeCompilationGrammar::StringMap(_) | NativeCompilationGrammar::StringRange(_)
-        ) {
+        if matches!(self.grammar, NativeCompilationGrammar::StringMap(_)) {
             return (version == TclVersion::V9_0).then_some(true);
+        }
+        if matches!(self.grammar, NativeCompilationGrammar::StringRange(_)) {
+            return (version >= TclVersion::V8_6).then_some(true);
         }
         Some(match self.grammar {
             NativeCompilationGrammar::NoHook => false,
@@ -2724,7 +2729,7 @@ impl NativeCompilationSpec {
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
             )
         {
-            return (dialect.tcl_version == Some(TclVersion::V9_0)
+            return (dialect.tcl_version >= Some(TclVersion::V8_6)
                 && dialect.family() == Some(Family::Tcl))
             .then_some(crate::native_string_range_compilation::STRING_RANGE_IMPLEMENTATION);
         }

@@ -1133,6 +1133,12 @@ impl Builder<'_> {
                 Operation::StringTrim(self.string_trim_operation(&captured, recipe, depth)?)
             }
             NativeInstructionPlan::StringRange(recipe) => {
+                if matches!(
+                    recipe.operation,
+                    tcl_registry::native_string_range_compilation::NativeStringRangeOperation::Indices { .. }
+                ) {
+                    return Ok(None);
+                }
                 Operation::StringRange(self.string_range_operation(&captured, &recipe, depth)?)
             }
             NativeInstructionPlan::StringOperand(recipe) => {

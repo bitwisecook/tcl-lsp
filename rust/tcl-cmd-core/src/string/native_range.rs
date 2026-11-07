@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Original C9 immediate range stack-result ownership.
+//! Original C8.6+ immediate range stack-result ownership.
 
 use crate::index::NativeIndexOps;
 use crate::{CmdError, index};
@@ -34,7 +34,7 @@ pub enum NativeCompiledRangeResult<V> {
     Created(V),
 }
 
-/// Execute C9's original immediate range over its retained subject.
+/// Execute C8.6+'s original immediate range over its retained subject.
 ///
 /// # Errors
 /// Retains missing physical protocol, original getter, constructor and currentness failures.
@@ -47,13 +47,13 @@ pub fn compiled_immediate_range<O: NativeIndexOps>(
     index::run_index_output(
         ops,
         |ops| {
-            if version != TclVersion::V9_0
+            if version < TclVersion::V8_6
                 || ops.name_policy_protocol().is_none_or(|policy| {
                     policy.string_protocol() != NativeStringProtocol::C(version)
                 })
             {
                 return Err(ValueError::CommandProtocolUnavailable(
-                    "compiled C9 String range protocol",
+                    "compiled String range protocol",
                 )
                 .into());
             }

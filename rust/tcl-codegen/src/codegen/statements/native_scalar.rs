@@ -187,6 +187,16 @@ impl CodegenCtx<'_> {
                     version,
                 ));
             }
+            NativeStringRangeOperation::Indices { first, last } => {
+                for operand in [first, last] {
+                    let Some(task) = Self::native_namespace_word_task(&command.words, operand)
+                    else {
+                        return false;
+                    };
+                    operations.push(task);
+                }
+                operations.push(NativeEmissionTask::Operation(Op::STR_RANGE, Vec::new()));
+            }
         }
         true
     }

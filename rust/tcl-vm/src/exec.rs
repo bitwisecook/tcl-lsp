@@ -6715,6 +6715,27 @@ impl Vm {
                 ));
                 f.stack.push(result);
             }
+            Op::STR_RANGE_IMM if instr.native_switch_version.is_some() => {
+                let value = pop(f);
+                let coordinates = tcl_syntax::native_compiled_index::NativeCompiledListRange {
+                    first: tcl_syntax::native_compiled_index::NativeCompiledListIndex::from_encoded(
+                        imm0(instr),
+                    ),
+                    last: tcl_syntax::native_compiled_index::NativeCompiledListIndex::from_encoded(
+                        imm_at(instr, 1),
+                    ),
+                };
+                let result = try_core!(tcl_cmd_core::string::compiled_immediate_range(
+                    self,
+                    &value,
+                    coordinates,
+                    instr.native_switch_version.unwrap()
+                ));
+                f.stack.push(match result {
+                    tcl_cmd_core::string::NativeCompiledRangeResult::Borrowed(value)
+                    | tcl_cmd_core::string::NativeCompiledRangeResult::Created(value) => value,
+                });
+            }
             Op::STR_RANGE_IMM => {
                 let value = pop(f);
                 let first = encoded_string_index(imm0(instr));

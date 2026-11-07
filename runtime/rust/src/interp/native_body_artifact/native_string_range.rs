@@ -44,7 +44,7 @@ impl Builder<'_> {
         Ok(StringRangeOperation {
             operand,
             empty_literal,
-            operation: recipe.operation,
+            operation: recipe.operation.clone(),
             prepared_words,
         })
     }
@@ -72,6 +72,9 @@ impl Interp {
                 return Ok(());
             }
             match recipe.operation {
+                NativeStringRangeOperation::Indices { .. } => {
+                    unreachable!("runtime declines dynamic string range indices")
+                }
                 NativeStringRangeOperation::Empty => {
                     self.retire_body_range_subject(&mut subject, &original)?;
                     let index = recipe.empty_literal.expect("compiled empty PUSH literal");
