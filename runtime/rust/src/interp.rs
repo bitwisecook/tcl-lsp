@@ -9527,6 +9527,7 @@ impl Interp {
     /// it: no script or `env` trace reaches the spelling, and the cell is not a
     /// native `errorInfo`/`errorCode`/`tcl_precision` cell. Exactly the reads
     /// whose `fire_read_trace` completes without effect.
+    #[cfg(have_tommath)]
     pub(crate) fn direct_variable_value(&self, base: &[u8]) -> Option<*mut TclObj> {
         if self.observed_name_policy_selected()
             || self.traces_may_observe(base)
