@@ -3889,11 +3889,13 @@ fn build_top_level_and_procedures(
     );
     #[cfg(any(test, debug_assertions))]
     phase_trace.phase("top-level-lattice");
+    let entered = crate::cfg_builder::entered_procedures(ir_module, registry);
     let caller_view = crate::unit_scope::UnitCallerView {
         linkage: facts.linkage,
         has_cross_file_evidence: facts.has_cross_file_evidence,
         proc_binding_trust: &facts.proc_binding_trust,
         source: ir_module.source.try_text().ok(),
+        entered: entered.as_ref(),
     };
     let built = build_procedure_units(
         &ProcedureBuildContext {

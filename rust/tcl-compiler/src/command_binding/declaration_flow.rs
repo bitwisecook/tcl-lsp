@@ -4816,7 +4816,16 @@ impl Builder<'_> {
             .caller_frame_aliases
             .extend(node.caller_frame_aliases.iter().cloned());
         state.aliases.extend(node.aliases.iter().cloned());
-        for name in node.removes.iter().chain(&node.writes).chain(&node.aliases) {
+        // A possible output write (`dict unset d a`, `lappend l x`) leaves a
+        // value no earlier literal states: `set d {a 1}; dict unset d a`
+        // holds no `a` (#2246).
+        for name in node
+            .removes
+            .iter()
+            .chain(&node.writes)
+            .chain(&node.possible_output_writes)
+            .chain(&node.aliases)
+        {
             state.literals.remove(name);
         }
         for name in &node.removes {

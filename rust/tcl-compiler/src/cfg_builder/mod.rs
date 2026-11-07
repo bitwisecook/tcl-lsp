@@ -3734,6 +3734,53 @@ pub(crate) fn detect_upvar_bodies_with_registry(
     summaries
 }
 
+/// The procedures the module's own code can enter: those reachable over the
+/// summaries' direct-call edges ([`global_write_info::direct_call_targets`])
+/// from the top level, method bodies and lowered bodies. `None` when a body on
+/// the way calls something the edges cannot name, which may be any procedure.
+#[must_use]
+pub(crate) fn entered_procedures(
+    module: &Module,
+    registry: &CommandRegistry,
+) -> Option<std::collections::HashSet<crate::ir::ProcedureId>> {
+    let owners = OriginalProcedureSummaryOwners::for_module(module, registry);
+    let bodies: HashMap<_, _> = module
+        .original_source_procedure_bodies()
+        .map(|(id, procedure)| (*id, &procedure.body))
+        .collect();
+    let roots = std::iter::once(&module.top_level)
+        .chain(module.methods.values().map(|method| &method.body))
+        .chain(
+            module
+                .body_lowerings()
+                .filter(|(id, _)| !bodies.contains_key(id))
+                .map(|(_, unit)| &unit.body),
+        );
+    let mut entered = std::collections::HashSet::new();
+    let mut pending = Vec::new();
+    for root in roots {
+        let (calls, opaque) = global_write_info::direct_call_targets(root, &owners, registry);
+        if opaque {
+            return None;
+        }
+        pending.extend(calls);
+    }
+    while let Some(id) = pending.pop() {
+        if !entered.insert(id) {
+            continue;
+        }
+        let Some(body) = bodies.get(&id) else {
+            continue;
+        };
+        let (calls, opaque) = global_write_info::direct_call_targets(body, &owners, registry);
+        if opaque {
+            return None;
+        }
+        pending.extend(calls);
+    }
+    Some(entered)
+}
+
 /// Body-keyed caller-frame, parameter and outer-write summaries, closed
 /// command bindings, and the original Module owner selecting summary edges.
 /// [`crate::compilation_unit`] shares this canonical tuple.

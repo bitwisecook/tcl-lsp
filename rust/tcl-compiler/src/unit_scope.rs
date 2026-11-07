@@ -3260,6 +3260,13 @@ pub(crate) struct UnitCallerView<'a> {
     pub proc_binding_trust: &'a crate::command_binding::ProcBindingTrustProjection,
     /// Actual analysed source bytes for declaration correlation.
     pub source: Option<&'a str>,
+    /// The procedures the file's own code can enter: reachable over direct
+    /// calls from the top level (method and lambda bodies count as entry
+    /// points). `None` when every procedure may be entered. A procedure
+    /// outside the set runs only if a caller this unit cannot see calls it,
+    /// so the callers it does see — its own recursive call, say — say nothing
+    /// of its parameters on entry (#2522).
+    pub entered: Option<&'a std::collections::HashSet<crate::ir::ProcedureId>>,
 }
 
 /// Boundaries that publish this file's commands to callers **no** host
@@ -3394,6 +3401,9 @@ pub(crate) fn params_constants_from_native_call_sites(
     let formals = parse_formal_parameters_in(&procedure.params_raw, grammar).ok()?;
     let mut names = BTreeSet::new();
     if formals.iter().any(|formal| !names.insert(&formal.name)) {
+        return None;
+    }
+    if !view.has_cross_file_evidence && view.entered.is_some_and(|entered| !entered.contains(&id)) {
         return None;
     }
     let callee = evidence.get_for_body(module, id)?;
@@ -3564,6 +3574,7 @@ mod tests {
                 has_cross_file_evidence,
                 proc_binding_trust: &proc_binding_trust,
                 source: None,
+                entered: None,
             },
         )
     }
@@ -3606,6 +3617,7 @@ mod tests {
                 has_cross_file_evidence: false,
                 proc_binding_trust: &trust,
                 source: None,
+                entered: None,
             },
         )
     }

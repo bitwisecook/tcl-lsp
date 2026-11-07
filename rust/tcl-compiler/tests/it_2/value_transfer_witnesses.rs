@@ -9879,4 +9879,16 @@ fn a_callback_read_and_a_qualified_upvar_write_keep_their_stores() {
          proc c {} {twice ::g}\nc\nputs $g\n",
         "3\n",
     );
+    // The alias forms: the callee writes the caller's `x`, which the caller
+    // made the global `g` (#2410).
+    prints_under_every_release(
+        "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\nset g 1\n\
+         proc c {} {upvar #0 g x; bump x}\nc\nputs $g\n",
+        "2\n",
+    );
+    prints_under_every_release(
+        "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\nset g 1\n\
+         proc c {} {global g; bump g}\nc\nputs $g\n",
+        "2\n",
+    );
 }
