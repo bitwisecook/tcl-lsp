@@ -777,6 +777,9 @@ pub enum NativeCompilationGrammar {
     /// `TclCompileThrowCmd`: exactly two arguments from 8.6, compiled whether
     /// the type is a literal or checked at run time.
     Throw,
+    /// `TclCompileConstCmd`: exactly two arguments from 9.0, a scalar name
+    /// only; a literal array-element name declines to an invocation.
+    Constant,
     /// Independently authored ordered prerequisites of a named-invocation or
     /// absent-hook compiler. This does not wrap body or opcode grammars.
     WithImplementationPath {
@@ -2149,6 +2152,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::ListInsertion
             | NativeCompilationGrammar::Error
             | NativeCompilationGrammar::Throw
+            | NativeCompilationGrammar::Constant
             | NativeCompilationGrammar::Return
             | NativeCompilationGrammar::ArgumentList
             | NativeCompilationGrammar::ArgumentListFrom(_)
@@ -2536,6 +2540,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::NamespaceString(_)
             | NativeCompilationGrammar::StringIsAscii(_) => version >= TclVersion::V8_6,
             NativeCompilationGrammar::Uplevel => version >= TclVersion::V9_1,
+            NativeCompilationGrammar::Constant => version >= TclVersion::V9_0,
             NativeCompilationGrammar::StringOperand { operation, .. } => {
                 version >= operation.hook_from()
             }
@@ -4341,6 +4346,12 @@ impl NativeCompilationSpec {
                 self.select_uplevel(words, shapes, version, context)
             }
             NativeCompilationGrammar::Unresolved => Selection::Unknown,
+            NativeCompilationGrammar::Constant => constant_selection(
+                words.arguments().literal_at(0).map(str::as_bytes),
+                shapes,
+                version,
+                self.operation,
+            ),
             NativeCompilationGrammar::GlobalBindings
             | NativeCompilationGrammar::NamespaceVariableBindings => self
                 .namespace_binding_selection(
@@ -4771,6 +4782,26 @@ impl NativeCompilationSpec {
             },
         }
     }
+}
+
+/// `TclCompileConstCmd` over the written name: an array element declines.
+fn constant_selection(
+    name: Option<&[u8]>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    operation: SemanticOperationId,
+) -> NativeCompilationSelection {
+    let element = name.is_some_and(|name| name.ends_with(b")") && name.contains(&b'('));
+    if element {
+        return NativeCompilationSelection::Generic;
+    }
+    gated_arity_grammar(
+        TclVersion::V9_0,
+        crate::Arity::exact(2),
+        shapes,
+        version,
+        operation,
+    )
 }
 
 fn unmodelled_hook_selection(version: TclVersion, first: TclVersion) -> NativeCompilationSelection {

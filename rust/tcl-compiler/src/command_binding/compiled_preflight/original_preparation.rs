@@ -155,7 +155,8 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Load { target_word, target } => {
                 self.original_variable_operand(words, target, *target_word, context)
             }
-            NativeInstructionPlan::Store { target_word, target, value_word } => {
+            NativeInstructionPlan::Store { target_word, target, value_word }
+            | NativeInstructionPlan::Constant { target_word, target, value_word } => {
                 self.original_store_preparations(words, target, *target_word, *value_word, context)
             }
             NativeInstructionPlan::Increment { target_word, target, amount_word, .. } => {

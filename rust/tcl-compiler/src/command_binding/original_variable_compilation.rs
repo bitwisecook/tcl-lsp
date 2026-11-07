@@ -433,6 +433,11 @@ pub(crate) fn original_compiler_variable_operand(
             target,
             ..
         }
+        | NativeInstructionPlan::Constant {
+            target_word,
+            target,
+            ..
+        }
         | NativeInstructionPlan::Increment {
             target_word,
             target,

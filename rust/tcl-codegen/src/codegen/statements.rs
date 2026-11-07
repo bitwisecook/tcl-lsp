@@ -2981,6 +2981,17 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::List(recipe) => {
                 self.append_native_list_tasks(command, plan, version, recipe, operations)
             }
+            NativeInstructionPlan::Constant {
+                target_word,
+                target,
+                value_word,
+            } => self.append_native_constant_tasks(
+                command,
+                target_word,
+                target,
+                value_word,
+                operations,
+            ),
             selected @ (NativeInstructionPlan::Load { .. }
             | NativeInstructionPlan::Store { .. }
             | NativeInstructionPlan::Increment { .. }
@@ -3468,6 +3479,39 @@ impl CodegenCtx<'_> {
             );
         }
         Self::append_native_load_store_tasks(command, value_word, slot, array, operations);
+        true
+    }
+
+    /// `TclCompileConstCmd`: name (unless local), value, constImm/constStk,
+    /// then the empty result.
+    fn append_native_constant_tasks(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        target_word: usize,
+        target: tcl_syntax::native_variable_words::NativeVariableWordOperand,
+        value_word: usize,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use NativeEmissionTask as Task;
+        let (Some(target_word), Some(value)) = (
+            command.words.get(target_word),
+            command.words.get(value_word),
+        ) else {
+            return false;
+        };
+        let (slot, array) =
+            self.prepare_native_variable_tasks(target_word, target, false, operations);
+        if array {
+            return false;
+        }
+        operations.push(Task::Word(value.clone()));
+        operations.push(match slot {
+            Some(slot) => {
+                Task::Operation(Op::CONST_IMM, vec![Operand::Imm(super::bytecode_imm(slot))])
+            }
+            None => Task::Operation(Op::CONST_STK, vec![]),
+        });
+        operations.push(Task::Literal(Vec::new()));
         true
     }
 

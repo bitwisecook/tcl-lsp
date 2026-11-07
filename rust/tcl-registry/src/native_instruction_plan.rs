@@ -143,6 +143,16 @@ pub enum NativeInstructionPlan {
         /// Index in the complete original vector, including its command head.
         value_word: usize,
     },
+    /// `const`: make the selected scalar a constant holding the value of an
+    /// original word, then push the empty result.
+    Constant {
+        /// Exact index of the target in the complete original word vector.
+        target_word: usize,
+        /// Original compiler variable-word geometry.
+        target: NativeVariableWordOperand,
+        /// Index in the complete original vector, including its command head.
+        value_word: usize,
+    },
     /// Increment the original selected variable operand.
     Increment {
         /// Exact index of the target in the complete original word vector.
@@ -888,6 +898,7 @@ fn native_instruction_plan_for_purpose(
     if !matches!(
         spec.grammar,
         NativeCompilationGrammar::VariableLoadStore
+            | NativeCompilationGrammar::Constant
             | NativeCompilationGrammar::Increment
             | NativeCompilationGrammar::VariableAppend(_)
     ) {
@@ -1499,6 +1510,15 @@ fn selected_variable_instruction_plan(
             target,
             value_word: operand_from + 1,
         }),
+        (NativeCompilationGrammar::Constant, 2) => match target {
+            NativeVariableWordOperand::Literal { index: None, .. }
+            | NativeVariableWordOperand::DynamicWord => Ok(NativeInstructionPlan::Constant {
+                target_word: operand_from,
+                target,
+                value_word: operand_from + 1,
+            }),
+            _ => Err(Unavailable::Selection),
+        },
         (NativeCompilationGrammar::Increment, 1 | 2) => {
             let amount_word = (count == 2).then_some(operand_from + 1);
             Ok(NativeInstructionPlan::Increment {

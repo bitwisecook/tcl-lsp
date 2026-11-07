@@ -3692,7 +3692,9 @@ impl Vm {
                 error_stack,
                 error_line: (active_error && !self.uses_jim_error_stack())
                     .then(|| i64::from(self.error_line())),
-                during: None,
+                // TIP 329 chaining (`try` handler/finally/bind failures) is a
+                // completion option whatever the dictionary's provenance.
+                during: opt_get_checked(self, &comp.options, b"-during")?,
             })
         } else {
             None

@@ -1134,6 +1134,9 @@ fn enter_matched_handler(
         };
         bind_original_jim_handler_vars(vm, names, body_comp.code, captured)
     } else {
+        // TryPostBody resets the result before binding, so a failed bind is
+        // its own error episode rather than the body's.
+        vm.reset_native_error_result();
         bind_handler_vars(
             vm,
             &plan.handlers[binding_index].vars,

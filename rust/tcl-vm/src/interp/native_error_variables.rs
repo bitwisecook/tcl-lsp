@@ -760,6 +760,13 @@ impl Vm {
         // The selected native append performs no trailing global getter.
     }
 
+    /// `Tcl_ResetResult`'s error-state half: forget the last error's
+    /// return-options overlay and errorInfo so a new failure starts fresh.
+    pub(crate) fn reset_native_error_result(&mut self) {
+        self.clear_return_error_info();
+        self.native_errors.native_return_options = None;
+    }
+
     pub(crate) fn clear_return_error_info(&mut self) {
         self.native_errors.native_error_info = None;
         self.native_errors.native_error_info_len = 0;
