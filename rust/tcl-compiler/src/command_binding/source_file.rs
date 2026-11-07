@@ -62,11 +62,41 @@ impl SourceCommandBindings {
         evaluated
     }
 
+    /// The stock `unknown` handler runs once argv is evaluated, so a loaded
+    /// definition is in place before the call dispatches.
+    pub(super) fn autoload_dispatch_head(
+        &mut self,
+        input: super::SourceCommandInput<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) {
+        if state
+            .baseline
+            .trusted_source_modules
+            .iter()
+            .all(|loader| loader.autoload.is_empty())
+        {
+            return;
+        }
+        let absent = Self::prepare_original_source_binding(
+            input.words,
+            input.segment.span.start(),
+            state,
+            context,
+        )
+        .is_some_and(|binding| binding.may_be_absent && binding.targets.is_empty());
+        if absent
+            && let Some(loaded) = self.autoload_absent_command(input.effective, state, context)
+        {
+            *state = *loaded;
+        }
+    }
+
     /// `auto_load` for an absent command: the stock `unknown` handler sources
     /// the one file an index maps the name to, then the call is retried. Only
     /// a load that completes normally and defines the name is taken; anything
     /// else leaves the absent call as it was.
-    pub(super) fn autoload_absent_command(
+    fn autoload_absent_command(
         &mut self,
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         state: &ModuleCommandBindings,
@@ -105,9 +135,9 @@ impl SourceCommandBindings {
         }
         let mut branch = super::boxed_source_branch(state);
         let evaluated = self.walk_module_script(&loader.source, &mut branch, *context, None);
-        let loaded = evaluated.normal?;
-        let after = super::source_binding_projection(&loaded, head, &namespace);
-        (!after.unknown && !after.may_be_absent && !after.targets.is_empty()).then_some(loaded)
+        let defined = evaluated.normal?;
+        let after = super::source_binding_projection(&defined, head, &namespace);
+        (!after.unknown && !after.may_be_absent && !after.targets.is_empty()).then_some(defined)
     }
 
     pub(super) fn walk_selected_source_file(

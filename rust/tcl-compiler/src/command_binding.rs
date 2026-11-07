@@ -10219,6 +10219,7 @@ impl SourceCommandBindings {
             words,
             effective: &arguments.effective,
         };
+        self.autoload_dispatch_head(input, state, &execution_context);
         let normal_result_basis = self.record_evaluated_source_point(
             input,
             state,
@@ -11149,18 +11150,9 @@ impl SourceCommandBindings {
             effective,
             ..
         } = input;
-        let mut binding =
-            Self::prepare_original_source_binding(words, segment.span.start(), state, context);
-        if binding
-            .as_deref()
-            .is_some_and(|binding| binding.may_be_absent && binding.targets.is_empty())
-            && let Some(loaded) = self.autoload_absent_command(effective, state, context)
-        {
-            *state = *loaded;
-            binding =
-                Self::prepare_original_source_binding(words, segment.span.start(), state, context);
-        }
-        let Some(binding) = binding else {
+        let Some(binding) =
+            Self::prepare_original_source_binding(words, segment.span.start(), state, context)
+        else {
             state.mark_opaque_binding_mutation();
             outcomes.join(&SourceOutcomes::invocation(
                 state,
