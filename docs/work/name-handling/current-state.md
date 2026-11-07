@@ -81,6 +81,13 @@ Fifth pass (7 November). A retained procedure body's command and procedure bindi
 
 Sixth pass (7 November): in release, saved-target cleanup whose currency is already the current interpreter's innermost live, reusable entry runs its work directly instead of re-entering the same entry and re-proving it (`SavedExecutionTarget::entered_in_current`). VM with debug assertions 1194/271, VM release 1098/271 and runtime release 2132 tests/107 failures, failure-for-failure identical to the base (the runtime run also covers the `throw` and `const` plan declines). Release proc call 132.2K→129.3K instructions; frame pop 24.6K→16.7K. The first variable retirement step is held inline, so a retirement that pushes no further step allocates nothing (VM debug assertions 1194/271, release 1098/271; proc call 129.3K→128.1K). Open: per-step arena re-validation (`state_mut`/`physical`) and the retirement step machine itself still cost about 10K for one plain local.
 
+## Seventh pass: copies, refusal flag, lookups
+
+- VM profile receipts hold an interned `&'static DialectProfileKey` per profile instead of a full key: `CompiledUnit` 2176→1120 bytes, `Frame` 4720→3664 bytes; proc call 136.1K→133.3K instructions at the same base (upstream compiler commits had moved the base from 128.1K to 136.1K). VM with debug assertions 1194/271.
+- Runtime refusal flag: compilation state sits behind a cell whose mutable-borrow guard republishes a shared `Rc<Cell<bool>>` on release; currencies and refusal queries read it with one load. Weak-cell comparisons no longer downgrade a strong reference. Runtime release 2132 tests/107 failures and debug assertions 2405/107, identical to the base; proc call 155.2K→149.8K, empty loop 61.4K→59.0K.
+- VM per-instruction lookups (verification pending): the name world sits behind a cell whose every mutable borrow advances a generation; a frame remembers the generation, namespace token and actual profile under which its compiled namespace last proved current (debug re-proves and asserts), and the error-stack protocol joins the per-profile protocol cache.
+- Upstream regression: `cmd_try::native_fixture_tests::original_try_source_without_actual_core_keeps_native_preflight_refusal` fails in release after the all-literal `format` folding commit, with currency verification forced on as well; under investigation.
+
 ## Resource integrity and next work
 
 A prior cleanup followed an alias and removed13 tracked compressed fixtures; all were restored from Git with original hashes before any test/merge. No results were produced with them missing. `/tmp/lsp-failed-merge-recovery-1640/source-fixtures-restored.json`. Source aliases and tracked fixtures must never be treated as disposable artifacts.
