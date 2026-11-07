@@ -1691,7 +1691,7 @@ pub struct InterpState {
     /// Exhaustion permanently refuses new receipts; ordinary Guest mutations do not move it.
     native_operation_context_epoch: Cell<Option<u64>>,
     /// Original entered ABI operations, inherited by synchronous nested work.
-    entered_native_operations: RefCell<Vec<Rc<native_operation_currency::NativeOperationEntry>>>,
+    entered_native_operations: RefCell<Vec<(u64, native_operation_currency::NativeOperationEntry)>>,
     native_unicode_getter: RefCell<Option<Rc<native_unicode_getter::NativeUnicodeGetterEntry>>>,
     deferred_tailcalls: RefCell<Vec<(u32, crate::frame::PendingTailcall)>>,
     /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`

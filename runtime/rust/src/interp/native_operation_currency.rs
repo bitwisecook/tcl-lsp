@@ -48,9 +48,23 @@ pub(crate) struct NativeOperationCurrency {
 
 /// The stack distinguishes a genuine entered receipt from mandatory cleanup
 /// whose original capture already refused. Cleanup never mints new currency.
+#[derive(Clone)]
 pub(super) enum NativeOperationEntry {
     Current(Rc<NativeOperationCurrency>),
     RefusedCleanup(NativeExecutionError),
+}
+
+/// Identifies one scope's entry on its interpreter's stack, so carriers that
+/// retire out of order withdraw exactly their own entry.
+fn next_entry_serial() -> u64 {
+    thread_local! {
+        static NEXT: Cell<u64> = const { Cell::new(0) };
+    }
+    NEXT.with(|next| {
+        let serial = next.get();
+        next.set(serial.wrapping_add(1));
+        serial
+    })
 }
 
 impl NativeOperationEntry {
@@ -161,14 +175,14 @@ impl NativeOperationCurrency {
             .entered_native_operations
             .borrow()
             .last()
-            .cloned();
+            .map(|(_, entry)| entry.clone());
         if let Some(inherited) = inherited {
             if !inherited.current_without_proof(interpreter) {
                 inherited.check(interpreter)?;
             }
-            return match inherited.as_ref() {
-                NativeOperationEntry::Current(currency) => Ok(Issued::Inherited(currency.clone())),
-                NativeOperationEntry::RefusedCleanup(first) => Err(first.clone()),
+            return match inherited {
+                NativeOperationEntry::Current(currency) => Ok(Issued::Inherited(currency)),
+                NativeOperationEntry::RefusedCleanup(first) => Err(first),
             };
         }
         let host = interpreter.host();
@@ -284,7 +298,7 @@ impl NativeOperationCurrency {
 pub(crate) struct NativeOperationScope {
     interpreter: Interp,
     currency: Rc<NativeOperationCurrency>,
-    entry: Rc<NativeOperationEntry>,
+    entry: u64,
     _allocation: crate::obj::JimAllocationScope,
 }
 
@@ -293,7 +307,7 @@ pub(crate) struct NativeOperationScope {
 pub(crate) struct NativeSavedCleanupScope {
     interpreter: Interp,
     original: SavedNativeOperationCurrency,
-    entry: Rc<NativeOperationEntry>,
+    entry: u64,
     _allocation: crate::obj::JimAllocationScope,
 }
 
@@ -335,11 +349,11 @@ impl NativeOperationScope {
             }
             None => crate::obj::JimAllocationScope::unpooled(),
         };
-        let entry = Rc::new(NativeOperationEntry::Current(currency.clone()));
+        let entry = next_entry_serial();
         interpreter
             .entered_native_operations
             .borrow_mut()
-            .push(entry.clone());
+            .push((entry, NativeOperationEntry::Current(currency.clone())));
         Ok(Self {
             interpreter: interpreter.clone(),
             currency,
@@ -380,14 +394,15 @@ impl NativeOperationScope {
             }
             None => crate::obj::JimAllocationScope::unpooled(),
         };
-        let entry = Rc::new(match &saved.original {
+        let entry = next_entry_serial();
+        let original = match &saved.original {
             Ok(currency) => NativeOperationEntry::Current(Rc::new(currency.clone())),
             Err(first) => NativeOperationEntry::RefusedCleanup(first.clone()),
-        });
+        };
         interpreter
             .entered_native_operations
             .borrow_mut()
-            .push(entry.clone());
+            .push((entry, original));
         Ok(NativeSavedCleanupScope {
             interpreter: interpreter.clone(),
             original: saved.clone(),
@@ -414,14 +429,12 @@ impl NativeOperationScope {
     }
 }
 
-fn retire_entry(interpreter: &Interp, entry: &Rc<NativeOperationEntry>) {
+fn retire_entry(interpreter: &Interp, entry: u64) {
     let retired = {
         let mut entered = interpreter.entered_native_operations.borrow_mut();
         // Argument/cleanup carriers can retire out of order. Withdraw only
         // this actual entry without removing a still-live sibling.
-        let original = entered
-            .iter()
-            .position(|original| Rc::ptr_eq(original, entry));
+        let original = entered.iter().position(|(serial, _)| *serial == entry);
         debug_assert!(original.is_some());
         original.map(|original| entered.remove(original))
     };
@@ -430,13 +443,13 @@ fn retire_entry(interpreter: &Interp, entry: &Rc<NativeOperationEntry>) {
 
 impl Drop for NativeOperationScope {
     fn drop(&mut self) {
-        retire_entry(&self.interpreter, &self.entry);
+        retire_entry(&self.interpreter, self.entry);
     }
 }
 
 impl Drop for NativeSavedCleanupScope {
     fn drop(&mut self) {
-        retire_entry(&self.interpreter, &self.entry);
+        retire_entry(&self.interpreter, self.entry);
     }
 }
 
@@ -481,7 +494,7 @@ impl Interp {
         }
         let entered = {
             let entered = self.entered_native_operations.borrow();
-            let Some(entry) = entered.last() else {
+            let Some((_, entry)) = entered.last() else {
                 return Ok(());
             };
             if entry.current_without_proof(self) {
