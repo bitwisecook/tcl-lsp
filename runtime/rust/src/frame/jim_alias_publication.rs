@@ -110,7 +110,7 @@ impl PreparedJimAliasCell {
             && Weak::ptr_eq(&self.ledger, &table.original_table_ledger())
             && table.contents(&self.name).is_some_and(|current| {
                 self.contents.strong_count() != 0
-                    && Weak::ptr_eq(&self.contents, &Rc::downgrade(current))
+                    && std::ptr::addr_eq(self.contents.as_ptr(), Rc::as_ptr(current))
             })
     }
     pub(crate) fn name(&self) -> &[u8] {

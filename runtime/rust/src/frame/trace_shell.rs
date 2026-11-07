@@ -48,7 +48,7 @@ impl TraceShellState {
     pub(crate) fn check(&self, table: &VarTable, name: &[u8]) -> Result<(), ValueError> {
         let valid = table.contents(name).is_some_and(|contents| {
             if self.contents.strong_count() == 0
-                || !Weak::ptr_eq(&self.contents, &Rc::downgrade(contents))
+                || !std::ptr::addr_eq(self.contents.as_ptr(), Rc::as_ptr(contents))
             {
                 return false;
             }

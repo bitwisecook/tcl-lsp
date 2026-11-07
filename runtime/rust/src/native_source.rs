@@ -438,7 +438,7 @@ fn original_source_backing(
     if obj::obj_type_ptr(value) == &JIM_SOURCE_TYPE {
         // SAFETY: the exact primary descriptor owns this live boxed source.
         let source = unsafe { &*(obj::internal_rep(value) as usize as *const NativeJimSource) };
-        if !Weak::ptr_eq(&source.context, &Rc::downgrade(context)) {
+        if !std::ptr::addr_eq(source.context.as_ptr(), Rc::as_ptr(context)) {
             return Err(ValueError::CommandProtocolUnavailable(
                 "Jim original source interpreter",
             ));

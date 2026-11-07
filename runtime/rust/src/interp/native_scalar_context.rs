@@ -144,7 +144,7 @@ impl NativeScalarObjectContext {
 
     fn matches_current(&self, interpreter: &Interp, host: &Rc<dyn Host>) -> bool {
         let epoch = interpreter.native_operation_context_epoch();
-        Weak::ptr_eq(&self.host, &Rc::downgrade(host))
+        std::ptr::addr_eq(self.host.as_ptr(), Rc::as_ptr(host))
             && interpreter.runtime_context() == self.runtime
             && interpreter.native_invocation_dialect() == self.dialect
             && epoch == Some(self.epoch)

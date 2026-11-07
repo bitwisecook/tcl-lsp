@@ -153,7 +153,7 @@ impl OriginalArgumentUsage {
         ) {
             (None, None) => true,
             (Some(original), Some(current)) => {
-                Weak::ptr_eq(&original.birth, &Rc::downgrade(&current.birth))
+                std::ptr::addr_eq(original.birth.as_ptr(), Rc::as_ptr(&current.birth))
             }
             _ => false,
         };
@@ -170,7 +170,7 @@ impl OriginalArgumentUsage {
                 match (&self.handler, current) {
                     (None, None) => true,
                     (Some(original), Some(current)) => {
-                        Weak::ptr_eq(&original.birth, &Rc::downgrade(&current.birth))
+                        std::ptr::addr_eq(original.birth.as_ptr(), Rc::as_ptr(&current.birth))
                     }
                     _ => false,
                 }

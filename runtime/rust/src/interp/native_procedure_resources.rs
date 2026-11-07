@@ -367,7 +367,7 @@ impl NativeProcedureCommand {
         }
     }
     pub(crate) fn observes_original_binding(&self, original: &OriginalProcedureBinding) -> bool {
-        Weak::ptr_eq(&original.identity, &Rc::downgrade(&self.identity))
+        std::ptr::addr_eq(original.identity.as_ptr(), Rc::as_ptr(&self.identity))
             && self.binding.owner().is_some_and(|current| {
                 original.declaration.upgrade().is_some_and(|declaration| {
                     Rc::ptr_eq(&current, &declaration)

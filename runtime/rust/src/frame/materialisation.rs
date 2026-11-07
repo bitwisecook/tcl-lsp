@@ -52,7 +52,7 @@ impl VariablePublicationObservation {
         })
     }
     pub(super) fn matches(&self, current: &Rc<RefCell<CellContents>>) -> bool {
-        self.contents.strong_count() != 0 && Weak::ptr_eq(&self.contents, &Rc::downgrade(current))
+        self.contents.strong_count() != 0 && std::ptr::addr_eq(self.contents.as_ptr(), Rc::as_ptr(current))
     }
     pub(crate) fn matches_root(&self, table: &super::VarTable, name: &[u8]) -> bool {
         table

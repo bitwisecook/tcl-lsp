@@ -132,7 +132,7 @@ pub(crate) fn ensure_dictionary_substitution_with_stage_check(
         // SAFETY: the exact descriptor owns this live boxed tuple.
         let stored =
             unsafe { &*(obj::internal_rep(value) as usize as *const DictionarySubstitution) };
-        if !Weak::ptr_eq(&stored.context, &Rc::downgrade(context)) {
+        if !std::ptr::addr_eq(stored.context.as_ptr(), Rc::as_ptr(context)) {
             return Err(ValueError::CommandProtocolUnavailable(
                 "Jim dictionary substitution original interpreter",
             ));
@@ -142,7 +142,7 @@ pub(crate) fn ensure_dictionary_substitution_with_stage_check(
     let (name, index) = if obj::obj_type_ptr(value) == &INTERPOLATED_TYPE {
         // SAFETY: the exact descriptor owns this live boxed optimization.
         let stored = unsafe { &*(obj::internal_rep(value) as usize as *const Interpolated) };
-        if !Weak::ptr_eq(&stored.context, &Rc::downgrade(context)) {
+        if !std::ptr::addr_eq(stored.context.as_ptr(), Rc::as_ptr(context)) {
             return Err(ValueError::CommandProtocolUnavailable(
                 "Jim interpolation original interpreter",
             ));

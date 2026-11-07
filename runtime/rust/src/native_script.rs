@@ -67,7 +67,7 @@ pub(crate) fn source_origin(
     }
     // SAFETY: the exact live Script descriptor owns this header.
     let header = unsafe { &*(obj::internal_rep(value) as usize as *const ScriptHeader) };
-    if !Weak::ptr_eq(&header.0.context, &Rc::downgrade(context)) {
+    if !std::ptr::addr_eq(header.0.context.as_ptr(), Rc::as_ptr(context)) {
         return Err(ValueError::CommandProtocolUnavailable(
             "Jim Script original interpreter",
         ));
@@ -124,7 +124,7 @@ pub(crate) fn source_info(
     }
     // SAFETY: the exact Script descriptor owns this live header.
     let header = unsafe { &*(obj::internal_rep(value) as usize as *const ScriptHeader) };
-    if !Weak::ptr_eq(&header.0.context, &Rc::downgrade(context)) {
+    if !std::ptr::addr_eq(header.0.context.as_ptr(), Rc::as_ptr(context)) {
         return Err(ValueError::CommandProtocolUnavailable(
             "Jim Script original interpreter",
         ));
@@ -150,7 +150,7 @@ pub(crate) fn prepare(
     if obj::obj_type_ptr(original) == &JIM_SCRIPT_TYPE {
         // SAFETY: the exact Script descriptor owns this live header.
         let header = unsafe { &*(obj::internal_rep(original) as usize as *const ScriptHeader) };
-        if !Weak::ptr_eq(&header.0.context, &Rc::downgrade(context)) {
+        if !std::ptr::addr_eq(header.0.context.as_ptr(), Rc::as_ptr(context)) {
             return Err(ValueError::CommandProtocolUnavailable(
                 "Jim Script original interpreter",
             ));
@@ -257,7 +257,7 @@ pub(crate) fn prepare_substitution(
     if obj::obj_type_ptr(original) == &JIM_SCRIPT_TYPE {
         // SAFETY: this exact Script descriptor owns the live header.
         let header = unsafe { &*(obj::internal_rep(original) as usize as *const ScriptHeader) };
-        if !Weak::ptr_eq(&header.0.context, &Rc::downgrade(context)) {
+        if !std::ptr::addr_eq(header.0.context.as_ptr(), Rc::as_ptr(context)) {
             return Err(ValueError::CommandProtocolUnavailable(
                 "Jim substitution original interpreter",
             ));
