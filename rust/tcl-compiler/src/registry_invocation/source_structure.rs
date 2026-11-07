@@ -2019,13 +2019,13 @@ fn reflection_free_bodies(
         if depth >= REFLECTION_FREE_BODY_DEPTH {
             return false;
         }
-        let content = body.content_span();
-        let Some(text) = source.get(content.as_range()) else {
+        let span = body.content_span();
+        let Some(text) = source.get(span.as_range()) else {
             return false;
         };
         let segments = crate::segmenter::segment_commands_with_offset_and_config(
             text,
-            content.start(),
+            span.start(),
             input.lexer_config(),
         );
         segments.len() == commands.len()
