@@ -1551,7 +1551,7 @@ pub fn root_unrooted_key_bytes(key: &[u8]) -> Vec<u8> {
 /// ```
 /// use tcl_syntax::naming::rooted_member_key_bytes;
 /// assert_eq!(rooted_member_key_bytes(b"::", b"v"), b"::v");
-/// assert_eq!(rooted_member_key_bytes(b"::a:", b":v"), b"::a:::v");
+/// assert_eq!(rooted_member_key_bytes(b"::a:", b":v"), b"::a::::v");
 /// ```
 #[must_use]
 pub fn rooted_member_key_bytes(rooted_namespace: &[u8], member: &[u8]) -> Vec<u8> {
