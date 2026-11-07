@@ -1402,9 +1402,8 @@ struct ArrayOperationTarget {
 struct InvocationProtocols {
     string: Option<tcl_syntax::native_string::NativeStringProtocol>,
     name: Option<tcl_syntax::naming::NativeNameProtocol>,
-    /// `None` when the execution point selects no policy, `Some(None)` when it
-    /// selects a different recipe from the native name protocol.
-    name_policy: Option<Option<tcl_syntax::naming::NamePolicyProtocol>>,
+    /// The execution point's policy when it shares the native name recipe.
+    name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
 }
 
 pub struct InterpState {
@@ -2963,7 +2962,7 @@ impl Interp {
                 let protocol = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
                     dialect.execution_point()?,
                 )?;
-                Some((protocol.recipe() == recipe).then_some(protocol))
+                (protocol.recipe() == recipe).then_some(protocol)
             }),
         };
         self.0.invocation_protocols.set(Some(protocols));
@@ -10077,7 +10076,7 @@ impl Interp {
     pub(crate) fn name_policy_protocol(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
         let protocols = self.invocation_protocols();
         if protocols.name.is_some() {
-            return protocols.name_policy.flatten();
+            return protocols.name_policy;
         }
         let dialect = self.native_invocation_dialect();
         let names = dialect.authored_logical_name_simulation(self.logical_name_provider.get()?)?;

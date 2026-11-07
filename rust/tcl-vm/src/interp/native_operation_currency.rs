@@ -176,7 +176,7 @@ impl OriginalOperationObservation {
 
 struct EnteredOperation {
     currency: NativeOperationCurrency,
-    _allocation: crate::value::JimAllocationScope,
+    allocation: crate::value::JimAllocationScope,
 }
 
 /// Allocation-only scope ownership creates no native object/reference role.
@@ -516,7 +516,7 @@ impl NativeOperationScope {
     /// An unpooled entry with the same currency is indistinguishable from a
     /// fresh one while no pool shadows it, so nested entry can share it.
     fn reusable(vm: &Vm, entered: &EnteredOperation) -> bool {
-        entered._allocation.is_unpooled()
+        entered.allocation.is_unpooled()
             && crate::value::JimAllocationScope::innermost_is_unpooled()
             && vm.actual_native_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
@@ -580,7 +580,7 @@ impl NativeOperationScope {
         let allocation = Self::allocation_scope(vm, &currency, true)?;
         let entered = Rc::new(EnteredOperation {
             currency,
-            _allocation: allocation,
+            allocation: allocation,
         });
         owner.entered.borrow_mut().push(Rc::downgrade(&entered));
         Ok(Self { entered })
@@ -611,7 +611,7 @@ impl NativeOperationScope {
         let allocation = Self::allocation_scope(vm, original, false)?;
         let entered = Rc::new(EnteredOperation {
             currency: original.clone(),
-            _allocation: allocation,
+            allocation: allocation,
         });
         original
             .owner

@@ -68,7 +68,7 @@ thread_local! {
 }
 #[derive(Clone)]
 pub(crate) struct JimAllocationScope {
-    _owner: Rc<ScopeOwner>,
+    owner: Rc<ScopeOwner>,
 }
 struct ScopeOwner(Rc<EnteredAllocator>);
 impl JimAllocationScope {
@@ -82,7 +82,7 @@ impl JimAllocationScope {
         });
         ENTERED.with(|stack| stack.borrow_mut().push(Rc::clone(&entered)));
         Self {
-            _owner: Rc::new(ScopeOwner(entered)),
+            owner: Rc::new(ScopeOwner(entered)),
         }
     }
 
@@ -91,13 +91,13 @@ impl JimAllocationScope {
         let entered = UNPOOLED.with(Rc::clone);
         ENTERED.with(|stack| stack.borrow_mut().push(Rc::clone(&entered)));
         Self {
-            _owner: Rc::new(ScopeOwner(entered)),
+            owner: Rc::new(ScopeOwner(entered)),
         }
     }
 }
 impl JimAllocationScope {
     pub(crate) fn is_unpooled(&self) -> bool {
-        UNPOOLED.with(|unpooled| Rc::ptr_eq(&self._owner.0, unpooled))
+        UNPOOLED.with(|unpooled| Rc::ptr_eq(&self.owner.0, unpooled))
     }
 
     /// Whether the innermost entered allocator is the shared unpooled entry,

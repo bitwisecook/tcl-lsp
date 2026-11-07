@@ -6063,7 +6063,7 @@ impl Vm {
                 .command_identity
                 .generations
                 .key_of(generation)
-                .map(|name| CommandSidecarKey::visible(name))
+                .map(CommandSidecarKey::visible)
         };
         let raw_key = live_key
             .or_else(|| {
