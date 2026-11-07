@@ -5429,17 +5429,6 @@ impl Value {
         Self::string("")
     }
 
-    /// The thread's one shared empty value, for placeholders that are replaced
-    /// before any script observes them. Being shared, it is never changed in
-    /// place. It is never dropped, so thread exit runs no retirement.
-    pub(crate) fn shared_empty() -> Self {
-        thread_local! {
-            static EMPTY: std::mem::ManuallyDrop<Value> =
-                std::mem::ManuallyDrop::new(Value::empty());
-        }
-        EMPTY.with(|empty| Value::clone(empty))
-    }
-
     /// A wide-integer value.
     #[must_use]
     pub fn int(n: i64) -> Self {
