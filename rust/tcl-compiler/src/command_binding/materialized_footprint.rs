@@ -1289,6 +1289,7 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
         };
         let mut writes = crate::ir_helpers::VariableWriteEffects {
             names: projection.literal_names,
+            exact_read_names: projection.read_before_write_names.clone(),
             read_names: projection.read_before_write_names,
             opaque: projection.opaque_variable_frame,
         };

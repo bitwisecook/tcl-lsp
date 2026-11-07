@@ -54,6 +54,11 @@ impl VariableWriteEffects {
                 }
             }
         }
+        for name in other.exact_read_names.iter().chain(&other.read_names) {
+            if !self.exact_read_names.contains(name) {
+                self.exact_read_names.push(name.clone());
+            }
+        }
     }
 }
 
@@ -403,6 +408,7 @@ fn command_writes(
         out.include_possible(&VariableWriteEffects {
             names: projection.literal_names,
             read_names: projection.read_before_write_names,
+            exact_read_names: Vec::new(),
             opaque: projection.opaque_variable_frame,
         });
         let reads = state.variable_read_projection_for_command_words_with_metadata_context(
@@ -487,6 +493,7 @@ fn selected_name_ownership(
         out.include_possible(&VariableWriteEffects {
             names: ownership.bindings,
             read_names: ownership.by_name_reads,
+            exact_read_names: Vec::new(),
             opaque: ownership.opaque,
         });
     });

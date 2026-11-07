@@ -550,6 +550,7 @@ pub(crate) fn original_invocation_possible_name_writes(
         })?;
     let mut out = VariableWriteEffects {
         names: projection.literal_names,
+        exact_read_names: projection.read_before_write_names.clone(),
         read_names: projection.read_before_write_names,
         opaque: projection.opaque_variable_frame
             || candidates.unknown_residual()
@@ -1220,6 +1221,9 @@ pub(crate) struct VariableWriteEffects {
     /// *observed*, not overwritten, so a consumer that records the write must
     /// record this read with it or the feeding store looks dead (#2050).
     pub read_names: Vec<String>,
+    /// [`Self::read_names`] as the commands spell them: a literal element
+    /// read keeps its element, where `read_names` names its array.
+    pub exact_read_names: Vec<String>,
     pub opaque: bool,
 }
 

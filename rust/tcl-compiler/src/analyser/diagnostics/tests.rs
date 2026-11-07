@@ -18798,3 +18798,33 @@ fn an_element_store_defines_its_array_for_a_later_element_read() {
     let source = "proc q {} {\n set c(x) 1\n puts $c(x)\n}\nq\n";
     assert_eq!(w210_codes(source), [] as [String; 0], "{source}");
 }
+
+/// #2268: a computed-key existence read may observe any element, so the
+/// element it may observe is used; a literal key observes only its own
+/// element, so another element set and never read is still unused. tclsh
+/// 8.4 to 9.1 print `yes` for the first program and `no` for the second.
+#[test]
+fn w211_reads_an_existence_test_by_the_element_it_names() {
+    let w211 = |source: &str| -> Vec<String> {
+        let diagnostics = Analyser::new().analyse(source, "tcl8.6").diagnostics;
+        assert!(
+            diagnostics.iter().all(|d| d.code != DiagCode::W210),
+            "an existence test reads nothing it can miss: {source}\n{diagnostics:?}"
+        );
+        diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W211)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let computed =
+        "proc p {k} { set a(x) 1; if {[info exists a($k)]} {puts yes} else {puts no} }\np x\n";
+    assert_eq!(w211(computed), [] as [String; 0], "{computed}");
+    let literal =
+        "proc p {k} { set a(x) 1; if {[info exists a(y)]} {puts yes} else {puts no} }\np x\n";
+    assert_eq!(
+        w211(literal),
+        ["Variable 'a(x)' is set but never used"],
+        "{literal}"
+    );
+}

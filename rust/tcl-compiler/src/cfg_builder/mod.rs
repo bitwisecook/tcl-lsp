@@ -2172,7 +2172,9 @@ impl<'a> CfgBuilder<'a> {
         // is a precision loss, not a claim that anything is written. A
         // dynamic read's effect on dead-store elimination is already owned by
         // `dynamic_names.reads`, which abstains for the whole function.
-        let mut reads = writes.read_names;
+        // A condition's `[info exists a(y)]` observes the element it names,
+        // not every element `a` holds (#2268).
+        let mut reads = writes.exact_read_names;
         let beside = self.read_beside_writes(&defs, self.original_tokens_at(span), |scanner| {
             crate::ir_helpers::condition_substituted_reads(
                 condition,
