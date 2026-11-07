@@ -19,7 +19,7 @@
 //! Actual Jim previous-command owners and frame-owned original cleanup names.
 
 use super::native_jim_lookup::{JimCommandLease, JimCommandNode};
-use super::{Command, CommandSlot, Completion, Rc, RefCell, Value, Vm, err, native_name_world};
+use super::{Command, CommandSlot, Completion, Rc, Value, Vm, err, native_name_world};
 #[cfg(test)]
 use super::{NameBytes, ROOT_NS};
 use tcl_syntax::value::ValueError;
@@ -29,7 +29,7 @@ use tcl_syntax::value::ValueError;
 pub(crate) struct OriginalJimLocalCommand {
     original: Value,
     interpreter: super::InterpId,
-    world: Rc<RefCell<native_name_world::NativeNameWorld>>,
+    world: Rc<native_name_world::NameWorldCell>,
     slot: CommandSlot,
     generation: u64,
     node: std::rc::Weak<JimCommandNode>,
@@ -39,13 +39,13 @@ pub(crate) struct OriginalJimLocalCommand {
 
 struct OriginalJimLocalContinuation {
     interpreter: super::InterpId,
-    world: Rc<RefCell<native_name_world::NativeNameWorld>>,
+    world: Rc<native_name_world::NameWorldCell>,
     slot: CommandSlot,
     table_epoch: u64,
     original_key: Option<super::jim_table_keys::OriginalJimCommandKey>,
 }
 
-struct LocalScope(Rc<RefCell<native_name_world::NativeNameWorld>>);
+struct LocalScope(Rc<native_name_world::NameWorldCell>);
 impl Drop for LocalScope {
     fn drop(&mut self) {
         let mut world = self.0.borrow_mut();
@@ -719,7 +719,7 @@ mod tests {
     }
 
     struct PreviousOwnerObserver {
-        world: std::rc::Weak<std::cell::RefCell<super::native_name_world::NativeNameWorld>>,
+        world: std::rc::Weak<super::native_name_world::NameWorldCell>,
         released: std::rc::Rc<std::cell::RefCell<Vec<(u8, bool)>>>,
         label: u8,
     }

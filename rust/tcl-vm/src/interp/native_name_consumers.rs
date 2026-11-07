@@ -18,10 +18,10 @@
 
 //! Original consumer context, independent of selected command and table roles.
 
+use crate::interp::native_name_world::NameWorldCell;
 use super::{
     NamespaceExecutionContext, Vm,
     native_name_queries::{QueryNamespace, SelectedNamespaceRetirement},
-    native_name_world::NativeNameWorld,
     native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
 };
 use crate::{
@@ -48,7 +48,7 @@ pub(super) struct OriginalNameConsumerState {
     namespace_owner: RefCell<Option<QueryNamespace>>,
     selected_retirement: RefCell<Option<SelectedNamespaceRetirement>>,
     selected_namespace: Option<QueryNamespace>,
-    world: Rc<RefCell<NativeNameWorld>>,
+    world: Rc<NameWorldCell>,
 }
 
 /// Saved context is descriptive until its same original currency is resumed.

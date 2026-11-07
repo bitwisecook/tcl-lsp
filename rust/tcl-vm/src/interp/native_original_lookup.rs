@@ -18,9 +18,10 @@
 
 //! Original lookup observations remain independent of String materialisation.
 
+use crate::interp::native_name_world::NameWorldCell;
 use super::{
     CommandSidecarKey, CommandSlot, NamespaceExecutionContext, NsId, Rc, Vm,
-    native_name_queries::QueryNamespace, native_name_world::NativeNameWorld,
+    native_name_queries::QueryNamespace,
     native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
 };
 use crate::{Value, value::NativeObjectLifetimeLease};
@@ -29,7 +30,7 @@ use tcl_cmd_core::CmdError;
 
 pub(super) struct OriginalLookup {
     operation: NativeOperationScope,
-    world: Rc<RefCell<NativeNameWorld>>,
+    world: Rc<NameWorldCell>,
     namespace: NamespaceExecutionContext,
     namespace_owner: RefCell<Option<QueryNamespace>>,
     frame: Option<(Rc<crate::frame::ActivationIdentity>, usize)>,

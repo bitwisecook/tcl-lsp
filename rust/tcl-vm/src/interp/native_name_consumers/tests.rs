@@ -35,9 +35,9 @@ struct Formatter {
     observed: RefCell<Option<crate::NativeObjectLifetimeLease>>,
     counts: RefCell<Vec<usize>>,
     fail: Cell<bool>,
-    withdraw: RefCell<Option<Rc<RefCell<super::super::native_name_world::NativeNameWorld>>>>,
+    withdraw: RefCell<Option<Rc<super::super::native_name_world::NameWorldCell>>>,
     withdraw_on_query:
-        RefCell<Option<Rc<RefCell<super::super::native_name_world::NativeNameWorld>>>>,
+        RefCell<Option<Rc<super::super::native_name_world::NameWorldCell>>>,
 }
 impl Formatter {
     fn reached(&self, stage: &'static str) {

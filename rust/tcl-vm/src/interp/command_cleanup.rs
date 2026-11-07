@@ -17,15 +17,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Mandatory command retirement in the actual original interpreter table.
+use crate::interp::native_name_world::NameWorldCell;
 use super::native_operation_currency::{
     CleanupRestoration, NativeOperationScope, SavedExecutionTarget,
 };
 use super::{
     CommandSidecarKey, CommandTokenIdentity, ImportRetirementNode, InterpId, InterpState,
-    NativeNameWorld, Vm,
+    Vm,
 };
 use crate::command::Command;
-use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use tcl_cmd_core::{
     CmdError,
@@ -40,7 +40,7 @@ use tcl_syntax::value::ValueError;
 pub(crate) struct OriginalCommandCleanup {
     target: SavedExecutionTarget,
     interpreter: InterpId,
-    world: Weak<RefCell<NativeNameWorld>>,
+    world: Weak<NameWorldCell>,
     operation: Result<NativeOperationScope, CmdError>,
     c_order: Option<NativeCommandRetirementOrder>,
     c_names: Option<tcl_registry::native_command_literal::NativeCommandNameProtocol>,

@@ -45,6 +45,47 @@ pub(crate) enum NativeDeletionEffects {
     GuestExecutionRequired,
 }
 
+/// The name world behind a generation that every mutable borrow advances, so
+/// a reader can tell cheaply that nothing in it has changed.
+pub(crate) struct NameWorldCell {
+    world: RefCell<NativeNameWorld>,
+    generation: Cell<u64>,
+}
+
+impl NameWorldCell {
+    pub(crate) fn new(world: NativeNameWorld) -> Self {
+        Self {
+            world: RefCell::new(world),
+            generation: Cell::new(0),
+        }
+    }
+
+    pub(crate) fn borrow(&self) -> std::cell::Ref<'_, NativeNameWorld> {
+        self.world.borrow()
+    }
+
+    pub(crate) fn borrow_mut(&self) -> std::cell::RefMut<'_, NativeNameWorld> {
+        self.advance();
+        self.world.borrow_mut()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn try_borrow_mut(
+        &self,
+    ) -> Result<std::cell::RefMut<'_, NativeNameWorld>, std::cell::BorrowMutError> {
+        self.advance();
+        self.world.try_borrow_mut()
+    }
+
+    pub(crate) fn generation(&self) -> u64 {
+        self.generation.get()
+    }
+
+    fn advance(&self) {
+        self.generation.set(self.generation.get().wrapping_add(1));
+    }
+}
+
 /// An interpreter's authoritative native namespace and command-address tables.
 pub(crate) struct NativeNameWorld {
     pub(super) execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
@@ -524,7 +565,7 @@ enum PublicationAddress {
 }
 
 struct PublicationReceipt {
-    world: Weak<RefCell<NativeNameWorld>>,
+    world: Weak<NameWorldCell>,
     owner: u64,
     interpreter: u64,
     original: Rc<[u8]>,
@@ -647,7 +688,7 @@ impl std::error::Error for NativePublicationError {}
 /// An owned callback-scope capability, retaining no executing VM borrow.
 #[derive(Clone)]
 pub struct NativePublicationService {
-    world: Weak<RefCell<NativeNameWorld>>,
+    world: Weak<NameWorldCell>,
     owner: u64,
     interpreter: u64,
     context: NsId,
@@ -666,7 +707,7 @@ pub enum NativePublicationCommit {
 impl NativePublicationService {
     /// Issued only by the VM's actual native capability ingress.
     pub(super) fn new(
-        world: &Rc<RefCell<NativeNameWorld>>,
+        world: &Rc<NameWorldCell>,
         context: NsId,
         protocol: NativeNameProtocol,
     ) -> Result<Self, NativePublicationError> {
@@ -686,7 +727,7 @@ impl NativePublicationService {
 
     pub(super) fn validate_world(
         &self,
-        expected: &Rc<RefCell<NativeNameWorld>>,
+        expected: &Rc<NameWorldCell>,
     ) -> Result<(), NativePublicationError> {
         let actual = self.world()?;
         if Rc::ptr_eq(&actual, expected) {
@@ -696,7 +737,7 @@ impl NativePublicationService {
         }
     }
 
-    fn world(&self) -> Result<Rc<RefCell<NativeNameWorld>>, NativePublicationError> {
+    fn world(&self) -> Result<Rc<NameWorldCell>, NativePublicationError> {
         let world = self
             .world
             .upgrade()
@@ -713,7 +754,7 @@ impl NativePublicationService {
     fn authenticate(
         &self,
         receipt: &NativePreparedPublication,
-    ) -> Result<Rc<RefCell<NativeNameWorld>>, NativePublicationError> {
+    ) -> Result<Rc<NameWorldCell>, NativePublicationError> {
         let world = self.world()?;
         let issued_world = receipt
             .0
@@ -967,19 +1008,19 @@ mod tests {
         assert_eq!(vm.ns_name_checked_utf8(namespace), None);
     }
 
-    fn world() -> Rc<RefCell<NativeNameWorld>> {
-        Rc::new(RefCell::new(NativeNameWorld::new(11, 7)))
+    fn world() -> Rc<NameWorldCell> {
+        Rc::new(NameWorldCell::new(NativeNameWorld::new(11, 7)))
     }
 
     fn service(
-        world: &Rc<RefCell<NativeNameWorld>>,
+        world: &Rc<NameWorldCell>,
         context: NsId,
         version: TclVersion,
     ) -> NativePublicationService {
         NativePublicationService::new(world, context, NativeNameProtocol::C(version)).unwrap()
     }
 
-    fn install(world: &Rc<RefCell<NativeNameWorld>>, slot: CommandSlot, generation: u64) {
+    fn install(world: &Rc<NameWorldCell>, slot: CommandSlot, generation: u64) {
         let mut state = world.borrow_mut();
         let key = format!("private-token-{generation}");
         state

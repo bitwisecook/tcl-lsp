@@ -18,8 +18,9 @@
 
 //! Original execution namespaces remain distinct from materialized coordinates.
 
+use crate::interp::native_name_world::NameWorldCell;
 use super::{
-    Vm, native_name_world::NativeNameWorld, native_numeric_ops::OriginalNumericOps,
+    Vm, native_numeric_ops::OriginalNumericOps,
     native_operation_currency::NativeOperationScope,
 };
 use crate::{Value, error::TclHostFailure, value::NativeObjectLifetimeLease};
@@ -95,7 +96,7 @@ impl NamespaceExecutionContext {
 pub(crate) struct OriginalJimNamespaceContext {
     original: NativeObjectLifetimeLease,
     interpreter: NativeInterpreterIdentity,
-    world: Weak<RefCell<NativeNameWorld>>,
+    world: Weak<NameWorldCell>,
     policy: NamePolicyProtocol,
     materialized: RefCell<Option<(NameBytes, NsId)>>,
 }

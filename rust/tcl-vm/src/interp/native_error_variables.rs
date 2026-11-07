@@ -26,7 +26,7 @@ use tcl_syntax::value::ValueOps;
 /// Field order retires errorInfo before errorCode, after the live birth ends.
 pub(super) struct C84ExecutionEnvironmentErrorNames {
     birth: std::rc::Rc<()>,
-    world: std::rc::Weak<std::cell::RefCell<super::NativeNameWorld>>,
+    world: std::rc::Weak<super::native_name_world::NameWorldCell>,
     info: Value,
     code: Value,
 }

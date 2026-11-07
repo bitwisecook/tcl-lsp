@@ -211,6 +211,9 @@ pub(crate) struct Frame {
     native_policy: Option<crate::compiled::NativeCompilerPolicy>,
     /// The policy stamp at which this frame's policy checks last passed.
     policy_current_at: std::cell::Cell<Option<u64>>,
+    /// Name-world generation, namespace token and actual profile under which
+    /// this frame's compiled namespace last proved current.
+    namespace_current_at: std::cell::Cell<Option<(u64, tcl_core_types::NsId, usize)>>,
     /// Distinguishes this activation from any other at the same stack depth.
     serial: u64,
     /// Command-binding generation last validated for this live activation.
@@ -753,6 +756,7 @@ impl Frame {
             profile_generation,
             native_policy: native_cache.map(|stamp| stamp.policy),
             policy_current_at: std::cell::Cell::new(None),
+            namespace_current_at: std::cell::Cell::new(None),
             serial: next_frame_serial(),
             command_epoch,
             compiler_generation,
@@ -2980,14 +2984,33 @@ impl Vm {
                 if frame.each_loop.is_some() || frame.compiler_generation.is_none() {
                     return None;
                 }
-                match current
+                let key = current.resolved_token().map(|token| {
+                    (
+                        self.name_world_generation(),
+                        token,
+                        std::ptr::from_ref(self.actual_native_execution_profile()).addr(),
+                    )
+                });
+                let held = key.is_some() && frame.namespace_current_at.get() == key;
+                if held && !crate::VERIFY_CURRENCY {
+                    return None;
+                }
+                let stale = match current
                     .resolved_token()
                     .filter(|token| self.native_namespace_token_has_owner(*token))
                 {
                     Some(token) if self.namespace_token_has_path(token, path) => None,
                     Some(_) => Some("cannot continue bytecode after namespace changed"),
                     None => Some("cannot continue bytecode without namespace coordinates"),
+                };
+                debug_assert!(
+                    !held || stale.is_none(),
+                    "name-world generation outlived a namespace change"
+                );
+                if stale.is_none() {
+                    frame.namespace_current_at.set(key);
                 }
+                stale
             }
         }
     }

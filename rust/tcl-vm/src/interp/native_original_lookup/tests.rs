@@ -38,7 +38,7 @@ use tcl_syntax::{
 struct Formatter {
     queries: Cell<usize>,
     builds: Cell<usize>,
-    withdraw_on_query: RefCell<Option<Rc<RefCell<NativeNameWorld>>>>,
+    withdraw_on_query: RefCell<Option<Rc<NameWorldCell>>>,
     retire_caller_on_query: Cell<bool>,
     calls: Cell<usize>,
     mode: Cell<u8>,

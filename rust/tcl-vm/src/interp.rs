@@ -215,7 +215,7 @@ use tcl_registry::native_rmw::{NativeRmwAmountError, NativeRmwOperation};
 use tcl_runtime_api::error_stack::{ErrorStackFrame, ShiftedErrorStackFrame};
 use tcl_syntax::naming::NativeVariableFailureSite::ValueWrite;
 
-use native_name_world::NativeNameWorld;
+use native_name_world::{NameWorldCell, NativeNameWorld};
 pub use native_name_world::{
     NativePreparedPublication, NativePublicationCommit, NativePublicationError,
     NativePublicationKey, NativePublicationPurpose, NativePublicationService,
@@ -719,6 +719,7 @@ struct ActualNativeProtocols {
     string: Option<tcl_syntax::native_string::NativeStringProtocol>,
     name: Option<tcl_syntax::naming::NativeNameProtocol>,
     name_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    error_stack: Option<NativeErrorStackProtocol>,
 }
 
 #[derive(Clone)]
@@ -1569,7 +1570,7 @@ pub struct InterpState {
     alias_registrations:
         tcl_registry::native_alias_registration::NativeAliasRegistrationTable<CommandTokenIdentity>,
     /// Sole owned namespace/command-address authority, shared by weak native services.
-    name_world: Rc<RefCell<NativeNameWorld>>,
+    name_world: Rc<NameWorldCell>,
     /// Structured slots, private storage projections, and stable command-token
     /// generations/handles under one identity owner.
     /// The fixed C math-function table used by pre-TIP-232 `expr` (Tcl 8.4).
@@ -3475,6 +3476,11 @@ impl InterpState {
         tcl_registry::InvocationDialect::of_static_profile(self.actual_native_execution_profile())
     }
 
+    /// Advanced by every mutable borrow of the name world.
+    pub(crate) fn name_world_generation(&self) -> u64 {
+        self.name_world.generation()
+    }
+
     fn actual_native_protocols(&self) -> ActualNativeProtocols {
         let profile = self.actual_native_execution_profile();
         let key = std::ptr::from_ref(profile).addr();
@@ -3494,6 +3500,7 @@ impl InterpState {
                 )?;
                 (policy.recipe() == recipe).then_some(policy)
             }),
+            error_stack: actual.error_stack_protocol(),
         };
         self.actual_protocols.set(Some((key, protocols)));
         protocols
@@ -3980,7 +3987,7 @@ impl InterpState {
             ns_vars: HashMap::new(),
             const_vars: rustc_hash::FxHashSet::default(),
             commands: HashMap::new(),
-            name_world: Rc::new(RefCell::new(NativeNameWorld::new(owner, interpreter))),
+            name_world: Rc::new(NameWorldCell::new(NativeNameWorld::new(owner, interpreter))),
             alias_registrations: NativeAliasRegistrationTable::default(),
             fixed_math: FixedMathTable::default(),
             module_procs: HashMap::new(),
@@ -24683,9 +24690,7 @@ impl Vm {
     }
 
     pub(crate) fn uses_jim_error_stack(&self) -> bool {
-        self.actual_native_invocation_dialect()
-            .error_stack_protocol()
-            == Some(NativeErrorStackProtocol::Jim084)
+        self.actual_native_protocols().error_stack == Some(NativeErrorStackProtocol::Jim084)
     }
 
     pub(crate) fn borrow_jim_evaluation_frame(

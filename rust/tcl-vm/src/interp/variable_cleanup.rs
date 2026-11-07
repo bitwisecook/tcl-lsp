@@ -42,7 +42,7 @@ pub(super) struct OriginalVariableCleanup {
     target: SavedExecutionTarget,
     interpreter: InterpId,
     arena: Weak<()>,
-    world: Weak<std::cell::RefCell<super::NativeNameWorld>>,
+    world: Weak<super::native_name_world::NameWorldCell>,
     frame: Weak<crate::frame::ActivationIdentity>,
     level: usize,
     namespace: Option<super::namespace_stack::NamespaceActivationObservation>,

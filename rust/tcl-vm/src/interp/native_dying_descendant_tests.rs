@@ -18,13 +18,14 @@
 
 //! Original descendant namespace allocation and real teardown callbacks.
 
-use super::{Vm, native_name_world::NativeNameWorld, ok};
+use crate::interp::native_name_world::NameWorldCell;
+use super::{Vm, ok};
 use crate::{
     Value,
     command::{Command, NativeCommand},
 };
 use std::{
-    cell::{Cell, RefCell},
+    cell::Cell,
     rc::{Rc, Weak},
 };
 use tcl_core_types::{ByteNamespacePath, NsId, ROOT_NS};
@@ -92,7 +93,7 @@ list $::observations [namespace exists ::retiring] [namespace exists $::target] 
 
 struct ObserveAncestor {
     original: NsId,
-    world: Weak<RefCell<NativeNameWorld>>,
+    world: Weak<NameWorldCell>,
 }
 impl NativeCommand for ObserveAncestor {
     fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {

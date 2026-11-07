@@ -146,7 +146,7 @@ impl JimCommandNode {
 /// An actual invocation owns its node until its synchronous or NRE continuation ends.
 pub(crate) struct JimCommandLease {
     node: Rc<JimCommandNode>,
-    world: Weak<RefCell<native_name_world::NativeNameWorld>>,
+    world: Weak<native_name_world::NameWorldCell>,
 }
 impl JimCommandLease {
     pub(crate) fn is_active(&self) -> bool {
@@ -212,7 +212,7 @@ impl native_name_world::NativeNameWorld {
 /// Retire the captured detached node in its actual retained interpreter world.
 /// The caller preserves original execution currency independently of this owner.
 pub(super) fn retire_detached_original_jim_node_in(
-    world: &Rc<RefCell<native_name_world::NativeNameWorld>>,
+    world: &Rc<native_name_world::NameWorldCell>,
     node: Rc<JimCommandNode>,
 ) {
     node.unpublish();
@@ -1681,7 +1681,7 @@ mod tests {
     }
 
     struct RetirementObserver {
-        world: Weak<RefCell<native_name_world::NativeNameWorld>>,
+        world: Weak<native_name_world::NameWorldCell>,
         releases: Rc<RefCell<Vec<(u8, bool)>>>,
         label: u8,
     }
