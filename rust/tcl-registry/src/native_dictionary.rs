@@ -663,6 +663,18 @@ impl NativeDictionaryCommand {
         {
             return self.local_fallback(from, version);
         }
+        // TclCompileDictCreateCmd: a non-constant C8.6/C9.0 form needs an
+        // anonymous local, so outside a procedure it is the basic invocation.
+        if self == Self::Create
+            && version < TclVersion::V9_1
+            && !(0..count).all(|index| simple(operands[index]) && args.literal_at(index).is_some())
+        {
+            match context.frame {
+                NativeCompilationFrame::Unknown => return Selection::Unknown,
+                NativeCompilationFrame::ScriptCode => return self.named(from),
+                NativeCompilationFrame::ProcedureCode => {}
+            }
+        }
         if self == Self::Merge && count >= 2 {
             match context.frame {
                 NativeCompilationFrame::Unknown => return Selection::Unknown,

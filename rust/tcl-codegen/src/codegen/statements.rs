@@ -2981,17 +2981,10 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::List(recipe) => {
                 self.append_native_list_tasks(command, plan, version, recipe, operations)
             }
-            NativeInstructionPlan::Constant {
-                target_word,
-                target,
-                value_word,
-            } => self.append_native_constant_tasks(
-                command,
-                target_word,
-                target,
-                value_word,
-                operations,
-            ),
+            selected @ (NativeInstructionPlan::Constant { .. }
+            | NativeInstructionPlan::DictionaryCreate(_)) => {
+                self.append_native_construction_tasks(command, selected, operations)
+            }
             selected @ (NativeInstructionPlan::Load { .. }
             | NativeInstructionPlan::Store { .. }
             | NativeInstructionPlan::Increment { .. }
@@ -3479,6 +3472,104 @@ impl CodegenCtx<'_> {
             );
         }
         Self::append_native_load_store_tasks(command, value_word, slot, array, operations);
+        true
+    }
+
+    fn append_native_construction_tasks(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        instruction: tcl_registry::native_instruction_plan::NativeInstructionPlan,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use tcl_registry::native_instruction_plan::NativeInstructionPlan;
+        match instruction {
+            NativeInstructionPlan::Constant {
+                target_word,
+                target,
+                value_word,
+            } => self.append_native_constant_tasks(
+                command,
+                target_word,
+                target,
+                value_word,
+                operations,
+            ),
+            NativeInstructionPlan::DictionaryCreate(recipe) => {
+                Self::append_native_dictionary_create_tasks(command, recipe, operations)
+            }
+            _ => false,
+        }
+    }
+
+    /// `TclCompileDictCreateCmd`: a constant literal checked by `dictVerify`,
+    /// C9.1 `dictPut` construction, or C8.6/C9.0 anonymous-local `dictSet`.
+    fn append_native_dictionary_create_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_dictionary_compilation::NativeDictionaryCreateInstruction,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use NativeEmissionTask as Task;
+        use tcl_registry::native_dictionary_compilation::NativeDictionaryCreateInstruction as Create;
+        match recipe {
+            Create::Constant(literal) => {
+                operations.extend([
+                    Task::Literal(literal),
+                    Task::Operation(Op::DUP, vec![]),
+                    Task::Operation(Op::VERIFY_DICT, vec![]),
+                ]);
+            }
+            Create::Put(operands) => {
+                operations.push(Task::Literal(Vec::new()));
+                for pair in operands.as_chunks::<2>().0 {
+                    for operand in pair {
+                        let Some(task) =
+                            Self::native_namespace_word_task(&command.words, operand.clone())
+                        else {
+                            return false;
+                        };
+                        operations.push(task);
+                    }
+                    operations.push(Task::Operation(Op::DICT_PUT, vec![]));
+                }
+            }
+            Create::Worker(operands) => {
+                let worker = std::rc::Rc::new(std::cell::Cell::new(None));
+                operations.extend([
+                    Task::DeclareNativeTemporary(std::rc::Rc::clone(&worker)),
+                    Task::Literal(Vec::new()),
+                    Task::NativeTemporaryOperation(
+                        Op::STORE_SCALAR1,
+                        std::rc::Rc::clone(&worker),
+                        vec![],
+                    ),
+                    Task::Operation(Op::POP, vec![]),
+                ]);
+                for pair in operands.as_chunks::<2>().0 {
+                    for operand in pair {
+                        let Some(task) =
+                            Self::native_namespace_word_task(&command.words, operand.clone())
+                        else {
+                            return false;
+                        };
+                        operations.push(task);
+                    }
+                    operations.push(Task::NativeTemporaryOperation(
+                        Op::DICT_SET,
+                        std::rc::Rc::clone(&worker),
+                        vec![Operand::Imm(1)],
+                    ));
+                    operations.push(Task::Operation(Op::POP, vec![]));
+                }
+                operations.extend([
+                    Task::NativeTemporaryOperation(
+                        Op::LOAD_SCALAR1,
+                        std::rc::Rc::clone(&worker),
+                        vec![],
+                    ),
+                    Task::NativeTemporaryOperation(Op::UNSET_SCALAR, worker, vec![Operand::Imm(0)]),
+                ]);
+            }
+        }
         true
     }
 

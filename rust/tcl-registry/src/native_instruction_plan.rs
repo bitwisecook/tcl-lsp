@@ -67,6 +67,8 @@ pub enum NativeInstructionPlan {
     DictionaryLookup(crate::native_dictionary_compilation::NativeDictionaryLookupInstruction),
     /// Original dictionary mutation operands and physical receiver.
     DictionaryMutation(crate::native_dictionary_compilation::NativeDictionaryMutationInstruction),
+    /// Original `dict create` constant, put or worker construction.
+    DictionaryCreate(crate::native_dictionary_compilation::NativeDictionaryCreateInstruction),
     /// Original dictionary scope slots, auxiliaries and protected writeback.
     DictionaryScope(
         crate::native_control_compilation::NativeControlCompilation<
@@ -794,6 +796,29 @@ fn original_decline_preparations(
     original_dictionary_preparations(spec, words, operand_from, dialect.tcl_version?, context)
 }
 
+/// `error` and `throw` share the Error stack recipe.
+fn error_instruction_plan(
+    spec: NativeCompilationSpec,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: tcl_dialect::TclVersion,
+) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
+    let compiled = match spec.grammar {
+        NativeCompilationGrammar::Error => {
+            crate::native_error_compilation::compile_native_error(words, operand_from, version)
+        }
+        NativeCompilationGrammar::Throw => {
+            crate::native_error_compilation::compile_native_throw(words, operand_from, version)
+        }
+        _ => return None,
+    };
+    Some(
+        compiled
+            .map(NativeInstructionPlan::Error)
+            .map_err(|_| NativeInstructionPlanUnavailable::OperandGeometry),
+    )
+}
+
 fn native_instruction_plan_for_purpose(
     spec: NativeCompilationSpec,
     selection: NativeCompilationSelection,
@@ -873,15 +898,8 @@ fn native_instruction_plan_for_purpose(
         .map(NativeInstructionPlan::MathOperator)
         .ok_or(Unavailable::Selection);
     }
-    if spec.grammar == NativeCompilationGrammar::Error {
-        return crate::native_error_compilation::compile_native_error(words, operand_from, version)
-            .map(NativeInstructionPlan::Error)
-            .map_err(|_| Unavailable::OperandGeometry);
-    }
-    if spec.grammar == NativeCompilationGrammar::Throw {
-        return crate::native_error_compilation::compile_native_throw(words, operand_from, version)
-            .map(NativeInstructionPlan::Error)
-            .map_err(|_| Unavailable::OperandGeometry);
+    if let Some(plan) = error_instruction_plan(spec, words, operand_from, version) {
+        return plan;
     }
     if spec.grammar == NativeCompilationGrammar::LiteralUnset {
         return crate::native_unset_compilation::compile_native_unset(words, operand_from, version)
@@ -1153,6 +1171,13 @@ fn selected_dictionary_instruction_plan(
             command, words, from, version, context,
         )
         .map(NativeInstructionPlan::DictionaryScope)
+        .map_err(|_| Unavailable::OperandGeometry);
+    }
+    if command == crate::native_dictionary::NativeDictionaryCommand::Create {
+        return crate::native_dictionary_compilation::compile_native_dictionary_create(
+            words, from, version, context,
+        )
+        .map(NativeInstructionPlan::DictionaryCreate)
         .map_err(|_| Unavailable::OperandGeometry);
     }
     if matches!(

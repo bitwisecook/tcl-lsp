@@ -1300,7 +1300,8 @@ impl Builder<'_> {
             NativeInstructionPlan::Regexp(_)
             | NativeInstructionPlan::ClockRead(_)
             | NativeInstructionPlan::StringMapIdentity(_)
-            | NativeInstructionPlan::Constant { .. } => return Ok(None),
+            | NativeInstructionPlan::Constant { .. }
+            | NativeInstructionPlan::DictionaryCreate(_) => return Ok(None),
         }))
     }
 

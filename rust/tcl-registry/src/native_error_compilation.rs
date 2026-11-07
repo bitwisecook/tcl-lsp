@@ -158,11 +158,7 @@ pub fn compile_native_throw(
     }
     let code = &operands[0].operand;
     let message = Step::Word(operands[1].operand.clone());
-    let known = match code {
-        NativeCompilerWordOperand::Original(index) => words.literal(*index),
-        _ => None,
-    };
-    let Some(literal) = known else {
+    let Some(literal) = operands[0].literal.as_deref() else {
         return Ok(NativeErrorInstruction {
             steps: vec![
                 Step::Word(code.clone()),

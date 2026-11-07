@@ -105,6 +105,89 @@ pub fn compile_native_dictionary_lookup(
     })
 }
 
+/// `TclCompileDictCreateCmd` stack recipe.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NativeDictionaryCreateInstruction {
+    /// Every word is a literal: the dictionary's canonical string, then
+    /// `dup` and `dictVerify`.
+    Constant(Vec<u8>),
+    /// C9.1: push the empty dictionary, then each key and value and `dictPut`.
+    Put(Vec<NativeCompilerWordOperand>),
+    /// C8.6/C9.0 in a procedure: build in an anonymous local with `dictSet`,
+    /// then load and unset it.
+    Worker(Vec<NativeCompilerWordOperand>),
+}
+
+/// Plan `dict create` as the release's compiler does.
+///
+/// # Errors
+/// Native decline for an unsupported release, odd arity or expansion;
+/// unavailable for geometry or for a non-constant C8.6/C9.0 script-level
+/// form, which the compiler hands to its basic invocation instead.
+pub fn compile_native_dictionary_create(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+    context: crate::native_compilation::NativeCompilationContext,
+) -> Result<NativeDictionaryCreateInstruction, NativeDictionaryCompilationUnavailable> {
+    use crate::native_compilation::{
+        NativeCompilationFrame as Frame, NativeCompilationWordShape as Shape,
+    };
+    use NativeDictionaryCompilationUnavailable as Error;
+    if version < NativeDictionaryCommand::Create.hook_from() {
+        return Err(Error::Generic);
+    }
+    let original = project_native_compiler_words(words, version).map_err(|_| Error::Unavailable)?;
+    let operands = original.get(operand_from..).ok_or(Error::Unavailable)?;
+    if operands.iter().any(|word| word.shape == Shape::Expanded) || operands.len() % 2 != 0 {
+        return Err(Error::Generic);
+    }
+    let literals = operands
+        .iter()
+        .map(|word| word.literal.as_deref())
+        .collect::<Option<Vec<_>>>();
+    if let Some(literals) = literals {
+        return Ok(NativeDictionaryCreateInstruction::Constant(
+            canonical_dictionary(&literals),
+        ));
+    }
+    let operands = operands.iter().map(|word| word.operand.clone()).collect();
+    if version >= TclVersion::V9_1 {
+        return Ok(NativeDictionaryCreateInstruction::Put(operands));
+    }
+    if context.frame == Frame::ProcedureCode {
+        Ok(NativeDictionaryCreateInstruction::Worker(operands))
+    } else {
+        Err(Error::Unavailable)
+    }
+}
+
+/// `UpdateStringOfDict` over `Tcl_DictObjPut` in written order: a repeated
+/// key keeps its first position and takes the last value; only the first
+/// key quotes a leading `#`.
+fn canonical_dictionary(literals: &[&[u8]]) -> Vec<u8> {
+    let mut entries: Vec<(&[u8], &[u8])> = Vec::with_capacity(literals.len() / 2);
+    let mut positions = std::collections::HashMap::new();
+    for &[key, value] in literals.as_chunks::<2>().0 {
+        if let Some(&index) = positions.get(key) {
+            entries[index] = (key, value);
+        } else {
+            positions.insert(key, entries.len());
+            entries.push((key, value));
+        }
+    }
+    let mut out = Vec::new();
+    for (index, (key, value)) in entries.iter().enumerate() {
+        if index > 0 {
+            out.push(b' ');
+        }
+        tcl_syntax::list::append_list_element(&mut out, key, index == 0);
+        out.push(b' ');
+        tcl_syntax::list::append_list_element(&mut out, value, false);
+    }
+    out
+}
+
 /// Actual dictionary mutation opcode operating on one retained compiled local.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeDictionaryMutationKind {

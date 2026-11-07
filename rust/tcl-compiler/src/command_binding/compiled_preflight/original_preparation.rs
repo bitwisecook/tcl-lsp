@@ -288,6 +288,17 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Regexp(recipe) => {
                 self.original_operands(words, recipe.original_operands().cloned(), context)
             }
+            NativeInstructionPlan::DictionaryCreate(create) => {
+                use tcl_registry::native_dictionary_compilation::NativeDictionaryCreateInstruction as Create;
+                match create {
+                    Create::Constant(_) => {
+                        self.original_operands(words, std::iter::empty(), context)
+                    }
+                    Create::Put(operands) | Create::Worker(operands) => {
+                        self.original_operands(words, operands.iter().cloned(), context)
+                    }
+                }
+            }
             _ => {
                 self.require_provider();
                 None
