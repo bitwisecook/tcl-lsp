@@ -1151,9 +1151,9 @@ fn possible_irule_flow_command(
             .possible_traits
             .contains(Traits::REQUIRES_HTTP_CONTEXT);
     }
-    let disables_all_events = !possible.unknown_residual
-        && !possible.may_be_absent
-        && !possible.candidates.is_empty()
+    // Conditional advice keeps lookup closure as an obligation on both sides:
+    // a guard counts by its candidates exactly as a drop does.
+    let disables_all_events = !possible.candidates.is_empty()
         && possible.candidates.iter().all(|candidate| {
             candidate.irules_source_flow_action == Some(IrulesSourceFlowAction::DisablesAllEvents)
         });
