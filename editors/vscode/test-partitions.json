@@ -5,8 +5,8 @@
   "multi_folder_files": ["multiFolderConfig.test.js"],
   "expected_tests": {
     "single_root": {
-      "identities": 1011,
-      "passed": 1010,
+      "identities": 1014,
+      "passed": 1013,
       "pending": 1
     },
     "multi_folder": {
@@ -72,6 +72,7 @@
     ],
     "2": [
       "bigipSourceActions.test.js",
+      "codeActionKinds.test.js",
       "codeLens.test.js",
       "compilerExplorerWebview.test.js",
       "completion.test.js",
