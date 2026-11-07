@@ -45,6 +45,13 @@
 # real signal, not CPU-starvation flake. The heaviest members are `#[ignore]`d
 # into the manual tier instead, which removes the contention at the source
 # rather than scheduling around it.
+[profile.default]
+# Report a test as SLOW each minute, and end it after 20. The slowest
+# legitimate tests (the 2000-deep editor guards) take about 10 minutes
+# unoptimised on 4 cores; anything past 20 is hung, and without this a hang
+# held a whole shard until the job timed out.
+slow-timeout = { period = "60s", terminate-after = 20 }
+
 [test-groups]
 # Corpus sweeps already parallelise internally; cap how many run concurrently
 # under `--run-ignored` so N sweeps don't each spawn a full rayon pool and
