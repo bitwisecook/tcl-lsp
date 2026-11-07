@@ -1443,6 +1443,30 @@ macro_rules! variable_try_op {
     };
 }
 
+// A failing compiled variable instruction logs its command, as C's bytecode
+// engine does before it looks for a catch range.
+macro_rules! variable_try_logged {
+    ($vm:expr, $instr:expr, $e:expr) => {
+        match $e {
+            Ok(v) => v,
+            Err(c) => {
+                if c.code == Code::Error {
+                    let (text, line, enclosing) = logged_command($instr);
+                    let message = c.result.string_bytes();
+                    $vm.log_command_with_enclosing(
+                        &text,
+                        Value::from_native_string_bytes(text.clone()),
+                        &enclosing,
+                        &message,
+                        line,
+                    );
+                }
+                return Tick::Return(c);
+            }
+        }
+    };
+}
+
 // Portable operation failures retain byte diagnostics and host refusal tags.
 macro_rules! variable_try_core {
     ($vm:expr, $operation:expr) => {
@@ -3914,6 +3938,26 @@ impl Vm {
                 ctx.optvar.as_ref(),
                 ctx.ignored_codes,
             );
+            // A failed result or options store is the catch command's own
+            // error: it is logged as it leaves that command.
+            if c.code == Code::Error
+                && let Some((cmd, line, enclosing)) = acts.last().and_then(|parent| {
+                    parent
+                        .asm
+                        .instructions
+                        .get(parent.pc.saturating_sub(1))
+                        .map(logged_command)
+                })
+            {
+                let message = c.result.string_bytes();
+                self.log_command_with_enclosing(
+                    &cmd,
+                    Value::from_native_string_bytes(cmd.clone()),
+                    &enclosing,
+                    &message,
+                    line,
+                );
+            }
         }
         // A package discovery script completed: the `package require` it
         // belongs to resumes, and either defers its next script (the
@@ -6170,6 +6214,10 @@ impl Vm {
                     // options. Decorative try/dict cleanup ranges preserve the
                     // completion they are forwarding.
                     f.last_options = Value::empty();
+                    // INST_END_CATCH resets the result: a later failure in the
+                    // same command starts a fresh errorInfo.
+                    self.reset_native_error_result();
+                    let _ = self.take_error_info();
                 }
             }
 
@@ -9100,38 +9148,53 @@ impl Vm {
     ) -> Tick {
         match instr.op {
             Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
-                f.stack
-                    .push(variable_try_op!(self.read_compiled_variable_result(
+                f.stack.push(variable_try_logged!(
+                    self,
+                    instr,
+                    self.read_compiled_variable_result(
                         usize::try_from(imm0(instr)).expect("local slot index"),
                         None
-                    )));
+                    )
+                ));
             }
             Op::STORE_SCALAR1 | Op::STORE_SCALAR4 => {
                 let value = pop(f);
-                let stored = variable_try_op!(self.store_compiled_variable_result(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    value
-                ));
+                let stored = variable_try_logged!(
+                    self,
+                    instr,
+                    self.store_compiled_variable_result(
+                        usize::try_from(imm0(instr)).expect("local slot index"),
+                        None,
+                        value
+                    )
+                );
                 f.stack.push(stored);
             }
             Op::INCR_SCALAR1 => {
                 let amount = pop(f);
-                let updated = variable_try_op!(self.increment_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    &amount
-                ));
+                let updated = variable_try_logged!(
+                    self,
+                    instr,
+                    self.increment_compiled_variable(
+                        usize::try_from(imm0(instr)).expect("local slot index"),
+                        None,
+                        &amount
+                    )
+                );
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
             Op::INCR_SCALAR1_IMM => {
                 let amount = Value::int(i64::from(imm_at(instr, 1)));
-                let updated = variable_try_op!(self.increment_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    &amount
-                ));
+                let updated = variable_try_logged!(
+                    self,
+                    instr,
+                    self.increment_compiled_variable(
+                        usize::try_from(imm0(instr)).expect("local slot index"),
+                        None,
+                        &amount
+                    )
+                );
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
@@ -9157,8 +9220,11 @@ impl Vm {
                 let key = variable_operand_bytes!(self, pop(f));
                 let name = variable_operand_bytes!(self, pop(f));
                 let amount = Value::int(i64::from(imm0(instr)));
-                let updated =
-                    variable_try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
+                let updated = variable_try_logged!(
+                    self,
+                    instr,
+                    self.increment_captured_bytes(&name, Some(&key), &amount)
+                );
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
@@ -9166,15 +9232,20 @@ impl Vm {
                 let amount = pop(f);
                 let key = variable_operand_bytes!(self, pop(f));
                 let name = variable_operand_bytes!(self, pop(f));
-                let updated =
-                    variable_try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
+                let updated = variable_try_logged!(
+                    self,
+                    instr,
+                    self.increment_captured_bytes(&name, Some(&key), &amount)
+                );
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
             Op::LOAD_ARRAY_STK => {
                 let key = variable_operand_bytes!(self, pop(f));
                 let name = variable_operand_bytes!(self, pop(f));
-                f.stack.push(variable_try_op!(
+                f.stack.push(variable_try_logged!(
+                    self,
+                    instr,
                     self.read_variable_result_bytes(&name, Some(&key))
                 ));
             }
@@ -9182,7 +9253,9 @@ impl Vm {
                 let value = pop(f);
                 let key = variable_operand_bytes!(self, pop(f));
                 let name = variable_operand_bytes!(self, pop(f));
-                f.stack.push(variable_try_op!(
+                f.stack.push(variable_try_logged!(
+                    self,
+                    instr,
                     self.store_elem_result_bytes(&name, &key, value)
                 ));
             }
@@ -9207,42 +9280,56 @@ impl Vm {
             Op::INCR_ARRAY1 => {
                 let amount = pop(f);
                 let key = variable_operand_bytes!(self, pop(f));
-                let updated = variable_try_op!(self.increment_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key),
-                    &amount
-                ));
+                let updated = variable_try_logged!(
+                    self,
+                    instr,
+                    self.increment_compiled_variable(
+                        usize::try_from(imm0(instr)).expect("local slot index"),
+                        Some(&key),
+                        &amount
+                    )
+                );
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
             Op::INCR_ARRAY1_IMM => {
                 let key = variable_operand_bytes!(self, pop(f));
                 let amount = Value::int(i64::from(imm_at(instr, 1)));
-                let updated = variable_try_op!(self.increment_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key),
-                    &amount
-                ));
+                let updated = variable_try_logged!(
+                    self,
+                    instr,
+                    self.increment_compiled_variable(
+                        usize::try_from(imm0(instr)).expect("local slot index"),
+                        Some(&key),
+                        &amount
+                    )
+                );
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
             Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
                 let key = variable_operand_bytes!(self, pop(f));
-                f.stack
-                    .push(variable_try_op!(self.read_compiled_variable_result(
+                f.stack.push(variable_try_logged!(
+                    self,
+                    instr,
+                    self.read_compiled_variable_result(
                         usize::try_from(imm0(instr)).expect("local slot index"),
                         Some(&key)
-                    )));
+                    )
+                ));
             }
             Op::STORE_ARRAY1 | Op::STORE_ARRAY4 => {
                 let value = pop(f);
                 let key = variable_operand_bytes!(self, pop(f));
-                f.stack
-                    .push(variable_try_op!(self.store_compiled_variable_result(
+                f.stack.push(variable_try_logged!(
+                    self,
+                    instr,
+                    self.store_compiled_variable_result(
                         usize::try_from(imm0(instr)).expect("local slot index"),
                         Some(&key),
                         value
-                    )));
+                    )
+                ));
             }
             _ => {
                 return Tick::Return(

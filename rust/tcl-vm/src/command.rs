@@ -3885,8 +3885,16 @@ impl Vm {
             Ok(captured) => captured,
             Err(error) => return completion_from_tcl_error(self, error),
         };
-        let _ = self.take_error_info();
-        // 8.4 and 8.5 replace a failed store's message with their own.
+        // 8.4 and 8.5 reset the result before a failed store replaces its
+        // message; 8.6+ store first, so a failed store's error continues the
+        // body's errorInfo (CatchObjCmdCallback).
+        let resets_before_store = self.runtime_version() < tcl_dialect::TclVersion::V8_6;
+        if resets_before_store {
+            self.reset_native_error_result();
+            let _ = self.take_error_info();
+        } else {
+            self.forget_error_logged();
+        }
         if let Some(r) = resvar
             && let Err(e) = self.store_original_named_variable(r, comp.result.clone())
         {
@@ -3896,6 +3904,9 @@ impl Vm {
             && let Err(e) = self.store_original_named_variable(o, opts)
         {
             return self.catch_store_failed(e, "couldn't save return options in variable");
+        }
+        if !resets_before_store {
+            let _ = self.take_error_info();
         }
         if let Some((einfo, ecode)) = &error_meta {
             self.publish_error(einfo, ecode);

@@ -25148,6 +25148,12 @@ impl Vm {
 
     /// Take the accumulated `errorInfo` trace (if any) and reset it for the next
     /// error — used when `catch` reports an error.
+    /// Forget `ERR_ALREADY_LOGGED` while keeping the accumulated `errorInfo`,
+    /// as an error leaving a script level does.
+    pub(crate) fn forget_error_logged(&mut self) {
+        self.native_errors.error_logged = ErrorLogged::No;
+    }
+
     pub(crate) fn take_error_info(&mut self) -> Option<Vec<u8>> {
         self.native_errors.error_logged = ErrorLogged::No;
         self.native_errors.error_stack.mark_reset();
