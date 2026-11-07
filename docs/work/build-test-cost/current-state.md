@@ -532,11 +532,22 @@ for its crate:
     `MAX_SOURCE_NEST_DEPTH`; the 256 bracket-text cap had let a deep body
     reach 1.6 MB.
   - Exact literal-list `foreach` unrolling multiplied with nesting
-    (2^62 body walks). It now spends from a per-walk budget of 4,096
-    iterations, then takes the general join-until-stable walk.
+    (2^62 body walks). It now spends from a per-walk budget of 256
+    iterations, then takes the general join-until-stable walk. Each admitted
+    iteration walks its whole remaining body, so the cost is the budget
+    times the nest. Measured on a debug build: depth 8 took 16 s at 4,096,
+    8 s at 256 and 2 s with unrolling off; depth 16 takes 7 s with it off.
+    The 555 failures among 2,333 `command_binding`, `variable_bindings`,
+    `realm` and `source_` tests are identical at 4,096 and 256.
+  - CFG `foreach` lowering held barrier, call and loop-scaffolding
+    temporaries in the frame that recurses into the body (29 KiB a level),
+    overflowing a 2 MiB thread at depth 51. The opaque shapes and the loop
+    open/close steps are leaves now.
   - Now passing: `the_source_walk_cap_fits_its_stack_budget`,
     `source_bindings_with_computed_conditions_fit_the_shared_stack_budget`,
-    `proved_structured_bodies_fit_the_shared_stack_budget` (about 300 s) and
+    `proved_structured_bodies_fit_the_shared_stack_budget` (57 s, was 300),
+    `the_analyser_stops_at_the_shared_cap` (268 s; it overflowed, and
+    before that ran past 15 minutes) and
     `taint::tests::deeply_nested_taint_walks_survive`.
 - **Slow-test budget.** nextest's default profile reports SLOW each minute and
   ends a test at 20 minutes; a hang had held shard 5/5 for 6,315 s.
@@ -580,11 +591,27 @@ Still open:
   `unrelated_command_observer_keeps_structured_bodies_within_stack_budget`
   (now an assertion failure) and `ssa::…scalar_alias_write_after_unset…`
   (OOM-killed) come from this.
-- **`the_analyser_stops_at_the_shared_cap`** still exceeds 15 minutes.
 - CI run 3 (`42324892928`):
   - `test-ext-web` used `lsp-server-wasm`'s module, so item 9 is confirmed.
   - The nextest cache missed on its first run, because every job started
     together. The next run should hit.
   - The lint leg got as far as three newer upstream `too_many_lines`
     findings in `tcl-vm`, now fixed.
-
+- CI run 4 (`42331787084`, tip `ad559ef`):
+  - Fixed: the standalone wasm workspaces' `Cargo.lock` files lacked the
+    `rustc-hash` dependency the keyed-lookup sweep added (`cargo-deny` and
+    the drift leg). Ruff flagged the upstream license-header script. An
+    upstream runtime method was dead code without TomMath (runtime and
+    doctest legs).
+  - The lint leg passed.
+  - Already failing in the last pre-session run (`41781045833`), so not
+    from this work:
+    - lsp-e2e partitions, `lsp-server-wasi`, `rust-tests-heavy` (live iRule
+      harness), and shards 3 and 5. The shards fail with "module requires a
+      genuine native compiler preflight provider" in `tcl-vm` and "DSL phase
+      requires its complete original source" in `bpf-tcl`.
+    - `spectcl-compat`: the string pack's hooks make no attempts.
+    - `wasm-real-link`: `samples/wasm/budgets.tsv` has drifted.
+    - The VS Code partition manifest. `codeActionKinds.test` was added on
+      4 November without a partition.
+  - Shards 2 and 4 lost their runners mid-run.
