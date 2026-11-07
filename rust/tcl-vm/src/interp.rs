@@ -24571,7 +24571,15 @@ impl Vm {
         let information = failure
             .error_info_for_procedure_bytes(procedure)
             .expect("admitted native compilation failure has complete presentation");
-        self.seed_error_info(information.clone());
+        if self.uses_c84_global_error_info() {
+            // C8.4 stores the message in the global errorInfo first, then
+            // appends each compiler frame to it.
+            self.seed_native_error_result_object(failure.message.as_bytes());
+            self.native_errors.error_info = Some(information.clone());
+            self.update_native_error_info();
+        } else {
+            self.seed_error_info(information.clone());
+        }
         // These are compiler contexts, not the caller's command log. The
         // actual invocation boundary appends its frame once afterwards.
         self.clear_error_logged();

@@ -831,6 +831,24 @@ pub fn prepare_native_expression_program(
         return Err(Unavailable::SourceGeometry);
     }
     let context = dialect.expression_parse_context(None);
+    // C8.4's own Tcl_ParseExpr decides its failures and their messages.
+    if context.native_syntax
+        == tcl_syntax::expr::parser::NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V8_4)
+        && let Some(Err(error)) = std::str::from_utf8(source)
+            .ok()
+            .map(tcl_syntax::expr::syntax_84::parse_tcl84)
+    {
+        return Ok(NativeExpressionProgram {
+            operand: operand.clone(),
+            source: source.to_vec(),
+            span,
+            context,
+            tree: NativeExpressionTree::Rejected {
+                message: error.message.into_bytes(),
+                error_code: error.error_code.map(|code| code.as_bytes().to_vec()),
+            },
+        });
+    }
     let tree =
         match tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(source, &context) {
             CheckedExprParse::Parsed(tree) => NativeExpressionTree::Parsed(tree),
