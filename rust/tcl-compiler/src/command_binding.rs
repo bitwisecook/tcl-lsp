@@ -4010,7 +4010,10 @@ struct SourceInterpretationEntry<'a> {
 /// unrolling multiplies (62 nested two-element `foreach` loops are 2^62 body
 /// walks), so past this budget a literal-list loop takes the general
 /// join-until-stable walk every other loop uses: less precise, equally sound.
-const MAX_FINITE_SOURCE_UNROLLING: usize = 4096;
+/// Each admitted iteration still walks its whole body, so the cost is this
+/// budget times the body: 256 keeps a deep nest to seconds in a debug build
+/// where 4,096 took minutes.
+const MAX_FINITE_SOURCE_UNROLLING: usize = 256;
 
 /// Retained source-point command and substitution proofs for one analysed script.
 #[derive(Debug, Clone, Default)]
