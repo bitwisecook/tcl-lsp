@@ -40,7 +40,7 @@ use std::rc::Rc;
 use tcl_runtime_api::{Code, Completion, FatalTail};
 use tcl_syntax::value::ValueOps;
 
-use crate::command::{completion_options, opt_get_checked, options_dict};
+use crate::command::{completion_options, opt_get_checked};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -1366,24 +1366,30 @@ fn cmd_throw(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match tcl_syntax::value::ValueOps::list_elements(vm, ty) {
         Ok(parts) if !parts.is_empty() => {}
-        Ok(_) => return err("type must be non-empty list"),
+        Ok(_) => {
+            return crate::command::err_with_code(
+                "type must be non-empty list",
+                "TCL OPERATION THROW BADEXCEPTION",
+            );
+        }
         Err(e) => return crate::command::completion_from_cmd_error(vm, e.into()),
     }
-    let message = match tcl_syntax::value::ValueOps::native_string_bytes(vm, msg) {
-        Ok(bytes) => bytes,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-    };
-    // Like `return -code error -errorcode $type $msg`: the message is the result,
-    // the `while executing`/`invoked from within` trace accumulates as it unwinds.
-    let options = options_dict(
-        Code::Error,
-        0,
+    // C's Tcl_ThrowObjCmd is `return -code error -errorcode $type $msg`: the
+    // shared return-options path also publishes `::errorCode`, and the
+    // `while executing`/`invoked from within` trace accumulates as it unwinds.
+    crate::return_options::apply(
+        vm,
         &[
-            ("-errorcode", ty.clone()),
-            ("-errorinfo", Value::from_string_bytes(message)),
+            Value::string("-code"),
+            Value::string("error"),
+            Value::string("-level"),
+            Value::string("0"),
+            Value::string("-errorcode"),
+            ty.clone(),
+            msg.clone(),
         ],
-    );
-    Completion::new(Code::Error, msg.clone(), options)
+        tcl_cmd_core::return_options::ReturnOptionsPurpose::User,
+    )
 }
 
 #[cfg(test)]

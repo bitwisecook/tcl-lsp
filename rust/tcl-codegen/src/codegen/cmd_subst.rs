@@ -1954,6 +1954,8 @@ impl CodegenCtx<'_> {
                 NativeErrorStep::List(count) => { self.emit(Op::LIST, vec![Operand::Imm(i32::try_from(count).expect("native Error pair count"))]); }
                 NativeErrorStep::DictionaryPut => { self.emit(Op::DICT_PUT, vec![]); }
                 NativeErrorStep::ReturnError => self.emit_native_error_return(source_command),
+                NativeErrorStep::Pop => { self.emit(Op::POP, vec![]); }
+                NativeErrorStep::ThrowTypeCheck => unreachable!("Error recipes carry no throw type check"),
             }
         }
         true

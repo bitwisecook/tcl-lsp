@@ -868,6 +868,11 @@ fn native_instruction_plan_for_purpose(
             .map(NativeInstructionPlan::Error)
             .map_err(|_| Unavailable::OperandGeometry);
     }
+    if spec.grammar == NativeCompilationGrammar::Throw {
+        return crate::native_error_compilation::compile_native_throw(words, operand_from, version)
+            .map(NativeInstructionPlan::Error)
+            .map_err(|_| Unavailable::OperandGeometry);
+    }
     if spec.grammar == NativeCompilationGrammar::LiteralUnset {
         return crate::native_unset_compilation::compile_native_unset(words, operand_from, version)
             .map_err(|_| Unavailable::OperandGeometry)?

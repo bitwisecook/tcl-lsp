@@ -23,28 +23,57 @@ use tcl_registry::native_error_compilation::{NativeErrorInstruction, NativeError
 
 impl CodegenCtx<'_> {
     pub(super) fn native_error_tasks(
+        &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
         recipe: NativeErrorInstruction,
     ) -> Option<Vec<NativeEmissionTask>> {
         use NativeEmissionTask as Task;
-        recipe
-            .steps
-            .into_iter()
-            .map(|step| {
-                Some(match step {
-                    NativeErrorStep::Word(operand) => {
-                        Self::native_namespace_word_task(&command.words, operand)?
-                    }
-                    NativeErrorStep::Literal(value) => Task::Literal(value),
-                    NativeErrorStep::List(count) => Task::Operation(
-                        super::Op::LIST,
-                        vec![super::Operand::Imm(i32::try_from(count).ok()?)],
-                    ),
-                    NativeErrorStep::DictionaryPut => Task::Operation(super::Op::DICT_PUT, vec![]),
-                    NativeErrorStep::ReturnError => Task::ErrorReturn,
-                })
-            })
-            .collect()
+        let mut tasks = Vec::with_capacity(recipe.steps.len());
+        for step in recipe.steps {
+            match step {
+                NativeErrorStep::Word(operand) => {
+                    tasks.push(Self::native_namespace_word_task(&command.words, operand)?);
+                }
+                NativeErrorStep::Literal(value) => tasks.push(Task::Literal(value)),
+                NativeErrorStep::List(count) => tasks.push(Task::Operation(
+                    super::Op::LIST,
+                    vec![super::Operand::Imm(i32::try_from(count).ok()?)],
+                )),
+                NativeErrorStep::DictionaryPut => {
+                    tasks.push(Task::Operation(super::Op::DICT_PUT, vec![]));
+                }
+                NativeErrorStep::ReturnError => tasks.push(Task::ErrorReturn),
+                NativeErrorStep::Pop => tasks.push(Task::Operation(super::Op::POP, vec![])),
+                NativeErrorStep::ThrowTypeCheck => {
+                    // TclCompileThrowCmd over `type -errorcode msg`.
+                    let empty = self.fresh_label("throw_empty_type");
+                    tasks.extend([
+                        Task::Operation(super::Op::REVERSE, vec![super::Operand::Imm(3)]),
+                        Task::Operation(super::Op::DUP, vec![]),
+                        Task::Operation(super::Op::LIST_LENGTH, vec![]),
+                        Task::Operation(
+                            super::Op::JUMP_FALSE1,
+                            vec![super::Operand::Label(empty.clone())],
+                        ),
+                        Task::Operation(super::Op::LIST, vec![super::Operand::Imm(2)]),
+                        Task::ErrorReturn,
+                        Task::Label(empty),
+                        Task::Operation(super::Op::POP, vec![]),
+                        Task::Operation(super::Op::POP, vec![]),
+                        Task::Operation(super::Op::POP, vec![]),
+                        Task::Literal(
+                            tcl_registry::native_error_compilation::THROW_EMPTY_TYPE_MESSAGE
+                                .to_vec(),
+                        ),
+                        Task::Literal(
+                            tcl_registry::native_error_compilation::THROW_EMPTY_TYPE_OPTIONS
+                                .to_vec(),
+                        ),
+                    ]);
+                }
+            }
+        }
+        Some(tasks)
     }
 
     pub(in crate::codegen) fn emit_native_error_return(&mut self, source_command: &str) {

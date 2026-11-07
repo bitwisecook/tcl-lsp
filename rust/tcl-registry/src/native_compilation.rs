@@ -774,6 +774,9 @@ pub enum NativeCompilationGrammar {
     NoHook,
     /// Native hook availability or syntax is not yet an authored closed contract.
     Unresolved,
+    /// `TclCompileThrowCmd`: exactly two arguments from 8.6, compiled whether
+    /// the type is a literal or checked at run time.
+    Throw,
     /// Independently authored ordered prerequisites of a named-invocation or
     /// absent-hook compiler. This does not wrap body or opcode grammars.
     WithImplementationPath {
@@ -2145,6 +2148,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::ListAssignment
             | NativeCompilationGrammar::ListInsertion
             | NativeCompilationGrammar::Error
+            | NativeCompilationGrammar::Throw
             | NativeCompilationGrammar::Return
             | NativeCompilationGrammar::ArgumentList
             | NativeCompilationGrammar::ArgumentListFrom(_)
@@ -2245,7 +2249,8 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::InfoCoroutine
             | NativeCompilationGrammar::CoroutineRelay
             | NativeCompilationGrammar::FormatStringConcat
-            | NativeCompilationGrammar::Error => true,
+            | NativeCompilationGrammar::Error
+            | NativeCompilationGrammar::Throw => true,
             _ => false,
         }
     }
@@ -2512,6 +2517,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::StringTrim { .. }
             | NativeCompilationGrammar::Array { .. }
             | NativeCompilationGrammar::Error
+            | NativeCompilationGrammar::Throw
             | NativeCompilationGrammar::TclOoHelper(_)
             | NativeCompilationGrammar::CoroutineRelay
             | NativeCompilationGrammar::CoroutineYield
@@ -3015,6 +3021,7 @@ impl NativeCompilationSpec {
         if matches!(
             self.grammar,
             NativeCompilationGrammar::Error
+                | NativeCompilationGrammar::Throw
                 | NativeCompilationGrammar::Conditional
                 | NativeCompilationGrammar::ForLoop
                 | NativeCompilationGrammar::Catch
@@ -3372,12 +3379,16 @@ impl NativeCompilationSpec {
         version: TclVersion,
     ) -> NativeCompilationSelection {
         use NativeCompilationSelection as Selection;
-        if self.grammar == NativeCompilationGrammar::Error {
-            return match crate::native_error_compilation::compile_native_error(
-                words,
-                operand_from,
-                version,
-            ) {
+        if matches!(
+            self.grammar,
+            NativeCompilationGrammar::Error | NativeCompilationGrammar::Throw
+        ) {
+            let compiled = if self.grammar == NativeCompilationGrammar::Throw {
+                crate::native_error_compilation::compile_native_throw(words, operand_from, version)
+            } else {
+                crate::native_error_compilation::compile_native_error(words, operand_from, version)
+            };
+            return match compiled {
                 Ok(_) => self.selected_grammar_result(true, version),
                 Err(
                     crate::native_error_compilation::NativeErrorCompilationUnavailable::Generic,
@@ -4394,6 +4405,13 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::Error => Some(gated_arity_grammar(
                 TclVersion::V8_6,
                 crate::Arity::new(1, 3),
+                shapes,
+                version,
+                self.operation,
+            )),
+            NativeCompilationGrammar::Throw => Some(gated_arity_grammar(
+                TclVersion::V8_6,
+                crate::Arity::exact(2),
                 shapes,
                 version,
                 self.operation,

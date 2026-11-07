@@ -3048,7 +3048,7 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::GenericPreparation(preparations) => {
                 self.native_generic_preparation_tasks(command, &preparations)
             }
-            NativeInstructionPlan::Error(recipe) => Self::native_error_tasks(command, recipe),
+            NativeInstructionPlan::Error(recipe) => self.native_error_tasks(command, recipe),
             NativeInstructionPlan::Coroutine(recipe) => {
                 self.native_coroutine_tasks(command, recipe)
             }

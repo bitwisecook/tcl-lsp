@@ -47,8 +47,11 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "throw",
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        // TclCompileThrowCmd (tclCompCmdsSZ.c, 8.6.18/9.0.4/9.1.0) declines
+        // unless there are exactly two arguments, then always compiles: a
+        // known-invalid type compiles to the BADEXCEPTION error itself.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
-            grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
+            grammar: crate::native_compilation::NativeCompilationGrammar::Throw,
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),

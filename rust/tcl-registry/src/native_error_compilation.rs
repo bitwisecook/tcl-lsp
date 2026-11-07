@@ -37,6 +37,12 @@ pub enum NativeErrorStep {
     DictionaryPut,
     /// Apply native `RETURN_IMM` with error code one and level zero.
     ReturnError,
+    /// Discard the value on top of the stack.
+    Pop,
+    /// Throw's run-time type check over `msg -errorcode type`: a non-empty
+    /// type raises it, an empty one leaves the BADEXCEPTION result and
+    /// options for the following [`Self::ReturnError`].
+    ThrowTypeCheck,
 }
 
 /// Native Error preparation in compiler and runtime evaluation order.
@@ -120,6 +126,75 @@ pub fn compile_native_error(
         version,
     )
 }
+
+/// Plan `throw type message` as `TclCompileThrowCmd` does: a literal valid
+/// type becomes one options literal, a literal empty list raises
+/// BADEXCEPTION, and any other type is checked at run time.
+///
+/// # Errors
+/// Native decline for an unsupported release, arity or expansion; geometry
+/// for a literal type that is not a list, which C reports as a compile-time
+/// syntax error this recipe does not model.
+pub fn compile_native_throw(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+) -> Result<NativeErrorInstruction, NativeErrorCompilationUnavailable> {
+    use NativeErrorStep as Step;
+    if version < TclVersion::V8_6 {
+        return Err(NativeErrorCompilationUnavailable::Generic);
+    }
+    let projected = project_native_compiler_words(words, version)
+        .map_err(|_| NativeErrorCompilationUnavailable::Geometry)?;
+    let operands = projected
+        .get(operand_from..)
+        .ok_or(NativeErrorCompilationUnavailable::Geometry)?;
+    if operands.len() != 2
+        || operands.iter().any(|word| {
+            word.shape == crate::native_compilation::NativeCompilationWordShape::Expanded
+        })
+    {
+        return Err(NativeErrorCompilationUnavailable::Generic);
+    }
+    let code = &operands[0].operand;
+    let message = Step::Word(operands[1].operand.clone());
+    let known = match code {
+        NativeCompilerWordOperand::Original(index) => words.literal(*index),
+        _ => None,
+    };
+    let Some(literal) = known else {
+        return Ok(NativeErrorInstruction {
+            steps: vec![
+                Step::Word(code.clone()),
+                Step::Literal(b"-errorcode".to_vec()),
+                message,
+                Step::ThrowTypeCheck,
+                Step::ReturnError,
+            ],
+        });
+    };
+    let elements = tcl_syntax::list::split_native_list_bytes(literal, words.source_protocol())
+        .map_err(|_| NativeErrorCompilationUnavailable::Geometry)?;
+    let steps = if elements.is_empty() {
+        vec![
+            message,
+            Step::Pop,
+            Step::Literal(THROW_EMPTY_TYPE_MESSAGE.to_vec()),
+            Step::Literal(THROW_EMPTY_TYPE_OPTIONS.to_vec()),
+            Step::ReturnError,
+        ]
+    } else {
+        let mut options = b"-errorcode ".to_vec();
+        tcl_syntax::list::append_list_element(&mut options, literal, false);
+        vec![message, Step::Literal(options), Step::ReturnError]
+    };
+    Ok(NativeErrorInstruction { steps })
+}
+
+/// Result of `throw` with an empty type.
+pub const THROW_EMPTY_TYPE_MESSAGE: &[u8] = b"type must be non-empty list";
+/// Options literal `TclCompileThrowCmd` pushes for an empty type.
+pub const THROW_EMPTY_TYPE_OPTIONS: &[u8] = b"-errorcode {TCL OPERATION THROW BADEXCEPTION}";
 
 #[cfg(test)]
 mod tests {
