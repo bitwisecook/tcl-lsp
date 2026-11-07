@@ -114,9 +114,8 @@ fn analyse_dialect(source: &str, dialect: &str) -> AnalysisResult {
 
 /// A registry with the iRules dialect loaded (events, profiles, `class …`).
 fn irules_registry() -> tcl_registry::CommandRegistry {
-    let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_irules();
-    registry
+    tcl_registry::CommandRegistry::build_default()
+        .project_for_profile(tcl_dialect::DialectProfile::irules())
 }
 
 /// The iRules compiler-checks output (`run_all_checks`) for `source`.
@@ -169,6 +168,7 @@ fn tcl_checks(
 ) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
     let analysis = lexical_taint_analysis(source, registry);
     let profile = analysis.resolved_profile().unwrap();
+    let registry = &registry.project_for_profile(profile);
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile));
     run_all_checks(&cu, registry, Some(profile))
