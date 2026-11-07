@@ -3942,6 +3942,7 @@ mod file_route_tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one table of accepted and rejected routes
     fn foreign_static_routes_resolve_through_public_paths_only() {
         let direct = foreign_manifest("rust/b/src/util.rs", "crate::util", "pub", "static");
         let reexported = foreign_manifest("rust/b/src/inner.rs", "crate::inner", "pub", "static");

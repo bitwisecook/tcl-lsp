@@ -964,6 +964,19 @@ fn possible_body_operands(
     }
 }
 
+/// Attach a proved evaluated-body region, if any, to boxed command tokens.
+#[inline(never)]
+#[allow(clippy::unnecessary_box_returns)]
+fn with_evaluated_region(
+    tokens: Box<CommandTokens>,
+    region: Option<EvaluatedBodyRegion>,
+) -> Box<CommandTokens> {
+    match region {
+        Some(region) => Box::new(tokens.with_evaluated_body(region)),
+        None => tokens,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
@@ -1663,18 +1676,5 @@ mod tests {
     fn repetition_value_contract_does_not_license_new_private_observers() {
         let source = "package require tcltest\ntrace add variable ::tcltest::Option(-iterations) read {apply {{args} {proc ::tcltest::EvalTest {args} {}}}}\nproc p {} {tcltest::test n d -setup {set x 1} -body {puts $x}}";
         assert!(region(&lower_stock_version(source, true, "2.6.0")).is_none());
-    }
-}
-
-/// Attach a proved evaluated-body region, if any, to boxed command tokens.
-#[inline(never)]
-#[allow(clippy::unnecessary_box_returns)]
-fn with_evaluated_region(
-    tokens: Box<CommandTokens>,
-    region: Option<EvaluatedBodyRegion>,
-) -> Box<CommandTokens> {
-    match region {
-        Some(region) => Box::new(tokens.with_evaluated_body(region)),
-        None => tokens,
     }
 }

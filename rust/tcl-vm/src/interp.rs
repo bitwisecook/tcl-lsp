@@ -3839,6 +3839,7 @@ impl InterpState {
         )
     }
 
+    #[allow(clippy::too_many_lines)] // one interpreter construction
     fn fresh_in_environment(
         out: OutputWriter,
         environment: FreshSemanticEnvironment,
@@ -17642,6 +17643,7 @@ impl Vm {
         )
     }
 
+    #[allow(clippy::too_many_lines)] // one trace dispatch, step by step
     fn fire_var_traces_from_parts(
         &mut self,
         invocation: VarTraceInvocation<'_>,

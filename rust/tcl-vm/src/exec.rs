@@ -697,6 +697,7 @@ impl Frame {
         })
     }
 
+    #[allow(clippy::too_many_lines)] // one frame construction
     pub(crate) fn new(unit: crate::compiled::CompiledUnit, is_proc: bool) -> Self {
         if unit.jim_script.is_none() {
             unit.asm
