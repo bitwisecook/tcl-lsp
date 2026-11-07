@@ -3933,13 +3933,29 @@ impl<'r> Lowerer<'r> {
         seg: &SegmentedCommand,
         namespace: &str,
     ) -> CommandLoweringSelection {
-        use CommandLoweringSelection::Lowered;
+        match self.select_command_lowering(seg, namespace) {
+            CommandLoweringStep::Selected(selection) => selection,
+            CommandLoweringStep::Default => {
+                CommandLoweringSelection::Lowered(self.lower_default_boxed(seg, namespace))
+            }
+        }
+    }
+
+    /// Decide how a command lowers. The default lowering recurses into
+    /// evaluated bodies, so it is left to the caller: this frame, with every
+    /// branch's temporaries, is then not held across that recursion.
+    #[inline(never)]
+    fn select_command_lowering(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) -> CommandLoweringStep {
         // Analysis uses the selected logical handler in its owned source scope.
         // Bytecode separately requires original native compiler admission.
         let tokens = self.cmd_tokens_boxed(seg);
         self.record_namespace_directives(&tokens, namespace);
         if let Some(declaration) = self.try_lower_rule_loader_declaration(seg, namespace, &tokens) {
-            return Lowered(declaration);
+            return CommandLoweringStep::lowered(declaration);
         }
         if self.target.is_bytecode()
             && crate::registry_invocation::proved_native_admitted_inline_operation(&tokens)
@@ -3953,14 +3969,14 @@ impl<'r> Lowerer<'r> {
                 .try_lower_authored_procedure_declaration(seg, namespace, &tokens)
                 .or_else(|| self.try_lower_logical_procedure_declaration(seg, namespace, &tokens))
         {
-            return Lowered(Box::new(statement));
+            return CommandLoweringStep::lowered(Box::new(statement));
         }
         if !self.target.is_bytecode()
             && !self.target.is_trace_visible()
             && let Some(statement) =
                 self.try_lower_original_operand_evaluation_update(seg, namespace, &tokens)
         {
-            return Lowered(statement);
+            return CommandLoweringStep::lowered(statement);
         }
         let resolved_name = if self.target.is_bytecode() {
             let target = tokens
@@ -3977,7 +3993,7 @@ impl<'r> Lowerer<'r> {
                 .as_ref()
                 .is_none_or(|target| !target.prepended.is_empty())
             {
-                return Lowered(self.lower_default_boxed(seg, namespace));
+                return CommandLoweringStep::Default;
             }
             if let Some(admitted) = crate::registry_invocation::admitted_native_compiler_invocation(
                 self.registry,
@@ -3988,11 +4004,11 @@ impl<'r> Lowerer<'r> {
             } else if let Some(label) = self.retained_metadata_descriptor_label(&tokens) {
                 label
             } else {
-                return Lowered(self.lower_default_boxed(seg, namespace));
+                return CommandLoweringStep::Default;
             }
         } else {
             let Some(logical) = self.logical_structured_invocation(&tokens) else {
-                return Lowered(self.lower_default_boxed(seg, namespace));
+                return CommandLoweringStep::Default;
             };
             logical.descriptor_key().label().to_owned()
         };
@@ -4012,7 +4028,7 @@ impl<'r> Lowerer<'r> {
 
         // Trace-visible compilation retains runtime dispatch at every site.
         if self.target.is_trace_visible() {
-            return Lowered(self.lower_default_boxed(seg, namespace));
+            return CommandLoweringStep::Default;
         }
 
         if self.target.is_bytecode()
@@ -4029,13 +4045,13 @@ impl<'r> Lowerer<'r> {
                 && let Some(statement) =
                     self.try_lower_proc_declaration_boxed(seg, namespace, resolved_name)
             {
-                return Lowered(statement);
+                return CommandLoweringStep::lowered(statement);
             }
-            return Lowered(self.lower_default_boxed(seg, namespace));
+            return CommandLoweringStep::Default;
         }
 
         if let Some(statement) = self.try_registered_lowering_hook(resolved_name, seg, namespace) {
-            return Lowered(statement);
+            return CommandLoweringStep::lowered(statement);
         }
 
         // Registry-driven hook-ID dispatch covers all 17
@@ -4047,7 +4063,9 @@ impl<'r> Lowerer<'r> {
         // `{*}`-expansion barrier for them.  Commands that
         // aren't in the registry, or whose hook is `None`, fall
         // through to [`lower_default`] in [`Self::lower_command`].
-        CommandLoweringSelection::Structured(resolved_name.to_owned())
+        CommandLoweringStep::Selected(CommandLoweringSelection::Structured(
+            resolved_name.to_owned(),
+        ))
     }
 
     /// Retain an attempted update's original read plan without admitting its
@@ -5663,15 +5681,27 @@ impl<'r> Lowerer<'r> {
 
     /// Default lowering: generic [`Statement::Call`] with registry-based
     /// arg roles.
+    fn lower_default(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        let tokens = self.attach_evaluated_body(seg, namespace, self.cmd_tokens_boxed(seg));
+        // Only the evaluated-body attachment recurses; the rest of the
+        // statement is built in a non-inlined leaf, so its locals are not
+        // held in the frame of every enclosing body level.
+        self.lower_default_with_tokens(seg, namespace, tokens)
+    }
+
     // The generic path deliberately assembles every registry-owned call fact
     // in one place so consumers never need per-command recovery logic.
     #[allow(clippy::too_many_lines)]
-    fn lower_default(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+    #[inline(never)]
+    fn lower_default_with_tokens(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+        tokens: Box<CommandTokens>,
+    ) -> Statement {
+        let tokens = *tokens;
         let cmd_name = seg.name();
         let args = seg.args();
-
-        let original_tokens = self.cmd_tokens(seg);
-        let tokens = self.attach_evaluated_body(seg, namespace, original_tokens);
         let Some(target) = tokens
             .source_binding
             .as_ref()
@@ -12837,6 +12867,20 @@ mod original_script_purpose_tests {
             assert!(module.methods.is_empty());
             assert!(module.oo_evidence.unretained_executable_roots);
         }
+    }
+}
+
+/// [`Lowerer::select_command_lowering`]'s answer: a finished selection, or the
+/// default lowering, which the caller performs.
+enum CommandLoweringStep {
+    Selected(CommandLoweringSelection),
+    Default,
+}
+
+impl CommandLoweringStep {
+    #[allow(clippy::unnecessary_box_returns)]
+    fn lowered(statement: Box<Statement>) -> Self {
+        Self::Selected(CommandLoweringSelection::Lowered(statement))
     }
 }
 

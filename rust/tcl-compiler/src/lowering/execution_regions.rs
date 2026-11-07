@@ -286,8 +286,10 @@ impl Lowerer<'_> {
         &mut self,
         seg: &SegmentedCommand,
         namespace: &str,
-        tokens: CommandTokens,
-    ) -> CommandTokens {
+        tokens: Box<CommandTokens>,
+    ) -> Box<CommandTokens> {
+        // Every level of nested body lowering passes through here, so the
+        // tokens cross it boxed and the region assembly runs in leaf helpers.
         if self.compilation_scope == tcl_runtime_api::SourceCompilationScope::EnteredSource
             && crate::registry_invocation::proved_native_admitted_inline_operation(&tokens)
                 .is_none()
@@ -295,13 +297,22 @@ impl Lowerer<'_> {
             return tokens;
         }
         if let Some(region) = self.prove_dictionary_scope(seg, namespace, &tokens) {
-            return tokens.with_evaluated_body(region);
+            return with_evaluated_region(tokens, Some(region));
         }
         let Some(selected) = self.prove_captured_lifecycle(seg, &tokens) else {
-            return self
-                .prove_possible_bodies(seg, namespace, &tokens)
-                .map_or(tokens.clone(), |region| tokens.with_evaluated_body(region));
+            let region = self.prove_possible_bodies(seg, namespace, &tokens);
+            return with_evaluated_region(tokens, region);
         };
+        self.attach_captured_lifecycle(seg, tokens, selected)
+    }
+
+    #[inline(never)]
+    fn attach_captured_lifecycle(
+        &mut self,
+        seg: &SegmentedCommand,
+        tokens: Box<CommandTokens>,
+        selected: SelectedLifecycle,
+    ) -> Box<CommandTokens> {
         let lower = |this: &mut Self, source: BodyText| {
             let Some((source, namespace)) = source else {
                 return Script::new();
@@ -315,16 +326,18 @@ impl Lowerer<'_> {
         let setup = lower(self, selected.setup);
         let body = lower(self, selected.body);
         let cleanup = lower(self, selected.cleanup);
-        tokens.with_evaluated_body(
-            EvaluatedBodyRegion::captured_lifecycle(
-                SourceSite::source(seg.span),
-                setup,
-                body,
-                cleanup,
-                RegionSelection::MaySkip,
-                selected.dependencies,
-            )
-            .with_repetition(selected.repetition),
+        Box::new(
+            tokens.with_evaluated_body(
+                EvaluatedBodyRegion::captured_lifecycle(
+                    SourceSite::source(seg.span),
+                    setup,
+                    body,
+                    cleanup,
+                    RegionSelection::MaySkip,
+                    selected.dependencies,
+                )
+                .with_repetition(selected.repetition),
+            ),
         )
     }
 
@@ -1650,5 +1663,18 @@ mod tests {
     fn repetition_value_contract_does_not_license_new_private_observers() {
         let source = "package require tcltest\ntrace add variable ::tcltest::Option(-iterations) read {apply {{args} {proc ::tcltest::EvalTest {args} {}}}}\nproc p {} {tcltest::test n d -setup {set x 1} -body {puts $x}}";
         assert!(region(&lower_stock_version(source, true, "2.6.0")).is_none());
+    }
+}
+
+/// Attach a proved evaluated-body region, if any, to boxed command tokens.
+#[inline(never)]
+#[allow(clippy::unnecessary_box_returns)]
+fn with_evaluated_region(
+    tokens: Box<CommandTokens>,
+    region: Option<EvaluatedBodyRegion>,
+) -> Box<CommandTokens> {
+    match region {
+        Some(region) => Box::new(tokens.with_evaluated_body(region)),
+        None => tokens,
     }
 }
