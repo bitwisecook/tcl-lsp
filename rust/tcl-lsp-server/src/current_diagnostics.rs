@@ -1161,6 +1161,9 @@ impl Backend {
             workspace_declared_commands: file
                 .workspace_declared_commands(&*context.captured.snapshot)
                 .clone(),
+            workspace_source_modules: file
+                .workspace_source_modules(&*context.captured.snapshot)
+                .clone(),
             config: proposal_diagnostics::ConfigInput {
                 disabled_diagnostics: config
                     .disabled_diagnostics(&*context.captured.snapshot)

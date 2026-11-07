@@ -39,6 +39,7 @@ pub struct OriginalAnalyserSourceSettings {
     workspace_class_factories: Option<Arc<super::types::ClassFactoryIndex>>,
     workspace_subclass_methods: Option<Arc<super::types::SubclassProvidedMethods>>,
     workspace_declared_commands: Option<Arc<tcl_registry::model::DeclaredSurface>>,
+    workspace_source_modules: Option<Arc<Vec<crate::command_binding::TrustedSourceModuleLoader>>>,
 }
 impl Hash for OriginalAnalyserSourceSettings {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -67,6 +68,7 @@ impl OriginalAnalyserSourceSettings {
             workspace_class_factories: analyser.workspace_class_factories.clone(),
             workspace_subclass_methods: analyser.workspace_subclass_methods.clone(),
             workspace_declared_commands: analyser.workspace_declared_commands.clone(),
+            workspace_source_modules: analyser.workspace_source_modules.clone(),
         }
     }
     pub(crate) fn apply(&self, analyser: &mut Analyser) {
@@ -93,6 +95,9 @@ impl OriginalAnalyserSourceSettings {
         analyser
             .workspace_declared_commands
             .clone_from(&self.workspace_declared_commands);
+        analyser
+            .workspace_source_modules
+            .clone_from(&self.workspace_source_modules);
     }
 }
 

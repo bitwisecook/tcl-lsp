@@ -6445,6 +6445,11 @@ async fn refresh_cross_file_evidence(
             subclass_moved.push(moved);
         }
     }
+    for moved in sync_workspace_source_modules(handles).await {
+        if !subclass_moved.contains(&moved) {
+            subclass_moved.push(moved);
+        }
+    }
     if subclass_moved.iter().any(|u| u == uri)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
@@ -7305,6 +7310,71 @@ async fn sync_workspace_declared_commands(handles: &EvidenceHandles) -> Vec<Uri>
             continue;
         }
         file.set_workspace_declared_commands(&mut *db).to(want);
+        changed.push(uri.clone());
+    }
+    changed
+}
+
+/// Offer every document the sibling files that define classes, as an implicit
+/// auto-load index: a call to one of those classes while it is absent sources
+/// the whole sibling file, as `auto_load` does from a `tclIndex` entry. A
+/// document never offers itself.
+///
+/// Compare-then-set, like the other evidence syncs.
+async fn sync_workspace_source_modules(handles: &EvidenceHandles) -> Vec<Uri> {
+    use salsa::Setter as _;
+    let classes_by_uri = {
+        let index = handles.workspace_index.read().await;
+        let mut classes_by_uri: HashMap<String, Vec<String>> = HashMap::new();
+        for class in index.live_classes() {
+            classes_by_uri.entry(class.uri.clone()).or_default().push(
+                tcl_registry::rooted_command_descriptor_label(&class.qualified_name),
+            );
+        }
+        classes_by_uri
+    };
+    let mut db = handles.db.lock().await;
+    let db_files = handles.db_files.lock().await;
+    let providers: Vec<(
+        Uri,
+        tcl_compiler::command_binding::TrustedSourceModuleLoader,
+    )> = db_files
+        .iter()
+        .filter_map(|(uri, &file)| {
+            let mut names = classes_by_uri.get(uri.as_str())?.clone();
+            names.sort_unstable();
+            names.dedup();
+            let text: Arc<str> = Arc::from(file.text(&*db).as_str());
+            let path = file
+                .path(&*db)
+                .clone()
+                .unwrap_or_else(|| uri.as_str().to_owned());
+            let implementation = format!("workspace:{}", uri.as_str());
+            Some((
+                uri.clone(),
+                tcl_compiler::command_binding::TrustedSourceModuleLoader::new(
+                    tcl_dialect::model::Family::Tcl,
+                    path,
+                    None,
+                    implementation,
+                    &text,
+                )
+                .with_autoload(names),
+            ))
+        })
+        .collect();
+    let mut changed = Vec::new();
+    for (uri, &file) in db_files.iter() {
+        let modules = providers
+            .iter()
+            .filter(|(owner, _)| owner != uri)
+            .map(|(_, loader)| loader.clone())
+            .collect::<Vec<_>>();
+        let want = (!modules.is_empty()).then(|| Arc::new(modules));
+        if file.workspace_source_modules(&*db) == &want {
+            continue;
+        }
+        file.set_workspace_source_modules(&mut *db).to(want);
         changed.push(uri.clone());
     }
     changed
@@ -15429,12 +15499,15 @@ impl Backend {
             }
         };
         let file_path = path_admission.analyser_path().map(str::to_owned);
-        let workspace_declared_commands = {
+        let (workspace_declared_commands, workspace_source_modules) = {
             let db = self.db.lock().await;
             let db_files = self.db_files.lock().await;
-            db_files
-                .get(uri)
-                .and_then(|file| file.workspace_declared_commands(&*db).clone())
+            db_files.get(uri).map_or((None, None), |file| {
+                (
+                    file.workspace_declared_commands(&*db).clone(),
+                    file.workspace_source_modules(&*db).clone(),
+                )
+            })
         };
         let inputs = fresh_analysis_cache::FreshAnalyserInputs {
             disabled: disabled.clone(),
@@ -15443,6 +15516,7 @@ impl Backend {
             pack_key,
             resource: resource.clone(),
             workspace_declared_commands: workspace_declared_commands.clone(),
+            workspace_source_modules: workspace_source_modules.clone(),
         };
         let driver = FreshAnalysisDriver {
             path_admission,
@@ -15450,6 +15524,7 @@ impl Backend {
             analyser: Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
                 .with_workspace_class_factories(workspace_class_factories)
                 .with_workspace_declared_commands(workspace_declared_commands)
+                .with_workspace_source_modules(workspace_source_modules)
                 .with_file_path(file_path),
             analyser_inputs_epoch,
             class_factory_generation,
@@ -33400,6 +33475,7 @@ impl Backend {
         );
         sync_workspace_subclass_methods(handles).await;
         sync_workspace_declared_commands(handles).await;
+        sync_workspace_source_modules(handles).await;
         workspace_scan_trace!(
             "scan.subclass.end elapsed_ms={}",
             scan_started.elapsed().as_millis()

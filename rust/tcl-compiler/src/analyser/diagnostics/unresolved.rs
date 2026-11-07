@@ -186,6 +186,20 @@ impl Analyser {
                 .is_some()
     }
 
+    /// Whether a sibling workspace file is offered to auto-load `name`: the
+    /// stock `unknown` handler sources it on the absent call, as `auto_load`
+    /// does from a `tclIndex` entry.
+    fn is_workspace_autoloaded(&self, name: &str) -> bool {
+        let rooted = tcl_registry::rooted_command_descriptor_label(name);
+        self.workspace_source_modules
+            .as_deref()
+            .is_some_and(|modules| {
+                modules
+                    .iter()
+                    .any(|module| module.autoload.iter().any(|offered| offered == &rooted))
+            })
+    }
+
     /// Diagnostic-only presence from the retained positioned lookup. Presence
     /// suppresses an absence advisory without allocating a public target.
     #[must_use]
@@ -331,7 +345,10 @@ impl Analyser {
             self.result
                 .unresolved_command_sites
                 .push((inv.range, name.clone()));
-            if !emit_w123 || !inv.is_mathfunc_call && self.is_workspace_declared(name) {
+            if !emit_w123
+                || !inv.is_mathfunc_call
+                    && (self.is_workspace_declared(name) || self.is_workspace_autoloaded(name))
+            {
                 continue;
             }
 

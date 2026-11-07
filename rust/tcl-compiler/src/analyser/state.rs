@@ -1122,6 +1122,10 @@ pub struct Analyser {
     /// Procedures other workspace documents define that a call may trust,
     /// as declarations; the document's own declarations win over them.
     pub workspace_declared_commands: Option<std::sync::Arc<tcl_registry::model::DeclaredSurface>>,
+    /// Sibling workspace files an implicit auto-load index offers, sourced in
+    /// full when the document calls one of their commands while it is absent.
+    pub workspace_source_modules:
+        Option<std::sync::Arc<Vec<crate::command_binding::TrustedSourceModuleLoader>>>,
     /// When `true` (the per-item shell walk), `handle_proc_command` / OO method
     /// walks record their body for separate analysis (`deferred_bodies`) instead
     /// of recursing into it immediately.  Set only for the shell pass; the
@@ -1703,6 +1707,7 @@ impl Analyser {
             workspace_class_factories: None,
             workspace_subclass_methods: None,
             workspace_declared_commands: None,
+            workspace_source_modules: None,
             defer_proc_bodies: false,
             pack_definer_seen: false,
             structural_rebind: false,
@@ -2054,6 +2059,17 @@ impl Analyser {
         self
     }
 
+    /// Offer sibling workspace files for auto-loading, returning `self` for
+    /// builder-style chaining.
+    #[must_use]
+    pub fn with_workspace_source_modules(
+        mut self,
+        modules: Option<std::sync::Arc<Vec<crate::command_binding::TrustedSourceModuleLoader>>>,
+    ) -> Self {
+        self.workspace_source_modules = modules;
+        self
+    }
+
     /// `own` over the workspace declarations: the document's own win.
     pub(super) fn with_workspace_declarations(
         &self,
@@ -2146,7 +2162,8 @@ impl Analyser {
             self.unit_profile.unwrap_or(self.profile),
             self.analysis_context(),
             self.file_lexer_config(),
-        );
+        )
+        .with_workspace_source_modules(self.workspace_source_modules.clone());
         match self.vendor_source_name_policy() {
             Some(policy) => input.with_vendor_source_policy(policy),
             None => input,
@@ -2229,6 +2246,9 @@ impl Analyser {
             &input,
             None,
             self.workspace_declared_commands.as_deref(),
+            self.workspace_source_modules
+                .as_deref()
+                .map_or(&[][..], Vec::as_slice),
         );
         crate::realm::document_package_index_survey_realm_with_resolved_input(
             source,
@@ -2295,6 +2315,9 @@ impl Analyser {
             &input,
             entry,
             self.workspace_declared_commands.as_deref(),
+            self.workspace_source_modules
+                .as_deref()
+                .map_or(&[][..], Vec::as_slice),
         );
         crate::realm::document_realm_with_declared_contracts(source, &input, entry, &declarations)
             .with_analyser_source_settings(Arc::new(
@@ -2352,6 +2375,9 @@ impl Analyser {
             region.input(),
             Some(&entry),
             self.workspace_declared_commands.as_deref(),
+            self.workspace_source_modules
+                .as_deref()
+                .map_or(&[][..], Vec::as_slice),
         );
         if !region.accepts_analyser(self)
             || !entry
@@ -2407,6 +2433,9 @@ impl Analyser {
             &input,
             Some(&entry),
             self.workspace_declared_commands.as_deref(),
+            self.workspace_source_modules
+                .as_deref()
+                .map_or(&[][..], Vec::as_slice),
         );
         if !point.accepts_child_contracts(contracts.with_options(entry.options())) {
             return None;

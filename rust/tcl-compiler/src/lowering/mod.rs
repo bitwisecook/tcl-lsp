@@ -1474,6 +1474,23 @@ impl<'r> Lowerer<'r> {
         self
     }
 
+    /// The driver's module contracts, else the workspace modules the document
+    /// input offers for auto-loading.
+    fn effective_source_modules(&self) -> &[crate::command_binding::TrustedSourceModuleLoader] {
+        if self.trusted_source_modules.is_empty() {
+            self.metadata_input
+                .as_ref()
+                .or(self.logical_source_input.as_ref())
+                .or(self.vendor_source_input.as_ref())
+                .map_or(
+                    &[],
+                    crate::analyser::ResolvedAnalysisInput::workspace_source_modules,
+                )
+        } else {
+            &self.trusted_source_modules
+        }
+    }
+
     /// Set the document's analysis dialect (see [`Lowerer::dialect`]).
     ///
     /// `None` means the caller named *no* dialect — deliberately distinct
@@ -1877,7 +1894,7 @@ impl<'r> Lowerer<'r> {
                 .or(self.declared_commands)
                 .cloned(),
             trusted_package_loaders: self.trusted_package_loaders.clone(),
-            trusted_source_modules: self.trusted_source_modules.clone(),
+            trusted_source_modules: self.effective_source_modules().to_vec(),
             unknown_entry: self.unknown_entry,
             invocation_dialect: self.invocation_dialect,
             compiled_variable_provider: self.compiled_variable_provider,
@@ -2426,7 +2443,7 @@ impl<'r> Lowerer<'r> {
                     .as_ref()
                     .or(self.declared_commands),
                 trusted_package_loaders: &self.trusted_package_loaders,
-                trusted_source_modules: &self.trusted_source_modules,
+                trusted_source_modules: self.effective_source_modules(),
                 unknown_entry: self.unknown_entry || self.nest_depth > 1,
                 invocation_dialect: self.invocation_dialect,
                 compiled_variable_provider: self.compiled_variable_provider,

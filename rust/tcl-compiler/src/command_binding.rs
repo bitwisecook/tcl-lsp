@@ -1221,6 +1221,10 @@ pub struct TrustedSourceModuleLoader {
     pub encoding: Option<String>,
     /// Exact decoded source and its driver-owned file implementation identity.
     pub source: ExecutedScriptSource,
+    /// Rooted command names an auto-load index maps to this file. When one is
+    /// called while absent under the stock `unknown` handler, the file is
+    /// sourced in full and the call retried, as `auto_load` does.
+    pub autoload: Vec<String>,
 }
 
 impl TrustedSourceModuleLoader {
@@ -1248,7 +1252,15 @@ impl TrustedSourceModuleLoader {
                 origin,
                 mapping: ExecutedScriptMapping::Contiguous { base: 0 },
             },
+            autoload: Vec::new(),
         }
+    }
+
+    /// The same contract, auto-loadable for each of `names` (rooted).
+    #[must_use]
+    pub fn with_autoload(mut self, names: Vec<String>) -> Self {
+        self.autoload = names;
+        self
     }
 
     /// Validate a selected native file read against this exact retained contract.
@@ -11118,8 +11130,17 @@ impl SourceCommandBindings {
             effective,
             ..
         } = input;
-        let binding =
+        let mut binding =
             Self::prepare_original_source_binding(words, segment.span.start(), state, context);
+        if binding
+            .as_deref()
+            .is_some_and(|binding| binding.may_be_absent && binding.targets.is_empty())
+            && let Some(loaded) = self.autoload_absent_command(effective, state, context)
+        {
+            *state = *loaded;
+            binding =
+                Self::prepare_original_source_binding(words, segment.span.start(), state, context);
+        }
         let Some(binding) = binding else {
             state.mark_opaque_binding_mutation();
             outcomes.join(&SourceOutcomes::invocation(
@@ -16178,7 +16199,14 @@ impl ModuleCommandBindings {
             .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
             .collect(),
         );
-        baseline.trusted_source_modules = options.trusted_source_modules.to_vec();
+        baseline.trusted_source_modules = if options.trusted_source_modules.is_empty() {
+            options
+                .logical_source_input
+                .or(options.vendor_source_input)
+                .map_or_else(Vec::new, |input| input.workspace_source_modules().to_vec())
+        } else {
+            options.trusted_source_modules.to_vec()
+        };
         baseline.trusted_loaders = options
             .trusted_package_loaders
             .iter()

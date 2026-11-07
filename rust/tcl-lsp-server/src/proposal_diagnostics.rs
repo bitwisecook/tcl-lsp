@@ -47,6 +47,8 @@ pub(super) struct SourceInput {
     pub(super) workspace_subclass_methods: Option<Arc<SubclassProvidedMethods>>,
     pub(super) sidecar_stubs_epoch: u64,
     pub(super) workspace_declared_commands: Option<Arc<tcl_registry::model::DeclaredSurface>>,
+    pub(super) workspace_source_modules:
+        Option<Arc<Vec<tcl_compiler::command_binding::TrustedSourceModuleLoader>>>,
     pub(super) config: ConfigInput,
 }
 
@@ -134,6 +136,7 @@ pub(super) fn build(
             row.workspace_subclass_methods,
             row.sidecar_stubs_epoch,
             row.workspace_declared_commands,
+            row.workspace_source_modules,
         );
         let config = AnalyserConfig::new(
             &db,

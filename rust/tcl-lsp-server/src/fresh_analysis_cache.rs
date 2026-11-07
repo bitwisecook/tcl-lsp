@@ -61,6 +61,8 @@ pub(super) struct FreshAnalyserInputs {
     pub(super) pack_key: u64,
     pub(super) resource: ResourceAnalyserInputs,
     pub(super) workspace_declared_commands: Option<Arc<tcl_registry::model::DeclaredSurface>>,
+    pub(super) workspace_source_modules:
+        Option<Arc<Vec<tcl_compiler::command_binding::TrustedSourceModuleLoader>>>,
 }
 
 /// Everything a fresh analysis of one document depends on.

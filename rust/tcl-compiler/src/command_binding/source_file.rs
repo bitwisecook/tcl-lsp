@@ -27,6 +27,89 @@ use tcl_registry::completion_route::InvocationCompletionRoute as Route;
 use tcl_registry::source_file::SourceFileSelection;
 
 impl SourceCommandBindings {
+    /// Evaluate a trusted module's whole script at the global level under its
+    /// own source origin, restoring the caller's origin on every outcome.
+    fn walk_module_script(
+        &mut self,
+        script: &super::ExecutedScriptSource,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+        compilation: Option<tcl_registry::native_compilation::NativeCompilationContext>,
+    ) -> SourceOutcomes {
+        let previous_origin = state
+            .current_source_origin
+            .replace(Arc::clone(&script.origin));
+        let control = context
+            .control
+            .with_realm(tcl_dialect::model::InvocationRealm::InterpreterRuntime);
+        let mut evaluated = self.walk_source_image(
+            &script.text,
+            script.base(),
+            state,
+            &SourceExecutionContext {
+                control: match compilation {
+                    Some(compilation) => control.with_compilation(compilation),
+                    None => control,
+                },
+                compilation_snapshot: None,
+                selected_compilation: None,
+                original_variable_compilation: None,
+                depth: context.depth + 1,
+                ..context
+            },
+        );
+        evaluated.restore_source_origin(previous_origin.as_ref());
+        evaluated
+    }
+
+    /// `auto_load` for an absent command: the stock `unknown` handler sources
+    /// the one file an index maps the name to, then the call is retried. Only
+    /// a load that completes normally and defines the name is taken; anything
+    /// else leaves the absent call as it was.
+    pub(super) fn autoload_absent_command(
+        &mut self,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<ModuleCommandBindings>> {
+        let crate::registry_invocation::EffectiveInvocationWord::Literal(head) =
+            effective.first()?
+        else {
+            return None;
+        };
+        if state.has_opaque_domain()
+            || state.baseline.native_entry.is_some()
+            || state.loader_handler_unknown
+            || !state.unknown_handler_is_original()
+        {
+            return None;
+        }
+        let namespace = context
+            .namespace_key
+            .cloned()
+            .unwrap_or_else(|| super::SourceNamespaceKey::authored(context.namespace));
+        let rooted = tcl_registry::rooted_command_descriptor_label(head);
+        let mut loaders = state
+            .baseline
+            .trusted_source_modules
+            .iter()
+            .filter(|loader| loader.autoload.iter().any(|name| name == &rooted));
+        let loader = loaders.next()?.clone();
+        if loaders.next().is_some()
+            || state
+                .current_source_origin
+                .as_ref()
+                .is_some_and(|origin| origin == &loader.source.origin)
+        {
+            return None;
+        }
+        let mut branch = super::boxed_source_branch(state);
+        let evaluated = self.walk_module_script(&loader.source, &mut branch, *context, None);
+        let loaded = evaluated.normal?;
+        let after = super::source_binding_projection(&loaded, head, &namespace);
+        (!after.unknown && !after.may_be_absent && !after.targets.is_empty()).then_some(loaded)
+    }
+
     pub(super) fn walk_selected_source_file(
         &mut self,
         native: SourceNativeInvocation<'_>,
@@ -74,26 +157,7 @@ impl SourceCommandBindings {
         };
         let compilation =
             spec.body_context(state.baseline.compilation_dialect(), context.compilation());
-        let previous_origin = state
-            .current_source_origin
-            .replace(Arc::clone(&script.origin));
-        let mut evaluated = self.walk_source_image(
-            &script.text,
-            script.base(),
-            state,
-            &SourceExecutionContext {
-                control: (context)
-                    .control
-                    .with_realm(tcl_dialect::model::InvocationRealm::InterpreterRuntime)
-                    .with_compilation(compilation),
-                compilation_snapshot: None,
-                selected_compilation: None,
-                original_variable_compilation: None,
-                depth: context.depth + 1,
-                ..context
-            },
-        );
-        evaluated.restore_source_origin(previous_origin.as_ref());
+        let evaluated = self.walk_module_script(&script, state, context, Some(compilation));
         let mut outcomes = SourceOutcomes::default();
         if let Some(normal) = &evaluated.normal {
             outcomes.add_with_result(

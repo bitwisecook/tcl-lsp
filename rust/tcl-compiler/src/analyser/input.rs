@@ -31,6 +31,7 @@ pub struct ResolvedAnalysisInput {
     pub(super) context: Arc<tcl_registry::model::ContextRegistry>,
     pub(super) config: tcl_lexer::LexerConfig,
     vendor_source_policy: Option<tcl_syntax::naming::VendorSourceNamePolicy>,
+    workspace_source_modules: Option<Arc<Vec<crate::command_binding::TrustedSourceModuleLoader>>>,
 }
 
 impl ResolvedAnalysisInput {
@@ -51,6 +52,7 @@ impl ResolvedAnalysisInput {
             context,
             config,
             vendor_source_policy: None,
+            workspace_source_modules: None,
         }
     }
 
@@ -62,6 +64,25 @@ impl ResolvedAnalysisInput {
             config: self.config.nested().normalized(),
             ..self.clone()
         }
+    }
+
+    /// Sibling workspace files the document may auto-load; part of the
+    /// document's input, so analysis and compilation see the same world.
+    #[must_use]
+    pub fn with_workspace_source_modules(
+        mut self,
+        modules: Option<Arc<Vec<crate::command_binding::TrustedSourceModuleLoader>>>,
+    ) -> Self {
+        self.workspace_source_modules = modules.filter(|modules| !modules.is_empty());
+        self
+    }
+
+    /// The sibling workspace files this input offers for auto-loading.
+    #[must_use]
+    pub fn workspace_source_modules(&self) -> &[crate::command_binding::TrustedSourceModuleLoader] {
+        self.workspace_source_modules
+            .as_deref()
+            .map_or(&[], Vec::as_slice)
     }
 
     /// Explicit hosted source policy, including contexts without a catalogue
@@ -166,6 +187,7 @@ impl PartialEq for ResolvedAnalysisInput {
             && self.unit_profile.cache_key() == other.unit_profile.cache_key()
             && self.config == other.config
             && self.vendor_source_policy == other.vendor_source_policy
+            && self.workspace_source_modules == other.workspace_source_modules
             && Arc::ptr_eq(&self.context, &other.context)
     }
 }
@@ -178,6 +200,7 @@ impl std::hash::Hash for ResolvedAnalysisInput {
         self.unit_profile.cache_key().hash(state);
         self.config.hash(state);
         self.vendor_source_policy.hash(state);
+        self.workspace_source_modules.hash(state);
         Arc::as_ptr(&self.context).hash(state);
     }
 }

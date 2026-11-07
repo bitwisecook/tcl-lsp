@@ -29,7 +29,10 @@ use super::{TrustedPackageLoader, TrustedSourceModuleLoader};
 /// remains the only metadata query door; no runtime lookup follows from it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[doc(hidden)]
-pub struct SourceDeclaredCommandContracts(tcl_registry::model::DeclaredSurface);
+pub struct SourceDeclaredCommandContracts(
+    tcl_registry::model::DeclaredSurface,
+    Vec<TrustedSourceModuleLoader>,
+);
 impl SourceDeclaredCommandContracts {
     pub(crate) fn for_document(
         source: &str,
@@ -37,6 +40,7 @@ impl SourceDeclaredCommandContracts {
         input: &crate::analyser::ResolvedAnalysisInput,
         entry: Option<&SourceAnalysisEntry>,
         workspace: Option<&tcl_registry::model::DeclaredSurface>,
+        modules: &[TrustedSourceModuleLoader],
     ) -> Arc<Self> {
         // naming.source.original-declared-command-word-contract
         // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
@@ -59,7 +63,12 @@ impl SourceDeclaredCommandContracts {
                 result.declare(command.clone());
             }
         }
-        Arc::new(Self(result))
+        let modules = if modules.is_empty() {
+            input.workspace_source_modules()
+        } else {
+            modules
+        };
+        Arc::new(Self(result, modules.to_vec()))
     }
 
     pub(super) fn owned_surface(&self) -> tcl_registry::model::DeclaredSurface {
@@ -73,6 +82,9 @@ impl SourceDeclaredCommandContracts {
         // naming.source.original-declared-command-word-contract
         // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
         options.declared_commands = Some(&self.0);
+        if options.trusted_source_modules.is_empty() {
+            options.trusted_source_modules = &self.1;
+        }
         options
     }
 
@@ -216,7 +228,7 @@ impl SourceAnalysisOptions<'_> {
     ) -> Option<Arc<SourceDeclaredCommandContracts>> {
         self.declared_commands
             .cloned()
-            .map(|surface| Arc::new(SourceDeclaredCommandContracts(surface)))
+            .map(|surface| Arc::new(SourceDeclaredCommandContracts(surface, Vec::new())))
     }
 
     pub(crate) fn retained_vendor_source_input(

@@ -671,6 +671,11 @@ pub struct SourceFile {
     /// Set by the server (compare-then-set) like the evidence fields above.
     #[returns(ref)]
     pub workspace_declared_commands: Option<Arc<DeclaredSurface>>,
+    /// Sibling files this document may auto-load: each offers the classes it
+    /// defines, sourced in full when the document calls one while absent.
+    #[returns(ref)]
+    pub workspace_source_modules:
+        Option<Arc<Vec<tcl_compiler::command_binding::TrustedSourceModuleLoader>>>,
 }
 
 impl SourceFile {
@@ -684,7 +689,7 @@ impl SourceFile {
         dialect: String,
         path: Option<String>,
     ) -> Self {
-        Self::with_call_site_evidence(db, text, dialect, path, None, None, None, 0, None)
+        Self::with_call_site_evidence(db, text, dialect, path, None, None, None, 0, None, None)
     }
 }
 
@@ -802,6 +807,7 @@ fn document_analyser_without_factory_oracle(
         .with_file_path(file.path(db).clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone())
         .with_workspace_declared_commands(file.workspace_declared_commands(db).clone())
+        .with_workspace_source_modules(file.workspace_source_modules(db).clone())
 }
 
 fn document_analyser(
