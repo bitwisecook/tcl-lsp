@@ -1078,8 +1078,7 @@ where
 {
     optimise_source_multipass_with_input(
         source,
-        registry,
-        input,
+        (registry, input, None),
         max_iterations,
         OptimisationSourcePurpose::Supplied,
         admit,
@@ -1100,10 +1099,35 @@ pub fn optimise_source_multipass_admitting_standalone_with_analysis_input<F>(
 where
     F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
 {
+    optimise_source_multipass_admitting_standalone_at(
+        source,
+        None,
+        (registry, input),
+        max_iterations,
+        admit,
+    )
+}
+
+/// [`optimise_source_multipass_admitting_standalone_with_analysis_input`]
+/// for the file at `file_path`, whose stub sidecar declares commands as
+/// the diagnostics read them (#2366).
+#[must_use]
+pub fn optimise_source_multipass_admitting_standalone_at<F>(
+    source: &str,
+    file_path: Option<&str>,
+    (registry, input): (
+        &CommandRegistry,
+        Option<&crate::analyser::ResolvedAnalysisInput>,
+    ),
+    max_iterations: usize,
+    admit: F,
+) -> (String, Vec<Optimisation>, usize)
+where
+    F: FnMut(&str, Vec<Optimisation>) -> Vec<Optimisation>,
+{
     optimise_source_multipass_with_input(
         source,
-        registry,
-        input,
+        (registry, input, file_path),
         max_iterations,
         OptimisationSourcePurpose::Standalone,
         admit,
@@ -1118,8 +1142,11 @@ enum OptimisationSourcePurpose {
 
 fn optimise_source_multipass_with_input<F>(
     source: &str,
-    registry: &CommandRegistry,
-    input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    (registry, input, file_path): (
+        &CommandRegistry,
+        Option<&crate::analyser::ResolvedAnalysisInput>,
+        Option<&str>,
+    ),
     max_iterations: usize,
     purpose: OptimisationSourcePurpose,
     admit: F,
@@ -1144,7 +1171,7 @@ where
         |current| {
             let declared = crate::analyser::utils::document_declared_surface(
                 current,
-                None,
+                file_path,
                 input.analyser_profile().name,
             );
             let options = crate::compilation_unit::UnitBuildOptions {

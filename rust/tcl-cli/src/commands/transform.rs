@@ -34,7 +34,7 @@ use tcl_lsp_core::minify::{
 };
 
 use tcl_compiler::optimiser::profiles::OptimisationProfile;
-use tcl_lsp_core::diagnostic_report::optimise_under_policy;
+use tcl_lsp_core::diagnostic_report::optimise_under_policy_at;
 
 use crate::cli::{ColourArgs, InputArgs};
 use crate::commands::policy::{ConfigLayers, invocation_layer};
@@ -186,10 +186,13 @@ pub fn run_opt(
             std::sync::Arc::new(context),
             tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
         );
-        let out = optimise_under_policy(
+        // The file's stub sidecar declares commands for the optimiser as it
+        // does for `tcl diag` (#2366).
+        let file_path = document.path.as_deref().map(|p| p.display().to_string());
+        let out = optimise_under_policy_at(
             &source,
-            &registry,
-            Some(&analysis_input),
+            file_path.as_deref(),
+            (&registry, Some(&analysis_input)),
             policy.optimiser.profile.max_iterations(),
             &policy,
         );

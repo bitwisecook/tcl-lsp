@@ -44,7 +44,7 @@ use tcl_compiler::analyser::{Analyser, AnalysisResult, bidi_control_diagnostics}
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::optimiser::{
-    Optimisation, optimise_source_multipass_admitting_standalone_with_analysis_input,
+    Optimisation, optimise_source_multipass_admitting_standalone_at,
     optimise_source_multipass_admitting_with_analysis_input, optimise_unit,
 };
 use tcl_compiler::unit_scope::CallSiteEvidence;
@@ -394,7 +394,7 @@ pub struct OptimisedSource {
 ///
 /// This explicit standalone facade serves `tcl opt` and the MCP `optimize`
 /// tool. Current document callers use [`optimise_under_policy_from_analysis`].
-/// The loop is the optimiser's ([`optimise_source_multipass_admitting_standalone_with_analysis_input`]), which re-runs the
+/// The loop is the optimiser's ([`optimise_source_multipass_admitting_standalone_at`]), which re-runs the
 /// optimiser over each pass's text; this function is what it admits on a
 /// pass, so the multipass loop has one owner.
 #[must_use]
@@ -402,6 +402,22 @@ pub fn optimise_under_policy(
     source: &str,
     registry: &CommandRegistry,
     input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+    max_iterations: usize,
+    policy: &Policy,
+) -> OptimisedSource {
+    optimise_under_policy_at(source, None, (registry, input), max_iterations, policy)
+}
+
+/// [`optimise_under_policy`] for the file at `file_path`: its stub sidecar
+/// declares commands for the optimiser as it does for `tcl diag` (#2366).
+#[must_use]
+pub fn optimise_under_policy_at(
+    source: &str,
+    file_path: Option<&str>,
+    (registry, input): (
+        &CommandRegistry,
+        Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+    ),
     max_iterations: usize,
     policy: &Policy,
 ) -> OptimisedSource {
@@ -420,27 +436,26 @@ pub fn optimise_under_policy(
             iterations: 0,
         };
     };
-    let (text, applied, iterations) =
-        optimise_source_multipass_admitting_standalone_with_analysis_input(
-            source,
-            registry,
-            Some(input),
-            max_iterations,
-            |current, candidates| {
-                let current_analysis = Analyser::new()
-                    .with_resolved_input(input.clone())
-                    .analyse(current, input.analyser_profile().name);
-                let mut pass_policy = policy.clone();
-                pass_policy.directives = Directives::from_analysis(&current_analysis, current);
-                let report = apply(
-                    candidates.iter().cloned().map(Finding::from).collect(),
-                    &pass_policy,
-                );
-                // A group applies whole or not at all: a directive over one
-                // member of an O127 pair keeps the other off too (#2149).
-                report.applicable_items(candidates)
-            },
-        );
+    let (text, applied, iterations) = optimise_source_multipass_admitting_standalone_at(
+        source,
+        file_path,
+        (registry, Some(input)),
+        max_iterations,
+        |current, candidates| {
+            let current_analysis = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(current, input.analyser_profile().name);
+            let mut pass_policy = policy.clone();
+            pass_policy.directives = Directives::from_analysis(&current_analysis, current);
+            let report = apply(
+                candidates.iter().cloned().map(Finding::from).collect(),
+                &pass_policy,
+            );
+            // A group applies whole or not at all: a directive over one
+            // member of an O127 pair keeps the other off too (#2149).
+            report.applicable_items(candidates)
+        },
+    );
     OptimisedSource {
         text,
         applied,
