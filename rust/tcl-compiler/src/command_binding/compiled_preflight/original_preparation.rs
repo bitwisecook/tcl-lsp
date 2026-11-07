@@ -288,21 +288,32 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Regexp(recipe) => {
                 self.original_operands(words, recipe.original_operands().cloned(), context)
             }
-            NativeInstructionPlan::DictionaryCreate(create) => {
-                use tcl_registry::native_dictionary_compilation::NativeDictionaryCreateInstruction as Create;
-                match create {
-                    Create::Constant(_) => {
-                        self.original_operands(words, std::iter::empty(), context)
-                    }
-                    Create::Put(operands) | Create::Worker(operands) => {
-                        self.original_operands(words, operands.iter().cloned(), context)
-                    }
-                }
+            NativeInstructionPlan::StringIs(_) | NativeInstructionPlan::DictionaryCreate(_) => {
+                self.original_construction_operands(words, recipe, context)
             }
             _ => {
                 self.require_provider();
                 None
             }
+        }
+    }
+
+    /// The original operands a `string is` or `dict create` recipe compiles.
+    fn original_construction_operands(
+        &mut self,
+        words: &[WordExpr],
+        recipe: &NativeInstructionPlan,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        use tcl_registry::native_dictionary_compilation::NativeDictionaryCreateInstruction as Create;
+        match recipe {
+            NativeInstructionPlan::StringIs(recipe) => {
+                self.original_operands(words, std::iter::once(recipe.subject.clone()), context)
+            }
+            NativeInstructionPlan::DictionaryCreate(
+                Create::Put(operands) | Create::Worker(operands),
+            ) => self.original_operands(words, operands.iter().cloned(), context),
+            _ => self.original_operands(words, std::iter::empty(), context),
         }
     }
 

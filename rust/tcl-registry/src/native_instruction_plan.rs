@@ -67,6 +67,8 @@ pub enum NativeInstructionPlan {
     DictionaryLookup(crate::native_dictionary_compilation::NativeDictionaryLookupInstruction),
     /// Original dictionary mutation operands and physical receiver.
     DictionaryMutation(crate::native_dictionary_compilation::NativeDictionaryMutationInstruction),
+    /// `TclCompileStringIsCmd` beyond the scalar `ascii` form.
+    StringIs(crate::native_string_is_compilation::NativeStringIsInstruction),
     /// Original `dict create` constant, put or worker construction.
     DictionaryCreate(crate::native_dictionary_compilation::NativeDictionaryCreateInstruction),
     /// Original dictionary scope slots, auxiliaries and protected writeback.
@@ -1027,6 +1029,27 @@ fn selected_uplevel_instruction(
     })
 }
 
+/// Non-strict `ascii` keeps its scalar form; other classes use the full recipe.
+fn string_is_instruction_plan(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: crate::native_scalar_compilation::NativeScalarScope,
+    version: tcl_dialect::TclVersion,
+) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
+    crate::native_string_is_compilation::instruction(words, operand_from, scope, version)
+        .map(NativeInstructionPlan::Scalar)
+        .or_else(|| {
+            crate::native_string_is_compilation::string_is_instruction(
+                words,
+                operand_from,
+                scope,
+                version,
+            )
+            .map(NativeInstructionPlan::StringIs)
+        })
+        .ok_or(NativeInstructionPlanUnavailable::OperandGeometry)
+}
+
 fn selected_projected_instruction_plan(
     spec: NativeCompilationSpec,
     words: &NativeCompilerWords<'_>,
@@ -1086,11 +1109,12 @@ fn selected_projected_instruction_plan(
         );
     }
     if let NativeCompilationGrammar::StringIsAscii(scope) = spec.grammar {
-        return Some(
-            crate::native_string_is_compilation::instruction(words, operand_from, scope, version)
-                .map(NativeInstructionPlan::Scalar)
-                .ok_or(Unavailable::OperandGeometry),
-        );
+        return Some(string_is_instruction_plan(
+            words,
+            operand_from,
+            scope,
+            version,
+        ));
     }
     if let NativeCompilationGrammar::StringRange(scope) = spec.grammar {
         return Some(selected_string_range_instruction_plan(

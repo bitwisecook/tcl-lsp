@@ -51,12 +51,160 @@ fn simple(shape: Shape) -> bool {
     )
 }
 
-/// Select only the exact class/value branch exercised by the pack hook.
+/// A class branch of `TclCompileStringIsCmd`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeStringIsClass {
+    /// `STR_CLASS` with C's `InstStringClassType` (`alnum` 0 … `xdigit` 12).
+    Character(u8),
+    /// `boolean`: `tryCvtToBoolean`.
+    Boolean,
+    /// `true`.
+    True,
+    /// `false`.
+    False,
+    /// `double`: any `numericType`.
+    Double,
+    /// `integer`: C8.6 `numericType == 1`, C9 `numericType <= 3`.
+    Integer,
+    /// `wideinteger`: `numericType <= 2`.
+    Wide,
+    /// `entier`: `numericType <= 3`.
+    Entier,
+    /// `dict` (C9): caught `dictVerify`.
+    Dict,
+    /// `list`: caught `listLength`.
+    List,
+}
+
+/// One selected `string is` compilation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NativeStringIsInstruction {
+    /// Selected class branch.
+    pub class: NativeStringIsClass,
+    /// `-strict`: the empty string does not satisfy the class.
+    pub strict: bool,
+    /// The single compiled subject word.
+    pub subject: crate::native_compiler_word_projection::NativeCompilerWordOperand,
+}
+
+/// `isClasses` in the release's `TclCompileStringIsCmd`, in table order.
+fn class_table(version: TclVersion) -> &'static [(&'static [u8], NativeStringIsClass)] {
+    use NativeStringIsClass as C;
+    const C86: &[(&[u8], NativeStringIsClass)] = &[
+        (b"alnum", C::Character(0)),
+        (b"alpha", C::Character(1)),
+        (b"ascii", C::Character(2)),
+        (b"control", C::Character(3)),
+        (b"boolean", C::Boolean),
+        (b"digit", C::Character(4)),
+        (b"double", C::Double),
+        (b"entier", C::Entier),
+        (b"false", C::False),
+        (b"graph", C::Character(5)),
+        (b"integer", C::Integer),
+        (b"list", C::List),
+        (b"lower", C::Character(6)),
+        (b"print", C::Character(7)),
+        (b"punct", C::Character(8)),
+        (b"space", C::Character(9)),
+        (b"true", C::True),
+        (b"upper", C::Character(10)),
+        (b"wideinteger", C::Wide),
+        (b"wordchar", C::Character(11)),
+        (b"xdigit", C::Character(12)),
+    ];
+    const C9: &[(&[u8], NativeStringIsClass)] = &[
+        (b"alnum", C::Character(0)),
+        (b"alpha", C::Character(1)),
+        (b"ascii", C::Character(2)),
+        (b"control", C::Character(3)),
+        (b"boolean", C::Boolean),
+        (b"dict", C::Dict),
+        (b"digit", C::Character(4)),
+        (b"double", C::Double),
+        (b"entier", C::Entier),
+        (b"false", C::False),
+        (b"graph", C::Character(5)),
+        (b"integer", C::Integer),
+        (b"list", C::List),
+        (b"lower", C::Character(6)),
+        (b"print", C::Character(7)),
+        (b"punct", C::Character(8)),
+        (b"space", C::Character(9)),
+        (b"true", C::True),
+        (b"upper", C::Character(10)),
+        (b"wideinteger", C::Wide),
+        (b"wordchar", C::Character(11)),
+        (b"xdigit", C::Character(12)),
+    ];
+    if version >= TclVersion::V9_0 { C9 } else { C86 }
+}
+
+/// `Tcl_GetIndexFromObj` without `TCL_EXACT`: an exact name, else a unique
+/// prefix. Anything else is the compile-time "bad class" syntax error.
+fn resolve_class(name: &[u8], version: TclVersion) -> Option<NativeStringIsClass> {
+    let table = class_table(version);
+    if let Some((_, class)) = table.iter().find(|(entry, _)| *entry == name) {
+        return Some(*class);
+    }
+    let mut matches = table.iter().filter(|(entry, _)| entry.starts_with(name));
+    match (matches.next(), matches.next()) {
+        (Some((_, class)), None) if !name.is_empty() => Some(*class),
+        _ => None,
+    }
+}
+
+/// C's `GotLiteral(tokenPtr, "-strict")`: a simple word of at least two
+/// bytes that is a prefix of `-strict`.
+fn strict_option(shape: Shape, literal: Option<&[u8]>) -> bool {
+    simple(shape) && literal.is_some_and(|word| word.len() > 1 && b"-strict".starts_with(word))
+}
+
+/// The class and strictness `TclCompileStringIsCmd` compiles, or the
+/// selection it makes instead.
+fn select_class(
+    shapes: &[Shape],
+    literal: &dyn Fn(usize) -> Option<Vec<u8>>,
+    from: usize,
+    version: TclVersion,
+) -> Result<(NativeStringIsClass, bool), NativeCompilationSelection> {
+    use NativeCompilationSelection as Selection;
+    let Some(arguments) = shapes.get(from..) else {
+        return Err(Selection::Unknown);
+    };
+    if arguments
+        .iter()
+        .any(|shape| matches!(shape, Shape::Opaque | Shape::Expanded))
+    {
+        return Err(Selection::Unknown);
+    }
+    // Only a compile-known class with an optional `-strict` is modelled.
+    // A dynamic class, `-failindex`, a bad class (its compile-time syntax
+    // error) and other options keep their context-proven declines elsewhere.
+    let Some(name) = literal(from).filter(|_| simple(arguments[0])) else {
+        return Err(Selection::Unknown);
+    };
+    let class = resolve_class(&name, version).ok_or(Selection::Unknown)?;
+    let strict = match arguments.len() {
+        2 => false,
+        3 if strict_option(arguments[1], literal(from + 1).as_deref()) => true,
+        _ => return Err(Selection::Unknown),
+    };
+    // C9.1 rewrote every branch but non-strict STR_CLASS around `isEmpty`
+    // and `swap`, which have no portable instruction here.
+    if version >= TclVersion::V9_1
+        && (strict || !matches!(class, NativeStringIsClass::Character(_)))
+    {
+        return Err(Selection::Unknown);
+    }
+    Ok((class, strict))
+}
+
+/// Select `TclCompileStringIsCmd` from argument shapes and literals.
 #[must_use]
 pub fn select_shapes(
     shapes: &[Shape],
-    member: Option<&[u8]>,
-    class: Option<&[u8]>,
+    literal: &dyn Fn(usize) -> Option<Vec<u8>>,
     scope: NativeScalarScope,
     version: TclVersion,
     operation: SemanticOperationId,
@@ -66,24 +214,18 @@ pub fn select_shapes(
         return Selection::Generic;
     }
     let from = usize::from(scope == NativeScalarScope::PublicMember);
-    if from == 1 && !(shapes.first().is_some_and(|shape| simple(*shape)) && member == Some(b"is")) {
-        return Selection::Unknown;
-    }
-    let Some(arguments) = shapes.get(from..) else {
-        return Selection::Unknown;
-    };
-    if arguments.len() != 2
-        || !simple(arguments[0])
-        || class != Some(b"ascii")
-        || arguments
-            .iter()
-            .any(|shape| matches!(shape, Shape::Opaque | Shape::Expanded))
+    if from == 1
+        && !(shapes.first().is_some_and(|shape| simple(*shape))
+            && literal(0).as_deref() == Some(b"is"))
     {
         return Selection::Unknown;
     }
-    Selection::Inline {
-        operation,
-        guard: NativeCompilationGuard::BeforeArguments,
+    match select_class(shapes, literal, from, version) {
+        Ok(_) => Selection::Inline {
+            operation,
+            guard: NativeCompilationGuard::BeforeArguments,
+        },
+        Err(selection) => selection,
     }
 }
 
@@ -221,26 +363,24 @@ pub fn select_original(
     let Some(arguments) = projected.get(operand_from..) else {
         return NativeCompilationSelection::Unknown;
     };
-    let from = usize::from(scope == NativeScalarScope::PublicMember);
     let shapes: Vec<_> = arguments.iter().map(|word| word.shape).collect();
     select_shapes(
         &shapes,
-        arguments.first().and_then(|word| word.literal.as_deref()),
-        arguments.get(from).and_then(|word| word.literal.as_deref()),
+        &|index| arguments.get(index).and_then(|word| word.literal.clone()),
         scope,
         version,
         operation,
     )
 }
 
-/// `CompileWord(subject)` once; the compile-known class is never a runtime operand.
+/// The selected class branch over its single compiled subject word.
 #[must_use]
-pub fn instruction(
+pub fn string_is_instruction(
     words: &NativeCompilerWords<'_>,
     operand_from: usize,
     scope: NativeScalarScope,
     version: TclVersion,
-) -> Option<NativeScalarInstruction> {
+) -> Option<NativeStringIsInstruction> {
     if !matches!(
         select_original(
             words,
@@ -254,10 +394,42 @@ pub fn instruction(
         return None;
     }
     let projected = project_native_compiler_words(words, version).ok()?;
-    let from = operand_from + usize::from(scope == NativeScalarScope::PublicMember);
-    Some(NativeScalarInstruction {
-        operation: NativeScalarOperation::StringIsAscii,
-        operands: vec![projected.get(from + 1)?.operand.clone()],
+    let arguments = projected.get(operand_from..)?;
+    let from = usize::from(scope == NativeScalarScope::PublicMember);
+    let shapes: Vec<_> = arguments.iter().map(|word| word.shape).collect();
+    let (class, strict) = select_class(
+        &shapes,
+        &|index| arguments.get(index).and_then(|word| word.literal.clone()),
+        from,
+        version,
+    )
+    .ok()?;
+    let subject = arguments
+        .get(from + 1 + usize::from(strict))?
+        .operand
+        .clone();
+    Some(NativeStringIsInstruction {
+        class,
+        strict,
+        subject,
+    })
+}
+
+/// `CompileWord(subject)` once; the compile-known class is never a runtime operand.
+/// Only the non-strict `ascii` branch uses this scalar form.
+#[must_use]
+pub fn instruction(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: NativeScalarScope,
+    version: TclVersion,
+) -> Option<NativeScalarInstruction> {
+    let recipe = string_is_instruction(words, operand_from, scope, version)?;
+    (recipe.class == NativeStringIsClass::Character(2) && !recipe.strict).then(|| {
+        NativeScalarInstruction {
+            operation: NativeScalarOperation::StringIsAscii,
+            operands: vec![recipe.subject],
+        }
     })
 }
 
@@ -735,11 +907,10 @@ mod tests {
     fn unmodeled_original_class_options_and_expansions_keep_refusing() {
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
             for source in [
-                b"string is ascii -strict $subject".as_slice(),
-                b"string is ascii -failindex out $subject",
-                b"string is alpha $subject",
+                b"string is ascii -failindex out $subject".as_slice(),
                 b"string is $class $subject",
-                b"string is asc $subject",
+                b"string is ascii -bogus $subject",
+                b"string is nosuchclass $subject",
                 b"string is ascii {*}$subject",
                 b"string is {*}{ascii value}",
             ] {
@@ -761,6 +932,55 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn known_classes_prefixes_and_strict_compile_as_their_release_does() {
+        use NativeStringIsClass as Class;
+        for (version, source, expected) in [
+            (
+                TclVersion::V8_6,
+                b"string is alpha $s".as_slice(),
+                Some((Class::Character(1), false)),
+            ),
+            (
+                TclVersion::V9_0,
+                b"string is asc -strict $s",
+                Some((Class::Character(2), true)),
+            ),
+            (
+                TclVersion::V9_0,
+                b"string is int -st $s",
+                Some((Class::Integer, true)),
+            ),
+            (
+                TclVersion::V9_0,
+                b"string is dict $s",
+                Some((Class::Dict, false)),
+            ),
+            // C8.6 has no dict class, and `d` is ambiguous in both tables.
+            (TclVersion::V8_6, b"string is dict $s", None),
+            (TclVersion::V9_0, b"string is d $s", None),
+            // GotLiteral needs at least two bytes of `-strict`.
+            (TclVersion::V9_0, b"string is upper - $s", None),
+            // C9.1 keeps only non-strict STR_CLASS without `isEmpty`.
+            (
+                TclVersion::V9_1,
+                b"string is upper $s",
+                Some((Class::Character(10), false)),
+            ),
+            (TclVersion::V9_1, b"string is upper -strict $s", None),
+            (TclVersion::V9_1, b"string is boolean $s", None),
+        ] {
+            let source_words = words(source, version);
+            let original =
+                NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
+                    .unwrap();
+            let recipe =
+                string_is_instruction(&original, 1, NativeScalarScope::PublicMember, version)
+                    .map(|recipe| (recipe.class, recipe.strict));
+            assert_eq!(recipe, expected, "{version:?}: {source:?}");
+        }
+    }
+
     #[test]
     fn old_or_missing_compiler_point_cannot_make_a_native_plan() {
         let registry = crate::CommandRegistry::build_default();

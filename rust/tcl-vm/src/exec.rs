@@ -7534,16 +7534,10 @@ impl Vm {
             // `TCL_NUMBER_NAN` = 5. The `string is integer/double` inline forms
             // test this against `<= 3` (integer) or `!= 0` (double/any numeric).
             Op::NUMERIC_TYPE => {
-                use tcl_syntax::number::{Number, parse_whole};
+                let version = self.runtime_version();
                 let v = pop(f);
-                let code = match parse_whole(v.to_str().trim()) {
-                    Some(Number::Int(_)) => 2,
-                    Some(Number::Big { .. }) => 3,
-                    Some(Number::Double(_)) => 4,
-                    Some(Number::Nan { .. }) => 5,
-                    None => 0,
-                };
-                f.stack.push(Value::int(code));
+                f.stack
+                    .push(Value::int(native_numeric_type(&v.to_str(), version)));
             }
 
             Op::TAILCALL | Op::TAILCALL4 => {
@@ -12745,3 +12739,37 @@ mod native_missing_command_result_tests;
 #[cfg(test)]
 #[path = "exec/active_manifest_tests.rs"]
 mod active_manifest_tests;
+
+/// `INST_NUM_TYPE` over the release's numeral grammar. C9 reports the raw
+/// `TCL_NUMBER_*` (int 2, big 3, double 4, nan 5). C8.6 refines it for
+/// `string is`: a long is `TCL_NUMBER_LONG` (1) only within `±UINT_MAX`,
+/// else `TCL_NUMBER_WIDE` (2); a bignum within `±UWIDE_MAX` is wide too.
+fn native_numeric_type(text: &str, version: tcl_dialect::TclVersion) -> i64 {
+    use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
+    let parsed = parse_whole_with(text.trim(), ParseFlags::for_syntax(version.number_syntax()));
+    let refined = version < tcl_dialect::TclVersion::V9_0;
+    match parsed {
+        Some(Number::Int(value)) if refined => {
+            if u32::try_from(value.unsigned_abs()).is_ok() {
+                1
+            } else {
+                2
+            }
+        }
+        Some(Number::Int(_)) => 2,
+        Some(Number::Big { radix, digits, .. }) => {
+            let wide = refined
+                && digits
+                    .chars()
+                    .try_fold(0_u128, |acc, digit| {
+                        let value = u128::from(digit.to_digit(radix as u32)?);
+                        acc.checked_mul(radix as u128)?.checked_add(value)
+                    })
+                    .is_some_and(|magnitude| magnitude <= u128::from(u64::MAX));
+            if wide { 2 } else { 3 }
+        }
+        Some(Number::Double(_)) => 4,
+        Some(Number::Nan { .. }) => 5,
+        None => 0,
+    }
+}

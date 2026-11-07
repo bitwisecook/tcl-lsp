@@ -32,6 +32,14 @@ use tcl_compiler::word_subst::whole_word_command_tokens;
 use tcl_registry::hooks::InlineCodegenHookId;
 #[path = "statements/native_array.rs"]
 mod native_array;
+fn is_op(code: Op) -> NativeEmissionTask {
+    NativeEmissionTask::Operation(code, vec![])
+}
+
+fn is_jump(code: Op, label: &str) -> NativeEmissionTask {
+    NativeEmissionTask::Operation(code, vec![Operand::Label(label.to_owned())])
+}
+
 #[cfg(test)]
 #[path = "statements/native_clock_tests.rs"]
 mod native_clock_tests;
@@ -2982,8 +2990,9 @@ impl CodegenCtx<'_> {
                 self.append_native_list_tasks(command, plan, version, recipe, operations)
             }
             selected @ (NativeInstructionPlan::Constant { .. }
-            | NativeInstructionPlan::DictionaryCreate(_)) => {
-                self.append_native_construction_tasks(command, selected, operations)
+            | NativeInstructionPlan::DictionaryCreate(_)
+            | NativeInstructionPlan::StringIs(_)) => {
+                self.append_native_construction_tasks(command, selected, version, operations)
             }
             selected @ (NativeInstructionPlan::Load { .. }
             | NativeInstructionPlan::Store { .. }
@@ -3475,14 +3484,228 @@ impl CodegenCtx<'_> {
         true
     }
 
+    /// `TclCompileStringIsCmd` (C8.6/C9.0): the subject, then the class
+    /// branch's own test sequence.
+    fn append_native_string_is_tasks(
+        &mut self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_string_is_compilation::NativeStringIsInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use tcl_registry::native_string_is_compilation::NativeStringIsClass as Class;
+        let Some(subject) = Self::native_namespace_word_task(&command.words, recipe.subject) else {
+            return false;
+        };
+        operations.push(subject);
+        let strict = recipe.strict;
+        match recipe.class {
+            Class::Character(class) => {
+                self.append_string_is_character_tasks(class, strict, version, operations);
+            }
+            Class::Boolean | Class::True | Class::False => {
+                self.append_string_is_boolean_tasks(recipe.class, strict, operations);
+            }
+            Class::Double => self.append_string_is_double_tasks(strict, operations),
+            Class::Integer | Class::Wide | Class::Entier => {
+                self.append_string_is_integer_tasks(recipe.class, strict, version, operations);
+            }
+            Class::Dict | Class::List => {
+                let handler = self.fresh_label("is_catch");
+                operations.extend([
+                    NativeEmissionTask::BeginNativeCatch(handler.clone()),
+                    is_op(Op::DUP),
+                ]);
+                if recipe.class == Class::Dict {
+                    operations.push(is_op(Op::VERIFY_DICT));
+                } else {
+                    operations.extend([is_op(Op::LIST_LENGTH), is_op(Op::POP)]);
+                }
+                operations.extend([
+                    NativeEmissionTask::Label(handler),
+                    is_op(Op::POP),
+                    is_op(Op::PUSH_RETURN_CODE),
+                    NativeEmissionTask::EndNativeCatch,
+                    is_op(Op::LNOT),
+                ]);
+            }
+        }
+        true
+    }
+
+    fn append_string_is_character_tasks(
+        &mut self,
+        class: u8,
+        strict: bool,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) {
+        use NativeEmissionTask as Task;
+        let test = if class == 2 {
+            Task::SwitchOperation(Op::STR_CLASS, vec![Operand::Imm(2)], version)
+        } else {
+            Task::Operation(Op::STR_CLASS, vec![Operand::Imm(i32::from(class))])
+        };
+        if !strict {
+            operations.push(test);
+            return;
+        }
+        let (over, over2) = (self.fresh_label("is_over"), self.fresh_label("is_over2"));
+        operations.extend([
+            is_op(Op::DUP),
+            test,
+            is_jump(Op::JUMP_TRUE1, &over),
+            is_op(Op::POP),
+            Task::Literal(b"0".to_vec()),
+            is_jump(Op::JUMP1, &over2),
+            Task::Label(over),
+            Task::Literal(Vec::new()),
+            is_op(Op::STR_NEQ),
+            Task::Label(over2),
+        ]);
+    }
+
+    fn append_string_is_boolean_tasks(
+        &mut self,
+        class: tcl_registry::native_string_is_compilation::NativeStringIsClass,
+        strict: bool,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) {
+        use NativeEmissionTask as Task;
+        use tcl_registry::native_string_is_compilation::NativeStringIsClass as Class;
+        operations.push(is_op(Op::TRY_CVT_TO_BOOLEAN));
+        if class == Class::Boolean {
+            if strict {
+                operations.extend([
+                    Task::Operation(Op::REVERSE, vec![Operand::Imm(2)]),
+                    is_op(Op::POP),
+                ]);
+            } else {
+                let (over, over2) = (self.fresh_label("is_over"), self.fresh_label("is_over2"));
+                operations.extend([
+                    is_jump(Op::JUMP_TRUE1, &over),
+                    Task::Literal(Vec::new()),
+                    is_op(Op::STR_EQ),
+                    is_jump(Op::JUMP1, &over2),
+                    Task::Label(over),
+                    is_op(Op::POP),
+                    Task::Literal(b"1".to_vec()),
+                    Task::Label(over2),
+                ]);
+            }
+            return;
+        }
+        let over = self.fresh_label("is_over");
+        let truth = class == Class::True;
+        operations.push(is_jump(Op::JUMP_TRUE1, &over));
+        if strict {
+            operations.extend([
+                is_op(Op::POP),
+                Task::Literal(if truth { b"0" } else { b"1" }.to_vec()),
+            ]);
+        } else {
+            operations.extend([
+                Task::Literal(Vec::new()),
+                is_op(if truth { Op::STR_EQ } else { Op::STR_NEQ }),
+            ]);
+        }
+        operations.extend([Task::Label(over), is_op(Op::LNOT)]);
+        if truth {
+            operations.push(is_op(Op::LNOT));
+        }
+    }
+
+    fn append_string_is_double_tasks(
+        &mut self,
+        strict: bool,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) {
+        use NativeEmissionTask as Task;
+        let (satisfied, end) = (self.fresh_label("is_satisfied"), self.fresh_label("is_end"));
+        if strict {
+            operations.extend([
+                is_op(Op::NUMERIC_TYPE),
+                is_jump(Op::JUMP_TRUE1, &satisfied),
+                Task::Literal(b"0".to_vec()),
+                is_jump(Op::JUMP1, &end),
+                Task::Label(satisfied),
+            ]);
+        } else {
+            let empty = self.fresh_label("is_empty");
+            operations.extend([
+                is_op(Op::DUP),
+                Task::Literal(Vec::new()),
+                is_op(Op::STR_EQ),
+                is_jump(Op::JUMP_TRUE1, &empty),
+                is_op(Op::NUMERIC_TYPE),
+                is_jump(Op::JUMP_TRUE1, &satisfied),
+                Task::Literal(b"0".to_vec()),
+                is_jump(Op::JUMP1, &end),
+                Task::Label(empty),
+                is_op(Op::POP),
+                Task::Label(satisfied),
+            ]);
+        }
+        operations.extend([Task::Literal(b"1".to_vec()), Task::Label(end)]);
+    }
+
+    fn append_string_is_integer_tasks(
+        &mut self,
+        class: tcl_registry::native_string_is_compilation::NativeStringIsClass,
+        strict: bool,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) {
+        use NativeEmissionTask as Task;
+        use tcl_registry::native_string_is_compilation::NativeStringIsClass as Class;
+        let end = self.fresh_label("is_end");
+        if strict {
+            operations.extend([
+                is_op(Op::NUMERIC_TYPE),
+                is_op(Op::DUP),
+                is_jump(Op::JUMP_FALSE1, &end),
+            ]);
+        } else {
+            let test = self.fresh_label("is_numeric");
+            operations.extend([
+                is_op(Op::DUP),
+                is_op(Op::NUMERIC_TYPE),
+                is_op(Op::DUP),
+                is_jump(Op::JUMP_TRUE1, &test),
+                is_op(Op::POP),
+                Task::Literal(Vec::new()),
+                is_op(Op::STR_EQ),
+                is_jump(Op::JUMP1, &end),
+                Task::Label(test),
+                Task::Operation(Op::REVERSE, vec![Operand::Imm(2)]),
+                is_op(Op::POP),
+            ]);
+        }
+        // C8.6 `integer` is TCL_NUMBER_LONG exactly; C9 shares entier's bound.
+        let (bound, compare) = match class {
+            Class::Wide => (b"2", Op::LE),
+            Class::Integer if version < tcl_dialect::TclVersion::V9_0 => (b"1", Op::EQ),
+            _ => (b"3", Op::LE),
+        };
+        operations.extend([
+            Task::Literal(bound.to_vec()),
+            is_op(compare),
+            Task::Label(end),
+        ]);
+    }
+
     fn append_native_construction_tasks(
         &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
         instruction: tcl_registry::native_instruction_plan::NativeInstructionPlan,
+        version: tcl_dialect::TclVersion,
         operations: &mut Vec<NativeEmissionTask>,
     ) -> bool {
         use tcl_registry::native_instruction_plan::NativeInstructionPlan;
         match instruction {
+            NativeInstructionPlan::StringIs(recipe) => {
+                self.append_native_string_is_tasks(command, recipe, version, operations)
+            }
             NativeInstructionPlan::Constant {
                 target_word,
                 target,

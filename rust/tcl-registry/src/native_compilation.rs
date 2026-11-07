@@ -4483,13 +4483,14 @@ impl NativeCompilationSpec {
                 info_commands_grammar(words, shapes, version, self.operation)
             }
             NativeCompilationGrammar::StringIsAscii(scope) => {
-                let from = usize::from(
-                    scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
-                );
                 crate::native_string_is_compilation::select_shapes(
                     shapes,
-                    words.arguments().literal_at(0).map(str::as_bytes),
-                    words.arguments().literal_at(from).map(str::as_bytes),
+                    &|index| {
+                        words
+                            .arguments()
+                            .literal_at(index)
+                            .map(|word| word.as_bytes().to_vec())
+                    },
                     scope,
                     version,
                     self.operation,

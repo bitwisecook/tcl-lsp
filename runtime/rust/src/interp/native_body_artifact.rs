@@ -1301,7 +1301,8 @@ impl Builder<'_> {
             | NativeInstructionPlan::ClockRead(_)
             | NativeInstructionPlan::StringMapIdentity(_)
             | NativeInstructionPlan::Constant { .. }
-            | NativeInstructionPlan::DictionaryCreate(_) => return Ok(None),
+            | NativeInstructionPlan::DictionaryCreate(_)
+            | NativeInstructionPlan::StringIs(_) => return Ok(None),
         }))
     }
 
