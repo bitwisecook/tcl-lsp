@@ -4006,9 +4006,18 @@ struct SourceInterpretationEntry<'a> {
     native_formals: Option<&'a Arc<OriginalNativeCompilerFormals>>,
 }
 
+/// Literal-list loop iterations one source walk unrolls exactly. Nested
+/// unrolling multiplies (62 nested two-element `foreach` loops are 2^62 body
+/// walks), so past this budget a literal-list loop takes the general
+/// join-until-stable walk every other loop uses: less precise, equally sound.
+const MAX_FINITE_SOURCE_UNROLLING: usize = 4096;
+
 /// Retained source-point command and substitution proofs for one analysed script.
 #[derive(Debug, Clone, Default)]
 pub struct SourceCommandBindings {
+    /// Loop iterations this walk has unrolled exactly from literal lists; see
+    /// [`MAX_FINITE_SOURCE_UNROLLING`]. Walk-time budget, outside equality.
+    finite_unrolled_iterations: usize,
     // Derived point-memo lifetime, outside semantic equality and hash.
     source_point_cache_lease: Option<Arc<source_analysis_cache::SourcePointCacheLease>>,
     conditional_source: conditional_source::SourceConditionalKernel,

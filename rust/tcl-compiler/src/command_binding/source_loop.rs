@@ -41,7 +41,9 @@ impl SourceCommandBindings {
         let Some(mut head) = outcomes.normal.take() else {
             return finish_source_loop(&mut outcomes, state);
         };
-        if let Some(finite) = operands.finite {
+        if let Some(finite) = operands.finite
+            && self.admit_finite_unrolling(finite.iterations())
+        {
             self.walk_finite_source_iterations(
                 finite,
                 operands,
@@ -119,6 +121,16 @@ impl SourceCommandBindings {
             }
         }
         finish_source_loop(&mut outcomes, state)
+    }
+
+    /// Spend `iterations` of the walk's exact-unrolling budget, if it allows.
+    fn admit_finite_unrolling(&mut self, iterations: usize) -> bool {
+        let spent = self.finite_unrolled_iterations.saturating_add(iterations);
+        if spent > super::MAX_FINITE_SOURCE_UNROLLING {
+            return false;
+        }
+        self.finite_unrolled_iterations = spent;
+        true
     }
 
     fn walk_finite_source_iterations(
