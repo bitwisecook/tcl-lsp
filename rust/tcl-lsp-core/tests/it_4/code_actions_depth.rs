@@ -796,15 +796,13 @@ fn inline_braced_expr_body_keeps_closing_brace() {
 // refactor-engine: switch -> dict lookup (via the code-actions surface)
 
 #[test]
-fn switch_to_dict_offered_for_uniform_assignment_switch() {
-    // A `switch -exact` whose every branch assigns the same variable from a
-    // constant is convertible to a `dict get` lookup. (The sibling port covers
-    // if->switch and extract-datagroup; switch->dict is exercised here.)
-    //
-    // tclsh: the switch and the equivalent dict agree —
-    //   set c green;
-    //   list [switch -exact -- $c red {set v 1} green {set v 2} blue {set v 3}] \
-    //        [dict get {red 1 green 2 blue 3} $c]   -> 2 2   (8.6 + 9.0).
+fn switch_to_dict_never_edits_a_switch_without_a_default() {
+    // Without a default arm the two forms differ on an unmatched key:
+    //   set color purple; set rgb old
+    //   switch -exact -- $color {red {set rgb 1} green {set rgb 2}}   ;# rgb stays old
+    //   set rgb [dict get {red 1 green 2} $color]
+    //     ;# error: key "purple" not known in dictionary
+    //   (verified tclsh8.6 + tclsh9.0). No enabled conversion may be offered.
     let src = concat!(
         "switch -exact -- $color {\n",
         "    red {set rgb 1}\n",
@@ -819,19 +817,9 @@ fn switch_to_dict_offered_for_uniform_assignment_switch() {
         Some(&analysis),
         &report_of(&analysis, src),
     );
-    let dict = find(&actions, "dict").expect("a switch->dict conversion at the switch cursor");
     assert!(
-        dict.title.to_lowercase().contains("dict"),
-        "title should mention dict: {:?}",
-        dict.title,
-    );
-    assert!(
-        !dict.edits.is_empty(),
-        "conversion must carry edits: {dict:?}"
-    );
-    assert!(
-        edits_well_formed(dict) && edits_in_bounds(dict, src),
-        "{dict:?}"
+        find(&actions, "dict").is_none_or(|action| action.edits.is_empty()),
+        "{actions:?}"
     );
 }
 
