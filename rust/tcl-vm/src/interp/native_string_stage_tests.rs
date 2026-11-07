@@ -35,8 +35,7 @@ struct Formatter {
     calls: RefCell<Vec<Call>>,
     fail: Cell<bool>,
     format_other_vm: Cell<bool>,
-    retire_name_world:
-        RefCell<Option<Rc<super::super::native_name_world::NameWorldCell>>>,
+    retire_name_world: RefCell<Option<Rc<super::super::native_name_world::NameWorldCell>>>,
     original: RefCell<Option<crate::value::NativeObjectLifetimeLease>>,
     references: RefCell<Vec<usize>>,
     retire_at: Cell<Option<&'static str>>,

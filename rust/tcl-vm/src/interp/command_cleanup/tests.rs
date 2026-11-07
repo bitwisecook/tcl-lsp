@@ -17,10 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Genuine software command-table/callback controls; no Native chronology.
-use std::cell::RefCell;
 use super::*;
 use crate::{Code, Completion, NativeCommand, Value};
 use std::cell::Cell;
+use std::cell::RefCell;
 use tcl_runtime_api::NsId;
 
 fn native(environment: &str) -> Vm {

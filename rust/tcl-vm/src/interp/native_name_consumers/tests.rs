@@ -36,8 +36,7 @@ struct Formatter {
     counts: RefCell<Vec<usize>>,
     fail: Cell<bool>,
     withdraw: RefCell<Option<Rc<super::super::native_name_world::NameWorldCell>>>,
-    withdraw_on_query:
-        RefCell<Option<Rc<super::super::native_name_world::NameWorldCell>>>,
+    withdraw_on_query: RefCell<Option<Rc<super::super::native_name_world::NameWorldCell>>>,
 }
 impl Formatter {
     fn reached(&self, stage: &'static str) {

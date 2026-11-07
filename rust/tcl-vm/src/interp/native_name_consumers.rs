@@ -18,12 +18,12 @@
 
 //! Original consumer context, independent of selected command and table roles.
 
-use crate::interp::native_name_world::NameWorldCell;
 use super::{
     NamespaceExecutionContext, Vm,
     native_name_queries::{QueryNamespace, SelectedNamespaceRetirement},
     native_operation_currency::{NativeOperationCurrency, NativeOperationScope},
 };
+use crate::interp::native_name_world::NameWorldCell;
 use crate::{
     Value, error::TclHostFailure, frame::ActivationIdentity, value::NativeObjectLifetimeLease,
 };

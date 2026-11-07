@@ -18,12 +18,12 @@
 
 //! Original lookup observations remain independent of String materialisation.
 
-use crate::interp::native_name_world::NameWorldCell;
 use super::{
     CommandSidecarKey, CommandSlot, NamespaceExecutionContext, NsId, Rc, Vm,
-    native_name_queries::QueryNamespace,
-    native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
+    native_name_queries::QueryNamespace, native_numeric_ops::OriginalNumericOps,
+    native_operation_currency::NativeOperationScope,
 };
+use crate::interp::native_name_world::NameWorldCell;
 use crate::{Value, value::NativeObjectLifetimeLease};
 use std::cell::RefCell;
 use tcl_cmd_core::CmdError;

@@ -18,11 +18,10 @@
 
 //! Original execution namespaces remain distinct from materialized coordinates.
 
-use crate::interp::native_name_world::NameWorldCell;
 use super::{
-    Vm, native_numeric_ops::OriginalNumericOps,
-    native_operation_currency::NativeOperationScope,
+    Vm, native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
 };
+use crate::interp::native_name_world::NameWorldCell;
 use crate::{Value, error::TclHostFailure, value::NativeObjectLifetimeLease};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};

@@ -18,8 +18,8 @@
 
 //! Original descendant namespace allocation and real teardown callbacks.
 
-use crate::interp::native_name_world::NameWorldCell;
 use super::{Vm, ok};
+use crate::interp::native_name_world::NameWorldCell;
 use crate::{
     Value,
     command::{Command, NativeCommand},
