@@ -194,6 +194,7 @@ impl BpfSourceScript {
         self,
         module: &Module,
         name: &str,
+        prog_type: crate::ir::ProgType,
         registry: &CommandRegistry,
     ) -> Result<BpfPreparedFunction, BpfError> {
         if !self.matches_module(module, registry) {
@@ -207,10 +208,18 @@ impl BpfSourceScript {
             None => unrolled,
         };
         crate::capability::check_policy(&expanded, &self.environment.policy, registry)?;
-        let effects = self
-            .context
-            .closed_effects_for(module, registry, &expanded, self.source.config)
-            .ok_or_else(|| unavailable(Span::empty(0)))?;
+        let Some(effects) =
+            self.context
+                .closed_effects_for(module, registry, &expanded, self.source.config)
+        else {
+            return Err(diagnose_unclosed(
+                name,
+                &expanded,
+                prog_type,
+                registry,
+                self.source.config,
+            ));
+        };
         let function = tcl_compiler::cfg_builder::build_cfg_function_in_bpf_selected_scope(
             name,
             &expanded,
@@ -238,6 +247,26 @@ pub(super) fn prepared_body(
     source.validate_script(&script, registry, BpfDiag::OutOfSubset)?;
     bind_original(&mut script, source, registry)?;
     Ok(script)
+}
+
+/// A phase the closed-effects witness refuses still owes the author the
+/// subset diagnostic its first offending statement earns (an unbounded loop,
+/// an unknown command, a coroutine). The graph built here is diagnostic only:
+/// it never reaches executable lowering.
+fn diagnose_unclosed(
+    name: &str,
+    script: &Script,
+    prog_type: crate::ir::ProgType,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> BpfError {
+    let function = tcl_compiler::cfg_builder::build_cfg_function_in_runtime_selected_scope(
+        name, script, false, registry, false, config,
+    );
+    match crate::lower::diagnose_function(&function, prog_type, registry, config) {
+        Err(error) => error,
+        Ok(()) => unavailable(Span::empty(0)),
+    }
 }
 
 fn unavailable(span: Span) -> BpfError {
@@ -422,7 +451,12 @@ when XDP {use t {a b=7}; pass}",
             crate::frontend::select_when_declaration(statement, &phase, registry).unwrap();
         let body = phase.handler_body(&selected, registry).unwrap();
         let function = body
-            .prepare_function(&module, "a label with spaces", registry)
+            .prepare_function(
+                &module,
+                "a label with spaces",
+                crate::ir::ProgType::Xdp,
+                registry,
+            )
             .unwrap();
         crate::lower::lower_prepared_function(&function, crate::ir::ProgType::Xdp, registry)
             .expect(
@@ -433,7 +467,15 @@ when XDP {use t {a b=7}; pass}",
         let selected =
             crate::frontend::select_when_declaration(statement, &phase, registry).unwrap();
         let body = phase.handler_body(&selected, registry).unwrap();
-        assert!(body.prepare_function(&changed, "main", registry).is_err());
+        assert!(
+            body.prepare_function(
+                &changed,
+                "main",
+                crate::ir::ProgType::SocketFilter,
+                registry
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -442,7 +484,7 @@ when XDP {use t {a b=7}; pass}",
         let module = super::super::lower_bpf_source("map m hash 4 8 1; accept", registry);
         let phase = BpfSourceScript::from_module(&module, registry).unwrap();
         let prepared = phase
-            .prepare_function(&module, "main", registry)
+            .prepare_function(&module, "main", crate::ir::ProgType::SocketFilter, registry)
             .expect("static selected BPF operations have no Tcl call effects");
         crate::lower::lower_prepared_function(
             &prepared,
@@ -454,7 +496,16 @@ when XDP {use t {a b=7}; pass}",
         let dynamic =
             super::super::lower_bpf_source("map m hash 4 8 1; accept [unknown]", registry);
         let phase = BpfSourceScript::from_module(&dynamic, registry).unwrap();
-        assert!(phase.prepare_function(&dynamic, "main", registry).is_err());
+        assert!(
+            phase
+                .prepare_function(
+                    &dynamic,
+                    "main",
+                    crate::ir::ProgType::SocketFilter,
+                    registry
+                )
+                .is_err()
+        );
     }
 
     #[test]
@@ -465,7 +516,12 @@ when XDP {use t {a b=7}; pass}",
         let incompatible = super::super::lower_bpf_source("map m hash 4 8 1; pass", registry);
         let incompatible_phase = BpfSourceScript::from_module(&incompatible, registry).unwrap();
         let incompatible_prepared = incompatible_phase
-            .prepare_function(&incompatible, "main", registry)
+            .prepare_function(
+                &incompatible,
+                "main",
+                crate::ir::ProgType::SocketFilter,
+                registry,
+            )
             .expect("pass remains a selected command before program-type validation");
         let error = crate::lower::lower_prepared_function(
             &incompatible_prepared,
@@ -497,7 +553,7 @@ when XDP {use t {a b=7}; pass}",
             .clone()
             .without_declarations(registry)
             .unwrap()
-            .prepare_function(&module, "main", registry)
+            .prepare_function(&module, "main", crate::ir::ProgType::SocketFilter, registry)
             .unwrap();
         if std::env::var_os("TCL_LSP_TRACE_BPF_PHASE").is_some() {
             for (ordinal, statement) in prepared

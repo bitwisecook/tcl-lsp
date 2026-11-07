@@ -96,7 +96,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     if !saw_when {
         let body = phase.clone().without_declarations(registry)?;
         if !body.script().statements.is_empty() {
-            let cfg = body.prepare_function(&module, "main", registry)?;
+            let cfg = body.prepare_function(&module, "main", ProgType::SocketFilter, registry)?;
             let program = lower_prepared_function(&cfg, ProgType::SocketFilter, registry)?;
             programs.push(BpfProgramDecl {
                 event: "SOCKET_FILTER".to_owned(),
@@ -318,7 +318,12 @@ fn lower_when_decl(
     let body = phase.handler_body(&selected, registry)?;
     let source_base = body.original_source().base();
     let cfg = body
-        .prepare_function(module, &format!("::bpf::{}", selected.event), registry)
+        .prepare_function(
+            module,
+            &format!("::bpf::{}", selected.event),
+            selected.prog_type,
+            registry,
+        )
         .map_err(|e| e.offset(source_base))?;
     let program = lower_prepared_function(&cfg, selected.prog_type, registry)
         .map_err(|e| e.offset(source_base))?;

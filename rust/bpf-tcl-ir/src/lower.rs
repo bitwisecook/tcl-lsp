@@ -85,6 +85,16 @@ pub fn lower_function(
     ))
 }
 
+/// Run the subset checks over a diagnostic-only graph, discarding the output.
+pub(crate) fn diagnose_function(
+    func: &Function,
+    prog_type: ProgType,
+    registry: &CommandRegistry,
+    lexer_config: LexerConfig,
+) -> Result<(), BpfError> {
+    lower_function_with_config(func, prog_type, registry, lexer_config, true).map(|_| ())
+}
+
 pub(crate) fn lower_prepared_function(
     prepared: &BpfPreparedFunction,
     prog_type: ProgType,
@@ -702,6 +712,12 @@ impl Lowerer<'_> {
                     "opaque runtime barriers are outside the closed BPF-Tcl subset",
                 ))
             }
+            // Diagnostic graphs carry synthetic effect markers ahead of the
+            // command that earned them; the command itself is diagnosed next.
+            Statement::Barrier {
+                tokens: Some(tokens),
+                ..
+            } if tokens.synthetic.is_some() => Ok(None),
             Statement::Barrier {
                 command,
                 canonical_command,

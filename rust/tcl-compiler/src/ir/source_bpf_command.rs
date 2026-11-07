@@ -149,9 +149,11 @@ impl SourceBpfClosedEffects {
 }
 
 // Operator/program support remains the BPF lowerer's independent obligation.
-// Literal operator trees contain no Tcl command execution. Variable nodes
-// have no BPF register-owner proof here: scalar traces and indexed substitutions
-// cannot be ruled out by syntax alone, so all variable nodes refuse.
+// Literal operator trees contain no Tcl command execution. A plain identifier
+// variable is a DSL register read: every statement of the phase is separately
+// certified as a closed BPF operation, so nothing in it can install a trace,
+// and the program runs as eBPF, never under a Tcl interpreter. Indexed,
+// qualified or otherwise non-identifier names still refuse.
 fn pure_bpf_condition(condition: &crate::expr_ast::ExprNode) -> bool {
     use crate::expr_ast::ExprNode;
     let mut pending = vec![(condition, 1)];
@@ -161,6 +163,7 @@ fn pure_bpf_condition(condition: &crate::expr_ast::ExprNode) -> bool {
         }
         match node {
             ExprNode::Literal { .. } => {}
+            ExprNode::Var { name, .. } if is_register_name(name) => {}
             ExprNode::Binary { left, right, .. } => {
                 pending.push((left, depth + 1));
                 pending.push((right, depth + 1));
@@ -170,6 +173,13 @@ fn pure_bpf_condition(condition: &crate::expr_ast::ExprNode) -> bool {
         }
     }
     true
+}
+
+fn is_register_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
 impl Module {

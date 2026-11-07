@@ -663,6 +663,7 @@ fn original_literal<'a>(
 /// a BPF-derived control region.
 fn discard_execution_proofs(script: &mut Script) {
     tcl_compiler::ir::for_each_script_mut(script, &mut |script| {
+        script.namespace_context = None;
         script.executed_source = None;
         script.implicit_math_invocations.clear();
         script.expression_preparations.clear();
