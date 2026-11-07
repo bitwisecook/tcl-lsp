@@ -10304,6 +10304,7 @@ impl Vm {
         .map_err(|error| crate::command::completion_from_tcl_error(self, error))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn dispatch_words_inner(
         &mut self,
         invocation: (&mut Frame, &crate::NativeListItems),
