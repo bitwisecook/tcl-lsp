@@ -38,6 +38,7 @@ use tcl_syntax::raw_string::NativeValueAccessRefusal;
 #[derive(Clone)]
 pub(crate) struct NativeOperationCurrency {
     interpreter: Weak<InterpState>,
+    refused: Rc<Cell<bool>>,
     host: Weak<dyn Host>,
     context: Arc<RuntimeContext>,
     profile: &'static tcl_dialect::DialectProfile,
@@ -98,7 +99,7 @@ impl SavedNativeOperationCurrency {
     }
 
     fn ensure_target(&self, actual: &Interp) -> Result<(), NativeExecutionError> {
-        if !Weak::ptr_eq(&self.interpreter, &Rc::downgrade(&actual.0)) {
+        if !std::ptr::addr_eq(self.interpreter.as_ptr(), Rc::as_ptr(&actual.0)) {
             let refusal = NativeExecutionError::ValueAccessRefusal(
                 NativeValueAccessRefusal::CommandProtocolUnavailable(
                     "saved native operation belongs to another interpreter",
@@ -176,6 +177,7 @@ impl NativeOperationCurrency {
             .ok_or_else(unavailable)?;
         let receipt = Self {
             interpreter: Rc::downgrade(&interpreter.0),
+            refused: Rc::clone(interpreter.0.native_compilation.refused_flag()),
             host: Rc::downgrade(&host),
             context: interpreter.shared_runtime_context(),
             profile: interpreter.dialect_profile(),
@@ -192,10 +194,14 @@ impl NativeOperationCurrency {
             super::constructor_diagnostics::Work::Currency,
         );
         if !crate::VERIFY_CURRENCY {
-            let state = self.interpreter.upgrade().ok_or_else(unavailable)?;
-            if !state.native_compilation.borrow().refused() {
-                return Ok(());
+            if !self.refused.get() {
+                return if self.interpreter.strong_count() == 0 {
+                    Err(unavailable())
+                } else {
+                    Ok(())
+                };
             }
+            let state = self.interpreter.upgrade().ok_or_else(unavailable)?;
             return Interp(state).native_execution_refusal().map_or(Ok(()), Err);
         }
         if self.interpreter.upgrade().is_some_and(|state| {

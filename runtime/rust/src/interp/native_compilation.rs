@@ -80,6 +80,71 @@ impl std::ops::DerefMut for CompilationState {
         &mut self.execution
     }
 }
+/// Compilation state whose every mutable borrow republishes, on release, the
+/// shared refusal flag that operation currencies read without borrowing.
+pub(super) struct CompilationCell {
+    state: RefCell<CompilationState>,
+    refused: Rc<Cell<bool>>,
+}
+
+impl Default for CompilationCell {
+    fn default() -> Self {
+        Self {
+            state: RefCell::new(CompilationState::default()),
+            refused: Rc::new(Cell::new(false)),
+        }
+    }
+}
+
+impl CompilationCell {
+    pub(super) fn borrow(&self) -> std::cell::Ref<'_, CompilationState> {
+        self.state.borrow()
+    }
+
+    #[cfg(test)]
+    pub(super) fn try_borrow(
+        &self,
+    ) -> Result<std::cell::Ref<'_, CompilationState>, std::cell::BorrowError> {
+        self.state.try_borrow()
+    }
+
+    pub(super) fn borrow_mut(&self) -> CompilationGuard<'_> {
+        CompilationGuard {
+            state: self.state.borrow_mut(),
+            refused: &self.refused,
+        }
+    }
+
+    /// The retained-refusal flag, current whenever no mutable borrow is live.
+    pub(super) fn refused_flag(&self) -> &Rc<Cell<bool>> {
+        &self.refused
+    }
+}
+
+pub(super) struct CompilationGuard<'a> {
+    state: std::cell::RefMut<'a, CompilationState>,
+    refused: &'a Cell<bool>,
+}
+
+impl std::ops::Deref for CompilationGuard<'_> {
+    type Target = CompilationState;
+    fn deref(&self) -> &CompilationState {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for CompilationGuard<'_> {
+    fn deref_mut(&mut self) -> &mut CompilationState {
+        &mut self.state
+    }
+}
+
+impl Drop for CompilationGuard<'_> {
+    fn drop(&mut self) {
+        self.refused.set(self.state.refused());
+    }
+}
+
 impl CompilationState {
     /// Whether any execution refusal cause is retained.
     pub(super) fn refused(&self) -> bool {
@@ -267,7 +332,7 @@ impl Interp {
 
     /// Actual retained host cause; guest completion state never supplies it.
     pub fn native_execution_refusal(&self) -> Option<tcl_runtime_api::NativeExecutionError> {
-        if !self.0.native_compilation.borrow().refused() {
+        if !self.0.native_compilation.refused_flag().get() {
             return None;
         }
         let state = self.native_compilation.borrow();
