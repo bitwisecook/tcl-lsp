@@ -83,7 +83,7 @@ pub(crate) fn script_value_possible_writes_with_metadata_context(
     };
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
-    script_writes(text, &context, &mut state, &mut out, 0);
+    script_writes(text, &context, &mut state, &mut out, WalkDepth::default());
     out
 }
 
@@ -115,7 +115,7 @@ pub(crate) fn script_value_name_ownership_with_metadata_context(
     };
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
-    script_writes(text, &context, &mut state, &mut out, 0);
+    script_writes(text, &context, &mut state, &mut out, WalkDepth::default());
     out
 }
 
@@ -139,7 +139,7 @@ pub(crate) fn command_possible_footprint_with_metadata_context(
     };
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
-    command_writes(words, &context, &mut state, &mut out, 0);
+    command_writes(words, &context, &mut state, &mut out, WalkDepth::default());
     out
 }
 
@@ -165,7 +165,7 @@ pub(crate) fn command_possible_reads_with_metadata_context(
     let mut state = bindings.clone();
     let mut out = VariableWriteEffects::default();
     if include_invocation {
-        command_writes(words, &context, &mut state, &mut out, 0);
+        command_writes(words, &context, &mut state, &mut out, WalkDepth::default());
     } else {
         let Some(holder) = words
             .first()
@@ -177,7 +177,14 @@ pub(crate) fn command_possible_reads_with_metadata_context(
                 ..Default::default()
             };
         };
-        reevaluated_reads(words, &context, &mut state, holder.as_ref(), &mut out, 0);
+        reevaluated_reads(
+            words,
+            &context,
+            &mut state,
+            holder.as_ref(),
+            &mut out,
+            WalkDepth::default(),
+        );
     }
     out.names.clear();
     out
@@ -231,7 +238,7 @@ pub(crate) fn expression_possible_writes_with_metadata_context(
             continue;
         };
         let before = conditional.then(|| state.clone());
-        script_writes(inner, &context, &mut state, &mut out, 0);
+        script_writes(inner, &context, &mut state, &mut out, WalkDepth::default());
         if let Some(before) = before {
             state.join_possible_source_effects(&before);
         }
@@ -287,14 +294,45 @@ fn value_commands(text: &str, config: LexerConfig) -> Vec<(bool, Vec<CommandWord
     .collect()
 }
 
+/// Nesting depth on the walk's two recursion axes.
+#[derive(Clone, Copy, Default)]
+struct WalkDepth {
+    /// `[...]` substitutions within one word.
+    bracket: u32,
+    /// Bodies, template scripts and expression substitutions re-evaluated as
+    /// scripts.
+    body: u32,
+}
+
+impl WalkDepth {
+    const fn bracket(self) -> Self {
+        Self {
+            bracket: self.bracket + 1,
+            ..self
+        }
+    }
+
+    const fn body(self) -> Self {
+        Self {
+            body: self.body + 1,
+            ..self
+        }
+    }
+}
+
 fn script_writes(
     text: &str,
     context: &FootprintContext<'_>,
     state: &mut ModuleCommandBindings,
     out: &mut VariableWriteEffects,
-    depth: u32,
+    depth: WalkDepth,
 ) {
-    if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
+    // Bracket nesting inside one word and re-evaluated bodies are separate
+    // axes: a body level costs this walk's three recursive frames, so bodies
+    // share the braced-body cap the stack budget is derived from.
+    if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth.bracket)
+        || crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth.body)
+    {
         out.opaque = true;
         return;
     }
@@ -324,7 +362,7 @@ fn script_writes(
                     continue;
                 };
                 if token.kind == tcl_lexer::TokenType::Cmd {
-                    script_writes(map.token_text(token), context, state, out, depth + 1);
+                    script_writes(map.token_text(token), context, state, out, depth.bracket());
                 }
             }
         }
@@ -337,7 +375,7 @@ fn command_writes(
     context: &FootprintContext<'_>,
     state: &mut ModuleCommandBindings,
     out: &mut VariableWriteEffects,
-    depth: u32,
+    depth: WalkDepth,
 ) {
     let Some(holder) = words
         .first()
@@ -462,7 +500,7 @@ fn reevaluated_reads(
     state: &mut ModuleCommandBindings,
     holder: &crate::command_binding::SourceNamespaceKey,
     out: &mut VariableWriteEffects,
-    depth: u32,
+    depth: WalkDepth,
 ) {
     let (bodies, expressions, templates, opaque) = immediate_values(words, context, state, holder);
     out.opaque |= opaque;
@@ -474,7 +512,13 @@ fn reevaluated_reads(
             .extend(plan.reads.into_iter().map(|read| read.name));
         for region in plan.script_regions {
             let mut branch = state.clone();
-            script_writes(&region.script.script, context, &mut branch, out, depth + 1);
+            script_writes(
+                &region.script.script,
+                context,
+                &mut branch,
+                out,
+                depth.body(),
+            );
             state.join_possible_source_effects(&branch);
         }
     }
@@ -500,14 +544,20 @@ fn reevaluated_reads(
             };
             if token.kind == tcl_lexer::TokenType::Cmd {
                 let mut branch = state.clone();
-                script_writes(map.token_text(token), context, &mut branch, out, depth + 1);
+                script_writes(
+                    map.token_text(token),
+                    context,
+                    &mut branch,
+                    out,
+                    depth.body(),
+                );
                 state.join_possible_source_effects(&branch);
             }
         }
     }
     for body in bodies {
         let mut branch = state.clone();
-        script_writes(&body, context, &mut branch, out, depth + 1);
+        script_writes(&body, context, &mut branch, out, depth.body());
         state.join_possible_source_effects(&branch);
     }
 }

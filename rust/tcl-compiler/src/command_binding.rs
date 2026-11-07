@@ -4820,6 +4820,15 @@ fn finish_index_list(
     *outcomes
 }
 
+/// What a prepared source target carries across its recursive handler walk,
+/// boxed so the recursive frame does not hold it.
+struct PreparedSourceTargetWalk {
+    completions: CapturedNativeCompletionReceipts,
+    receipts: Box<CapturedNativeResultReceipts>,
+    read_complete: bool,
+    write_complete: bool,
+}
+
 struct CapturedNativeCompletionReceipts {
     mutation: Option<Box<original_command_mutation::OriginalCommandMove>>,
     alias_creation: Option<Box<original_alias_creation::OriginalAliasCreation>>,
@@ -6744,6 +6753,13 @@ fn install_selected_native_frame(
         state.source_variables = selected;
         state.variable_frame = frame.clone();
     }
+}
+
+/// Namespace receipts a selected native body carries across its walk.
+struct SelectedNativeBodyReceipts {
+    namespace_body: Option<Box<original_namespace_body::OriginalNamespaceBody>>,
+    previous_namespace_exit: Option<conditional_source::SourceConditionalNamespaceExit>,
+    conditional_namespace: Option<conditional_source::SourceConditionalNamespaceExit>,
 }
 
 struct PreparedSourceNativeBody {
@@ -11980,9 +11996,49 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
         incoming: &ModuleCommandBindings,
     ) -> SourceOutcomes {
+        // Everything before and after the recursive handler walk runs in
+        // non-inlined leaf helpers, so this frame holds only what crosses the
+        // walk: one route and one boxed receipt bundle per nesting level.
+        let (route, mut walk) =
+            match self.prepare_source_target_walk(native, prepared, effective, state, context) {
+                Ok(prepared_walk) => prepared_walk,
+                Err(outcomes) => return *outcomes,
+            };
+        let facts = prepared.facts.as_ref();
+        let mut outcomes =
+            self.walk_prepared_native_target(native, state, context, facts, route, incoming);
+        self.finish_source_target_walk(
+            &mut outcomes,
+            native,
+            facts,
+            state,
+            context,
+            incoming,
+            &mut walk,
+        );
+        *outcomes
+    }
+
+    /// The source target's receipts and completion route, captured before its
+    /// recursive handler walk; an early answer when no walk is needed.
+    #[inline(never)]
+    fn prepare_source_target_walk(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        prepared: &PreparedSourceNativeInvocation<'_>,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Result<
+        (
+            tcl_registry::completion_route::InvocationCompletionRoute,
+            Box<PreparedSourceTargetWalk>,
+        ),
+        Box<SourceOutcomes>,
+    > {
         let facts = prepared.facts.as_ref();
         if let Some(outcomes) = Self::prepare_jim_stock_class_boxed(native, facts, state, context) {
-            return *outcomes;
+            return Err(outcomes);
         }
         if let Some(mut outcomes) =
             Self::prepare_non_body_source_result(native, facts, state, context)
@@ -11997,15 +12053,12 @@ impl SourceCommandBindings {
             {
                 normal.unclosed_command_world = true;
             }
-            return *outcomes;
+            return Err(outcomes);
         }
         let completions = CapturedNativeCompletionReceipts::capture(native, facts, state, context);
         let mut receipts = capture_source_native_results_boxed(native, facts, state, context);
         let (route, object_protocol) =
-            match self.prepare_native_handler(prepared, native, effective, state, context) {
-                Ok(route) => route,
-                Err(outcomes) => return *outcomes,
-            };
+            self.prepare_native_handler(prepared, native, effective, state, context)?;
         if let Some(append) = receipts.string_append.as_mut() {
             append.after_preparation(state, native, facts, *context, object_protocol);
         }
@@ -12032,46 +12085,74 @@ impl SourceCommandBindings {
             write_complete,
             &route,
         );
-        let mut outcomes =
-            self.walk_prepared_native_target(native, state, context, facts, route, incoming);
+        Ok((
+            route,
+            Box::new(PreparedSourceTargetWalk {
+                completions,
+                receipts,
+                read_complete,
+                write_complete,
+            }),
+        ))
+    }
+
+    /// Settle the source target's receipts against its walked outcomes and
+    /// publish them.
+    #[inline(never)]
+    #[allow(clippy::too_many_arguments)]
+    fn finish_source_target_walk(
+        &mut self,
+        outcomes: &mut SourceOutcomes,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        incoming: &ModuleCommandBindings,
+        walk: &mut PreparedSourceTargetWalk,
+    ) {
         #[cfg(debug_assertions)]
-        Self::trace_prepared_source_return(&native, &outcomes);
+        Self::trace_prepared_source_return(&native, outcomes);
         // Implementation contract: naming.variable.original-set-read-completion
         // docs/design/analysis/name-resolution-proofs/original-set-read-completion.md
-        if read_complete
-            || write_complete
-            || completions.completed(&outcomes, native, facts, *context)
+        if walk.read_complete
+            || walk.write_complete
+            || walk
+                .completions
+                .completed(outcomes, native, facts, *context)
         {
             outcomes.retain_closed_native_handler_completion(native, facts, *context);
         }
         finish_source_native_results(
-            &mut outcomes,
+            outcomes,
             native,
             facts,
             incoming,
             context,
-            &mut receipts,
+            &mut walk.receipts,
         );
+        let write_complete = walk.write_complete;
         self.finish_native_source_completion(
-            &mut outcomes,
+            outcomes,
             native,
             facts,
             incoming,
             context,
-            receipts.normal_write.as_ref().filter(|_| write_complete),
+            walk.receipts
+                .normal_write
+                .as_ref()
+                .filter(|_| write_complete),
         );
         if (requires_reentry_guard(facts)
             || (outcomes.normal_completion.is_none()
                 && !command_world_closed_on_normal_return(native.target, facts)
                 && !source_command_world::namespace_body_world_closed_on_normal_return(
-                    native, facts, &outcomes, *context,
+                    native, facts, outcomes, *context,
                 )))
             && let Some(normal) = outcomes.normal.as_mut()
         {
             normal.unclosed_command_world = true;
         }
         outcomes.publish(state);
-        *outcomes
     }
 
     /// Keep the stock-class result construction out of recursive source frames.
@@ -12748,18 +12829,70 @@ impl SourceCommandBindings {
         );
         let body_context =
             source_namespace_context_boxed(&body_context, &prepared.selection.namespace_key);
+        // Receipt capture and settlement run in non-inlined leaf helpers, so
+        // this recursive frame keeps only the boxed state crossing the walk.
+        let receipts = self.enter_selected_native_body(native, facts, state, context, &prepared);
+        let mut outcomes = self.walk_body_flow(&prepared.flow, native, state, &body_context);
+        self.leave_selected_native_body(
+            &mut outcomes,
+            native,
+            facts,
+            state,
+            context,
+            &prepared,
+            receipts,
+        );
+        outcomes
+    }
+
+    /// Capture the namespace-body receipts and install the conditional
+    /// namespace exit before a selected native body is walked.
+    #[inline(never)]
+    fn enter_selected_native_body(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        prepared: &PreparedSourceNativeBody,
+    ) -> Box<SelectedNativeBodyReceipts> {
         let namespace_body = boxed_source_completion_receipt(|| {
             original_namespace_body::OriginalNamespaceBody::capture(
-                native, facts, state, *context, &prepared,
+                native, facts, state, *context, prepared,
             )
         });
         let previous_namespace_exit = self.conditional_source.pending_namespace.take();
         self.conditional_source.pending_namespace =
             original_namespace_body::conditional_source_namespace_exit(
-                native, facts, state, *context, &prepared,
+                native, facts, state, *context, prepared,
             );
         let conditional_namespace = self.conditional_source.pending_namespace.clone();
-        let mut outcomes = self.walk_body_flow(&prepared.flow, native, state, &body_context);
+        Box::new(SelectedNativeBodyReceipts {
+            namespace_body,
+            previous_namespace_exit,
+            conditional_namespace,
+        })
+    }
+
+    /// Restore the caller's namespace exit and frame, settle the receipts
+    /// against the walked body, and publish.
+    #[inline(never)]
+    #[allow(clippy::too_many_arguments)]
+    fn leave_selected_native_body(
+        &mut self,
+        outcomes: &mut SourceOutcomes,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        prepared: &PreparedSourceNativeBody,
+        receipts: Box<SelectedNativeBodyReceipts>,
+    ) {
+        let SelectedNativeBodyReceipts {
+            namespace_body,
+            previous_namespace_exit,
+            conditional_namespace,
+        } = *receipts;
         self.conditional_source.pending_namespace = previous_namespace_exit;
         if prepared.selection.namespace_activation
             || prepared.parent_frame != prepared.selection.frame
@@ -12768,19 +12901,18 @@ impl SourceCommandBindings {
         }
         if namespace_body
             .as_ref()
-            .is_some_and(|receipt| receipt.completed(native, &outcomes, *context, &prepared))
+            .is_some_and(|receipt| receipt.completed(native, outcomes, *context, prepared))
         {
             outcomes.retain_closed_native_handler_completion(native, facts, *context);
         }
         if conditional_namespace.as_ref().is_some_and(|receipt| {
             original_namespace_body::conditional_namespace_completed(
-                receipt, native, &outcomes, *context, &prepared,
+                receipt, native, outcomes, *context, prepared,
             )
         }) {
             outcomes.retain_conditional_handler_completion(native, facts, *context);
         }
         outcomes.publish(state);
-        outcomes
     }
 
     fn record_phase(
