@@ -90,6 +90,8 @@ Sixth pass (7 November): in release, saved-target cleanup whose currency is alre
 - VM plain scalar locals (unobserved, bound only by their frame, no alias/pin/operation/static/element role, no Jim storage) retire through the arena's own driver without per-stage original-context cleanup, as C's `TclDeleteVars`.
 - A shared per-thread empty placeholder value was tried and reverted: VM values belong to their interpreter's object context and string protocol, and another interpreter refuses them (53 debug failures).
 - Verification: VM with debug assertions 1193/272 and release 1097/272 with no memo or stamp assertion; the one extra failure against the 271 base is `cmd_try::native_fixture_tests::original_try_source_without_actual_core_keeps_native_preflight_refusal`, which upstream's all-literal `format` folding (`bb7d85daa`) broke: it passes with that commit's registry files reverted, and the follow-up `aab0a9263` does not fix it.
+- Runtime allocations: entered operations are stored inline with a per-thread serial instead of a shared entry allocated per scope, retired from the top of the stack; `NativeOriginalNameCell::check` keeps its refusal check and skips the selected-cell identity re-proof in release (its three refusal tests are debug-only). Runtime release 2129 tests and debug assertions 2405, both 107 failures identical to the base.
+- Totals at this pass (release, instructions per iteration, against the same upstream base): VM proc call 136.1K→106.6K, VM empty loop 30.8K→28.3K, runtime proc call 149.8K→135.0K, runtime empty loop 59.0K→53.0K. Pedantic clippy reports nothing on the changed lines of either crate.
 
 ## Resource integrity and next work
 
