@@ -6612,6 +6612,31 @@ impl RegistryInvocationShape {
         self.with_source_schema_alternatives(registry, context, tokens, false, apply)
     }
 
+    /// One possible candidate's own schema, for conditional advice that keeps
+    /// lookup closure as an open obligation: an unknown residual or possible
+    /// absence does not withdraw a candidate that is itself selected.
+    pub(crate) fn with_possible_source_schema<T>(
+        &self,
+        registry: &CommandRegistry,
+        context: InvocationMetadataContext<'_>,
+        tokens: &CommandTokens,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        if self.hosted_source.is_some() {
+            return self.with_source_schema(registry, context, tokens, apply);
+        }
+        if self.effective.words.is_empty()
+            || self.effective.words.len() != self.effective.origins.len()
+            || self.effective.origins.iter().any(|origin| {
+                matches!(origin, InvocationWordOrigin::BindingPrefix(index)
+                    if *index >= self.effective.binding_prefix.len())
+            })
+        {
+            return None;
+        }
+        self.with_source_schema_alternatives(registry, context, tokens, false, apply)
+    }
+
     fn with_source_schema_alternatives<T>(
         &self,
         registry: &CommandRegistry,

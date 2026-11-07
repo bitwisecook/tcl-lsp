@@ -662,7 +662,7 @@ impl<'a> IrulesSourceQuery<'a> {
                     output.handler_flow_commands.push(command);
                 }
                 for candidate in &possible.candidates {
-                    let completion = candidate.with_source_schema(
+                    let completion = candidate.with_possible_source_schema(
                         self.registry,
                         input.metadata,
                         token,
