@@ -3186,6 +3186,16 @@ impl<'a> CfgBuilder<'a> {
 
     /// Dispatch `Foreach` — dict for/map, opaque top-level, or inlined.
     fn lower_foreach_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
+        if self.lower_foreach_opaque(stmt, current) {
+            return current.to_owned();
+        }
+        self.lower_foreach(stmt, current)
+    }
+
+    /// Lowers the opaque `foreach` shapes and reports whether it did; a leaf so
+    /// the barrier temporaries stay out of the recursive lowering frame.
+    #[inline(never)]
+    fn lower_foreach_opaque(&mut self, stmt: &Statement, current: &str) -> bool {
         let Statement::Foreach {
             is_dict_iteration,
             is_array_iteration,
@@ -3209,7 +3219,7 @@ impl<'a> CfgBuilder<'a> {
         // the emitted bytecode byte-identical to C Tcl.
         if *is_array_iteration {
             if self.faithful_exceptions {
-                return self.lower_foreach(stmt, current);
+                return false;
             }
             self.push_statement(
                 current,
@@ -3222,7 +3232,7 @@ impl<'a> CfgBuilder<'a> {
                     tokens: raw_tokens.clone(),
                 },
             );
-            return current.to_owned();
+            return true;
         }
 
         if *is_dict_iteration && !raw_args.is_empty() {
@@ -3237,7 +3247,7 @@ impl<'a> CfgBuilder<'a> {
             // brace-nested `$var` read the shallow barrier-word scan can't see is
             // lost, so the loop's outer reads look dead.
             if self.faithful_exceptions {
-                return self.lower_foreach(stmt, current);
+                return false;
             }
             let sub = &raw_args[0];
             let qual_cmd = format!("::tcl::dict::{sub}");
@@ -3261,7 +3271,7 @@ impl<'a> CfgBuilder<'a> {
                     tokens: Some(tokens),
                 },
             );
-            return current.to_owned();
+            return true;
         }
 
         let has_qualified_vars = iterators
@@ -3308,10 +3318,10 @@ impl<'a> CfgBuilder<'a> {
                     foreach_groups: None,
                 },
             );
-            return current.to_owned();
+            return true;
         }
 
-        self.lower_foreach(stmt, current)
+        false
     }
 
     /// Dispatch `Catch` — inlined into real blocks, or deferred opaque.

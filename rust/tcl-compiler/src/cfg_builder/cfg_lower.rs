@@ -770,16 +770,28 @@ impl CfgBuilder<'_> {
 
     /// Flatten `Statement::Foreach` into a header → body → header loop
     /// with a synthetic variable-definition node at the header.
+    ///
+    /// The body recursion is the only work in this frame; the loop scaffolding
+    /// lives in leaves so a deep nest costs a pointer per level.
     pub(super) fn lower_foreach(&mut self, stmt: &Statement, block_name: &str) -> String {
+        let Statement::Foreach { body, .. } = stmt else {
+            unreachable!("lower_foreach called with non-Foreach");
+        };
+        let frame = self.open_foreach_loop(stmt, block_name);
+        self.loop_stack
+            .push((frame.end_block.clone(), frame.continue_target().to_owned()));
+        let body_tail = self.lower_body(frame.owner.as_ref(), body, &frame.body_block);
+        self.loop_stack.pop();
+        self.close_foreach_loop(stmt, block_name, frame, body_tail)
+    }
+
+    #[inline(never)]
+    fn open_foreach_loop(&mut self, stmt: &Statement, block_name: &str) -> Box<ForeachLoopFrame> {
         let Statement::Foreach {
-            span,
-            body,
-            body_span,
-            raw_tokens,
-            ..
+            span, raw_tokens, ..
         } = stmt
         else {
-            unreachable!("lower_foreach called with non-Foreach");
+            unreachable!("open_foreach_loop called with non-Foreach");
         };
 
         let command_owner = self.command_boundary_sites.get(block_name).cloned();
@@ -799,6 +811,7 @@ impl CfgBuilder<'_> {
         self.ensure_goto(block_name, &header, Some(*span));
 
         let var_def = foreach_binding_statement(stmt);
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&self.config);
 
         // Analysis builds rotate a provably-non-empty foreach so the
         // 0-iteration skip is a *separate*, statically-true entry-guard edge
@@ -810,12 +823,7 @@ impl CfgBuilder<'_> {
         // stay real edges, so partial-def exits remain sound.
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
-        if self.faithful_exceptions
-            && crate::cfg_builder::foreach_runs_at_least_once(
-                stmt,
-                tcl_syntax::word_rules::WordValueRules::from_config(&self.config),
-            )
-        {
+        if self.faithful_exceptions && crate::cfg_builder::foreach_runs_at_least_once(stmt, rules) {
             let latch_block = self.new_block("foreach_latch");
             // Entry guard: the list is a non-empty literal, so the body always
             // runs at least once. A statically-true condition SCCP folds, so the
@@ -833,37 +841,22 @@ impl CfgBuilder<'_> {
             );
             // The iteration variables are (re)bound at the top of every body
             // execution, so a post-loop read of a loop variable also resolves.
-            self.push_statement(&body_block, var_def);
             // `continue` re-checks via the latch; `break` exits the loop.
-            self.loop_stack
-                .push((end_block.clone(), latch_block.clone()));
-            let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
-            self.loop_stack.pop();
-            if let Some(tail) = body_tail {
-                self.ensure_goto(&tail, &latch_block, Some(*body_span));
-            }
-            // Back-edge re-check: another element → body, else → exit.
-            self.set_terminator(
-                &latch_block,
-                Terminator::Branch {
-                    condition: foreach_condition(),
-                    true_target: body_id,
-                    false_target: end_id,
-                    span: Some(*span),
-                    condition_base: None,
-                },
-            );
-            return end_block;
+            self.push_statement(&body_block, var_def);
+            return Box::new(ForeachLoopFrame {
+                owner,
+                header,
+                body_block,
+                end_block,
+                latch: Some(latch_block),
+            });
         }
 
         // Every iterator list is an empty literal: the body never runs and no
         // loop variable is written. A statically-false guard lets SCCP prune
         // the body, whose commands the source walk never reached.
-        let never_runs = self.faithful_exceptions
-            && crate::cfg_builder::foreach_never_runs(
-                stmt,
-                tcl_syntax::word_rules::WordValueRules::from_config(&self.config),
-            );
+        let never_runs =
+            self.faithful_exceptions && crate::cfg_builder::foreach_never_runs(stmt, rules);
         if never_runs {
             self.push_statement(&body_block, var_def);
         } else {
@@ -893,13 +886,54 @@ impl CfgBuilder<'_> {
         );
 
         // `break` exits to `end_block`; `continue` advances at `header`.
-        self.loop_stack.push((end_block.clone(), header.clone()));
-        let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
-        self.loop_stack.pop();
-        if let Some(tail) = body_tail {
-            self.ensure_goto(&tail, &header, Some(*body_span));
-        }
+        Box::new(ForeachLoopFrame {
+            owner,
+            header,
+            body_block,
+            end_block,
+            latch: None,
+        })
+    }
 
+    #[inline(never)]
+    fn close_foreach_loop(
+        &mut self,
+        stmt: &Statement,
+        block_name: &str,
+        frame: Box<ForeachLoopFrame>,
+        body_tail: Option<String>,
+    ) -> String {
+        let Statement::Foreach {
+            span, body_span, ..
+        } = stmt
+        else {
+            unreachable!("close_foreach_loop called with non-Foreach");
+        };
+        if let Some(tail) = body_tail {
+            self.ensure_goto(&tail, frame.continue_target(), Some(*body_span));
+        }
+        let ForeachLoopFrame {
+            body_block,
+            end_block,
+            latch,
+            ..
+        } = *frame;
+        if let Some(latch_block) = latch {
+            // Back-edge re-check: another element → body, else → exit.
+            let body_id = self.bid(&body_block);
+            let end_id = self.bid(&end_block);
+            self.set_terminator(
+                &latch_block,
+                Terminator::Branch {
+                    condition: foreach_condition(),
+                    true_target: body_id,
+                    false_target: end_id,
+                    span: Some(*span),
+                    condition_base: None,
+                },
+            );
+            return end_block;
+        }
         self.record_loop(stmt, block_name, &end_block);
         end_block
     }
@@ -2579,6 +2613,21 @@ fn handler_var_defs(
         }
     }
     defs
+}
+
+/// The blocks a `foreach` lowering opens before its body and closes after it.
+struct ForeachLoopFrame {
+    owner: Option<crate::ir::CommandBindingSite>,
+    header: String,
+    body_block: String,
+    end_block: String,
+    latch: Option<String>,
+}
+
+impl ForeachLoopFrame {
+    fn continue_target(&self) -> &str {
+        self.latch.as_deref().unwrap_or(&self.header)
+    }
 }
 
 #[cfg(test)]
