@@ -26,8 +26,8 @@ use crate::native_compilation::{
     NativeCompilationMode, NativeCompilationSelection, NativeCompilationWordShape,
 };
 
-/// C9 declines before emitting any word when the format word itself needs
-/// substitution. This bounded model covers up to two original value operands.
+/// C8.6+ declines before emitting any word when the format word itself needs
+/// substitution.
 pub(crate) fn dynamic_format_word_declines(
     words: &crate::native_compiler_words::NativeCompilerWords<'_>,
     operand_from: usize,
@@ -37,14 +37,16 @@ pub(crate) fn dynamic_format_word_declines(
     body: crate::native_compilation::NativeBodyCompilation,
 ) -> bool {
     use NativeCompilationWordShape as Shape;
-    version == TclVersion::V9_0
-        && context.mode == NativeCompilationMode::BytecodeObject
+    matches!(
+        version,
+        TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
+    ) && context.mode == NativeCompilationMode::BytecodeObject
         && context.frame != NativeCompilationFrame::Unknown
         && operation == SemanticOperationId::Invoke
         && body == crate::native_compilation::NativeBodyCompilation::Inherit
         && words.source_protocol() == tcl_syntax::native_string::NativeStringProtocol::C(version)
         && operand_from == 1
-        && (2..=4).contains(&words.shapes().len())
+        && words.shapes().len() >= 2
         && words.shapes()[1] == Shape::Substituted
         && words.literal(1).is_none()
         && words.shapes()[2..]
@@ -174,26 +176,14 @@ pub(crate) fn select(
     {
         return Selection::Unknown;
     }
-    let Some(format) = format.filter(|format| format.is_ascii() && !format.contains(&0)) else {
+    let Some(format) = format else {
         return Selection::Unknown;
     };
-    let Some(arguments) = shapes.len().checked_sub(1).filter(|count| *count <= 125) else {
-        return Selection::Unknown;
-    };
-    // C9's failed literal probe reaches the scan below and rejects these
-    // conversions before emitting specialised instructions. The compiler visits
-    // the original head, format and value words for an ordinary invocation.
-    if version == TclVersion::V9_0
-        && matches!(format, b"%x" | b"%d" | b"%f")
-        && shapes.len() == 2
-        && shapes[1] == Shape::Substituted
-    {
-        return Selection::Generic;
-    }
-    // The all-static TclCompileFormatCmd branch calls Tcl_Format and retains
-    // separate value/error obligations; that branch remains unmodelled here.
+    let arguments = shapes.len() - 1;
     // The dynamic branch accepts only %s and %%, then compiles the value
     // words once in their original order; it prepares no script or expression.
+    // Any other conversion, or a count mismatch, declines before emitting
+    // anything and the words compile as an ordinary invocation.
     let mut conversions = 0;
     let mut bytes = format.iter();
     while let Some(byte) = bytes.next() {
@@ -201,11 +191,14 @@ pub(crate) fn select(
             match bytes.next() {
                 Some(b's') => conversions += 1,
                 Some(b'%') => {}
-                _ => return Selection::Unknown,
+                _ => return Selection::Generic,
             }
         }
     }
-    if conversions != arguments {
+    if conversions != arguments || conversions > 125 {
+        return Selection::Generic;
+    }
+    if !format.is_ascii() || format.contains(&0) {
         return Selection::Unknown;
     }
     Selection::Inline {
@@ -313,16 +306,22 @@ mod tests {
             }
         }
         let shapes = [Shape::Literal, Shape::Substituted];
-        for format in [
-            b"%u".as_slice(),
-            b"%2$s",
-            b"%5s",
-            b"%",
-            b"%s%s",
-            b"%%",
-            b"%s\0",
-            b"\xff%s",
-        ] {
+        // TclCompileFormatCmd's scan returns TCL_ERROR for these: an ordinary invocation.
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            for format in [b"%u".as_slice(), b"%2$s", b"%5s", b"%", b"%s%s", b"%%"] {
+                assert_eq!(
+                    select(
+                        Some(format),
+                        &shapes,
+                        version,
+                        context(),
+                        SemanticOperationId::Invoke
+                    ),
+                    NativeCompilationSelection::Generic
+                );
+            }
+        }
+        for format in [b"%s\0".as_slice(), b"\xff%s"] {
             assert_eq!(
                 select(
                     Some(format),
@@ -744,11 +743,11 @@ mod tests {
         let version = TclVersion::V9_0;
         let dialect = crate::InvocationDialect::for_version(version);
         for format in [b"%d".as_slice(), b"%f".as_slice()] {
-            for version in [
-                TclVersion::V8_4,
-                TclVersion::V8_5,
-                TclVersion::V8_6,
-                TclVersion::V9_1,
+            for (version, expected) in [
+                (TclVersion::V8_4, NativeCompilationSelection::Unknown),
+                (TclVersion::V8_5, NativeCompilationSelection::Unknown),
+                (TclVersion::V8_6, NativeCompilationSelection::Generic),
+                (TclVersion::V9_1, NativeCompilationSelection::Generic),
             ] {
                 assert_eq!(
                     select(
@@ -761,9 +760,23 @@ mod tests {
                         context(),
                         SemanticOperationId::Invoke
                     ),
-                    NativeCompilationSelection::Unknown
+                    expected
                 );
             }
+            assert_eq!(
+                select(
+                    Some(format),
+                    &[
+                        NativeCompilationWordShape::Literal,
+                        NativeCompilationWordShape::Substituted,
+                        NativeCompilationWordShape::Literal,
+                    ],
+                    TclVersion::V9_0,
+                    context(),
+                    SemanticOperationId::Invoke
+                ),
+                NativeCompilationSelection::Generic
+            );
             for shapes in [
                 vec![NativeCompilationWordShape::Literal],
                 vec![
@@ -773,11 +786,6 @@ mod tests {
                 vec![
                     NativeCompilationWordShape::Literal,
                     NativeCompilationWordShape::Opaque,
-                ],
-                vec![
-                    NativeCompilationWordShape::Literal,
-                    NativeCompilationWordShape::Substituted,
-                    NativeCompilationWordShape::Literal,
                 ],
             ] {
                 assert_eq!(
@@ -977,11 +985,7 @@ mod tests {
         use crate::native_compiler_words::NativeCompilerWords;
         let version = TclVersion::V9_0;
         let dialect = crate::InvocationDialect::for_version(version);
-        for source in [
-            "format $fmt $a $b $c",
-            "format $fmt {*}$values",
-            "format %s $value",
-        ] {
+        for source in ["format $fmt {*}$values", "format %s $value"] {
             let parsed = tcl_lexer::native_script_words_in(
                 tcl_lexer::SourceImage::native(source.as_bytes()),
                 tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
@@ -1038,11 +1042,11 @@ mod tests {
             ),
             NativeCompilationSelection::Unknown
         );
-        for version in [
-            TclVersion::V8_4,
-            TclVersion::V8_5,
-            TclVersion::V8_6,
-            TclVersion::V9_1,
+        for (version, expected) in [
+            (TclVersion::V8_4, NativeCompilationSelection::Unknown),
+            (TclVersion::V8_5, NativeCompilationSelection::Unknown),
+            (TclVersion::V8_6, NativeCompilationSelection::Generic),
+            (TclVersion::V9_1, NativeCompilationSelection::Generic),
         ] {
             assert_eq!(
                 select(
@@ -1055,9 +1059,23 @@ mod tests {
                     context(),
                     SemanticOperationId::Invoke
                 ),
-                NativeCompilationSelection::Unknown,
+                expected,
             );
         }
+        assert_eq!(
+            select(
+                Some(b"%x"),
+                &[
+                    NativeCompilationWordShape::Literal,
+                    NativeCompilationWordShape::Substituted,
+                    NativeCompilationWordShape::Substituted,
+                ],
+                version,
+                context(),
+                SemanticOperationId::Invoke
+            ),
+            NativeCompilationSelection::Generic
+        );
         for shapes in [
             vec![
                 NativeCompilationWordShape::Literal,
@@ -1070,11 +1088,6 @@ mod tests {
             vec![
                 NativeCompilationWordShape::Literal,
                 NativeCompilationWordShape::Opaque,
-            ],
-            vec![
-                NativeCompilationWordShape::Literal,
-                NativeCompilationWordShape::Substituted,
-                NativeCompilationWordShape::Substituted,
             ],
         ] {
             assert_eq!(

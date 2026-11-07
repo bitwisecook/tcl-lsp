@@ -427,8 +427,17 @@ fn render_spec<O: ValueOps>(
         }
         b'c' => {
             let n = ops.as_c_int(arg)?;
+            // TCL_UTF_MAX 3 releases cannot hold a scalar past the BMP.
+            let limit = match ops.string_character_model() {
+                Some(
+                    tcl_dialect::StringCharacterModel::BmpCharsElseUtf8Bytes
+                    | tcl_dialect::StringCharacterModel::Utf16CodeUnits,
+                ) => 0xFFFF,
+                _ => u32::MAX,
+            };
             let ch = u32::try_from(n)
                 .ok()
+                .filter(|n| *n <= limit)
                 .and_then(char::from_u32)
                 .map_or_else(|| '\u{fffd}'.to_string(), |c| c.to_string());
             Ok(justify(&ch, spec))

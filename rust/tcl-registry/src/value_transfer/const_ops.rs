@@ -1037,6 +1037,14 @@ impl tcl_cmd_core::index::NativeIndexOps for ConstOps<'_> {
 impl ValueOps for ConstOps<'_> {
     type Value = ConstValue;
 
+    /// The named C release's character model; Jim keeps checked Unicode access.
+    fn string_character_model(&self) -> Option<tcl_dialect::StringCharacterModel> {
+        self.target
+            .profile
+            .and_then(tcl_dialect::DialectProfile::character_model)
+            .filter(|model| *model != tcl_dialect::StringCharacterModel::Jim084Utf8)
+    }
+
     /// No host is named at compile time: a reading the host's `long`
     /// decides declines.
     fn reads_a_wide_long(&mut self) -> bool {
