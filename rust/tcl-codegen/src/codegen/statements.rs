@@ -2984,6 +2984,17 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::ListReplace(recipe) => {
                 Self::append_native_list_replace_tasks(command, recipe, version, operations)
             }
+            NativeInstructionPlan::SyntaxError { message, options } => {
+                operations.extend([
+                    NativeEmissionTask::Literal(message),
+                    NativeEmissionTask::Literal(options),
+                    NativeEmissionTask::Operation(
+                        Op::SYNTAX,
+                        vec![Operand::Imm(1), Operand::Imm(0)],
+                    ),
+                ]);
+                true
+            }
             NativeInstructionPlan::StringOperand(recipe) => {
                 Self::append_native_string_operand_tasks(command, recipe, version, operations)
             }

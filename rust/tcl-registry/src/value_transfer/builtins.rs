@@ -770,15 +770,27 @@ impl FormatTemplateSemantics {
     }
 }
 
-/// `TclCompileFormatCmd`'s all-literal branch: what `Tcl_Format` makes of
-/// `arguments` (template first) at compile time in `release`, through the
-/// same shared core and conversion gates as [`FORMAT_TEMPLATE`]. `None` when
-/// the format fails or the core declines.
+/// `Tcl_Format`'s outcome at compile time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompileTimeFormat {
+    /// The formatted result.
+    Folded(Vec<u8>),
+    /// The format's own error and its error-code list.
+    Failed {
+        /// The error message.
+        message: Vec<u8>,
+        /// The error-code list bytes.
+        error_code: Vec<u8>,
+    },
+}
+
+/// Run `format` over compile-known words as `TclCompileFormatCmd` does.
+/// `None` where the fold cannot decide for `release`.
 #[must_use]
 pub fn compile_time_format(
     release: tcl_dialect::TclVersion,
     arguments: &[&[u8]],
-) -> Option<Vec<u8>> {
+) -> Option<CompileTimeFormat> {
     let template = std::str::from_utf8(arguments.first()?).ok()?;
     let gated = tcl_syntax::format::version_gated_uses(template);
     if gated.iter().any(|gated| gated.min > release) {
@@ -792,10 +804,30 @@ pub fn compile_time_format(
         .iter()
         .map(|argument| ConstValue::bytes(argument, super::const_ops::Representation::String))
         .collect::<Vec<_>>();
-    let result =
-        tcl_cmd_core::format::format_cmd_with_syntax(&mut ops, &values, release.number_syntax())
-            .ok()?;
-    ops.take(result).ok().map(|value| value.bytes)
+    match tcl_cmd_core::format::format_cmd_with_syntax(&mut ops, &values, release.number_syntax()) {
+        Ok(result) => ops
+            .take(result)
+            .ok()
+            .map(|value| CompileTimeFormat::Folded(value.bytes)),
+        Err(error) => {
+            if ops.fault().is_some() {
+                return None;
+            }
+            // Only failures the template decides; value conversions can
+            // differ between the compile-time model and the runtime.
+            let tcl_cmd_core::CmdErrorCodeUpdate::Set(error_code) = error.error_code_update()
+            else {
+                return None;
+            };
+            if !error_code.starts_with(b"TCL FORMAT ") {
+                return None;
+            }
+            Some(CompileTimeFormat::Failed {
+                message: error.message_bytes().to_vec(),
+                error_code: error_code.clone(),
+            })
+        }
+    }
 }
 
 impl CommandSemantics for FormatTemplateSemantics {

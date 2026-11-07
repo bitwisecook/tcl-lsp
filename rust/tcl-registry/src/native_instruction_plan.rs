@@ -113,6 +113,14 @@ pub enum NativeInstructionPlan {
     Concat(NativeConcatInstruction),
     /// Original format literal fragments and ordered value-word compiler visits.
     FormatStringConcat(NativeFormatStringInstruction),
+    /// `TclCompileSyntaxError`: push the message and return options, then
+    /// `SYNTAX 1 0`.
+    SyntaxError {
+        /// The error message literal.
+        message: Vec<u8>,
+        /// The return-options literal.
+        options: Vec<u8>,
+    },
     /// C clockRead selector, as retained by the installed native compiler.
     ClockRead(u8),
     /// Ordered root/current namespace bindings, including declined preparation.
@@ -1270,6 +1278,14 @@ fn selected_container_and_string_instruction_plan(
                 .ok_or(Unavailable::OperandGeometry)
         }
         NativeCompilationGrammar::FormatStringConcat => {
+            if let Some((message, options)) = crate::native_format_compilation::static_syntax_error(
+                &|index| words.literal(operand_from + index).map(<[u8]>::to_vec),
+                words.shapes().get(operand_from..).unwrap_or_default(),
+                version,
+                context,
+            ) {
+                return Some(Ok(NativeInstructionPlan::SyntaxError { message, options }));
+            }
             crate::native_format_compilation::instruction(words, operand_from, version, context)
                 .map(NativeInstructionPlan::FormatStringConcat)
                 .ok_or(Unavailable::OperandGeometry)

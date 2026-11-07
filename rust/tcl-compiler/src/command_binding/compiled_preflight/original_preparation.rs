@@ -204,6 +204,9 @@ impl CompilerTraversal<'_> {
         recipe: &NativeInstructionPlan,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
+        if let Some(operands) = compiled_recipe_words(recipe) {
+            return self.original_operands(words, operands, context);
+        }
         match recipe {
             NativeInstructionPlan::DictionaryMutation(dictionary) => {
                 self.declare_source_local(Some(&dictionary.receiver));
@@ -251,15 +254,6 @@ impl CompilerTraversal<'_> {
                 use tcl_registry::native_string_map_compilation::NativeStringMapInstruction as Map;
                 let (Map::Identity(subject) | Map::Pair { subject, .. }) = recipe;
                 self.original_operands(words, std::iter::once(subject.clone()), context)
-            }
-            NativeInstructionPlan::StringReplace(recipe) => {
-                self.original_operands(words, recipe.compiled_words(), context)
-            }
-            NativeInstructionPlan::ListReplace(recipe) => {
-                self.original_operands(words, recipe.compiled_words(), context)
-            }
-            NativeInstructionPlan::StringRange(recipe) => {
-                self.original_operands(words, recipe.compiled_words(), context)
             }
             NativeInstructionPlan::StringOperand(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
@@ -1128,4 +1122,17 @@ fn expression_has_unretained_local_visits(
         }
     }
     false
+}
+
+/// The original words a slice or syntax-error recipe compiles, in order.
+fn compiled_recipe_words(
+    recipe: &NativeInstructionPlan,
+) -> Option<Vec<tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand>> {
+    Some(match recipe {
+        NativeInstructionPlan::StringRange(recipe) => recipe.compiled_words(),
+        NativeInstructionPlan::StringReplace(recipe) => recipe.compiled_words(),
+        NativeInstructionPlan::ListReplace(recipe) => recipe.compiled_words(),
+        NativeInstructionPlan::SyntaxError { .. } => Vec::new(),
+        _ => return None,
+    })
 }

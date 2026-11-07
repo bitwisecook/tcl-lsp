@@ -1308,6 +1308,7 @@ impl Builder<'_> {
             | NativeInstructionPlan::StringMap(_)
             | NativeInstructionPlan::StringReplace(_)
             | NativeInstructionPlan::ListReplace(_)
+            | NativeInstructionPlan::SyntaxError { .. }
             | NativeInstructionPlan::Constant { .. }
             | NativeInstructionPlan::DictionaryCreate(_)
             | NativeInstructionPlan::StringIs(_) => return Ok(None),

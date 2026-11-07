@@ -56,7 +56,7 @@ pub(crate) fn dynamic_format_word_declines(
 
 /// [`select`] plus `TclCompileFormatCmd`'s all-literal branch: when every
 /// argument is compile-known, C runs `Tcl_Format` and pushes its result.
-/// A format that fails compiles to its syntax error, which stays unmodelled.
+/// A format that fails compiles to its syntax error.
 pub(crate) fn select_with_values(
     values: &dyn Fn(usize) -> Option<Vec<u8>>,
     shapes: &[NativeCompilationWordShape],
@@ -65,10 +65,12 @@ pub(crate) fn select_with_values(
     operation: SemanticOperationId,
 ) -> NativeCompilationSelection {
     match static_result(values, shapes, version, context, operation) {
-        StaticFormat::Folded(_) => NativeCompilationSelection::Inline {
-            operation,
-            guard: NativeCompilationGuard::BeforeArguments,
-        },
+        StaticFormat::Folded(_) | StaticFormat::Failed { .. } => {
+            NativeCompilationSelection::Inline {
+                operation,
+                guard: NativeCompilationGuard::BeforeArguments,
+            }
+        }
         StaticFormat::Unfolded => NativeCompilationSelection::Unknown,
         StaticFormat::NotStatic => {
             select(values(0).as_deref(), shapes, version, context, operation)
@@ -82,7 +84,12 @@ enum StaticFormat {
     NotStatic,
     /// `Tcl_Format`'s result.
     Folded(Vec<u8>),
-    /// `Tcl_Format` fails or cannot be folded here.
+    /// `Tcl_Format`'s error: `TclCompileSyntaxError` emits it.
+    Failed {
+        message: Vec<u8>,
+        error_code: Vec<u8>,
+    },
+    /// The fold cannot decide here.
     Unfolded,
 }
 
@@ -113,8 +120,49 @@ fn static_result(
         return StaticFormat::NotStatic;
     };
     let arguments = literals.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    crate::value_transfer::builtins::compile_time_format(version, &arguments)
-        .map_or(StaticFormat::Unfolded, StaticFormat::Folded)
+    match crate::value_transfer::builtins::compile_time_format(version, &arguments) {
+        Some(crate::value_transfer::builtins::CompileTimeFormat::Folded(folded)) => {
+            StaticFormat::Folded(folded)
+        }
+        Some(crate::value_transfer::builtins::CompileTimeFormat::Failed {
+            message,
+            error_code,
+        }) => StaticFormat::Failed {
+            message,
+            error_code,
+        },
+        None => StaticFormat::Unfolded,
+    }
+}
+
+/// `TclCompileSyntaxError`'s message and return-options literals for an
+/// all-literal `format` that fails. With no errorInfo yet, C reports the
+/// message as `-errorinfo` and `-errorline 1`.
+pub(crate) fn static_syntax_error(
+    values: &dyn Fn(usize) -> Option<Vec<u8>>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    context: NativeCompilationContext,
+) -> Option<(Vec<u8>, Vec<u8>)> {
+    let StaticFormat::Failed {
+        message,
+        error_code,
+    } = static_result(
+        values,
+        shapes,
+        version,
+        context,
+        SemanticOperationId::Invoke,
+    )
+    else {
+        return None;
+    };
+    let mut options = b"-code 1 -level 0 -errorcode ".to_vec();
+    tcl_syntax::list::append_list_element(&mut options, &error_code, false);
+    options.extend_from_slice(b" -errorinfo ");
+    tcl_syntax::list::append_list_element(&mut options, &message, false);
+    options.extend_from_slice(b" -errorline 1");
+    Some((message, options))
 }
 
 /// The folded literal of an all-literal `format`, as [`select_with_values`]
@@ -165,10 +213,15 @@ pub(crate) fn select(
         )
         || context.mode != NativeCompilationMode::BytecodeObject
         || context.frame == NativeCompilationFrame::Unknown
-        || !(matches!(
+        || !matches!(
             shapes.first(),
-            Some(Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral)
-        ) || (version == TclVersion::V9_0 && shapes.first() == Some(&Shape::BackslashLiteral)))
+            Some(
+                Shape::Literal
+                    | Shape::QuotedLiteral
+                    | Shape::BracedLiteral
+                    | Shape::BackslashLiteral
+            )
+        )
         || !shapes.contains(&Shape::Substituted)
         || shapes
             .iter()
@@ -198,7 +251,11 @@ pub(crate) fn select(
     if conversions != arguments || conversions > 125 {
         return Selection::Generic;
     }
-    if !format.is_ascii() || format.contains(&0) {
+    // The concat pieces of a backslash-substituted format are modelled for C9.0 only.
+    if !format.is_ascii()
+        || format.contains(&0)
+        || (shapes[0] == Shape::BackslashLiteral && version != TclVersion::V9_0)
+    {
         return Selection::Unknown;
     }
     Selection::Inline {
