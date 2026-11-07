@@ -745,7 +745,7 @@ impl Frame {
                 command: None,
                 is_procedure: false,
                 script: jim_evaluation_script,
-                invocation: Value::empty(),
+                invocation: Value::shared_empty(),
             },
             asm,
             fixed_math_calls,
@@ -782,7 +782,7 @@ impl Frame {
             last_result: None,
             native_bytecode_entry: BytecodeEntry::Pending,
             deferred_dispatch: None,
-            last_options: Value::empty(),
+            last_options: Value::shared_empty(),
             is_proc,
             oo_call_exit: None,
             original_target: None,
@@ -2271,7 +2271,7 @@ impl Vm {
             original_scopes: vec![OriginalExecutionOwner::Entered(original)],
             traces: false,
             jim_commands: Vec::new(),
-            cmd_string: Value::empty(),
+            cmd_string: Value::shared_empty(),
             leave_owner: None,
             step_scopes: 0,
         }
@@ -9594,14 +9594,19 @@ impl Vm {
         if ordinary {
             self.reset_native_ensemble_rewrite(Event::BeforeOrdinaryLookup)?;
         }
-        let selected = entered.is_some()
-            || match words.first() {
-                Some(head) => self
+        let resolved = match (entered, words.first()) {
+            (None, Some(head)) => Some(crate::interp::ResolvedHead {
+                key: self
                     .resolve_original_command_key_in_context(context, head)
-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
-                    .is_some(),
-                None => false,
-            };
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?,
+                stamp: self.command_lookup_stamp(),
+            }),
+            _ => None,
+        };
+        let selected = entered.is_some()
+            || resolved
+                .as_ref()
+                .is_some_and(|resolved| resolved.key.is_some());
         if ordinary && selected {
             self.reset_native_ensemble_rewrite(Event::AfterSuccessfulOrdinaryLookup)?;
         }
@@ -9613,7 +9618,7 @@ impl Vm {
                 original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
                 traces: false,
                 jim_commands: Vec::new(),
-                cmd_string: Value::empty(),
+                cmd_string: Value::shared_empty(),
                 leave_owner: None,
                 step_scopes: 0,
             };
@@ -9621,6 +9626,7 @@ impl Vm {
                 (&mut *f, words),
                 None,
                 entered,
+                resolved.as_ref(),
                 context,
                 usage,
                 original_scope,
@@ -9957,6 +9963,7 @@ impl Vm {
             (&mut *f, words),
             Some(&sidecar),
             entered,
+            None,
             context,
             usage,
             original_scope,
@@ -10302,6 +10309,7 @@ impl Vm {
         invocation: (&mut Frame, &crate::NativeListItems),
         sidecar_handle: Option<&CommandSidecarHandle>,
         entered: Option<&EnteredCommand>,
+        resolved: Option<&crate::interp::ResolvedHead>,
         context: &crate::interp::namespace_context::NamespaceExecutionContext,
         usage: &[crate::command::NativeArgumentUsageRewrite],
         original_scope: &NativeOperationScope,
@@ -10315,10 +10323,13 @@ impl Vm {
             });
             (key, Some(entered.command.clone()))
         } else {
-            match self
-                .lookup_original_command_in_context(context, original)
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
-            {
+            let looked = match resolved {
+                Some(resolved) => {
+                    self.lookup_resolved_command_in_context(context, original, resolved)
+                }
+                None => self.lookup_original_command_in_context(context, original),
+            };
+            match looked.map_err(|error| crate::command::completion_from_cmd_error(self, error))? {
                 Some((key, command)) => (Some(key), Some(command)),
                 None => (None, None),
             }
@@ -10368,7 +10379,7 @@ impl Vm {
                 original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
                 traces: false,
                 jim_commands: Vec::new(),
-                cmd_string: Value::empty(),
+                cmd_string: Value::shared_empty(),
                 leave_owner: None,
                 step_scopes: 0,
             });

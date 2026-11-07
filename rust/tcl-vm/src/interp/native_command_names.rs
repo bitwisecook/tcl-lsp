@@ -660,6 +660,43 @@ impl Vm {
         self.resolve_original_command_key_at(*namespace, original)
     }
 
+    /// [`Self::lookup_original_command_in_context`] for a head that dispatch
+    /// already resolved. While no command, name-world, trace or binding state
+    /// has changed since, the ordinary lookup reuses that key; debug builds
+    /// look up again and check that it agreed.
+    pub(crate) fn lookup_resolved_command_in_context(
+        &mut self,
+        context: &NamespaceExecutionContext,
+        original: &Value,
+        resolved: &ResolvedHead,
+    ) -> Result<Option<(String, Command)>, CmdError> {
+        let ordinary = matches!(context, NamespaceExecutionContext::Resolved(_))
+            && !self.uses_native_jim_lookup()
+            && self
+                .actual_native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .is_none();
+        let unchanged = ordinary && resolved.stamp == self.command_lookup_stamp();
+        if unchanged && !crate::VERIFY_CURRENCY {
+            let Some(key) = &resolved.key else {
+                return Ok(None);
+            };
+            return self
+                .visible_command_at_key(key)
+                .map(|command| Some((key.clone(), command)))
+                .ok_or(
+                    ValueError::CommandProtocolUnavailable("resolved command implementation")
+                        .into(),
+                );
+        }
+        let looked = self.lookup_original_command_in_context(context, original)?;
+        debug_assert!(
+            !unchanged || looked.as_ref().map(|(key, _)| key) == resolved.key.as_ref(),
+            "command lookup stamp outlived a resolution change"
+        );
+        Ok(looked)
+    }
+
     pub(crate) fn lookup_original_command_in_context(
         &mut self,
         context: &NamespaceExecutionContext,
@@ -1399,3 +1436,9 @@ mod tests {
 
 #[cfg(test)]
 mod info_commands_literal_tests;
+
+/// A dispatch head's resolved visible key and the state it was resolved under.
+pub(crate) struct ResolvedHead {
+    pub(crate) key: Option<String>,
+    pub(crate) stamp: super::CommandLookupStamp,
+}

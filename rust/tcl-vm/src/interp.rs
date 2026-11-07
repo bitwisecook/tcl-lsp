@@ -95,6 +95,7 @@ mod native_cache_tests;
 #[cfg(test)]
 mod native_command_holder_tests;
 mod native_command_names;
+pub(crate) use native_command_names::ResolvedHead;
 mod native_command_slots;
 mod native_compiled_append;
 pub(crate) mod native_compiled_locals;
@@ -1427,6 +1428,16 @@ struct NativeCompilationEpochs {
     /// Compiled functions whose command and procedure bindings last held, with
     /// the binding stamp they held under.
     held_bindings: RefCell<Vec<(std::rc::Weak<FunctionAsm>, BindingStamp)>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CommandLookupStamp {
+    binding_epoch: u64,
+    cmd_epoch: u64,
+    trace_deopt_epoch: u64,
+    name_world: u64,
+    interpreter: usize,
+    profile: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -12085,6 +12096,18 @@ impl Vm {
     }
 
     /// Bump the shared compilation-deopt epoch.
+    pub(crate) fn command_lookup_stamp(&self) -> CommandLookupStamp {
+        let epochs = &self.compilation_epochs;
+        CommandLookupStamp {
+            binding_epoch: epochs.binding_epoch.get(),
+            cmd_epoch: epochs.cmd_epoch.get(),
+            trace_deopt_epoch: epochs.trace_deopt_epoch.get(),
+            name_world: self.name_world.generation(),
+            interpreter: self.cur.0,
+            profile: std::ptr::from_ref(self.actual_native_execution_profile()).addr(),
+        }
+    }
+
     fn binding_stamp(&self) -> BindingStamp {
         let epochs = &self.compilation_epochs;
         BindingStamp {
