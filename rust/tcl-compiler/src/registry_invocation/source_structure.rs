@@ -1656,6 +1656,10 @@ fn effective_operand_sources(
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
+    // Every written word's name input at once: one per operand recaptured
+    // the whole command each time (#2422).
+    let inputs = binding.original_written_name_inputs(tokens);
+    let input = |written: usize| inputs.as_ref()?.get(written)?.clone();
     Some(
         effective
             .origins
@@ -1665,11 +1669,11 @@ fn effective_operand_sources(
             .map(|(origin, value)| match origin {
                 InvocationWordOrigin::Written(written) => Some(OriginalOperandSource {
                     span: segment.argv.get(*written)?.span,
-                    input: binding.original_written_name_input(tokens, *written),
+                    input: input(*written),
                     word: native.and_then(|words| words.get(*written)).cloned(),
                 }),
                 InvocationWordOrigin::ExpandedElement { written, element } => {
-                    let parent = binding.original_written_name_input(tokens, *written)?;
+                    let parent = input(*written)?;
                     let mut children = parent.original_list_elements_with_source_spans()?;
                     let (input, span) = children.get_mut(*element)?;
                     (value.literal_bytes()? == input.bytes()).then_some(())?;

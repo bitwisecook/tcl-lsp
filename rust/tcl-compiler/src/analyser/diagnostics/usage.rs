@@ -1111,6 +1111,16 @@ Use braces: {{ \u{2026} }}"
         }
         let mut seen = FxHashSet::default();
         for &token in &cmd.argv {
+            // Only a `${` reference can be either pattern; looking the word up
+            // costs the whole command, so a long literal command was quadratic
+            // (#2422).
+            if self
+                .source
+                .get(token.span.as_range())
+                .is_some_and(|text| !text.contains("${"))
+            {
+                continue;
+            }
             let Some(word) = self.retained_value_word(token) else {
                 continue;
             };

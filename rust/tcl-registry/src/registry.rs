@@ -6203,14 +6203,39 @@ impl CommandRegistry {
         index: usize,
         command_prefix: bool,
     ) -> Option<crate::hover::ScriptTiming> {
-        let scan_start = resolved
+        let prefixes = if command_prefix {
+            vec![index]
+        } else {
+            Vec::new()
+        };
+        Self::script_timings_for_resolved(resolved, spec, sub, args, &[index], &prefixes)
+            .pop()
+            .flatten()
+    }
+
+    /// [`Self::script_timing_for_resolved`] for each of `indices`, resolving
+    /// the command's roles, timing resolver and options once: per index they
+    /// cost a whole command's work, so a long literal command was quadratic
+    /// (#2422). `prefixes` are the indices that hold a command prefix.
+    fn script_timings_for_resolved(
+        resolved: &ResolvedInvocation<'_, '_>,
+        spec: &CommandSpec,
+        sub: Option<&SubCommand>,
+        args: &[&str],
+        indices: &[usize],
+        prefixes: &[usize],
+    ) -> Vec<Option<crate::hover::ScriptTiming>> {
+        let Some(scan_start) = resolved
             .semantics
             .argument_offset
             .checked_add(if sub.is_none() {
                 spec.constructor_prefix_words().unwrap_or(0)
             } else {
                 0
-            })?;
+            })
+        else {
+            return vec![None; indices.len()];
+        };
         let mut roles: Vec<_> = resolved
             .argument_roles()
             .0
@@ -6230,49 +6255,61 @@ impl CommandRegistry {
             &|_| true,
             resolved.semantics.options.prefix_matching,
         );
-        let is_executable = command_prefix
-            || roles
-                .iter()
-                .any(|&(position, role)| role.has_script_timing() && position == index);
-        if !is_executable {
-            return None;
-        }
-
+        let executable: std::collections::HashSet<usize> = roles
+            .iter()
+            .filter(|(_, role)| role.has_script_timing())
+            .map(|&(position, _)| position)
+            .chain(prefixes.iter().copied())
+            .collect();
         let (timing_resolver, offset) = sub.map_or((spec.script_timing_resolver, 0usize), |sub| {
             (sub.script_timing_resolver, 1usize)
         });
-        if let Some(resolve) = timing_resolver
-            && let Some(relative) = index.checked_sub(offset)
-            && let Some((_, timing)) = resolve(crate::InvocationArguments::literals(
-                args.get(offset..).unwrap_or(&[]),
-            ))
-            .into_iter()
-            .find(|(position, _)| usize::from(*position) == relative)
-        {
-            return Some(timing);
-        }
-
-        // An invocation-sensitive resolver is the exact fact and therefore
-        // precedes an option's static default. This matters for APIs such as
-        // `bibtex::parse`: the same callback option runs synchronously for an
-        // in-memory input but is stored when `-channel` selects background
-        // parsing. Resolver silence deliberately falls through to the option.
+        let mut resolved_timings: Option<Vec<(usize, crate::hover::ScriptTiming)>> = None;
         let options = resolved.semantics.options.available().collect::<Vec<_>>();
-        if let Some(timing) = option_script_timing_at_selected(
-            &options,
-            args,
-            scan_start,
-            index,
-            resolved.semantics.options.prefix_matching,
-        ) {
-            return Some(timing);
-        }
-
-        Some(if resolved.semantics.traits.contains(Traits::DEFERS_BODY) {
-            crate::hover::ScriptTiming::Deferred
-        } else {
-            crate::hover::ScriptTiming::SameInvocation
-        })
+        indices
+            .iter()
+            .map(|&index| {
+                if !executable.contains(&index) {
+                    return None;
+                }
+                if let Some(resolve) = timing_resolver
+                    && let Some(relative) = index.checked_sub(offset)
+                    && let Some(&(_, timing)) = resolved_timings
+                        .get_or_insert_with(|| {
+                            resolve(crate::InvocationArguments::literals(
+                                args.get(offset..).unwrap_or(&[]),
+                            ))
+                            .into_iter()
+                            .map(|(position, timing)| (usize::from(position), timing))
+                            .collect()
+                        })
+                        .iter()
+                        .find(|(position, _)| *position == relative)
+                {
+                    return Some(timing);
+                }
+                // An invocation-sensitive resolver is the exact fact and
+                // therefore precedes an option's static default. This matters
+                // for APIs such as `bibtex::parse`: the same callback option
+                // runs synchronously for an in-memory input but is stored when
+                // `-channel` selects background parsing. Resolver silence
+                // deliberately falls through to the option.
+                if let Some(timing) = option_script_timing_at_selected(
+                    &options,
+                    args,
+                    scan_start,
+                    index,
+                    resolved.semantics.options.prefix_matching,
+                ) {
+                    return Some(timing);
+                }
+                Some(if resolved.semantics.traits.contains(Traits::DEFERS_BODY) {
+                    crate::hover::ScriptTiming::Deferred
+                } else {
+                    crate::hover::ScriptTiming::SameInvocation
+                })
+            })
+            .collect()
     }
 
     /// The 0-based argument positions of this invocation that hold a script,
@@ -6304,11 +6341,40 @@ impl CommandRegistry {
         {
             return Vec::new();
         }
-        (0..args.len())
-            .filter(|&index| {
-                self.script_timing(name, args, index, dialect)
-                    == Some(crate::hover::ScriptTiming::Deferred)
-            })
+        // One resolution for every word, as `script_timing` would resolve it
+        // per word (#2422).
+        let Some(resolved) = self.resolve_invocation(name, args, dialect) else {
+            return Vec::new();
+        };
+        let spec = if dialect.is_none() {
+            self.get(resolved.canonical_command)
+        } else {
+            self.get_for_surface(resolved.canonical_command, dialect)
+        };
+        let Some(spec) = spec else {
+            return Vec::new();
+        };
+        let sub = resolved
+            .subcommand
+            .resolved()
+            .and_then(|subcommand| spec.subcommand(subcommand.canonical_name));
+        if !spec.subcommands.is_empty()
+            && sub.is_none()
+            && resolved.subcommand != SubcommandResolution::NotApplicable
+        {
+            return Vec::new();
+        }
+        let prefixes: Vec<usize> = self
+            .command_prefixes(name, args)
+            .iter()
+            .map(|(at, _)| *at)
+            .collect();
+        let indices: Vec<usize> = (0..args.len()).collect();
+        Self::script_timings_for_resolved(&resolved, spec, sub, args, &indices, &prefixes)
+            .into_iter()
+            .zip(indices)
+            .filter(|(timing, _)| *timing == Some(crate::hover::ScriptTiming::Deferred))
+            .map(|(_, index)| index)
             .collect()
     }
 

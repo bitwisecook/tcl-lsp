@@ -1545,14 +1545,66 @@ impl super::SourceInvocationBinding {
         words: &[crate::ir::WordExpr],
         config: tcl_lexer::LexerConfig,
     ) -> Option<SignatureSourceNameInput> {
-        use crate::signature_scan::scope::{SignatureSourceNameKey, SignatureSourceNameValue};
         let site = self.invocation_site()?;
         let original = site
             .source
             .original_lexical_command(words, site.offset, config)?;
-        let word = original.native_words().get(written)?;
+        let purpose = self.original_recorded_name_purpose(words, config)?;
+        self.recorded_written_name_input_in(
+            written,
+            words,
+            config,
+            original.native_words(),
+            &purpose,
+        )
+    }
+
+    /// [`Self::original_written_name_input`] for every written word of
+    /// `tokens`, recapturing the command and its name purpose once rather
+    /// than once per word, which made a long literal command quadratic
+    /// (#2422).
+    pub(crate) fn original_written_name_inputs(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<Vec<Option<SignatureSourceNameInput>>> {
+        if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+            return None;
+        }
+        let (words, config) = self.original_recorded_name_words()?;
+        (words == tokens.words()).then_some(())?;
+        let site = self.invocation_site()?;
+        let original = site
+            .source
+            .original_lexical_command(words, site.offset, config)?;
+        let native = original.native_words();
+        let purpose = self.original_recorded_name_purpose(words, config);
+        Some(
+            (0..native.len())
+                .map(|written| {
+                    self.recorded_written_name_input_in(
+                        written,
+                        words,
+                        config,
+                        native,
+                        purpose.as_ref()?,
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    fn recorded_written_name_input_in(
+        &self,
+        written: usize,
+        words: &[crate::ir::WordExpr],
+        config: tcl_lexer::LexerConfig,
+        native: &[tcl_lexer::NativeWord],
+        purpose: &OriginalRecordedNamePurpose,
+    ) -> Option<SignatureSourceNameInput> {
+        use crate::signature_scan::scope::{SignatureSourceNameKey, SignatureSourceNameValue};
+        let word = native.get(written)?;
         let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
-        match self.original_recorded_name_purpose(words, config)? {
+        match purpose {
             OriginalRecordedNamePurpose::Logical(purpose) => {
                 return purpose
                     .key(word, rules)
