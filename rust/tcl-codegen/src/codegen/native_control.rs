@@ -273,6 +273,24 @@ impl CodegenCtx<'_> {
                 Visit::Word(operand) => {
                     tasks.push(Self::native_namespace_word_task(&command.words, operand)?);
                 }
+                // A body compiled before the compiler declined keeps its
+                // local and literal registrations; its code is rolled back.
+                Visit::Script {
+                    operand,
+                    span,
+                    context,
+                } => {
+                    let original = command.words.first()?;
+                    tasks.push(Task::ControlScript(
+                        original.image().clone(),
+                        tcl_registry::native_control_instructions::NativeControlBody {
+                            operand,
+                            script: Some(span),
+                        },
+                        context,
+                        original.config(),
+                    ));
+                }
                 _ => return None,
             }
         }
