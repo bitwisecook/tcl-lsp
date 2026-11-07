@@ -402,8 +402,11 @@ mod tests {
     }
 
     #[test]
-    fn width_dependent_indices_and_other_releases_refuse() {
-        assert!(recipe("string replace $s end+1 end", TclVersion::V9_0).is_none());
+    fn range_errors_replace_generically_and_other_releases_refuse() {
+        assert_eq!(
+            operation("string replace $s end+1 end", TclVersion::V9_0),
+            Operation::Generic
+        );
         assert!(recipe("string replace $s 0 1", TclVersion::V8_5).is_none());
         assert!(recipe("string replace $s 0", TclVersion::V9_0).is_none());
     }

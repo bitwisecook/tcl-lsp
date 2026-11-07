@@ -1449,9 +1449,7 @@ pub fn compiler_encodable_in(spec: &str, syntax: tcl_dialect::IndexSyntax) -> Op
     let value = value?;
     let end_relative = spec.starts_with("end");
     if end_relative {
-        // `end+1` keeps no end-offset rep, so a wider Tcl_Size reports a
-        // range error where an int-sized one encodes `after`.
-        return (value > -i64::from(i32::MAX) && value != 1).then_some(true);
+        return (value > -i64::from(i32::MAX)).then_some(true);
     }
     if parse_int_whole(spec, syntax.numbers).is_none()
         && parse_int_prefix(spec.trim_start(), syntax.numbers)?.0 < 0
@@ -1485,14 +1483,6 @@ pub fn compiled_list_index_in(
             .filter(|value| *value >= 0)
             .map(Index::from_encoded));
     }
-    // C9's positive end-offset conversion does not retain an encodable
-    // negative-base primary. The member compiler evaluates that index object.
-    if version >= tcl_dialect::TclVersion::V9_0
-        && spec.starts_with("end")
-        && resolve_opt_in(spec, 1, syntax).is_some_and(|value| value > 0)
-    {
-        return Ok(None);
-    }
     compiled_list_bound_in(spec, version, -1, -1)
 }
 
@@ -1512,6 +1502,9 @@ pub fn compiled_list_bound_in(
     let syntax = tcl_dialect::IndexSyntax::for_version(version);
     if version < tcl_dialect::TclVersion::V8_6 {
         return Ok(None);
+    }
+    if syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64 {
+        return Ok(c9_index_encode(spec, syntax.numbers, before, after).map(Index::from_encoded));
     }
     let Some(value) = resolve_opt_in(spec, 1, syntax) else {
         return Ok(None);
@@ -1539,6 +1532,101 @@ pub fn compiled_list_bound_in(
         i32::try_from(value).expect("native encoded absolute index")
     };
     Ok(Some(Index::from_encoded(encoded)))
+}
+
+/// C9's `TclIndexEncode` on the supported 64-bit host, where `Tcl_Size` is
+/// wider than `int`. `None` is `TCL_ERROR`: a word that does not parse, or a
+/// range error, which leaves the compiler to evaluate the index object.
+fn c9_index_encode(spec: &str, numbers: NumberSyntax, before: i32, after: i32) -> Option<i32> {
+    // `GetWideForIndex`'s end value and `LIST_MAX` for 8-byte slots behind a
+    // 40-byte `ListStore` header.
+    const END_VALUE: i128 = 2 * i32::MAX as i128;
+    const WIDE_MAX: i128 = i64::MAX as i128;
+    const WIDE_MIN: i128 = i64::MIN as i128;
+    const LIST_MAX: i128 = (WIDE_MAX - 40) / 8;
+    const INT_MAX: i128 = i32::MAX as i128;
+    let clamp = |value: i128| value.clamp(WIDE_MIN, WIDE_MAX);
+    // The value and whether an end-offset rep with a negative offset remains.
+    let (wide, end_relative) = if let Some(number) = whole_number(spec, numbers) {
+        let value = match number {
+            Number::Int(value) if value < 0 => -1,
+            Number::Int(value) => i128::from(value),
+            Number::Big { negative: true, .. } => WIDE_MIN,
+            Number::Big {
+                negative: false, ..
+            } => WIDE_MAX,
+            _ => return None,
+        };
+        (value, false)
+    } else {
+        let offset = if spec == "end" {
+            -1
+        } else if let Some(rest) = spec.strip_prefix("end") {
+            let (subtract, number) = signed_operand(rest, numbers)?;
+            match number {
+                Number::Big { negative, .. } => {
+                    if negative == subtract {
+                        WIDE_MAX
+                    } else {
+                        WIDE_MIN
+                    }
+                }
+                Number::Int(value) => {
+                    let value = i128::from(value);
+                    let offset = match (subtract, value == WIDE_MIN) {
+                        (true, true) => WIDE_MAX,
+                        (true, false) => -value,
+                        (false, _) => value,
+                    };
+                    match offset {
+                        1 => WIDE_MAX,
+                        offset if offset > 1 => WIDE_MAX - 1,
+                        WIDE_MIN => WIDE_MIN,
+                        offset => offset - 1,
+                    }
+                }
+                _ => return None,
+            }
+        } else {
+            let (first, rest) = sum_head(spec, numbers)?;
+            let (subtract, second) = signed_operand(rest, numbers)?;
+            match clamp(exact_sum(&first, subtract, &second)?) {
+                -1 => WIDE_MIN,
+                sum if sum < 0 => WIDE_MIN + 1,
+                sum => sum,
+            }
+        };
+        let wide = match offset {
+            WIDE_MAX => END_VALUE + 1,
+            WIDE_MIN => -1,
+            offset if offset < 0 => END_VALUE + offset + 1,
+            offset => offset,
+        };
+        (wide, offset < 0)
+    };
+    if end_relative {
+        if wide > END_VALUE - LIST_MAX && wide <= INT_MAX {
+            return None;
+        }
+        return Some(if wide > END_VALUE {
+            after
+        } else if wide <= INT_MAX {
+            before
+        } else {
+            // `(int)wide`: the end-relative encoding below `INT_MIN`'s wrap.
+            i32::try_from(wide - (1_i128 << 32)).ok()?
+        });
+    }
+    if wide > INT_MAX && wide < WIDE_MAX - 1 {
+        return None;
+    }
+    Some(if wide > INT_MAX {
+        after
+    } else if wide < 0 {
+        before
+    } else {
+        i32::try_from(wide).ok()?
+    })
 }
 
 /// Extract Jim's safe integer expression, retaining `end` relativity.
@@ -3291,5 +3379,42 @@ fn compiler_encoding_preserves_wide_target_uncertainty() {
             assert_eq!(compiler_encodable_in("2147483648", syntax), None);
             assert_eq!(compiler_encodable_in("end-2147483648", syntax), None);
         }
+    }
+}
+
+/// Measured with `tcl::unsupported::disassemble` on tclsh 9.0.4 and 9.1.0.
+#[test]
+fn c9_index_encoding_follows_the_64_bit_host() {
+    use tcl_dialect::TclVersion;
+    let bound = |spec, before, after| {
+        compiled_list_bound_in(spec, TclVersion::V9_0, before, after)
+            .unwrap()
+            .map(|index| index.encoded())
+    };
+    // `string range` last-index coordinates: before NONE, after END.
+    for (spec, encoded) in [
+        ("end", Some(-2)),
+        ("end-0", Some(-2)),
+        ("end+5", Some(-2)),
+        ("end-2147483646", Some(-2_147_483_648)),
+        ("end-1073741825", Some(-1_073_741_827)),
+        ("end-2147483647", None),
+        ("end-2147483649", None),
+        ("end-9999999999999999999999", None),
+        ("end-2000000000000000000", Some(-1)),
+        ("end+1", None),
+        ("99999999999999999999999", Some(-2)),
+        ("9223372036854775806", Some(-2)),
+        ("9223372036854775805", None),
+        ("2147483648", None),
+        ("2147483647", Some(2_147_483_647)),
+        ("-5", Some(-1)),
+        ("0x10", Some(16)),
+        ("5-1", Some(4)),
+        ("1-2", None),
+        ("1-3", Some(-1)),
+        ("bad", None),
+    ] {
+        assert_eq!(bound(spec, -1, -2), encoded, "{spec}");
     }
 }

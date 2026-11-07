@@ -249,10 +249,18 @@ mod tests {
         assert_eq!(windows, 95);
     }
     #[test]
-    fn compiled_index_retains_target_width_uncertainty_and_malformed_runtime_operands() {
-        assert!(
-            tcl_cmd_core::index::compiled_list_index_in("2147483648", TclVersion::V9_0).is_err()
-        );
+    fn compiled_index_follows_the_64_bit_host_and_malformed_runtime_operands() {
+        // C9 on a 64-bit Tcl_Size: a range error evaluates the index object,
+        // and `end+N` past one is after the end.
+        for (spec, encoded) in [("2147483648", None), ("end+5", Some(-1))] {
+            assert_eq!(
+                tcl_cmd_core::index::compiled_list_index_in(spec, TclVersion::V9_0)
+                    .unwrap()
+                    .map(NativeCompiledListIndex::encoded),
+                encoded,
+                "{spec}"
+            );
+        }
         assert_eq!(
             tcl_cmd_core::index::compiled_list_index_in("bad", TclVersion::V9_0).unwrap(),
             None

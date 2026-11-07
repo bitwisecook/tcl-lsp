@@ -304,20 +304,32 @@ mod tests {
     }
 
     #[test]
-    fn original_unknown_indices_arity_expansion_and_other_releases_stay_unavailable() {
+    fn arity_expansion_and_other_releases_stay_unavailable() {
         for source in [
             "string range $s 2",
             "string range $s 2 end extra",
             "string ra $s 2 end",
             "string range {*}$args",
-            // C9 `end+1` depends on the target's Tcl_Size width.
-            "string range $s end+1 [side_effect]",
         ] {
             assert!(
                 original(source, NativeScalarScope::PublicMember, TclVersion::V9_0).is_none(),
                 "{source}"
             );
         }
+        // C9 on a 64-bit Tcl_Size reports `end+1` as a range error.
+        assert_eq!(
+            original(
+                "string range $s end+1 [side_effect]",
+                NativeScalarScope::PublicMember,
+                TclVersion::V9_0
+            )
+            .unwrap()
+            .operation,
+            NativeStringRangeOperation::Indices {
+                first: NativeCompilerWordOperand::Original(3),
+                last: NativeCompilerWordOperand::Original(4),
+            }
+        );
         for version in [TclVersion::V8_4, TclVersion::V8_5] {
             assert!(
                 original(
