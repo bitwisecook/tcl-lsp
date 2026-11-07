@@ -52,6 +52,7 @@ pub(crate) const VERIFY_CURRENCY: bool = cfg!(debug_assertions);
 | Runtime | `NativeOperationCurrency::ensure_current` | epoch, host, pinned context, profile and release |
 | Runtime | `Interp::check_entered_native_operation`, inherited `NativeOperationCurrency::issue` | re-check of the interpreter's own entered currency after its refusal check |
 | Runtime | `NativeOperationScope::enter` | re-check of a just-issued currency |
+| VM | `SavedExecutionTarget::settle_in_original` | re-entry and re-proof around cleanup whose currency is already the current interpreter's innermost live entry |
 
 In release, an operation whose world changes under it continues against the
 changed world instead of refusing, as C Tcl does. Tests that assert those

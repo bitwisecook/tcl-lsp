@@ -330,6 +330,31 @@ impl SavedExecutionTarget {
         })
     }
 
+    /// Whether this target's saved currency is the current interpreter's
+    /// innermost live entry, which entering it again would reuse unchanged.
+    fn entered_in_current(&self, vm: &Vm) -> bool {
+        let Ok(Some(currency)) = &self.currency else {
+            return false;
+        };
+        if vm.execution_refusal.is_some()
+            || vm.cur != self.interpreter
+            || self.owner != vm.owner_nonce
+            || !Rc::ptr_eq(&currency.owner, &vm.native_operation_context)
+        {
+            return false;
+        }
+        let innermost = currency
+            .owner
+            .entered
+            .borrow()
+            .iter()
+            .rev()
+            .find_map(Weak::upgrade);
+        innermost.is_some_and(|entered| {
+            entered.currency.same_issue(currency) && NativeOperationScope::reusable(vm, &entered)
+        })
+    }
+
     fn settle_in_original<T>(
         &self,
         vm: &mut Vm,
@@ -337,6 +362,23 @@ impl SavedExecutionTarget {
         publication: CleanupPublication,
         work: impl FnOnce(&mut Vm) -> T,
     ) -> Result<ReachedCleanup<Option<T>>, NativeExecutionError> {
+        if !crate::VERIFY_CURRENCY
+            && restoration == CleanupRestoration::PreserveCallbackSelection
+            && self.entered_in_current(vm)
+        {
+            // Release has no re-proof to run around work that a reused entry
+            // already encloses in its own interpreter.
+            let mut metadata = Some(work(vm));
+            if matches!(publication, CleanupPublication::OrdinaryResult)
+                && vm.execution_refusal.is_some()
+            {
+                drop(metadata.take());
+            }
+            return Ok(ReachedCleanup {
+                metadata,
+                first_cause: vm.execution_refusal.clone(),
+            });
+        }
         // Preserve the callback-selected refusal before parking it. Withdrawn
         // currency still permits already-reached same-physical-target cleanup.
         let _ = self.check_current(vm);

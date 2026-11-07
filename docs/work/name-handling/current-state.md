@@ -77,6 +77,10 @@ Fourth pass (7 November), release instructions per iteration: VM proc call 201.8
 
 Fifth pass (7 November). A retained procedure body's command and procedure bindings are trusted in release while a binding stamp (a binding epoch advanced by every command, trace, namespace-resolver, compiler-cache and ensemble-export change, plus the command and trace epochs, current interpreter, profile and compiler generations) is unchanged since they last held; debug builds re-prove them every call and assert the memo agreed. Frame offset and `foreach` indexes are built once per live function instead of per activation. Variable destruction no longer enters the original context to drop an absent value. VM with debug assertions 1194/271 with no memo assertion, VM release 1098/271, failure-for-failure identical to the base. Release proc call 136.0K→132.2K instructions. The runtime build broken by the upstream `throw` native-compiler steps is restored by declining those recipes in the runtime body compiler; an empty `throw` type now publishes `TCL OPERATION THROW BADEXCEPTION`.
 
+## VM frame teardown
+
+Sixth pass (7 November, in progress): in release, saved-target cleanup whose currency is already the current interpreter's innermost live, reusable entry runs its work directly instead of re-entering the same entry and re-proving it (`SavedExecutionTarget::entered_in_current`). Verification (VM debug assertions and release, runtime release) is running; results go here.
+
 ## Resource integrity and next work
 
 A prior cleanup followed an alias and removed13 tracked compressed fixtures; all were restored from Git with original hashes before any test/merge. No results were produced with them missing. `/tmp/lsp-failed-merge-recovery-1640/source-fixtures-restored.json`. Source aliases and tracked fixtures must never be treated as disposable artifacts.
