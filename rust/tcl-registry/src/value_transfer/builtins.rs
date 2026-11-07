@@ -813,15 +813,12 @@ pub fn compile_time_format(
             if ops.fault().is_some() {
                 return None;
             }
-            // Only failures the template decides; value conversions can
-            // differ between the compile-time model and the runtime.
+            // `TclCompileSyntaxError` reports any `Tcl_Format` failure,
+            // template or conversion, that the model reached without a fault.
             let tcl_cmd_core::CmdErrorCodeUpdate::Set(error_code) = error.error_code_update()
             else {
                 return None;
             };
-            if !error_code.starts_with(b"TCL FORMAT ") {
-                return None;
-            }
             Some(CompileTimeFormat::Failed {
                 message: error.message_bytes().to_vec(),
                 error_code: error_code.clone(),

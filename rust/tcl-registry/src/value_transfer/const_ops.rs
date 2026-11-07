@@ -1034,6 +1034,28 @@ impl tcl_cmd_core::index::NativeIndexOps for ConstOps<'_> {
     }
 }
 
+/// Re-spell unsigned `digits` in base `from` as base `to`, lower case.
+fn convert_radix(digits: &str, from: u32, to: u32) -> String {
+    if from == to {
+        return digits.to_ascii_lowercase();
+    }
+    let mut number: Vec<u32> = digits.chars().filter_map(|c| c.to_digit(from)).collect();
+    let mut out = Vec::new();
+    while number.iter().any(|&digit| digit != 0) {
+        let mut remainder = 0;
+        for digit in &mut number {
+            let current = remainder * from + *digit;
+            *digit = current / to;
+            remainder = current % to;
+        }
+        out.push(char::from_digit(remainder, to).unwrap_or('0'));
+    }
+    if out.is_empty() {
+        out.push('0');
+    }
+    out.iter().rev().collect()
+}
+
 impl ValueOps for ConstOps<'_> {
     type Value = ConstValue;
 
@@ -1129,6 +1151,34 @@ impl ValueOps for ConstOps<'_> {
             Some(Number::Big { .. }) => Err(ValueError::IntegerOverflow),
             _ => Err(ValueError::NotInteger(text.to_string())),
         }
+    }
+
+    /// The bignum format path's magnitude: a wide integer or the full
+    /// digits of a bignum, never narrowed through `i64`.
+    fn integer_magnitude(
+        &mut self,
+        v: &ConstValue,
+        radix: tcl_syntax::number::Radix,
+        _syntax: NumberSyntax,
+    ) -> Result<tcl_syntax::value::IntegerMagnitude, ValueError> {
+        let text = self.try_as_str(v)?;
+        let (negative, from, digits) = match self.parse_number(&text, true) {
+            Some(Number::Int(i)) => (
+                i.is_negative(),
+                tcl_syntax::number::Radix::Dec,
+                i.unsigned_abs().to_string(),
+            ),
+            Some(Number::Big {
+                negative,
+                radix,
+                digits,
+            }) => (negative, radix, digits),
+            _ => return Err(ValueError::NotInteger(text.to_string())),
+        };
+        Ok(tcl_syntax::value::IntegerMagnitude {
+            negative,
+            digits: convert_radix(&digits, from as u32, radix as u32),
+        })
     }
 
     /// An integer reads as the double nearest it: its decimal spelling

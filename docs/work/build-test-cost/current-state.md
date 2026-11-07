@@ -696,9 +696,9 @@ work.
 | `throw` | 8.6, 9.0, 9.1 | Literal, empty-type (`BADEXCEPTION`) and dynamic type-check branches. |
 | `const` | 9.0, 9.1 | `CONST_IMM`/`CONST_STK`; `try` handler variables and `-during` fixed alongside. |
 | `dict create` | 8.6, 9.0 (9.1 constant) | Constant fold, `DICT_PUT` and the worker path. |
-| `string is` | 8.6, 9.0; 9.1 non-strict character classes | Every class, prefix and `-strict`. |
-| `regexp` | 8.4, 8.6, 9.0, 9.1 | 8.4 literal-pattern branch; 8.4 guard is chunk entry. |
-| `format` | 8.6, 9.0, 9.1 | All-literal fold; `TclCompileSyntaxError` for template failures; the dynamic branch's `%s`/`%%` concat and its generic declines. |
+| `string is` | 8.6, 9.0, 9.1 | Every class, prefix and `-strict`; 9.1's `IS_EMPTY` and `SWAP`. |
+| `regexp` | 8.4 to 9.1 | 8.4 literal-pattern branch; 8.4 guard is chunk entry; 8.4/8.5 push `1` for an empty pattern without compiling the subject. |
+| `format` | 8.6, 9.0, 9.1 | All-literal fold, including bignum conversions; `TclCompileSyntaxError` for every `Tcl_Format` failure; the dynamic branch's `%s`/`%%` concat and its generic declines. |
 | `string range` | 8.6, 9.0, 9.1 | Constant and non-constant index branches. |
 | `string map` | 8.6, 9.0, 9.1 | Inline `STR_MAP`, empty-key identity, Basic2Arg, and the failed-member `INVOKE_REPLACE` path. |
 | `string replace` | 8.6, 9.0, 9.1 | Every constant-index recipe, `genericReplace`, and 9.1's `SWAP`. |
@@ -706,6 +706,7 @@ work.
 | `string bytelength` | 8.6 | Basic1Arg named invocation. |
 | C8.4 `string` | 8.4 | Out-of-line members select an ordinary invocation. |
 | C8.5 `string map`/`range` | 8.5 | NULL compileProc selects an ordinary invocation. |
+| `tcl::unsupported::representation`, `corotype` | 8.6, 9.0, 9.1 | Created without a compileProc: an ordinary invocation. |
 
 Bugs these ports exposed and fixed:
 
@@ -724,19 +725,22 @@ Bugs these ports exposed and fixed:
 
 Still unmodelled or refused by design:
 
-- 8.5 `regexp`.
-- 9.1 `string is` beyond non-strict character classes (it needs
-  `IS_EMPTY`).
-- `tcl::unsupported::representation`.
-- Nested `subst`.
-- **Width-dependent indices.** On 9.x, C's encoding of `end+1` and of
-  absolute indices beyond `INT_MAX` depends on the target's `Tcl_Size`
-  width, so these are refused. The literal-index vectors in it_3 exercise
-  exactly these cases.
-- **8.4 expression errors.** In 8.4 an expression syntax error fails
-  compilation of the whole enclosing body, which is broader than one
-  compile procedure. `expr {foo}`, `{2 ** 3}`, `{08}` and `{sin 1}` are
-  refused, and `(1` reports "premature end" where 8.4 says "looking for
-  close parenthesis".
-- **`format %d` of a bignum.** C truncates through the host `long`; the
-  static fold leaves it to the runtime path.
+- **`subst` with command substitutions.** `TclCompileSubstCmd` compiles
+  each `[...]` as a nested script in a catch range. Only text, backslash
+  and scalar parts are modelled inline, so any template with a command
+  is refused. The variable-only inline path also drops C's
+  `while executing "subst ..."` errorInfo frame.
+
+Fixed since the list above was written:
+
+- **Width-dependent indices.** 9.x indices now follow `TclIndexEncode` on
+  the 64-bit host, so `end+1` and absolute indices beyond `INT_MAX` take
+  C's constant or non-constant path.
+- **8.4 expression errors.** A C8.4 body whose expression fails 8.4's own
+  parser raises that parser's message and errorCode at compile time,
+  with C8.4's global errorInfo.
+- **8.5 `regexp`**, **9.1 `string is`** (new `IS_EMPTY` opcode, which
+  avoids generating a string for dicts, lists and numbers),
+  **`tcl::unsupported::representation`** and **`format` bignum folds**
+  (`%d` truncates to 32 bits on 9.x and through a 64-bit `long` on 8.6;
+  `%lld` keeps the bignum).
