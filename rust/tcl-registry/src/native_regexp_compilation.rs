@@ -52,6 +52,8 @@ pub enum NativeRegexpMatcher {
         /// Whether `-nocase` was accepted.
         nocase: bool,
     },
+    /// C8.4 and C8.5 push "1" for an empty pattern and never compile the subject.
+    Always,
 }
 
 impl NativeRegexpMatcher {
@@ -64,7 +66,7 @@ impl NativeRegexpMatcher {
             } else {
                 REGEXP_ADVANCED
             }),
-            Self::Equal(_) | Self::Glob { .. } => None,
+            Self::Equal(_) | Self::Glob { .. } | Self::Always => None,
         }
     }
 }
@@ -81,30 +83,37 @@ pub struct NativeRegexpInstruction {
 impl NativeRegexpInstruction {
     /// Original words compiled by this recipe, in stack order.
     pub fn original_operands(&self) -> impl Iterator<Item = &NativeCompilerWordOperand> {
-        let pattern = match &self.matcher {
-            NativeRegexpMatcher::Regexp { pattern, .. } => Some(pattern),
-            NativeRegexpMatcher::Equal(_) | NativeRegexpMatcher::Glob { .. } => None,
+        let (pattern, subject) = match &self.matcher {
+            NativeRegexpMatcher::Regexp { pattern, .. } => (Some(pattern), Some(&self.subject)),
+            NativeRegexpMatcher::Equal(_) | NativeRegexpMatcher::Glob { .. } => {
+                (None, Some(&self.subject))
+            }
+            NativeRegexpMatcher::Always => (None, None),
         };
-        pattern.into_iter().chain(std::iter::once(&self.subject))
+        pattern.into_iter().chain(subject)
     }
 }
 
 /// Whether this release's regexp compiler is modelled here.
 #[must_use]
 pub const fn modelled(version: TclVersion) -> bool {
-    // C8.6's compiler and TclReToGlob match C9 apart from the latter's
-    // unused quantifier out-parameter. C8.4 has its own plain-pattern
-    // rewrite ([`c84_pattern`]); C8.5 also short-cuts an empty pattern.
+    // C8.5 and C8.6's compilers and TclReToGlob match C9 apart from the
+    // latter's unused quantifier out-parameter and C8.5's empty-pattern
+    // short cut. C8.4 has its own plain-pattern rewrite ([`c84_pattern`]).
     matches!(
         version,
-        TclVersion::V8_4 | TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1
+        TclVersion::V8_4
+            | TclVersion::V8_5
+            | TclVersion::V8_6
+            | TclVersion::V9_0
+            | TclVersion::V9_1
     )
 }
 
 /// What C8.4's `TclCompileRegexpCmd` makes of a literal pattern.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum C84Pattern {
-    /// Empty: C pushes "1" without compiling the subject (not modelled).
+    /// Empty: C pushes "1" without compiling the subject.
     Empty,
     /// A plain string once anchors and outer `.*` are set aside: the literal
     /// to compare, and whether both ends are anchored.
@@ -271,7 +280,7 @@ fn recipe(
                 pattern: literal,
                 nocase,
             },
-            C84Pattern::Empty => return Err(Selection::Unknown),
+            C84Pattern::Empty => NativeRegexpMatcher::Always,
             C84Pattern::Declined => return Err(Selection::Generic),
         };
         return Ok(NativeRegexpInstruction {
@@ -282,6 +291,12 @@ fn recipe(
     let glob = match projected_simple(pattern) {
         Some(bytes) if bytes.first() == Some(&b'-') && !saw_last => {
             return Err(Selection::Generic);
+        }
+        Some([]) if version == TclVersion::V8_5 => {
+            return Ok(NativeRegexpInstruction {
+                matcher: NativeRegexpMatcher::Always,
+                subject: subject.operand.clone(),
+            });
         }
         Some(bytes) => tcl_syntax::glob::re_to_glob(bytes),
         None => None,
@@ -470,11 +485,39 @@ mod tests {
         assert_eq!(recipe.subject, word(2));
     }
 
+    // C8.5 shares C9's compiler but pushes "1" for an empty simple pattern
+    // without compiling the subject.
     #[test]
-    fn unmodelled_releases_stay_unselected() {
+    fn c85_regexp_compiler_short_cuts_the_empty_pattern() {
+        for (source, matcher, subject) in release_cases() {
+            let recipe = select(source, TclVersion::V8_5)
+                .unwrap_or_else(|selection| panic!("{source:?}: {selection:?}"));
+            let empty = matches!(&matcher, NativeRegexpMatcher::Glob { pattern, .. } if pattern == b"*")
+                && !source.ends_with(b"$ $s");
+            let expected = if empty {
+                NativeRegexpMatcher::Always
+            } else {
+                matcher
+            };
+            assert_eq!(
+                recipe.matcher,
+                expected,
+                "{}",
+                String::from_utf8_lossy(source)
+            );
+            assert_eq!(recipe.subject, word(subject));
+            assert_eq!(
+                recipe.original_operands().count(),
+                match recipe.matcher {
+                    NativeRegexpMatcher::Always => 0,
+                    NativeRegexpMatcher::Regexp { .. } => 2,
+                    _ => 1,
+                }
+            );
+        }
         assert_eq!(
-            select(b"regexp -- $re $s", TclVersion::V8_5).unwrap_err(),
-            NativeCompilationSelection::Unknown
+            select(b"regexp -abc $s", TclVersion::V8_5).unwrap_err(),
+            NativeCompilationSelection::Generic
         );
     }
 

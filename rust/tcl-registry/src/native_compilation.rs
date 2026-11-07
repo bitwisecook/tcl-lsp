@@ -5967,8 +5967,7 @@ fn info_commands_grammar(
 
 // TclCompileRegexpCmd in all pinned C releases accepts only -nocase
 // abbreviations and -- before exactly two matching operands. Captures and
-// other options invoke the live handler. C8.4, C8.6 and C9 are modelled in
-// `native_regexp_compilation`; C8.5 remains unselected.
+// other options invoke the live handler; see `native_regexp_compilation`.
 fn regexp_grammar(
     words: InvocationWords<'_>,
     shapes: &[NativeCompilationWordShape],
@@ -6005,11 +6004,10 @@ fn regexp_grammar(
             .filter(|pattern| pattern.first() != Some(&b'-'))
             .map(c84_pattern)
         {
-            Some(C84Pattern::Plain(..)) => Selection::Inline {
+            Some(C84Pattern::Plain(..) | C84Pattern::Empty) => Selection::Inline {
                 operation,
                 guard: NativeCompilationGuard::for_c_version(version),
             },
-            Some(C84Pattern::Empty) => Selection::Unknown,
             Some(C84Pattern::Declined) | None => Selection::Generic,
         }
     } else if pattern.is_some_and(|pattern| pattern.first() == Some(&b'-')) && !saw_last {
@@ -8484,12 +8482,9 @@ mod tests {
         native: NativeCompilationSpec,
         version: TclVersion,
     ) -> NativeCompilationSelection {
-        match version {
-            TclVersion::V8_5 => NativeCompilationSelection::Unknown,
-            _ => NativeCompilationSelection::Inline {
-                operation: native.operation,
-                guard: NativeCompilationGuard::for_c_version(version),
-            },
+        NativeCompilationSelection::Inline {
+            operation: native.operation,
+            guard: NativeCompilationGuard::for_c_version(version),
         }
     }
 

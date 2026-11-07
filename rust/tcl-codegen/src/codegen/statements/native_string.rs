@@ -82,6 +82,10 @@ impl CodegenCtx<'_> {
     ) -> bool {
         let flags = recipe.matcher.regexp_flags();
         let (pattern, op, operands) = match recipe.matcher {
+            NativeRegexpMatcher::Always => {
+                operations.push(NativeEmissionTask::Literal(b"1".to_vec()));
+                return true;
+            }
             NativeRegexpMatcher::Equal(glob) => {
                 (NativeEmissionTask::Literal(glob), Op::STR_EQ, Vec::new())
             }
