@@ -25,6 +25,9 @@ use std::rc::Rc;
 /// One existing ownership transition. The driver selects physical storage;
 /// these steps neither resolve a name nor acquire a new native reference.
 pub(crate) struct VariableRetirement {
+    /// The first step, below everything in `pending`, held inline so a
+    /// retirement that pushes nothing allocates nothing.
+    head: Option<Step>,
     pending: Vec<Step>,
     detached: Option<VarState>,
 }
@@ -70,7 +73,8 @@ enum Release {
 impl VariableRetirement {
     fn new(step: Step) -> Self {
         Self {
-            pending: vec![step],
+            head: Some(step),
+            pending: Vec::new(),
             detached: None,
         }
     }
@@ -117,14 +121,12 @@ impl VariableRetirement {
     }
     pub(crate) fn clear(id: VarId) -> Self {
         Self {
-            pending: vec![
-                Step::RetireDetached,
-                Step::Detach {
-                    id,
-                    ordinary: true,
-                    array_cleanup: true,
-                },
-            ],
+            head: Some(Step::RetireDetached),
+            pending: vec![Step::Detach {
+                id,
+                ordinary: true,
+                array_cleanup: true,
+            }],
             detached: None,
         }
     }
@@ -241,7 +243,7 @@ impl VariableRetirement {
 
     /// Advance only pure storage/count steps, returning before an owned release.
     pub(crate) fn next(&mut self, arena: &mut VarArena) -> Option<VariableRelease> {
-        while let Some(step) = self.pending.pop() {
+        while let Some(step) = self.pending.pop().or_else(|| self.head.take()) {
             match step {
                 Step::Collect(id) => self.collect_unreferenced_cell(arena, id),
                 Step::CollectStatics => {
