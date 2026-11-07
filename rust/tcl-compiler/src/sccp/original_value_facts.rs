@@ -4908,8 +4908,10 @@ mod tests {
             }
         }
         assert_eq!(
-            seen, 2,
-            "both source expressions must be exercised: {ssa:#?}"
+            seen,
+            2,
+            "both source expressions must be exercised: {}",
+            ssa.outline()
         );
     }
 

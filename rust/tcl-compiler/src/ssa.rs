@@ -3413,6 +3413,34 @@ fn register_unique_source_names(
 }
 
 impl SsaFunction {
+    /// One line per statement: its block, index, span, uses and defs. Failure
+    /// messages print this, since the full `Debug` form repeats every shared
+    /// token tree and can run to gigabytes.
+    #[cfg(test)]
+    pub(crate) fn outline(&self) -> String {
+        use std::fmt::Write as _;
+        let mut blocks: Vec<_> = self.blocks.iter().collect();
+        blocks.sort_by_key(|(id, _)| **id);
+        let mut out = String::new();
+        for (id, block) in blocks {
+            let _ = writeln!(out, "{id:?} {}", block.name);
+            for (index, statement) in block.statements.iter().enumerate() {
+                let mut uses: Vec<_> = statement.uses.iter().collect();
+                uses.sort();
+                let mut defs: Vec<_> = statement.defs.iter().collect();
+                defs.sort();
+                let _ = writeln!(
+                    out,
+                    "  #{index} {:?} uses={uses:?} defs={defs:?}",
+                    statement.statement.span()
+                );
+            }
+        }
+        out
+    }
+}
+
+impl SsaFunction {
     /// Source identities positively issued by actual standalone SCRIPT points.
     /// Duplicates are harmless; no physical location or contents is returned.
     pub(crate) fn original_script_source_symbols(&self) -> impl Iterator<Item = Symbol> + '_ {
@@ -15292,12 +15320,13 @@ mod cell_resolution_tests {
             }
         }
         let (symbol, version) =
-            written.unwrap_or_else(|| panic!("alias store contents definition: {ssa:#?}"));
-        assert_eq!(read.len(), 2, "both puts reads: {ssa:#?}");
+            written.unwrap_or_else(|| panic!("alias store contents definition: {}", ssa.outline()));
+        assert_eq!(read.len(), 2, "both puts reads: {}", ssa.outline());
         assert!(
             read.iter()
                 .all(|(_, _, uses)| uses.get(&symbol) == Some(&version)),
-            "scalar alias store must reach both spellings: {ssa:#?}"
+            "scalar alias store must reach both spellings: {}",
+            ssa.outline()
         );
     }
     #[test]
@@ -15338,7 +15367,7 @@ mod cell_resolution_tests {
                 }
             }
         }
-        assert_eq!(pairs.len(), 1, "{ssa:#?}");
+        assert_eq!(pairs.len(), 1, "{}", ssa.outline());
         assert_ne!(pairs[0][0].symbol, pairs[0][1].symbol);
         assert!(pairs[0].iter().all(|read| read.version.is_some()));
     }
@@ -15752,7 +15781,7 @@ mod cell_resolution_tests {
                 }
             }
         }
-        assert_eq!(pairs.len(), 1, "{ssa:#?}");
+        assert_eq!(pairs.len(), 1, "{}", ssa.outline());
         assert_eq!(pairs[0][0].symbol, pairs[0][1].symbol);
         assert!(pairs[0][0].version.is_some());
         assert!(pairs[0][1].version.is_none());

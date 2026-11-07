@@ -1583,7 +1583,8 @@ mod tests {
             let x_reads = read_versions("x");
             assert!(
                 !x_reads.is_empty(),
-                "real body read is missing from SSA: {ssa:#?}"
+                "real body read is missing from SSA: {}",
+                ssa.outline()
             );
             assert!(
                 x_reads.iter().all(|version| *version != 0),
