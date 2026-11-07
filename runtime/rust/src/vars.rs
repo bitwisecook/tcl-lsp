@@ -2794,6 +2794,9 @@ impl NativeOriginalNameCell {
         currency
             .ensure_current_or_refuse()
             .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
+        if !crate::VERIFY_CURRENCY {
+            return Ok(());
+        }
         let physical =
             entered_container::same_table(interpreter, self.home, &self.table).and_then(|()| {
                 let frames = interpreter.frames.borrow();

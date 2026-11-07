@@ -434,7 +434,7 @@ fn retire_entry(interpreter: &Interp, entry: u64) {
         let mut entered = interpreter.entered_native_operations.borrow_mut();
         // Argument/cleanup carriers can retire out of order. Withdraw only
         // this actual entry without removing a still-live sibling.
-        let original = entered.iter().position(|(serial, _)| *serial == entry);
+        let original = entered.iter().rposition(|(serial, _)| *serial == entry);
         debug_assert!(original.is_some());
         original.map(|original| entered.remove(original))
     };
