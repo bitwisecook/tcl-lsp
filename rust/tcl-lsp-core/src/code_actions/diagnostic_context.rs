@@ -348,6 +348,11 @@ pub(super) fn selected_read(
                     continue;
                 }
             } else {
+                // The written name only narrows the issuer's extent to the
+                // subject's own read; the native root still owns its identity.
+                if image.bytes().get(name.as_range())? != subject.variable().as_bytes() {
+                    continue;
+                }
                 let root =
                     analysis.original_variable_root_in_source(&image, config, part.span.start())?;
                 if root.part_span() != part.span {
