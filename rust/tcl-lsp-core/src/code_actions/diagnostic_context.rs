@@ -251,8 +251,12 @@ pub(super) fn current_commands(
         // Shared barriers, arity and written-origin checks remain intact.
         if !selected.matches_source(&image, config) || !selected.matches_registry(registry)
             || selected.origins().len() != segment.argv.len()
-            || selected.origins().iter().enumerate().any(|(index, origin)|
-                !matches!(origin, InvocationWordOrigin::Written(written) if *written == index))
+            || selected.origins().iter().enumerate().any(|(index, origin)| !match origin {
+                InvocationWordOrigin::Written(written) => *written == index,
+                // A Native lookup proves the written head's registry command.
+                InvocationWordOrigin::ResolvedHead => index == 0,
+                _ => false,
+            })
             || selected.with_source_schema(&context, |schema|
                 schema.argument_count_for_arity().is_some_and(|count|
                     schema.semantics.arity.accepts(count))) != Some(true)
