@@ -19806,7 +19806,7 @@ impl Vm {
         match newlimit {
             None => Ok(i64::try_from(self.recursion_limit).unwrap_or(i64::MAX)),
             Some(word) => {
-                let n = word.as_int()?;
+                let n = tcl_syntax::value::ValueOps::as_int(self, word)?;
                 if n <= 0 {
                     return Err(TclError::with_error_code(
                         "recursion limit must be > 0",

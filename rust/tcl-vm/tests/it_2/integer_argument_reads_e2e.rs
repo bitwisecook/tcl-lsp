@@ -38,6 +38,8 @@ fn caught(script: &str) -> String {
 }
 
 fn caught_under(script: &str, release: Option<tcl_dialect::TclVersion>) -> String {
+    // Unpinned rows are tclsh 9.0.4 measurements; compile them for that release.
+    let release = release.or(Some(tcl_dialect::TclVersion::V9_0));
     let src = format!(
         "set rc [catch {{{script}}} m o]\n\
          list $rc $m [expr {{$rc == 1 ? [dict get $o -errorcode] : {{}}}}]\n"
