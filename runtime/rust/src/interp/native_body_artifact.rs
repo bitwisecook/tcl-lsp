@@ -1111,6 +1111,11 @@ impl Builder<'_> {
             NativeInstructionPlan::InfoExists(recipe) => {
                 Operation::InfoExists(self.info_exists_operation(&captured, recipe, depth)?)
             }
+            NativeInstructionPlan::ListOperations(
+                tcl_registry::native_list_operations_compilation::NativeListOperationInstruction::Set {
+                    ..
+                },
+            ) => return Ok(None),
             NativeInstructionPlan::ListOperations(recipe) => {
                 Operation::ListOperations(self.list_operation(&captured, recipe, depth)?)
             }

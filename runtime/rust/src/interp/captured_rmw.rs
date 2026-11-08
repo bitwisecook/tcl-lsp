@@ -232,7 +232,16 @@ impl Interp {
                     }
                 }
                 Ok(None) => return self.no_such_variable(root, element.as_deref()),
-                Err(error) => return self.increment_receiver_error(root, root, error, policy),
+                Err(error) => {
+                    let target = IncrementTarget {
+                        cached_sum: None,
+                        name: root,
+                        root,
+                        element: element.as_deref(),
+                        originals: Some(originals),
+                    };
+                    return self.increment_target_receiver_error(&target, error, policy);
+                }
             }
         } else {
             let Some(original_name) = original_name else {
@@ -243,7 +252,14 @@ impl Interp {
                     .into(),
                 );
             };
-            let purpose = tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::Write;
+            let purpose = match policy {
+                NativeRmwReadPolicy::RequireContents => {
+                    tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::IncrementExisting
+                }
+                NativeRmwReadPolicy::InitialiseZero => {
+                    tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::IncrementRead
+                }
+            };
             let captured = if combined {
                 self.capture_original_c_variable_report(original_name, purpose)
             } else {
