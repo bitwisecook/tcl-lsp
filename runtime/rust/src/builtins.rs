@@ -2473,6 +2473,33 @@ mod tests {
         }
     }
 
+    /// A double read as a string under 8.4 is read back from its 12-digit
+    /// text; from 8.5 the shortest round-trip spelling keeps the value.
+    #[test]
+    fn a_double_read_as_a_string_is_reread_from_its_text_under_tcl84() {
+        for (dialect, after) in [
+            ("tcl8.4", b"0".as_slice()),
+            ("tcl8.5", b"1"),
+            ("tcl9.0", b"1"),
+        ] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                assert_eq!(
+                    ok(interp, b"set v [expr {1.0/3}]; expr {$v*3 == 1}"),
+                    b"1",
+                    "{dialect}"
+                );
+                assert_eq!(
+                    ok(interp, b"string length $v; expr {$v*3 == 1}"),
+                    after,
+                    "{dialect}"
+                );
+            });
+        }
+    }
+
     /// `incr` creates a missing variable from 8.5; 8.4 reads it first and
     /// raises "no such variable".
     #[test]

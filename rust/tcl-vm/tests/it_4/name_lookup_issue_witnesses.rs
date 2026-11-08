@@ -72,6 +72,10 @@ const RELEASE_NUMERIC_ROWS: &str = include_str!(
     "../../../tcl-test-support/tests/data/name_lookup_issues/2333-release-numeric-rows.tcl"
 );
 
+const DOUBLE_REREAD: &str = include_str!(
+    "../../../tcl-test-support/tests/data/name_lookup_issues/2484-double-reread-from-text.tcl"
+);
+
 fn matches_original(source: &str, expected: &str, versions: &[TclVersion]) {
     for oracle in
         tcl_test_support::required_tclshs(versions).expect("matching original C interpreters")
@@ -230,5 +234,20 @@ fn integer_class_and_math_results_follow_the_pinned_release() {
         RELEASE_NUMERIC_ROWS,
         "1 1 1 1 1\nint(1e20) 0 100000000000000000000\nwide(-9.3e18) 0 9146744073709551616\nround(1e20) 0 100000000000000000000\nint(9.2e18) 0 9200000000000000000\nexp(710) 0 Inf\nlog(0) 0 -Inf",
         &[TclVersion::V9_0, TclVersion::V9_1],
+    );
+}
+
+#[test]
+fn a_tcl84_double_read_as_a_string_is_reread_from_its_text() {
+    matches_original(DOUBLE_REREAD, "1\n0", &[TclVersion::V8_4]);
+    matches_original(
+        DOUBLE_REREAD,
+        "1\n1",
+        &[
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ],
     );
 }
