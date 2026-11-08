@@ -549,7 +549,7 @@ fn consumer_requests(
         document.source,
         document.analysis,
         &mut |command, _, _| {
-            if crate::receiver_identity::class_at_command_head(
+            let class_dispatch = crate::receiver_identity::class_at_command_head(
                 document.analysis,
                 document.source,
                 command,
@@ -559,8 +559,8 @@ fn consumer_requests(
                     document.analysis,
                     document.source,
                     command,
-                )
-            {
+                );
+            if class_dispatch {
                 proved.borrow_mut().insert(command.span);
             }
             let Some(foreign) = crate::receiver_identity::foreign_method_at_command(
@@ -568,6 +568,12 @@ fn consumer_requests(
                 document.source,
                 command,
             ) else {
+                // A class command dispatching the old selector that no member
+                // owns must not be left behind by the edit.
+                if class_dispatch && command.texts.get(1).map(String::as_bytes) == Some(old) {
+                    refusal = Some(OriginalMemberRenameRefusal::IncompleteCoverage);
+                    return true;
+                }
                 if crate::receiver_identity::method_at_command(
                     document.analysis,
                     document.source,
