@@ -1106,6 +1106,24 @@ pub(crate) fn arith_in<'a>(
         .ok_or_else(|| TclError::new("native arithmetic policy is not selected"))?;
     let x = native_operand(dialect, a, errors::OperandSide::Left, op)?;
     let y = native_operand(dialect, b, errors::OperandSide::Right, op)?;
+    // A NaN operand is TCL_NUMBER_NAN, which every arithmetic operator
+    // reports through IllegalExprOperandType.
+    if matches!(
+        op,
+        BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Pow
+    ) {
+        for (number, value, side) in [
+            (&x, a, errors::OperandSide::Left),
+            (&y, b, errors::OperandSide::Right),
+        ] {
+            if matches!(number, Num::Dbl(double) if double.is_nan()) {
+                return Err(selected_operand_error_code(
+                    dialect,
+                    context_operand_error(dialect, value, side, op.as_str()),
+                ));
+            }
+        }
+    }
     if is_int_only(op) && (matches!(x, Num::Dbl(_)) || matches!(y, Num::Dbl(_))) {
         let failed = if matches!(x, Num::Dbl(_)) { a } else { b };
         if let Some(error) = expression_operand_error(
@@ -1423,8 +1441,34 @@ pub(crate) fn unary_in<'a>(
         .arithmetic()
         .ok_or_else(|| TclError::new("native arithmetic policy is not selected"))?;
     if matches!(op, UnaryOp::Not | UnaryOp::WordNot) {
+        // INST_LNOT reports a failed boolean conversion through
+        // IllegalExprOperandType, not the getter's own wording.
         return authored_boolean(dialect, value)
-            .map(|truth| native_boolean_result(dialect, !truth));
+            .map(|truth| native_boolean_result(dialect, !truth))
+            .map_err(|error| {
+                if error.is_host() {
+                    return error;
+                }
+                if let Err(first) = dialect.current_for_value(value) {
+                    return first;
+                }
+                expression_operand_error(
+                    dialect,
+                    tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean,
+                    value,
+                )
+                .unwrap_or_else(|| {
+                    selected_operand_error_code(
+                        dialect,
+                        context_operand_error(
+                            dialect,
+                            value,
+                            errors::OperandSide::Unary,
+                            op.as_str(),
+                        ),
+                    )
+                })
+            });
     }
     let number = native_num(dialect, value).map_err(|error| {
         if let Err(first) = dialect.current_for_value(value) {
@@ -1455,6 +1499,14 @@ pub(crate) fn unary_in<'a>(
             )
         })
     })?;
+    if matches!(op, UnaryOp::Pos | UnaryOp::Neg)
+        && matches!(number, Num::Dbl(double) if double.is_nan())
+    {
+        return Err(selected_operand_error_code(
+            dialect,
+            context_operand_error(dialect, value, errors::OperandSide::Unary, op.as_str()),
+        ));
+    }
     if op == UnaryOp::BitNot && matches!(number, Num::Dbl(_)) {
         return Err(expression_operand_error(
             dialect,

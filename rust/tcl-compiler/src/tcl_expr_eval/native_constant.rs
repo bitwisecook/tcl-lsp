@@ -211,7 +211,16 @@ impl FoldOps<'_> {
             return Ok(());
         }
         if matches!(op, UnaryOp::Not | UnaryOp::WordNot) {
-            return self.check_native_constant_boolean(value);
+            // INST_LNOT reports a failed boolean conversion through
+            // IllegalExprOperandType rather than the getter's wording.
+            let desc = match self.number_for(value, NativeCoercionKind::Boolean) {
+                Some(TclValue::Float(number)) if number.is_nan() => {
+                    OperandDesc::NonNumericFloatingPointValue
+                }
+                Some(_) => return Ok(()),
+                None => OperandDesc::NonNumericString,
+            };
+            return self.constant_operand_failure(value, desc, OperandSide::Unary, op.as_str());
         }
         let Some(number) = self.strict_number(value) else {
             return self.constant_operand_failure(
@@ -245,10 +254,17 @@ impl FoldOps<'_> {
             return Ok(());
         }
         match self.number_for(value, NativeCoercionKind::Boolean) {
-            Some(TclValue::Float(value)) if value.is_nan() => self.constant_failure(
-                errors::NAN_MESSAGE.to_owned(),
-                Some(errors::NAN_CODE.to_owned()),
-            ),
+            Some(TclValue::Float(value)) if value.is_nan() => {
+                // C8.5's boolean getter raised this without an error code.
+                let coded = self
+                    .invocation_dialect
+                    .and_then(|dialect| dialect.tcl_version)
+                    .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6);
+                self.constant_failure(
+                    errors::NAN_MESSAGE.to_owned(),
+                    coded.then(|| errors::NAN_CODE.to_owned()),
+                )
+            }
             Some(_) => Ok(()),
             None => {
                 let Some(bytes) = value.to_string_val(None) else {

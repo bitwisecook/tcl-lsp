@@ -261,9 +261,15 @@ impl ValueError {
             }
             ValueError::NotIntegerBytes(bytes)
             | ValueError::NotDoubleBytes(bytes)
-            | ValueError::NotBooleanBytes(bytes) => {
-                format!("native byte coercion error: {bytes:?}")
-            }
+            | ValueError::NotBooleanBytes(bytes) => match std::str::from_utf8(bytes) {
+                Ok(text) => match self {
+                    ValueError::NotIntegerBytes(_) => ValueError::NotInteger(text.to_owned()),
+                    ValueError::NotDoubleBytes(_) => ValueError::NotDouble(text.to_owned()),
+                    _ => ValueError::NotBoolean(text.to_owned()),
+                }
+                .message(),
+                Err(_) => format!("native byte coercion error: {bytes:?}"),
+            },
             ValueError::ListParse { error, .. }
             | ValueError::NativeListParse { error, .. }
             | ValueError::DictionaryParse { error, .. } => error.message().to_owned(),

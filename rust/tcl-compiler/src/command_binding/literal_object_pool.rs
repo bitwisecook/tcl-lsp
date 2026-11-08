@@ -332,7 +332,14 @@ impl SourceOrdinaryLiteralObject {
         if !state.ordinary_literal_pool.as_ref()?.authored_objects() {
             return None;
         }
-        matches!(expression, crate::expr_ast::ExprNode::Literal { .. }).then_some(Self)
+        // A quoted operand without substitutions pushes a pooled literal too.
+        match expression {
+            crate::expr_ast::ExprNode::Literal { .. } => Some(Self),
+            crate::expr_ast::ExprNode::String { text, .. } => {
+                tcl_syntax::expr::fixed_string_operand(text).map(|_| Self)
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn capture(

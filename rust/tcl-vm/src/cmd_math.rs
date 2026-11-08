@@ -697,6 +697,16 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let seed = match reached {
         Ok(seed) => seed,
+        // C9's ExprSrandFunc reads the seed with a NULL interpreter and
+        // returns TCL_ERROR with no message or error code.
+        Err(TclError::Guest(_))
+            if vm
+                .native_invocation_dialect()
+                .tcl_version
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0) =>
+        {
+            return crate::command::completion_from_tcl_error(vm, TclError::new(""));
+        }
         Err(error) => return crate::command::completion_from_tcl_error(vm, error),
     };
     if let Some(first) = vm.refused_completion() {
