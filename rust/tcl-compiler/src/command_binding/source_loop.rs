@@ -158,7 +158,9 @@ impl SourceCommandBindings {
                 context.registry,
                 context.invocation_offset,
             ) {
-                SourceIterationBindingOutcome::Entered => {}
+                SourceIterationBindingOutcome::Entered => {
+                    retain_finite_element_objects(head, &values, context.registry);
+                }
                 SourceIterationBindingOutcome::StoreError => {
                     outcomes.add_abrupt(Route::Tcl(Code::Error), head);
                     return;
@@ -289,6 +291,24 @@ impl SourceCommandBindings {
             }
         }
         back_edge.normal
+    }
+}
+
+/// Each bound element is a fresh object parsed from the literal list.
+fn retain_finite_element_objects(
+    head: &mut ModuleCommandBindings,
+    values: &[(&[u8], &[u8])],
+    registry: &tcl_registry::CommandRegistry,
+) {
+    let Some(object) = super::literal_object_pool::SourceOrdinaryLiteralObject::list_element(head)
+    else {
+        return;
+    };
+    let variables = Arc::make_mut(&mut head.source_variables);
+    for (name, _) in values {
+        if let Ok(name) = std::str::from_utf8(name) {
+            variables.retain_stock_literal_object(name, object, registry);
+        }
     }
 }
 

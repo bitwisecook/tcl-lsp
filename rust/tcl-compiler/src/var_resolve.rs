@@ -2822,6 +2822,22 @@ impl ResolveContext {
         }
     }
 
+    /// Record the stock class of the object a literal definition stored.
+    pub(crate) fn retain_stock_literal_object(
+        &mut self,
+        variable: &str,
+        object: crate::command_binding::SourceStockLiteralObject,
+        registry: &CommandRegistry,
+    ) {
+        let target = resolve_literal_place(variable, self, false, registry);
+        if let Some(name) = canonical_binding_value_key(&target) {
+            self.value_representations.insert(
+                name,
+                crate::native_numeric::StoredNativeRepresentation::StockLiteralObject(object),
+            );
+        }
+    }
+
     /// Withdraw namespace value and lifetime facts at an externally callable
     /// deferred entry. Fresh local slots and formal ingress remain independent;
     /// actual calls must retain their caller's authoritative namespace world.

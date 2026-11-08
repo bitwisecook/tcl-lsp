@@ -314,6 +314,17 @@ impl SourceOrdinaryLiteralObject {
             integer_contents: pool.integer_contents,
         })
     }
+    /// An element parsed from an authored literal list is a fresh untyped
+    /// object; later conversions leave it a stock-class object.
+    pub(super) fn list_element(state: &ModuleCommandBindings) -> Option<SourceStockLiteralObject> {
+        let pool = state.ordinary_literal_pool.as_ref()?;
+        pool.authored_objects().then_some(SourceStockLiteralObject {
+            representation: tcl_syntax::value::ValueRepresentation::Unknown,
+            alternatives: None,
+            integer_contents: pool.integer_contents,
+        })
+    }
+
     pub(super) fn capture_expression_literal(
         expression: &crate::expr_ast::ExprNode,
         state: &ModuleCommandBindings,
