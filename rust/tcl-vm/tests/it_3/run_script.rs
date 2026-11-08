@@ -748,10 +748,11 @@ fn subst_backslash_escapes_handle_multibyte_and_hex() {
     // Tcl 9 caps `\x` at two hex digits: the rest is literal text.
     assert_eq!(run("subst {\\x41BC}").1, "ABC");
     // `\` then raw LF then leading whitespace collapses to a single space.
-    // The VM is handed raw script text rather than a source channel, so CRLF
-    // retains Tcl's raw-string semantics: the backslash quotes only the CR.
+    // A whole module is a document, read as `tclsh file.tcl` reads it: the
+    // channel's auto translation turns CRLF into LF first (tclsh 9.0.4 prints
+    // `a b` for the CRLF form sourced from a file).
     assert_eq!(run("subst \"a\\\n   b\"").1, "a b");
-    assert_eq!(run("subst \"a\\\r\n   b\"").1, "a\r\n   b");
+    assert_eq!(run("subst \"a\\\r\n   b\"").1, "a b");
 }
 
 /// `info level` runs through the shared Family-B core

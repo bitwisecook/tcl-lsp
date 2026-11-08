@@ -650,7 +650,27 @@ pub(super) fn parse_native_tokens(
             lexical: Some(failure),
         });
     }
-    parse_checked_tokens(std::mem::take(raw), false, context)
+    let parsed = parse_checked_tokens(std::mem::take(raw), false, context);
+    if matches!(parsed, CheckedExprParse::Parsed(_)) && rejected_by_tcl84_parser(source, context) {
+        return CheckedExprParse::ProvedSyntaxFailure(ExprSyntaxFailure {
+            reason: ExprParseFailureReason::UnavailableOperator,
+            token: None,
+            lexical: None,
+        });
+    }
+    parsed
+}
+
+/// C8.4's lexer reads a leading `eq`/`ne` of a longer word as the operator,
+/// so `nextafter(0.5)` is a syntax error there before any function lookup.
+fn rejected_by_tcl84_parser(source: &[u8], context: &ExprParseContext) -> bool {
+    context.native_syntax == NativeExprSyntax::Tcl(TclVersion::V8_4)
+        && context.expr_grammar_base == Some(TclVersion::V8_4)
+        && context.f5_word_grammar.is_none()
+        && tcl_dialect::DialectProfile::find(TclVersion::V8_4.dialect_profile_name())
+            .is_some_and(|profile| profile.grammar == context.lexer_grammar)
+        && std::str::from_utf8(source)
+            .is_ok_and(|text| crate::expr::syntax_84::parse_tcl84(text).is_err())
 }
 
 fn native_lexical_diagnostic(
