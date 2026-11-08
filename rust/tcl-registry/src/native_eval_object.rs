@@ -99,8 +99,9 @@ impl NativeEvalObjectProtocol {
         }
     }
 
-    /// Source objects use the native compiler except selected direct C84
-    /// evaluation and counted C trace callbacks. This does not admit an artifact.
+    /// Source objects use the native compiler except the C84 and C85
+    /// `TCL_EVAL_DIRECT` entries and counted C trace callbacks. This does not
+    /// admit an artifact.
     #[must_use]
     pub const fn compiles_source(self, purpose: EvalObjectPurpose) -> bool {
         if matches!(purpose, EvalObjectPurpose::CompiledStack) {
@@ -116,6 +117,10 @@ impl NativeEvalObjectProtocol {
                     | EvalObjectPurpose::UpLevel
                     | EvalObjectPurpose::NamespaceConcat
                     | EvalObjectPurpose::AfterCallback
+            ),
+            Some(TclVersion::V8_5) => !matches!(
+                purpose,
+                EvalObjectPurpose::Eval | EvalObjectPurpose::NamespaceConcat
             ),
             Some(_) => true,
             None => false,

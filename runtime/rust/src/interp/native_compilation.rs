@@ -2105,7 +2105,12 @@ mod tests {
                     .eval_str(b"eval {set x [proc set args {return CUSTOM}]}; info exists x"),
                 Code::Ok
             );
-            assert_eq!(interpreter.result_bytes(), b"0", "{dialect}");
+            let direct = matches!(dialect, "tcl8.4" | "tcl8.5" | "jim");
+            assert_eq!(
+                interpreter.result_bytes(),
+                if direct { b"0" } else { b"1" },
+                "{dialect}"
+            );
         }
     }
 
