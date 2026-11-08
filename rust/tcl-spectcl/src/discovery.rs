@@ -664,7 +664,11 @@ fn collect_dir_except_with_errors(
             } else if entry.is_file && is_pack_file(&entry.path) {
                 out.insert(PackFile {
                     tier,
-                    path: normalise_in(store, &entry.path),
+                    path: if origin == Origin::BesideManifest {
+                        normalise_beside_manifest_in(store, &entry.path)
+                    } else {
+                        normalise_in(store, &entry.path)
+                    },
                     origin,
                     dependency_tier: None,
                 });
@@ -763,7 +767,7 @@ fn collect_beside_manifests_observed(
                 for path in crate::package_specs::pack_paths(dir, directive) {
                     out.insert(PackFile {
                         tier: Tier::Workspace,
-                        path: normalise_in(store, &path),
+                        path: normalise_beside_manifest_in(store, &path),
                         origin: Origin::BesideManifest,
                         dependency_tier: None,
                     });
@@ -804,12 +808,14 @@ fn manifest_dirs_observed(
 ) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let mut visited = 0usize;
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(current) = stack.pop() {
+    // Each frontier directory records whether it was reached through an
+    // installed package's symlink, which is followed once and never again.
+    let mut stack = vec![(root.to_path_buf(), false)];
+    while let Some((current, linked)) = stack.pop() {
         if visited >= MANIFEST_SCAN_DIR_CAP {
             // The already observed positive prefix remains useful. Every
             // unvisited frontier subtree is unavailable, never proven no-spec.
-            for path in std::iter::once(current).chain(stack.drain(..)) {
+            for (path, _) in std::iter::once((current, linked)).chain(stack.drain(..)) {
                 selection.issues.push((
                     path.clone(),
                     "manifest source scan reached its directory bound".into(),
@@ -831,12 +837,18 @@ fn manifest_dirs_observed(
             }
         };
         let mut has_manifest = false;
-        let mut children: Vec<PathBuf> = Vec::new();
+        let mut children: Vec<(PathBuf, bool)> = Vec::new();
         for entry in entries {
             if entry.is_dir {
                 if !is_skipped_dir(&entry.path) {
-                    children.push(entry.path);
+                    children.push((entry.path, linked));
                 }
+            } else if !entry.is_file
+                && !linked
+                && is_installed_package_dir(store, &current)
+                && store.is_dir(&entry.path)
+            {
+                children.push((entry.path, true));
             } else if entry.is_file
                 && entry
                     .path
@@ -875,6 +887,16 @@ fn manifest_dirs_observed(
 /// Mirrors the LSP server's own workspace-scan filter (vendor directories and
 /// dot-directories), with the one exception that matters here: `.tcl-lsp` is a
 /// dot-directory the design *requires* us to look in.
+/// Whether `dir` is the `lib` folder `tcl pkg install` materialises each
+/// dependency into, as a symlink into the package store, beside a lockfile.
+/// The walk follows those links, and only those, keeping the workspace path.
+fn is_installed_package_dir(store: &dyn SourceStore, dir: &Path) -> bool {
+    dir.file_name().and_then(|name| name.to_str()) == Some("lib")
+        && dir
+            .parent()
+            .is_some_and(|project| store.exists(&project.join(PACKAGE_LOCKFILE)))
+}
+
 fn is_skipped_dir(path: &Path) -> bool {
     match path.file_name().and_then(|n| n.to_str()) {
         Some(WORKSPACE_PACK_DIR) => false,
@@ -892,6 +914,24 @@ fn normalise_in(store: &dyn SourceStore, path: &Path) -> PathBuf {
     store
         .canonical_source_path(path)
         .unwrap_or_else(|| path.to_path_buf())
+}
+
+/// [`normalise_in`] for a pack found beside a manifest. Inside an installed
+/// dependency (`lib/NAME-VERSION` beside a lockfile, usually a symlink into the
+/// package store) only the `lib` folder is canonicalised: the pack keeps its
+/// workspace path, which places it in its project and gives it its tier.
+fn normalise_beside_manifest_in(store: &dyn SourceStore, path: &Path) -> PathBuf {
+    for package in path.ancestors().skip(1) {
+        let Some(lib) = package.parent() else {
+            break;
+        };
+        if is_installed_package_dir(store, lib)
+            && let (Some(name), Ok(rest)) = (package.file_name(), path.strip_prefix(package))
+        {
+            return normalise_in(store, lib).join(name).join(rest);
+        }
+    }
+    normalise_in(store, path)
 }
 
 // Original test compatibility probe uses the same actual native provider;
@@ -1606,6 +1646,41 @@ mod tests {
             .collect();
         rows.sort();
         rows
+    }
+
+    /// `tcl pkg install` materialises a dependency as a symlink into the
+    /// package store; its pack is discovered and tiered like a copied one, and
+    /// reported at its workspace path.
+    #[cfg(unix)]
+    #[test]
+    fn an_installed_dependency_reached_through_a_symlink_is_discovered() {
+        let root = tmpdir("tier-symlink");
+        let store = tmpdir("tier-symlink-store");
+        write(&root.join("tclpkg.tcl"), ROOT_MANIFEST);
+        write(&root.join("app.tclspec"), "speclib app 1 {}\n");
+        let stored = store.join("json-1.0.0");
+        write(&stored.join("tclpkg.tcl"), "package json\nversion 1.0.0\n");
+        write(&stored.join("json.tclspec"), "speclib json 1 {}\n");
+        std::fs::create_dir_all(root.join("lib")).unwrap();
+        std::os::unix::fs::symlink(&stored, root.join("lib/json-1.0.0")).unwrap();
+        // A link elsewhere in the workspace is still not followed.
+        std::os::unix::fs::symlink(&stored, root.join("vendored")).unwrap();
+        write(
+            &root.join("tclpkg.lock"),
+            &lockfile_text(&[("json", &[], false)]),
+        );
+
+        let found = discover_workspace(&root);
+        assert_eq!(
+            tiers_by_pack(&found),
+            vec![
+                ("app".to_owned(), Some(DependencyTier::Root)),
+                ("json".to_owned(), Some(DependencyTier::Direct)),
+            ],
+            "{found:#?}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&store);
     }
 
     /// The lockfile's graph gives each package its tier: the workspace's own
