@@ -3859,6 +3859,34 @@ impl ResolveContext {
         self.invalidate_representations_for_values(None);
     }
 
+    /// A coercion replaces intreps, never bytes: integer-convertible contents
+    /// survive as a contents proof without any current representation.
+    pub(crate) fn coerce_representations_for_values(&mut self, values: Option<&[String]>) {
+        let contents: Vec<_> = self
+            .value_representations
+            .iter()
+            .filter_map(|(key, representation)| {
+                representation
+                    .integer_contents_in(
+                        self.constant_values.get(key).map(String::as_str),
+                        self.invocation_dialect,
+                    )
+                    .map(|proof| (key.clone(), proof))
+            })
+            .collect();
+        self.invalidate_representations_for_values(values);
+        for (key, proof) in contents {
+            if !self.value_representations.contains_key(&key) {
+                self.value_representations.insert(
+                    key,
+                    crate::native_numeric::StoredNativeRepresentation::IntegerConvertibleContents(
+                        proof,
+                    ),
+                );
+            }
+        }
+    }
+
     /// Objects with different current bytes cannot be the same native object.
     /// Unknown operand bytes withdraw every representation. Exact contents or
     /// an actual normalised numeric result-string recipe can prove disjointness.

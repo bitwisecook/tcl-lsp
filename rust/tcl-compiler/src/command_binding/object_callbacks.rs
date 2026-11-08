@@ -404,10 +404,12 @@ pub(super) fn scalar_math_input_is_closed(
     super::native_result::current_numeric_index(native, argument, state, context).is_some()
         || super::argument_reads::current_argument_place(native, argument, state, context)
             .is_some_and(|place| {
-                state
-                    .source_variables
+                let variables = &state.source_variables;
+                variables
                     .contents_stock_literal_object_at(place, context.registry)
                     .is_some()
+                    || (variables.read_produces_value(place, context.registry)
+                        && variables.selected_contents_numeric_hooks_closed(place))
             })
         || (original_operand_is_current(native, argument, context)
             && context

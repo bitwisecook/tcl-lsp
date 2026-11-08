@@ -202,6 +202,22 @@ impl SourceNativeNumericShape {
     }
 
     pub(crate) fn string_bytes_may_equal(self, bytes: &[u8]) -> bool {
+        // Integer-convertible contents cannot be bytes that fail to parse as one.
+        if let Some(proof) = self.integer_contents_proof()
+            && !std::str::from_utf8(bytes).is_ok_and(|text| {
+                matches!(
+                    tcl_syntax::number::parse_whole_with(
+                        text,
+                        tcl_syntax::number::ParseFlags::for_syntax(proof.dialect.numbers)
+                    ),
+                    Some(
+                        tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
+                    )
+                )
+            })
+        {
+            return false;
+        }
         !self.normalises_string() || tcl_syntax::number::canonical_numeric_bytes_may_equal(bytes)
     }
 

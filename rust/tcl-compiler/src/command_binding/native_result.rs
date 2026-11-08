@@ -443,7 +443,7 @@ pub(super) fn coerce_native_representations(
             );
         }
     } else {
-        variables.invalidate_representations_for_values(values.as_deref());
+        variables.coerce_representations_for_values(values.as_deref());
     }
 }
 
