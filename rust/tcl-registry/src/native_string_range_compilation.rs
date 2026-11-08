@@ -91,8 +91,15 @@ pub fn select_original(
         || context.mode != NativeCompilationMode::BytecodeObject
         || spec.operation != crate::SemanticOperationId::Invoke
         || spec.body != NativeBodyCompilation::Inherit
-        || compile_native_string_range(words, operand_from, scope, version).is_none()
     {
+        return NativeCompilationSelection::Unknown;
+    }
+    // C8.4's TclCompileStringCmd compiles `range` out of line, and C8.5's
+    // string ensemble has no member compiler; both invoke the command.
+    if version < TclVersion::V8_6 {
+        return NativeCompilationSelection::Generic;
+    }
+    if compile_native_string_range(words, operand_from, scope, version).is_none() {
         return NativeCompilationSelection::Unknown;
     }
     NativeCompilationSelection::Inline {
