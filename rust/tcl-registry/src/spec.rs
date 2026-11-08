@@ -5310,6 +5310,16 @@ impl SubCommand {
             .collect()
     }
 
+    /// Whether `operation`, one of this member's operations, exists at
+    /// `dialect`, as [`Self::resolve_sub_subcommand_gated`] judges it.
+    pub(crate) fn admits_sub_subcommand(
+        &self,
+        operation: &SubSubCommand,
+        dialect: SurfaceQuery<'_>,
+    ) -> bool {
+        sub_subcommand_supports_dialect(operation, Some(dialect), self.surface)
+    }
+
     /// [`Self::resolve_sub_subcommand`] narrowed by both availability axes:
     /// the Tcl-core `dialect` and the owning package's `package_version`
     /// floor.

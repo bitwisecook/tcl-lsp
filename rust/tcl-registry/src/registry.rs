@@ -4166,6 +4166,7 @@ impl CommandRegistry {
                             member
                                 .sub_subcommands
                                 .iter()
+                                .filter(|worker| member.admits_sub_subcommand(worker, query))
                                 .filter_map(|worker| worker.native_compilation),
                         )
                     }));
@@ -4270,6 +4271,7 @@ impl CommandRegistry {
                             member
                                 .sub_subcommands
                                 .iter()
+                                .filter(|worker| member.admits_sub_subcommand(worker, query))
                                 .filter_map(|worker| worker.native_compilation),
                         )
                     }));

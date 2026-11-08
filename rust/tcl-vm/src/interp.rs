@@ -11933,7 +11933,7 @@ impl Vm {
     }
 
     /// Exact reporting bytes do not reconstruct namespace identity.
-    fn ns_name_bytes(&self, id: NsId) -> NameBytes {
+    pub(crate) fn ns_name_bytes(&self, id: NsId) -> NameBytes {
         if id == ROOT_NS
             && self
                 .name_policy_protocol()

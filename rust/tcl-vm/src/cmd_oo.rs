@@ -4486,6 +4486,30 @@ fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     ok(Value::int(i64::from(res)))
 }
 
+/// `InfoClassDefnNsCmd`: the class's (or, with `-instance`, its instances')
+/// definition namespace, or nothing when none was set.
+fn info_class_definition_namespace(vm: &mut Vm, cls: OoId, extra: &[Value]) -> Completion<Value> {
+    const KINDS: &[&str] = &["-class", "-instance"];
+    let instance = match extra.first() {
+        None => false,
+        Some(kind) => match vm.native_static_option_index_checked(kind, KINDS, false, "kind") {
+            Ok(index) => index == 1,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        },
+    };
+    let class = &vm.oo.classes[&cls];
+    let namespace = if instance {
+        class.object_definition_namespace
+    } else {
+        class.definition_namespace
+    };
+    ok(namespace.map_or_else(Value::empty, |namespace| {
+        Value::from_native_string_bytes(tcl_syntax::naming::root_unrooted_key_bytes(
+            vm.ns_name_bytes(namespace).as_bytes(),
+        ))
+    }))
+}
+
 /// `info class subcommand class ?arg…?`.
 pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     original_name_operands::run(vm, None, |vm, original_names| {
@@ -4510,6 +4534,11 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         } else {
             false
         };
+        if sub == "definitionnamespace" && !(1..=2).contains(&rest.len()) {
+            return err(
+                "wrong # args: should be \"info class definitionnamespace className ?kind?\"",
+            );
+        }
         let Some(cls_arg) = rest.first() else {
             if sub == "methods" {
                 return crate::command::native_wrong_args(
@@ -4569,6 +4598,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 ))
             }
             "properties" => info_class_properties(vm, cls, extra),
+            "definitionnamespace" => info_class_definition_namespace(vm, cls, extra),
             _ => err(format!("unsupported info class subcommand \"{sub}\"")),
         }
     })
