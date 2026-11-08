@@ -903,6 +903,8 @@ pub enum NativeCompilationGrammar {
     StringRange(crate::native_scalar_compilation::NativeScalarScope),
     /// `TclCompileStringReplaceCmd` over its original words.
     StringReplace(crate::native_scalar_compilation::NativeScalarScope),
+    /// `TclCompileStringInsertCmd` over its original words.
+    StringInsert(crate::native_scalar_compilation::NativeScalarScope),
     /// `TclCompileLreplaceCmd` over its original words.
     ListReplacement,
     /// C8.6+ original trim subject and explicit/default character set.
@@ -1928,6 +1930,47 @@ impl NativeCompilationSpec {
         }
     }
 
+    fn original_string_insert_name_effects(
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        operand_from: usize,
+        scope: crate::native_scalar_compilation::NativeScalarScope,
+        dialect: InvocationDialect,
+    ) -> NativeOriginalCompilerNameEffects {
+        use crate::native_control_compilation::NativeControlPreparationStep::Word;
+        use NativeOriginalCompilerNameEffects::{FixedLookup, Unknown, Visits};
+        let Some(version) = dialect.tcl_version else {
+            return Unknown;
+        };
+        if words.shapes()[0].compiler_head(Some(dialect)) != Some(true) {
+            return Unknown;
+        }
+        if let Some(recipe) = crate::native_string_insert_compilation::compile_native_string_insert(
+            words,
+            operand_from,
+            scope,
+            version,
+        ) {
+            return Visits(recipe.compiled_words().into_iter().map(Word).collect());
+        }
+        match crate::native_string_insert_compilation::select_original(
+            words,
+            operand_from,
+            scope,
+            version,
+        ) {
+            NativeCompilationSelection::Generic => {
+                Visits(Self::original_generic_word_visits(words))
+            }
+            NativeCompilationSelection::NamedInvocation { .. }
+                if (0..words.original_words().len())
+                    .all(|index| words.literal(index).is_some()) =>
+            {
+                FixedLookup(&crate::native_string_insert_compilation::STRING_INSERT_IMPLEMENTATION)
+            }
+            _ => Unknown,
+        }
+    }
+
     fn original_generic_word_visits(
         words: &crate::native_compiler_words::NativeCompilerWords<'_>,
     ) -> Vec<crate::native_control_compilation::NativeControlPreparationStep> {
@@ -1980,6 +2023,9 @@ impl NativeCompilationSpec {
         }
         if let NativeCompilationGrammar::StringReplace(scope) = self.grammar {
             return Self::original_string_replace_name_effects(words, operand_from, scope, dialect);
+        }
+        if let NativeCompilationGrammar::StringInsert(scope) = self.grammar {
+            return Self::original_string_insert_name_effects(words, operand_from, scope, dialect);
         }
         if self.grammar == NativeCompilationGrammar::ListReplacement {
             return Self::original_list_replace_name_effects(words, operand_from, dialect);
@@ -2301,6 +2347,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::StringMap(_)
             | NativeCompilationGrammar::StringRange(_)
             | NativeCompilationGrammar::StringReplace(_)
+            | NativeCompilationGrammar::StringInsert(_)
             | NativeCompilationGrammar::ListReplacement
             | NativeCompilationGrammar::HookFrom(_)
             | NativeCompilationGrammar::Regsub
@@ -2378,6 +2425,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::StringMap(_)
             | NativeCompilationGrammar::StringRange(_)
             | NativeCompilationGrammar::StringReplace(_)
+            | NativeCompilationGrammar::StringInsert(_)
             | NativeCompilationGrammar::ListReplacement
             | NativeCompilationGrammar::StringOperand { .. }
             | NativeCompilationGrammar::ListLength
@@ -2622,6 +2670,9 @@ impl NativeCompilationSpec {
             return None;
         }
         let version = dialect.tcl_version?;
+        if matches!(self.grammar, NativeCompilationGrammar::StringInsert(_)) {
+            return (version >= TclVersion::V9_0).then_some(true);
+        }
         if matches!(
             self.grammar,
             NativeCompilationGrammar::StringMap(_)
@@ -2747,6 +2798,8 @@ impl NativeCompilationSpec {
             ) | NativeCompilationGrammar::StringRange(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
             ) | NativeCompilationGrammar::StringReplace(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | NativeCompilationGrammar::StringInsert(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
             ) | NativeCompilationGrammar::StringOperand {
                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
@@ -2881,6 +2934,15 @@ impl NativeCompilationSpec {
             .then_some(crate::native_string_replace_compilation::STRING_REPLACE_IMPLEMENTATION);
         }
         if self.grammar
+            == NativeCompilationGrammar::StringInsert(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            )
+        {
+            return (dialect.tcl_version >= Some(TclVersion::V9_0)
+                && dialect.family() == Some(Family::Tcl))
+            .then_some(crate::native_string_insert_compilation::STRING_INSERT_IMPLEMENTATION);
+        }
+        if self.grammar
             == NativeCompilationGrammar::StringMap(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
             )
@@ -2947,6 +3009,7 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::StringMap(_)
                 | NativeCompilationGrammar::StringRange(_)
                 | NativeCompilationGrammar::StringReplace(_)
+                | NativeCompilationGrammar::StringInsert(_)
                 | NativeCompilationGrammar::ListReplacement
         ) {
             return self.operation == SemanticOperationId::Invoke
@@ -3169,6 +3232,14 @@ impl NativeCompilationSpec {
         match self.grammar {
             NativeCompilationGrammar::StringReplace(scope) => {
                 Some(crate::native_string_replace_compilation::select_original(
+                    words,
+                    operand_from,
+                    scope,
+                    version,
+                ))
+            }
+            NativeCompilationGrammar::StringInsert(scope) => {
+                Some(crate::native_string_insert_compilation::select_original(
                     words,
                     operand_from,
                     scope,
@@ -3896,6 +3967,9 @@ impl NativeCompilationSpec {
                     crate::native_scalar_compilation::NativeScalarScope::PublicMember
                 )
                 | NativeCompilationGrammar::StringReplace(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
+                | NativeCompilationGrammar::StringInsert(
                     crate::native_scalar_compilation::NativeScalarScope::PublicMember
                 )
                 | NativeCompilationGrammar::StringOperand {
@@ -4740,6 +4814,7 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::StringMap(_)
             | NativeCompilationGrammar::StringRange(_)
             | NativeCompilationGrammar::StringReplace(_)
+            | NativeCompilationGrammar::StringInsert(_)
             | NativeCompilationGrammar::ListReplacement => NativeCompilationSelection::Unknown,
             NativeCompilationGrammar::StringOperand { scope, operation } => {
                 crate::native_string_operand_compilation::select_shapes(

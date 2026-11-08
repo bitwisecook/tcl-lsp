@@ -201,6 +201,51 @@ impl CodegenCtx<'_> {
         true
     }
 
+    /// `TclCompileStringInsertCmd`: both words, then the selected splice.
+    pub(super) fn append_native_string_insert_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: &tcl_registry::native_string_insert_compilation::NativeStringInsertInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use tcl_registry::native_string_insert_compilation::NativeStringInsertOperation as Insert;
+        const END: i32 = -2;
+        for operand in [&recipe.subject, &recipe.insertion] {
+            let Some(task) = Self::native_namespace_word_task(&command.words, operand.clone())
+            else {
+                return false;
+            };
+            operations.push(task);
+        }
+        let op = |code: Op, operands: Vec<Operand>| NativeEmissionTask::Operation(code, operands);
+        let range = |first: i32, last: i32| {
+            NativeEmissionTask::SwitchOperation(
+                Op::STR_RANGE_IMM,
+                vec![Operand::Imm(first), Operand::Imm(last)],
+                version,
+            )
+        };
+        match recipe.operation {
+            Insert::Prepend => {
+                operations.push(if version >= tcl_dialect::TclVersion::V9_1 {
+                    op(Op::SWAP, vec![])
+                } else {
+                    op(Op::REVERSE, vec![Operand::Imm(2)])
+                });
+                operations.push(op(Op::STR_CONCAT1, vec![Operand::Imm(2)]));
+            }
+            Insert::Append => operations.push(op(Op::STR_CONCAT1, vec![Operand::Imm(2)])),
+            Insert::Splice { head, tail } => operations.extend([
+                op(Op::OVER, vec![Operand::Imm(1)]),
+                range(0, head),
+                op(Op::REVERSE, vec![Operand::Imm(3)]),
+                range(tail, END),
+                op(Op::STR_CONCAT1, vec![Operand::Imm(3)]),
+            ]),
+        }
+        true
+    }
+
     pub(super) fn append_native_string_replace_tasks(
         command: &tcl_lexer::NativeScriptCommandWords,
         recipe: &tcl_registry::native_string_replace_compilation::NativeStringReplaceInstruction,

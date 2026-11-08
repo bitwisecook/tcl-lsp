@@ -3023,6 +3023,9 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::StringReplace(recipe) => {
                 Self::append_native_string_replace_tasks(command, &recipe, version, operations)
             }
+            NativeInstructionPlan::StringInsert(recipe) => {
+                Self::append_native_string_insert_tasks(command, &recipe, version, operations)
+            }
             NativeInstructionPlan::ListReplace(recipe) => {
                 Self::append_native_list_replace_tasks(command, recipe, version, operations)
             }

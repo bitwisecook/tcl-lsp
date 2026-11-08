@@ -1308,6 +1308,7 @@ impl Builder<'_> {
             | NativeInstructionPlan::ClockRead(_)
             | NativeInstructionPlan::StringMap(_)
             | NativeInstructionPlan::StringReplace(_)
+            | NativeInstructionPlan::StringInsert(_)
             | NativeInstructionPlan::ListReplace(_)
             | NativeInstructionPlan::DictionaryEach(_)
             | NativeInstructionPlan::SyntaxError { .. }

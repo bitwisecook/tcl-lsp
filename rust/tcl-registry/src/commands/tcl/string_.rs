@@ -1411,6 +1411,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "insert",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringInsert(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         source_index_bounds: Some(crate::SourceIndexBounds::StringInsert),
         // S110 (9.0-only subcommand): built on `TclStringReplace`, so a pure
         // byte-array operand with a pure byte-array insertion keeps the

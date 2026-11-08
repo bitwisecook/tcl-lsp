@@ -143,6 +143,8 @@ pub enum NativeInstructionPlan {
     StringRange(crate::native_string_range_compilation::NativeStringRangeInstruction),
     /// `TclCompileStringReplaceCmd`'s recipe.
     StringReplace(crate::native_string_replace_compilation::NativeStringReplaceInstruction),
+    /// `TclCompileStringInsertCmd`'s recipe.
+    StringInsert(crate::native_string_insert_compilation::NativeStringInsertInstruction),
     /// `CompileDictEachCmd`'s `dict for`/`dict map` loop.
     DictionaryEach(
         crate::native_control_compilation::NativeControlCompilation<
@@ -1183,6 +1185,15 @@ fn selected_string_slice_instruction_plan(
     version: tcl_dialect::TclVersion,
 ) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
     let plan = match grammar {
+        NativeCompilationGrammar::StringInsert(scope) => {
+            crate::native_string_insert_compilation::compile_native_string_insert(
+                words,
+                operand_from,
+                scope,
+                version,
+            )
+            .map(NativeInstructionPlan::StringInsert)
+        }
         NativeCompilationGrammar::StringReplace(scope) => {
             crate::native_string_replace_compilation::compile_native_string_replace(
                 words,

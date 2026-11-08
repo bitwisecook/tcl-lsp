@@ -1162,6 +1162,7 @@ fn compiled_recipe_words(
     Some(match recipe {
         NativeInstructionPlan::StringRange(recipe) => recipe.compiled_words(),
         NativeInstructionPlan::StringReplace(recipe) => recipe.compiled_words(),
+        NativeInstructionPlan::StringInsert(recipe) => recipe.compiled_words(),
         NativeInstructionPlan::ListReplace(recipe) => recipe.compiled_words(),
         NativeInstructionPlan::SyntaxError { .. } => Vec::new(),
         _ => return None,
