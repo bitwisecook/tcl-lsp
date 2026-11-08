@@ -880,11 +880,22 @@ impl<'r> CodegenCtx<'r> {
         if !self.plain_command_dispatch
             && let Some(tokens) = self.invocation_tokens.as_deref()
         {
+            // A direct evaluation parses and dispatches each command only when
+            // it is reached, so one the walk proves never entered needs no
+            // compiler admission.
+            let direct_unentered =
+                |binding: &tcl_compiler::command_binding::SourceInvocationBinding| {
+                    self.native_compilation.mode
+                        == tcl_registry::native_compilation::NativeCompilationMode::Direct
+                        && binding.runtime_reachability()
+                            == tcl_compiler::command_binding::SourceRuntimeReachability::NotEntered
+                };
             let refused = tokens.source_binding.as_ref().is_some_and(|binding| {
                 matches!(
                     binding.native_compilation_admission_selection(),
                     tcl_registry::native_compilation::NativeCompilationSelection::Unknown
                 ) && binding.original_named_compiler_admission(tokens).is_none()
+                    && !direct_unentered(binding)
             });
             // Auxiliary compiler lookups are guard dependencies, not source
             // commands. Recording one must not switch the enclosing command's
