@@ -855,6 +855,7 @@ mod tests {
         assert!(interpreter.entered_native_operations.borrow().is_empty());
     }
 
+    #[cfg(debug_assertions)]
     fn changing_script_callback(interpreter: &mut Interp, _: &[*mut obj::TclObj]) -> Code {
         change_and_restore(interpreter);
         Code::Ok
@@ -902,6 +903,7 @@ mod tests {
         assert!(interpreter.entered_native_operations.borrow().is_empty());
     }
 
+    #[cfg(debug_assertions)]
     extern "C" fn entered_updater(original: *mut obj::TclObj) {
         // The actual test retains this original interpreter through the updater.
         let mut interpreter = unsafe { crate::codegen_abi::current_interp().as_ref() }
@@ -910,6 +912,7 @@ mod tests {
         change_and_restore(&mut interpreter);
         unsafe { obj::set_native_updater_string_rep(original, b"reached\0bytes", false) };
     }
+    #[cfg(debug_assertions)]
     static ENTERED_STRING_TYPE: obj::TclObjType = obj::TclObjType {
         name: c"enteredOriginalString".as_ptr(),
         free_int_rep_proc: None,

@@ -78,6 +78,7 @@ extern "C" fn update(value: *mut TclObj) {
     effect();
     unsafe { obj::set_native_updater_string_rep(value, b"k", false) };
 }
+#[cfg(debug_assertions)]
 extern "C" fn free(_: *mut TclObj) {
     FREES.with(|frees| frees.set(frees.get() + 1));
     effect();
@@ -89,6 +90,7 @@ static LAZY: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(update),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static RETIRE: obj::TclObjType = obj::TclObjType {
     name: c"originalJimDictionaryPrimary".as_ptr(),
     free_int_rep_proc: Some(free),
@@ -106,6 +108,7 @@ fn success<T>(result: Result<T, JimDictionaryPathFailure>) -> T {
         Err(JimDictionaryPathFailure::MissingKey(key)) => panic!("unexpected missing key: {key:?}"),
     }
 }
+#[cfg(debug_assertions)]
 fn assert_original_cause(interpreter: &Interp, mode: u8) {
     let cause = interpreter
         .native_execution_refusal()

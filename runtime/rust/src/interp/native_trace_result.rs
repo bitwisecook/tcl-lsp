@@ -560,6 +560,7 @@ mod settlement_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     struct Retirement {
         interpreter: crate::interp::WeakInterp,
         calls: Rc<Cell<usize>>,
@@ -568,6 +569,7 @@ mod settlement_tests {
         original: super::super::native_operation_currency::NativeOperationCurrency,
     }
 
+    #[cfg(debug_assertions)]
     extern "C" fn retire(value: *mut obj::TclObj) {
         // SAFETY: the actual extension owns this single boxed backing.
         let state = unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut Retirement) };
@@ -585,6 +587,7 @@ mod settlement_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     static CALLBACK_RESULT: obj::TclObjType = obj::TclObjType {
         name: c"originalTraceSettlementResult".as_ptr(),
         free_int_rep_proc: Some(retire),
@@ -593,6 +596,7 @@ mod settlement_tests {
         set_from_any_proc: None,
     };
 
+    #[cfg(debug_assertions)]
     struct RetirementObserver {
         calls: Rc<Cell<usize>>,
         observed: Rc<Cell<*mut obj::TclObj>>,
@@ -603,6 +607,7 @@ mod settlement_tests {
             >,
         >,
     }
+    #[cfg(debug_assertions)]
     impl NativeVariableObserver<Interp> for RetirementObserver {
         type Error = tcl_cmd_core::CmdError;
         fn observe(

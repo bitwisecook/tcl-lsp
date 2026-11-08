@@ -873,15 +873,17 @@ mod tests {
 
 #[cfg(test)]
 mod original_syntax_transport_tests {
-    use super::super::{default_host, ExceptionState, WeakInterp, GLOBAL};
+    #[cfg(debug_assertions)]
+    use super::super::GLOBAL;
+    use super::super::{default_host, ExceptionState, WeakInterp};
     use super::*;
     use crate::obj::{self, Owned};
-    use std::{
-        cell::{Cell, RefCell},
-        rc::Rc,
-    };
+    use std::cell::{Cell, RefCell};
+    #[cfg(debug_assertions)]
+    use std::rc::Rc;
 
     #[derive(Clone)]
+    #[cfg(debug_assertions)]
     struct Original {
         counted: bool,
         interpreter: WeakInterp,
@@ -893,6 +895,7 @@ mod original_syntax_transport_tests {
         references: Rc<RefCell<Vec<obj::TclSize>>>,
         parent: Rc<Cell<*mut TclObj>>,
     }
+    #[cfg(debug_assertions)]
     fn reached_effect(state: &Original) {
         if !state.arm.get() {
             return;
@@ -952,6 +955,7 @@ mod original_syntax_transport_tests {
             }
         }
     }
+    #[cfg(debug_assertions)]
     extern "C" fn update(value: *mut TclObj) {
         let state = unsafe { &*(obj::internal_rep(value) as usize as *const Original) };
         state.updates.set(state.updates.get() + 1);
@@ -964,6 +968,7 @@ mod original_syntax_transport_tests {
             reached_effect(state);
         }
     }
+    #[cfg(debug_assertions)]
     extern "C" fn retire(value: *mut TclObj) {
         let state = unsafe { Box::from_raw(obj::internal_rep(value) as usize as *mut Original) };
         if state.counted {
@@ -977,6 +982,7 @@ mod original_syntax_transport_tests {
             reached_effect(&state);
         }
     }
+    #[cfg(debug_assertions)]
     extern "C" fn duplicate(source: *mut TclObj, destination: *mut TclObj) {
         let state = unsafe { &*(obj::internal_rep(source) as usize as *const Original) };
         let mut copied = state.clone();
@@ -994,6 +1000,7 @@ mod original_syntax_transport_tests {
             reached_effect(state);
         }
     }
+    #[cfg(debug_assertions)]
     static ORIGINAL: obj::TclObjType = obj::TclObjType {
         name: c"originalSyntaxTransport".as_ptr(),
         free_int_rep_proc: Some(retire),
@@ -1010,6 +1017,7 @@ mod original_syntax_transport_tests {
         )
         .unwrap()
     }
+    #[cfg(debug_assertions)]
     type OriginalReturnFixture = (
         Owned,
         Rc<Cell<bool>>,
@@ -1019,6 +1027,7 @@ mod original_syntax_transport_tests {
         Rc<Cell<*mut TclObj>>,
     );
 
+    #[cfg(debug_assertions)]
     fn original(interpreter: &Interp, mode: u8, effect_on_free: bool) -> OriginalReturnFixture {
         let arm = Rc::new(Cell::new(true));
         let updates = Rc::new(Cell::new(0));

@@ -243,6 +243,7 @@ impl NativeReturnOptions {
     /// The supplied check belongs to that actual entered operation, not a new
     /// Dict or source issuer. No key getter runs under interpreter state borrows.
     #[cfg(test)]
+    #[cfg(debug_assertions)]
     pub(super) fn from_original_checked(
         original: *mut TclObj,
         protocol: NativeStringProtocol,
@@ -1802,11 +1803,14 @@ mod original_carried_option_tests {
     use crate::interp::native_operation_currency::{
         NativeOperationScope, SavedNativeOperationCurrency,
     };
-    use crate::interp::{default_host, Code, ExceptionState, Interp, WeakInterp, GLOBAL};
+    #[cfg(debug_assertions)]
+    use crate::interp::Code;
+    use crate::interp::{default_host, ExceptionState, Interp, WeakInterp, GLOBAL};
     use std::{
         cell::{Cell, RefCell},
         rc::Rc,
     };
+    #[cfg(debug_assertions)]
     use tcl_runtime_api::NativeExecutionError;
 
     struct Observer {

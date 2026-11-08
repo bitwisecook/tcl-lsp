@@ -18,7 +18,9 @@
 
 //! Constructor-issued getter authority is distinct from profile.
 
-use super::{change_and_restore, leak_free, original};
+#[cfg(debug_assertions)]
+use super::change_and_restore;
+use super::{leak_free, original};
 use crate::{interp::obj_bytes, obj};
 use tcl_syntax::value::ValueOps;
 
@@ -176,11 +178,13 @@ thread_local! {
     static FREE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn update_before_reentrant_free(value: *mut obj::TclObj) {
     // SAFETY: the original reached updater receives its caller-owned live header.
     unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn reentrant_free(_value: *mut obj::TclObj) {
     FREE_CALLS.with(|calls| calls.set(calls.get() + 1));
     let owner = FREE_OWNER.with(|owner| {
@@ -194,6 +198,7 @@ extern "C" fn reentrant_free(_value: *mut obj::TclObj) {
     }
 }
 
+#[cfg(debug_assertions)]
 static REENTRANT_FREE_TYPE: obj::TclObjType = obj::TclObjType {
     name: c"nativeUnicodeViewReentrantFree".as_ptr(),
     free_int_rep_proc: Some(reentrant_free),

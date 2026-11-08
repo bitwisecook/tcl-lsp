@@ -3349,6 +3349,7 @@ impl OriginalArrayMemberSelection {
 }
 impl OriginalArrayMemberPreparation {
     #[cfg(test)]
+    #[cfg(debug_assertions)]
     pub(crate) fn finish(
         self,
         interpreter: &crate::interp::Interp,
@@ -3425,6 +3426,7 @@ impl OriginalArrayMemberPreparation {
 }
 
 #[cfg(test)]
+#[cfg(debug_assertions)]
 pub(crate) struct OriginalElementOptions {
     pub(crate) original: Option<*mut TclObj>,
     pub(crate) create_element: bool,
@@ -3433,6 +3435,7 @@ pub(crate) struct OriginalElementOptions {
 /// Same original classifier and link walk, returning before any old owner is
 /// released so the actual caller can leave its frame/namespace borrows first.
 #[cfg(test)]
+#[cfg(debug_assertions)]
 pub(crate) fn capture_original_c_element_materialisation(
     frames: &mut FrameStack,
     ns: &mut Namespaces,
@@ -3527,6 +3530,7 @@ fn capture_original_c_element_materialisation_using(
 /// Existing neutral fixture preparation retains its independent caller contract.
 #[cfg(test)]
 /// The actual array hash owns the selected original element object at birth.
+#[cfg(debug_assertions)]
 pub(crate) fn prepare_original_c_element_cell(
     frames: &mut FrameStack,
     ns: &mut Namespaces,

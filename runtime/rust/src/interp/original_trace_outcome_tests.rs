@@ -21,6 +21,7 @@
 
 use super::*;
 use tcl_runtime_api::{NativeExecutionError, Traces};
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 thread_local! {
@@ -44,6 +45,7 @@ fn first_host(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
     interpreter.refuse_host_command("original typed variable trace refusal")
 }
 
+#[cfg(debug_assertions)]
 fn changed_world(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
     FIRST_CALLS.with(|calls| calls.set(calls.get() + 1));
     let original = interpreter.runtime_context();
@@ -68,6 +70,7 @@ fn register(interpreter: &mut Interp, source: &[u8], first: BuiltinFn) {
     LATER_CALLS.with(|calls| calls.set(0));
 }
 
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::CommandProtocolUnavailable(
         "stale entered native operation",

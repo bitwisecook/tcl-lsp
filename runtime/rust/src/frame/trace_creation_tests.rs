@@ -24,12 +24,11 @@ use crate::{
     obj::{self, Owned, TclObj},
 };
 use std::cell::Cell as Counter;
-use tcl_runtime_api::{
-    native_variable_trace::{
-        NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-    },
-    NativeExecutionError,
-};
+#[cfg(debug_assertions)]
+use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
+#[cfg(debug_assertions)]
+use tcl_runtime_api::native_variable_trace::{NativeVariableObserver, NativeVariableTraceAccess};
+use tcl_runtime_api::NativeExecutionError;
 thread_local! {
     static OWNER: RefCell<Option<WeakInterp>> = const { RefCell::new(None) };
     static MODE: Counter<u8> = const { Counter::new(0) };
@@ -135,6 +134,7 @@ extern "C" fn free_search(original: *mut TclObj) {
     }
     effect(&mut interpreter);
 }
+#[cfg(debug_assertions)]
 extern "C" fn update_name(original: *mut TclObj) {
     CALLS.with(|value| value.set(value.get() + 1));
     let Some(mut interpreter) =
@@ -153,6 +153,7 @@ static SEARCH: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static NAME: obj::TclObjType = obj::TclObjType {
     name: c"originalTraceCreationName".as_ptr(),
     free_int_rep_proc: None,
@@ -240,13 +241,16 @@ fn original_trace_member_creation_retires_searches_outside_storage_before_regist
         }
     }
 }
+#[cfg(debug_assertions)]
 struct Observer;
+#[cfg(debug_assertions)]
 impl NativeVariableObserver<Interp> for Observer {
     type Error = tcl_cmd_core::CmdError;
     fn observe(&self, _: &mut Interp, _: NativeVariableTraceAccess<'_>) -> Result<(), Self::Error> {
         Ok(())
     }
 }
+#[cfg(debug_assertions)]
 impl Drop for Observer {
     fn drop(&mut self) {
         DROPS.with(|value| value.set(value.get() + 1));

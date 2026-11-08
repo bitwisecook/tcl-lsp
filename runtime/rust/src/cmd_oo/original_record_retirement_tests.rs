@@ -122,6 +122,7 @@ fn dispatch_original(interpreter: &mut Interp, words: &[&[u8]], last: *mut TclOb
     argv.push(last);
     assert_eq!(interpreter.dispatch(&argv), Code::Ok);
 }
+#[cfg(debug_assertions)]
 fn install(interpreter: &mut Interp, class: bool) -> Vec<obj::NativeObjectLifetime> {
     let definition = if class {
         b"oo::define".as_slice()
@@ -174,6 +175,7 @@ fn install(interpreter: &mut Interp, class: bool) -> Vec<obj::NativeObjectLifeti
     assert!(STAGES.with(|stages| stages.borrow().is_empty()));
     leases
 }
+#[cfg(debug_assertions)]
 fn cause(interpreter: &Interp, mode: u8) {
     match mode {
         1 => assert!(
@@ -274,6 +276,7 @@ fn cached_original_name_retirement_stops_later_rename_publication_on_first_refus
     }
 }
 
+#[cfg(debug_assertions)]
 fn install_partial(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     let (target, class) = match interpreter.active_def_target() {
         Some(DefTarget::Class(target)) => (target, true),

@@ -20,6 +20,7 @@
 use super::*;
 use crate::obj::{self, Owned};
 use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
 use std::rc::Rc;
 
 const ORIGINALS: &[(&str, &str)] = &[
@@ -169,8 +170,10 @@ fn compare_public(interp: &mut Interp, code: Code, capture: &str, case: usize) {
     assert_eq!(EVENTS.with(|v| v.borrow().clone()), events);
 }
 
+#[cfg(debug_assertions)]
 use crate::test_storage::global_scalar as global_storage;
 
+#[cfg(debug_assertions)]
 fn reached_refusal(interp: &Interp, mode: u8) -> tcl_runtime_api::NativeExecutionError {
     let first = interp
         .native_execution_refusal()
@@ -384,7 +387,9 @@ fn original_unset_prefix_effect_survives_host_refusal_without_reading_later_name
     }
 }
 
+#[cfg(debug_assertions)]
 struct IncrementWrite;
+#[cfg(debug_assertions)]
 impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp> for IncrementWrite {
     type Error = tcl_cmd_core::CmdError;
     fn observe(

@@ -22494,6 +22494,7 @@ mod tests {
         });
     }
 
+    #[cfg(debug_assertions)]
     unsafe extern "C" fn registration_ensemble_retirement(data: *mut c_void) {
         // The actual old ObjCommand transfers its sole client record here.
         let state = unsafe { Box::from_raw(data.cast::<PublicationRetirement>()) };
@@ -26291,6 +26292,7 @@ mod c86_original_source_text_tests {
         interpreter.set_result(obj::new_string_bytes(b"X"));
         Code::Ok
     }
+    #[cfg(debug_assertions)]
     fn mutate(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
         let original = interpreter.runtime_context();
         let mut changed = original.clone();

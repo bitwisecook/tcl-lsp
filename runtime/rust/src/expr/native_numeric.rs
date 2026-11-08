@@ -440,8 +440,10 @@ mod tests {
     use crate::expr::{ExprOps, TowerOps};
     use crate::interp::Interp;
     use tcl_runtime_api::NativeExecutionError;
+    #[cfg(debug_assertions)]
     use tcl_syntax::raw_string::NativeValueAccessRefusal;
     thread_local! { static CALLS: Cell<usize> = const { Cell::new(0) }; }
+    #[cfg(debug_assertions)]
     extern "C" fn updater(value: *mut TclObj) {
         CALLS.with(|calls| calls.set(calls.get() + 1));
         let mut interpreter = unsafe { crate::codegen_abi::current_interp().as_ref() }
@@ -454,6 +456,7 @@ mod tests {
         interpreter.pin_context(&original).unwrap();
         unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
     }
+    #[cfg(debug_assertions)]
     static ORIGINAL: obj::TclObjType = obj::TclObjType {
         name: c"originalNumericComparison".as_ptr(),
         free_int_rep_proc: None,

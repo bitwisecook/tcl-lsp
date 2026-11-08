@@ -143,6 +143,7 @@ impl RetainedArrayCell {
     }
 
     #[cfg(test)]
+    #[cfg(debug_assertions)]
     pub(crate) fn prepare_original_native_element(
         &self,
         element: &[u8],

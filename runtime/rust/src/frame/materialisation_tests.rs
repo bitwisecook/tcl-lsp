@@ -19,14 +19,19 @@
 //! Original storage continuations; no Native callback chronology assertion.
 
 use super::*;
+#[cfg(debug_assertions)]
+use crate::interp::native_operation_currency::NativeOperationScope;
 use crate::{
-    interp::{native_operation_currency::NativeOperationScope, Interp, WeakInterp},
+    interp::{Interp, WeakInterp},
     namespace::GLOBAL,
     obj::{self, Owned, TclObj},
 };
 use std::cell::Cell as Counter;
 use tcl_cmd_core::native_array_search::{NativeArraySearchBackend, NativeArraySearchOperand};
-use tcl_runtime_api::{ArrayTarget, NativeExecutionError};
+use tcl_runtime_api::ArrayTarget;
+#[cfg(debug_assertions)]
+use tcl_runtime_api::NativeExecutionError;
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 thread_local! {
@@ -122,6 +127,7 @@ fn effect(original: *mut TclObj) {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn retire(original: *mut TclObj) {
     effect(original);
 }
@@ -129,6 +135,7 @@ extern "C" fn update(original: *mut TclObj) {
     effect(original);
     unsafe { obj::set_native_updater_string_rep(original, b"s-1-a", false) };
 }
+#[cfg(debug_assertions)]
 static OLD: obj::TclObjType = obj::TclObjType {
     name: c"originalMaterialisationRetirement".as_ptr(),
     free_int_rep_proc: Some(retire),
@@ -143,6 +150,7 @@ static LAZY: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(update),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 fn cause(interpreter: &Interp, mode: u8) {
     let first = interpreter
         .native_execution_refusal()

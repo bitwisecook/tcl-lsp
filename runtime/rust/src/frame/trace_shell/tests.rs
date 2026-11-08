@@ -18,19 +18,20 @@
 
 //! Actual trace removal and last-owner retirement under one original operation.
 use super::*;
+#[cfg(debug_assertions)]
+use crate::frame::Var;
 use crate::{
-    frame::Var,
     interp::{native_operation_currency::NativeOperationScope, Code, Interp, WeakInterp},
     namespace::GLOBAL,
     obj::{self, Owned, TclObj},
 };
 use std::cell::Cell;
-use tcl_runtime_api::{
-    native_variable_trace::{
-        NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-    },
-    NativeExecutionError,
-};
+#[cfg(debug_assertions)]
+use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
+#[cfg(debug_assertions)]
+use tcl_runtime_api::native_variable_trace::{NativeVariableObserver, NativeVariableTraceAccess};
+#[cfg(debug_assertions)]
+use tcl_runtime_api::NativeExecutionError;
 
 thread_local! {
     static OWNER: RefCell<Option<WeakInterp>> = const { RefCell::new(None) };
@@ -39,7 +40,9 @@ thread_local! {
     static FREES: Cell<usize> = const { Cell::new(0) };
     static REACHED: Cell<*mut TclObj> = const { Cell::new(std::ptr::null_mut()) };
 }
+#[cfg(debug_assertions)]
 struct Cleanup;
+#[cfg(debug_assertions)]
 impl Drop for Cleanup {
     fn drop(&mut self) {
         OWNER.with(|owner| owner.borrow_mut().take());
@@ -56,6 +59,7 @@ fn native(profile: &str) -> Interp {
 fn text(bytes: &[u8]) -> Owned {
     Owned::fresh(obj::new_string_bytes(bytes))
 }
+#[cfg(debug_assertions)]
 fn arm(interpreter: &Interp, mode: u8, root: bool) -> Cleanup {
     OWNER.with(|owner| *owner.borrow_mut() = Some(interpreter.downgrade()));
     MODE.with(|value| value.set(mode));
@@ -64,6 +68,7 @@ fn arm(interpreter: &Interp, mode: u8, root: bool) -> Cleanup {
     REACHED.with(|value| value.set(std::ptr::null_mut()));
     Cleanup
 }
+#[cfg(debug_assertions)]
 fn observe(interpreter: &mut Interp) {
     assert!(interpreter.original_variable_storage_borrows_are_available());
     assert!(interpreter
@@ -132,6 +137,7 @@ fn observe(interpreter: &mut Interp) {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn free_key(original: *mut TclObj) {
     assert_eq!(
         unsafe { (*original).ref_count },
@@ -146,6 +152,7 @@ extern "C" fn free_key(original: *mut TclObj) {
     };
     observe(&mut interpreter);
 }
+#[cfg(debug_assertions)]
 static KEY: obj::TclObjType = obj::TclObjType {
     name: c"originalTraceShellKey".as_ptr(),
     free_int_rep_proc: Some(free_key),
@@ -153,11 +160,13 @@ static KEY: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 fn key(bytes: &[u8]) -> Owned {
     let key = text(bytes);
     obj::change_type(key.as_ptr(), &KEY, 0);
     key
 }
+#[cfg(debug_assertions)]
 fn assert_first(interpreter: &Interp, mode: u8) {
     let first = interpreter
         .native_execution_refusal()
@@ -284,17 +293,20 @@ fn original_trace_root_key_withdrawal_preserves_a_callback_reborn_cell_and_first
     }
 }
 
+#[cfg(debug_assertions)]
 struct Observer {
     owner: WeakInterp,
     mode: u8,
     drops: Rc<Cell<usize>>,
 }
+#[cfg(debug_assertions)]
 impl NativeVariableObserver<Interp> for Observer {
     type Error = tcl_cmd_core::CmdError;
     fn observe(&self, _: &mut Interp, _: NativeVariableTraceAccess<'_>) -> Result<(), Self::Error> {
         Ok(())
     }
 }
+#[cfg(debug_assertions)]
 impl Drop for Observer {
     fn drop(&mut self) {
         self.drops.set(self.drops.get() + 1);

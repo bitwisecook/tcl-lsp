@@ -21,6 +21,7 @@ use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
 use crate::obj::TclObjType;
 use std::cell::Cell;
+#[cfg(debug_assertions)]
 use tcl_runtime_api::native_literal::{NativeLiteralKey, NativeLocalNameTable};
 use tcl_runtime_api::native_substitution::NativeSubstitutionFlags;
 thread_local! {
@@ -73,6 +74,7 @@ fn change() {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn update_source(original: *mut TclObj) {
     GETTERS.set(GETTERS.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
@@ -81,6 +83,7 @@ extern "C" fn update_source(original: *mut TclObj) {
         obj::set_native_updater_string_rep(original, b"", false);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn update_first_name(original: *mut TclObj) {
     GETTERS.set(GETTERS.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
@@ -89,6 +92,7 @@ extern "C" fn update_first_name(original: *mut TclObj) {
         obj::set_native_updater_string_rep(original, b"prep_first_name", false);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn update_later_name(original: *mut TclObj) {
     LATER.set(LATER.get() + 1);
     unsafe {
@@ -108,6 +112,7 @@ extern "C" fn retire(original: *mut TclObj) {
         change();
     }
 }
+#[cfg(debug_assertions)]
 static SOURCE: TclObjType = TclObjType {
     name: c"originalPreparationSource".as_ptr(),
     free_int_rep_proc: None,
@@ -115,6 +120,7 @@ static SOURCE: TclObjType = TclObjType {
     update_string_proc: Some(update_source),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static FIRST_NAME: TclObjType = TclObjType {
     name: c"originalPreparationFirstName".as_ptr(),
     free_int_rep_proc: None,
@@ -122,6 +128,7 @@ static FIRST_NAME: TclObjType = TclObjType {
     update_string_proc: Some(update_first_name),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static LATER_NAME: TclObjType = TclObjType {
     name: c"originalPreparationLaterName".as_ptr(),
     free_int_rep_proc: None,

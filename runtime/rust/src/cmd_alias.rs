@@ -3229,9 +3229,11 @@ pub(crate) mod original_operand_tests {
     use crate::obj::Owned;
     use std::cell::{Cell, RefCell};
     use tcl_runtime_api::NativeExecutionError;
+    #[cfg(debug_assertions)]
     use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
     #[derive(Clone, Copy)]
+    #[cfg(debug_assertions)]
     pub(crate) enum Update {
         Host,
         Restore,
@@ -3240,12 +3242,16 @@ pub(crate) mod original_operand_tests {
     thread_local! {
         static INTERPRETER: RefCell<Option<Interp>> = const { RefCell::new(None) };
         static FIRST_CAUSE: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
+        #[cfg(debug_assertions)]
         static MODE: Cell<Update> = const { Cell::new(Update::Host) };
         static FIRST: Cell<usize> = const { Cell::new(0) };
         static LATER: Cell<usize> = const { Cell::new(0) };
     }
+    #[cfg(debug_assertions)]
     pub(crate) struct UpdaterOwner;
+    #[cfg(debug_assertions)]
     impl UpdaterOwner {
+        #[cfg(debug_assertions)]
         pub(crate) fn enter(interp: &Interp, mode: Update) -> Self {
             INTERPRETER.with(|slot| *slot.borrow_mut() = Some(interp.clone()));
             MODE.with(|selected| selected.set(mode));
@@ -3255,6 +3261,7 @@ pub(crate) mod original_operand_tests {
             Self
         }
     }
+    #[cfg(debug_assertions)]
     impl Drop for UpdaterOwner {
         fn drop(&mut self) {
             INTERPRETER.with(|slot| slot.borrow_mut().take());
@@ -3268,6 +3275,7 @@ pub(crate) mod original_operand_tests {
         )
         .unwrap()
     }
+    #[cfg(debug_assertions)]
     fn restore(interp: &mut Interp) {
         let original = interp.runtime_context();
         let mut changed = original.clone();
@@ -3275,6 +3283,7 @@ pub(crate) mod original_operand_tests {
         interp.pin_context(&changed).unwrap();
         interp.pin_context(&original).unwrap();
     }
+    #[cfg(debug_assertions)]
     extern "C" fn first_getter(original: *mut TclObj) {
         FIRST.with(|count| count.set(count.get() + 1));
         let mut interp = INTERPRETER.with(|slot| slot.borrow().as_ref().unwrap().clone());
@@ -3292,10 +3301,12 @@ pub(crate) mod original_operand_tests {
         }
         unsafe { obj::set_native_updater_string_rep(original, b"reached\0\xff", false) };
     }
+    #[cfg(debug_assertions)]
     extern "C" fn later_getter(original: *mut TclObj) {
         LATER.with(|count| count.set(count.get() + 1));
         unsafe { obj::set_native_updater_string_rep(original, b"LATER", false) };
     }
+    #[cfg(debug_assertions)]
     static FIRST_TYPE: obj::TclObjType = obj::TclObjType {
         name: c"originalAliasTraceGetter".as_ptr(),
         free_int_rep_proc: None,
@@ -3303,6 +3314,7 @@ pub(crate) mod original_operand_tests {
         update_string_proc: Some(first_getter),
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     static LATER_TYPE: obj::TclObjType = obj::TclObjType {
         name: c"originalAliasTraceLaterGetter".as_ptr(),
         free_int_rep_proc: None,
@@ -3310,9 +3322,11 @@ pub(crate) mod original_operand_tests {
         update_string_proc: Some(later_getter),
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     pub(crate) fn first() -> Owned {
         Owned::fresh(obj::alloc_typed(&FIRST_TYPE, 0))
     }
+    #[cfg(debug_assertions)]
     fn later() -> Owned {
         Owned::fresh(obj::alloc_typed(&LATER_TYPE, 0))
     }
@@ -3322,6 +3336,7 @@ pub(crate) mod original_operand_tests {
             .map(|bytes| Owned::fresh(obj::new_string_bytes(bytes)))
             .collect()
     }
+    #[cfg(debug_assertions)]
     fn expected(mode: Update) -> NativeExecutionError {
         match mode {
             Update::Host => FIRST_CAUSE.with(|cause| {
@@ -3341,6 +3356,7 @@ pub(crate) mod original_operand_tests {
     }
     /// Inspect the reached storage without starting another native name operation.
     /// A pending first Host intentionally makes `var_get` terminal.
+    #[cfg(debug_assertions)]
     pub(crate) fn reached_variable(interp: &Interp, name: &[u8]) -> *mut TclObj {
         crate::vars::get(
             &interp.frames.borrow(),
@@ -3350,12 +3366,14 @@ pub(crate) mod original_operand_tests {
         )
         .expect("actual earlier callback variable effect remains")
     }
+    #[cfg(debug_assertions)]
     pub(crate) fn seed(interp: &mut Interp) -> Owned {
         interp.set_result_bytes(b"PRIOR\0\xff");
         interp.set_return_state(2, Code::Other(7));
         interp.set_return_options(vec![(b"-original".to_vec(), b"OPTIONS".to_vec())]);
         Owned::retain(interp.get_obj_result())
     }
+    #[cfg(debug_assertions)]
     pub(crate) fn unchanged(interp: &Interp, result: &Owned, mode: Update) {
         assert_eq!(interp.native_execution_refusal(), Some(expected(mode)));
         assert_eq!(interp.get_obj_result(), result.as_ptr());
@@ -3447,6 +3465,7 @@ pub(crate) mod original_operand_tests {
     thread_local! {
         static INVOCATION_PRIOR: RefCell<Option<Owned>> = const { RefCell::new(None) };
     }
+    #[cfg(debug_assertions)]
     unsafe extern "C" fn consume_original_prefix(
         _: *mut std::ffi::c_void,
         interp: *mut Interp,
@@ -3632,6 +3651,7 @@ pub(crate) mod original_operand_tests {
         assert!(!obj::has_string_rep(unread.as_ptr()));
     }
 
+    #[cfg(debug_assertions)]
     fn original_child_worker(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         match MODE.with(Cell::get) {
             Update::Host => {
@@ -3644,6 +3664,7 @@ pub(crate) mod original_operand_tests {
         interp.set_result(result.as_ptr());
         Code::Other(7)
     }
+    #[cfg(debug_assertions)]
     fn original_child_lazy_result(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         INTERPRETER.with(|slot| *slot.borrow_mut() = Some(interp.clone()));
         let result = first();
@@ -3813,27 +3834,34 @@ pub(crate) mod original_operand_tests {
 
 #[cfg(test)]
 mod original_rename_operation_tests {
+    #[cfg(debug_assertions)]
     use super::*;
+    #[cfg(debug_assertions)]
     use crate::obj::Owned;
     use std::cell::{Cell, RefCell};
     use tcl_runtime_api::NativeExecutionError;
+    #[cfg(debug_assertions)]
     use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
     #[derive(Clone, Copy)]
+    #[cfg(debug_assertions)]
     enum Callback {
         Normal,
         Host,
         Restore,
     }
     thread_local! {
+        #[cfg(debug_assertions)]
         static MODE: Cell<Callback> = const { Cell::new(Callback::Normal) };
         static CALLS: Cell<usize> = const { Cell::new(0) };
         static FIRST: RefCell<Option<NativeExecutionError>> = const { RefCell::new(None) };
     }
+    #[cfg(debug_assertions)]
     fn victim(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         interp.set_result_bytes(b"VICTIM");
         Code::Ok
     }
+    #[cfg(debug_assertions)]
     fn observer(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         CALLS.with(|calls| calls.set(calls.get() + 1));
         let effect = Owned::fresh(obj::new_string_bytes(b"REACHED\0\xff"));

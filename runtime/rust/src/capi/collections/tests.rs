@@ -23,6 +23,7 @@ use crate::interp::WeakInterp;
 use core::{mem::size_of, ptr};
 use std::{cell::Cell, rc::Rc};
 use tcl_dialect::TclVersion;
+#[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
 
 fn leak_free(body: impl FnOnce()) {
@@ -45,6 +46,7 @@ fn native(version: TclVersion) -> Interp {
     )
     .unwrap()
 }
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(
         tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -124,6 +126,7 @@ fn callback(
     }
     (obj::Owned::fresh(value), updates, frees)
 }
+#[cfg(debug_assertions)]
 fn assert_first(interpreter: &Interp, action: u8) {
     match action {
         1 => {
@@ -179,6 +182,7 @@ fn original_collection_rc0_views_keep_header_and_backing_copy_on_write_separate(
     });
 }
 
+#[cfg(debug_assertions)]
 fn error_code_keeps_unreached_original_updater(action: u8) {
     leak_free(|| {
         let mut interpreter = native(TclVersion::V9_0);

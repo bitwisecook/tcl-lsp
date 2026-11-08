@@ -74,6 +74,7 @@ fn callback(first: bool) {
         }
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn update(original: *mut TclObj) {
     let role = obj::internal_rep(original);
     let first = UPDATES.with(|updates| {
@@ -84,6 +85,7 @@ extern "C" fn update(original: *mut TclObj) {
     callback(first);
     unsafe { obj::set_string_rep(original, if role % 2 == 0 { b"-a" } else { b"-z" }) };
 }
+#[cfg(debug_assertions)]
 extern "C" fn free(original: *mut TclObj) {
     let role = obj::internal_rep(original);
     let first = FREES.with(|frees| {
@@ -93,6 +95,7 @@ extern "C" fn free(original: *mut TclObj) {
     });
     callback(first);
 }
+#[cfg(debug_assertions)]
 static MEMBER: obj::TclObjType = obj::TclObjType {
     name: c"originalPropertyReport".as_ptr(),
     free_int_rep_proc: Some(free),
@@ -120,6 +123,7 @@ fn native() -> (Interp, OoId, OoId) {
     FREES.with(|frees| frees.borrow_mut().clear());
     (interpreter, class, target)
 }
+#[cfg(debug_assertions)]
 fn members(interpreter: &mut Interp, target: OoId, class: bool) -> Vec<obj::Owned> {
     let members: Vec<_> = (0..2)
         .map(|role| {
@@ -135,6 +139,7 @@ fn members(interpreter: &mut Interp, target: OoId, class: bool) -> Vec<obj::Owne
     drop(input);
     members
 }
+#[cfg(debug_assertions)]
 fn first(interpreter: &Interp, mode: u8) {
     match mode {
         1 => assert!(

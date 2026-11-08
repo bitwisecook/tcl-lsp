@@ -186,6 +186,7 @@ fn hidden(
     let access = interpreter.trace_access(name, name, None, &home, false);
     interpreter.native_precision_trace(&home, &access, operation)
 }
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::CommandProtocolUnavailable(
         "stale entered native operation",

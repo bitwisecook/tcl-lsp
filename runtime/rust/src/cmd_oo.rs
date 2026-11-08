@@ -11762,6 +11762,7 @@ mod original_argument_tests {
         static UPDATES: Cell<usize> = const { Cell::new(0) };
         static FREES: Cell<usize> = const { Cell::new(0) };
     }
+    #[cfg(debug_assertions)]
     fn native() -> Interp {
         let mut interpreter = Interp::with_native_core(
             crate::interp::default_host(),
@@ -11779,9 +11780,11 @@ mod original_argument_tests {
         FREES.with(|calls| calls.set(0));
         interpreter
     }
+    #[cfg(debug_assertions)]
     fn owner() -> Interp {
         OWNER.with(|owner| owner.borrow().as_ref().unwrap().upgrade().unwrap())
     }
+    #[cfg(debug_assertions)]
     fn refuse(interpreter: &mut Interp, mode: u8) {
         if mode == 1 {
             interpreter.refuse_host_command("first original OO argument callback");
@@ -11795,6 +11798,7 @@ mod original_argument_tests {
             interpreter.pin_context(&original).unwrap();
         }
     }
+    #[cfg(debug_assertions)]
     extern "C" fn update(original: *mut TclObj) {
         UPDATES.with(|calls| calls.set(calls.get() + 1));
         let mut interpreter = owner();
@@ -11804,12 +11808,14 @@ mod original_argument_tests {
         refuse(&mut interpreter, MODE.with(Cell::get));
         unsafe { obj::set_native_updater_string_rep(original, b"OriginalArgumentClass", false) };
     }
+    #[cfg(debug_assertions)]
     extern "C" fn free_body(_original: *mut TclObj) {
         FREES.with(|calls| calls.set(calls.get() + 1));
         let mut interpreter = owner();
         assert!(interpreter.oo.try_borrow_mut().is_ok());
         refuse(&mut interpreter, MODE.with(Cell::get));
     }
+    #[cfg(debug_assertions)]
     static ARGUMENT: obj::TclObjType = obj::TclObjType {
         name: c"originalOoArgument".as_ptr(),
         free_int_rep_proc: None,
@@ -11817,6 +11823,7 @@ mod original_argument_tests {
         update_string_proc: Some(update),
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     static BODY: obj::TclObjType = obj::TclObjType {
         name: c"originalOoRetiredBody".as_ptr(),
         free_int_rep_proc: Some(free_body),
@@ -11824,12 +11831,15 @@ mod original_argument_tests {
         update_string_proc: None,
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     fn word(bytes: &[u8]) -> obj::Owned {
         obj::Owned::fresh(obj::new_string_bytes(bytes))
     }
+    #[cfg(debug_assertions)]
     fn argument() -> obj::Owned {
         obj::Owned::fresh(obj::alloc_typed(&ARGUMENT, 0))
     }
+    #[cfg(debug_assertions)]
     fn enter(interpreter: &mut Interp) -> (OoId, NsId) {
         let target = interpreter.oo_resolve_object(b"OriginalArgumentClass");
         let argv = [
@@ -11843,6 +11853,7 @@ mod original_argument_tests {
             .unwrap();
         (target, caller)
     }
+    #[cfg(debug_assertions)]
     fn retained_failure(interpreter: &Interp, prior: *mut TclObj) {
         assert!(interpreter.native_execution_refusal().is_some());
         assert_eq!(interpreter.get_obj_result(), prior);

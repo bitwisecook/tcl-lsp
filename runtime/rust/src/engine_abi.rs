@@ -422,6 +422,7 @@ mod procedure_publication_tests {
         static PUBLICATION_UPDATES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
         static PUBLICATION_LATER: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
+    #[cfg(debug_assertions)]
     extern "C" fn publication_updater(original: *mut TclObj) {
         PUBLICATION_UPDATES.with(|calls| calls.set(calls.get() + 1));
         let mut interpreter = PUBLICATION_INTERP
@@ -435,11 +436,13 @@ mod procedure_publication_tests {
         // SAFETY: the actual extension updater owns its reached String stage.
         unsafe { crate::obj::set_string_rep(original, b"blocked") };
     }
+    #[cfg(debug_assertions)]
     extern "C" fn publication_later(original: *mut TclObj) {
         PUBLICATION_LATER.with(|calls| calls.set(calls.get() + 1));
         // SAFETY: this extension updater receives its original live header.
         unsafe { crate::obj::set_string_rep(original, b"1.0") };
     }
+    #[cfg(debug_assertions)]
     static PUBLICATION_UPDATER: crate::obj::TclObjType = crate::obj::TclObjType {
         name: c"testPublicationEpoch".as_ptr(),
         free_int_rep_proc: None,
@@ -447,6 +450,7 @@ mod procedure_publication_tests {
         update_string_proc: Some(publication_updater),
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     static PUBLICATION_LATER_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
         name: c"testPublicationLater".as_ptr(),
         free_int_rep_proc: None,

@@ -1679,6 +1679,7 @@ mod tests {
 mod original_slot_boundary_tests {
     use super::*;
     use std::cell::Cell;
+    #[cfg(debug_assertions)]
     use tcl_syntax::native_object::NativeObjectCacheSnapshot;
 
     thread_local! {
@@ -1710,6 +1711,7 @@ mod original_slot_boundary_tests {
         (interpreter, target)
     }
 
+    #[cfg(debug_assertions)]
     fn reached_callback(interpreter: &mut Interp) {
         match MODE.with(Cell::get) {
             1 => {
@@ -1734,6 +1736,7 @@ mod original_slot_boundary_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     extern "C" fn update(original: *mut TclObj) {
         UPDATES.with(|count| count.set(count.get() + 1));
         let mut interpreter =
@@ -1742,6 +1745,7 @@ mod original_slot_boundary_tests {
         unsafe { obj::set_native_updater_string_rep(original, b"p", false) };
     }
 
+    #[cfg(debug_assertions)]
     extern "C" fn free(_: *mut TclObj) {
         FREES.with(|count| count.set(count.get() + 1));
         let mut interpreter =
@@ -1753,6 +1757,7 @@ mod original_slot_boundary_tests {
         RETIREMENT_EPOCH.with(|epoch| epoch.set(interpreter.oo.borrow().property_foundation_epoch));
     }
 
+    #[cfg(debug_assertions)]
     static UPDATER: obj::TclObjType = obj::TclObjType {
         name: c"originalPropertySlotUpdater".as_ptr(),
         free_int_rep_proc: None,
@@ -1760,6 +1765,7 @@ mod original_slot_boundary_tests {
         update_string_proc: Some(update),
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     static RETIRING: obj::TclObjType = obj::TclObjType {
         name: c"originalPropertySlotRetirement".as_ptr(),
         free_int_rep_proc: Some(free),

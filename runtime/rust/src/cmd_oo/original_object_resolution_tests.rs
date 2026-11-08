@@ -20,6 +20,7 @@
 
 use super::*;
 use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
 
 thread_local! {

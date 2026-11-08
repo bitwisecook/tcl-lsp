@@ -123,6 +123,7 @@ static UPDATER: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 extern "C" fn retire(original: *mut TclObj) {
     FREES.with(|value| value.set(value.get() + 1));
     let Some(interpreter) = (unsafe { codegen_abi::current_interp().as_ref() }) else {
@@ -159,6 +160,7 @@ extern "C" fn retire(original: *mut TclObj) {
     }
 }
 
+#[cfg(debug_assertions)]
 static RETIRE: obj::TclObjType = obj::TclObjType {
     name: c"originalUsageRetirement".as_ptr(),
     free_int_rep_proc: Some(retire),
@@ -502,6 +504,7 @@ impl Drop for UnknownTls {
     }
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn unknown_retire(original: *mut TclObj) {
     FREES.with(|value| value.set(value.get() + 1));
     REFS.with(|value| value.borrow_mut()[2] = unsafe { (*original).ref_count });
@@ -525,6 +528,7 @@ extern "C" fn unknown_retire(original: *mut TclObj) {
     UNKNOWN_FIRST.with(|value| *value.borrow_mut() = interpreter.native_execution_refusal());
 }
 
+#[cfg(debug_assertions)]
 static UNKNOWN_RETIRE: obj::TclObjType = obj::TclObjType {
     name: c"originalUnknownResultRetirement".as_ptr(),
     free_int_rep_proc: Some(unknown_retire),

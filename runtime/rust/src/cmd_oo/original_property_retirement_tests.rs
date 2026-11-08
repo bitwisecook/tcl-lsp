@@ -141,6 +141,7 @@ fn cache_headers(interpreter: &mut Interp) -> [obj::NativeObjectLifetime; 2] {
     leases
 }
 
+#[cfg(debug_assertions)]
 fn assert_first(interpreter: &Interp, mode: u8) {
     match mode {
         1 => {

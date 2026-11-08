@@ -61,6 +61,7 @@ fn observed(original: *mut TclObj) {
     REFS.set(unsafe { (*original).ref_count });
     change();
 }
+#[cfg(debug_assertions)]
 extern "C" fn key(original: *mut TclObj) {
     observed(original);
     unsafe {
@@ -89,12 +90,14 @@ extern "C" fn info(original: *mut TclObj) {
         obj::set_native_updater_string_rep(original, b"INFO", false);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn stack(original: *mut TclObj) {
     observed(original);
     unsafe {
         obj::set_native_updater_string_rep(original, b"INNER COMMAND", false);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn later(original: *mut TclObj) {
     LATER.set(LATER.get() + 1);
     unsafe {
@@ -118,6 +121,7 @@ static RETIRED_FIELD: TclObjType = TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static KEY: TclObjType = TclObjType {
     name: c"originalReturnKeyFrame".as_ptr(),
     free_int_rep_proc: Some(free),
@@ -132,6 +136,7 @@ static INFO: TclObjType = TclObjType {
     update_string_proc: Some(info),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static STACK: TclObjType = TclObjType {
     name: c"originalReturnStackFrame".as_ptr(),
     free_int_rep_proc: Some(free),
@@ -139,6 +144,7 @@ static STACK: TclObjType = TclObjType {
     update_string_proc: Some(stack),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static LATER_KEY: TclObjType = TclObjType {
     name: c"originalReturnLaterKey".as_ptr(),
     free_int_rep_proc: None,

@@ -18,12 +18,17 @@
 
 //! Original eval-object getters retain the entered context through restoration.
 
+#[cfg(debug_assertions)]
 use super::{Code, Interp};
+#[cfg(debug_assertions)]
 use crate::obj::{self, Owned, TclObj};
-use std::{cell::Cell, rc::Rc};
-use tcl_platform::{
-    Capabilities, Clock, Env, Host, NativeIntegerFormatter, NumericEnvironment, StdIo,
-};
+use std::cell::Cell;
+#[cfg(debug_assertions)]
+use std::rc::Rc;
+#[cfg(debug_assertions)]
+use tcl_platform::Env;
+#[cfg(debug_assertions)]
+use tcl_platform::{Capabilities, Clock, Host, NativeIntegerFormatter, NumericEnvironment, StdIo};
 
 thread_local! {
     static SCRIPT_GETTER_MODE: Cell<u8> = const { Cell::new(0) };
@@ -31,20 +36,25 @@ thread_local! {
     static SCRIPT_RESTORED: Cell<bool> = const { Cell::new(false) };
 }
 
+#[cfg(debug_assertions)]
 struct CurrentEvalInterp(*mut Interp);
+#[cfg(debug_assertions)]
 impl CurrentEvalInterp {
+    #[cfg(debug_assertions)]
     fn enter(interp: &mut Interp) -> Self {
         let previous = crate::codegen_abi::current_interp();
         crate::codegen_abi::tcl_runtime_set_current_interp(interp);
         Self(previous)
     }
 }
+#[cfg(debug_assertions)]
 impl Drop for CurrentEvalInterp {
     fn drop(&mut self) {
         crate::codegen_abi::tcl_runtime_set_current_interp(self.0);
     }
 }
 
+#[cfg(debug_assertions)]
 fn change_and_restore(interp: &mut Interp) {
     let original = interp.runtime_context();
     let mut changed = original.clone();
@@ -53,12 +63,14 @@ fn change_and_restore(interp: &mut Interp) {
     interp.pin_context(&original).unwrap();
 }
 
+#[cfg(debug_assertions)]
 struct EvalHost {
     actual: Rc<dyn Host>,
     armed: Cell<bool>,
     mode: Cell<u8>,
     formatter_calls: Cell<usize>,
 }
+#[cfg(debug_assertions)]
 impl Host for EvalHost {
     fn capabilities(&self) -> Capabilities {
         self.actual.capabilities()
@@ -93,6 +105,7 @@ impl Host for EvalHost {
     }
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn script_updater(original: *mut TclObj) {
     SCRIPT_GETTER_CALLS.with(|calls| calls.set(calls.get() + 1));
     let mut interp = unsafe { crate::codegen_abi::current_interp().as_ref() }
@@ -108,6 +121,7 @@ extern "C" fn script_updater(original: *mut TclObj) {
     // SAFETY: the reached callback owns the same live original script header.
     unsafe { obj::set_native_updater_string_rep(original, b"set reachedBody 1", false) };
 }
+#[cfg(debug_assertions)]
 static SCRIPT_TYPE: obj::TclObjType = obj::TclObjType {
     name: c"originalEvalScript".as_ptr(),
     free_int_rep_proc: None,
@@ -116,6 +130,7 @@ static SCRIPT_TYPE: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 fn original_body_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let before = (interp.current_level(), interp.current_ns.get());
     assert_eq!(before.0, 1);
@@ -127,6 +142,7 @@ fn original_body_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     code
 }
 
+#[cfg(debug_assertions)]
 fn fixture() -> (Interp, Rc<EvalHost>) {
     let mut interp = Interp::with_native_core(
         super::default_host(),

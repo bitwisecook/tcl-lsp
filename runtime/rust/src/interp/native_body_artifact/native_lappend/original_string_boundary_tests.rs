@@ -19,6 +19,7 @@
 //! Genuine original compiled String append stages and the separate neutral worker.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+#[cfg(debug_assertions)]
 use crate::obj::TclObjType;
 use std::cell::RefCell;
 thread_local! {
@@ -29,6 +30,7 @@ thread_local! {
     static RECEIVER: RefCell<Option<Rc<OriginalCVariableCapture>>> = const { RefCell::new(None) };
     static REPLACEMENT: Cell<*mut TclObj> = const { Cell::new(core::ptr::null_mut()) };
 }
+#[cfg(debug_assertions)]
 fn change() {
     let mut actual = unsafe { crate::codegen_abi::current_interp().as_ref() }
         .unwrap()
@@ -63,14 +65,17 @@ fn change() {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn duplicate(_original: *mut TclObj, incoming: *mut TclObj) {
     obj::change_type(incoming, &ORIGINAL, 0);
 }
+#[cfg(debug_assertions)]
 extern "C" fn retire(original: *mut TclObj) {
     FREES.set(FREES.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
     change();
 }
+#[cfg(debug_assertions)]
 extern "C" fn source(original: *mut TclObj) {
     GETTERS.set(GETTERS.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
@@ -79,6 +84,7 @@ extern "C" fn source(original: *mut TclObj) {
         obj::set_native_updater_string_rep(original, b"B", false);
     }
 }
+#[cfg(debug_assertions)]
 static ORIGINAL: TclObjType = TclObjType {
     name: c"originalCompiledStringAppendRetirement".as_ptr(),
     free_int_rep_proc: Some(retire),
@@ -86,6 +92,7 @@ static ORIGINAL: TclObjType = TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static SOURCE: TclObjType = TclObjType {
     name: c"originalCompiledStringAppendSource".as_ptr(),
     free_int_rep_proc: None,
@@ -93,7 +100,9 @@ static SOURCE: TclObjType = TclObjType {
     update_string_proc: Some(source),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 struct Reset;
+#[cfg(debug_assertions)]
 impl Drop for Reset {
     fn drop(&mut self) {
         MODE.set(0);
@@ -101,6 +110,7 @@ impl Drop for Reset {
         REPLACEMENT.set(core::ptr::null_mut());
     }
 }
+#[cfg(debug_assertions)]
 fn expected_first(actual: &Interp, mode: u8) {
     let first = actual
         .native_execution_refusal()
@@ -117,6 +127,7 @@ fn expected_first(actual: &Interp, mode: u8) {
         ));
     }
 }
+#[cfg(debug_assertions)]
 fn exercise(profile: &str, mode: u8, source_callback: bool) {
     let mut actual = fixture::native(profile);
     let text: &[u8] = if source_callback {

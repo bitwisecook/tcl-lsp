@@ -75,6 +75,7 @@ fn replace_facet(interpreter: &mut Interp) {
     ));
     assert!(scope.currency().ensure_current_or_refuse().is_ok());
 }
+#[cfg(debug_assertions)]
 extern "C" fn update(original: *mut TclObj) {
     CALLS.with(|calls| calls.set(calls.get() + 1));
     let mut interpreter = OWNER.with(|owner| owner.borrow().as_ref().unwrap().upgrade().unwrap());
@@ -119,6 +120,7 @@ extern "C" fn update(original: *mut TclObj) {
     };
     unsafe { obj::set_native_updater_string_rep(original, bytes, false) };
 }
+#[cfg(debug_assertions)]
 static ARGUMENT: obj::TclObjType = obj::TclObjType {
     name: c"originalClassReportOperand".as_ptr(),
     free_int_rep_proc: None,
@@ -126,6 +128,7 @@ static ARGUMENT: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(update),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 fn word(bytes: &[u8]) -> obj::Owned {
     obj::Owned::fresh(obj::new_string_bytes(bytes))
 }

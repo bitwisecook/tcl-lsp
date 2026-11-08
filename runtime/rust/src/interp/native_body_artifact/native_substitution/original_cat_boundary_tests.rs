@@ -18,7 +18,9 @@
 
 //! Actual substitution flush chunks retain the original frame through unused-owner cleanup.
 use super::*;
+#[cfg(debug_assertions)]
 use crate::cmd_control::original_list_conversion_tests as fixture;
+#[cfg(debug_assertions)]
 use crate::obj::TclObjType;
 use std::cell::Cell;
 thread_local! {
@@ -28,6 +30,7 @@ thread_local! {
     static FREES: Cell<usize> = const { Cell::new(0) };
     static REFS: Cell<obj::TclSize> = const { Cell::new(-1) };
 }
+#[cfg(debug_assertions)]
 fn change() {
     let mut actual = unsafe { crate::codegen_abi::current_interp().as_ref() }
         .unwrap()
@@ -51,6 +54,7 @@ fn change() {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn first(original: *mut TclObj) {
     GETTERS.set(GETTERS.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
@@ -59,12 +63,14 @@ extern "C" fn first(original: *mut TclObj) {
         obj::set_native_updater_string_rep(original, b"A", false);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn later(original: *mut TclObj) {
     LATER.set(LATER.get() + 1);
     unsafe {
         obj::set_native_updater_string_rep(original, b"B", false);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn retire(_original: *mut TclObj) {
     FREES.set(FREES.get() + 1);
     if MODE.get() != 0 {
@@ -74,6 +80,7 @@ extern "C" fn retire(_original: *mut TclObj) {
         actual.refuse_host_command("original production Cat unused owner cleanup");
     }
 }
+#[cfg(debug_assertions)]
 static FIRST: TclObjType = TclObjType {
     name: c"originalProductionCatFirst".as_ptr(),
     free_int_rep_proc: None,
@@ -81,6 +88,7 @@ static FIRST: TclObjType = TclObjType {
     update_string_proc: Some(first),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static LATER_TYPE: TclObjType = TclObjType {
     name: c"originalProductionCatLater".as_ptr(),
     free_int_rep_proc: Some(retire),
@@ -88,12 +96,15 @@ static LATER_TYPE: TclObjType = TclObjType {
     update_string_proc: Some(later),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 struct Reset;
+#[cfg(debug_assertions)]
 impl Drop for Reset {
     fn drop(&mut self) {
         MODE.set(0);
     }
 }
+#[cfg(debug_assertions)]
 fn assert_first(actual: &Interp, mode: u8) {
     let first = actual
         .native_execution_refusal()

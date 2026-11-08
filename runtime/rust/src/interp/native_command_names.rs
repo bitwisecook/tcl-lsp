@@ -1355,6 +1355,7 @@ mod original_key_construction_tests {
     use super::*;
     use crate::interp::native_operation_currency::NativeOperationScope;
     use std::cell::{Cell, RefCell};
+    #[cfg(debug_assertions)]
     use tcl_syntax::naming::NativeNamePurpose;
 
     thread_local! {

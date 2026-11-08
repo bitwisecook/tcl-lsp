@@ -133,6 +133,7 @@ fn original() -> Owned {
     unsafe { obj::set_string_rep(name.as_ptr(), b"handoff") };
     name
 }
+#[cfg(debug_assertions)]
 fn storage(interpreter: &Interp, name: &[u8]) -> Option<*mut TclObj> {
     crate::vars::get(
         &interpreter.frames.borrow(),
@@ -141,6 +142,7 @@ fn storage(interpreter: &Interp, name: &[u8]) -> Option<*mut TclObj> {
         name,
     )
 }
+#[cfg(debug_assertions)]
 fn first(interpreter: &Interp, mode: u8) {
     let cause = interpreter
         .native_execution_refusal()

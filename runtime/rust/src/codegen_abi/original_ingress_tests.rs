@@ -40,6 +40,7 @@ fn original() -> Interp {
     .unwrap()
 }
 
+#[cfg(debug_assertions)]
 fn change_and_restore(interpreter: &mut Interp) {
     let original = interpreter.runtime_context();
     let mut changed = original.clone();
@@ -48,6 +49,7 @@ fn change_and_restore(interpreter: &mut Interp) {
     interpreter.pin_context(&original).unwrap();
 }
 
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::CommandProtocolUnavailable(
         "stale entered native operation",
@@ -62,6 +64,7 @@ fn sentinel() -> TclCompletionAbi {
     }
 }
 
+#[cfg(debug_assertions)]
 fn changed_command(interpreter: &mut Interp, _: &[*mut TclObj]) -> crate::interp::Code {
     COMMANDS.with(|calls| calls.set(calls.get() + 1));
     interpreter.set_result_bytes(b"reached\0result");
@@ -70,12 +73,14 @@ fn changed_command(interpreter: &mut Interp, _: &[*mut TclObj]) -> crate::interp
 }
 
 #[cfg(have_tommath)]
+#[cfg(debug_assertions)]
 fn later_command(interpreter: &mut Interp, _: &[*mut TclObj]) -> crate::interp::Code {
     COMMANDS.with(|calls| calls.set(calls.get() + 1));
     interpreter.set_result_bytes(b"LATER");
     crate::interp::Code::Ok
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn updater(value: *mut TclObj) {
     UPDATES.with(|calls| calls.set(calls.get() + 1));
     let mut interpreter = unsafe { current_interp().as_ref() }.unwrap().clone();
@@ -84,10 +89,12 @@ extern "C" fn updater(value: *mut TclObj) {
         .with(|bytes| unsafe { obj::set_native_updater_string_rep(value, bytes.get(), false) });
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn free_original_rep(_: *mut TclObj) {
     FREES.with(|calls| calls.set(calls.get() + 1));
 }
 
+#[cfg(debug_assertions)]
 static ORIGINAL_UPDATER: obj::TclObjType = obj::TclObjType {
     name: c"originalCodegenIngress".as_ptr(),
     free_int_rep_proc: Some(free_original_rep),

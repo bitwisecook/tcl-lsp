@@ -354,14 +354,18 @@ impl NumericEnvironment for FrameHost {
     }
 }
 
+#[cfg(debug_assertions)]
 struct CurrentFrameInterp(*mut Interp);
+#[cfg(debug_assertions)]
 impl CurrentFrameInterp {
+    #[cfg(debug_assertions)]
     fn enter(interp: &mut Interp) -> Self {
         let previous = crate::codegen_abi::current_interp();
         crate::codegen_abi::tcl_runtime_set_current_interp(interp);
         Self(previous)
     }
 }
+#[cfg(debug_assertions)]
 impl Drop for CurrentFrameInterp {
     fn drop(&mut self) {
         crate::codegen_abi::tcl_runtime_set_current_interp(self.0);
@@ -378,6 +382,7 @@ thread_local! {
     static FRAME_UPDATER_CALLS: Cell<usize> = const { Cell::new(0) };
     static FRAME_UPDATER_CHANGE: Cell<bool> = const { Cell::new(false) };
 }
+#[cfg(debug_assertions)]
 extern "C" fn frame_updater(original: *mut obj::TclObj) {
     FRAME_UPDATER_CALLS.with(|calls| calls.set(calls.get() + 1));
     let mut interp = unsafe { crate::codegen_abi::current_interp().as_ref() }
@@ -391,6 +396,7 @@ extern "C" fn frame_updater(original: *mut obj::TclObj) {
     // Preserve the reached original String effect before the checked refusal.
     unsafe { obj::set_native_updater_string_rep(original, b"1", false) };
 }
+#[cfg(debug_assertions)]
 static FRAME_UPDATER: obj::TclObjType = obj::TclObjType {
     name: c"originalFrameUpdater".as_ptr(),
     free_int_rep_proc: None,

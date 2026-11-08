@@ -20,6 +20,7 @@
 use super::*;
 use crate::obj::Owned;
 use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
 type OriginalCopyPhase = (Vec<Vec<u8>>, Option<u64>);
 
 thread_local! {
@@ -29,9 +30,12 @@ thread_local! {
     static REBORN: Cell<NsId> = const { Cell::new(GLOBAL) };
     static ARMED: Cell<bool> = const { Cell::new(false) };
     static FREES: Cell<usize> = const { Cell::new(0) };
+    #[cfg(debug_assertions)]
     static COPY_PHASE: RefCell<Option<OriginalCopyPhase>> = const { RefCell::new(None) };
 }
+#[cfg(debug_assertions)]
 struct Cleanup;
+#[cfg(debug_assertions)]
 impl Drop for Cleanup {
     fn drop(&mut self) {
         OWNER.with(|value| value.borrow_mut().take());
@@ -45,6 +49,7 @@ fn native(profile: &str) -> Interp {
     )
     .unwrap()
 }
+#[cfg(debug_assertions)]
 extern "C" fn retire(_: *mut TclObj) {
     if !ARMED.with(|value| value.replace(false)) {
         return;
@@ -93,6 +98,7 @@ extern "C" fn retire(_: *mut TclObj) {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 static BODY: obj::TclObjType = obj::TclObjType {
     name: c"originalCopiedProcedure".as_ptr(),
     free_int_rep_proc: Some(retire),

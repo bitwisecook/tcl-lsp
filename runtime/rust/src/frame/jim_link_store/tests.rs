@@ -95,6 +95,7 @@ extern "C" fn retire(_: *mut TclObj) {
     PUBLISHED.with(|v| v.set(current == EXPECTED.with(Cell::get)));
     effect(&mut interp);
 }
+#[cfg(debug_assertions)]
 extern "C" fn update(original: *mut TclObj) {
     GETTERS.with(|v| v.set(v.get() + 1));
     let mut interp = actual();
@@ -109,6 +110,7 @@ static OLD: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static LAZY: obj::TclObjType = obj::TclObjType {
     name: c"compatibilityLinkDictionary".as_ptr(),
     free_int_rep_proc: None,

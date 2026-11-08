@@ -143,6 +143,7 @@ fn installed(public: &'static [u8], generation: u64, owns_config: bool) -> Insta
         nested: Vec::new(),
     }
 }
+#[cfg(debug_assertions)]
 fn first_is_original(interpreter: &Interp, mode: u8) {
     let first = interpreter.native_execution_refusal().unwrap();
     if mode == 1 {

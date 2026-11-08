@@ -20,10 +20,12 @@
 use super::*;
 use crate::obj::{self, Owned};
 use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
 use std::rc::Rc;
-use tcl_runtime_api::native_variable_trace::{
-    NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-};
+#[cfg(debug_assertions)]
+use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
+#[cfg(debug_assertions)]
+use tcl_runtime_api::native_variable_trace::{NativeVariableObserver, NativeVariableTraceAccess};
 
 const ORIGINALS: &[(&str, &str)] = &[
     ("tcl8.4", include_str!("../../tests/data/native_variable_introspection_getter_order_original/505b/providers/8.4.20/execute.stdout")),
@@ -398,6 +400,7 @@ fn original_array_operand_refusal_keeps_prefix_effect_and_stops_later_key() {
     }
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn retirement(_original: *mut TclObj) {
     RETIRED.with(|v| v.set(v.get() + 1));
     let mut interp = (unsafe { crate::codegen_abi::current_interp().as_ref() })
@@ -411,6 +414,7 @@ extern "C" fn retirement(_original: *mut TclObj) {
         .with(|v| v.set(interp.var_get_elem(b"arr", b"k") == Some(EXPECTED.with(Cell::get))));
     refuse(&mut interp);
 }
+#[cfg(debug_assertions)]
 static RETIRE: obj::TclObjType = obj::TclObjType {
     name: c"originalArrayValueRetirement".as_ptr(),
     free_int_rep_proc: Some(retirement),
@@ -418,7 +422,9 @@ static RETIRE: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 struct Write;
+#[cfg(debug_assertions)]
 impl NativeVariableObserver<Interp> for Write {
     type Error = tcl_cmd_core::CmdError;
     fn observe(

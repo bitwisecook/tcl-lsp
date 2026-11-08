@@ -21,6 +21,7 @@
 use super::*;
 
 type OriginalErrorObject = (*mut TclObj, Rc<Cell<usize>>, Rc<RefCell<Vec<u8>>>);
+#[cfg(debug_assertions)]
 type OriginalCaptureEvents = Rc<RefCell<Vec<(u8, Vec<u8>)>>>;
 type OriginalLazyErrorInfo = (
     *mut TclObj,
@@ -363,6 +364,7 @@ fn original_byte_error_authors_leave_all_effects_unreached_after_a_pending_host(
     }
 }
 
+#[cfg(debug_assertions)]
 struct CaptureRetirement {
     interpreter: WeakInterp,
     events: OriginalCaptureEvents,
@@ -370,6 +372,7 @@ struct CaptureRetirement {
     mode: u8,
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn retire_capture(value: *mut TclObj) {
     // SAFETY: this actual backing owns the single record installed below.
     let state =
@@ -394,6 +397,7 @@ extern "C" fn retire_capture(value: *mut TclObj) {
     }
 }
 
+#[cfg(debug_assertions)]
 static CAPTURE_RETIREMENT: obj::TclObjType = obj::TclObjType {
     name: c"originalCaptureRetirement".as_ptr(),
     free_int_rep_proc: Some(retire_capture),
@@ -895,6 +899,7 @@ static SAVED_CLEANUP_RETIREMENT: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 
+#[cfg(debug_assertions)]
 fn install_saved_cleanup_retirement(
     interpreter: &Interp,
     mode: u8,
@@ -1458,6 +1463,7 @@ fn original_private_reset_checks_each_real_retirement_before_the_next_field() {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg(debug_assertions)]
 struct OriginalResetRow {
     variable: tcl_registry::special_vars::NativeErrorStorageVariable,
     code: Option<*mut TclObj>,
@@ -1465,6 +1471,7 @@ struct OriginalResetRow {
     refs: obj::TclSize,
 }
 
+#[cfg(debug_assertions)]
 struct OriginalResetHeader {
     interpreter: WeakInterp,
     variable: tcl_registry::special_vars::NativeErrorStorageVariable,
@@ -1472,6 +1479,7 @@ struct OriginalResetHeader {
     mode: u8,
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn original_reset_header_free(value: *mut TclObj) {
     // SAFETY: this actual free worker consumes its boxed original record.
     let state =
@@ -1503,6 +1511,7 @@ extern "C" fn original_reset_header_free(value: *mut TclObj) {
     }
 }
 
+#[cfg(debug_assertions)]
 static ORIGINAL_RESET_HEADER: obj::TclObjType = obj::TclObjType {
     name: c"originalSelectedResetHeader".as_ptr(),
     free_int_rep_proc: Some(original_reset_header_free),

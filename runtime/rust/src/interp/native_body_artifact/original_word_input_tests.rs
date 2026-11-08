@@ -18,7 +18,9 @@
 
 //! Original compiled operand Cat stages and genuine component-owner cleanup.
 use super::*;
+#[cfg(debug_assertions)]
 use crate::cmd_control::original_list_conversion_tests as fixture;
+#[cfg(debug_assertions)]
 use crate::obj::TclObjType;
 use std::cell::Cell;
 thread_local! {
@@ -28,6 +30,7 @@ thread_local! {
     static FREES: Cell<usize> = const { Cell::new(0) };
     static REFS: Cell<obj::TclSize> = const { Cell::new(-1) };
 }
+#[cfg(debug_assertions)]
 fn change() {
     let mut actual = unsafe { crate::codegen_abi::current_interp().as_ref() }
         .unwrap()
@@ -51,6 +54,7 @@ fn change() {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn first(original: *mut TclObj) {
     GETTERS.set(GETTERS.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
@@ -59,17 +63,20 @@ extern "C" fn first(original: *mut TclObj) {
         obj::set_native_updater_string_rep(original, b"X", false);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn later(original: *mut TclObj) {
     LATER.set(LATER.get() + 1);
     unsafe {
         obj::set_native_updater_string_rep(original, b"Y", false);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn retire(original: *mut TclObj) {
     FREES.set(FREES.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
     change();
 }
+#[cfg(debug_assertions)]
 static FIRST: TclObjType = TclObjType {
     name: c"originalBodyWordFirst".as_ptr(),
     free_int_rep_proc: None,
@@ -77,6 +84,7 @@ static FIRST: TclObjType = TclObjType {
     update_string_proc: Some(first),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static LATER_TYPE: TclObjType = TclObjType {
     name: c"originalBodyWordLater".as_ptr(),
     free_int_rep_proc: None,
@@ -84,6 +92,7 @@ static LATER_TYPE: TclObjType = TclObjType {
     update_string_proc: Some(later),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static RETIRE: TclObjType = TclObjType {
     name: c"originalBodyWordRetiredComponent".as_ptr(),
     free_int_rep_proc: Some(retire),
@@ -91,12 +100,15 @@ static RETIRE: TclObjType = TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 struct Reset;
+#[cfg(debug_assertions)]
 impl Drop for Reset {
     fn drop(&mut self) {
         MODE.set(0);
     }
 }
+#[cfg(debug_assertions)]
 fn assert_first(actual: &Interp, mode: u8) {
     let first = actual
         .native_execution_refusal()
@@ -239,6 +251,7 @@ fn original_compiled_word_cat_checks_after_genuine_component_retirement_before_r
     }
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn retire_command(original: *mut TclObj) {
     FREES.set(FREES.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
@@ -246,6 +259,7 @@ extern "C" fn retire_command(original: *mut TclObj) {
     // The authentic displaced command header must retire outside this borrow.
     drop(actual.cmd_frames.borrow_mut());
 }
+#[cfg(debug_assertions)]
 static COMMAND_ROLE: TclObjType = TclObjType {
     name: c"originalBodyWordCommandRole".as_ptr(),
     free_int_rep_proc: Some(retire_command),
@@ -253,6 +267,7 @@ static COMMAND_ROLE: TclObjType = TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 fn command_component(actual: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     let incoming = obj::Owned::fresh(obj::alloc_typed(&COMMAND_ROLE, 0));
     let old = {

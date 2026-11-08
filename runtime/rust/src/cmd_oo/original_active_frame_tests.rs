@@ -120,6 +120,7 @@ fn install_original_base(interpreter: &mut Interp) {
     drop(original);
     assert_eq!(FREES.with(Cell::get), 0);
 }
+#[cfg(debug_assertions)]
 fn delete_base(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
     let code = interpreter.eval_str(b"oo::define FrameBase deletemethod m");
     if code == Code::Ok {

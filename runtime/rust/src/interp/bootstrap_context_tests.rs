@@ -19,7 +19,9 @@
 //! Software controls for the actual entered Host/bootstrap owner. These do
 //! not measure a native provider's constructor timing or root-cell identity.
 
-use super::{native_operation_currency::NativeOperationScope, Code, Interp, WeakInterp};
+#[cfg(debug_assertions)]
+use super::native_operation_currency::NativeOperationScope;
+use super::{Code, Interp, WeakInterp};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
@@ -32,6 +34,7 @@ use tcl_syntax::raw_string::NativeValueAccessRefusal;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Stage {
     Never,
+    #[cfg(debug_assertions)]
     Retirement,
     Encoding,
     Environment,
@@ -68,6 +71,7 @@ impl CallbackState {
         owner.set_host(replacement);
     }
 
+    #[cfg(debug_assertions)]
     fn arm(&self, interp: &Interp, replacement: Rc<dyn Host>, stage: Stage) {
         *self.owner.borrow_mut() = Some(interp.downgrade());
         *self.replacement.borrow_mut() = Some(replacement);
@@ -112,11 +116,13 @@ impl Host for CallbackHost {
     }
 }
 
+#[cfg(debug_assertions)]
 struct RetiringHost {
     base: Rc<CallbackHost>,
     retirement: Rc<CallbackState>,
 }
 
+#[cfg(debug_assertions)]
 impl Host for RetiringHost {
     fn capabilities(&self) -> tcl_platform::Capabilities {
         self.base.capabilities()
@@ -135,6 +141,7 @@ impl Host for RetiringHost {
     }
 }
 
+#[cfg(debug_assertions)]
 impl Drop for RetiringHost {
     fn drop(&mut self) {
         if self.retirement.stage.get() == Stage::Retirement {
@@ -183,6 +190,7 @@ fn protocol(interp: &Interp) -> NativeBootstrapProtocol {
         .unwrap()
 }
 
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::CommandProtocolUnavailable(
         "stale entered native operation",
@@ -568,11 +576,13 @@ fn original_native_bootstrap_keeps_reached_write_and_stops_after_its_host_observ
     assert_eq!(interp.entered_native_operation_count(), 0);
 }
 
+#[cfg(debug_assertions)]
 struct ResultRetirement {
     owner: WeakInterp,
     calls: Rc<Cell<usize>>,
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn retire_result_context(original: *mut crate::obj::TclObj) {
     // SAFETY: this descriptor alone owns the original result's boxed record.
     // The interpreter retains the object until the reached reporting setter
@@ -588,6 +598,7 @@ extern "C" fn retire_result_context(original: *mut crate::obj::TclObj) {
     interp.invalidate_native_operation_context();
 }
 
+#[cfg(debug_assertions)]
 static BOOTSTRAP_RESULT_TYPE: crate::obj::TclObjType = crate::obj::TclObjType {
     name: c"originalBootstrapResult".as_ptr(),
     free_int_rep_proc: Some(retire_result_context),

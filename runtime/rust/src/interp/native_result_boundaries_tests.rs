@@ -132,11 +132,13 @@ fn child(parent: &mut Interp) -> ChildInterpreterCommand {
     };
     command
 }
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::CommandProtocolUnavailable(
         "stale entered native operation",
     ))
 }
+#[cfg(debug_assertions)]
 fn assert_updater_cause(interpreter: &Interp, mode: u8) {
     let first = interpreter.native_execution_refusal().unwrap();
     if mode == 1 {

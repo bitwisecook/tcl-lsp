@@ -144,6 +144,7 @@ pub(crate) fn reset() {
     EVENTS.with(|values| values.borrow_mut().clear());
     REFUSAL.with(|value| value.set(0));
 }
+#[cfg(debug_assertions)]
 pub(crate) fn failure(mode: u8) {
     REFUSAL.with(|value| value.set(mode));
 }

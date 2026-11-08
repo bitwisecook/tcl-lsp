@@ -344,6 +344,7 @@ fn retiring_header(interpreter: &Interp, mode: u8) -> OriginalRetiringHeader {
     (Owned::fresh(value), incoming, rows, updates)
 }
 
+#[cfg(debug_assertions)]
 fn original_header_observer_field<'a>(line: &'a str, field: &str) -> &'a str {
     line.split('|')
         .filter_map(|part| part.split_once('='))
@@ -352,6 +353,7 @@ fn original_header_observer_field<'a>(line: &'a str, field: &str) -> &'a str {
         .1
 }
 
+#[cfg(debug_assertions)]
 fn original_header_observer(name: &str) -> &'static str {
     match name {
         "tcl8.4" => include_str!(

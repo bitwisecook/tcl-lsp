@@ -18,9 +18,11 @@
 
 //! Original procedure name/body/formal getter order at definition entry.
 use super::*;
+#[cfg(debug_assertions)]
+use crate::cmd_namespace::original_argument_tests::failure;
 use crate::cmd_namespace::original_argument_tests::{
-    compare_events_at, compare_worker, failure, instance, jim_fixture_namespace, lazy, reset, row,
-    text, unhex, FixtureCleanup, JIM_ORIGINAL, ORIGINALS,
+    compare_events_at, compare_worker, instance, jim_fixture_namespace, lazy, reset, row, text,
+    unhex, FixtureCleanup, JIM_ORIGINAL, ORIGINALS,
 };
 
 #[test]

@@ -21,6 +21,7 @@ use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
 use crate::obj::TclObjType;
 use std::cell::Cell;
+#[cfg(debug_assertions)]
 use tcl_registry::native_return_options::NativeReturnOptionsApplication as Purpose;
 use tcl_registry::special_vars::NativeErrorStorageVariable as Variable;
 thread_local! {
@@ -326,6 +327,7 @@ fn original_generic_field_publication_remains_distinct_from_selected_setter_reti
     actual.frames.borrow_mut().pop();
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn retire_result(original: *mut TclObj) {
     FREES.set(FREES.get() + 1);
     OLD_REFS.set(unsafe { (*original).ref_count });
@@ -335,6 +337,7 @@ extern "C" fn retire_result(original: *mut TclObj) {
     actual.exc.borrow_mut().already_logged = true;
     change();
 }
+#[cfg(debug_assertions)]
 static OLD_RESULT: TclObjType = TclObjType {
     name: c"originalParentReturnRetiredResult".as_ptr(),
     free_int_rep_proc: Some(retire_result),

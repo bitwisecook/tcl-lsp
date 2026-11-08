@@ -23,7 +23,9 @@ use crate::{
     obj::{self, Owned, TclObj},
 };
 use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 thread_local! {
     static OWNER: RefCell<Option<WeakInterp>> = const { RefCell::new(None) };

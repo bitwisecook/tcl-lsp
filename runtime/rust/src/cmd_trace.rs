@@ -2464,10 +2464,13 @@ mod tests {
 
 #[cfg(test)]
 mod original_operand_tests {
+    #[cfg(debug_assertions)]
     use super::*;
+    #[cfg(debug_assertions)]
     use crate::cmd_alias::original_operand_tests::{
         first, native, seed, unchanged, words, Update, UpdaterOwner,
     };
+    #[cfg(debug_assertions)]
     use crate::obj::Owned;
     #[cfg(debug_assertions)]
     #[test]

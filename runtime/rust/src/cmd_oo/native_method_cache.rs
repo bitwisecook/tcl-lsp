@@ -1221,9 +1221,11 @@ mod original_ownership_tests {
         static ORIGINAL_RECORD: RefCell<Option<Weak<NativeMethodRecord>>> = const {RefCell::new(None)};
         static DELETED_BEFORE_ENTRY: Cell<bool> = const {Cell::new(false)};
     }
+    #[cfg(debug_assertions)]
     extern "C" fn update_selector(original: *mut TclObj) {
         unsafe { obj::set_native_updater_string_rep(original, b"m", false) };
     }
+    #[cfg(debug_assertions)]
     extern "C" fn retire_selector(_: *mut TclObj) {
         FREES.with(|count| count.set(count.get() + 1));
         let mut interpreter =
@@ -1270,6 +1272,7 @@ mod original_ownership_tests {
             _ => {}
         }
     }
+    #[cfg(debug_assertions)]
     static SELECTOR: obj::TclObjType = obj::TclObjType {
         name: c"originalMethodCacheSelector".as_ptr(),
         free_int_rep_proc: Some(retire_selector),

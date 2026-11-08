@@ -29,7 +29,9 @@ thread_local! {
     static REFERENCES: Cell<obj::TclSize> = const { Cell::new(-1) };
     static OUTSIDE: Cell<bool> = const { Cell::new(false) };
 }
+#[cfg(debug_assertions)]
 struct Cleanup;
+#[cfg(debug_assertions)]
 impl Drop for Cleanup {
     fn drop(&mut self) {
         MODE.with(|mode| mode.set(0));
@@ -37,6 +39,7 @@ impl Drop for Cleanup {
         OWNER.with(|owner| *owner.borrow_mut() = None);
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn update_member(member: *mut TclObj) {
     MEMBER_GETTERS.with(|count| count.set(count.get() + 1));
     let header = HEADER.with(Cell::get);
@@ -48,10 +51,12 @@ extern "C" fn update_member(member: *mut TclObj) {
     }
     unsafe { obj::set_native_updater_string_rep(member, b"-a", false) };
 }
+#[cfg(debug_assertions)]
 extern "C" fn update_query(query: *mut TclObj) {
     QUERY_GETTERS.with(|count| count.set(count.get() + 1));
     unsafe { obj::set_native_updater_string_rep(query, b"-a", false) };
 }
+#[cfg(debug_assertions)]
 extern "C" fn free_report(header: *mut TclObj) {
     FREES.with(|count| count.set(count.get() + 1));
     REFERENCES.with(|refs| refs.set(unsafe { (*header).ref_count }));
@@ -80,6 +85,7 @@ extern "C" fn free_report(header: *mut TclObj) {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 static MEMBER: obj::TclObjType = obj::TclObjType {
     name: c"originalPropertyCopyMember".as_ptr(),
     free_int_rep_proc: None,
@@ -87,6 +93,7 @@ static MEMBER: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(update_member),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static QUERY: obj::TclObjType = obj::TclObjType {
     name: c"originalPropertyCopyQuery".as_ptr(),
     free_int_rep_proc: None,
@@ -94,6 +101,7 @@ static QUERY: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(update_query),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static REPORT: obj::TclObjType = obj::TclObjType {
     name: c"originalPropertyCopyReport".as_ptr(),
     free_int_rep_proc: Some(free_report),

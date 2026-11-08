@@ -345,6 +345,7 @@ mod tests {
         assert_eq!(interpreter.entered_native_operation_count(), 0);
     }
 
+    #[cfg(debug_assertions)]
     fn changing_worker(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         assert!(interpreter.entered_native_operation_count() > 0);
         change_and_restore(interpreter);

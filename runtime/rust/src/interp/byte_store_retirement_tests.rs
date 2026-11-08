@@ -18,22 +18,22 @@
 
 //! Actual stored-owner retirement and entered currency; no Native chronology grant.
 
-use super::{native_operation_currency::NativeOperationScope, Interp, WeakInterp};
+#[cfg(debug_assertions)]
+use super::native_operation_currency::NativeOperationScope;
+use super::{Interp, WeakInterp};
 use crate::{
     frame::VarError,
     namespace::GLOBAL,
     obj::{self, Owned, TclObj},
 };
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
+use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
+use std::rc::Rc;
+#[cfg(debug_assertions)]
+use tcl_runtime_api::native_variable_trace::{
+    NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
 };
-use tcl_runtime_api::{
-    native_variable_trace::{
-        NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-    },
-    NativeExecutionError,
-};
+use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 thread_local! {
@@ -118,7 +118,9 @@ static OLD: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 struct Write;
+#[cfg(debug_assertions)]
 impl NativeVariableObserver<Interp> for Write {
     type Error = tcl_cmd_core::CmdError;
     fn observe(

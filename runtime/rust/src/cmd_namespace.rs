@@ -7430,6 +7430,7 @@ mod original_namespace_continuation_tests {
             callback();
         }
     }
+    #[cfg(debug_assertions)]
     extern "C" fn free(_: *mut TclObj) {
         EVENTS.with(|events| events.borrow_mut().push(99));
         callback();
@@ -7441,6 +7442,7 @@ mod original_namespace_continuation_tests {
         update_string_proc: Some(update),
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     static RETIRED: obj::TclObjType = obj::TclObjType {
         name: c"originalNamespaceHandlerRetirement".as_ptr(),
         free_int_rep_proc: Some(free),

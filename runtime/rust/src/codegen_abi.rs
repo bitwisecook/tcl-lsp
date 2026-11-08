@@ -4333,6 +4333,7 @@ mod tests {
         static SCALAR_UPDATER_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
 
+    #[cfg(debug_assertions)]
     extern "C" fn scalar_context_changing_updater(value: *mut TclObj) {
         SCALAR_UPDATER_CALLS.with(|calls| calls.set(calls.get() + 1));
         // SAFETY: the actual caller retains this original interpreter for the
@@ -4347,6 +4348,7 @@ mod tests {
         unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
     }
 
+    #[cfg(debug_assertions)]
     static SCALAR_CONTEXT_TYPE: obj::TclObjType = obj::TclObjType {
         name: c"originalScalarCurrency".as_ptr(),
         free_int_rep_proc: None,

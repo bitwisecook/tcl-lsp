@@ -20,6 +20,7 @@
 use super::*;
 use crate::obj::Owned;
 use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
 
 thread_local! {
@@ -99,6 +100,7 @@ fn install(interpreter: &mut Interp, value: *mut TclObj) {
         Ok(())
     ));
 }
+#[cfg(debug_assertions)]
 fn cleanup(interpreter: &mut Interp) {
     MODE.with(|mode| mode.set(0));
     interpreter.reset_native_compilation_admission();

@@ -1940,6 +1940,7 @@ mod original_completion_capture_tests {
     #[derive(Clone, Copy)]
     enum Update {
         Host,
+        #[cfg(debug_assertions)]
         Reenter,
     }
 
@@ -1960,6 +1961,7 @@ mod original_completion_capture_tests {
             Update::Host => {
                 interpreter.refuse_host_command("original options getter first cause");
             }
+            #[cfg(debug_assertions)]
             Update::Reenter => {
                 let original = interpreter.runtime_context();
                 let mut changed = original.clone();
@@ -2003,6 +2005,7 @@ mod original_completion_capture_tests {
         .unwrap()
     }
 
+    #[cfg(debug_assertions)]
     fn stale() -> NativeExecutionError {
         NativeExecutionError::ValueAccessRefusal(
             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -2291,6 +2294,7 @@ mod original_completion_capture_tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     fn reenter_script(interpreter: &mut Interp, _: &[*mut TclObj]) -> crate::interp::Code {
         interpreter.set_result_bytes(b"REACHED SCRIPT\0\xff");
         let original = interpreter.runtime_context();

@@ -55,6 +55,7 @@ fn change() {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn name(original: *mut TclObj) {
     NAME_GETTERS.set(NAME_GETTERS.get() + 1);
     REFS.set(unsafe { (*original).ref_count });
@@ -77,6 +78,7 @@ extern "C" fn later(original: *mut TclObj) {
         obj::set_native_updater_string_rep(original, b"C", false);
     }
 }
+#[cfg(debug_assertions)]
 static NAME: obj::TclObjType = obj::TclObjType {
     name: c"originalCommandAppendName".as_ptr(),
     free_int_rep_proc: None,

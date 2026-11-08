@@ -1227,6 +1227,7 @@ mod original_expression_completion_tests {
         True,
         False,
         Guest(i32),
+        #[cfg(debug_assertions)]
         ChangeWorld(i32),
     }
     struct CallbackState {
@@ -1260,6 +1261,7 @@ mod original_expression_completion_tests {
                 interp.set_c_error_code(b"ORIGINAL CALLBACK CODE");
                 code
             }
+            #[cfg(debug_assertions)]
             CallbackMode::ChangeWorld(code) => {
                 interp.set_result_bytes(b"true");
                 let original = interp.runtime_context();

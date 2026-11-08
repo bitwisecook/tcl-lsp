@@ -3346,6 +3346,7 @@ mod tests {
         NAME_CALLBACK_CODE.with(|value| value.set(Code::Other(37)));
     }
 
+    #[cfg(debug_assertions)]
     fn direct_name_callback_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let command = Owned::fresh(obj::new_string_bytes(b"upvar"));
         let level = Owned::fresh(obj::new_string_bytes(b"#0"));
@@ -3370,6 +3371,7 @@ mod tests {
         code
     }
 
+    #[cfg(debug_assertions)]
     fn compiled_name_callback_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let slot = {
             let frames = interp.frames.borrow();
@@ -5364,8 +5366,11 @@ mod tests {
 mod original_assignment_tests {
     use super::*;
     use std::cell::Cell;
+    #[cfg(debug_assertions)]
+    use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation;
+    #[cfg(debug_assertions)]
     use tcl_runtime_api::native_variable_trace::{
-        NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
+        NativeVariableObserver, NativeVariableTraceAccess,
     };
 
     thread_local! {
@@ -5379,6 +5384,7 @@ mod original_assignment_tests {
         static RELEASED: Cell<bool> = const { Cell::new(false) };
         static WRITES: Cell<usize> = const { Cell::new(0) };
     }
+    #[cfg(debug_assertions)]
     fn native(profile: &str) -> Interp {
         Interp::with_native_core(
             super::super::default_host(),
@@ -5387,19 +5393,24 @@ mod original_assignment_tests {
         )
         .unwrap()
     }
+    #[cfg(debug_assertions)]
     struct Current(*mut Interp);
+    #[cfg(debug_assertions)]
     impl Current {
+        #[cfg(debug_assertions)]
         fn enter(interp: &mut Interp) -> Self {
             let old = crate::codegen_abi::current_interp();
             crate::codegen_abi::tcl_runtime_set_current_interp(interp);
             Self(old)
         }
     }
+    #[cfg(debug_assertions)]
     impl Drop for Current {
         fn drop(&mut self) {
             crate::codegen_abi::tcl_runtime_set_current_interp(self.0);
         }
     }
+    #[cfg(debug_assertions)]
     extern "C" fn retire(original: *mut TclObj) {
         CALLS.with(|value| value.set(value.get() + 1));
         let Some(mut interp) = (unsafe { crate::codegen_abi::current_interp().as_ref() }).cloned()
@@ -5445,6 +5456,7 @@ mod original_assignment_tests {
             _ => {}
         }
     }
+    #[cfg(debug_assertions)]
     static RETIRE: obj::TclObjType = obj::TclObjType {
         name: c"originalAssignmentRetirement".as_ptr(),
         free_int_rep_proc: Some(retire),
@@ -5452,7 +5464,9 @@ mod original_assignment_tests {
         update_string_proc: None,
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     struct Write;
+    #[cfg(debug_assertions)]
     impl NativeVariableObserver<Interp> for Write {
         type Error = tcl_cmd_core::CmdError;
         fn observe(
@@ -5464,6 +5478,7 @@ mod original_assignment_tests {
             Ok(())
         }
     }
+    #[cfg(debug_assertions)]
     fn reset(mode: u8, element: bool, value: *mut TclObj) {
         MODE.with(|selected| selected.set(mode));
         ELEMENT.with(|selected| selected.set(element));

@@ -707,6 +707,7 @@ impl TryOperation {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(debug_assertions)]
     use super::native_list_conversion::BodyObjectOperation;
     use super::*;
     fn bytes(hex: &str) -> Vec<u8> {

@@ -19,8 +19,10 @@
 //! Software callback controls for the original C member continuation.
 
 use super::*;
+#[cfg(debug_assertions)]
+use crate::interp::native_operation_currency::NativeOperationScope;
 use crate::{
-    interp::{native_operation_currency::NativeOperationScope, Code, Interp, WeakInterp},
+    interp::{Code, Interp, WeakInterp},
     namespace::GLOBAL,
     obj::{self, Owned, TclObj},
 };

@@ -19,9 +19,12 @@
 //! Software controls for generated receiver currency and transferred ownership.
 
 use super::*;
+#[cfg(debug_assertions)]
 use crate::interp::Code;
 use std::cell::Cell;
+#[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 thread_local! {
@@ -44,11 +47,13 @@ fn changed(interpreter: &mut Interp) {
     interpreter.pin_context(&other).unwrap();
     interpreter.pin_context(&original).unwrap();
 }
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::CommandProtocolUnavailable(
         "stale entered native operation",
     ))
 }
+#[cfg(debug_assertions)]
 fn trace(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
     CALLS.with(|calls| calls.set(calls.get() + 1));
     changed(interpreter);

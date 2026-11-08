@@ -25,7 +25,9 @@ thread_local! {
     static MODE: Cell<bool> = const { Cell::new(false) };
     static CALLS: Cell<usize> = const { Cell::new(0) };
 }
+#[cfg(debug_assertions)]
 struct Cleanup;
+#[cfg(debug_assertions)]
 impl Drop for Cleanup {
     fn drop(&mut self) {
         OWNER.with(|owner| owner.borrow_mut().take());
@@ -42,12 +44,14 @@ fn native() -> Interp {
 fn text(bytes: &[u8]) -> Owned {
     Owned::fresh(obj::new_string_bytes(bytes))
 }
+#[cfg(debug_assertions)]
 fn arm(interpreter: &Interp, change: bool) -> Cleanup {
     OWNER.with(|owner| *owner.borrow_mut() = Some(interpreter.clone()));
     MODE.with(|mode| mode.set(change));
     CALLS.with(|calls| calls.set(0));
     Cleanup
 }
+#[cfg(debug_assertions)]
 extern "C" fn updater(value: *mut TclObj) {
     CALLS.with(|calls| calls.set(calls.get() + 1));
     let mut interpreter = OWNER.with(|owner| owner.borrow().as_ref().unwrap().clone());
@@ -62,6 +66,7 @@ extern "C" fn updater(value: *mut TclObj) {
     }
     unsafe { obj::set_native_updater_string_rep(value, b"set", false) };
 }
+#[cfg(debug_assertions)]
 static LAZY: obj::TclObjType = obj::TclObjType {
     name: c"originalDictionaryCommandGetter".as_ptr(),
     free_int_rep_proc: None,
@@ -77,6 +82,7 @@ fn current(interpreter: &Interp, name: &[u8]) -> Option<*mut TclObj> {
         name,
     )
 }
+#[cfg(debug_assertions)]
 fn assert_original_cause(interpreter: &Interp, change: bool) {
     let cause = interpreter
         .native_execution_refusal()

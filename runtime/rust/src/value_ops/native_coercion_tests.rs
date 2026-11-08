@@ -22,8 +22,13 @@
 use super::*;
 use crate::interp::WeakInterp;
 use std::cell::{Cell, RefCell};
-use tcl_platform::{Capabilities, Clock, Env, Host, NumericEnvironment, StdIo};
+#[cfg(debug_assertions)]
+use tcl_platform::Env;
+#[cfg(debug_assertions)]
+use tcl_platform::{Capabilities, Clock, Host, NumericEnvironment, StdIo};
+#[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 fn original(environment: &str) -> Interp {
@@ -42,10 +47,12 @@ fn leak_free(body: impl FnOnce()) {
     assert_eq!(crate::counters::double_free_count(), 0);
 }
 
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation").into()
 }
 
+#[cfg(debug_assertions)]
 fn change_and_restore(interpreter: &mut Interp) {
     let original = interpreter.runtime_context();
     let mut changed = original.clone();
@@ -54,6 +61,7 @@ fn change_and_restore(interpreter: &mut Interp) {
     interpreter.pin_context(&original).unwrap();
 }
 
+#[cfg(debug_assertions)]
 fn coerce(interpreter: &mut Interp, value: *mut TclObj, adapter: u8) -> Result<(), ValueError> {
     match adapter {
         0 => ValueOps::as_int(interpreter, &value).map(|_| ()),
@@ -69,6 +77,7 @@ fn coerce(interpreter: &mut Interp, value: *mut TclObj, adapter: u8) -> Result<(
     }
 }
 
+#[cfg(debug_assertions)]
 fn adapters() -> std::ops::Range<u8> {
     0..if cfg!(have_tommath) { 5 } else { 4 }
 }
@@ -79,6 +88,7 @@ thread_local! {
     static UPDATER_CALLS: Cell<usize> = const { Cell::new(0) };
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn original_updater(value: *mut TclObj) {
     UPDATER_CALLS.with(|calls| calls.set(calls.get() + 1));
     let mut interpreter = UPDATER_OWNER
@@ -93,6 +103,7 @@ extern "C" fn original_updater(value: *mut TclObj) {
     unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
 }
 
+#[cfg(debug_assertions)]
 static ORIGINAL_TYPE: obj::TclObjType = obj::TclObjType {
     name: c"originalValueOpsCoercion".as_ptr(),
     free_int_rep_proc: None,
@@ -242,11 +253,13 @@ fn actual_valueops_updaters_stop_before_numeric_cache_and_later_guest_publicatio
     });
 }
 
+#[cfg(debug_assertions)]
 struct NumericHost {
     actual: Rc<dyn Host>,
     interpreter: RefCell<Option<WeakInterp>>,
     double_calls: Cell<usize>,
 }
+#[cfg(debug_assertions)]
 impl Host for NumericHost {
     fn capabilities(&self) -> Capabilities {
         self.actual.capabilities()
@@ -264,13 +277,16 @@ impl Host for NumericHost {
         Some(self)
     }
 }
+#[cfg(debug_assertions)]
 impl NumericHost {
+    #[cfg(debug_assertions)]
     fn actual(&self) -> &dyn NumericEnvironment {
         self.actual
             .numeric_environment()
             .expect("actual native numeric environment")
     }
 }
+#[cfg(debug_assertions)]
 impl NumericEnvironment for NumericHost {
     fn c_integer_abi(
         &self,

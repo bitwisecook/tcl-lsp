@@ -18,8 +18,9 @@
 
 //! Reached container conversions use the original operation and storage identities.
 use super::{native_operation_currency::NativeOperationScope, Interp, WeakInterp};
+#[cfg(debug_assertions)]
+use crate::frame::Var;
 use crate::{
-    frame::Var,
     namespace::GLOBAL,
     obj::{self, Owned, TclObj},
 };
@@ -125,6 +126,7 @@ static LAZY: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(update),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static PRIMARY: obj::TclObjType = obj::TclObjType {
     name: c"originalContainerPrimary".as_ptr(),
     free_int_rep_proc: Some(free),
@@ -163,6 +165,7 @@ fn cause(interpreter: &Interp, mode: u8) {
         )),
     }
 }
+#[cfg(debug_assertions)]
 fn query(interpreter: &Interp, route: u8) -> bool {
     match route {
         0 => interpreter.var_get_elem(b"a", b"k").is_some(),

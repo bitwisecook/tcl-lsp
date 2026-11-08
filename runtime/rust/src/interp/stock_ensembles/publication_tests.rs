@@ -19,7 +19,9 @@
 //! Actual registration receipts and caller cleanup. Software controls only.
 
 use super::*;
-use crate::obj::{self, Owned};
+#[cfg(debug_assertions)]
+use crate::obj::Owned;
+use crate::obj::{self};
 use std::cell::{Cell, RefCell};
 
 fn native(profile: &str) -> Interp {
@@ -40,12 +42,15 @@ thread_local! {
     static REACHED: Cell<*mut TclObj> = const { Cell::new(std::ptr::null_mut()) };
     static OLD_COUNTS: RefCell<Vec<obj::TclSize>> = const { RefCell::new(Vec::new()) };
 }
+#[cfg(debug_assertions)]
 struct Cleanup;
+#[cfg(debug_assertions)]
 impl Drop for Cleanup {
     fn drop(&mut self) {
         OWNER.with(|value| value.borrow_mut().take());
     }
 }
+#[cfg(debug_assertions)]
 fn arm(interpreter: &Interp, mode: u8) -> Cleanup {
     MODE.with(|value| value.set(mode));
     CALLS.with(|value| value.set(0));
@@ -53,6 +58,7 @@ fn arm(interpreter: &Interp, mode: u8) -> Cleanup {
     OLD_COUNTS.with(|value| value.borrow_mut().clear());
     Cleanup
 }
+#[cfg(debug_assertions)]
 fn changed_context(interpreter: &mut Interp) {
     let original = interpreter.runtime_context();
     let mut changed = original.clone();
@@ -62,6 +68,7 @@ fn changed_context(interpreter: &mut Interp) {
     interpreter.pin_context(&changed).unwrap();
     interpreter.pin_context(&original).unwrap();
 }
+#[cfg(debug_assertions)]
 fn observe(interpreter: &mut Interp, name: &[u8]) {
     assert!(interpreter.namespaces.try_borrow_mut().is_ok());
     assert!(interpreter.frames.try_borrow_mut().is_ok());
@@ -80,6 +87,7 @@ fn observe(interpreter: &mut Interp, name: &[u8]) {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 extern "C" fn retire_input(original: *mut TclObj) {
     CALLS.with(|value| value.set(value.get() + 1));
     OLD_COUNTS.with(|value| value.borrow_mut().push(unsafe { (*original).ref_count }));
@@ -93,6 +101,7 @@ extern "C" fn retire_input(original: *mut TclObj) {
     };
     observe(&mut interpreter, b"receiptRoot");
 }
+#[cfg(debug_assertions)]
 static INPUT: obj::TclObjType = obj::TclObjType {
     name: c"originalStockPublicationInput".as_ptr(),
     free_int_rep_proc: Some(retire_input),
@@ -100,6 +109,7 @@ static INPUT: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 fn delete_observer(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
     CALLS.with(|value| value.set(value.get() + 1));
     observe(interpreter, b"binary");

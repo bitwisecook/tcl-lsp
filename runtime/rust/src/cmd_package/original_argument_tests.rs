@@ -21,13 +21,19 @@
 use super::*;
 use crate::interp::WeakInterp;
 use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
 use std::rc::Rc;
+#[cfg(debug_assertions)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(debug_assertions)]
+use tcl_platform::Env;
+#[cfg(debug_assertions)]
 use tcl_platform::{
-    Capabilities, Clock, Env, Filesystem, Host, HostError, Metadata, NativeIntegerFormatter,
+    Capabilities, Clock, Filesystem, Host, HostError, Metadata, NativeIntegerFormatter,
     NumericEnvironment, Process, Sockets, StdIo, SystemEncoding,
 };
 use tcl_runtime_api::NativeExecutionError;
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 fn native(profile: &str) -> Interp {
@@ -38,17 +44,20 @@ fn native(profile: &str) -> Interp {
     )
     .unwrap()
 }
+#[cfg(debug_assertions)]
 fn words(bytes: &[&[u8]]) -> Vec<obj::Owned> {
     bytes
         .iter()
         .map(|word| obj::Owned::fresh(crate::interp::new_string(word)))
         .collect()
 }
+#[cfg(debug_assertions)]
 fn call(interpreter: &mut Interp, bytes: &[&[u8]]) -> Code {
     let words = words(bytes);
     let argv = words.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
     super::package_cmd(interpreter, &argv)
 }
+#[cfg(debug_assertions)]
 fn stale() -> NativeExecutionError {
     NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation").into()
 }
@@ -139,6 +148,7 @@ fn original_package_selector_refusal_precedes_later_arguments_and_database_effec
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg(debug_assertions)]
 enum FsMode {
     Ordinary,
     AccessorRestore,
@@ -146,16 +156,20 @@ enum FsMode {
     ReadSuccessRestore,
     ReadSuccessHost,
 }
+#[cfg(debug_assertions)]
 struct FileHost {
     actual: Rc<dyn Host>,
     interpreter: RefCell<Option<WeakInterp>>,
     mode: Cell<FsMode>,
     reads: Cell<usize>,
 }
+#[cfg(debug_assertions)]
 impl FileHost {
+    #[cfg(debug_assertions)]
     fn filesystem(&self) -> &dyn Filesystem {
         self.actual.filesystem().expect("actual native filesystem")
     }
+    #[cfg(debug_assertions)]
     fn change(&self, host: bool) {
         let mut interpreter = self
             .interpreter
@@ -171,6 +185,7 @@ impl FileHost {
         }
     }
 }
+#[cfg(debug_assertions)]
 impl Host for FileHost {
     fn capabilities(&self) -> Capabilities {
         self.actual.capabilities()
@@ -206,6 +221,7 @@ impl Host for FileHost {
         Some(self)
     }
 }
+#[cfg(debug_assertions)]
 impl Filesystem for FileHost {
     fn exists(&self, path: &str) -> bool {
         self.filesystem().exists(path)
@@ -240,8 +256,11 @@ impl Filesystem for FileHost {
         self.filesystem().remove(path, recursive)
     }
 }
+#[cfg(debug_assertions)]
 static DIRECTORY_ID: AtomicUsize = AtomicUsize::new(0);
+#[cfg(debug_assertions)]
 struct Directory(std::path::PathBuf);
+#[cfg(debug_assertions)]
 impl Drop for Directory {
     fn drop(&mut self) {
         std::fs::remove_dir_all(&self.0).unwrap();
@@ -338,6 +357,7 @@ fn original_jim_package_filesystem_results_are_checked_before_continue_load_or_p
     }
 }
 
+#[cfg(debug_assertions)]
 fn loader(interpreter: &mut Interp, _argv: &[*mut TclObj]) -> Code {
     interpreter
         .var_set(

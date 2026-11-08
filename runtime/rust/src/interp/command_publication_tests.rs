@@ -47,6 +47,7 @@ fn native(profile: &str) -> Interp {
     )
     .unwrap()
 }
+#[cfg(debug_assertions)]
 fn text(bytes: &[u8]) -> Owned {
     Owned::fresh(obj::new_string_bytes(bytes))
 }
@@ -370,6 +371,7 @@ thread_local! {
     static HEADER_ORIGINAL: RefCell<Option<Weak<ProcDef>>> = const { RefCell::new(None) };
     static HEADER_GENERATION: Cell<u64> = const { Cell::new(0) };
 }
+#[cfg(debug_assertions)]
 extern "C" fn header_formals(original: *mut TclObj) {
     HEADER_GETTERS.with(|value| value.borrow_mut().push(b'A'));
     unsafe { obj::set_string_rep(original, b"args") };
@@ -377,6 +379,7 @@ extern "C" fn header_formals(original: *mut TclObj) {
         observe_header_binding();
     }
 }
+#[cfg(debug_assertions)]
 fn observe_header_binding() {
     let Some(mut interpreter) =
         OWNER.with(|owner| owner.borrow().as_ref().and_then(WeakInterp::upgrade))
@@ -440,6 +443,7 @@ fn observe_header_binding() {
         interpreter.refuse_host_command("original compiler header observer");
     }
 }
+#[cfg(debug_assertions)]
 fn declaration_for_header(interpreter: &Interp) -> NativeProcedureCommand {
     NativeProcedureCommand::new(
         Vec::new(),
@@ -460,6 +464,7 @@ fn declaration_for_header(interpreter: &Interp) -> NativeProcedureCommand {
         },
     )
 }
+#[cfg(debug_assertions)]
 extern "C" fn header_body(original: *mut TclObj) {
     HEADER_GETTERS.with(|value| value.borrow_mut().push(b'B'));
     unsafe { obj::set_string_rep(original, b"") };
@@ -467,6 +472,7 @@ extern "C" fn header_body(original: *mut TclObj) {
         observe_header_binding();
     }
 }
+#[cfg(debug_assertions)]
 static HEADER_FORMALS: obj::TclObjType = obj::TclObjType {
     name: c"originalCompilerFormals".as_ptr(),
     free_int_rep_proc: None,
@@ -474,6 +480,7 @@ static HEADER_FORMALS: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(header_formals),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static HEADER_BODY: obj::TclObjType = obj::TclObjType {
     name: c"originalCompilerBody".as_ptr(),
     free_int_rep_proc: None,

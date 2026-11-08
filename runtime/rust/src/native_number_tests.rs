@@ -347,6 +347,7 @@ mod currency {
         static UPDATER_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
 
+    #[cfg(debug_assertions)]
     extern "C" fn changing_updater(value: *mut obj::TclObj) {
         UPDATER_CALLS.with(|calls| calls.set(calls.get() + 1));
         // SAFETY: the test's actual entered caller retains this interpreter
@@ -363,6 +364,7 @@ mod currency {
         unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
     }
 
+    #[cfg(debug_assertions)]
     static CHANGING_TYPE: obj::TclObjType = obj::TclObjType {
         name: c"originalIncrementCurrency".as_ptr(),
         free_int_rep_proc: None,
@@ -393,6 +395,7 @@ mod currency {
         interpreter
     }
 
+    #[cfg(debug_assertions)]
     fn stale() -> tcl_runtime_api::NativeExecutionError {
         tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -408,6 +411,7 @@ mod currency {
         assert_eq!(crate::counters::double_free_count(), 0);
     }
 
+    #[cfg(debug_assertions)]
     fn assert_reached_only(value: *mut obj::TclObj, references: obj::TclSize) {
         UPDATER_CALLS.with(|calls| assert_eq!(calls.get(), 1));
         assert_eq!(obj::bytes_of(value), b"17");

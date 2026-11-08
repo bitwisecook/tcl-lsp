@@ -31,6 +31,7 @@ thread_local! {
     static REACHED: RefCell<Option<obj::Owned>> = const { RefCell::new(None) };
 }
 
+#[cfg(debug_assertions)]
 fn native(class: bool) -> Interp {
     let mut interpreter = Interp::with_native_core(
         crate::interp::default_host(),
@@ -54,6 +55,7 @@ fn native(class: bool) -> Interp {
     interpreter
 }
 
+#[cfg(debug_assertions)]
 fn destroy(interpreter: &mut Interp) {
     let target = TARGET.with(Cell::get);
     if CLASS.with(Cell::get) {
@@ -63,6 +65,7 @@ fn destroy(interpreter: &mut Interp) {
     }
 }
 
+#[cfg(debug_assertions)]
 extern "C" fn update(original: *mut TclObj) {
     CALLS.with(|calls| calls.set(calls.get() + 1));
     let mut interpreter = OWNER.with(|owner| owner.borrow().as_ref().unwrap().upgrade().unwrap());
@@ -152,6 +155,7 @@ extern "C" fn update(original: *mut TclObj) {
     unsafe { obj::set_native_updater_string_rep(original, bytes, false) };
 }
 
+#[cfg(debug_assertions)]
 static ARGUMENT: obj::TclObjType = obj::TclObjType {
     name: c"originalReportReceiverOperand".as_ptr(),
     free_int_rep_proc: None,
@@ -159,16 +163,20 @@ static ARGUMENT: obj::TclObjType = obj::TclObjType {
     update_string_proc: Some(update),
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 fn word(bytes: &[u8]) -> obj::Owned {
     obj::Owned::fresh(obj::new_string_bytes(bytes))
 }
+#[cfg(debug_assertions)]
 fn argument() -> obj::Owned {
     obj::Owned::fresh(obj::alloc_typed(&ARGUMENT, 0))
 }
+#[cfg(debug_assertions)]
 fn reset_observers() {
     OWNER.with(|owner| *owner.borrow_mut() = None);
     REACHED.with(|result| *result.borrow_mut() = None);
 }
+#[cfg(debug_assertions)]
 fn check_reached(interpreter: &Interp, argument: &obj::Owned, mode: u8, class: bool) {
     assert_eq!(CALLS.with(Cell::get), 1);
     assert!(obj::has_string_rep(argument.as_ptr()));

@@ -737,12 +737,14 @@ mod tests {
         )
     }
 
+    #[cfg(debug_assertions)]
     struct ReentrantNumericHost {
         actual: Rc<dyn tcl_platform::Host>,
         interpreter: std::cell::RefCell<Option<Interp>>,
         calls: Cell<usize>,
     }
 
+    #[cfg(debug_assertions)]
     impl tcl_platform::Host for ReentrantNumericHost {
         fn capabilities(&self) -> tcl_platform::Capabilities {
             self.actual.capabilities()
@@ -761,7 +763,9 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     impl ReentrantNumericHost {
+        #[cfg(debug_assertions)]
         fn actual(&self) -> &dyn tcl_platform::NumericEnvironment {
             self.actual
                 .numeric_environment()
@@ -769,6 +773,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     impl tcl_platform::NumericEnvironment for ReentrantNumericHost {
         fn c_integer_abi(
             &self,
@@ -1078,6 +1083,7 @@ mod tests {
         static INSTRUCTION_MODE: Cell<u8> = const { Cell::new(0) };
         static INSTRUCTION_GETTERS: Cell<usize> = const { Cell::new(0) };
     }
+    #[cfg(debug_assertions)]
     extern "C" fn instruction_updater(value: *mut TclObj) {
         INSTRUCTION_GETTERS.with(|calls| calls.set(calls.get() + 1));
         // SAFETY: the test keeps the original interpreter installed through the getter.
@@ -1098,6 +1104,7 @@ mod tests {
         }
         unsafe { obj::set_native_updater_string_rep(value, b"17", false) };
     }
+    #[cfg(debug_assertions)]
     static INSTRUCTION_OPERAND: obj::TclObjType = obj::TclObjType {
         name: c"originalNumericInstructionOperand".as_ptr(),
         free_int_rep_proc: None,

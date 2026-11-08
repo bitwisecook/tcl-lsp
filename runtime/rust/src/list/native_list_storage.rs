@@ -764,6 +764,7 @@ mod tests {
 #[cfg(all(test, have_tommath))]
 mod original_range_retirement_controls {
     use super::*;
+    #[cfg(debug_assertions)]
     use crate::interp::{native_arguments::OriginalArguments, Interp};
     use std::cell::{Cell, RefCell};
     thread_local! {
@@ -772,6 +773,7 @@ mod original_range_retirement_controls {
         static HEADER: Cell<*mut TclObj> = const { Cell::new(core::ptr::null_mut()) };
         static REFERENCES: RefCell<Vec<obj::TclSize>> = const { RefCell::new(Vec::new()) };
     }
+    #[cfg(debug_assertions)]
     extern "C" fn free_member(value: *mut TclObj) {
         let id = obj::internal_rep(value);
         FREES.with(|calls| calls.borrow_mut().push(id));
@@ -801,6 +803,7 @@ mod original_range_retirement_controls {
             _ => {}
         }
     }
+    #[cfg(debug_assertions)]
     static MEMBER: obj::TclObjType = obj::TclObjType {
         name: c"originalRangeMemberControl".as_ptr(),
         free_int_rep_proc: Some(free_member),
@@ -808,7 +811,9 @@ mod original_range_retirement_controls {
         update_string_proc: None,
         set_from_any_proc: None,
     };
+    #[cfg(debug_assertions)]
     struct Current;
+    #[cfg(debug_assertions)]
     impl Drop for Current {
         fn drop(&mut self) {
             crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());

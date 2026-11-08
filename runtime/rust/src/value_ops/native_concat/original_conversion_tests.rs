@@ -19,12 +19,14 @@
 //! Actual concat operation stays entered through all selected getter/cleanup stages.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+#[cfg(debug_assertions)]
 use crate::obj::TclObjType;
 use std::cell::Cell;
 thread_local! {
     static MODE: Cell<u8> = const { Cell::new(0) };
     static FIRST_GETTERS: Cell<usize> = const { Cell::new(0) };
 }
+#[cfg(debug_assertions)]
 extern "C" fn original_string(original: *mut TclObj) {
     FIRST_GETTERS.with(|count| count.set(count.get() + 1));
     let mut interpreter = unsafe { crate::codegen_abi::current_interp().as_ref() }
@@ -43,6 +45,7 @@ extern "C" fn original_string(original: *mut TclObj) {
         interpreter.pin_context(&original).unwrap();
     }
 }
+#[cfg(debug_assertions)]
 static ORIGINAL_STRING: TclObjType = TclObjType {
     name: c"originalConcatGetterControl".as_ptr(),
     free_int_rep_proc: None,

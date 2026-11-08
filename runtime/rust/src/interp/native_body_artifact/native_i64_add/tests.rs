@@ -19,6 +19,7 @@
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
 use crate::codegen_abi::{self, TclCompletionAbi};
+#[cfg(debug_assertions)]
 use std::cell::{Cell, RefCell};
 
 const BODY: &[u8] = b"return [expr {$a + $b}]";
@@ -176,6 +177,7 @@ fn shared_original_recompile_cannot_copy_the_future_recipe() {
     drop(execution);
 }
 
+#[cfg(debug_assertions)]
 struct EpochHost {
     inner: Rc<dyn tcl_platform::Host>,
     target: RefCell<Option<Interp>>,
@@ -183,6 +185,7 @@ struct EpochHost {
     input: RefCell<Option<obj::NativeObjectLifetime>>,
     raw_before_host: Cell<Option<bool>>,
 }
+#[cfg(debug_assertions)]
 impl tcl_platform::Host for EpochHost {
     fn capabilities(&self) -> tcl_platform::Capabilities {
         self.inner.capabilities()

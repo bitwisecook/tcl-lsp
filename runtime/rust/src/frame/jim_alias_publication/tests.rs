@@ -24,7 +24,9 @@ use crate::{
     obj,
 };
 use std::cell::Cell as Count;
+#[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 thread_local! {
@@ -37,7 +39,9 @@ thread_local! {
     static REACHED: Count<*mut TclObj> = const { Count::new(std::ptr::null_mut()) };
     static OLD_ROLE: RefCell<Option<Weak<OriginalJimLinkTarget>>> = const { RefCell::new(None) };
 }
+#[cfg(debug_assertions)]
 struct Cleanup;
+#[cfg(debug_assertions)]
 impl Drop for Cleanup {
     fn drop(&mut self) {
         OWNER.with(|owner| owner.borrow_mut().take());
@@ -55,6 +59,7 @@ fn native() -> Interp {
 fn text(bytes: &[u8]) -> Owned {
     Owned::fresh(obj::new_string_bytes(bytes))
 }
+#[cfg(debug_assertions)]
 fn arm(
     interpreter: &Interp,
     mode: u8,
@@ -72,6 +77,7 @@ fn arm(
     OLD_ROLE.with(|selected| *selected.borrow_mut() = Some(Rc::downgrade(role)));
     Cleanup
 }
+#[cfg(debug_assertions)]
 extern "C" fn target_string(original: *mut TclObj) {
     GETTERS.with(|count| count.set(count.get() + 1));
     if let Some(interpreter) =
@@ -102,6 +108,7 @@ extern "C" fn target_string(original: *mut TclObj) {
     }
     unsafe { obj::set_native_updater_string_rep(original, b"next", false) };
 }
+#[cfg(debug_assertions)]
 extern "C" fn retire_old(original: *mut TclObj) {
     let Some(mut interpreter) =
         OWNER.with(|owner| owner.borrow().as_ref().and_then(WeakInterp::upgrade))
@@ -175,6 +182,7 @@ extern "C" fn retire_old(original: *mut TclObj) {
         _ => {}
     }
 }
+#[cfg(debug_assertions)]
 static OLD: obj::TclObjType = obj::TclObjType {
     name: c"originalJimLinkOldScalar".as_ptr(),
     free_int_rep_proc: Some(retire_old),
@@ -182,6 +190,7 @@ static OLD: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 static NEXT: obj::TclObjType = obj::TclObjType {
     name: c"originalJimLinkNextName".as_ptr(),
     free_int_rep_proc: None,

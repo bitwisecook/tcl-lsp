@@ -24,7 +24,9 @@ use crate::{
     obj::{self, Owned, TclObj},
 };
 use std::cell::Cell as Counter;
+#[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 thread_local! {
@@ -34,7 +36,9 @@ thread_local! {
     static CALLS: Counter<usize> = const { Counter::new(0) };
     static REACHED: Counter<*mut TclObj> = const { Counter::new(std::ptr::null_mut()) };
 }
+#[cfg(debug_assertions)]
 struct Cleanup;
+#[cfg(debug_assertions)]
 impl Drop for Cleanup {
     fn drop(&mut self) {
         OWNER.with(|owner| owner.borrow_mut().take());
@@ -51,6 +55,7 @@ fn native(profile: &str) -> Interp {
 fn text(bytes: &[u8]) -> Owned {
     Owned::fresh(obj::new_string_bytes(bytes))
 }
+#[cfg(debug_assertions)]
 fn arm(interpreter: &Interp, mode: u8, generic: bool) -> Cleanup {
     OWNER.with(|owner| *owner.borrow_mut() = Some(interpreter.downgrade()));
     MODE.with(|selected| selected.set(mode));
@@ -59,6 +64,7 @@ fn arm(interpreter: &Interp, mode: u8, generic: bool) -> Cleanup {
     REACHED.with(|result| result.set(std::ptr::null_mut()));
     Cleanup
 }
+#[cfg(debug_assertions)]
 extern "C" fn retire(original: *mut TclObj) {
     CALLS.with(|calls| calls.set(calls.get() + 1));
     assert_eq!(unsafe { (*original).ref_count }, 0);
@@ -131,6 +137,7 @@ extern "C" fn retire(original: *mut TclObj) {
         interpreter.pin_context(&original).unwrap();
     }
 }
+#[cfg(debug_assertions)]
 static OLD: obj::TclObjType = obj::TclObjType {
     name: c"storedAliasRoleRetirement".as_ptr(),
     free_int_rep_proc: Some(retire),
@@ -138,6 +145,7 @@ static OLD: obj::TclObjType = obj::TclObjType {
     update_string_proc: None,
     set_from_any_proc: None,
 };
+#[cfg(debug_assertions)]
 fn assert_first(interpreter: &Interp, mode: u8) {
     let first = interpreter
         .native_execution_refusal()

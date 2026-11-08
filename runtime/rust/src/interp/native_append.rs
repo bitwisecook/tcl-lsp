@@ -1442,19 +1442,23 @@ mod original_c84_counted_append_tests {
 #[cfg(test)]
 mod original_c84_pending_scalar_tests {
     use super::*;
-    use crate::interp::{
-        default_host, native_operation_currency::NativeOperationScope, WeakInterp, GLOBAL,
-    };
+    #[cfg(debug_assertions)]
+    use crate::interp::WeakInterp;
+    use crate::interp::{default_host, native_operation_currency::NativeOperationScope, GLOBAL};
     use crate::obj;
-    use std::{
-        cell::{Cell, RefCell},
-        rc::Rc,
-    };
+    #[cfg(debug_assertions)]
+    use std::cell::Cell;
+    use std::cell::RefCell;
+    #[cfg(debug_assertions)]
+    use std::rc::Rc;
+    #[cfg(debug_assertions)]
     use tcl_runtime_api::NativeExecutionError;
 
+    #[cfg(debug_assertions)]
     type OriginalAppendStages =
         Rc<RefCell<Vec<(&'static str, obj::TclSize, Option<obj::TclSize>)>>>;
 
+    #[cfg(debug_assertions)]
     struct Episode {
         interpreter: WeakInterp,
         caller: Rc<RefCell<Option<obj::Owned>>>,
@@ -1471,6 +1475,7 @@ mod original_c84_pending_scalar_tests {
             .original_variable_table_at(GLOBAL)
             .and_then(|table| table.published_scalar_header(b"errorInfo"))
     }
+    #[cfg(debug_assertions)]
     extern "C" fn duplicate(original: *mut TclObj, copy: *mut TclObj) {
         let episode = unsafe { &*(obj::internal_rep(original) as usize as *const Episode) };
         let incoming = Box::new(Episode {
@@ -1499,6 +1504,7 @@ mod original_c84_pending_scalar_tests {
             drop(caller);
         }
     }
+    #[cfg(debug_assertions)]
     extern "C" fn update(original: *mut TclObj) {
         let episode = unsafe { &*(obj::internal_rep(original) as usize as *const Episode) };
         if episode.arm.get() {
@@ -1509,6 +1515,7 @@ mod original_c84_pending_scalar_tests {
         }
         unsafe { obj::set_native_updater_string_rep(original, b"SEED", false) };
     }
+    #[cfg(debug_assertions)]
     extern "C" fn retire(original: *mut TclObj) {
         let episode =
             unsafe { Box::from_raw(obj::internal_rep(original) as usize as *mut Episode) };
@@ -1613,6 +1620,7 @@ mod original_c84_pending_scalar_tests {
             _ => {}
         }
     }
+    #[cfg(debug_assertions)]
     static ORIGINAL: obj::TclObjType = obj::TclObjType {
         name: c"originalC84PendingScalar".as_ptr(),
         free_int_rep_proc: Some(retire),

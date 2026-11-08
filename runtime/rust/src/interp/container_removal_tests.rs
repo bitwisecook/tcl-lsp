@@ -23,16 +23,14 @@ use crate::{
     namespace::GLOBAL,
     obj::{self, Owned, TclObj},
 };
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
+use std::cell::{Cell, RefCell};
+#[cfg(debug_assertions)]
+use std::rc::Rc;
+#[cfg(debug_assertions)]
+use tcl_runtime_api::native_variable_trace::{
+    NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
 };
-use tcl_runtime_api::{
-    native_variable_trace::{
-        NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-    },
-    NativeExecutionError,
-};
+use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 thread_local! {
@@ -261,7 +259,9 @@ fn install_layout(interpreter: &mut Interp) {
         .install_native_compiled_local_layout(&layout)
         .unwrap();
 }
+#[cfg(debug_assertions)]
 struct Unset;
+#[cfg(debug_assertions)]
 impl NativeVariableObserver<Interp> for Unset {
     type Error = tcl_cmd_core::CmdError;
     fn observe(
@@ -513,7 +513,9 @@ fn original_pending_removal_preserves_unreached_stored_owners() {
     }
 }
 
+#[cfg(debug_assertions)]
 struct OriginalUnset;
+#[cfg(debug_assertions)]
 impl NativeVariableObserver<Interp> for OriginalUnset {
     type Error = tcl_cmd_core::CmdError;
     fn observe(
