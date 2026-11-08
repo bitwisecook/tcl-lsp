@@ -610,6 +610,40 @@ fn opt_detects_the_irules_dialect_without_the_flag() {
     );
 }
 
+/// A rewrite made on the `tcl8.6` reading of a document that states no
+/// dialect is announced, since `1_000` folds the other way under Tcl 9
+/// (#2373); a stated dialect needs no note.
+#[test]
+fn opt_names_the_release_it_assumed_for_an_unstated_document() {
+    let source = "proc p {} {set s 1_000; if {$s == 1000} {puts yes} else {puts no}}";
+    let assumed = tcl()
+        .args(["opt", "--profile", "full", "--source", source])
+        .reused_output()
+        .expect("failed to spawn tcl binary");
+    let stderr = String::from_utf8_lossy(&assumed.stderr);
+    assert!(
+        stderr.contains("no dialect stated or detected; optimised as tcl8.6"),
+        "{stderr}"
+    );
+    let stated = tcl()
+        .args([
+            "opt",
+            "--profile",
+            "full",
+            "--dialect",
+            "tcl8.6",
+            "--source",
+            source,
+        ])
+        .reused_output()
+        .expect("failed to spawn tcl binary");
+    assert!(
+        !String::from_utf8_lossy(&stated.stderr).contains("no dialect stated"),
+        "{}",
+        String::from_utf8_lossy(&stated.stderr)
+    );
+}
+
 /// The control for [`opt_detects_the_irules_dialect_without_the_flag`]: the
 /// same condition in plain Tcl source stays plain Tcl, where `contains` is not
 /// an operator and nothing folds.

@@ -151,6 +151,13 @@ impl InputDocument {
         ))
     }
 
+    /// Whether [`Self::effective_dialect`] falls back to its `tcl8.6`
+    /// default: no `--dialect`, and nothing in the document names one.
+    #[must_use]
+    pub fn dialect_is_assumed(&self, explicit: Option<&'static DialectProfile>) -> bool {
+        explicit.is_none() && self.detected_dialect().is_none()
+    }
+
     /// The dialect this document's own content or name gives away, or `None`
     /// when nothing does. Same detector as [`Self::effective_dialect`], minus
     /// the `tcl8.6` fallback — so a caller resolving one dialect for several

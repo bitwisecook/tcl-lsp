@@ -196,6 +196,15 @@ pub fn run_opt(
             policy.optimiser.profile.max_iterations(),
             &policy,
         );
+        if !out.applied.is_empty() && document.dialect_is_assumed(explicit_dialect) {
+            // A rewrite is a proof under the release it was made for. An
+            // unstated document is read as `tcl8.6`, and a numeral such as
+            // `1_000`, `0d19` or `0b101` reads differently under Tcl 9.
+            eprintln!(
+                "note: {}: no dialect stated or detected; optimised as {} — rewrites may not hold under other releases (pass --dialect or add `# tcl-dialect:`)",
+                document.label, dialect.name
+            );
+        }
         total_rewrites += out.applied.len();
         per_file.push((
             document.label.clone(),
