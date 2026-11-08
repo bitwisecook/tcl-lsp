@@ -3439,12 +3439,14 @@ impl ModuleCommandBindings {
             namespace,
             lookup,
         } = context;
-        if self.runtime_execution_observed(target.token.as_ref()) {
-            selected.unknown = true;
-        }
+        // C compiles a command with execution traces as an ordinary
+        // invocation; only its callable effects stay unknown.
         if matches!(lookup, super::CommandTargetLookup::CompilerSlots) {
             selected.insert(target.clone(), None);
             return Some(());
+        }
+        if self.runtime_execution_observed(target.token.as_ref()) {
+            selected.unknown = true;
         }
         if target.terminal {
             selected.insert(target.clone(), target.prepended.is_empty().then(Vec::new));
