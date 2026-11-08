@@ -202,23 +202,43 @@ impl SourceNativeNumericShape {
     }
 
     pub(crate) fn string_bytes_may_equal(self, bytes: &[u8]) -> bool {
-        // Integer-convertible contents cannot be bytes that fail to parse as one.
-        if let Some(proof) = self.integer_contents_proof()
-            && !std::str::from_utf8(bytes).is_ok_and(|text| {
-                matches!(
-                    tcl_syntax::number::parse_whole_with(
-                        text,
-                        tcl_syntax::number::ParseFlags::for_syntax(proof.dialect.numbers)
-                    ),
-                    Some(
-                        tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
-                    )
-                )
-            })
-        {
-            return false;
+        use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
+        let parsed = |numbers| {
+            std::str::from_utf8(bytes)
+                .ok()
+                .and_then(|text| parse_whole_with(text, ParseFlags::for_syntax(numbers)))
+        };
+        // Integer contents, proved or held as an integer, are bytes that
+        // parse as an integer.
+        let integer_syntax = self
+            .integer_contents_proof()
+            .map(|proof| proof.dialect.numbers)
+            .or_else(|| {
+                (self.category() == tcl_registry::TclType::Int).then_some(self.dialect.numbers)
+            });
+        if let Some(numbers) = integer_syntax {
+            return matches!(parsed(numbers), Some(Number::Int(_) | Number::Big { .. }));
         }
-        !self.normalises_string() || tcl_syntax::number::canonical_numeric_bytes_may_equal(bytes)
+        if !self.normalises_string() {
+            return true;
+        }
+        // A normalised numeric string is a whole number spelling, including
+        // the platform's non-finite forms.
+        tcl_syntax::number::canonical_numeric_bytes_may_equal(bytes)
+            && (parsed(self.dialect.numbers).is_some()
+                || std::str::from_utf8(bytes).is_ok_and(|text| {
+                    matches!(
+                        text.to_ascii_lowercase().as_str(),
+                        "nan"
+                            | "-nan"
+                            | "+nan"
+                            | "inf"
+                            | "-inf"
+                            | "+inf"
+                            | "infinity"
+                            | "-infinity"
+                    )
+                }))
     }
 
     fn joined(self, other: Self) -> Option<Self> {
