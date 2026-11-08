@@ -329,10 +329,16 @@ pub const PATTERN_TYPES: &[Variant] = &[
 
 /// [`TaintTransformCondition`] — the argument-shape proof a command must pass
 /// before its `taint_transform` colour is claimed for a call.
-pub const TAINT_TRANSFORM_CONDITIONS: &[Variant] = &[v(
-    "MappingDeletesCrlf",
-    "the call's braced mapping provably deletes every CR and LF (`string map`)",
-)];
+pub const TAINT_TRANSFORM_CONDITIONS: &[Variant] = &[
+    v(
+        "MappingDeletesCrlf",
+        "the call's braced mapping provably deletes every CR and LF (`string map`)",
+    ),
+    v(
+        "RegsubQuotesRegexMetacharacters",
+        "a string-returning `regsub -all` backslash-escapes every ARE metacharacter (`regsub`)",
+    ),
+];
 
 /// [`TaintNumericCoercion`] — which of a call's argument words the command
 /// reads as numbers (a T100 numeric-coercion sink).
@@ -1079,7 +1085,8 @@ mod tests {
         }
         fn transform_condition(k: TaintTransformCondition) -> bool {
             match k {
-                TaintTransformCondition::MappingDeletesCrlf => true,
+                TaintTransformCondition::MappingDeletesCrlf
+                | TaintTransformCondition::RegsubQuotesRegexMetacharacters => true,
             }
         }
         fn numeric_coercion(k: TaintNumericCoercion) -> bool {
@@ -1125,6 +1132,7 @@ mod tests {
             && command_table(CommandTableEffect::DefinesProcedure)
             && pattern(PatternType::Glob)
             && transform_condition(TaintTransformCondition::MappingDeletesCrlf)
+            && transform_condition(TaintTransformCondition::RegsubQuotesRegexMetacharacters)
             && numeric_coercion(TaintNumericCoercion::IntegerModeOperands)
             && format(FormatType::Sprintf)
             && form(FormKind::Default)
