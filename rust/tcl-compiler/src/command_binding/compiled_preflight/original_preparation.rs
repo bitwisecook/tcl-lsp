@@ -295,6 +295,9 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Regexp(recipe) => {
                 self.original_operands(words, recipe.original_operands().cloned(), context)
             }
+            NativeInstructionPlan::Substitution(recipe) => {
+                self.original_substitution(recipe, context)
+            }
             NativeInstructionPlan::StringIs(_) | NativeInstructionPlan::DictionaryCreate(_) => {
                 self.original_construction_operands(words, recipe, context)
             }
@@ -303,6 +306,39 @@ impl CompilerTraversal<'_> {
                 None
             }
         }
+    }
+
+    /// `TclSubstCompile`'s template: each command substitution, and each
+    /// array index holding one, compiles inside its own catch range.
+    fn original_substitution(
+        &mut self,
+        recipe: &tcl_registry::substitution::NativeSubstitutionInstruction,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        let flags = tcl_lexer::word_parts::SubstFlags {
+            vars: recipe.kinds.variables,
+            cmds: recipe.kinds.commands,
+            backslashes: recipe.kinds.backslashes,
+            ..Default::default()
+        };
+        let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose_template(
+            self.chunk.source.source_image().clone(),
+            recipe.span,
+            flags,
+            context.config,
+            tcl_lexer::word_parts::TemplateVariableSyntax::CTcl,
+        ) else {
+            self.require_provider();
+            return None;
+        };
+        let compilation = context.compilation().with_inline_exception_range();
+        self.original_variable_index(
+            &arena,
+            SourceExecutionContext {
+                control: context.control.with_compilation(compilation),
+                ..context
+            },
+        )
     }
 
     /// The original operands a `string is` or `dict create` recipe compiles.

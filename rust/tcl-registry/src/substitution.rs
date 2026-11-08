@@ -364,6 +364,44 @@ pub(crate) fn compiler_template_kinds(
     subst_switches(&switches).map_err(|_| Selection::Generic)
 }
 
+/// The template `TclCompileSubstCmd` hands to `TclSubstCompile`, with its
+/// selected flags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeSubstitutionInstruction {
+    /// Complete-vector index of the final, simple template word.
+    pub template: usize,
+    /// The template's content in the original source.
+    pub span: tcl_lexer::Span,
+    /// Substitutions the options leave enabled.
+    pub kinds: SubstitutionKinds,
+}
+
+/// Project an inline `subst` selection onto its template word and flags.
+pub(crate) fn native_substitution_instruction(
+    words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: tcl_dialect::TclVersion,
+) -> Option<NativeSubstitutionInstruction> {
+    let template = words.original_words().len().checked_sub(1)?;
+    words.literal(template)?;
+    let mut arguments = (operand_from..template)
+        .map(|index| {
+            words
+                .literal(index)
+                .and_then(|word| std::str::from_utf8(word).ok())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    arguments.push("");
+    let invocation = crate::InvocationWords::literals("subst", &arguments);
+    let kinds = compiler_template_kinds(invocation.arguments(), version).ok()?;
+    let span = words.original_words()[template].content_span().ok()?;
+    Some(NativeSubstitutionInstruction {
+        template,
+        span,
+        kinds,
+    })
+}
+
 /// The `subst` switch grammar, as the manpages describe it.
 ///
 /// Two families. The negated one (`-nobackslashes`, `-nocommands`,
@@ -640,15 +678,16 @@ mod tests {
                     &array,
                 )
                 .with_dialect(dialect);
-                assert_eq!(
+                // An array index still runs its command under -nocommands.
+                assert!(matches!(
                     spec.select(
                         array,
                         &[Shape::Literal, Shape::BracedLiteral],
                         Some(dialect),
                         entry
                     ),
-                    Selection::Unknown
-                );
+                    Selection::Inline { .. }
+                ));
 
                 assert_eq!(
                     spec.select(

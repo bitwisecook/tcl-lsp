@@ -612,21 +612,21 @@ fn substitution_template_compiler_grammar(
     ) else {
         return Selection::Unknown;
     };
-    if arena.all_parts().all(|part| {
+    // TclSubstCompile emits text, scalar reads and, each in its own catch
+    // range, command substitutions and array reads with a command index. A
+    // template TclSubstParse rejects part-way is not modelled.
+    if arena.all_parts().any(|part| {
         matches!(
             part.part,
-            tcl_lexer::word_parts::ExecutablePart::Text(_)
-                | tcl_lexer::word_parts::ExecutablePart::Variable { index: None, .. }
+            tcl_lexer::word_parts::ExecutablePart::ParseError(_)
+                | tcl_lexer::word_parts::ExecutablePart::Expression { .. }
         )
     }) {
-        // TclSubstCompile emits these scalar reads; no nested compiler visit
-        // or independent chunk failure is introduced before them.
-        Selection::Inline {
-            operation,
-            guard: NativeCompilationGuard::BeforeArguments,
-        }
-    } else {
-        Selection::Unknown
+        return Selection::Unknown;
+    }
+    Selection::Inline {
+        operation,
+        guard: NativeCompilationGuard::BeforeArguments,
     }
 }
 
@@ -2386,6 +2386,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::InfoCoroutine
             | NativeCompilationGrammar::CoroutineRelay
             | NativeCompilationGrammar::FormatStringConcat
+            | NativeCompilationGrammar::SubstitutionTemplate
             | NativeCompilationGrammar::Error
             | NativeCompilationGrammar::Throw => true,
             _ => false,

@@ -83,6 +83,8 @@ mod native_upvar;
 /// Work retained on the heap so array indices and bracket scripts share one
 /// compilation unit without recursive emitter calls or depth-limited views.
 enum NativeEmissionTask {
+    /// `TclSubstCompile` over an original template.
+    Substitution(std::rc::Rc<tcl_lexer::ExecutablePartArena>),
     NativePreparationLiteral(Vec<u8>),
     NativePrivateFormatLiteral(Vec<u8>),
     NativeDictionaryUpdateOperation(Op, Vec<u8>, Vec<Vec<u8>>),
@@ -1950,6 +1952,7 @@ impl CodegenCtx<'_> {
                 | Task::Script(..)
                 | Task::Command(..)) => self.emit_native_source_task(selected, &mut pending),
                 selected @ Task::Part(..) => self.emit_native_part_task(selected, &mut pending),
+                Task::Substitution(arena) => self.emit_substitution(&arena),
                 selected @ Task::ExpressionNode(..) => {
                     self.emit_native_expression_task(selected, &mut pending);
                 }
@@ -2868,6 +2871,35 @@ impl CodegenCtx<'_> {
         })
     }
 
+    /// `TclCompileSubstCmd`: the simple template word compiled in place.
+    fn append_native_substitution_tasks(
+        &self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::substitution::NativeSubstitutionInstruction,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        let Some(word) = command.words.get(recipe.template) else {
+            return false;
+        };
+        let flags = tcl_lexer::word_parts::SubstFlags {
+            vars: recipe.kinds.variables,
+            cmds: recipe.kinds.commands,
+            backslashes: recipe.kinds.backslashes,
+            ..Default::default()
+        };
+        let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose_template(
+            word.image().clone(),
+            recipe.span,
+            flags,
+            self.lexer_config(),
+            tcl_lexer::word_parts::TemplateVariableSyntax::CTcl,
+        ) else {
+            return false;
+        };
+        operations.push(NativeEmissionTask::Substitution(std::rc::Rc::new(arena)));
+        true
+    }
+
     fn native_registered_guard(
         plan: &tcl_compiler::native_byte_compilation::NativeByteRegisteredCommand,
     ) -> Option<tcl_registry::native_compilation::NativeCompilationGuard> {
@@ -2957,6 +2989,9 @@ impl CodegenCtx<'_> {
             selected @ (NativeInstructionPlan::StringMatch(_)
             | NativeInstructionPlan::Regexp(_)) => {
                 Self::append_native_matcher_tasks(command, selected, version, operations)
+            }
+            NativeInstructionPlan::Substitution(recipe) => {
+                self.append_native_substitution_tasks(command, recipe, operations)
             }
             NativeInstructionPlan::Upvar(recipe) => {
                 Self::append_native_upvar_tasks(command, recipe, operations)

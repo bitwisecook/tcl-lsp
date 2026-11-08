@@ -136,7 +136,7 @@ impl CodegenCtx<'_> {
         }
     }
 
-    fn emit_substitution(&mut self, arena: &Rc<tcl_lexer::ExecutablePartArena>) {
+    pub(super) fn emit_substitution(&mut self, arena: &Rc<tcl_lexer::ExecutablePartArena>) {
         use tcl_lexer::ExecutablePart;
         let parts = arena.list(arena.root());
         let mut count = 0;

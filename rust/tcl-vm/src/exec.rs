@@ -188,6 +188,16 @@ enum BytecodeEntry {
     Entered,
 }
 
+/// How an error leaving an activation is logged.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ActivationErrorLog {
+    /// By the activation's own instructions and body frames.
+    Own,
+    /// A compiled `subst` template: like C's TEBC leaving `Tcl_SubstObj`'s
+    /// bytecode, the command that invoked it is logged too.
+    InvokingCommand,
+}
+
 /// One activation record owned by the interpreter or a parked coroutine.
 pub(crate) struct Frame {
     jim_script_entry: Option<crate::native_jim_script::NativeJimScriptEntry>,
@@ -325,6 +335,8 @@ pub(crate) struct Frame {
     /// would add on error (`("eval" body line N)` / `("uplevel" body line N)`).
     /// `None` for a command-substitution `EVAL_STK`, which adds no body frame.
     body_label: Option<&'static str>,
+    /// Whether an error leaving this activation logs its invoking command.
+    error_log: ActivationErrorLog,
     /// Entered invocation retained when a tailcall removes its issuing frame.
     body_invocation: Option<(crate::NativeListItems, u32)>,
     /// Set on a package discovery activation: the `package require` that
@@ -794,6 +806,7 @@ impl Frame {
             replay_namespace_restore: None,
             selected_frame_restore: None,
             body_label: None,
+            error_log: ActivationErrorLog::Own,
             body_invocation: None,
             package: None,
             tailcall_invocation: None,
@@ -932,7 +945,11 @@ impl Frame {
     /// scanner instead of the bytecode dispatch when `subst` is set.
     pub(crate) fn new_subst(req: SubstReq, placeholder: crate::compiled::CompiledUnit) -> Self {
         if let Some(unit) = req.compiled {
-            return Self::new_script(unit, None);
+            let mut frame = Self::new_script(unit, None);
+            if req.control == crate::subst::SubstitutionControl::Command {
+                frame.error_log = ActivationErrorLog::InvokingCommand;
+            }
+            return frame;
         }
         if let Some(original) = req.original {
             let flags = u8::from(!req.variables)
@@ -3475,7 +3492,7 @@ impl Vm {
     /// Add the error frames owned by one completed activation before its proc
     /// boundary is unwound. Keeping this here gives compiled `eval`/`uplevel`
     /// bodies the same single error-context path as every other activation.
-    fn apply_activation_error_context(&mut self, act: &mut Frame, acts: &[Frame]) {
+    fn apply_activation_error_context(&mut self, act: &mut Frame, acts: &[Frame], message: &[u8]) {
         self.apply_error_regions(act);
         let Some(label) = act.body_label else {
             // A script word the parent's code evaluates (`INST_EVAL_STK`:
@@ -3483,10 +3500,11 @@ impl Vm {
             // logs the command holding that instruction. So does a control
             // command the release runs (`if 1 $s`, `while 1 $s`), once its
             // own frame is added.
-            let control_logs = act
-                .control
-                .as_ref()
-                .is_some_and(|control| control.logs_invoking_command());
+            let control_logs = act.error_log == ActivationErrorLog::InvokingCommand
+                || act
+                    .control
+                    .as_ref()
+                    .is_some_and(|control| control.logs_invoking_command());
             if let Some((cmd, line, enclosing)) = acts.last().and_then(|parent| {
                 parent
                     .asm
@@ -3500,7 +3518,7 @@ impl Vm {
                     &cmd,
                     Value::from_native_string_bytes(cmd.clone()),
                     &enclosing,
-                    b"",
+                    message,
                     line,
                 );
             }
@@ -3616,7 +3634,8 @@ impl Vm {
         // activation's own proc frame (innermost first) — the compiled
         // analogue of C's `CmdFrame` trace.
         if c.code == Code::Error {
-            self.apply_activation_error_context(act, acts);
+            let message = c.result.string_bytes();
+            self.apply_activation_error_context(act, acts, &message);
         }
         if let Some((exit, original)) = oo_exit
             && let Err(error) = exit.check_running(self, original)

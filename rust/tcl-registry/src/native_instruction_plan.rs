@@ -133,6 +133,8 @@ pub enum NativeInstructionPlan {
     StringMatch(crate::native_string_compilation::NativeStringMatchInstruction),
     /// C9 regexp pattern (original word or converted glob), subject and matcher.
     Regexp(crate::native_regexp_compilation::NativeRegexpInstruction),
+    /// `TclSubstCompile` over the original template word.
+    Substitution(crate::substitution::NativeSubstitutionInstruction),
     /// Original trim subject and optional original character set.
     StringTrim(crate::native_string_trim_compilation::NativeStringTrimInstruction),
     /// Original fixed String operands followed by the selected instruction.
@@ -1420,6 +1422,11 @@ fn selected_nonvariable_instruction_plan(
         return Some(plan);
     }
     Some(match spec.grammar {
+        NativeCompilationGrammar::SubstitutionTemplate => {
+            crate::substitution::native_substitution_instruction(words, operand_from, version)
+                .map(NativeInstructionPlan::Substitution)
+                .ok_or(Unavailable::OperandGeometry)
+        }
         NativeCompilationGrammar::ClockReading(reading) => {
             crate::native_compilation::clock_reading_value(
                 reading,
