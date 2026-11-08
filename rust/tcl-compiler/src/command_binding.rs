@@ -5076,8 +5076,7 @@ fn command_world_closed_on_normal_return(
 #[must_use]
 pub fn undeclared_transitions_leave_command_world_closed(facts: &InvocationFacts) -> bool {
     !facts.traits.intersects(
-        tcl_registry::extension_default::EVALUATION
-            .union(tcl_registry::extension_default::TRACES),
+        tcl_registry::extension_default::EVALUATION.union(tcl_registry::extension_default::TRACES),
     )
 }
 
@@ -14202,8 +14201,8 @@ impl SourceCommandBindings {
             *state = *continuing;
             let evaluated = self.walk_expression(argument, base, state, context);
             if args.len() == 1 {
-                input.closed =
-                    source_representation::scalar_math_input_is_closed(argument, &evaluated);
+                input.closed = operator_result(argument)
+                    || source_representation::scalar_math_input_is_closed(argument, &evaluated);
             }
             outcomes.join(&evaluated);
         }
@@ -14211,10 +14210,11 @@ impl SourceCommandBindings {
             *state = *continuing;
             if args.len() != 1 {
                 input.closed = args.iter().all(|argument| {
-                    literal_object_pool::SourceOrdinaryLiteralObject::capture_expression_literal(
-                        argument, state,
-                    )
-                    .is_some()
+                    operator_result(argument)
+                        || literal_object_pool::SourceOrdinaryLiteralObject::capture_expression_literal(
+                            argument, state,
+                        )
+                        .is_some()
                 });
             }
             outcomes.join(&self.walk_math_function(function, input, site, state, context));
@@ -14565,6 +14565,16 @@ impl SourceCommandBindings {
         state.mark_opaque_binding_mutation();
         SourceOutcomes::invocation(state, route)
     }
+}
+
+/// An operator leaves a fresh or already-converted stock numeric object, so
+/// a later numeric conversion of it runs no object hooks. A ternary passes
+/// its selected operand through unconverted.
+fn operator_result(node: &crate::expr_ast::ExprNode) -> bool {
+    matches!(
+        node,
+        crate::expr_ast::ExprNode::Binary { .. } | crate::expr_ast::ExprNode::Unary { .. }
+    )
 }
 
 fn parse_source_expression(
