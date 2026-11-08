@@ -118,20 +118,35 @@ fn irules_registry() -> tcl_registry::CommandRegistry {
         .project_for_profile(tcl_dialect::DialectProfile::irules())
 }
 
-/// The iRules compiler-checks output (`run_all_checks`) for `source`.
+/// The iRules compiler-checks output (`run_all_checks`) for `source`, built
+/// under the iRules analysis input so hosted rule bodies carry source metadata.
 fn irules_checks(
     source: &str,
-    registry: &tcl_registry::CommandRegistry,
+    _registry: &tcl_registry::CommandRegistry,
 ) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
-    let profile = tcl_dialect::DialectProfile::irules();
-    let cu = CompilationUnit::build_for_with_config(
+    let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
+    let context = environment.default_context_registry();
+    let config = LexerConfig::from_grammar(environment.grammar());
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        environment.analyser_profile(),
+        environment.unit_profile(),
+        context.clone(),
+        config,
+    );
+    let cu = CompilationUnit::build_with_analysis_input(
         source,
-        registry,
-        false,
-        LexerConfig::for_dialect("f5-irules"),
-    )
-    .with_interprocedural(registry, Some(profile));
-    run_all_checks(&cu, registry, Some(profile))
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: context.commands(),
+            defer_top_level: false,
+            config,
+            dialect: Some(environment.unit_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        None,
+        &input,
+    );
+    run_all_checks(&cu, context.commands(), Some(environment.unit_profile()))
 }
 
 fn lexical_taint_analysis(
@@ -857,14 +872,14 @@ fn switch_to_dict_absent_at_inert_cursor() {
     );
 }
 
-// compiler-check fixes — IRULE5004 (DNS::return without return)
+// compiler-check advice — IRULE5004 (DNS::return without return)
 
 #[test]
-fn check_actions_surface_irule5004_dns_return_fix() {
-    // `DNS::return` not followed by `return` fires IRULE5004 through the
-    // compiler-checks pass (not `AnalysisResult.diagnostics`), carrying an
-    // "insert return" fix. The provider must lift it. (The sibling port covers
-    // the IRULE5002 unguarded-drop fix; this is its IRULE5004 twin.)
+fn check_actions_report_irule5004_as_advice_without_an_edit() {
+    // `DNS::return` not followed by `return` reports IRULE5004. The finding is
+    // conditional source advice (the rule's runtime lookup and event
+    // activation are unproved), so it is surfaced without an edit and the
+    // provider must not invent an "insert return" quick fix for it.
     let registry = irules_registry();
     let src = "when DNS_REQUEST {\n    DNS::return\n}\n";
     let checks = irules_checks(src, &registry);
@@ -880,12 +895,11 @@ fn check_actions_surface_irule5004_dns_return_fix() {
         ))
         .analyse(src, profile.name);
     let current = DiagnosticEditSource::for_analysis(src, &analysis).unwrap();
-    assert!(
-        checks
-            .iter()
-            .any(|d| d.code == DiagCode::Irule5004 && !d.fixes.is_empty()),
-        "expected an IRULE5004 check carrying a fix; got {checks:?}",
-    );
+    let finding = checks
+        .iter()
+        .find(|d| d.code == DiagCode::Irule5004)
+        .unwrap_or_else(|| panic!("expected IRULE5004; got {checks:?}"));
+    assert!(finding.fixes.is_empty(), "{finding:?}");
     let none_disabled = std::collections::HashSet::new();
     let actions = check_diagnostic_actions(
         &current,
@@ -894,25 +908,11 @@ fn check_actions_surface_irule5004_dns_return_fix() {
         &none_disabled,
         &no_suppression(),
     );
-    // Fix description is `Add 'return' after DNS::return`.
-    let fix = find(&actions, "after DNS::return").expect("an IRULE5004 quick-fix");
-    assert_eq!(fix.kind, ActionKind::QuickFix);
-    assert_eq!(fix.edits.len(), 1);
-    assert_eq!(fix.edits[0].new_text, "\n    return");
-    // Insertion: a zero-width range right after `DNS::return`.
-    assert_eq!(
-        (
-            fix.edits[0].range.start_line,
-            fix.edits[0].range.start_character
-        ),
-        (
-            fix.edits[0].range.end_line,
-            fix.edits[0].range.end_character
-        ),
-        "the fix is a pure insertion: {:?}",
-        fix.edits[0],
+    assert!(
+        find(&actions, "after DNS::return").is_none(),
+        "{:?}",
+        titles(&actions)
     );
-    assert!(edits_well_formed(fix), "{fix:?}");
 }
 
 #[test]
