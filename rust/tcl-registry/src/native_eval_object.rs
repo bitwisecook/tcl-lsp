@@ -128,7 +128,7 @@ impl NativeEvalObjectProtocol {
     }
 
     /// Whether this purpose authorizes fresh source operands without native literal registration.
-    /// C84 direct object evaluation and C trace scripts have distinct selected purposes;
+    /// C84 and C85 direct object evaluation and C trace scripts have distinct selected purposes;
     /// Jim's Script parser owns its tokens separately.
     #[must_use]
     pub const fn permits_direct_source_operands(
@@ -145,7 +145,8 @@ impl NativeEvalObjectProtocol {
                 tcl_syntax::native_string::NativeStringProtocol::C(strings_version),
             ) if version as u8 == strings_version as u8 => {
                 matches!(purpose, EvalObjectPurpose::TraceCallback)
-                    || (matches!(version, TclVersion::V8_4) && !self.compiles_source(purpose))
+                    || (matches!(version, TclVersion::V8_4 | TclVersion::V8_5)
+                        && !self.compiles_source(purpose))
             }
             _ => false,
         }

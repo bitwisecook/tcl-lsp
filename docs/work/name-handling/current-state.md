@@ -108,6 +108,14 @@ Sixth pass (7 November): in release, saved-target cleanup whose currency is alre
 - Wall clock against `tclsh9.0` at 50,000 iterations, best of three, startup included: the VM is 7–32× and the runtime 10–25× slower across the six benchmarks (previously 25–60×). The shipped release profile (thin LTO, one codegen unit) gains the VM 5–15% on most benchmarks; the runtime is within noise.
 - Profile-guided optimisation on top of the release profile (trained on the same six benchmarks, so an upper bound): VM 14–34% and runtime 25–33% faster than the LTO build; against `tclsh9.0` the VM is then 5–21× and the runtime 9–17× slower. A shipping profile would need a broader training corpus, such as the Tcl test suites.
 
+## Ninth pass: upstream-broken tests
+
+- The three runtime failures bisect to `980fecce1` (`string insert` compilation), which changed which bodies the native compiler admits and exposed older faults; `lset`'s failure follows `318b07a90`, which added the List Set recipe for the VM only.
+- Compiled `incr` of an element of a scalar looked its receiver up with the write purpose and reported `can't set "s(k)"`; every C release reports `can't read "s(k)"`. The indexed (procedure) path also reported the bare root. Both now use the release's increment read purpose and reporting name.
+- The runtime body compiler refused the List Set recipe; it now declines it and `lset` runs as a command.
+- C8.5's `eval`, and `namespace eval` of several words, pass `TCL_EVAL_DIRECT`, but the eval object protocol compiled every 8.5 source object, so `eval {set x [proc set args {}]}` set `x` where `tclsh8.5` calls the redefined command. The protocol now evaluates those 8.5 purposes directly, with direct source operands, in both engines; `tclsh8.5`, the VM and the runtime agree on nine `eval`/`namespace eval` forms. The runtime witness expected the direct result for every release; 8.6+ compile `eval`'s script and set `x`, as `tclsh` 8.6, 9.0 and 9.1 do.
+- Runtime release 2133 tests and debug assertions 2409, 107 failures each, all in the base. VM release 1102/268, no new failure, three base failures fixed upstream.
+
 ## Resource integrity and next work
 
 A prior cleanup followed an alias and removed13 tracked compressed fixtures; all were restored from Git with original hashes before any test/merge. No results were produced with them missing. `/tmp/lsp-failed-merge-recovery-1640/source-fixtures-restored.json`. Source aliases and tracked fixtures must never be treated as disposable artifacts.
