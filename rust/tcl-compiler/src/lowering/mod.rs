@@ -3489,6 +3489,7 @@ impl<'r> Lowerer<'r> {
     /// Materialise statement return storage outside the recursive dispatcher.
     /// Retaining one inline return slot per hook arm otherwise grows every
     /// nested structured lowering frame as the IR's statement variants grow.
+    #[inline(never)]
     fn box_lowered_statement(
         &mut self,
         lower: impl FnOnce(&mut Self) -> Statement,
@@ -3496,6 +3497,7 @@ impl<'r> Lowerer<'r> {
         Box::new(lower(self))
     }
 
+    #[inline(never)]
     fn box_optional_lowered_statement(
         &mut self,
         lower: impl FnOnce(&mut Self) -> Option<Statement>,
