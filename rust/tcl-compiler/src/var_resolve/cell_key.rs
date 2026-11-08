@@ -22,7 +22,6 @@ use crate::command_binding::SourceNamespaceKey;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     borrow::Cow,
-    collections::HashSet,
     hash::Hash,
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -680,9 +679,9 @@ impl<T: VariableNamespaceQuery + ?Sized> VariableNamespaceQuery for &T {
 
 /// Reached namespace effects retaining original owners and component geometry.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct VariableNamespaceSet(HashSet<SourceNamespaceKey>);
+pub struct VariableNamespaceSet(FxHashSet<SourceNamespaceKey>);
 impl Deref for VariableNamespaceSet {
-    type Target = HashSet<SourceNamespaceKey>;
+    type Target = FxHashSet<SourceNamespaceKey>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }

@@ -275,10 +275,10 @@ impl CommandKeyQuery for String {
 /// The primary mutable command map. Legacy string queries address only the
 /// authored domain; actual slots must supply their retained typed identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SourceCommandTable<V>(std::collections::HashMap<SourceCommandKey, V>);
+pub(super) struct SourceCommandTable<V>(rustc_hash::FxHashMap<SourceCommandKey, V>);
 impl<V> Default for SourceCommandTable<V> {
     fn default() -> Self {
-        Self(std::collections::HashMap::new())
+        Self(rustc_hash::FxHashMap::default())
     }
 }
 impl<V> SourceCommandTable<V> {
