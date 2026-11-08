@@ -137,6 +137,11 @@ fn same_member(
 /// `self method` sharing its member kind.
 fn native_classmethod(identity: &OriginalDeclarationIdentity, method: &OriginalSourceMethodMetadata) -> bool {
     identity.role() == OriginalDeclarationRole::Method(MemberSide::ClassObject)
+        && native_classmethod_row(method)
+}
+
+fn native_classmethod_row(method: &OriginalSourceMethodMetadata) -> bool {
+    method.side() == MemberSide::ClassObject
         && method.metadata().kind == "classmethod"
         && !method.metadata().is_self_method
 }
@@ -474,7 +479,7 @@ fn incomplete_member_family(
             .next()
             .is_some()
         || class.metadata().original_members.declarations().any(|row| {
-            row.side() != MemberSide::Instance
+            (row.side() != MemberSide::Instance && !native_classmethod_row(row))
                 || row.native_class_delegate()
                 || row.forward_prefix().is_some()
                 || row.declaration().static_occurrence().is_none()
