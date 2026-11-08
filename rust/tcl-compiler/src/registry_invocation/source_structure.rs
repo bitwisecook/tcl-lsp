@@ -2057,7 +2057,7 @@ fn reflection_free_command(
     let closed_lookup = match words.source() {
         OriginalRegistrySource::Selected => true,
         OriginalRegistrySource::Conditional(metadata) => metadata.obligations().is_empty(),
-        OriginalRegistrySource::Vendor(metadata) => hosted_lookup_closed(metadata),
+        OriginalRegistrySource::Vendor(metadata) => hosted_body_command_named(metadata),
         _ => false,
     };
     closed_lookup
@@ -2085,6 +2085,27 @@ fn hosted_lookup_closed(
             matches!(
                 obligation,
                 Obligation::AuthoredSourceCoordinates | Obligation::StoredScriptBodyApplicability
+            )
+        })
+}
+
+/// A hosted rule-body command whose name can only reach its registry
+/// command: iRules reaches a procedure solely through `call`, so an unknown
+/// current table cannot turn a bare builtin name into source-observing code.
+/// Binding alternatives and unknown namespaces still refuse.
+fn hosted_body_command_named(
+    metadata: &crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+) -> bool {
+    use crate::command_binding::VendorCatalogueSourceObligation as Obligation;
+    let barriers = metadata.authored_barriers();
+    !barriers.has_unknown_transitions()
+        && !barriers.has_nominal_command_name_hazard()
+        && metadata.obligations().iter().all(|obligation| {
+            matches!(
+                obligation,
+                Obligation::AuthoredSourceCoordinates
+                    | Obligation::StoredScriptBodyApplicability
+                    | Obligation::UnknownCurrentLookup
             )
         })
 }
