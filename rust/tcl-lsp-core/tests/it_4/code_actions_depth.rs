@@ -167,7 +167,9 @@ fn native_taint_input() -> (
     (input, context, environment.unit_profile())
 }
 
-fn native_taint_analysis(source: &str) -> (AnalysisResult, tcl_registry::CommandRegistry) {
+fn native_taint_analysis(
+    source: &str,
+) -> (AnalysisResult, std::sync::Arc<tcl_registry::CommandRegistry>) {
     let (input, context, profile) = native_taint_input();
     let analysis = Analyser::new()
         .with_resolved_input(input)
