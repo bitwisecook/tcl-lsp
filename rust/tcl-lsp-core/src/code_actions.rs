@@ -2766,27 +2766,35 @@ fn native_command_proved(
         == BindingKnowledge::Must(BindingTarget::Spec(SpecKey::new(spec)))
 }
 
-/// The retained command world proves `name` has no binding at `at`.
-fn native_command_absent(
+/// No binding of `name` is proven at `at`, and the document never mutates
+/// its command table opaquely. An open world leaves an undefined name
+/// `Unknown` (`auto_load` may find it), but a `proc` the edit runs first is
+/// the definition a later call in this document reaches either way.
+fn native_command_unclaimed(
     analysis: &AnalysisResult,
     registry: &tcl_registry::CommandRegistry,
     name: &str,
     at: u32,
 ) -> bool {
+    use tcl_registry::model::BindingKnowledge;
     let (Some(realm), Some(input)) = (
         analysis.retained_command_realm(),
         analysis.resolved_input.as_ref(),
     ) else {
         return false;
     };
-    realm.knowledge_at(input.availability_context(), registry, name, at)
-        == tcl_registry::model::BindingKnowledge::Absent
+    match realm.knowledge_at(input.availability_context(), registry, name, at) {
+        BindingKnowledge::Absent => true,
+        BindingKnowledge::Unknown => analysis.root_unknown_command_mutation() == Some(false),
+        BindingKnowledge::Must(_) | BindingKnowledge::May(_) => false,
+    }
 }
 
 /// Publishing [`REGEX_QUOTE_PROC`] at the top of a Native document: its
-/// `namespace` and `proc` are the builtins there, and at the sink the new
-/// helper neither collides with nor is shadowed by an existing command, and
-/// its `regsub` resolves to the builtin from the `::regex` namespace.
+/// `namespace` and `proc` are the builtins there, the document itself defines
+/// neither `::regex::quote` nor `::regex::regsub`, and its `regsub` resolves
+/// to the builtin at the sink. A same-named helper defined outside the
+/// document is replaced, which this document cannot see.
 fn native_regex_quote_publication_proved(
     analysis: &AnalysisResult,
     registry: &tcl_registry::CommandRegistry,
@@ -2794,8 +2802,8 @@ fn native_regex_quote_publication_proved(
 ) -> bool {
     native_command_proved(analysis, registry, "namespace", 0)
         && native_command_proved(analysis, registry, "proc", 0)
-        && native_command_absent(analysis, registry, "::regex::quote", sink)
-        && native_command_absent(analysis, registry, "::regex::regsub", sink)
+        && native_command_unclaimed(analysis, registry, "::regex::quote", sink)
+        && native_command_unclaimed(analysis, registry, "::regex::regsub", sink)
         && native_command_proved(analysis, registry, "regsub", sink)
 }
 
