@@ -1462,7 +1462,7 @@ impl SourceCompilerNameClosure {
 
 /// A resolved source invocation without discarding absence or an unknown
 /// residual. Catalogue identity alone does not establish loader provenance.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct SourceInvocationBinding {
     /// Native opcodes selected before the later runtime command lookup.
     pub compiled_candidates: Vec<SourceCompiledInvocationProof>,
@@ -1559,6 +1559,32 @@ pub struct SourceInvocationBinding {
     pub may_be_absent: bool,
     /// An execution path has no bounded implementation identity.
     pub unknown: bool,
+}
+
+/// The dispatch outcome only: the shared lookup, variable and analysis
+/// snapshots a binding retains run to hundreds of megabytes when expanded.
+impl std::fmt::Debug for SourceInvocationBinding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SourceInvocationBinding")
+            .field("lookup_namespace", &self.lookup_namespace)
+            .field("lookup_word", &self.lookup_word)
+            .field("targets", &self.targets)
+            .field("may_be_absent", &self.may_be_absent)
+            .field("unknown", &self.unknown)
+            .field("may_use_live_dispatch", &self.may_use_live_dispatch)
+            .field("compiled_candidates", &self.compiled_candidates.len())
+            .field("compiled_named_candidates", &self.compiled_named_candidates.len())
+            .field("compiled_execution_residual", &self.compiled_execution_residual)
+            .field("native_inline_rejection", &self.native_inline_rejection)
+            .field("native_handler_envelope", &self.native_handler_envelope)
+            .field("provider_state_taint", &self.provider_state_taint)
+            .field("declared_command", &self.declared_command)
+            .field("catalogue_command", &self.catalogue_command)
+            .field("variable_frame", &self.variable_frame)
+            .field("known_namespaces", &self.known_namespaces)
+            .field("evaluated_argument_values", &self.evaluated_argument_values)
+            .finish_non_exhaustive()
+    }
 }
 
 impl SourceInvocationBinding {
