@@ -3430,30 +3430,52 @@ impl BodyTouch {
             return;
         }
         let touched = substitution_touch_memo(script, registry, config, depth, || {
-            let mut touch = Self::default();
-            let module = crate::lowering::lower_to_ir_with_dialect(
-                script,
-                registry,
-                config,
-                registry.profile(),
-            );
-            for statement in &module.top_level.statements {
-                if matches!(
-                    statement,
-                    Statement::Barrier { .. } | Statement::UpFrame { .. }
-                ) {
-                    touch.all = true;
-                }
-                for body in crate::ir_helpers::nested_bodies(statement) {
-                    touch.script(body, registry, config, depth);
-                }
-                touch.statement_words(statement, registry, config, depth);
-            }
-            touch
+            Self::substitution_touch(script, registry, config, depth)
         });
         self.all |= touched.all;
         self.names.extend(touched.names.iter().cloned());
     }
+
+    /// Kept out of line, with the lowered module boxed, so each nested
+    /// substitution's stack frame stays small: the recursion reaches
+    /// `MAX_BRACKET_TEXT_DEPTH` levels within `MIN_SOURCE_WALK_STACK`.
+    #[inline(never)]
+    fn substitution_touch(
+        script: &str,
+        registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        depth: u32,
+    ) -> Self {
+        let mut touch = Self::default();
+        let module = lower_substitution(script, registry, config);
+        for statement in &module.top_level.statements {
+            if matches!(
+                statement,
+                Statement::Barrier { .. } | Statement::UpFrame { .. }
+            ) {
+                touch.all = true;
+            }
+            for body in crate::ir_helpers::nested_bodies(statement) {
+                touch.script(body, registry, config, depth);
+            }
+            touch.statement_words(statement, registry, config, depth);
+        }
+        touch
+    }
+}
+
+#[inline(never)]
+fn lower_substitution(
+    script: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Box<crate::ir::Module> {
+    Box::new(crate::lowering::lower_to_ir_with_dialect(
+        script,
+        registry,
+        config,
+        registry.profile(),
+    ))
 }
 
 /// What one substitution's text touches is a pure function of the text, the
