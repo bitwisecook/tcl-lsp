@@ -2150,6 +2150,22 @@ impl CachedBodyCompileService {
         }
         module
     }
+
+    /// A body compiled on its procedure's first call (C's `TclProcCompileProc`)
+    /// is the module's top level; the exact body word selects the cached one.
+    fn inject_body(
+        &self,
+        body: &[u8],
+        mut module: tcl_bytecode::ModuleAsm,
+    ) -> tcl_bytecode::ModuleAsm {
+        if body == self.body_src.as_bytes() {
+            let mut cached = self.body.clone();
+            cached.plain_command_dispatch = module.top_level.plain_command_dispatch;
+            module.top_level_body = cached.clone();
+            module.top_level = cached;
+        }
+        module
+    }
 }
 
 impl CompileService for CachedBodyCompileService {
@@ -2210,6 +2226,7 @@ impl CompileService for CachedBodyCompileService {
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.inner
             .compile_procedure_bytes_for_profile(target, profile, dispatch)
+            .map(|module| self.inject_body(target.source.bytes(), module))
     }
     fn compile_procedure_bytes_with_entry(
         &self,
@@ -2220,6 +2237,7 @@ impl CompileService for CachedBodyCompileService {
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         self.inner
             .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+            .map(|module| self.inject_body(target.source.bytes(), module))
     }
     fn script_command_plan_bytes_for_profile(
         &self,
@@ -2330,12 +2348,11 @@ fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
     vm
 }
 
-/// `proc` runs the body the compiler already emitted for it.
+/// `proc` runs the body the compiler emitted for it.
 ///
-/// `ModuleAsm::procedures` and its exact source provenance share the compiler's
-/// original body ID. The rooted reporting name remains provenance metadata;
-/// it cannot select an emitted body. Both ordinary and qualified definitions
-/// must admit the original body under its independently retained context.
+/// An entered script carries no procedure bodies: as in C, a body is compiled
+/// when its procedure is first called, and that compilation is what runs.
+/// Both ordinary and qualified definitions run it.
 #[test]
 fn a_proc_runs_the_body_the_compiler_emitted_for_it() {
     let mut vm = vm_with_cached_body("::p", "return SOURCE", "PRECOMPILED");

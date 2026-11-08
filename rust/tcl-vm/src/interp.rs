@@ -28185,7 +28185,15 @@ impl Vm {
             self.mark_error_logged();
         }
         if !matches!(completion.code, Code::Ok | Code::Error) {
-            completion = self.unexpected_result(completion.code);
+            let unexpected = completion.code;
+            completion = self.unexpected_result(unexpected);
+            // `ProcessUnexpectedResult` sets the code before the command is
+            // logged, so logging finds it rather than defaulting to NONE.
+            if self.runtime_version().has_unexpected_result_error_codes() {
+                self.apply_primitive_error_code(tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(
+                    format!("TCL UNEXPECTED_RESULT_CODE {}", unexpected.as_int()).into_bytes(),
+                ));
+            }
             // A fresh error: its trace starts at the command that raised the
             // code (`while executing "break"`), or at its message alone.
             let _ = self.take_error_info();
