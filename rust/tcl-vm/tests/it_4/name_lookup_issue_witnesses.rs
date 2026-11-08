@@ -61,6 +61,13 @@ const NESTED_INTERP_QUERIES: &str = include_str!(
     "../../../tcl-test-support/tests/data/name_lookup_issues/2273-nested-interp-queries.tcl"
 );
 
+const CATCH_FOREACH_CONTEXT: &str = include_str!(
+    "../../../tcl-test-support/tests/data/name_lookup_issues/2274-catch-foreach-error-context.tcl"
+);
+const IFNEEDED_FOREACH_CONTEXT: &str = include_str!(
+    "../../../tcl-test-support/tests/data/name_lookup_issues/2239-ifneeded-foreach-error-context.tcl"
+);
+
 fn matches_original(source: &str, expected: &str, versions: &[TclVersion]) {
     for oracle in
         tcl_test_support::required_tclshs(versions).expect("matching original C interpreters")
@@ -163,4 +170,36 @@ fn a_child_interp_command_has_alias_and_aliases() {
 #[test]
 fn interp_exists_and_issafe_resolve_nested_paths() {
     matches_original(NESTED_INTERP_QUERIES, "1\n0\n1", &TclVersion::ALL);
+}
+
+#[test]
+fn a_caught_foreach_error_keeps_its_body_context_by_frame() {
+    matches_original(
+        CATCH_FOREACH_CONTEXT,
+        "{EI\n    (\"foreach\" body line 1)\n    invoked from within\n\"foreach x 1 {error direct EI}\"}\nEI",
+        &TclVersion::ALL,
+    );
+}
+
+#[test]
+fn an_ifneeded_foreach_error_keeps_its_body_and_package_frames() {
+    matches_original(
+        IFNEEDED_FOREACH_CONTEXT,
+        "1 {ifneeded test} {EI\n    (\"foreach\" body line 1)\n    invoked from within\n\"foreach x 1 {error \"ifneeded test\" EI}\"\n    (\"package ifneeded t 2.1\" script)\n    invoked from within\n\"package require t 2.1\"}",
+        &[
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ],
+    );
+}
+
+#[test]
+fn a_tcl84_ifneeded_error_names_only_the_subcommand() {
+    matches_original(
+        IFNEEDED_FOREACH_CONTEXT,
+        "1 {ifneeded test} {EI\n    (\"foreach\" body line 1)\n    invoked from within\n\"foreach x 1 {error \"ifneeded test\" EI}\"\n    (\"package ifneeded\" script)\n    invoked from within\n\"package require t 2.1\"}",
+        &[TclVersion::V8_4],
+    );
 }

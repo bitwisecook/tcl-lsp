@@ -1468,14 +1468,10 @@ fn append_loader_error_frame(
     loader: Option<(&NameBytes, &NameBytes)>,
 ) {
     let frame = match loader {
-        Some((name, version)) => [
-            b"\n    (\"package ifneeded ".as_slice(),
-            name.as_bytes(),
-            b" ",
-            version.as_bytes(),
-            b"\" script)",
-        ]
-        .concat(),
+        Some((name, version)) => match package_protocol(vm) {
+            Ok(protocol) => protocol.loader_error_frame(name.as_bytes(), version.as_bytes()),
+            Err(_) => return,
+        },
         None => b"\n    (\"package unknown\" script)".to_vec(),
     };
     vm.seed_error_info_frame(message, &frame);

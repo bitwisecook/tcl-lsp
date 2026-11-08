@@ -206,7 +206,7 @@ type Expectation = (&'static [&'static str], &'static str);
 
 /// Scripts whose error passes through nested commands, each with what every
 /// release reports: tclsh 8.4.20 through 9.1.0's, the path written `PATH`.
-const NESTED_CASES: [(&str, &str, &[Expectation]); 9] = [
+const NESTED_CASES: [(&str, &str, &[Expectation]); 10] = [
     (
         "expr.tcl",
         "proc p {} {error boom}\nset w [expr {[p]}]\n",
@@ -350,6 +350,17 @@ const NESTED_CASES: [(&str, &str, &[Expectation]); 9] = [
                  (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
                  (procedure \"s\" line 3)\n    invoked from within\n\"s\"\n    \
                  (file \"PATH\" line 6)\n",
+        )],
+    ),
+    (
+        "duplicate.tcl",
+        "proc p {} {global n; if {[incr n] == 2} {error boom}}\nset n 0\nproc s {} {\n  list [set z 1\np] [set z 1\np]\n}\ns\n",
+        &[(
+            &["8.4", "8.5", "8.6", "9.0", "9.1"],
+            "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (procedure \"s\" line 4)\n    invoked from within\n\"s\"\n    \
+                 (file \"PATH\" line 8)\n",
         )],
     ),
     (

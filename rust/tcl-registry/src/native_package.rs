@@ -356,6 +356,23 @@ impl NativePackageProtocol {
         }
     }
 
+    /// The errorInfo frame a failed loader script adds: C8.4 names only the
+    /// subcommand; later releases name the package and version.
+    #[must_use]
+    pub fn loader_error_frame(self, name: &[u8], version: &[u8]) -> Vec<u8> {
+        if self == Self::C(TclVersion::V8_4) {
+            return b"\n    (\"package ifneeded\" script)".to_vec();
+        }
+        [
+            b"\n    (\"package ifneeded ".as_slice(),
+            name,
+            b" ",
+            version,
+            b"\" script)",
+        ]
+        .concat()
+    }
+
     /// Actual native failure metadata, including Present's separate lookup code.
     #[must_use]
     pub fn failure_error_code(self, purpose: NativePackageFailure, name: &[u8]) -> Vec<u8> {
