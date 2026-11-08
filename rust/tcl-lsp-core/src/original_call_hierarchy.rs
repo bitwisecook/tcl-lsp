@@ -190,7 +190,9 @@ pub fn prepare(
     if invocations.next().is_some() {
         return Vec::new();
     }
-    let Some(target) = procedure_target(documents, &calls, invocation) else {
+    let Some(target) = procedure_target(documents, &calls, invocation).or_else(|| {
+        imported_procedure_target(documents, document, invocation, workspace?)
+    }) else {
         return Vec::new();
     };
     documents
@@ -428,6 +430,53 @@ fn procedure_target(
         [one] if one.role() == OriginalDeclarationRole::Procedure => Some(one.clone()),
         _ => None,
     }
+}
+
+/// A call no lookup of its own document settles may still reach a sibling
+/// document's procedure through a live `namespace import`, under the
+/// workspace's own import, export, `-force` and `forget` ordering.
+fn imported_procedure_target(
+    documents: &[OriginalCallDocument<'_>],
+    consumer: &OriginalCallDocument<'_>,
+    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    workspace: &crate::workspace_index::WorkspaceIndex,
+) -> Option<OriginalDeclarationIdentity> {
+    if invocation.resolved_command_reference.is_some() {
+        return None;
+    }
+    let row = workspace
+        .invocations()
+        .find(|row| row.uri == consumer.uri && row.range == invocation.range)?;
+    let target = workspace.resolve_wildcard_import_for_binding(
+        &invocation.name,
+        &invocation.resolution_candidates,
+        crate::workspace_index::CallSite {
+            uri: consumer.uri,
+            at: invocation.range.start(),
+            enclosing_body: row.enclosing_body,
+        },
+    )?;
+    let target = tcl_syntax::naming::unroot_rooted_key(&target).unwrap_or(&target);
+    let mut matches = documents.iter().flat_map(|document| {
+        document
+            .analysis
+            .original_procedure_declarations()
+            .filter(move |row| {
+                row.name().source_spelling().as_deref().map(|spelling| {
+                    tcl_syntax::naming::unroot_rooted_key(spelling).unwrap_or(spelling)
+                }) == Some(target)
+            })
+            .filter_map(move |row| {
+                OriginalDeclarationIdentity::for_procedure(
+                    document.uri,
+                    document.source,
+                    document.analysis,
+                    row,
+                )
+            })
+    });
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
 }
 
 fn resolved_procedure_target(
