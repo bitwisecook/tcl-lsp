@@ -573,3 +573,32 @@ fn as_items(result: &Value) -> Vec<Value> {
         other => vec![other.clone()],
     }
 }
+
+/// Apply **every** edit the rename returned for `uri` to `source`, rightmost
+/// first so earlier ranges stay valid — the whole edit set, not a
+/// hand-picked one, since the hazard is an edit that should not be in it.
+pub fn apply_all_edits(edits: &[Value], source: &str) -> String {
+    fn offset(source: &str, pos: &Value) -> usize {
+        let line = usize::try_from(pos["line"].as_u64().unwrap()).unwrap();
+        let character = usize::try_from(pos["character"].as_u64().unwrap()).unwrap();
+        let line_start: usize = source.split_inclusive('\n').take(line).map(str::len).sum();
+        line_start + character
+    }
+    let mut resolved: Vec<(usize, usize, String)> = edits
+        .iter()
+        .map(|e| {
+            let rng = &e["range"];
+            (
+                offset(source, &rng["start"]),
+                offset(source, &rng["end"]),
+                e["newText"].as_str().unwrap_or_default().to_owned(),
+            )
+        })
+        .collect();
+    resolved.sort_by_key(|e| std::cmp::Reverse(e.0));
+    let mut out = source.to_owned();
+    for (start, end, new_text) in resolved {
+        out = format!("{}{}{}", &out[..start], new_text, &out[end..]);
+    }
+    out
+}

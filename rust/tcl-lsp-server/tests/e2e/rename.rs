@@ -52,6 +52,15 @@ fn texts(
         .collect()
 }
 
+/// The source after applying every rename edit returned for `uri`.
+fn renamed(lsp: &mut Lsp, uri: &str, src: &str, pos: (u32, u32), new_name: &str) -> String {
+    let result = lsp.rename(uri, pos.0, pos.1, new_name);
+    apply_all_edits(
+        &rename_edits(&result).get(uri).cloned().unwrap_or_default(),
+        src,
+    )
+}
+
 #[test]
 fn prepare_rename_proc_name() {
     let mut lsp = Lsp::tcl();
@@ -127,16 +136,10 @@ fn rename_from_proc_param_bareword_declaration_rewrites_every_use_e2e() {
     let src = "proc greet {name} { puts \"Hello $name\" }\n";
     lsp.open_ready(&uri, src);
     // Cursor on `name` inside the parameter list, col 12-16.
-    let result = lsp.rename(&uri, 0, 13, "label");
-    let edits = rename_edits(&result);
-    let for_uri = edits.get(&uri).cloned().unwrap_or_default();
-    assert_eq!(for_uri.len(), 2, "{for_uri:?}");
-    let texts: std::collections::BTreeSet<&str> = for_uri
-        .iter()
-        .map(|e| e["newText"].as_str().unwrap_or(""))
-        .collect();
-    assert!(texts.contains("label"), "{texts:?}");
-    assert!(texts.contains("$label"), "{texts:?}");
+    assert_eq!(
+        renamed(&mut lsp, &uri, src, (0, 13), "label"),
+        "proc greet {label} { puts \"Hello $label\" }\n"
+    );
 }
 
 #[test]
@@ -226,10 +229,12 @@ fn rename_var_from_definition_site() {
 fn rename_var_preserves_braced_form() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "set x 1\nputs ${x}\n");
-    let t = texts(&mut lsp, &uri, 0, 4, "newvar");
-    assert!(t.contains("newvar"), "{t:?}");
-    assert!(t.contains("${newvar}"), "{t:?}");
+    let src = "set x 1\nputs ${x}\n";
+    lsp.open_ready(&uri, src);
+    assert_eq!(
+        renamed(&mut lsp, &uri, src, (0, 4), "newvar"),
+        "set newvar 1\nputs ${newvar}\n"
+    );
 }
 
 /// Find the one `{range, newText}` edit whose replacement text is exactly
@@ -250,9 +255,7 @@ fn apply_named_edit(edits: &[Value], source: &str, expected_text: &str) -> Strin
 #[test]
 fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace() {
     // Applied end-to-end against the packaged server
-    // over real JSON-RPC. `rename_var_preserves_braced_form` right above
-    // only asserts `newText` in isolation — this actually applies
-    // `(range, newText)` back onto the source.  The `Var`
+    // over real JSON-RPC, from the reference rather than the store. The `Var`
     // token's own lexer span for a non-degenerate `${name}` form stops
     // one byte short of the closing `}`, so using it verbatim as the
     // edit range would leave the source's original `}` behind, corrupting
@@ -261,12 +264,9 @@ fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_
     let uri = unique_uri("tcl");
     let src = "set x 1\nputs ${x}\n";
     lsp.open_ready(&uri, src);
-    let result = lsp.rename(&uri, 1, 7, "y");
-    let edits = rename_edits(&result);
-    let uri_edits = edits.get(&uri).cloned().unwrap_or_default();
     assert_eq!(
-        apply_named_edit(&uri_edits, src, "${y}"),
-        "set x 1\nputs ${y}\n"
+        renamed(&mut lsp, &uri, src, (1, 7), "y"),
+        "set y 1\nputs ${y}\n"
     );
 }
 
@@ -313,10 +313,12 @@ fn rename_qualified_var_preserves_namespace() {
 fn rename_qualified_var_braced_form() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    lsp.open_ready(&uri, "set myns::count 0\nputs ${myns::count}\n");
-    let t = texts(&mut lsp, &uri, 0, 10, "total");
-    assert!(t.contains("myns::total"), "{t:?}");
-    assert!(t.contains("${myns::total}"), "{t:?}");
+    let src = "set myns::count 0\nputs ${myns::count}\n";
+    lsp.open_ready(&uri, src);
+    assert_eq!(
+        renamed(&mut lsp, &uri, src, (0, 10), "total"),
+        "set myns::total 0\nputs ${myns::total}\n"
+    );
 }
 
 #[test]
@@ -325,10 +327,10 @@ fn rename_preserves_array_index() {
     let uri = unique_uri("tcl");
     let src = "set arr 1\nputs $arr\nputs $arr(a)\nputs $arr($i)\nputs ${arr(b)}\n";
     lsp.open_ready(&uri, src);
-    let t = texts(&mut lsp, &uri, 0, 4, "new");
-    for expected in ["new", "$new", "$new(a)", "$new($i)", "${new(b)}"] {
-        assert!(t.contains(expected), "missing {expected:?} in {t:?}");
-    }
+    assert_eq!(
+        renamed(&mut lsp, &uri, src, (0, 4), "new"),
+        "set new 1\nputs $new\nputs $new(a)\nputs $new($i)\nputs ${new(b)}\n"
+    );
 }
 
 #[test]
@@ -358,8 +360,8 @@ fn rejects_invalid_new_symbol_name() {
     // `bad-name` is a valid command name (tclsh: `proc bad-name {} {puts hi};
     // bad-name` prints `hi`), and spaced or bracketed names are quoted; only
     // an empty name cannot be spelt as a command.
-    let result = lsp.rename(&uri, 0, 6, "");
-    assert!(rename_edits(&result).is_empty());
+    let error = lsp.rename_error(&uri, 0, 6, "");
+    assert_eq!(error["data"]["code"], "invalid-original-command-tail", "{error}");
 }
 
 #[test]
