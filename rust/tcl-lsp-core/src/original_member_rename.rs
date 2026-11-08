@@ -491,7 +491,7 @@ fn validate_member_roster(
     method: &OriginalSourceMethodMetadata,
     roster: &OriginalClassInstanceMethodRoster,
     input: &SignatureSourceNameInput,
-    wanted: &[u8],
+    (wanted, classmethod): (&[u8], bool),
 ) -> Result<(), OriginalMemberRenameRefusal> {
     if roster.policy() != input.policy()
         || input
@@ -503,9 +503,12 @@ fn validate_member_roster(
     {
         return Err(OriginalMemberRenameRefusal::InvalidName);
     }
-    let current_entry = roster
-        .source_method_for_input(input)
-        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
+    let current_entry = if classmethod {
+        roster.source_class_object_method_for_input(input)
+    } else {
+        roster.source_method_for_input(input)
+    }
+    .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
     if current_entry.declaration() != method.declaration().site()
         || current_entry.name_source().span != method.metadata().name_span
         || current_entry.is_exported() != method.exported()
@@ -751,7 +754,7 @@ fn original_member_rename_units(
         return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
     };
 
-    validate_member_roster(method, &roster, input, wanted)?;
+    validate_member_roster(method, &roster, input, (wanted, classmethod))?;
     if classmethod {
         if wanted != input.bytes() && roster.class_object_contains(wanted) {
             return Err(OriginalMemberRenameRefusal::Collision);

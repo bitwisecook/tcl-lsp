@@ -1070,6 +1070,24 @@ impl OriginalClassInstanceMethodRoster {
         &self,
         input: &SignatureSourceNameInput,
     ) -> Option<&super::SourceReceiverMethodEntry> {
+        self.source_entry_for_input(super::SourceMethodReceiver::Instance, input)
+    }
+
+    /// Exact current source declaration occupying this class-object name: a
+    /// `self` method or a `classmethod`, which tclsh 9.0 installs on the class.
+    #[must_use]
+    pub fn source_class_object_method_for_input(
+        &self,
+        input: &SignatureSourceNameInput,
+    ) -> Option<&super::SourceReceiverMethodEntry> {
+        self.source_entry_for_input(super::SourceMethodReceiver::Class, input)
+    }
+
+    fn source_entry_for_input(
+        &self,
+        receiver: super::SourceMethodReceiver,
+        input: &SignatureSourceNameInput,
+    ) -> Option<&super::SourceReceiverMethodEntry> {
         match input {
             SignatureSourceNameInput::OriginalWord(_)
             | SignatureSourceNameInput::OriginalValue(_) => {}
@@ -1079,11 +1097,7 @@ impl OriginalClassInstanceMethodRoster {
         if input.policy() != self.policy {
             return None;
         }
-        super::SourceReceiverMethodEntry::for_original_input(
-            &self.entries,
-            super::SourceMethodReceiver::Instance,
-            input,
-        )
+        super::SourceReceiverMethodEntry::for_original_input(&self.entries, receiver, input)
     }
 
     /// Selected grammar's default visibility for a proposed source name.
