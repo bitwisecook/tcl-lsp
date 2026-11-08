@@ -27262,10 +27262,31 @@ impl Vm {
                 .get(&token)
                 .cloned(),
             token: u64::from(token.0),
-            visible: !self.name_world.borrow().dead_namespaces.contains(&token),
+            visible: self.namespace_reachable_from_root(token),
             exports: exports.into_iter().collect(),
             command_path,
             unknown_handler,
+        }
+    }
+
+    /// Whether a namespace is reachable from the root: it and every ancestor
+    /// are live. C unlinks a deleted namespace from its parent, so a retained
+    /// child of a dying namespace is no longer found by path.
+    fn namespace_reachable_from_root(&self, token: NsId) -> bool {
+        let mut namespace = token;
+        loop {
+            let parent = {
+                let world = self.name_world.borrow();
+                if world.dead_namespaces.contains(&namespace) {
+                    return false;
+                }
+                world.physical_namespace_parent(namespace)
+            };
+            match parent {
+                Some(parent) => namespace = parent,
+                // A detached retained namespace has no parent either.
+                None => return self.ns_path(namespace).is_root(),
+            }
         }
     }
 
