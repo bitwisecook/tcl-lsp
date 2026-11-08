@@ -630,6 +630,36 @@ fn substitution_template_compiler_grammar(
     }
 }
 
+fn string_match_grammar(
+    words: InvocationWords<'_>,
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    operation: SemanticOperationId,
+    scope: crate::native_string_compilation::NativeStringMatchScope,
+) -> NativeCompilationSelection {
+    let from = usize::from(
+        scope == crate::native_string_compilation::NativeStringMatchScope::PublicMember,
+    );
+    if from == 1
+        && !shapes.first().is_some_and(|shape| {
+            literal_shape(*shape)
+                && (version != TclVersion::V8_4 || *shape == NativeCompilationWordShape::Literal)
+        })
+    {
+        return NativeCompilationSelection::Generic;
+    }
+    let Some(arguments) = shapes.get(from..) else {
+        return NativeCompilationSelection::Generic;
+    };
+    crate::native_string_compilation::select(
+        arguments,
+        words.arguments().literal_at(from).map(str::as_bytes),
+        version,
+        operation,
+        from,
+    )
+}
+
 pub(crate) fn native_math_compile_error(message: String) -> NativeCompilationFailure {
     NativeCompilationFailure {
         message: Some(message),
@@ -4778,28 +4808,7 @@ impl NativeCompilationSpec {
                 string_trim_grammar(shapes, version, self.operation, scope)
             }
             NativeCompilationGrammar::StringMatch(scope) => {
-                let from = usize::from(
-                    scope == crate::native_string_compilation::NativeStringMatchScope::PublicMember,
-                );
-                if from == 1
-                    && !shapes.first().is_some_and(|shape| {
-                        literal_shape(*shape)
-                            && (version != TclVersion::V8_4
-                                || *shape == NativeCompilationWordShape::Literal)
-                    })
-                {
-                    return Some(NativeCompilationSelection::Generic);
-                }
-                let Some(arguments) = shapes.get(from..) else {
-                    return Some(NativeCompilationSelection::Generic);
-                };
-                crate::native_string_compilation::select(
-                    arguments,
-                    words.arguments().literal_at(from).map(str::as_bytes),
-                    version,
-                    self.operation,
-                    from,
-                )
+                string_match_grammar(words, shapes, version, self.operation, scope)
             }
             NativeCompilationGrammar::StringLength(scope) => string_member_arity_grammar(
                 words,
