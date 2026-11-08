@@ -155,10 +155,26 @@ fn lexical_taint_analysis(
     analysis
 }
 
-/// Jim source takes explicit lexical declaration advice, the purpose under
-/// which taint hardening actions are offered.
+/// A Jim point with no native name protocol takes explicit lexical
+/// declaration advice, the purpose under which taint hardening actions are
+/// offered; it carries Jim's own command layers so `gets`/`puts` resolve.
 fn lexical_taint_profile() -> &'static tcl_dialect::DialectProfile {
-    tcl_registry::model::ingress::resolve_environment("jim").analyser_profile()
+    use std::sync::OnceLock;
+    static PROFILE: OnceLock<&'static tcl_dialect::DialectProfile> = OnceLock::new();
+    PROFILE.get_or_init(|| {
+        let point =
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
+        let mut profile = tcl_dialect::DialectProfile::projected_from_point(
+            "explicit-lexical-taint-advice",
+            &[],
+            "Logical taint source advice",
+            point,
+        );
+        profile.base_layers = tcl_registry::model::ingress::resolve_environment("jim")
+            .analyser_profile()
+            .base_layers;
+        profile.intern()
+    })
 }
 
 /// Compiler warnings for the source under the same lexical profile.
