@@ -677,13 +677,26 @@ fn authored_simulation_structure_is_supported(
         let hook = schema.facts().lowering_hook;
         // A definition stores its body for later calls in the procedure's own
         // frame, so only a fully static name, parameter list and body is modelled.
+        let all_literal = tokens.words().iter().all(|word| {
+            matches!(
+                word,
+                WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+            )
+        });
         if hook == Some(LoweringHookId::Proc) {
             return (schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
-                && tokens.words().iter().all(|word| {
-                    matches!(
-                        word,
-                        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
-                    )
+                && all_literal)
+                .then_some(());
+        }
+        // A static `namespace eval` runs its body now, in the named namespace's
+        // frame; the walk models that frame for each command it contains.
+        if hook == Some(LoweringHookId::NamespaceEval) {
+            return (schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+                && all_literal
+                && roles.iter().all(|&(argument, role)| {
+                    role != tcl_registry::ArgRole::Body
+                        || schema.authored_source_script_timing_at(argument)
+                            == Some(tcl_registry::ScriptTiming::SameInvocation)
                 }))
             .then_some(());
         }

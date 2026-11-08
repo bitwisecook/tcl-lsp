@@ -355,7 +355,10 @@ fn rejects_invalid_new_symbol_name() {
         &uri,
         "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
     );
-    let result = lsp.rename(&uri, 0, 6, "bad-name");
+    // `bad-name` is a valid command name (tclsh: `proc bad-name {} {puts hi};
+    // bad-name` prints `hi`), and spaced or bracketed names are quoted; only
+    // an empty name cannot be spelt as a command.
+    let result = lsp.rename(&uri, 0, 6, "");
     assert!(rename_edits(&result).is_empty());
 }
 

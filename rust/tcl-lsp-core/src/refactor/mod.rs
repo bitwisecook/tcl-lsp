@@ -714,7 +714,13 @@ impl<'a> FrameWalk<'a> {
                     == child.bytes())
                 .then_some(span)
             } else {
-                (word.group().kind == tcl_lexer::WordKind::Braced && !word.group().expand)
+                // A bare word with no substitution or escape is evaluated as
+                // its own literal text (`if {1} foo`), exactly as a braced body.
+                let literal_bare = word.group().kind == tcl_lexer::WordKind::Bare
+                    && matches!(word.tokens(), [token] if token.kind == tcl_lexer::TokenType::Esc)
+                    && !word.bytes().contains(&b'\\');
+                ((word.group().kind == tcl_lexer::WordKind::Braced || literal_bare)
+                    && !word.group().expand)
                     .then_some(())?;
                 word.content_span().ok()
             }
