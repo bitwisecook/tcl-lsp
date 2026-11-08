@@ -214,7 +214,7 @@ fn tn_second_classes_instance_dispatch_untouched_by_method_rename() {
 /// `Widget make` does not.  Both dispatch shapes are real under tclsh9.0.
 #[test]
 fn tn_second_classes_bare_dispatch_untouched_by_classmethod_rename() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let factory = unique_uri("tcl");
     lsp.open_ready(
         &factory,
@@ -245,7 +245,7 @@ fn tn_second_classes_bare_dispatch_untouched_by_classmethod_rename() {
 /// an instance-dispatch one, and renames with the declaration.
 #[test]
 fn tp_classmethod_rename_reaches_consumer_bare_class_dispatch() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let factory = unique_uri("tcl");
     lsp.open_ready(
         &factory,
@@ -841,7 +841,7 @@ fn tn_method_with_no_cross_file_references_still_reads_zero() {
 /// (tclsh9.0-verified dispatch).
 #[test]
 fn tp_classmethod_lens_click_and_count_reach_a_consumer_document() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let factory = unique_uri("tcl");
     lsp.open_ready(
         &factory,

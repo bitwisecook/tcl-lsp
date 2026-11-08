@@ -238,7 +238,7 @@ fn test_method_lens_zero_when_uncalled() {
 fn test_classmethod_lens_resolves_to_clickable_command() {
     // TP: a classmethod lens (a distinct member map from instance methods)
     // resolves the same way, with its own disambiguated qname.
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
@@ -260,7 +260,7 @@ fn test_find_references_on_classmethod_finds_bare_class_command_dispatch() {
     // the bare `Factory make` dispatch — including through an inheriting
     // subclass's own command (`SubFactory make`), which never overrides
     // `make` so its dispatch still targets `Factory::make`.
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,

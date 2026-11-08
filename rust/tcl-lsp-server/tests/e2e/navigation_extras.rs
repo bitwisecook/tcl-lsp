@@ -145,7 +145,7 @@ fn method_outgoing_calls_nested_in_control_flow() {
 /// both enter `make` (8.6's `TclOO` has no `classmethod` keyword at all).
 #[test]
 fn classmethod_incoming_and_outgoing_calls_match_bare_class_dispatch() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let uri = unique_uri("tcl");
     let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n    classmethod build {} { Factory make }\n}\nFactory make\n";
     lsp.open_ready(&uri, src);
@@ -180,7 +180,7 @@ fn classmethod_incoming_and_outgoing_calls_match_bare_class_dispatch() {
 /// same-named classmethod.
 #[test]
 fn bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let uri = unique_uri("tcl");
     let src = "oo::class create Widget {\n    classmethod make {} { return 1 }\n}\nproc Factory {args} { return $args }\nFactory make\n";
     lsp.open_ready(&uri, src);

@@ -285,7 +285,7 @@ fn class_detail_shows_metaclass() {
 
 #[test]
 fn classmethod_detail() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,

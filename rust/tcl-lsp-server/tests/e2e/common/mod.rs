@@ -512,6 +512,15 @@ impl Lsp {
         Self::with_config(json!({ "features": { "linkedEditingRange": true } }))
     }
 
+    /// [`Lsp::tcl`] analysing as Tcl 9.0, for surfaces 8.6 does not have
+    /// (`classmethod` is `invalid command name` under tclsh 8.6).
+    pub fn tcl9() -> Self {
+        Self::with_config(json!({
+            "dialect": "tcl9.0",
+            "features": { "linkedEditingRange": true },
+        }))
+    }
+
     /// [`Lsp::tcl`] with test-only environment seams installed on the child.
     pub fn tcl_with_env(env: &[(&str, &str)]) -> Self {
         Self::with_config_env(json!({ "features": { "linkedEditingRange": true } }), env)
