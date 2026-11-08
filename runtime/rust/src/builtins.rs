@@ -2473,6 +2473,48 @@ mod tests {
         }
     }
 
+    /// `upvar 1` from a procedure a `namespace eval` body calls resolves the
+    /// name as that body would: its namespace variable.
+    #[test]
+    fn upvar_from_a_namespace_eval_call_reads_the_namespace_variable() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                assert_eq!(
+                    ok(
+                        interp,
+                        b"namespace eval ns {set x world; proc up {vn} {upvar 1 $vn v; return $v}; up x}"
+                    ),
+                    b"world",
+                    "{dialect}"
+                );
+            });
+        }
+    }
+
+    /// `source -encoding` decodes the file under the named encoding.
+    #[test]
+    fn source_decodes_under_the_named_encoding() {
+        let path =
+            std::env::temp_dir().join(format!("tclrt_source_latin1_{}.tcl", std::process::id()));
+        std::fs::write(&path, b"set s \"caf\xe9\"\n").unwrap();
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                let script = format!(
+                    "source -encoding iso8859-1 {{{}}}; list [string length $s] [scan [string index $s end] %c]",
+                    path.display()
+                );
+                assert_eq!(ok(interp, script.as_bytes()), b"4 233", "{dialect}");
+            });
+        }
+        std::fs::remove_file(&path).unwrap();
+    }
+
     /// A double read as a string under 8.4 is read back from its 12-digit
     /// text; from 8.5 the shortest round-trip spelling keeps the value.
     #[test]
