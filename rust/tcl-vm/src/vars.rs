@@ -70,6 +70,11 @@ impl Clone for VarTable {
     }
 }
 impl VarTable {
+    /// `Tcl_HashStats` over this physical table, once its arithmetic is selected.
+    pub(crate) fn hash_statistics(&self, unguarded_empty_average: bool) -> Option<String> {
+        self.order.borrow().statistics(unguarded_empty_average)
+    }
+
     pub(crate) fn weak_birth(&self) -> std::rc::Weak<()> {
         Rc::downgrade(&self.birth)
     }

@@ -167,21 +167,19 @@ fn array_arity_errors() {
     );
 }
 
-/// An unknown `array` subcommand reports the VM's bad-subcommand message (the
-/// VM's supported set is exists/for/get/names/set/size/unset — narrower than C's
-/// full ensemble, so the message text is the VM's own).
+/// An unknown `array` subcommand reports C's ensemble sentence over the
+/// release's full member table, through `tcl_cmd_core::ensemble`'s exact then
+/// unique-prefix scan, so `array e a` abbreviates as it does in tclsh.
 ///
-/// The sentence and the exact-then-unique-prefix scan are
-/// `tcl_cmd_core::ensemble`'s, so `array e a` abbreviates as it does in tclsh.
-///
-/// tclsh 9.0.4 (the verdicts, not the shortened list):
+/// tclsh 9.0.4:
 ///   array e a  -> 1     ;  array ex a -> 1
 ///   array s a  -> unknown or ambiguous subcommand "s": must be …
-///                        (set/size both start with `s`)
+///                        (set/size/startsearch/statistics start with `s`)
 ///   array {} a -> unknown or ambiguous subcommand "": must be …
 #[test]
 fn array_bad_subcommand() {
-    const MUST: &str = "must be exists, for, get, names, set, size, or unset";
+    const MUST: &str = "must be anymore, default, donesearch, exists, for, get, names, \
+                        nextelement, set, size, startsearch, statistics, or unset";
     let msg = |src: &str| {
         let (ok, result, _) = run(src);
         assert!(!ok, "expected an error for {src}, got ok");
@@ -202,7 +200,7 @@ fn array_bad_subcommand() {
     // Unique prefixes resolve.
     assert_eq!(run("set a(x) 1\narray e a").1, "1");
     assert_eq!(run("set a(x) 1\narray ex a").1, "1");
-    assert_eq!(run("set a(x) 1\narray n a").1, "x");
+    assert_eq!(run("set a(x) 1\narray na a").1, "x");
 }
 
 /// `array for {k v} arrayName body` iterates the element pairs (Tcl 9.0). The

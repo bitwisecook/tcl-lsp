@@ -1911,9 +1911,7 @@ fn ensemble_tables_follow_the_emulated_release() {
 ///                                      convertto, names, or system
 /// tclsh8.5.19: encoding d           -> the encoding directory list
 ///
-/// The *sentence* below 8.6 is C's pre-ensemble `bad option` wording, which
-/// this engine does not model — it speaks the ensemble sentence at every
-/// release. The rows pin the resolution and the enumeration, not that wording.
+/// Below 8.6 the sentence is C's pre-ensemble `Tcl_GetIndexFromObj` wording.
 #[test]
 fn binary_and_encoding_tables_follow_the_emulated_release() {
     let v84 = tcl_dialect::TclVersion::V8_4;
@@ -1922,18 +1920,14 @@ fn binary_and_encoding_tables_follow_the_emulated_release() {
 
     let (ok, msg, _) = run_for_version("binary d base64 QQ==", v85);
     assert!(!ok);
-    // Two entries still take the ensemble owner's comma before `or`.
-    assert_eq!(
-        msg,
-        "unknown or ambiguous subcommand \"d\": must be format, or scan"
-    );
+    assert_eq!(msg, "bad option \"d\": must be format or scan");
     assert_eq!(run_for_version("binary d base64 QQ==", v86).1, "A");
 
     let (ok, msg, _) = run_for_version("encoding d", v84);
     assert!(!ok);
     assert_eq!(
         msg,
-        "unknown or ambiguous subcommand \"d\": must be convertfrom, convertto, names, or system"
+        "bad option \"d\": must be convertfrom, convertto, names, or system"
     );
     assert!(
         run_for_version("encoding d", v85).0,

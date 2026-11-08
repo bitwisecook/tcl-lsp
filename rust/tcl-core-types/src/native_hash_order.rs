@@ -257,6 +257,60 @@ pub struct NativeEntryLedger {
     order: Option<NativeHashOrder>,
 }
 
+impl NativeHashOrder {
+    /// `Tcl_HashStats`: the bucket histogram and average search distance.
+    /// C8.4 divides by the entry count unguarded, so an empty table prints
+    /// the platform's `-nan`.
+    #[must_use]
+    pub fn statistics(&self, unguarded_empty_average: bool) -> alloc::string::String {
+        use core::fmt::Write as _;
+
+        const COUNTERS: usize = 10;
+        let mut counts = [0_usize; COUNTERS];
+        let mut overflow = 0_usize;
+        let mut average = 0.0;
+        let total_entries = alloc::string::ToString::to_string(&self.len())
+            .parse::<f64>()
+            .expect("usize decimal representation is a finite f64");
+        for entries in self.bucket_lengths() {
+            if entries < COUNTERS {
+                counts[entries] += 1;
+            } else {
+                overflow += 1;
+            }
+            if self.len() != 0 {
+                // Tcl_HashStats accumulates one `double` per bucket before
+                // `%.1f`; preserve that operation order at decimal ties.
+                let entries = alloc::string::ToString::to_string(&entries)
+                    .parse::<f64>()
+                    .expect("usize decimal representation is a finite f64");
+                average += (entries + 1.0) * (entries / total_entries) / 2.0;
+            }
+        }
+        let mut result = alloc::format!(
+            "{} entries in table, {} buckets\n",
+            self.len(),
+            self.bucket_count()
+        );
+        for (entries, count) in counts.into_iter().enumerate() {
+            writeln!(result, "number of buckets with {entries} entries: {count}")
+                .expect("writing to a String cannot fail");
+        }
+        writeln!(
+            result,
+            "number of buckets with {COUNTERS} or more entries: {overflow}"
+        )
+        .expect("writing to a String cannot fail");
+        if unguarded_empty_average && self.len() == 0 {
+            result.push_str("average search distance for entry: -nan");
+        } else {
+            write!(result, "average search distance for entry: {average:.1}")
+                .expect("writing to a String cannot fail");
+        }
+        result
+    }
+}
+
 impl NativeEntryLedger {
     /// Select independent table arithmetic, retaining every physical transition.
     pub fn select_recipe(&mut self, recipe: Option<NativeHashRecipe>) {
@@ -328,6 +382,13 @@ impl NativeEntryLedger {
     #[must_use]
     pub fn bucket_count(&self) -> Option<usize> {
         self.order.as_ref().map(NativeHashOrder::bucket_count)
+    }
+    /// `Tcl_HashStats` over the retained physical table, if its arithmetic is selected.
+    #[must_use]
+    pub fn statistics(&self, unguarded_empty_average: bool) -> Option<alloc::string::String> {
+        self.order
+            .as_ref()
+            .map(|order| order.statistics(unguarded_empty_average))
     }
 }
 

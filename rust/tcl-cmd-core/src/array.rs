@@ -211,6 +211,10 @@ where
             }
             _ => Err(CmdError::wrong_args("array size arrayName")),
         }),
+        b"statistics" => Some(match rest {
+            [n] => statistics(ops, n, located).map(ArrayCommandResult::plain),
+            _ => Err(CmdError::wrong_args("array statistics arrayName")),
+        }),
         b"names" => Some(names(ops, rest, located).map(ArrayCommandResult::plain)),
         b"get" => Some(match rest {
             [n] => get(ops, n, None, located),
@@ -382,6 +386,37 @@ fn locate<O: VarStore + Frames>(
 fn names_mode<O: ValueOps>(ops: &mut O, mode: &O::Value) -> Result<usize, CmdError> {
     static MODES: [&str; 3] = ["-exact", "-glob", "-regexp"];
     crate::prefix::OptionTable::abbreviating("option", &MODES).index_of_original(ops, mode)
+}
+
+/// `array statistics`: `Tcl_HashStats` over the element table. C8.6 added the
+/// `TCL LOOKUP ARRAY` code to its not-an-array error and guarded the empty
+/// average that C8.4 divides unguarded.
+fn statistics<O, V>(ops: &mut O, name: &V, located: Option<&ArrayTarget>) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V> + VarStore<Value = V> + Frames,
+{
+    let version = match ops.name_policy_protocol().map(|policy| policy.recipe()) {
+        Some(tcl_syntax::naming::NativeNameProtocol::C(version)) => version,
+        _ => {
+            return Err(ValueError::CommandProtocolUnavailable("array statistics release").into());
+        }
+    };
+    let name = ops.native_string_bytes(name)?;
+    let target = locate(ops, &name, located)?;
+    let unguarded = version == tcl_dialect::TclVersion::V8_4;
+    if let Some(report) = ops.array_hash_statistics_at(&target, unguarded)? {
+        return Ok(ops.new_str(&report));
+    }
+    let extent = tcl_core_types::c_string_extent(&name);
+    let mut message = b"\"".to_vec();
+    message.extend_from_slice(extent);
+    message.extend_from_slice(b"\" isn't an array");
+    let code = if version >= tcl_dialect::TclVersion::V8_6 {
+        error_code_words(ops, &[b"TCL", b"LOOKUP", b"ARRAY", extent])
+    } else {
+        b"NONE".to_vec()
+    };
+    Err(CmdError::with_byte_error_details(message, code, None, None))
 }
 
 /// `array names` retains original mode lookup and the selected name matcher.

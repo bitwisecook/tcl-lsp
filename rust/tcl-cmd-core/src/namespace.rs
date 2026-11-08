@@ -1070,56 +1070,7 @@ impl TclStringHashOrder {
     /// table layout or formatting in its runtime adapter.
     #[must_use]
     pub fn statistics(&self) -> String {
-        use std::fmt::Write as _;
-
-        const COUNTERS: usize = 10;
-        let mut counts = [0_usize; COUNTERS];
-        let mut overflow = 0_usize;
-        let mut average = 0.0;
-        let total_entries = self
-            .order
-            .len()
-            .to_string()
-            .parse::<f64>()
-            .expect("usize decimal representation is a finite f64");
-
-        for entries in self.order.bucket_lengths() {
-            if entries < COUNTERS {
-                counts[entries] += 1;
-            } else {
-                overflow += 1;
-            }
-            if !self.order.is_empty() {
-                // Tcl_HashStats accumulates one `double` contribution per
-                // bucket before formatting with `%.1f`. Preserve that exact
-                // operation order: an exact rational calculation differs at
-                // decimal ties because the preceding additions have already
-                // rounded in binary floating point.
-                let entries = entries
-                    .to_string()
-                    .parse::<f64>()
-                    .expect("usize decimal representation is a finite f64");
-                average += (entries + 1.0) * (entries / total_entries) / 2.0;
-            }
-        }
-
-        let mut result = format!(
-            "{} entries in table, {} buckets\n",
-            self.order.len(),
-            self.order.bucket_count()
-        );
-        for (entries, count) in counts.into_iter().enumerate() {
-            writeln!(result, "number of buckets with {entries} entries: {count}")
-                .expect("writing to a String cannot fail");
-        }
-        writeln!(
-            result,
-            "number of buckets with {COUNTERS} or more entries: {overflow}"
-        )
-        .expect("writing to a String cannot fail");
-        write!(result, "average search distance for entry: {average:.1}")
-            .expect("writing to a String cannot fail");
-        result
+        self.order.statistics(false)
     }
 }
 

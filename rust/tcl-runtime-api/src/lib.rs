@@ -1622,6 +1622,19 @@ pub trait VarStore {
             .map(|keys| keys.map(|keys| keys.into_iter().map(String::into_bytes).collect()))
     }
 
+    /// `Tcl_HashStats` over the captured array's physical element table, or
+    /// `None` when the target is not an array. Stores without a native table
+    /// layout refuse rather than invent one.
+    fn array_hash_statistics_at(
+        &self,
+        _target: &ArrayTarget,
+        _unguarded_empty_average: bool,
+    ) -> Result<Option<String>, tcl_syntax::value::ValueError> {
+        Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native array hash table",
+        ))
+    }
+
     /// Read an exact key in the captured array, preserving native host refusal.
     /// A store whose key API requires Unicode checks that projection first.
     fn array_read_elem_bytes_at(

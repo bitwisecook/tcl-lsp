@@ -92,7 +92,7 @@ array_members! {
     array_default_member => "default",
     array_exists => "exists", array_for_member => "for", array_get => "get",
     array_names => "names", array_set => "set", array_size => "size",
-    array_unset => "unset",
+    array_statistics => "statistics", array_unset => "unset",
 }
 
 /// `array`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
@@ -116,6 +116,7 @@ const ARRAY_SUBS: &[&str] = &[
     "set",
     "size",
     "startsearch",
+    "statistics",
     "unset",
 ];
 
@@ -151,10 +152,21 @@ fn cmd_array_entered(
     args: &[Value],
     currency: &NativeOperationCurrency,
 ) -> Completion<Value> {
-    let Some((sub, rest)) = args.split_first() else {
+    let classic = matches!(
+        vm.native_invocation_dialect().tcl_version,
+        Some(tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)
+    );
+    let Some((sub, rest)) = args
+        .split_first()
+        .filter(|(_, rest)| !classic || !rest.is_empty())
+    else {
         return crate::command::native_wrong_arguments_message(
             vm,
-            "wrong # args: should be \"array subcommand ?arg ...?\"",
+            if classic {
+                "wrong # args: should be \"array option arrayName ?arg ...?\""
+            } else {
+                "wrong # args: should be \"array subcommand ?arg ...?\""
+            },
         );
     };
     let word = match original_bytes(vm, sub, currency) {
@@ -170,6 +182,18 @@ fn cmd_array_entered(
         "array",
         ARRAY_SUBS,
     );
+    // Before 8.6 `Tcl_ArrayObjCmd` is a plain command: it checks for an
+    // array name, then looks the option up with `Tcl_GetIndexFromObj`.
+    if let Some(release @ (tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)) =
+        vm.native_invocation_dialect().tcl_version
+    {
+        return match tcl_cmd_core::prefix::OptionTable::abbreviating("option", subs)
+            .index_of_in(word.as_ref(), release)
+        {
+            Ok(index) => array_op(vm, subs[index], rest),
+            Err(error) => completion_from_cmd_error(vm, error),
+        };
+    }
     let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, word.as_ref(), true) else {
         return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
             subs,

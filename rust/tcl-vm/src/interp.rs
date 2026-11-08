@@ -29356,6 +29356,35 @@ impl VarStore for Vm {
             .transpose()
     }
 
+    fn array_hash_statistics_at(
+        &self,
+        target: &ArrayTarget,
+        unguarded_empty_average: bool,
+    ) -> Result<Option<String>, tcl_syntax::value::ValueError> {
+        if self.observed_names.is_some() || self.dictionary_variable_containers() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native array hash table",
+            ));
+        }
+        let id = target.cell_id().or_else(|| {
+            self.resolve_var_from_bytes(target.name_bytes(), target.frame().0)
+                .filter(|resolved| resolved.elem.is_none())
+                .and_then(|resolved| resolved.id)
+        });
+        let Some(Local::Array(elements)) = id
+            .and_then(|id| self.var_arena.get(id))
+            .map(|cell| cell.state())
+        else {
+            return Ok(None);
+        };
+        elements
+            .hash_statistics(unguarded_empty_average)
+            .map(Some)
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native array hash recipe",
+            ))
+    }
+
     fn array_key_bytes_checked_at(
         &self,
         target: &ArrayTarget,

@@ -3227,10 +3227,22 @@ fn cmd_encoding_in_scope(
     args: &[Value],
     names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
 ) -> Completion<Value> {
+    // Before 8.6 `Tcl_EncodingObjCmd` is a plain command over
+    // `Tcl_GetIndexFromObj`, not an ensemble.
+    let classic = match vm.native_invocation_dialect().tcl_version {
+        Some(release @ (tcl_dialect::TclVersion::V8_4 | tcl_dialect::TclVersion::V8_5)) => {
+            Some(release)
+        }
+        _ => None,
+    };
     let Some(sub) = args.first() else {
         return native_wrong_arguments_message(
             vm,
-            "wrong # args: should be \"encoding subcommand ?arg ...?\"",
+            if classic.is_some() {
+                "wrong # args: should be \"encoding option ?arg ...?\""
+            } else {
+                "wrong # args: should be \"encoding subcommand ?arg ...?\""
+            },
         );
     };
     let sub = match names.read(vm, sub) {
@@ -3243,15 +3255,24 @@ fn cmd_encoding_in_scope(
         "encoding",
         ENCODING_SUBS,
     );
-    let canon = match tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.as_ref(), true) {
-        Some(index) => subs[index],
-        None => {
-            return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                sub.as_ref(),
-                true,
-                b"::tcl::encoding",
-            ));
+    let canon = if let Some(release) = classic {
+        match tcl_cmd_core::prefix::OptionTable::abbreviating("option", subs)
+            .index_of_in(sub.as_ref(), release)
+        {
+            Ok(index) => subs[index],
+            Err(error) => return completion_from_cmd_error(vm, error),
+        }
+    } else {
+        match tcl_cmd_core::ensemble::resolve_subcommand(subs, sub.as_ref(), true) {
+            Some(index) => subs[index],
+            None => {
+                return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+                    subs,
+                    sub.as_ref(),
+                    true,
+                    b"::tcl::encoding",
+                ));
+            }
         }
     };
     match canon {
