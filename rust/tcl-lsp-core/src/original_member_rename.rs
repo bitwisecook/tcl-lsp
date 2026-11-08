@@ -118,6 +118,29 @@ fn same_method(left: &OriginalSourceMethodMetadata, right: &OriginalSourceMethod
         && left.metadata() == right.metadata()
 }
 
+/// A Tcl 9.0 `classmethod` is one member reached from both sides (tclsh
+/// 9.0.4: `Factory make`, `$f make` and `my make` all run it), so its calls
+/// are joined by declaration alone; every other member keeps its side.
+fn same_member(
+    left: &OriginalSourceMethodMetadata,
+    right: &OriginalSourceMethodMetadata,
+    classmethod: bool,
+) -> bool {
+    if classmethod {
+        left.declaration() == right.declaration() && left.metadata() == right.metadata()
+    } else {
+        same_method(left, right)
+    }
+}
+
+/// A native `classmethod` declaration, as distinct from a class-only
+/// `self method` sharing its member kind.
+fn native_classmethod(identity: &OriginalDeclarationIdentity, method: &OriginalSourceMethodMetadata) -> bool {
+    identity.role() == OriginalDeclarationRole::Method(MemberSide::ClassObject)
+        && method.metadata().kind == "classmethod"
+        && !method.metadata().is_self_method
+}
+
 fn registry_coverage(
     selected: &tcl_compiler::registry_invocation::ResolvedStatementInvocation,
 ) -> Result<(), OriginalMemberRenameRefusal> {
@@ -181,6 +204,7 @@ struct MemberRenameScan<'a, 'b> {
     roster: &'b OriginalClassInstanceMethodRoster,
     wanted: &'b [u8],
     walk: &'b crate::refactor::FrameWalk<'a>,
+    classmethod: bool,
 }
 
 impl MemberRenameScan<'_, '_> {
@@ -197,8 +221,12 @@ impl MemberRenameScan<'_, '_> {
             wanted,
             ..
         } = *self;
+        let receiver_admitted = selected.receiver
+            == tcl_compiler::command_binding::SourceMethodReceiver::Instance
+            || (self.classmethod
+                && selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class);
         if selected.own_entry.is_some()
-            || selected.receiver != tcl_compiler::command_binding::SourceMethodReceiver::Instance
+            || !receiver_admitted
             || selected.class != class.metadata()
             || selected.receiver_class != class.metadata()
         {
@@ -228,7 +256,7 @@ impl MemberRenameScan<'_, '_> {
         {
             return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
         }
-        if same_method(selected.metadata, method) {
+        if same_member(selected.metadata, method, self.classmethod) {
             requests.push((input.clone(), wanted.into()));
         }
         Ok(())
@@ -248,6 +276,7 @@ impl MemberRenameScan<'_, '_> {
             roster,
             wanted: _,
             walk,
+            classmethod: _,
         } = *self;
         let (_, _, depth) = region;
         let words = walk
@@ -326,6 +355,7 @@ fn requests(
     method: &OriginalSourceMethodMetadata,
     roster: &OriginalClassInstanceMethodRoster,
     wanted: &[u8],
+    classmethod: bool,
 ) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalMemberRenameRefusal> {
     let walk = crate::refactor::FrameWalk::new(document.source, document.analysis)
         .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
@@ -342,6 +372,7 @@ fn requests(
         roster,
         wanted,
         walk: &walk,
+        classmethod,
     };
     while let Some((start, end, depth)) = pending.pop() {
         if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth)
@@ -497,6 +528,7 @@ fn consumer_requests(
     document: OriginalDeclarationDocument<'_>,
     method: &OriginalSourceMethodMetadata,
     wanted: &[u8],
+    classmethod: bool,
 ) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalMemberRenameRefusal> {
     let site = method.declaration().site();
     let old = method.original_name_input().bytes();
@@ -551,7 +583,7 @@ fn consumer_requests(
             touched = true;
             if foreign.declaration != *site
                 || foreign.name_span != method.metadata().name_span
-                || foreign.side != method.side()
+                || (foreign.side != method.side() && !classmethod)
             {
                 return false;
             }
@@ -599,6 +631,29 @@ fn document_edits(
         .collect())
 }
 
+/// Whether any class may inherit from `class`, which would carry a classmethod
+/// to its own command (tclsh 9.0.4: `SubFactory make` runs `Factory`'s).
+/// Relations are compared by name tail, so a same-tailed class elsewhere also
+/// withholds the edit rather than risk leaving a subclass call behind.
+fn inherits_from(
+    documents: &[OriginalDeclarationDocument<'_>],
+    class: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+) -> bool {
+    let tail = tcl_syntax::naming::key_tail(&class.metadata().qualified_name);
+    documents.iter().any(|document| {
+        document.analysis.original_class_declarations().any(|other| {
+            other
+                .metadata()
+                .superclasses
+                .iter()
+                .chain(&other.metadata().mixins)
+                .any(|name| tcl_syntax::naming::key_tail(name) == tail)
+        })
+    })
+}
+
 fn original_member_rename_units(
     documents: &[OriginalDeclarationDocument<'_>],
     identity: &OriginalDeclarationIdentity,
@@ -616,7 +671,10 @@ fn original_member_rename_units(
     if !identity.is_current(document.uri, document.source, document.analysis) {
         return Err(OriginalMemberRenameRefusal::StaleSource);
     }
-    if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance) {
+    let classmethod = identity
+        .method_metadata(document.analysis)
+        .is_some_and(|method| native_classmethod(identity, method));
+    if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance) && !classmethod {
         return Err(OriginalMemberRenameRefusal::IncompleteFamily);
     }
     let mut classes = document.analysis.original_class_declarations();
@@ -688,7 +746,15 @@ fn original_member_rename_units(
     };
 
     validate_member_roster(method, &roster, input, wanted)?;
-    let requests = requests(*document, class, method, &roster, wanted)?;
+    if classmethod {
+        if wanted != input.bytes() && roster.class_object_contains(wanted) {
+            return Err(OriginalMemberRenameRefusal::Collision);
+        }
+        if inherits_from(documents, class) {
+            return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+        }
+    }
+    let requests = requests(*document, class, method, &roster, wanted, classmethod)?;
     let mut edits = document_edits(*document, &requests)?;
     for consumer in documents.iter().filter(|other| other.uri != document.uri) {
         if consumer
@@ -698,7 +764,7 @@ fn original_member_rename_units(
         {
             return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
         }
-        let requests = consumer_requests(*consumer, method, wanted)?;
+        let requests = consumer_requests(*consumer, method, wanted, classmethod)?;
         if !requests.is_empty() {
             edits.extend(document_edits(*consumer, &requests)?);
         }
@@ -730,8 +796,9 @@ pub fn original_member_prepare_span_in(
         .method_metadata(owner.analysis)
         .ok_or(OriginalMemberRenameRefusal::StaleSource)?;
     original_member_rename_units(documents, identity, method.original_name_input().bytes())?;
+    let classmethod = native_classmethod(identity, method);
     let input = if document.uri != identity.uri() {
-        consumer_selector_at(*document, method, cursor)?
+        consumer_selector_at(*document, method, cursor, classmethod)?
     } else if identity.span().start() <= cursor && cursor < identity.span().end() {
         identity
             .input()
@@ -741,7 +808,7 @@ pub fn original_member_prepare_span_in(
         let selected =
             crate::receiver_identity::method_at_cursor(document.analysis, document.source, cursor)
                 .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
-        if !same_method(selected.metadata, method) {
+        if !same_member(selected.metadata, method, classmethod) {
             return Err(OriginalMemberRenameRefusal::IncompleteFamily);
         }
         selected.original_selector_input().clone()
@@ -754,6 +821,7 @@ fn consumer_selector_at(
     document: OriginalDeclarationDocument<'_>,
     method: &OriginalSourceMethodMetadata,
     cursor: u32,
+    classmethod: bool,
 ) -> Result<SignatureSourceNameInput, OriginalMemberRenameRefusal> {
     let mut selected = None;
     crate::executable_regions::visit_analysis_executable_commands(
@@ -771,7 +839,7 @@ fn consumer_selector_at(
                 && cursor <= foreign.selector.end()
                 && foreign.declaration == *method.declaration().site()
                 && foreign.name_span == method.metadata().name_span
-                && foreign.side == method.side()
+                && (foreign.side == method.side() || classmethod)
             {
                 selected = Some(foreign.selector_input);
                 return true;

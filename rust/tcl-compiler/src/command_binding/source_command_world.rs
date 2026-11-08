@@ -1098,6 +1098,27 @@ impl OriginalClassInstanceMethodRoster {
         self.names.iter()
     }
 
+    /// Whether a proposed name is already a method of the class object itself:
+    /// a class-object builtin of the selected factory (`new`, `create`, …) or
+    /// a class-side source entry. tclsh 9.0: a `classmethod new` replaces the
+    /// class's own `new`, so such a name is a collision, not a fresh slot.
+    #[must_use]
+    pub fn class_object_contains(&self, name: &[u8]) -> bool {
+        let Ok(input) = self.policy.recipe().oo_method_input(name) else {
+            return true;
+        };
+        let selected = input.selected();
+        self.factory
+            .grammar()
+            .builtin_object_methods
+            .iter()
+            .any(|method| method.name.as_bytes() == selected)
+            || self.entries.contains_key(&(
+                super::SourceMethodReceiver::Class,
+                tcl_core_types::NameBytes::from(selected),
+            ))
+    }
+
     /// Read-only proposed name collision under the selected counted purpose.
     #[must_use]
     pub fn contains(&self, name: &[u8]) -> bool {
