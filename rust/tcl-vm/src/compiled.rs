@@ -182,7 +182,7 @@ pub(crate) struct CompiledUnit {
     pub(crate) fixed_math_calls:
         Option<Rc<std::collections::HashMap<usize, crate::interp::NativeFixedMathCall>>>,
     pub(crate) literal_pool: crate::literal_pool::NativeLiteralPoolReceipt,
-    pub(crate) direct_source_operands: Option<crate::literal_pool::PlainSourceOperands>,
+    pub(crate) direct_source_operands: Option<Box<crate::literal_pool::PlainSourceOperands>>,
     pub(crate) source_location:
         Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     pub(crate) source_namespace: CompiledUnitNamespace,

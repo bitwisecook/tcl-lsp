@@ -183,7 +183,7 @@ fn logical_eval_policy_withdrawal_prevents_fresh_word_execution() {
         .unwrap()
         .prefix
         .unwrap();
-    let operands = unit.direct_source_operands.unwrap();
+    let operands = unit.direct_source_operands.as_deref().copied().unwrap();
     assert!(operands.is_current(&vm.native_compiler_policy()));
     vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
     assert!(!operands.is_current(&vm.native_compiler_policy()));

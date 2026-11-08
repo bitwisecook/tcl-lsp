@@ -1370,7 +1370,7 @@ impl crate::Vm {
             crate::compiled::CompilerProvenance::LogicalUpLevel(self.compiler_generation()),
         );
         unit.compiled_local_layout = None;
-        unit.direct_source_operands = Some(PlainSourceOperands::LogicalUpLevel(entry));
+        unit.direct_source_operands = Some(Box::new(PlainSourceOperands::LogicalUpLevel(entry)));
         Ok(Some(unit))
     }
 
@@ -1395,7 +1395,7 @@ impl crate::Vm {
             crate::compiled::CompilerProvenance::NativeDirect(self.compiler_generation()),
         );
         unit.compiled_local_layout = None;
-        unit.direct_source_operands = Some(PlainSourceOperands::Native(operands));
+        unit.direct_source_operands = Some(Box::new(PlainSourceOperands::Native(operands)));
         Ok(unit)
     }
 }

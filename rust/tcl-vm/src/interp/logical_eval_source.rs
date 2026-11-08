@@ -133,8 +133,9 @@ impl crate::Vm {
             crate::compiled::CompilerProvenance::LogicalEval(self.compiler_generation()),
         );
         unit.compiled_local_layout = None;
-        unit.direct_source_operands =
-            Some(crate::literal_pool::PlainSourceOperands::LogicalEval(entry));
+        unit.direct_source_operands = Some(Box::new(
+            crate::literal_pool::PlainSourceOperands::LogicalEval(entry),
+        ));
         Ok(Some(unit))
     }
 }

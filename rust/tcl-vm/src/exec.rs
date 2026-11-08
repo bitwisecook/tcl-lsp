@@ -205,7 +205,7 @@ pub(crate) struct Frame {
     asm: Rc<FunctionAsm>,
     fixed_math_calls: Option<Rc<HashMap<usize, crate::interp::NativeFixedMathCall>>>,
     literal_pool: crate::literal_pool::NativeLiteralPoolReceipt,
-    direct_source_operands: Option<crate::literal_pool::PlainSourceOperands>,
+    direct_source_operands: Option<Box<crate::literal_pool::PlainSourceOperands>>,
     jim_evaluation: crate::interp::OriginalJimEvaluationFrame,
     source_location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     /// Canonical unrooted namespace whose command bindings this bytecode was
@@ -863,6 +863,7 @@ impl Frame {
         let policy = current.policy();
         let message = if self
             .direct_source_operands
+            .as_ref()
             .is_some_and(|direct| !direct.is_current(&policy))
         {
             Some("cannot continue direct source after native invocation policy changed")
@@ -6027,7 +6028,7 @@ impl Vm {
                 // it (the codegen sets this flag for braced words / `proc`
                 // bodies / constant assignments).
                 if instr.push_verbatim {
-                    let value = if let Some(direct) = f.direct_source_operands {
+                    let value = if let Some(direct) = f.direct_source_operands.as_deref().copied() {
                         let Some(literal) = usize::try_from(imm0(instr))
                             .ok()
                             .and_then(|index| lits.get(index))
