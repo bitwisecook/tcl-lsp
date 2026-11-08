@@ -138,14 +138,8 @@ fn lexical_taint_analysis(
     source: &str,
     registry: &tcl_registry::CommandRegistry,
 ) -> AnalysisResult {
-    let point = tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
-    let profile = tcl_dialect::DialectProfile::projected_from_point(
-        "explicit-lexical-taint-advice",
-        &[],
-        "Logical taint source advice",
-        point,
-    )
-    .intern();
+    let profile = lexical_taint_profile();
+    let registry = registry.project_for_profile(profile);
     let context = tcl_lsp_core::context_for_dialect_profile(profile)
         .with_command_store(registry.snapshot().shared_registry());
     let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
@@ -161,13 +155,18 @@ fn lexical_taint_analysis(
     analysis
 }
 
-/// Compiler warnings produced under the independently selected Logical source context.
+/// Jim source takes explicit lexical declaration advice, the purpose under
+/// which taint hardening actions are offered.
+fn lexical_taint_profile() -> &'static tcl_dialect::DialectProfile {
+    tcl_registry::model::ingress::resolve_environment("jim").analyser_profile()
+}
+
+/// Compiler warnings for the source under the same lexical profile.
 fn tcl_checks(
     source: &str,
     registry: &tcl_registry::CommandRegistry,
 ) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
-    let analysis = lexical_taint_analysis(source, registry);
-    let profile = analysis.resolved_profile().unwrap();
+    let profile = lexical_taint_profile();
     let registry = &registry.project_for_profile(profile);
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile));
@@ -572,7 +571,7 @@ fn demorgan_forward_recognises_irules_word_operators() {
     // tclsh (f5-irules dialect): `!($a and $b)` ≡ `!$a or !$b` (the outer
     // `!` prefix's negation style is kept for the operands; only the
     // connective switches, `and` -> `or`, matching its own inner spelling).
-    let src = "if {!($a and $b)} { puts hi }\n";
+    let src = "if {!($a and $b)} { log local0. hi }\n";
     let analysis = analyse_dialect(src, "f5-irules");
     // `if {` is 4 chars; `!($a and $b)` spans cols 4..16.
     let actions = code_actions(
@@ -598,7 +597,7 @@ fn demorgan_reverse_recognises_irules_word_operators() {
     // → `not ($a and $b)`.
     //
     // tclsh (f5-irules dialect): the two forms are equivalent booleans.
-    let src = "if {not $a or not $b} { puts hi }\n";
+    let src = "if {not $a or not $b} { log local0. hi }\n";
     let analysis = analyse_dialect(src, "f5-irules");
     // `if {` is 4 chars; `not $a or not $b` spans cols 4..20.
     let actions = code_actions(
