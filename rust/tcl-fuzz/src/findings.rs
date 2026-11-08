@@ -56,7 +56,7 @@ impl Category {
             Verdict::StatusMismatch => Some(Self::StatusMismatch),
             Verdict::ErrorTextMismatch => Some(Self::ErrorTextMismatch),
             Verdict::Timeout => Some(Self::Timeout),
-            Verdict::Match | Verdict::Skipped => None,
+            Verdict::Match | Verdict::Skipped | Verdict::ReferenceCrash => None,
         }
     }
 }
@@ -343,6 +343,11 @@ fn unpack(o: &Outcome) -> (String, String, bool) {
             stderr,
             errored,
         } => (stdout.clone(), stderr.clone(), *errored),
+        Outcome::Crashed {
+            signal,
+            stdout,
+            stderr,
+        } => (format!("{stdout}<signal {signal}>"), stderr.clone(), true),
         Outcome::Timeout => ("<timeout>".to_owned(), String::new(), true),
         Outcome::Unavailable(m) => (format!("<unavailable: {m}>"), String::new(), true),
     }

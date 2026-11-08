@@ -269,6 +269,7 @@ fn outcome_summary(outcome: &Outcome) -> String {
             stderr,
             errored,
         } => format!("ran (errored={errored}, stdout={stdout:?}, stderr={stderr:?})"),
+        Outcome::Crashed { signal, .. } => format!("crashed with signal {signal}"),
         Outcome::Timeout => "timed out".to_owned(),
         Outcome::Unavailable(message) => format!("unavailable: {message}"),
     }

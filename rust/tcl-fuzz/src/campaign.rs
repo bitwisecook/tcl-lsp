@@ -47,6 +47,8 @@ pub struct Stats {
     pub timeout: u64,
     /// Runs skipped (reference timeout / backend unavailable).
     pub skipped: u64,
+    /// Runs the reference interpreter crashed on (no subject finding).
+    pub reference_crash: u64,
     /// New findings recorded this campaign.
     pub new_findings: u64,
 }
@@ -139,6 +141,7 @@ impl Campaign<'_> {
             Verdict::StatusMismatch => stats.status_mismatch += 1,
             Verdict::ErrorTextMismatch => stats.error_text_mismatch += 1,
             Verdict::Timeout => stats.timeout += 1,
+            Verdict::ReferenceCrash => stats.reference_crash += 1,
         }
         if let Some(category) = Category::from_verdict(verdict) {
             let finding = Finding::new(

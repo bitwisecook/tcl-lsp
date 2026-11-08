@@ -52,6 +52,17 @@ pub enum Outcome {
         /// Whether the engine reported an error (non-zero exit).
         errored: bool,
     },
+    /// The process was terminated by a signal (a crash), with whatever it
+    /// wrote first. A reference interpreter's own crash is no subject finding
+    /// (C Tcl 9.0.4 crashes on `package require -exact p 1+-2`, #2202).
+    Crashed {
+        /// The terminating signal.
+        signal: i32,
+        /// Verbatim stdout written before the crash.
+        stdout: String,
+        /// Verbatim stderr written before the crash.
+        stderr: String,
+    },
     /// The process exceeded the wall-clock timeout (a hang).
     Timeout,
     /// The backend could not be launched (binary missing / spawn error).
@@ -75,6 +86,9 @@ pub enum Verdict {
     ErrorTextMismatch,
     /// One engine hung.
     Timeout,
+    /// The reference interpreter crashed: recorded and counted, never a
+    /// finding against the subject.
+    ReferenceCrash,
     /// A backend was unavailable — the script is skipped, not a finding.
     Skipped,
 }
@@ -112,9 +126,18 @@ pub fn run_backend(
                         stdout: Vec::new(),
                         stderr: Vec::new(),
                     });
+                let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+                let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+                if let Some(signal) = terminating_signal(status) {
+                    return Outcome::Crashed {
+                        signal,
+                        stdout,
+                        stderr,
+                    };
+                }
                 return Outcome::Ran {
-                    stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
-                    stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+                    stdout,
+                    stderr,
                     errored: !status.success(),
                 };
             }
@@ -129,6 +152,16 @@ pub fn run_backend(
             Err(e) => return Outcome::Unavailable(format!("wait: {e}")),
         }
     }
+}
+
+#[cfg(unix)]
+fn terminating_signal(status: std::process::ExitStatus) -> Option<i32> {
+    std::os::unix::process::ExitStatusExt::signal(&status)
+}
+
+#[cfg(not(unix))]
+fn terminating_signal(_: std::process::ExitStatus) -> Option<i32> {
+    None
 }
 
 /// Compare two backends' outcomes. When `compare_error_text` is set, a run
@@ -154,7 +187,10 @@ pub fn compare_outcomes(
         // A reference timeout means the *script* is pathological; skip it
         // rather than blame the subject.
         (Outcome::Timeout, _) => Verdict::Skipped,
+        (Outcome::Crashed { .. }, _) => Verdict::ReferenceCrash,
         (_, Outcome::Timeout) => Verdict::Timeout,
+        // A subject crash is the subject's own failure.
+        (_, Outcome::Crashed { .. }) => Verdict::StatusMismatch,
         (
             Outcome::Ran {
                 stdout: rs,
@@ -194,6 +230,36 @@ pub fn write_script(dir: &Path, seed: u64, script: &str) -> std::io::Result<std:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_reference_crash_is_its_own_verdict_and_a_subject_crash_a_finding() {
+        let crashed = Outcome::Crashed {
+            signal: 11,
+            stdout: String::new(),
+            stderr: String::new(),
+        };
+        assert_eq!(
+            compare_outcomes(&crashed, &ran("1.3", false), false),
+            Verdict::ReferenceCrash
+        );
+        assert_eq!(
+            compare_outcomes(&ran("1.3", false), &crashed, false),
+            Verdict::StatusMismatch
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_process_killed_by_a_signal_is_reported_as_crashed() {
+        let dir = std::env::temp_dir();
+        let script = write_script(&dir, u64::from(std::process::id()), "kill -SEGV $$\n").unwrap();
+        let outcome = run_backend(Path::new("sh"), &[], &script, Duration::from_secs(10));
+        let _ = std::fs::remove_file(&script);
+        assert!(
+            matches!(outcome, Outcome::Crashed { signal: 11, .. }),
+            "{outcome:?}"
+        );
+    }
 
     fn ran(stdout: &str, errored: bool) -> Outcome {
         ran_with_stderr(stdout, "", errored)

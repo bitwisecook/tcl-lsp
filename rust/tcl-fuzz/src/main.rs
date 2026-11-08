@@ -1542,6 +1542,11 @@ fn render(o: &Outcome) -> String {
                 format!("[errored={errored}]\n{stdout}--- stderr ---\n{stderr}")
             }
         }
+        Outcome::Crashed {
+            signal,
+            stdout,
+            stderr,
+        } => format!("[crashed signal={signal}]\n{stdout}--- stderr ---\n{stderr}"),
         Outcome::Timeout => "<timeout>".to_owned(),
         Outcome::Unavailable(m) => format!("<unavailable: {m}>"),
     }
@@ -1565,10 +1570,11 @@ fn parse_tcl_version(raw: &str) -> Result<TclVersion, String> {
 
 fn print_stats(stats: &Stats) {
     eprintln!(
-        "\ncampaign complete:\n  total {} | matched {} | skipped {}\n  findings: stdout {} | status {} | error-text {} | timeout {} (new this run: {})",
+        "\ncampaign complete:\n  total {} | matched {} | skipped {} | reference crashes {}\n  findings: stdout {} | status {} | error-text {} | timeout {} (new this run: {})",
         stats.total,
         stats.matched,
         stats.skipped,
+        stats.reference_crash,
         stats.stdout_mismatch,
         stats.status_mismatch,
         stats.error_text_mismatch,
