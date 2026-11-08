@@ -4708,6 +4708,36 @@ mod tests {
     use super::parse_params;
     use tcl_syntax::value::ValueOps;
 
+    /// `incr` creates a missing variable from 8.5; 8.4 reads it first and
+    /// raises "no such variable".
+    #[test]
+    fn incr_of_a_missing_variable_follows_the_selected_release() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                    .unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let completion = vm
+                .try_invoke_command("incr", &[super::Value::string("n")])
+                .expect("host execution");
+            if version == tcl_dialect::TclVersion::V8_4 {
+                assert_eq!(completion.code, super::Code::Error, "{version:?}");
+                assert_eq!(
+                    completion.result.string_bytes().as_ref(),
+                    b"can't read \"n\": no such variable",
+                    "{version:?}"
+                );
+            } else {
+                assert_eq!(completion.code, super::Code::Ok, "{version:?}");
+                assert_eq!(
+                    completion.result.string_bytes().as_ref(),
+                    b"1",
+                    "{version:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn hidden_options_follow_original_release_selected_index_tables() {
         for version in tcl_dialect::TclVersion::ALL {

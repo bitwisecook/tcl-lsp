@@ -2473,6 +2473,31 @@ mod tests {
         }
     }
 
+    /// `incr` creates a missing variable from 8.5; 8.4 reads it first and
+    /// raises "no such variable".
+    #[test]
+    fn incr_of_a_missing_variable_follows_the_selected_release() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                let code = interp.eval_str(b"incr n");
+                if dialect == "tcl8.4" {
+                    assert_eq!(code, Code::Error, "{dialect}");
+                    assert_eq!(
+                        interp.result_bytes(),
+                        b"can't read \"n\": no such variable",
+                        "{dialect}"
+                    );
+                } else {
+                    assert_eq!(code, Code::Ok, "{dialect}");
+                    assert_eq!(interp.result_bytes(), b"1", "{dialect}");
+                }
+            });
+        }
+    }
+
     #[cfg(have_tommath)]
     #[test]
     fn native_expression_and_increment_follow_selected_numeric_towers() {
