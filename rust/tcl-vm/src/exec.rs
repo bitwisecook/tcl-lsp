@@ -7371,6 +7371,8 @@ impl Vm {
             // (`::tcl::string::equal`); the effective command is
             // `impl + words[opnd..]`. The same selected prefix rewrite supplies
             // native wrong-argument presentation without recompiling argv.
+            // C `Tcl_ExprObj` compiles the source with `CompileExprTree`,
+            // whose root ends in `INST_TRY_CVT_TO_NUMERIC`.
             Op::EXPR_STK => {
                 let source = pop(f);
                 return match self.prepare_original_expression_value(&source) {
@@ -7378,7 +7380,7 @@ impl Vm {
                         req: Box::new(ExpressionReq {
                             state: tcl_syntax::expr::ExprEvalState::new(node),
                             awaiting_array: None,
-                            normalize: false,
+                            normalize: true,
                             jim_objects: source.native_jim_expression_objects(),
                             restore_primary: source.retain_expression_primary(),
                         }),
