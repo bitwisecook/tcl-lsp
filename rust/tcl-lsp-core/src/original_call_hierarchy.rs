@@ -447,7 +447,7 @@ fn imported_procedure_target(
     let row = workspace
         .invocations()
         .find(|row| row.uri == consumer.uri && row.range == invocation.range)?;
-    let target = workspace.resolve_wildcard_import_for_binding(
+    let target = workspace.resolve_wildcard_import(
         &invocation.name,
         &invocation.resolution_candidates,
         crate::workspace_index::CallSite {
