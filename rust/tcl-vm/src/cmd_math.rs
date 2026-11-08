@@ -152,6 +152,7 @@ fn shared_math_using(
     protocol: NativeMathProtocol,
     numbers: tcl_dialect::NumberSyntax,
     original: Stages<'_>,
+    release: Option<tcl_dialect::TclVersion>,
 ) -> Result<Completion<Value>, TclError> {
     let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
         return Ok(err(format!(
@@ -204,7 +205,14 @@ fn shared_math_using(
         })
         .collect::<Result<Vec<_>, TclError>>()?;
     Ok(
-        match try_dispatch_with_backend_protocol(name, &operands, int_width, protocol) {
+        // The stock C table also carries each release's own result checks
+        // (8.4 refuses an out-of-range integer conversion or float result).
+        match match (protocol, release) {
+            (NativeMathProtocol::Tcl, Some(release)) => {
+                tcl_syntax::expr::mathfunc::try_dispatch_for_release(name, &operands, release)
+            }
+            _ => try_dispatch_with_backend_protocol(name, &operands, int_width, protocol),
+        } {
             Ok(NumValue::Int(integer)) => ok(Value::int(integer)),
             Ok(NumValue::Big(integer)) => ok(crate::expr::big_value(&integer)),
             Ok(NumValue::Float(number)) => ok(Value::double(number)),
@@ -278,7 +286,8 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "math handler stock identity is not a direct global math function".into(),
         );
     };
-    let int_width = IntWidth::for_tcl_version(vm.runtime_version());
+    let release = vm.runtime_version();
+    let int_width = IntWidth::for_tcl_version(release);
     let dialect = vm.native_invocation_dialect();
     if dialect.scalar_numeric_input_policy().is_none() && vm.authored_numeric_context().is_none() {
         return vm.refuse_host_command(
@@ -315,6 +324,7 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     protocol,
                     dialect.numbers,
                     Some(context),
+                    None,
                 );
             }
             match name.as_str() {
@@ -330,6 +340,7 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                         protocol,
                         dialect.numbers,
                         Some(context),
+                        Some(release),
                     ),
                 },
             }
@@ -385,7 +396,15 @@ fn logical_mathfunc(
             Err(error) => return crate::command::completion_from_tcl_error(vm, error),
         }
     }
-    match shared_math_using(name, &prepared, int_width, protocol, context.numbers, None) {
+    match shared_math_using(
+        name,
+        &prepared,
+        int_width,
+        protocol,
+        context.numbers,
+        None,
+        None,
+    ) {
         Ok(completion) => completion,
         Err(error) => crate::command::completion_from_tcl_error(vm, error),
     }

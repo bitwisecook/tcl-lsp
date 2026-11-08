@@ -22,7 +22,7 @@
 //! the core; this parses the options and writes the `-failindex` variable.
 
 use tcl_cmd_core::prefix::OptionTable;
-use tcl_cmd_core::string_is::{CLASSES, class_check};
+use tcl_cmd_core::string_is::CLASSES;
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -96,8 +96,8 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // The emulated release's numeral grammar: the numeric classes inherit
     // every version difference in it (`string is integer 08` is false up to
     // 8.6, true from 9.0).
-    let numbers = vm.runtime_version().number_syntax();
-    let (member, fail) = class_check(class, &s, strict, numbers);
+    let (member, fail) =
+        tcl_cmd_core::string_is::class_check_in_release(class, &s, strict, vm.runtime_version());
     if !member
         && let Some(var) = fail_var
         && let Err(e) = vm.set_var(&var.to_str(), Value::int(fail))

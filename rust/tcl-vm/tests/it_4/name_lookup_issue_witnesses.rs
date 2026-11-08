@@ -68,6 +68,10 @@ const IFNEEDED_FOREACH_CONTEXT: &str = include_str!(
     "../../../tcl-test-support/tests/data/name_lookup_issues/2239-ifneeded-foreach-error-context.tcl"
 );
 
+const RELEASE_NUMERIC_ROWS: &str = include_str!(
+    "../../../tcl-test-support/tests/data/name_lookup_issues/2333-release-numeric-rows.tcl"
+);
+
 fn matches_original(source: &str, expected: &str, versions: &[TclVersion]) {
     for oracle in
         tcl_test_support::required_tclshs(versions).expect("matching original C interpreters")
@@ -201,5 +205,30 @@ fn a_tcl84_ifneeded_error_names_only_the_subcommand() {
         IFNEEDED_FOREACH_CONTEXT,
         "1 {ifneeded test} {EI\n    (\"foreach\" body line 1)\n    invoked from within\n\"foreach x 1 {error \"ifneeded test\" EI}\"\n    (\"package ifneeded\" script)\n    invoked from within\n\"package require t 2.1\"}",
         &[TclVersion::V8_4],
+    );
+}
+
+#[test]
+fn integer_class_and_math_results_follow_the_pinned_release() {
+    let wrapped = "int(1e20) 0 7766279631452241920\nwide(-9.3e18) 0 9146744073709551616\nround(1e20) 0 100000000000000000000\nint(9.2e18) 0 9200000000000000000\nexp(710) 0 Inf\nlog(0) 0 -Inf";
+    matches_original(
+        RELEASE_NUMERIC_ROWS,
+        "0 1 1 0 1\nint(1e20) 1 integer value too large to represent\nwide(-9.3e18) 1 integer value too large to represent\nround(1e20) 1 integer value too large to represent\nint(9.2e18) 0 9200000000000000000\nexp(710) 1 floating-point value too large to represent\nlog(0) 1 floating-point value too large to represent",
+        &[TclVersion::V8_4],
+    );
+    matches_original(
+        RELEASE_NUMERIC_ROWS,
+        &format!("0 1 1 0 1\n{wrapped}"),
+        &[TclVersion::V8_5],
+    );
+    matches_original(
+        RELEASE_NUMERIC_ROWS,
+        &format!("0 1 1 0 0\n{wrapped}"),
+        &[TclVersion::V8_6],
+    );
+    matches_original(
+        RELEASE_NUMERIC_ROWS,
+        "1 1 1 1 1\nint(1e20) 0 100000000000000000000\nwide(-9.3e18) 0 9146744073709551616\nround(1e20) 0 100000000000000000000\nint(9.2e18) 0 9200000000000000000\nexp(710) 0 Inf\nlog(0) 0 -Inf",
+        &[TclVersion::V9_0, TclVersion::V9_1],
     );
 }

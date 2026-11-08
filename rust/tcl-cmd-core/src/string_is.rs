@@ -145,6 +145,64 @@ pub fn class_check(class: &str, s: &str, strict: bool, numbers: NumberSyntax) ->
     class_check_chars(class, &chars, strict, numbers)
 }
 
+/// [`class_check`] under C `release`. Before 9.0 `integer` is what
+/// `Tcl_GetIntFromObj` accepts: a value within ±`UINT_MAX`, read through a C
+/// `unsigned long` up to 8.5 (so `18446744073709551615` wraps to -1) and a
+/// signed wide from 8.6.
+#[must_use]
+pub fn class_check_in_release(
+    class: &str,
+    s: &str,
+    strict: bool,
+    release: TclVersion,
+) -> (bool, i64) {
+    let numbers = release.number_syntax();
+    if class != "integer" || numbers.is_tcl9_or_later() || s.is_empty() {
+        return class_check(class, s, strict, numbers);
+    }
+    scan_c_int(s, numbers, release <= TclVersion::V8_5)
+}
+
+fn scan_c_int(s: &str, numbers: NumberSyntax, unsigned_long_read: bool) -> (bool, i64) {
+    let flags = ParseFlags {
+        integer_only: true,
+        ..ParseFlags::for_syntax(numbers)
+    };
+    let Some(parsed) = number::parse(s, flags) else {
+        return (false, 0);
+    };
+    let value = match parsed.number {
+        Number::Int(value) => Some(value),
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } if unsigned_long_read => {
+            u64::from_str_radix(&digits, radix as u32)
+                .ok()
+                .map(|magnitude| {
+                    let wrapped = magnitude.cast_signed();
+                    if negative {
+                        wrapped.wrapping_neg()
+                    } else {
+                        wrapped
+                    }
+                })
+        }
+        Number::Big { .. } => None,
+        Number::Double(_) | Number::Nan { .. } => return (false, 0),
+    };
+    if !value.is_some_and(|value| value.unsigned_abs() <= u64::from(u32::MAX)) {
+        return (false, -1);
+    }
+    let end = skip_trailing_ws(s, parsed.end);
+    if end == s.len() {
+        (true, -1)
+    } else {
+        (false, char_index_of(s, end))
+    }
+}
+
 /// Returns `(is_member, fail_index)`. `fail_index` is a character offset (or -1
 /// for the "valid list but wrong shape" cases, e.g. an odd-length dict).
 fn class_check_chars(
@@ -418,7 +476,8 @@ fn scan_dict(chars: &[char]) -> (bool, i64) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Width, class_check, integer_class_width, scan_integer};
+    use super::{Width, class_check, class_check_in_release, integer_class_width, scan_integer};
+    use tcl_dialect::TclVersion;
     use tcl_syntax::number::NumberSyntax;
 
     /// These expectations are 9.x semantics, so the helper pins that release.
@@ -439,6 +498,51 @@ mod tests {
     fn empty_and_strict() {
         assert_eq!(check("alpha", "", false), (true, 0));
         assert_eq!(check("alpha", "", true), (false, 0));
+    }
+
+    #[test]
+    fn c_integer_class_is_bounded_by_unsigned_int_per_release() {
+        let cases = [
+            "4294967296",
+            "2147483648",
+            "-4294967295",
+            "4294967295",
+            "0x100000000",
+            "18446744073709551615",
+            "-18446744073709551615",
+            "18446744073709551616",
+        ];
+        for (release, expected) in [
+            (
+                TclVersion::V8_4,
+                [false, true, true, true, false, true, true, false],
+            ),
+            (
+                TclVersion::V8_5,
+                [false, true, true, true, false, true, true, false],
+            ),
+            (
+                TclVersion::V8_6,
+                [false, true, true, true, false, false, false, false],
+            ),
+            (TclVersion::V9_0, [true; 8]),
+        ] {
+            for (case, expected) in cases.iter().zip(expected) {
+                assert_eq!(
+                    class_check_in_release("integer", case, false, release).0,
+                    expected,
+                    "{release:?} {case}"
+                );
+            }
+        }
+        assert_eq!(
+            class_check_in_release("integer", "12x", false, TclVersion::V8_4),
+            (false, 2)
+        );
+        assert_eq!(
+            class_check_in_release("integer", "4294967296x", false, TclVersion::V8_6),
+            (false, -1)
+        );
     }
 
     #[test]
