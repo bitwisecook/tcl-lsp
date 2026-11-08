@@ -106,6 +106,7 @@ Sixth pass (7 November): in release, saved-target cleanup whose currency is alre
 - Release runtime test builds carried about 360 dead-code warnings from helpers whose tests became debug-only; each is now gated with its tests. Release builds 2129 tests and debug builds 2405, both warning-free.
 - Three runtime tests fail since upstream commits after the last clean run, independent of this pass (they fail with this pass's runtime changes reverted): `cmd_list::tests::lset_bounds_follow_real_c_releases_and_current_jim`, `cmd_var::tests::captured_increment_receivers_match_actual_native_releases` (8.4 now reports "can't set" where "can't read" is expected) and `interp::native_compilation::tests::compiled_native_selection_precedes_argv_in_procedures_but_direct_eval_remains_late`.
 - Wall clock against `tclsh9.0` at 50,000 iterations, best of three, startup included: the VM is 7–32× and the runtime 10–25× slower across the six benchmarks (previously 25–60×). The shipped release profile (thin LTO, one codegen unit) gains the VM 5–15% on most benchmarks; the runtime is within noise.
+- Profile-guided optimisation on top of the release profile (trained on the same six benchmarks, so an upper bound): VM 14–34% and runtime 25–33% faster than the LTO build; against `tclsh9.0` the VM is then 5–21× and the runtime 9–17× slower. A shipping profile would need a broader training corpus, such as the Tcl test suites.
 
 ## Resource integrity and next work
 
