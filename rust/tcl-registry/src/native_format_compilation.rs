@@ -157,12 +157,20 @@ pub(crate) fn static_syntax_error(
     else {
         return None;
     };
-    let mut options = b"-code 1 -level 0 -errorcode ".to_vec();
-    tcl_syntax::list::append_list_element(&mut options, &error_code, false);
-    options.extend_from_slice(b" -errorinfo ");
-    tcl_syntax::list::append_list_element(&mut options, &message, false);
-    options.extend_from_slice(b" -errorline 1");
+    let options = syntax_error_options(&message, &error_code);
     Some((message, options))
+}
+
+/// `TclCompileSyntaxError`'s return options for a compile-time failure:
+/// with no errorInfo yet, C reports the message as `-errorinfo` and
+/// `-errorline 1`.
+pub(crate) fn syntax_error_options(message: &[u8], error_code: &[u8]) -> Vec<u8> {
+    let mut options = b"-code 1 -level 0 -errorcode ".to_vec();
+    tcl_syntax::list::append_list_element(&mut options, error_code, false);
+    options.extend_from_slice(b" -errorinfo ");
+    tcl_syntax::list::append_list_element(&mut options, message, false);
+    options.extend_from_slice(b" -errorline 1");
+    options
 }
 
 /// The folded literal of an all-literal `format`, as [`select_with_values`]

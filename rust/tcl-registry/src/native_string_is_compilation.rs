@@ -159,37 +159,69 @@ fn strict_option(shape: Shape, literal: Option<&[u8]>) -> bool {
     simple(shape) && literal.is_some_and(|word| word.len() > 1 && b"-strict".starts_with(word))
 }
 
-/// The class and strictness `TclCompileStringIsCmd` compiles, or the
-/// selection it makes instead.
-fn select_class(
+/// What `TclCompileStringIsCmd`'s prologue makes of the words after `is`.
+enum Prologue {
+    /// Compile this class branch, strict or not.
+    Compile(NativeStringIsClass, bool),
+    /// `Tcl_GetIndexFromObj` rejects this compile-known class word:
+    /// `TclCompileSyntaxError`.
+    BadClass(Vec<u8>),
+    /// The compiler returns `TCL_ERROR`; the command is invoked.
+    Decline,
+    /// Outside this model.
+    Unknown,
+}
+
+/// `TclWordKnownAtCompileTime` for a class word.
+fn compile_known(shape: Shape) -> bool {
+    simple(shape) || shape == Shape::BackslashLiteral
+}
+
+fn prologue(
     shapes: &[Shape],
     literal: &dyn Fn(usize) -> Option<Vec<u8>>,
     from: usize,
     version: TclVersion,
-) -> Result<(NativeStringIsClass, bool), NativeCompilationSelection> {
-    use NativeCompilationSelection as Selection;
+) -> Prologue {
     let Some(arguments) = shapes.get(from..) else {
-        return Err(Selection::Unknown);
+        return Prologue::Unknown;
     };
     if arguments
         .iter()
         .any(|shape| matches!(shape, Shape::Opaque | Shape::Expanded))
     {
-        return Err(Selection::Unknown);
+        return Prologue::Unknown;
     }
-    // Only a compile-known class with an optional `-strict` is modelled.
-    // A dynamic class, `-failindex`, a bad class (its compile-time syntax
-    // error) and other options keep their context-proven declines elsewhere.
-    let Some(name) = literal(from).filter(|_| simple(arguments[0])) else {
-        return Err(Selection::Unknown);
+    // C counts the member word: 3 to 6 words, then 3, or 4 with `-strict`.
+    if !(2..=5).contains(&arguments.len()) {
+        return Prologue::Decline;
+    }
+    let Some(name) = literal(from).filter(|_| compile_known(arguments[0])) else {
+        return Prologue::Decline;
     };
-    let class = resolve_class(&name, version).ok_or(Selection::Unknown)?;
-    let strict = match arguments.len() {
-        2 => false,
-        3 if strict_option(arguments[1], literal(from + 1).as_deref()) => true,
-        _ => return Err(Selection::Unknown),
+    let Some(class) = resolve_class(&name, version) else {
+        return Prologue::BadClass(name);
     };
-    Ok((class, strict))
+    match arguments.len() {
+        2 => Prologue::Compile(class, false),
+        3 if strict_option(arguments[1], literal(from + 1).as_deref()) => {
+            Prologue::Compile(class, true)
+        }
+        _ => Prologue::Decline,
+    }
+}
+
+/// The class and strictness `TclCompileStringIsCmd` compiles.
+fn select_class(
+    shapes: &[Shape],
+    literal: &dyn Fn(usize) -> Option<Vec<u8>>,
+    from: usize,
+    version: TclVersion,
+) -> Option<(NativeStringIsClass, bool)> {
+    match prologue(shapes, literal, from, version) {
+        Prologue::Compile(class, strict) => Some((class, strict)),
+        _ => None,
+    }
 }
 
 /// Select `TclCompileStringIsCmd` from argument shapes and literals.
@@ -212,13 +244,57 @@ pub fn select_shapes(
     {
         return Selection::Unknown;
     }
-    match select_class(shapes, literal, from, version) {
-        Ok(_) => Selection::Inline {
+    match prologue(shapes, literal, from, version) {
+        Prologue::Compile(..) | Prologue::BadClass(_) => Selection::Inline {
             operation,
             guard: NativeCompilationGuard::BeforeArguments,
         },
-        Err(selection) => selection,
+        Prologue::Decline if from == 1 => Selection::NamedInvocation {
+            lookup: &STRING_IS_IMPLEMENTATION,
+            arguments_from: 1,
+            protocol: crate::native_compilation::NativeNamedInvocationProtocol::EnsembleRewrite,
+        },
+        Prologue::Decline => Selection::Generic,
+        Prologue::Unknown => Selection::Unknown,
     }
+}
+
+/// `TclCompileSyntaxError`'s message and return options for a compile-known
+/// class `Tcl_GetIndexFromObj` rejects.
+#[must_use]
+pub(crate) fn bad_class_syntax_error(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    scope: NativeScalarScope,
+    version: TclVersion,
+) -> Option<(Vec<u8>, Vec<u8>)> {
+    if version < TclVersion::V8_6 || operand_from == 0 {
+        return None;
+    }
+    let projected = project_native_compiler_words(words, version).ok()?;
+    let arguments = projected.get(operand_from..)?;
+    let shapes: Vec<_> = arguments.iter().map(|word| word.shape).collect();
+    let from = usize::from(scope == NativeScalarScope::PublicMember);
+    let Prologue::BadClass(name) = prologue(
+        &shapes,
+        &|index| arguments.get(index).and_then(|word| word.literal.clone()),
+        from,
+        version,
+    ) else {
+        return None;
+    };
+    let names: Vec<&[u8]> = class_table(version).iter().map(|(name, _)| *name).collect();
+    let error = tcl_cmd_core::prefix::OptionTable::abbreviating("class", &names)
+        .index_of_in(&name, version)
+        .err()?;
+    let details = error.into_byte_details();
+    let tcl_cmd_core::CmdErrorCodeUpdate::Set(code) = details.error_code else {
+        return None;
+    };
+    Some((
+        details.message.clone(),
+        crate::native_format_compilation::syntax_error_options(&details.message, &code),
+    ))
 }
 
 /// C9 declines a direct private `StringIs` compiler before emitting any word
@@ -394,8 +470,7 @@ pub fn string_is_instruction(
         &|index| arguments.get(index).and_then(|word| word.literal.clone()),
         from,
         version,
-    )
-    .ok()?;
+    )?;
     let subject = arguments
         .get(from + 1 + usize::from(strict))?
         .operand
@@ -624,11 +699,11 @@ mod tests {
         };
         assert_eq!(
             public.select_native_words(&captured, 1, Some(dialect), context),
-            NativeCompilationSelection::Unknown
+            public_decline()
         );
         assert_eq!(
             private.select_native_words(&captured, 2, Some(dialect), context),
-            NativeCompilationSelection::Unknown
+            NativeCompilationSelection::Generic
         );
     }
 
@@ -693,25 +768,28 @@ mod tests {
                     .unwrap();
             assert_eq!(
                 public.select_native_words(&captured, 1, Some(dialect), context),
-                NativeCompilationSelection::Unknown
+                public_decline()
             );
             assert_eq!(
                 private.select_native_words(&captured, 2, Some(dialect), context),
-                NativeCompilationSelection::Unknown
+                NativeCompilationSelection::Generic
             );
         }
-        for source in [
-            b"::tcl::string::is $c".as_slice(),
-            b"::tcl::string::is $c {*}$s",
-            b"::tcl::string::is ascii $s",
+        // Fewer than three words fails the compiler before its class check.
+        for (source, generic) in [
+            (b"::tcl::string::is $c".as_slice(), true),
+            (b"::tcl::string::is $c {*}$s", false),
+            (b"::tcl::string::is ascii $s", false),
         ] {
             let source_words = words(source, version);
             let captured =
                 NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
                     .unwrap();
-            assert_ne!(
-                private.select_native_words(&captured, 1, Some(dialect), context),
-                NativeCompilationSelection::Generic
+            assert_eq!(
+                private.select_native_words(&captured, 1, Some(dialect), context)
+                    == NativeCompilationSelection::Generic,
+                generic,
+                "{source:?}"
             );
         }
         for version in [TclVersion::V8_6, TclVersion::V9_1] {
@@ -726,7 +804,7 @@ mod tests {
                     Some(crate::InvocationDialect::for_version(version)),
                     context
                 ),
-                NativeCompilationSelection::Unknown
+                NativeCompilationSelection::Generic
             );
         }
     }
@@ -896,15 +974,29 @@ mod tests {
     }
 
     #[test]
-    fn unmodeled_original_class_options_and_expansions_keep_refusing() {
+    fn declined_forms_invoke_and_bad_classes_compile_their_error() {
+        let inline = NativeCompilationSelection::Inline {
+            operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs),
+            guard: NativeCompilationGuard::BeforeArguments,
+        };
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
-            for source in [
-                b"string is ascii -failindex out $subject".as_slice(),
-                b"string is $class $subject",
-                b"string is ascii -bogus $subject",
-                b"string is nosuchclass $subject",
-                b"string is ascii {*}$subject",
-                b"string is {*}{ascii value}",
+            for (source, expected) in [
+                (
+                    b"string is ascii -failindex out $subject".as_slice(),
+                    public_decline(),
+                ),
+                (b"string is $class $subject", public_decline()),
+                (b"string is ascii -bogus $subject", public_decline()),
+                (b"string is ascii", public_decline()),
+                (b"string is nosuchclass $subject", inline),
+                (
+                    b"string is ascii {*}$subject",
+                    NativeCompilationSelection::Unknown,
+                ),
+                (
+                    b"string is {*}{ascii value}",
+                    NativeCompilationSelection::Unknown,
+                ),
             ] {
                 let source_words = words(source, version);
                 let original =
@@ -918,10 +1010,18 @@ mod tests {
                         version,
                         SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs)
                     ),
-                    NativeCompilationSelection::Unknown,
+                    expected,
                     "{version:?}: {source:?}"
                 );
             }
+        }
+    }
+
+    fn public_decline() -> NativeCompilationSelection {
+        NativeCompilationSelection::NamedInvocation {
+            lookup: &STRING_IS_IMPLEMENTATION,
+            arguments_from: 1,
+            protocol: crate::native_compilation::NativeNamedInvocationProtocol::EnsembleRewrite,
         }
     }
     #[test]

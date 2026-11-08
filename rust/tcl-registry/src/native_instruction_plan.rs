@@ -1058,6 +1058,14 @@ fn string_is_instruction_plan(
     scope: crate::native_scalar_compilation::NativeScalarScope,
     version: tcl_dialect::TclVersion,
 ) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
+    if let Some((message, options)) = crate::native_string_is_compilation::bad_class_syntax_error(
+        words,
+        operand_from,
+        scope,
+        version,
+    ) {
+        return Ok(NativeInstructionPlan::SyntaxError { message, options });
+    }
     crate::native_string_is_compilation::instruction(words, operand_from, scope, version)
         .map(NativeInstructionPlan::Scalar)
         .or_else(|| {

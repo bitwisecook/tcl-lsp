@@ -3490,6 +3490,10 @@ impl NativeCompilationSpec {
             ) {
                 return Some(NativeCompilationSelection::Generic);
             }
+            // Only the stock member's own compiler context is modelled.
+            if self.body != NativeBodyCompilation::Inherit {
+                return Some(NativeCompilationSelection::Unknown);
+            }
             return Some(crate::native_string_is_compilation::select_original(
                 words,
                 operand_from,
