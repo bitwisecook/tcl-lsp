@@ -404,6 +404,14 @@ fn store_profile(
     }
 }
 
+/// The profile whose store backs the pack-carrying generations of the
+/// environment `name` resolves to: the key a host must install a pack
+/// overlay under for a document in that environment to find it.
+#[must_use]
+pub fn store_profile_for_environment(name: &str) -> &'static DialectProfile {
+    store_profile(&crate::model::ingress::resolve_environment(name))
+}
+
 /// Whether `definition` runs on a core dialect other than C Tcl, whose
 /// command store is its own.
 fn owns_core_store(definition: &EnvironmentDefinition) -> bool {

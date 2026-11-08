@@ -88,7 +88,7 @@ pub use assembly::{
     ContextRegistry, OverlayMiss, private_profile_store_with_overlay, profile_store_with_overlay,
     registry_for_environment, registry_for_environment_if_built, resolve_call_in_context,
     resolve_invocation_in_context, resolve_invocation_words_in_context,
-    side_effect_hints_in_context, store_profiles,
+    side_effect_hints_in_context, store_profile_for_environment, store_profiles,
 };
 pub use binding::{
     BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,

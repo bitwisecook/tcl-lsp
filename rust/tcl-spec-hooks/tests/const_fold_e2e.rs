@@ -32,6 +32,9 @@
 //! but disagrees with the shipped folder is a miscompile, not a feature.
 
 use std::rc::Rc;
+use std::sync::Arc;
+
+use tcl_dialect::DialectProfile;
 
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::pack_hooks::{self, HookFamily, HookInputs};
@@ -56,7 +59,7 @@ const INPUTS: &[&str] = &["", "a", "abcde", "a b c", "12345678901234567890"];
 
 struct Folders {
     pack: tcl_registry::hooks::ConstFoldFn,
-    registry: CommandRegistry,
+    registry: Arc<CommandRegistry>,
 }
 
 /// Load the pack, install the host, and build a registry carrying
@@ -80,14 +83,34 @@ fn load() -> Folders {
     let slot = installed[0].slot.expect("the hook claimed a slot");
     let pack = pack_hooks::const_fold_fn(slot).expect("a fold slot has a fold thunk");
 
-    let mut registry = CommandRegistry::build_default();
-    registry.insert(CommandSpec {
-        name: "mylib::strlen",
-        arity: Arity::exact(1),
-        const_fold: Some(pack),
-        ..CommandSpec::DEFAULT
+    let registry = overlay_registry(overlay_key("strlen", slot), |registry| {
+        registry.insert(CommandSpec {
+            name: "mylib::strlen",
+            arity: Arity::exact(1),
+            const_fold: Some(pack),
+            ..CommandSpec::DEFAULT
+        });
     });
     Folders { pack, registry }
+}
+
+/// The overlay key for one fixture command bound to `slot`: the cached store
+/// behind a key holds that slot's thunk, so the key names both.
+fn overlay_key(command: &str, slot: pack_hooks::HookSlot) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    (command, slot).hash(&mut hasher);
+    hasher.finish() | 1
+}
+
+/// A Tcl 8.6 store carrying the fixture's command as a pack overlay would,
+/// so the optimiser analyses it under a real profile.
+fn overlay_registry(
+    key: u64,
+    extend: impl FnOnce(&mut CommandRegistry),
+) -> Arc<CommandRegistry> {
+    let profile = DialectProfile::find("tcl8.6").expect("a catalogue profile");
+    tcl_registry::model::profile_store_with_overlay(profile, key, extend)
 }
 
 /// The shipped native folder for `string length`, for the same input.
@@ -214,12 +237,13 @@ fn a_versioned_pack_fold_is_told_the_profiles_evaluation_point() {
     pack_hooks::install_host(host);
     let slot = installed[0].slot.expect("the hook claimed a slot");
     let versioned = pack_hooks::const_fold_versioned_fn(slot).expect("a versioned fold thunk");
-    let mut registry = CommandRegistry::build_default();
-    registry.insert(CommandSpec {
-        name: "mylib::release",
-        arity: Arity::exact(0),
-        const_fold_versioned: Some(versioned),
-        ..CommandSpec::DEFAULT
+    let registry = overlay_registry(overlay_key("release", slot), |registry| {
+        registry.insert(CommandSpec {
+            name: "mylib::release",
+            arity: Arity::exact(0),
+            const_fold_versioned: Some(versioned),
+            ..CommandSpec::DEFAULT
+        });
     });
     for (dialect, want) in [
         ("tcl8.6", Some("8.6")),

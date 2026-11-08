@@ -87,6 +87,8 @@ pub fn registry_for_dialect(
 pub fn spec_pack_key(dialect: &str) -> u64 {
     let packs = cli_packs(dialect);
     let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+    let store = tcl_registry::model::store_profile_for_environment(dialect);
+    let _store = tcl_spectcl::install::registry_with_packs(store, &packs);
     packs.key
 }
 
