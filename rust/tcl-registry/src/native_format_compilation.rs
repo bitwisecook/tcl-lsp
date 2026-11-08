@@ -213,16 +213,19 @@ pub(crate) fn select(
         )
         || context.mode != NativeCompilationMode::BytecodeObject
         || context.frame == NativeCompilationFrame::Unknown
-        || !matches!(
-            shapes.first(),
-            Some(
-                Shape::Literal
-                    | Shape::QuotedLiteral
-                    | Shape::BracedLiteral
-                    | Shape::BackslashLiteral
-            )
+    {
+        return Selection::Unknown;
+    }
+    // Fewer than two words: TclCompileFormatCmd declines to an invocation.
+    if shapes.is_empty() {
+        return Selection::Generic;
+    }
+    if !matches!(
+        shapes.first(),
+        Some(
+            Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral | Shape::BackslashLiteral
         )
-        || !shapes.contains(&Shape::Substituted)
+    ) || !shapes.contains(&Shape::Substituted)
         || shapes
             .iter()
             .any(|shape| matches!(shape, Shape::Opaque | Shape::Expanded))

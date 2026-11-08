@@ -791,11 +791,8 @@ pub fn compile_time_format(
     release: tcl_dialect::TclVersion,
     arguments: &[&[u8]],
 ) -> Option<CompileTimeFormat> {
-    let template = std::str::from_utf8(arguments.first()?).ok()?;
-    let gated = tcl_syntax::format::version_gated_uses(template);
-    if gated.iter().any(|gated| gated.min > release) {
-        return None;
-    }
+    // The release's own format grammar rejects a later conversion or size
+    // modifier as `bad field specifier`, as Tcl_Format does.
     let profile = tcl_dialect::DialectProfile::find(release.dialect_profile_name())?;
     let context = super::context::AnalysisContext::detached(Some(profile));
     let mut budget = super::context::Budget::unbounded();
