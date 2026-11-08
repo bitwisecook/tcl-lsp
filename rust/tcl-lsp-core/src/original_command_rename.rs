@@ -410,6 +410,15 @@ fn reject_command_link_coverage(
     let transition_facts = match selected.facts.state_transitions.declared() {
         Some(transitions) => transitions.facts(),
         None => match coverage {
+            // The completed command world closes over the same generic
+            // invocation, so its link inventory is the same empty one.
+            CommandLinkCoverage::Registry(_)
+                if tcl_compiler::command_binding::undeclared_transitions_leave_command_world_closed(
+                    &selected.facts,
+                ) =>
+            {
+                &[]
+            }
             CommandLinkCoverage::Registry(_) | CommandLinkCoverage::SourceLoad { .. } => {
                 return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
             }
@@ -1747,10 +1756,9 @@ mod tests {
             selected.invocation().facts.state_transitions,
             tcl_registry::StateTransitionKnowledge::UnknownInvocation
         ));
-        assert!(matches!(
-            reject_link_obligations(selected.invocation()),
-            Err(OriginalCommandRenameRefusal::IncompleteCoverage)
-        ));
+        // A plain store is the generic invocation the completed world closes
+        // over, so its registry facts carry the same empty link inventory.
+        assert!(reject_link_obligations(selected.invocation()).is_ok());
         let document = OriginalDeclarationDocument {
             uri: "file:///quiet.tcl",
             source,

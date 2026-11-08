@@ -5066,11 +5066,19 @@ fn command_world_closed_on_normal_return(
         Some(transitions) => {
             transitions.facts().is_empty() && !facts.effects.requires_world_barrier()
         }
-        None => !facts.traits.intersects(
-            tcl_registry::extension_default::EVALUATION
-                .union(tcl_registry::extension_default::TRACES),
-        ),
+        None => undeclared_transitions_leave_command_world_closed(facts),
     }
+}
+
+/// A builtin without declared transitions is the walk's generic invocation:
+/// it leaves the command world closed only when its traits claim no code
+/// evaluation, dynamic barrier or trace.
+#[must_use]
+pub fn undeclared_transitions_leave_command_world_closed(facts: &InvocationFacts) -> bool {
+    !facts.traits.intersects(
+        tcl_registry::extension_default::EVALUATION
+            .union(tcl_registry::extension_default::TRACES),
+    )
 }
 
 fn deferred_source_frame(
