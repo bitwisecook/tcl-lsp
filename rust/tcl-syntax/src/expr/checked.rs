@@ -389,6 +389,16 @@ impl ExprSyntaxFailure {
             if context.expr_grammar_base != Some(version) || context.f5_word_grammar.is_some() {
                 return None;
             }
+            // C8.4's own parser owns every operator it predates.
+            if version == TclVersion::V8_4
+                && let Ok(text) = std::str::from_utf8(source)
+                && let Err(error) = crate::expr::syntax_84::parse_tcl84(text)
+            {
+                return Some(NativeExprSyntaxDiagnostic {
+                    message: error.message.into_bytes(),
+                    error_code: Some(error.error_code.unwrap_or("NONE").as_bytes().to_vec()),
+                });
+            }
             let (start, end) = self.token?;
             let word = source.get(start as usize..=end as usize)?;
             if word.is_empty() || !word.iter().all(u8::is_ascii_alphabetic) {
