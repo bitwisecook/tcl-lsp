@@ -1801,7 +1801,9 @@ impl<'a> ExprEval<'a> {
             return Err(TclError::from_completion(completion));
         }
         self.options = completion.options;
-        Ok(completion.result)
+        // The operand keeps its own reference across later substitutions,
+        // which may reset the interpreter result.
+        Ok(completion.result.into_native_reference())
     }
 
     /// An error leaving an expression's command substitution

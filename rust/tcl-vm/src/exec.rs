@@ -4066,7 +4066,9 @@ impl Vm {
                 .as_mut()
                 .expect("expression state present")
                 .state
-                .resume(c.result);
+                // TEBC holds a substitution's result object by its own
+                // reference before the next command resets the result.
+                .resume(c.result.into_native_reference());
             return Ok(());
         }
         if c.code == Code::Error {
@@ -5088,7 +5090,7 @@ impl Vm {
                 .as_mut()
                 .expect("expression state present")
                 .state
-                .resume(completion.result);
+                .resume(completion.result.into_native_reference());
         }
     }
 
@@ -6071,7 +6073,9 @@ impl Vm {
                     f.stack.push(value);
                 } else {
                     match crate::subst::subst_word_bytes_as(raw.bytes(), self, instr.evaluation) {
-                        Ok(v) => f.stack.push(v),
+                        // A stack slot owns its reference: a later command may
+                        // reset the interpreter result this word came from.
+                        Ok(v) => f.stack.push(v.into_native_reference()),
                         // A `break`/`continue`/`return` carried out of a `[…]`
                         // substitution propagates with its own code (an enclosing
                         // loop's exception range / a proc boundary handles it).
