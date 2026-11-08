@@ -3860,30 +3860,35 @@ impl ResolveContext {
     }
 
     /// A coercion replaces intreps, never bytes: integer-convertible contents
-    /// survive as a contents proof without any current representation.
+    /// survive as a contents proof without any current representation. A
+    /// builtin coercion of a stock literal leaves a stock-class object.
     pub(crate) fn coerce_representations_for_values(&mut self, values: Option<&[String]>) {
-        let contents: Vec<_> = self
+        use crate::native_numeric::StoredNativeRepresentation;
+        let retained: Vec<_> = self
             .value_representations
             .iter()
             .filter_map(|(key, representation)| {
-                representation
-                    .integer_contents_in(
-                        self.constant_values.get(key).map(String::as_str),
-                        self.invocation_dialect,
-                    )
-                    .map(|proof| (key.clone(), proof))
+                let proof = representation.integer_contents_in(
+                    self.constant_values.get(key).map(String::as_str),
+                    self.invocation_dialect,
+                );
+                let kept = match (proof, representation) {
+                    (Some(proof), _) => {
+                        StoredNativeRepresentation::IntegerConvertibleContents(proof)
+                    }
+                    (None, StoredNativeRepresentation::StockLiteralObject(object)) => {
+                        StoredNativeRepresentation::StockLiteralObject(
+                            object.converted(tcl_syntax::value::ValueRepresentation::Unknown),
+                        )
+                    }
+                    (None, _) => return None,
+                };
+                Some((key.clone(), kept))
             })
             .collect();
         self.invalidate_representations_for_values(values);
-        for (key, proof) in contents {
-            if !self.value_representations.contains_key(&key) {
-                self.value_representations.insert(
-                    key,
-                    crate::native_numeric::StoredNativeRepresentation::IntegerConvertibleContents(
-                        proof,
-                    ),
-                );
-            }
+        for (key, kept) in retained {
+            self.value_representations.entry(key).or_insert(kept);
         }
     }
 

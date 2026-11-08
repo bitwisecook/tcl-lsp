@@ -207,6 +207,9 @@ fn expression_coercion_values(
             ExprNode::String { text, .. } => {
                 values.push(tcl_syntax::expr::fixed_string_operand(text)?.to_owned());
             }
+            // A substitution's result does not exist while the compiler pools
+            // operands; its own commands are compiled separately.
+            ExprNode::Command { .. } if phase == ExpressionCoercionPhase::CompilerPreparation => {}
             ExprNode::CompiledWord { .. }
             | ExprNode::Command { .. }
             | ExprNode::Call { .. }
@@ -338,7 +341,7 @@ impl RuntimeExpressionCoercion {
         if self.numeric_only {
             variables.invalidate_numeric_conversion_representations(self.values.as_deref());
         } else {
-            variables.invalidate_representations_for_values(self.values.as_deref());
+            variables.coerce_representations_for_values(self.values.as_deref());
         }
     }
 }
