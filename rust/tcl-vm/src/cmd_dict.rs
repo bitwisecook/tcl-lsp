@@ -332,9 +332,21 @@ fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// text uses the actual command spelling, including a name installed by
 /// `rename`, rather than reconstructing `dict <subcommand>`.
 fn member_op(vm: &mut Vm, sub: &str, args: &[Value]) -> Completion<Value> {
-    let invoked = vm
-        .invoked_name()
-        .map_or_else(|| format!("::tcl::dict::{sub}"), str::to_owned);
+    // Reached through a compiled ensemble rewrite, C's Tcl_WrongNumArgs
+    // restores the ensemble's own words in front of the member's usage.
+    let invoked = match vm.invoked_name_value() {
+        Some(original) => {
+            let prefix = tcl_cmd_core::ensemble::rewrite_argument_usage(
+                std::slice::from_ref(&original),
+                &vm.native_invocation.usage_rewrites,
+            );
+            match vm.native_argument_usage_header(&prefix) {
+                Ok(header) => String::from_utf8_lossy(&header).into_owned(),
+                Err(completion) => return completion,
+            }
+        }
+        None => format!("::tcl::dict::{sub}"),
+    };
     dict_op(vm, sub, args, &invoked)
 }
 

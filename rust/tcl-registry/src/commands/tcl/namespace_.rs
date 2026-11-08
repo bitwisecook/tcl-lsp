@@ -1068,7 +1068,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_compilation: Some(namespace_named_compilation(0, Arity::new(0, 2))),
         arity: Arity::new(0, 2),
         detail: "Returns a list of all child namespaces.",
-        synopsis: "namespace children ?namespace? ?pattern?",
+        synopsis: "namespace children ?name? ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
         // The optional first word names the namespace whose children are
