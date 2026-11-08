@@ -17643,14 +17643,13 @@ impl ModuleCommandBindings {
         match key {
             SourceCommandKey::Authored(text) => Some(text.clone()),
             SourceCommandKey::Slot { namespace, simple } => {
-                let protocol = self
-                    .baseline
-                    .native_entry
-                    .as_ref()?
-                    .command_name_policy()?
-                    .recipe();
+                let policy = match self.baseline.native_entry.as_ref() {
+                    Some(entry) => entry.command_name_policy(),
+                    None => self.baseline.execution_name_policy?.native_recipe(),
+                };
+                let protocol = policy?.recipe();
                 let slot = tcl_core_types::NativeByteCommandSlot::new(
-                    namespace.exact_native_path()?.clone(),
+                    namespace.source_artifact_path()?,
                     simple.clone(),
                 );
                 tcl_syntax::naming::native_command_source_spelling(protocol, &slot)
