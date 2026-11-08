@@ -725,11 +725,13 @@ Bugs these ports exposed and fixed:
 
 Still unmodelled or refused by design:
 
-- **`subst` with command substitutions.** `TclCompileSubstCmd` compiles
-  each `[...]` as a nested script in a catch range. Only text, backslash
-  and scalar parts are modelled inline, so any template with a command
-  is refused. The variable-only inline path also drops C's
-  `while executing "subst ..."` errorInfo frame.
+- **A static compile that redefines a compiled builtin.** In
+  `run_script::loop_body_redefining_continue_is_honoured` the whole script is
+  compiled ahead of time and a loop body defines `proc continue`. The
+  source walk merges the redefinition into later lookups and refuses; C
+  compiles against the bindings at chunk entry and replays the changed
+  command at `INST_START_CMD`. The same script run through the VM's own
+  eval path compiles and matches tclsh.
 
 Fixed since the list above was written:
 
@@ -744,3 +746,18 @@ Fixed since the list above was written:
   **`tcl::unsupported::representation`** and **`format` bignum folds**
   (`%d` truncates to 32 bits on 9.x and through a 64-bit `long` on 8.6;
   `%lld` keeps the bignum).
+- **`subst` with command substitutions.** `TclCompileSubstCmd` now compiles
+  inline in procedure bodies and nested scripts, each `[...]` in its own
+  catch range. A runtime `subst` error now logs the invoking command, as
+  C's TEBC does.
+- **Execution traces.** A traced command compiles as an ordinary
+  invocation instead of refusing; only its effects stay unknown.
+- **9.0 `info object creationid`.** The worker index kept both the 9.0 and
+  9.1 `creationid` descriptors, which disagreed. Sub-subcommand compilers
+  are now filtered by release. `info class definitionnamespace` is
+  implemented.
+- **A namespace recreated under a deleted parent.** A retained child of a
+  dying namespace is no longer reported reachable, so the new namespace at
+  the same path resolves.
+- **`(reading increment)`** and similar frames a command adds to its own
+  error now reach errorInfo before the caller logs it.
