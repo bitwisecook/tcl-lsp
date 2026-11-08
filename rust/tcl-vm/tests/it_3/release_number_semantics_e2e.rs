@@ -57,16 +57,20 @@ fn result_for(version: TclVersion, src: &str) -> String {
 
 /// C8.4 formats a long through `TclFormatInt`, whose minimum-value spelling
 /// is the loaded build's own: only the pinned archive's updater supplies it.
+/// Without that build the VM refuses those rows and formats every other.
 fn host_for(version: TclVersion) -> std::rc::Rc<dyn tcl_platform::Host> {
     let host = tcl_host_native::NativeHost::new();
     if version != TclVersion::V8_4 {
         return std::rc::Rc::new(host);
     }
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let formatter =
-        tcl_test_support::native_integer_formatter::load_pinned_c84_integer_formatter(&root)
-            .expect("pinned C84 native integer formatter");
-    std::rc::Rc::new(host.with_integer_formatter(formatter))
+    match tcl_test_support::native_integer_formatter::load_pinned_c84_integer_formatter(&root) {
+        Ok(formatter) => std::rc::Rc::new(host.with_integer_formatter(formatter)),
+        Err(reason) => {
+            eprintln!("C84 integer updater unavailable: {reason}");
+            std::rc::Rc::new(host)
+        }
+    }
 }
 
 #[derive(Clone, Default)]

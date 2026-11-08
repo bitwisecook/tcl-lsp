@@ -892,6 +892,44 @@ impl ValueOps for Vm {
         ops.string_value(value, protocol)
     }
 
+    /// C8.6's `Tcl_SplitObjCmd` over the operands' string bytes: an empty
+    /// split set shares one element object per distinct character.
+    fn native_split(
+        &mut self,
+        value: &Value,
+        chars: Option<&Value>,
+    ) -> Result<Option<Value>, ValueError> {
+        let c86 = self.name_policy_protocol().is_some_and(|policy| {
+            policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native
+                && policy.string_protocol()
+                    == tcl_syntax::native_string::NativeStringProtocol::C(
+                        tcl_dialect::TclVersion::V8_6,
+                    )
+        });
+        if !c86 {
+            return Ok(None);
+        }
+        let source = self.native_string_bytes(value)?;
+        let characters = match chars {
+            Some(chars) => self.native_string_bytes(chars)?,
+            None => Rc::from(&b" \n\t\r"[..]),
+        };
+        let parts = tcl_cmd_core::list::plan_c86_split(&source, &characters)?;
+        let mut shared = rustc_hash::FxHashMap::default();
+        let mut items = Vec::with_capacity(parts.len());
+        for part in parts {
+            let item = match part.reuse {
+                Some(key) => shared
+                    .entry(key)
+                    .or_insert_with(|| self.new_bytes(&source[part.bytes.clone()]))
+                    .clone(),
+                None => self.new_bytes(&source[part.bytes]),
+            };
+            items.push(item);
+        }
+        Ok(Some(self.new_list(items)))
+    }
+
     fn as_int(&mut self, v: &Value) -> Result<i64, ValueError> {
         if let Some(context) = self.authored_numeric_context() {
             let simulation = context

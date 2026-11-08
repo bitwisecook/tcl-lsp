@@ -2249,26 +2249,13 @@ fn the_named_command_stops_at_the_unterminated_delimiter() {
     }
 }
 
-/// Where the term cannot be pinned to the construct that failed, no frame is
-/// logged at all — the bare message, as before the frame existed.
-///
-/// A failure inside a `[…]` is reported by the cut owner at the bracket,
-/// because the word-part decomposition carries no extent for the inner
-/// construct. So `set x [list "oops]` yields `missing "` with the term on the
-/// `[`, a pair that cannot be C's: C quotes `set x [list "`. Quoting `set x [`
-/// (the term as given) or `set x [list "oops]` (the rest of the source) would
-/// both be wrong, and wrong in a way that reads as right.
-///
-/// The check is that the byte the term points at opens the construct the
-/// message names. When it does not, the text is dropped.
+/// A failure inside a `[…]` logs the inner construct C's parser stopped at:
+/// tclsh 9.0.4 quotes `set x [list "`, the command up to the open quote.
 #[test]
-fn an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one() {
-    // tclsh 9.0.4 logs `missing "` + `while executing` + `"set x [list ""`.
-    // Matching that needs an inner extent the decomposition does not carry;
-    // until it does, omitting the frame is the honest answer.
+fn an_inner_construct_failure_logs_the_command_up_to_it() {
     assert_eq!(
         run("set c catch; $c {set a 1; set x [list \"oops]} m o; dict get $o -errorinfo").1,
-        "missing \"",
+        "missing \"\n    while executing\n\"set x [list \"\"",
     );
 }
 
