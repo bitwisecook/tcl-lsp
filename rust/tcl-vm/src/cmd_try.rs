@@ -1469,16 +1469,16 @@ mod native_fixture_tests {
             .lines()
             .find_map(|row| row.strip_prefix("malformed-unmatched-vars\t"))
             .unwrap();
-        // An all-literal `format` folds to a constant that needs no native
-        // preflight; a variable argument keeps the fixture's compiled `format`.
-        let source = String::from_utf8(bytes_from_hex(source))
-            .unwrap()
-            .replace("[format %c 123]", "[format %c $n]");
-        let source = format!("set n 123; {source}").into_bytes();
+        let source = bytes_from_hex(source);
+        // Without a genuine core the source must be refused before it runs:
+        // at compile admission, or, now that `format` compiles without
+        // native preflight, when `format` requests its numeric input.
         assert!(matches!(
             vm.try_eval_source_bytes(&source),
             Err(tcl_runtime_api::NativeExecutionError::CompilationAdmission(
                 tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired
+            ) | tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable
             ))
         ));
     }
