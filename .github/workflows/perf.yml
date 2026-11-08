@@ -99,6 +99,77 @@ jobs:
           fi
           echo "graphs/ matches results/"
 
+  # Interpreter instruction counts, base against head. Callgrind counts are
+  # deterministic for one binary on one machine, so building both refs and
+  # measuring them in this one job is a real gate where wall time is not: a
+  # benchmark whose per-iteration instructions grow past the tolerance fails.
+  interp-instructions:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          cache-key: perf-interp-instructions
+
+      - name: Install valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+      - name: Test the measurement tool
+        working-directory: scripts/perf
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pytest
+          "$RUNNER_TEMP/venv/bin/pytest" -q test_interp_instructions.py
+
+      # libtommath: without it the runtime builds without its bignum backend.
+      - name: Fetch the Tcl 9.0.4 source (libtommath)
+        run: |
+          set -euo pipefail
+          .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+
+      - name: Build and measure the base
+        env:
+          TCL_TOMMATH_DIR: ${{ github.workspace }}/tmp/tcl9.0.4/libtommath
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          set -euo pipefail
+          git worktree add "$RUNNER_TEMP/base-src" "${{ github.event.pull_request.base.sha }}"
+          scripts/perf/build_interp_engines.sh "$RUNNER_TEMP/base-src" "$RUNNER_TEMP/base"
+          python3 scripts/perf/interp_instructions.py measure \
+            --engine tclvm="$RUNNER_TEMP/base/tclvm" \
+            --engine runtime="$RUNNER_TEMP/base/runtime" \
+            --out "$RUNNER_TEMP/base.json"
+
+      - name: Build and measure the head
+        env:
+          TCL_TOMMATH_DIR: ${{ github.workspace }}/tmp/tcl9.0.4/libtommath
+        run: |
+          set -euo pipefail
+          scripts/perf/build_interp_engines.sh . "$RUNNER_TEMP/head"
+          python3 scripts/perf/interp_instructions.py measure \
+            --engine tclvm="$RUNNER_TEMP/head/tclvm" \
+            --engine runtime="$RUNNER_TEMP/head/runtime" \
+            --out "$RUNNER_TEMP/head.json"
+
+      - name: Compare
+        run: |
+          set +e
+          python3 scripts/perf/interp_instructions.py compare \
+            "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" --tolerance 0.02 > "$RUNNER_TEMP/table.md"
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/table.md"
+          { echo "## Interpreter instructions per iteration"; echo; cat "$RUNNER_TEMP/table.md"; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.

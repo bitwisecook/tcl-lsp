@@ -272,3 +272,26 @@ on its own runner for the trend line, but when a committed result already exists
 for that version the committed one is what gets rendered and attached to the
 GitHub Release — see the CI-vs-macOS warning above for why that ordering is
 deliberate.
+
+## Interpreter instruction counts
+
+`interp_instructions.py` measures the two script engines, the bytecode VM
+(`tclvm`) and the runtime (`runtime/rust`), rather than the language server. Each
+benchmark in `interp/` runs at two iteration counts under callgrind, and the
+difference in total instructions per extra iteration is the cost of one
+iteration, free of startup. Counts are deterministic for one binary on one
+machine, so the `interp-instructions` job in `perf.yml` builds the pull request's
+base and head on the same runner and fails when any benchmark grows by more than
+2%.
+
+```bash
+scripts/perf/build_interp_engines.sh . /tmp/head      # needs tmp/tcl9.0.4/libtommath
+python3 scripts/perf/interp_instructions.py measure \
+    --engine tclvm=/tmp/head/tclvm --engine runtime=/tmp/head/runtime --out head.json
+python3 scripts/perf/interp_instructions.py compare base.json head.json
+```
+
+A benchmark is a Tcl script with an `@N@` iteration placeholder. Hash maps on
+the compile path must use a deterministic hasher: a per-process random seed
+makes startup cost vary between the two runs and swamps the per-iteration
+difference.
