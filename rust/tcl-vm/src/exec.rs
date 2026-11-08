@@ -447,7 +447,7 @@ pub(crate) struct ExecLeaveCtx {
     original_scopes: Vec<OriginalExecutionOwner>,
     traces: bool,
     jim_commands: Vec<crate::interp::native_jim_lookup::JimCommandLease>,
-    cmd_string: Value,
+    cmd_string: Option<Value>,
     leave_owner: Option<CommandSidecarHandle>,
     step_scopes: usize,
 }
@@ -2313,7 +2313,7 @@ impl Vm {
             original_scopes: vec![OriginalExecutionOwner::Entered(original)],
             traces: false,
             jim_commands: Vec::new(),
-            cmd_string: Value::empty(),
+            cmd_string: None,
             leave_owner: None,
             step_scopes: 0,
         }
@@ -9734,7 +9734,7 @@ impl Vm {
                 original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
                 traces: false,
                 jim_commands: Vec::new(),
-                cmd_string: Value::empty(),
+                cmd_string: None,
                 leave_owner: None,
                 step_scopes: 0,
             };
@@ -9943,7 +9943,7 @@ impl Vm {
                         ctx.traces = false;
                         ctx.step_scopes = 0;
                         ctx.leave_owner = None;
-                        ctx.cmd_string = Value::empty();
+                        ctx.cmd_string = None;
                         if let Some(refused) = self.exec_leave_scope_refusal(&ctx) {
                             let original = ctx.original_scopes.clone();
                             drop(ctx);
@@ -10066,7 +10066,7 @@ impl Vm {
             original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
             traces: true,
             jim_commands: Vec::new(),
-            cmd_string,
+            cmd_string: Some(cmd_string),
             leave_owner,
             step_scopes: pushed,
         };
@@ -10138,9 +10138,10 @@ impl Vm {
         if !ctx.traces || (self.exec_traces.is_empty() && self.exec_step_scopes.is_empty()) {
             return None;
         }
+        let command = ctx.cmd_string.clone().unwrap_or_else(Value::empty);
         let args = |result: Value, op: &str| {
             [
-                ctx.cmd_string.clone(),
+                command.clone(),
                 Value::string(c.code.as_int().to_string()),
                 result,
                 Value::string(op),
@@ -10172,7 +10173,7 @@ impl Vm {
                         return Some(refused);
                     }
                     if !r.code.is_ok() {
-                        self.exec_trace_failed("leave", &ctx.cmd_string, &r);
+                        self.exec_trace_failed("leave", &command, &r);
                         replacement = Some(r);
                         break;
                     }
@@ -10496,7 +10497,7 @@ impl Vm {
                 original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
                 traces: false,
                 jim_commands: Vec::new(),
-                cmd_string: Value::empty(),
+                cmd_string: None,
                 leave_owner: None,
                 step_scopes: 0,
             });
@@ -11111,7 +11112,7 @@ impl Vm {
             original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
             traces: true,
             jim_commands: Vec::new(),
-            cmd_string,
+            cmd_string: Some(cmd_string),
             leave_owner,
             step_scopes,
         };
@@ -11447,7 +11448,7 @@ impl Vm {
             original_scopes: vec![OriginalExecutionOwner::Entered(original_scope.clone())],
             traces: true,
             jim_commands: Vec::new(),
-            cmd_string,
+            cmd_string: Some(cmd_string),
             leave_owner,
             step_scopes: pushed,
         };
