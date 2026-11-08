@@ -7674,6 +7674,8 @@ impl Value {
                 self.numeric_conversion_current(original)?;
                 Ok(n)
             }
+            // Every C release reads a bignum spelling as an overflow.
+            Some(Number::Big { .. }) => Err(ValueError::IntegerOverflow.into()),
             _ => Err(TclError::new(format!(
                 "expected integer but got {}",
                 list::describe_bad_value(&s)

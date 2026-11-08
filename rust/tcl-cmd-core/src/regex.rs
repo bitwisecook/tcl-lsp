@@ -1005,9 +1005,15 @@ where
                 return Err(RegexpExecutionError::Regex(wrong_args(REGEXP_USAGE)));
             }
             if inline && remaining.len() != 2 {
-                return Err(RegexpExecutionError::Regex(RegexError::new(
-                    b"regexp match variables not allowed when using -inline".to_vec(),
-                )));
+                let message = b"regexp match variables not allowed when using -inline".to_vec();
+                // C8.6 added the operation code to this refusal.
+                return Err(RegexpExecutionError::Regex(
+                    if version >= TclVersion::V8_6 {
+                        RegexError::coded(message, "TCL OPERATION REGEXP MIX_VAR_INLINE")
+                    } else {
+                        RegexError::new(message)
+                    },
+                ));
             }
             let recipe = ops.regex_recipe().map_err(|error| {
                 RegexpExecutionError::Regex(RegexError::from(crate::CmdError::from(error)))

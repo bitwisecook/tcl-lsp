@@ -233,7 +233,7 @@ impl NativeEventProtocol {
             return Some(b"NONE".to_vec());
         }
         self.version?;
-        let mut code = b"TCL LOOKUP INDEX argument".to_vec();
+        let mut code = b"TCL LOOKUP INDEX argument ".to_vec();
         tcl_syntax::list::append_list_element(
             &mut code,
             tcl_core_types::c_string_extent(original),
@@ -248,7 +248,7 @@ impl NativeEventProtocol {
             return Some(b"NONE".to_vec());
         }
         self.version?;
-        let mut code = b"TCL LOOKUP EVENT".to_vec();
+        let mut code = b"TCL LOOKUP EVENT ".to_vec();
         tcl_syntax::list::append_list_element(
             &mut code,
             tcl_core_types::c_string_extent(original),

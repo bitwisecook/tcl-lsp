@@ -443,10 +443,10 @@ fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, Stri
 
 /// Parse an `interp limit` integer option value with C's `Tcl_GetIntFromObj`
 /// `expected integer but got "X"` wording.
-fn parse_limit_int(s: &str) -> Result<i64, String> {
-    s.trim()
-        .parse::<i64>()
-        .map_err(|_| format!("expected integer but got \"{s}\""))
+/// A limit word through the selected wide integer getter, with its typed
+/// failure code.
+fn limit_integer(vm: &mut Vm, value: &Value) -> Result<i64, tcl_cmd_core::CmdError> {
+    tcl_syntax::value::ValueOps::as_int(vm, value).map_err(Into::into)
 }
 
 /// An `interp limit` value outside its option's range (`TCL OPERATION INTERP
@@ -8964,18 +8964,16 @@ impl Vm {
                     match opt {
                         "-command" => self.limits.cmd_command = val.clone(),
                         "-granularity" => {
-                            let n = i64::from(tcl_syntax::value::narrow_to_c_int(
-                                parse_limit_int(&val.to_str())
-                                    .map_err(tcl_cmd_core::CmdError::new)?,
-                            )?);
+                            let n = i64::from(tcl_syntax::value::narrow_to_c_int(limit_integer(
+                                self, val,
+                            )?)?);
                             if n < 1 {
                                 return Err(bad_limit_value("granularity must be at least 1"));
                             }
                             self.limits.cmd_granularity = n;
                         }
                         _ => {
-                            let n = parse_limit_int(&val.to_str())
-                                .map_err(tcl_cmd_core::CmdError::new)?;
+                            let n = limit_integer(self, val)?;
                             if n < 0 {
                                 return Err(bad_limit_value(
                                     "command limit value must be at least 0",
@@ -9038,18 +9036,16 @@ impl Vm {
                     match opt {
                         "-command" => self.limits.time_command = val.clone(),
                         "-granularity" => {
-                            let n = i64::from(tcl_syntax::value::narrow_to_c_int(
-                                parse_limit_int(&val.to_str())
-                                    .map_err(tcl_cmd_core::CmdError::new)?,
-                            )?);
+                            let n = i64::from(tcl_syntax::value::narrow_to_c_int(limit_integer(
+                                self, val,
+                            )?)?);
                             if n < 1 {
                                 return Err(bad_limit_value("granularity must be at least 1"));
                             }
                             self.limits.time_granularity = n;
                         }
                         "-seconds" => {
-                            let n = parse_limit_int(&val.to_str())
-                                .map_err(tcl_cmd_core::CmdError::new)?;
+                            let n = limit_integer(self, val)?;
                             if n < 0 {
                                 return Err(bad_limit_value("seconds must be non-negative"));
                             }
@@ -9057,8 +9053,7 @@ impl Vm {
                             touched = true;
                         }
                         _ => {
-                            let n = parse_limit_int(&val.to_str())
-                                .map_err(tcl_cmd_core::CmdError::new)?;
+                            let n = limit_integer(self, val)?;
                             if n < 0 {
                                 return Err(bad_limit_value("milliseconds must be non-negative"));
                             }

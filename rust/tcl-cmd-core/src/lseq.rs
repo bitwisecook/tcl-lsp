@@ -353,7 +353,13 @@ pub fn decode_original(
         if allowed_num {
             return Err(number_error(bytes));
         }
-        return Err(syntax());
+        // C's NoneArg path re-reads the word as an operation to report it.
+        return Err(LseqError::Command(
+            crate::prefix::OptionTable::abbreviating("operation", &["..", "to", "count", "by"])
+                .index_of_cmd(bytes)
+                .err()
+                .unwrap_or_else(|| CmdError::new("lseq operation was not refused")),
+        ));
     }
 
     let sources = sources.iter().map(Vec::as_slice).collect::<Vec<_>>();

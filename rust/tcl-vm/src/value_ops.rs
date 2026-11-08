@@ -78,6 +78,11 @@ fn integer_number(
         }
         return Ok(number);
     }
+    // A held double is TCL_NUMBER_DOUBLE to the integer getter, which reports
+    // it as TCL VALUE INTEGER; an unparsed spelling is TCL VALUE NUMBER.
+    if value.double_representation().is_some() {
+        return Err(ValueError::DoubleNotInteger(value.to_str().to_string()));
+    }
     let protocol = context
         .dialect
         .native_string_protocol()
