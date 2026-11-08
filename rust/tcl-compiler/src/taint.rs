@@ -3959,7 +3959,8 @@ fn taint_warning_report_for_cu_base_with_external_variable_seeds(
             &taints,
             exec,
             registry,
-            TaintSourceContext::for_unit_may(registry, cu, fu),
+            TaintSourceContext::for_unit_may(registry, cu, fu)
+                .with_procedure_summaries(Some(&solved.summaries)),
             &shadowed,
             (module_traces, &identities, Some(&cu.ir_module)),
         ));
@@ -5271,13 +5272,17 @@ pub fn taint_warning_report_for_module_function<
     module: &crate::ir::Module,
     shadowed_builtins: &HashSet<String, H>,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+    procedure_summaries: Option<
+        &HashMap<crate::ir::ProcedureId, crate::taint_interproc::ProcTaintSummary>,
+    >,
 ) -> TaintWarningReport {
     taint_warning_report_for_function_with_identities(
         fu,
         taints,
         executable_blocks,
         registry,
-        TaintSourceContext::for_module_function(registry, module, fu),
+        TaintSourceContext::for_module_function(registry, module, fu)
+            .with_procedure_summaries(procedure_summaries),
         shadowed_builtins,
         (
             module_traces,
@@ -7427,16 +7432,24 @@ fn emit_pattern_operand_warnings<S: std::hash::BuildHasher>(
         // value carries it already or is quoted inline in the pattern slot.
         // Scoped to that slot: the same variable used elsewhere in the call is
         // not in a pattern position and has no bearing on this hazard.
-        let t = var_wrapper_colours(
+        let wrapped = var_wrapper_colours(
             registry,
             env.source,
             &args[pattern_idx..=pattern_idx],
             &var,
             Some(source_tokens),
             pattern_idx,
-        )
-        .map_or(t, |colours| t.shape_unproven().with(colours));
+        );
+        let t = wrapped.map_or(t, |colours| t.shape_unproven().with(colours));
         if t.colours.intersects(TaintColour::REGEX_LITERAL) {
+            continue;
+        }
+        if wrapped.is_some()
+            && summarised_pattern_taint(env, registry, source_tokens, pattern_idx, arg)
+                .is_some_and(|word| {
+                    !word.is_tainted() || word.colours.intersects(TaintColour::REGEX_LITERAL)
+                })
+        {
             continue;
         }
         warnings.push(TaintWarning {
@@ -7453,6 +7466,37 @@ fn emit_pattern_operand_warnings<S: std::hash::BuildHasher>(
             fixes: Vec::new(),
         });
     }
+}
+
+/// The pattern word's taint under the solved procedure return summaries, so
+/// an inline call to a quoting procedure proves what its assigned result would.
+fn summarised_pattern_taint<S: std::hash::BuildHasher>(
+    env: &TaintScan<'_, S>,
+    registry: &CommandRegistry,
+    source_tokens: &CommandTokens,
+    pattern_idx: usize,
+    word: &str,
+) -> Option<TaintLattice> {
+    let summaries = env.source.procedure_summaries()?;
+    let known: HashSet<crate::ir::ProcedureId> = summaries.keys().copied().collect();
+    let ctx = TaintCtx {
+        registry,
+        ssa: env.ssa,
+        interproc: None,
+        known_procs: Some(&known),
+        dialect: env.source.dialect(),
+        source: env.source,
+        taint_summaries: Some(summaries),
+        instance_classes: None,
+        source_position: None,
+        source_tokens: Some(source_tokens),
+        word_offset: source_tokens
+            .argv
+            .get(pattern_idx + 1)
+            .map(|span| span.start()),
+        source_word: source_tokens.word_exprs.get(pattern_idx + 1),
+    };
+    Some(word_taint(word, env.uses, env.taints, ctx))
 }
 
 /// One `ExprNode::Var` occurrence sitting in a numeric-coercion-relevant

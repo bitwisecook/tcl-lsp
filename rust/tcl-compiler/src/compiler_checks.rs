@@ -698,6 +698,7 @@ pub fn push_taint_and_module_checks(
                 &cu.ir_module,
                 &shadowed,
                 module_traces,
+                Some(&solved.summaries),
             );
             taint_replays.merge(report.replays);
             for warning in report.warnings {

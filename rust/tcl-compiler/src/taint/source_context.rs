@@ -102,7 +102,11 @@ pub(crate) struct TaintSourceContext<'a> {
     body_id: Option<crate::ir::ProcedureId>,
     module_owner: Option<&'a crate::command_binding::RetainedSourceModuleBindings>,
     authored_body: Option<authored_body::AuthoredBodyTaintContext<'a>>,
+    procedure_summaries: Option<&'a ProcedureSummaries>,
 }
+
+pub(crate) type ProcedureSummaries =
+    std::collections::HashMap<crate::ir::ProcedureId, crate::taint_interproc::ProcTaintSummary>;
 
 impl<'a> TaintSourceContext<'a> {
     pub(crate) const fn metadata_context(self) -> Option<InvocationMetadataContext<'a>> {
@@ -156,6 +160,7 @@ impl<'a> TaintSourceContext<'a> {
             body_id: None,
             module_owner: None,
             authored_body: None,
+            procedure_summaries: None,
         }
     }
 
@@ -283,6 +288,7 @@ impl<'a> TaintSourceContext<'a> {
             body_id: None,
             module_owner,
             authored_body: None,
+            procedure_summaries: None,
         }
     }
 
@@ -328,7 +334,23 @@ impl<'a> TaintSourceContext<'a> {
             body_id: None,
             module_owner: None,
             authored_body: None,
+            procedure_summaries: None,
         }
+    }
+
+    /// Attach the return summaries the supplied taints were solved under.
+    pub(crate) const fn with_procedure_summaries(
+        self,
+        summaries: Option<&'a ProcedureSummaries>,
+    ) -> Self {
+        Self {
+            procedure_summaries: summaries,
+            ..self
+        }
+    }
+
+    pub(crate) const fn procedure_summaries(self) -> Option<&'a ProcedureSummaries> {
+        self.procedure_summaries
     }
 
     pub(crate) const fn module(self) -> Option<&'a crate::ir::Module> {

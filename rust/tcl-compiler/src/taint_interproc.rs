@@ -1477,6 +1477,8 @@ pub struct InterprocTaintResult {
     pub top_taints: HashMap<ValueKey, TaintLattice>,
     /// Per-procedure taints, keyed by qualified name.
     pub proc_taints: HashMap<crate::ir::ProcedureId, HashMap<ValueKey, TaintLattice>>,
+    /// Converged return summaries the taints were solved under.
+    pub summaries: HashMap<crate::ir::ProcedureId, ProcTaintSummary>,
 }
 
 impl InterprocTaintResult {
@@ -2089,6 +2091,7 @@ fn solve_interprocedural_taints_with_context(
     InterprocTaintResult {
         top_taints,
         proc_taints,
+        summaries,
     }
 }
 

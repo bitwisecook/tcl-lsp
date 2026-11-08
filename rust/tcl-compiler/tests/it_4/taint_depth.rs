@@ -711,9 +711,10 @@ mod t103_regsub_and_quotes {
     }
 
     #[test]
-    fn an_undefined_quote_name_proves_nothing() {
-        // tclsh: `regex::quote` is `invalid command name` until defined.
-        assert_ne!(
+    fn an_undefined_quote_name_demurs() {
+        // tclsh: `regex::quote` is `invalid command name` before the match runs;
+        // unseen code may still define it, so neither verdict is proved.
+        assert_eq!(
             channel_of_code(
                 "set x [read $fd]\nregexp -- [regex::quote $x] subject",
                 D,
