@@ -689,7 +689,7 @@ mod t103_regsub_and_quotes {
     #[test]
     fn quoting_regsub_suppresses_t103() {
         assert_eq!(
-            of_code(
+            channel_of_code(
                 "set x [read $fd]\nset q [regsub -all {[][{}()*+?.\\\\^$|]} $x {\\\\&}]\nregexp $q subject",
                 D,
                 "T103",
@@ -701,7 +701,7 @@ mod t103_regsub_and_quotes {
     #[test]
     fn defined_quote_helper_suppresses_t103() {
         assert_eq!(
-            of_code(
+            channel_of_code(
                 &format!("{QUOTE_HELPER}set x [read $fd]\nregexp -- [::regex::quote $x] subject"),
                 D,
                 "T103",
@@ -714,7 +714,7 @@ mod t103_regsub_and_quotes {
     fn an_undefined_quote_name_proves_nothing() {
         // tclsh: `regex::quote` is `invalid command name` until defined.
         assert_ne!(
-            of_code(
+            channel_of_code(
                 "set x [read $fd]\nregexp -- [regex::quote $x] subject",
                 D,
                 "T103",
@@ -727,7 +727,7 @@ mod t103_regsub_and_quotes {
     fn a_class_without_backslash_does_not_quote() {
         // tclsh: `\\d` survives this class as a digit class escape.
         assert_ne!(
-            of_code(
+            channel_of_code(
                 "set x [read $fd]\nset q [regsub -all {[][(){}.*+?^$\\|]} $x {\\\\&}]\nregexp $q subject",
                 D,
                 "T103",
@@ -740,7 +740,7 @@ mod t103_regsub_and_quotes {
     fn a_literal_ampersand_substitution_does_not_quote() {
         // tclsh: `{\\&}` replaces each metacharacter with `&`: `a.b` -> `a&b`.
         assert_ne!(
-            of_code(
+            channel_of_code(
                 "set x [read $fd]\nset q [regsub -all {[][{}()*+?.\\\\^$|]} $x {\\&}]\nregexp $q subject",
                 D,
                 "T103",
@@ -970,11 +970,14 @@ mod t106_double_encode_breadth {
     }
 
     #[test]
-    fn regexp_quote_double_warns_with_label() {
-        // Core/tcllib: re-quoting a regex-escaped value double-escapes → T106,
-        // labelled "regex-escaped".
-        let ws = of_code(
-            "set x [read $fd]\nset a [regexp::quote $x]\nset b [regexp::quote $a]",
+    fn requoting_regsub_double_warns_with_label() {
+        // Re-quoting a regex-escaped value escapes its backslashes again →
+        // T106, labelled "regex-escaped". tclsh 8.6 and 9.0: one pass turns
+        // `a.b` into `a\.b`, a second into `a\\\.b`.
+        let ws = channel_of_code(
+            "set x [read $fd]\n\
+             set a [regsub -all {[][{}()*+?.\\\\^$|]} $x {\\\\&}]\n\
+             set b [regsub -all {[][{}()*+?.\\\\^$|]} $a {\\\\&}]",
             D,
             "T106",
         );

@@ -3606,14 +3606,20 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     ctx: TaintCtx<'_>,
     quoted_uses: &HashSet<Symbol>,
 ) {
-    let Some(dup_colour) = ctx
-        .registry
-        .get(command)
-        .and_then(|s| s.taint_double_encode_colour)
-        .map(reg_colour)
-    else {
+    let Some(spec) = ctx.registry.get(command) else {
         return;
     };
+    let Some(dup_colour) = spec.taint_double_encode_colour.map(reg_colour) else {
+        return;
+    };
+    // A conditional transform encodes only on the calls that satisfy it, so
+    // only those can encode twice (`regsub` escapes only in its quoting form).
+    if spec.taint_transform_when.is_some() {
+        let args: Vec<&str> = call_args.iter().map(String::as_str).collect();
+        if transform_colour(ctx.registry, command, &args).is_none() {
+            return;
+        }
+    }
     let label = double_encode_label(dup_colour);
     let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
     // Named-variable double-encode: `set e [enc $x]; enc $e`.

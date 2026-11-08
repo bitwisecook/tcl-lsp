@@ -290,6 +290,8 @@ pub fn spec() -> CommandSpec {
         // `regsub -all {[][{}()*+?.\\^$|]} $s {\\&}` (tclsh 8.6 and 9.0:
         // `a.b` -> `a\.b`, which no longer matches `axb`).
         taint_transform: Some(TaintColour::REGEX_LITERAL),
+        // Quoting an already-escaped value escapes its backslashes again.
+        taint_double_encode_colour: Some(TaintColour::REGEX_LITERAL),
         taint_transform_when: Some(
             crate::taint::TaintTransformCondition::RegsubQuotesRegexMetacharacters,
         ),
