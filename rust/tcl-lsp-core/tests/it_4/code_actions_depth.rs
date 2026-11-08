@@ -149,58 +149,53 @@ fn irules_checks(
     run_all_checks(&cu, context.commands(), Some(environment.unit_profile()))
 }
 
-fn lexical_taint_analysis(
-    source: &str,
-    registry: &tcl_registry::CommandRegistry,
-) -> AnalysisResult {
-    let profile = lexical_taint_profile();
-    let registry = registry.project_for_profile(profile);
-    let context = tcl_lsp_core::context_for_dialect_profile(profile)
-        .with_command_store(registry.snapshot().shared_registry());
+/// Native Tcl 8.6, where the retained command world proves both the taint
+/// finding and every command a hardening edit inserts.
+fn native_taint_input() -> (
+    tcl_compiler::analyser::ResolvedAnalysisInput,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    &'static tcl_dialect::DialectProfile,
+) {
+    let environment = tcl_registry::model::resolve_known_environment("tcl8.6").unwrap();
+    let context = environment.default_context_registry();
     let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
-        profile,
-        profile,
-        std::sync::Arc::new(context),
-        LexerConfig::for_profile(Some(profile)),
+        environment.analyser_profile(),
+        environment.unit_profile(),
+        context.clone(),
+        LexerConfig::from_grammar(environment.grammar()),
     );
+    (input, context, environment.unit_profile())
+}
+
+fn native_taint_analysis(source: &str) -> (AnalysisResult, tcl_registry::CommandRegistry) {
+    let (input, context, profile) = native_taint_input();
     let analysis = Analyser::new()
         .with_resolved_input(input)
         .analyse(source, profile.name);
-    assert!(analysis.allows_lexical_declaration_advice());
-    analysis
+    (analysis, context.commands().clone())
 }
 
-/// A Jim point with no native name protocol takes explicit lexical
-/// declaration advice, the purpose under which taint hardening actions are
-/// offered; it carries Jim's own command layers so `gets`/`puts` resolve.
-fn lexical_taint_profile() -> &'static tcl_dialect::DialectProfile {
-    use std::sync::OnceLock;
-    static PROFILE: OnceLock<&'static tcl_dialect::DialectProfile> = OnceLock::new();
-    PROFILE.get_or_init(|| {
-        let point =
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
-        let mut profile = tcl_dialect::DialectProfile::projected_from_point(
-            "explicit-lexical-taint-advice",
-            &[],
-            "Logical taint source advice",
-            point,
-        );
-        profile.base_layers = tcl_registry::model::ingress::resolve_environment("jim")
-            .analyser_profile()
-            .base_layers;
-        profile.intern()
-    })
-}
-
-/// Compiler warnings for the source under the same lexical profile.
+/// Compiler warnings for the source under the same native input.
 fn tcl_checks(
     source: &str,
-    registry: &tcl_registry::CommandRegistry,
+    _registry: &tcl_registry::CommandRegistry,
 ) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
-    let profile = lexical_taint_profile();
-    let registry = &registry.project_for_profile(profile);
-    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
-        .with_interprocedural(registry, Some(profile));
+    let (input, context, profile) = native_taint_input();
+    let registry = context.commands();
+    let cu = CompilationUnit::build_with_analysis_input(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        None,
+        &input,
+    )
+    .with_interprocedural(registry, Some(profile));
     run_all_checks(&cu, registry, Some(profile))
 }
 
@@ -1328,7 +1323,7 @@ fn context_t101_strip_crlf_fix_clears_its_own_diagnostic() {
         .expect("puts of a tainted value raises T101");
 
     let diag = as_context_diagnostic(t101, src);
-    let analysis = lexical_taint_analysis(src, &registry);
+    let (analysis, registry) = native_taint_analysis(src);
     let actions = context_diagnostic_actions_in_analysis(
         src,
         &analysis,
@@ -1383,7 +1378,7 @@ fn context_t103_regex_quote_fix_clears_its_own_diagnostic() {
         .expect("a tainted regexp pattern raises T103");
 
     let diag = as_context_diagnostic(t103, src);
-    let analysis = lexical_taint_analysis(src, &registry);
+    let (analysis, registry) = native_taint_analysis(src);
     let actions = context_diagnostic_actions_in_analysis(
         src,
         &analysis,

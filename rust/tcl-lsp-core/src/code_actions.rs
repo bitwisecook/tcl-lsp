@@ -2643,13 +2643,11 @@ fn taint_subject_actions(
         return subst_nocommands_action(source, analysis, registry, command);
     }
     // Other rewrites introduce or remove evaluations. Authored vendor and
-    // explicit lexical source advice may offer reviewed hardening; selected
-    // Native inputs require independent insertion/evaluation permissions.
-    if !analysis.has_original_vendor_source_names()
-        && !analysis.allows_retained_logical_declaration_advice()
-    {
-        return Vec::new();
-    }
+    // explicit lexical source advice may offer reviewed hardening; a Native
+    // input offers it only where the retained command world proves every
+    // inserted command at the point it runs.
+    let native = !analysis.has_original_vendor_source_names()
+        && !analysis.allows_retained_logical_declaration_advice();
     let Some(read) = diagnostic_context::selected_read(source, analysis, command, diagnostic)
     else {
         return Vec::new();
@@ -2660,7 +2658,10 @@ fn taint_subject_actions(
     let variable = subject.variable();
     match diagnostic.code.as_str() {
         "T101" | "IRULE3003" => {
-            if source_action_spec(analysis, registry, "string").is_none() {
+            if source_action_spec(analysis, registry, "string").is_none()
+                || native
+                    && !native_command_proved(analysis, registry, "string", command.span.start())
+            {
                 return Vec::new();
             }
             vec![context_action(
@@ -2672,7 +2673,7 @@ fn taint_subject_actions(
                 )],
             )]
         }
-        "T106" => {
+        "T106" if !native => {
             // Only the exact selected encoder substitution can be removed.
             // A nearby bracket or a different variable is never an anchor.
             if command.words.len() != 2
@@ -2692,7 +2693,23 @@ fn taint_subject_actions(
                 )],
             )]
         }
-        "IRULE3001" | "IRULE3002" | "T103" => {
+        "T103" if native => {
+            if !native_regex_quote_publication_proved(analysis, registry, command.span.start()) {
+                return Vec::new();
+            }
+            vec![context_action(
+                format!("Wrap ${variable} with [regex::quote]"),
+                vec![
+                    source_edit(
+                        source,
+                        tcl_lexer::Span::new(0, 0),
+                        format!("{REGEX_QUOTE_PROC}\n"),
+                    ),
+                    source_edit(source, read, format!("[::regex::quote {matched}]")),
+                ],
+            )]
+        }
+        "IRULE3001" | "IRULE3002" | "T103" if !native => {
             let (encoder, template) = match diagnostic.code.as_str() {
                 "IRULE3001" => ("html_encode", Some(HTML_ENCODE_PROC)),
                 "IRULE3002" => ("URI::encode", None),
@@ -2727,6 +2744,59 @@ fn taint_subject_actions(
         }
         _ => Vec::new(),
     }
+}
+
+/// The retained command world proves `name` resolves to its own registry
+/// command at `at`: no shadowing procedure, alias, rename or unknown lookup.
+fn native_command_proved(
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    name: &str,
+    at: u32,
+) -> bool {
+    use tcl_registry::model::{BindingKnowledge, BindingTarget, SpecKey};
+    let (Some(spec), Some(realm), Some(input)) = (
+        source_action_spec(analysis, registry, name),
+        analysis.retained_command_realm(),
+        analysis.resolved_input.as_ref(),
+    ) else {
+        return false;
+    };
+    realm.knowledge_at(input.availability_context(), registry, name, at)
+        == BindingKnowledge::Must(BindingTarget::Spec(SpecKey::new(spec)))
+}
+
+/// The retained command world proves `name` has no binding at `at`.
+fn native_command_absent(
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    name: &str,
+    at: u32,
+) -> bool {
+    let (Some(realm), Some(input)) = (
+        analysis.retained_command_realm(),
+        analysis.resolved_input.as_ref(),
+    ) else {
+        return false;
+    };
+    realm.knowledge_at(input.availability_context(), registry, name, at)
+        == tcl_registry::model::BindingKnowledge::Absent
+}
+
+/// Publishing [`REGEX_QUOTE_PROC`] at the top of a Native document: its
+/// `namespace` and `proc` are the builtins there, and at the sink the new
+/// helper neither collides with nor is shadowed by an existing command, and
+/// its `regsub` resolves to the builtin from the `::regex` namespace.
+fn native_regex_quote_publication_proved(
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    sink: u32,
+) -> bool {
+    native_command_proved(analysis, registry, "namespace", 0)
+        && native_command_proved(analysis, registry, "proc", 0)
+        && native_command_absent(analysis, registry, "::regex::quote", sink)
+        && native_command_absent(analysis, registry, "::regex::regsub", sink)
+        && native_command_proved(analysis, registry, "regsub", sink)
 }
 
 fn subst_nocommands_action(
