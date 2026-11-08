@@ -77,6 +77,17 @@ pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> 
         .map(|environment| environment.unit_profile())
 }
 
+/// [`known_profile_for_dialect`] for an environment compiled into the binary:
+/// one no discovered pack can declare, retire or replace.
+#[must_use]
+pub fn compiled_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
+    tcl_registry::model::resolve_known_environment(name)
+        .filter(|environment| {
+            environment.definition.provenance == tcl_dialect::model::Provenance::BuiltIn
+        })
+        .map(|environment| environment.unit_profile())
+}
+
 /// The **document context** a dialect name's answers are given under — the
 /// assistance view that replaces the whole `ProfileQueries` surface:
 /// command resolution, availability, subcommands, options.

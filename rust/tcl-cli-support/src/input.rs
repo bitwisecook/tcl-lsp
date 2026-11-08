@@ -223,9 +223,10 @@ pub fn combined_effective_dialect(
 /// profile.
 ///
 /// A name the compiled environments know resolves at once. Any other name is
-/// looked up again after the workspace and user packs are discovered and
-/// published, because a pack may declare it: an environment a pack declares is
-/// in the live registry from then on. The argument parsers accept any
+/// looked up after the current directory's packs are discovered and
+/// published, because a pack may declare it. A reused process may still hold
+/// an environment another directory's pack declared; publishing this
+/// directory's set retires it, so it is never accepted on stale evidence. The argument parsers accept any
 /// non-empty string for that reason, and this is the only place the value is
 /// checked.
 ///
@@ -236,7 +237,7 @@ pub fn combined_effective_dialect(
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
         .map(|name| {
-            crate::environment::known_profile_for_dialect(name)
+            crate::environment::compiled_profile_for_dialect(name)
                 .or_else(|| {
                     crate::cli_packs(name);
                     crate::environment::known_profile_for_dialect(name)
