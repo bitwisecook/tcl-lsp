@@ -536,7 +536,7 @@ fn validate_member_roster(
 fn consumer_requests(
     document: OriginalDeclarationDocument<'_>,
     method: &OriginalSourceMethodMetadata,
-    wanted: &[u8],
+    (wanted, class_name): (&[u8], &str),
     classmethod: bool,
 ) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalMemberRenameRefusal> {
     let site = method.declaration().site();
@@ -570,7 +570,12 @@ fn consumer_requests(
             ) else {
                 // A class command dispatching the old selector that no member
                 // owns must not be left behind by the edit.
-                if class_dispatch && command.texts.get(1).map(String::as_bytes) == Some(old) {
+                let names_class = command.texts.first().is_some_and(|head| {
+                    tcl_syntax::naming::key_tail(head) == tcl_syntax::naming::key_tail(class_name)
+                });
+                if (class_dispatch || names_class)
+                    && command.texts.get(1).map(String::as_bytes) == Some(old)
+                {
                     refusal = Some(OriginalMemberRenameRefusal::IncompleteCoverage);
                     return true;
                 }
@@ -779,7 +784,12 @@ fn original_member_rename_units(
         {
             return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
         }
-        let requests = consumer_requests(*consumer, method, wanted, classmethod)?;
+        let requests = consumer_requests(
+            *consumer,
+            method,
+            (wanted, &class.metadata().qualified_name),
+            classmethod,
+        )?;
         if !requests.is_empty() {
             edits.extend(document_edits(*consumer, &requests)?);
         }
