@@ -137,13 +137,14 @@ fn same_member(
 /// `self method` sharing its member kind.
 fn native_classmethod(identity: &OriginalDeclarationIdentity, method: &OriginalSourceMethodMetadata) -> bool {
     identity.role() == OriginalDeclarationRole::Method(MemberSide::ClassObject)
+        && method.side() == MemberSide::ClassObject
         && native_classmethod_row(method)
 }
 
+/// Either side's row of a native `classmethod`: tclsh 9.0 installs it on the
+/// class's delegate, so it is listed for the class object and its instances.
 fn native_classmethod_row(method: &OriginalSourceMethodMetadata) -> bool {
-    method.side() == MemberSide::ClassObject
-        && method.metadata().kind == "classmethod"
-        && !method.metadata().is_self_method
+    method.metadata().kind == "classmethod" && !method.metadata().is_self_method
 }
 
 fn registry_coverage(
@@ -479,8 +480,8 @@ fn incomplete_member_family(
             .next()
             .is_some()
         || class.metadata().original_members.declarations().any(|row| {
-            (row.side() != MemberSide::Instance && !native_classmethod_row(row))
-                || row.native_class_delegate()
+            (row.side() != MemberSide::Instance || row.native_class_delegate())
+                && !native_classmethod_row(row)
                 || row.forward_prefix().is_some()
                 || row.declaration().static_occurrence().is_none()
         })
@@ -693,7 +694,7 @@ fn original_member_rename_units(
         .method_metadata(document.analysis)
         .ok_or(OriginalMemberRenameRefusal::StaleSource)?;
     if method.declaration().static_occurrence().is_none()
-        || method.native_class_delegate()
+        || (method.native_class_delegate() && !classmethod)
         || method.forward_prefix().is_some()
         || method.original_name_input() != method.declaration().original_name_input()
     {
