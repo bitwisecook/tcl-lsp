@@ -290,12 +290,18 @@ pub(super) fn current_commands(
     Some(commands.into_values().collect())
 }
 
+/// A Native issuer carries no separate source context; its currency was
+/// already checked against `analysis`, whose input then owns the sink words.
 pub(super) fn selected_sink<'a>(
     commands: &'a [SourceCommand],
+    analysis: &AnalysisResult,
     diagnostic: &Diagnostic,
 ) -> Option<&'a SourceCommand> {
     let sink = diagnostic.taint_subject.as_ref()?.source_sink()?;
-    let input = diagnostic.source_context.as_ref()?.analysis_input();
+    let input = match diagnostic.source_context.as_ref() {
+        Some(context) => context.analysis_input(),
+        None => analysis.resolved_input.as_ref()?,
+    };
     let mut candidates = commands.iter().filter(|command| {
         sink.matches_original_words(&command.words, input)
             && command.span.start() <= diagnostic.span.start()
@@ -724,7 +730,7 @@ mod tests {
         );
         let commands = current_commands(&commented, &analysis, registry).unwrap();
         let issuer = data.diagnostic().unwrap();
-        let sink = selected_sink(&commands, issuer).unwrap_or_else(|| {
+        let sink = selected_sink(&commands, &analysis, issuer).unwrap_or_else(|| {
             let geometry: Vec<_> = commands
                 .iter()
                 .map(|row| (row.canonical.as_str(), row.span.start(), row.span.end()))

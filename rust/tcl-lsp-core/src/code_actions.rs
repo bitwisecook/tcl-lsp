@@ -2633,7 +2633,7 @@ fn taint_subject_actions(
     let Some(subject) = diagnostic.taint_subject.as_ref() else {
         return Vec::new();
     };
-    let Some(command) = diagnostic_context::selected_sink(commands, diagnostic) else {
+    let Some(command) = diagnostic_context::selected_sink(commands, analysis, diagnostic) else {
         return Vec::new();
     };
     // This hardening changes subst's accepted input, independently of a
