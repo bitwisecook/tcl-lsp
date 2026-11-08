@@ -360,11 +360,28 @@ impl LatencyBudget {
 /// integration-test binary (each binary is its own process).
 static URI_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// A fresh, unique `file://` URI. Version-tagged diagnostics never collide
-/// because the path is unique per call.
+/// The workspace root every default server is initialised with: one real,
+/// empty directory per test process. The server's scan of it completes, so
+/// workspace-gated edits are judged against a complete inventory, and every
+/// [`unique_uri`] document lies inside it as an editor's documents would.
+pub fn harness_root_uri() -> &'static str {
+    static ROOT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    ROOT.get_or_init(|| {
+        let dir = std::env::temp_dir().join(format!("tcl-lsp-e2e-root-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create the e2e workspace root");
+        tcl_lsp_server::canonical_file_uri(&dir)
+            .expect("the e2e workspace root has a file URI")
+            .to_string()
+            .trim_end_matches('/')
+            .to_owned()
+    })
+}
+
+/// A fresh, unique `file://` URI inside [`harness_root_uri`]. Version-tagged
+/// diagnostics never collide because the path is unique per call.
 pub fn unique_uri(suffix: &str) -> String {
     let n = URI_COUNTER.fetch_add(1, Ordering::Relaxed);
-    format!("file:///e2e/{}_{n}.{suffix}", std::process::id())
+    format!("{}/{}_{n}.{suffix}", harness_root_uri(), std::process::id())
 }
 
 /// A reproducible `xorshift64*` PRNG — the same generator the `tcl-fuzz` crate
@@ -704,8 +721,7 @@ impl Lsp {
 
     /// Run the `initialize` handshake and send `initialized`.
     pub fn initialize(&mut self) -> Value {
-        let root = format!("file:///e2e/root-{}", std::process::id());
-        self.initialize_at(&root)
+        self.initialize_at(harness_root_uri())
     }
 
     /// [`Lsp::initialize`] against an explicit workspace-root URI.
