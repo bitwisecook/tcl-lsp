@@ -88,6 +88,18 @@ impl JimAllocationScope {
         Self(entered)
     }
 
+    /// A scope in which constructed objects are unpooled, or none when the
+    /// innermost scope already leaves them unpooled.
+    pub(crate) fn unpooled_if_shadowing() -> Option<Self> {
+        let shadows = ENTERED.with(|stack| {
+            stack
+                .borrow()
+                .last()
+                .is_some_and(|top| UNPOOLED.with(|unpooled| !Rc::ptr_eq(top, unpooled)))
+        });
+        shadows.then(Self::unpooled)
+    }
+
     /// A scope in which constructed objects are unpooled.
     pub(crate) fn unpooled() -> Self {
         let entered = UNPOOLED.with(Rc::clone);

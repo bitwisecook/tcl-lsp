@@ -299,7 +299,7 @@ pub(crate) struct NativeOperationScope {
     interpreter: Interp,
     currency: Rc<NativeOperationCurrency>,
     entry: u64,
-    _allocation: crate::obj::JimAllocationScope,
+    _allocation: Option<crate::obj::JimAllocationScope>,
 }
 
 /// Mandatory cleanup attaches the saved original entry only for its actual
@@ -308,7 +308,7 @@ pub(crate) struct NativeSavedCleanupScope {
     interpreter: Interp,
     original: SavedNativeOperationCurrency,
     entry: u64,
-    _allocation: crate::obj::JimAllocationScope,
+    _allocation: Option<crate::obj::JimAllocationScope>,
 }
 
 impl NativeSavedCleanupScope {
@@ -342,12 +342,12 @@ impl NativeOperationScope {
         let allocation = match pool {
             Some(pool) => {
                 let observed = Rc::clone(&currency);
-                crate::obj::JimAllocationScope::enter(
+                Some(crate::obj::JimAllocationScope::enter(
                     Some(pool),
                     Rc::new(move || observed.ensure_current().is_ok()),
-                )
+                ))
             }
-            None => crate::obj::JimAllocationScope::unpooled(),
+            None => crate::obj::JimAllocationScope::unpooled_if_shadowing(),
         };
         let entry = next_entry_serial();
         interpreter
@@ -387,12 +387,12 @@ impl NativeOperationScope {
             Some(pool) => {
                 let saved_allocation = saved.clone();
                 let target = interpreter.clone();
-                crate::obj::JimAllocationScope::enter(
+                Some(crate::obj::JimAllocationScope::enter(
                     Some(pool),
                     Rc::new(move || saved_allocation.check(&target).is_ok()),
-                )
+                ))
             }
-            None => crate::obj::JimAllocationScope::unpooled(),
+            None => crate::obj::JimAllocationScope::unpooled_if_shadowing(),
         };
         let entry = next_entry_serial();
         let original = match &saved.original {

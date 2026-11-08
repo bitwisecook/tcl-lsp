@@ -9627,6 +9627,16 @@ impl Interp {
         op: &[u8],
         leave_error_message: bool,
     ) -> Result<VariableTraceGuestOutcome, tcl_runtime_api::NativeExecutionError> {
+        // With no script trace and no native variable hook on this cell, no
+        // callback can run; only a retained refusal is observable.
+        if self.traces.borrow().traces.is_empty()
+            && !(access.whole_array && self.env_trace_reaches(home))
+            && !self.native_precision_trace_at(home)
+            && self.native_error_variable_at(home).is_none()
+        {
+            self.check_entered_native_operation()?;
+            return Ok(VariableTraceGuestOutcome::Complete);
+        }
         let _operation = native_operation_currency::NativeOperationScope::enter(self)?;
         self.check_entered_native_operation()?;
         let elem = access.match_elem.as_deref();
