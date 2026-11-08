@@ -2172,12 +2172,13 @@ fn call_site_hidden_inside_catch_body_does_not_fire_i230() {
 
 /// TP control: the interprocedural seed must still fire I230 for a
 /// genuinely proc-call-invariant parameter — two callers passing the
-/// identical literal to a private helper.
+/// identical literal to a private helper. Parameters are seeded only for
+/// procedures the file's own code enters, so the callers are invoked.
 #[test]
 fn two_callers_with_uniform_literal_still_fires_i230() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nproc caller1 {} { helper prod }\nproc caller2 {} { helper prod }\n";
+    let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nproc caller1 {} { helper prod }\nproc caller2 {} { helper prod }\ncaller1\ncaller2\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
         has_code(&diags, "I230"),
