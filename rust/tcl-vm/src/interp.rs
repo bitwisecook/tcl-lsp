@@ -24121,6 +24121,19 @@ impl Vm {
     /// it from `msg` if unset or empty, append `frame` verbatim, and clear `error_logged`
     /// so the enclosing command then logs its `invoked from within` frame.
     /// Used by `apply` for the `(parsing lambda expression "…")` frame.
+    /// C's `Tcl_AddErrorInfo` for the frames a command adds to its own error
+    /// (`(reading increment)`) before its caller logs it. A trace the
+    /// interpreter already holds, such as a callback's, is not added again.
+    pub(crate) fn add_command_error_info(&mut self, message: &[u8], info: &[u8]) {
+        if self.native_errors.error_info.as_deref() == Some(info) {
+            return;
+        }
+        let Some(frame) = info.strip_prefix(message).filter(|frame| !frame.is_empty()) else {
+            return;
+        };
+        self.seed_error_info_frame(message, frame);
+    }
+
     pub(crate) fn seed_error_info_frame(&mut self, msg: impl AsRef<[u8]>, frame: impl AsRef<[u8]>) {
         if self.uses_jim_error_stack() {
             return;

@@ -2674,6 +2674,7 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
     let mut extra = Vec::with_capacity(3);
     extra.push(("-errorcode", code));
     if let Some(info) = details.error_info {
+        vm.add_command_error_info(message, &info);
         extra.push(("-errorinfo", Value::from_string_bytes(info)));
     }
     if let Some(line) = details.error_line {
