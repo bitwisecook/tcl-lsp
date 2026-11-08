@@ -1286,9 +1286,8 @@ impl CompilerTraversal<'_> {
                 );
                 end = end.max(tcl_lexer::word_span_at(source, span).end());
             }
-            source
-                .get(tcl_lexer::Span::new(start, end).as_range())
-                .map(str::to_owned)
+            let end = c84_command_size_end(source.as_bytes(), end as usize);
+            source.get(start as usize..end).map(str::to_owned)
         });
         let original = self.chunk.source.source_image().bytes();
         let index = tcl_lexer::LineIndex::from_bytes(original);
@@ -1866,6 +1865,19 @@ fn head_compilation_capability(
         .first()
         .map(super::compiled_invocation::word_shape)?
         .compiler_head(dialect)
+}
+
+/// Where C8.4's `Tcl_ParseCommand` ends a command's size after its last word:
+/// past the white space (backslash-newlines included) that runs to its
+/// terminator, which `TclCompileScript` then leaves out, or to the script end.
+fn c84_command_size_end(source: &[u8], mut end: usize) -> usize {
+    loop {
+        match source.get(end..) {
+            Some([b' ' | b'\t' | b'\r' | 0x0b | 0x0c, ..]) => end += 1,
+            Some([b'\\', b'\n', ..]) => end += 2,
+            _ => return end,
+        }
+    }
 }
 
 #[cfg(test)]
