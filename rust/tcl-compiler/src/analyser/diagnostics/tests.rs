@@ -18850,3 +18850,26 @@ fn w210_does_not_report_a_name_a_substituted_catch_body_writes() {
     let source = "proc p {f} {\n    set rc [catch {set fd [open $f]} err]\n    if {$rc} {return}\n    puts [read $fd]\n}\n";
     assert_eq!(w210_codes(source), [] as [String; 0], "{source}");
 }
+
+/// A read after a loop selects the loop's joined contents: a counter or a
+/// value the loop wrote from clean data is not tainted.
+#[test]
+fn a_read_after_a_loop_keeps_the_taint_of_the_loop_contents() {
+    let codes = |src: &str| -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .filter(|code| code.starts_with('T'))
+            .collect()
+    };
+    for src in [
+        "foreach i {1 2 3} {}\nputs $i\n",
+        "for {set i 0} {$i < 5} {incr i} {}\nputs $i\n",
+        "proc p {} {set i 0; while {$i < 3} {incr i}; puts $i}\n",
+        "proc p {} {set i 0; foreach x {1 2} {set i $x}; puts $i}\n",
+    ] {
+        assert_eq!(codes(src), [] as [String; 0], "{src}");
+    }
+}

@@ -265,6 +265,32 @@ pub enum ContentsOrigin {
 }
 
 impl ContentsOrigin {
+    /// Whether every store this origin names is one `other` names: a value
+    /// joined over `other` covers a read whose reaching stores are these
+    /// (the source walk may prove a loop entered, or an arm not taken, that
+    /// the graph's join keeps).
+    #[must_use]
+    pub fn is_within(&self, other: &Self) -> bool {
+        let (incoming, writes): (bool, &[u32]) = match self {
+            Self::Unknown => return false,
+            Self::Incoming => (true, &[]),
+            Self::WrittenAt(source) => (false, std::slice::from_ref(source)),
+            Self::Alternatives { incoming, writes } => (*incoming, writes),
+        };
+        match other {
+            Self::Unknown => false,
+            Self::Incoming => writes.is_empty() && incoming,
+            Self::WrittenAt(source) => !incoming && writes.iter().all(|write| write == source),
+            Self::Alternatives {
+                incoming: other_incoming,
+                writes: other_writes,
+            } => {
+                (!incoming || *other_incoming)
+                    && writes.iter().all(|write| other_writes.contains(write))
+            }
+        }
+    }
+
     /// Join enumerated normal stores without erasing their provenance.
     #[must_use]
     pub fn joined(&self, other: &Self) -> Self {

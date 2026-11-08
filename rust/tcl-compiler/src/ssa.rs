@@ -7822,7 +7822,7 @@ fn retained_read_references(
                         == crate::var_resolve::ContentsPresence::Defined
                     && !access.variable_context.store_would_error(&place)
                     && source_origin != ContentsOrigin::Unknown
-                    && represented == Some(&source_origin))
+                    && represented.is_some_and(|represented| source_origin.is_within(represented)))
                 .then_some(candidate);
                 references.insert(
                     (
