@@ -3212,6 +3212,8 @@ impl Clone for PointBindingMemo {
 #[derive(Debug, Clone)]
 struct SourceBindingPoint {
     declaration_preview: bool,
+    /// Recorded by a walk of a body the source walk proves never entered.
+    unreached: bool,
     original_arguments_complete_normally: bool,
     observer_execution: SourceObserverExecution,
     realm: tcl_dialect::model::InvocationRealm,
@@ -3369,12 +3371,13 @@ impl SourceBindingPoint {
             proof.entered_execution_observer = self.observer_execution;
             // A retained Logical source continuation is conditional even at
             // the root. Its interpreted target supplies no entered handler.
-            proof.runtime_reachability =
-                if self.declaration_preview || self.original_logical_lookup_head().is_some() {
-                    SourceRuntimeReachability::Conditional
-                } else {
-                    SourceRuntimeReachability::Reached
-                };
+            proof.runtime_reachability = if self.unreached {
+                SourceRuntimeReachability::NotEntered
+            } else if self.declaration_preview || self.original_logical_lookup_head().is_some() {
+                SourceRuntimeReachability::Conditional
+            } else {
+                SourceRuntimeReachability::Reached
+            };
             proof
                 .frozen_written_words
                 .clone_from(&self.frozen_written_words);
@@ -4084,6 +4087,8 @@ pub struct SourceCommandBindings {
     original_source_operand_layouts:
         Arc<declaration_preview::OriginalDeclarationSourceOperandCache>,
     declaration_preview_depth: usize,
+    /// Depth of walks over bodies the source walk proves never entered.
+    unreached_walk_depth: usize,
     /// Survey-scoped Logical conditional source control. Only
     /// `analyse_package_index_survey` sets it; see
     /// `package_target_survey` for its exact admission.
@@ -10034,6 +10039,7 @@ impl SourceCommandBindings {
         self.invalidate_unpositioned_projections();
         self.points.push(SourceBindingPoint {
             declaration_preview: self.declaration_preview_depth != 0,
+            unreached: self.unreached_walk_depth != 0,
             original_arguments_complete_normally: false,
             observer_execution: SourceObserverExecution::Unobserved,
             realm: context.realm(),
@@ -10301,6 +10307,7 @@ impl SourceCommandBindings {
             .and_then(|word| word.as_registry_word().literal());
         let point = SourceBindingPoint {
             declaration_preview: self.declaration_preview_depth != 0,
+            unreached: self.unreached_walk_depth != 0,
             original_arguments_complete_normally: arguments_complete_normally,
             observer_execution,
             realm: context.realm(),
@@ -13002,6 +13009,7 @@ impl SourceCommandBindings {
                 phase,
                 point: SourceBindingPoint {
                     declaration_preview: self.declaration_preview_depth != 0,
+                    unreached: self.unreached_walk_depth != 0,
                     original_arguments_complete_normally: false,
                     observer_execution: SourceObserverExecution::Unobserved,
                     realm: context.realm(),
@@ -13870,7 +13878,8 @@ impl SourceCommandBindings {
 
     /// The original compiler still compiles a body the walk proves unreached
     /// when its condition is not a compile-time constant. Its commands bind in
-    /// the incoming command world; no outcome reaches the successor.
+    /// the incoming command world as never entered; no outcome reaches the
+    /// successor.
     fn walk_unreached_body(
         &mut self,
         body: usize,
@@ -13879,7 +13888,9 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
     ) {
         let mut unreached = boxed_source_branch(incoming);
+        self.unreached_walk_depth += 1;
         drop(self.walk_body_operand(body, operands, &mut unreached, &context.conditional()));
+        self.unreached_walk_depth -= 1;
     }
 
     /// Branches after a proved-true condition are compiled but never entered.
@@ -13894,8 +13905,10 @@ impl SourceCommandBindings {
         let mut unreached = incoming;
         for (condition, body) in branches {
             if let Some(condition) = condition {
+                self.unreached_walk_depth += 1;
                 let evaluated =
                     self.walk_expression_operand(*condition, operands, &mut unreached, context);
+                self.unreached_walk_depth -= 1;
                 let Some(normal) = evaluated.normal else {
                     return;
                 };
