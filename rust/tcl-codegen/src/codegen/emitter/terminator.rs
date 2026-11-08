@@ -163,8 +163,11 @@ impl CodegenCtx<'_> {
                 let numeric = self.emit_expr(cond);
                 if !numeric && cond.needs_numeric_result_conversion() {
                     use tcl_registry::native_expression_program::ScalarResultConversion;
+                    // The conversion is the compiling release's, independent
+                    // of any command binding the condition reached.
                     let conversion = self
-                        .native_hook_dialect()
+                        .invocation_dialect
+                        .or_else(|| self.native_hook_dialect())
                         .and_then(|dialect| {
                             (dialect.family() == Some(tcl_dialect::model::Family::Tcl))
                                 .then_some(dialect.tcl_version)
