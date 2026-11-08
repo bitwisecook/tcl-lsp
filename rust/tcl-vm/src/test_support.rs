@@ -89,9 +89,19 @@ pub fn native_vm_for_profile(
     profile: &'static tcl_dialect::DialectProfile,
     out: Box<dyn Write>,
 ) -> Vm {
+    native_vm_for_profile_on_host(profile, out, crate::standard_host())
+}
+
+/// [`native_vm_for_profile`] over an explicitly supplied host, such as one
+/// carrying a loaded native integer formatter.
+pub fn native_vm_for_profile_on_host(
+    profile: &'static tcl_dialect::DialectProfile,
+    out: Box<dyn Write>,
+    host: std::rc::Rc<dyn tcl_platform::Host>,
+) -> Vm {
     Vm::with_native_core(
         out,
-        crate::standard_host(),
+        host,
         profile,
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )

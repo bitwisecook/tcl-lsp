@@ -1413,15 +1413,13 @@ fn native_operand(
         let error = if let Some(error) = expression_operand_error(dialect, stage, value) {
             error
         } else if message.as_ref() == b"integer value too large to represent" {
+            // C8.4's `IllegalExprOperandType` sets the overflow code itself.
             return TclError::with_error_code(
                 format!(
                     "can't use integer value too large to represent as operand of \"{}\"",
                     op.as_str()
                 ),
-                match error.error_code_bytes() {
-                    Ok(code) => code.unwrap_or_default(),
-                    Err(cause) => return cause.into(),
-                },
+                b"ARITH IOVERFLOW {integer value too large to represent}".to_vec(),
             );
         } else {
             context_operand_error(dialect, value, side, op.as_str())

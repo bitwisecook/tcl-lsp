@@ -122,6 +122,11 @@ impl NativeExpressionOperandErrorCodePolicy {
     #[must_use]
     pub fn select_invalid_type_code(self, structured: &[u8]) -> &[u8] {
         match self {
+            // C8.4's `IllegalExprOperandType` sets only this code itself, for
+            // a formal integer it could not hold.
+            Self::None if structured == tcl_syntax::expr::errors::IOVERFLOW_CODE.as_bytes() => {
+                structured
+            }
             Self::None => b"NONE",
             Self::Structured => structured,
         }

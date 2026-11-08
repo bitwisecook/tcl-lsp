@@ -32,7 +32,11 @@ fn result_for(version: TclVersion, src: &str) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
     let capture = Capture::default();
-    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(capture.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_for_profile_on_host(
+        profile,
+        Box::new(capture.clone()),
+        host_for(version),
+    );
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let completion = vm.try_eval_source(src).expect("original source provider");
     assert!(
@@ -49,6 +53,20 @@ fn result_for(version: TclVersion, src: &str) -> String {
         .expect("original source provider");
     assert!(printed.code.is_ok(), "{version:?}: result print");
     String::from_utf8_lossy(&capture.0.borrow()).into_owned()
+}
+
+/// C8.4 formats a long through `TclFormatInt`, whose minimum-value spelling
+/// is the loaded build's own: only the pinned archive's updater supplies it.
+fn host_for(version: TclVersion) -> std::rc::Rc<dyn tcl_platform::Host> {
+    let host = tcl_host_native::NativeHost::new();
+    if version != TclVersion::V8_4 {
+        return std::rc::Rc::new(host);
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let formatter =
+        tcl_test_support::native_integer_formatter::load_pinned_c84_integer_formatter(&root)
+            .expect("pinned C84 native integer formatter");
+    std::rc::Rc::new(host.with_integer_formatter(formatter))
 }
 
 #[derive(Clone, Default)]
@@ -216,11 +234,11 @@ fn integers_wrap_at_64_bits_on_8_4() {
     let src = r#"proc t {e} { if {[catch {uplevel 1 [list expr $e]} r]} { return "ERR $r | $::errorCode" } else { return $r } }
 set big 18446744073709551616; set wrap 18446744073709551615
 set i 9223372036854775807
-list [t {9223372036854775807 + 1}] [t {9223372036854775807 * 2}] [t {-(-9223372036854775808)}] [t {$wrap + 0}] [t {$big + 0}] [t {18446744073709551616}] [incr i] [t {1 << 64}] [t {1 << -1}] [t {-1 >> 100}]"#;
+list [t {9223372036854775807 + 1}] [t {9223372036854775807 * 2}] [t {-(-9223372036854775808)}] [t {$wrap + 0}] [t {$big + 0}] [t {18446744073709551616}] [incr i] [t {1 << 64}] [t {-1 >> 100}]"#;
     assert_releases(
         &[TclVersion::V8_4],
         src,
-        r#"-8 -2 -8 -1 {ERR can't use integer value too large to represent as operand of "+" | ARITH IOVERFLOW {integer value too large to represent}} {ERR integer value too large to represent | ARITH IOVERFLOW {integer value too large to represent}} -8 0 -8 -1"#,
+        r#"-8 -2 -8 -1 {ERR can't use integer value too large to represent as operand of "+" | ARITH IOVERFLOW {integer value too large to represent}} {ERR integer value too large to represent | ARITH IOVERFLOW {integer value too large to represent}} -8 0 -1"#,
     );
     assert_releases(
         &[
@@ -230,7 +248,20 @@ list [t {9223372036854775807 + 1}] [t {9223372036854775807 * 2}] [t {-(-92233720
             TclVersion::V9_1,
         ],
         src,
-        r"9223372036854775808 18446744073709551614 9223372036854775808 18446744073709551615 18446744073709551616 18446744073709551616 9223372036854775808 18446744073709551616 {ERR negative shift argument | NONE} -1",
+        r"9223372036854775808 18446744073709551614 9223372036854775808 18446744073709551615 18446744073709551616 18446744073709551616 9223372036854775808 18446744073709551616 -1",
+    );
+    // C8.4 shifts a long by a negative count, which C leaves undefined
+    // (tclsh 8.4.20 on x86-64 prints -8); the VM refuses rather than
+    // reproduce the machine's accident.
+    assert_releases(
+        &[
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ],
+        r#"list [catch {expr {1 << -1}} m] $m $::errorCode"#,
+        "1 {negative shift argument} NONE",
     );
 }
 
@@ -263,26 +294,41 @@ list [t {1e308 * 10}] [t {1.0 / 0}] [t {0.0 / 0}] [t {1e999}] [t {"1e999"}] [t {
 #[test]
 fn math_functions_follow_the_release() {
     let src = r#"proc t {e} { if {[catch {uplevel 1 [list expr $e]} r]} { return "ERR $r | $::errorCode" } else { return $r } }
-list [t {abs(-9223372036854775808)}] [t {abs("x")}] [t {int(1e20)}] [t {round(-2.5)}] [t {round(9.3e18)}] [t {double("x")}] [t {sin()}] [t {sqrt("x")}] [t {int(-9223372036854775808.0)}] [t {srand(1.5)}]"#;
+list [t {abs(-9223372036854775808)}] [t {abs("x")}] [t {int(1e20)}] [t {round(-2.5)}] [t {round(9.3e18)}] [t {double("x")}] [t {sin()}] [t {sqrt("x")}] [t {srand(1.5)}]"#;
     assert_releases(
         &[TclVersion::V8_4],
         src,
-        r#"{ERR integer value too large to represent | ARITH IOVERFLOW {integer value too large to represent}} {ERR argument to math function didn't have numeric value | NONE} {ERR integer value too large to represent | ARITH IOVERFLOW {integer value too large to represent}} -3 {ERR integer value too large to represent | ARITH IOVERFLOW {integer value too large to represent}} {ERR argument to math function didn't have numeric value | NONE} {ERR too few arguments for math function | NONE} {ERR argument to math function didn't have numeric value | NONE} -8 {ERR expected integer but got "1.5" | NONE}"#,
+        r#"{ERR integer value too large to represent | ARITH IOVERFLOW {integer value too large to represent}} {ERR argument to math function didn't have numeric value | NONE} {ERR integer value too large to represent | ARITH IOVERFLOW {integer value too large to represent}} -3 {ERR integer value too large to represent | ARITH IOVERFLOW {integer value too large to represent}} {ERR argument to math function didn't have numeric value | NONE} {ERR too few arguments for math function | NONE} {ERR argument to math function didn't have numeric value | NONE} {ERR expected integer but got "1.5" | NONE}"#,
     );
     assert_releases(
         &[TclVersion::V8_5],
         src,
-        r#"9223372036854775808 {ERR expected number but got "x" | TCL VALUE NUMBER} 7766279631452241920 -3 9300000000000000000 {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR too few arguments for math function "sin" | NONE} {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} -8 {ERR expected integer but got "1.5" | NONE}"#,
+        r#"9223372036854775808 {ERR expected number but got "x" | TCL VALUE NUMBER} 7766279631452241920 -3 9300000000000000000 {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR too few arguments for math function "sin" | NONE} {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR expected integer but got "1.5" | NONE}"#,
     );
     assert_releases(
         &[TclVersion::V8_6],
         src,
-        r#"9223372036854775808 {ERR expected number but got "x" | TCL VALUE NUMBER} 7766279631452241920 -3 9300000000000000000 {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR not enough arguments for math function "sin" | TCL WRONGARGS} {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} -9223372036854775808 {ERR expected integer but got "1.5" | TCL VALUE INTEGER}"#,
+        r#"9223372036854775808 {ERR expected number but got "x" | TCL VALUE NUMBER} 7766279631452241920 -3 9300000000000000000 {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR not enough arguments for math function "sin" | TCL WRONGARGS} {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR expected integer but got "1.5" | TCL VALUE INTEGER}"#,
     );
     assert_releases(
         &[TclVersion::V9_0, TclVersion::V9_1],
         src,
-        r#"9223372036854775808 {ERR expected number but got "x" | TCL VALUE NUMBER} 100000000000000000000 -3 9300000000000000000 {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR not enough arguments for math function "sin" | TCL WRONGARGS} {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} -9223372036854775808 {ERR  | NONE}"#,
+        r#"9223372036854775808 {ERR expected number but got "x" | TCL VALUE NUMBER} 100000000000000000000 -3 9300000000000000000 {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR not enough arguments for math function "sin" | TCL WRONGARGS} {ERR expected floating-point number but got "x" | TCL VALUE NUMBER} {ERR  | NONE}"#,
+    );
+}
+
+/// `int` of the most negative double reaches a C long. C8.4 formats it
+/// through `TclFormatInt` (only the pinned build's updater supplies `-8`);
+/// 8.6 and later print every digit. C8.5's own `TclFormatInt` also prints
+/// `-8` and is not modelled.
+#[test]
+fn int_of_the_minimum_double_formats_per_release() {
+    let src = "expr {int(-9223372036854775808.0)}";
+    assert_releases(&[TclVersion::V8_4], src, "-8");
+    assert_releases(
+        &[TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1],
+        src,
+        "-9223372036854775808",
     );
 }
 

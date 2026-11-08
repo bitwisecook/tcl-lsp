@@ -5276,10 +5276,14 @@ impl Vm {
                 return Err(Box::new(Tick::Return(
                     crate::command::completion_from_tcl_error(
                         self,
-                        crate::error::TclError::with_error_code(
-                            format!("invalid command name \"{name}\""),
-                            format!("TCL LOOKUP COMMAND {name}"),
-                        ),
+                        if self.runtime_version().has_lookup_error_code("COMMAND") {
+                            crate::error::TclError::with_error_code(
+                                format!("invalid command name \"{name}\""),
+                                format!("TCL LOOKUP COMMAND {name}"),
+                            )
+                        } else {
+                            crate::error::TclError::new(format!("invalid command name \"{name}\""))
+                        },
                     ),
                 )));
             }
@@ -10810,7 +10814,11 @@ impl Vm {
         }
         let mut code = b"TCL LOOKUP COMMAND ".to_vec();
         tcl_syntax::list::append_list_element(&mut code, name, false);
-        let mut error = tcl_cmd_core::CmdError::with_error_code_bytes(message, code);
+        let mut error = if self.runtime_version().has_lookup_error_code("COMMAND") {
+            tcl_cmd_core::CmdError::with_error_code_bytes(message, code)
+        } else {
+            tcl_cmd_core::CmdError::new_bytes(message)
+        };
         if policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native {
             let Some(producer) = self
                 .actual_native_invocation_dialect()

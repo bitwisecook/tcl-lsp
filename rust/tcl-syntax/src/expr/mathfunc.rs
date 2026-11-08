@@ -727,6 +727,7 @@ pub fn expects_floating_operand_error(name: &str) -> bool {
     matches!(
         name,
         "sqrt"
+            | "double"
             | "floor"
             | "ceil"
             | "pow"

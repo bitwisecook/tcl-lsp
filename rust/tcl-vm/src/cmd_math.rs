@@ -617,8 +617,33 @@ fn m_abs_using(
         }
         Ok(number) => Ok(ok(Value::double(number.abs()))),
         Err(error @ TclError::Host(_)) => Err(error),
-        Err(TclError::Guest(guest)) => Ok(guest),
+        Err(TclError::Guest(_)) => non_numeric_operand("abs", value, original),
     }
+}
+
+/// The release's error for a math argument that is no number: C8.4's
+/// `VerifyExprObjType` message, later the reader's own with `TCL VALUE NUMBER`.
+fn non_numeric_operand(
+    name: &str,
+    value: &Value,
+    original: Stages<'_>,
+) -> Result<Completion<Value>, TclError> {
+    let text = math_text(value, original)?;
+    let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+        name,
+        &text,
+        tcl_syntax::expr::errors::ambient_release(),
+    );
+    Ok(err_with_code(message, code))
+}
+
+fn non_numeric_84() -> Completion<Value> {
+    let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+        "",
+        "",
+        tcl_dialect::TclVersion::V8_4,
+    );
+    err_with_code(message, code)
 }
 
 fn m_double_using(args: &[Value], original: Stages<'_>) -> Result<Completion<Value>, TclError> {
@@ -644,7 +669,10 @@ fn m_double_using(args: &[Value], original: Stages<'_>) -> Result<Completion<Val
             {
                 return Ok(num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string()));
             }
-            Err(error)
+            match error {
+                TclError::Guest(_) => non_numeric_operand("double", value, original),
+                host @ TclError::Host(_) => Err(host),
+            }
         }
     }
 }
@@ -729,7 +757,10 @@ fn srand_seed_failure(
     }
     let text = math_text(value, original)?;
     let floating = quiet_guest(value.as_double_with_stages(original))?.is_some();
-    Err(TclError::Guest(err_with_code(
+    if !floating && tcl_syntax::expr::errors::ambient_release() == tcl_dialect::TclVersion::V8_4 {
+        return Err(TclError::Guest(non_numeric_84()));
+    }
+    Err(TclError::Guest(release_err_with_code(
         format!("expected integer but got \"{text}\""),
         if floating {
             "TCL VALUE INTEGER"
