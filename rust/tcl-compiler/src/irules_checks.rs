@@ -3327,6 +3327,44 @@ mod tests {
         c
     }
 
+    /// A handler whose condition and arms run only the dialect's own commands
+    /// keeps its command world: on the closed load-time surface the arms'
+    /// compiled `HTTP::respond` dispatches to its catalogued handler, and the
+    /// condition's error edge writes the C core's error storage, so no command
+    /// in the handler is taken to reach unseen code.
+    #[test]
+    fn a_handler_branching_on_dialect_commands_reaches_no_unseen_code() {
+        let (cu, _context) = source_unit(
+            "when HTTP_REQUEST {\n    set x 1\n    if {$x == 1} {HTTP::respond 200 content one} else {HTTP::respond 200 content two}\n}\n",
+        );
+        let handler = cu
+            .cfg_module
+            .procedures
+            .values()
+            .find(|function| function.name == "::when::HTTP_REQUEST")
+            .expect("the HTTP_REQUEST handler has a flow graph");
+        let markers: Vec<_> = handler
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter_map(|stmt| match stmt {
+                crate::ir::Statement::Call {
+                    tokens: Some(tokens),
+                    ..
+                }
+                | crate::ir::Statement::Barrier {
+                    tokens: Some(tokens),
+                    ..
+                } => tokens.synthetic,
+                _ => None,
+            })
+            .collect();
+        assert!(
+            markers.is_empty(),
+            "dialect commands must not mark unseen code: {markers:?}"
+        );
+    }
+
     #[test]
     fn irule5002_fires_when_only_one_branch_guarded() {
         // The `drop` path has no following `event disable all` / `return`, so

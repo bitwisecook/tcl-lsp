@@ -75,16 +75,27 @@ impl NativeErrorStorageVariable {
 }
 
 /// C Tcl error presentation can write both global cells, independently of the
-/// physical frame where an invocation or compilation failure occurred.
-/// Unmeasured engines retain an unresolved storage footprint.
+/// physical frame where an invocation or compilation failure occurred. A
+/// source fork of the C core (the F5 trunk and its iRules offshoot) keeps
+/// that presentation. A reimplementation retains an unresolved footprint.
 #[must_use]
 pub fn native_error_storage(
     dialect: crate::InvocationDialect,
 ) -> Option<&'static [NativeErrorStorageVariable]> {
-    (dialect.family() == Some(tcl_dialect::model::Family::Tcl)).then_some(&[
+    dialect.family().is_some_and(c_core_lineage).then_some(&[
         NativeErrorStorageVariable::ErrorCode,
         NativeErrorStorageVariable::ErrorInfo,
     ])
+}
+
+fn c_core_lineage(family: tcl_dialect::model::Family) -> bool {
+    match family.ancestry() {
+        None => family == tcl_dialect::model::Family::Tcl,
+        Some(ancestry) => {
+            ancestry.lineage == tcl_dialect::model::family::Lineage::Fork
+                && c_core_lineage(ancestry.parent)
+        }
+    }
 }
 
 /// Audited C hidden error-variable callbacks installed by interpreter creation.

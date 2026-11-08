@@ -1300,6 +1300,11 @@ fn select_target(
         }
     }
     let Some(registered) = registered else {
+        if closed_surface_catalogue_dispatch(target, state) {
+            result.live = true;
+            result.admit(NativeCompilationSelection::Generic);
+            return;
+        }
         result.compiler_name_preservation = super::SourceCompilerNameClosure::Unknown;
         result.unknown = true;
         result.admit(NativeCompilationSelection::Unknown);
@@ -1361,6 +1366,27 @@ struct RegisteredCompilerSelection {
     namespace_bindings: Option<Arc<SourceNativeNamespaceBindingPreparation>>,
     switch: Option<Arc<SourceNativeSwitchPreparation>>,
     structured: Option<Arc<SourceNativeStructuredPreparation>>,
+}
+
+/// A closed load-time surface ([`Family::closed_load_time_resolution`])
+/// resolves a literal catalogue head when the rule loads. Its vendor compiler
+/// owns no tracked command or namespace name and dispatches to the catalogued
+/// handler, as the surface's direct evaluation does, so an undescribed hook
+/// selects that handler generically after argv.
+///
+/// [`Family::closed_load_time_resolution`]: tcl_dialect::model::Family::closed_load_time_resolution
+fn closed_surface_catalogue_dispatch(
+    target: &SourceCommandTarget,
+    state: &ModuleCommandBindings,
+) -> bool {
+    target.registry_backed
+        && target.kind == BindingKind::Builtin
+        && target.prepended.is_empty()
+        && state
+            .baseline
+            .dialect
+            .and_then(tcl_registry::InvocationDialect::family)
+            .is_some_and(tcl_dialect::model::Family::closed_load_time_resolution)
 }
 
 fn registered_compiler_selection(
