@@ -239,7 +239,7 @@ impl TaintColourAtom {
                 taint_flow!("set user [gets stdin]\nset command [list puts $user]\neval $command"; (0, "[gets stdin]", "introduces attacker-controlled text"), (1, "list puts $user", "quotes it into canonical list form"), (2, "eval $command", "evaluates fixed structure with the value as one word"))
             }
             Self::RegexLiteral => {
-                taint_flow!("set user [gets stdin]\nset literal [regsub -all {[][(){}.*+?^$\\|]} $user {\\&}]\nregexp $literal $document"; (0, "[gets stdin]", "may contain regex syntax"), (1, "regsub -all", "escapes metacharacters"), (2, "$literal", "is consumed as literal pattern text"))
+                taint_flow!("set user [gets stdin]\nset literal [regsub -all {[][{}()*+?.\\\\^$|]} $user {\\\\&}]\nregexp $literal $document"; (0, "[gets stdin]", "may contain regex syntax"), (1, "regsub -all", "escapes metacharacters"), (2, "$literal", "is consumed as literal pattern text"))
             }
             Self::PathNormalised => {
                 taint_flow!("set user [gets stdin]\nset normal [file normalize $user]\nopen $normal r"; (0, "[gets stdin]", "may contain traversal components"), (1, "file normalize $user", "canonicalises the path shape"), (2, "open $normal r", "still needs a bounded-root check before access"))
@@ -648,6 +648,11 @@ pub enum TaintTransformCondition {
     /// `string map` mapping that provably deletes every CR and LF from
     /// whatever it is applied to. See [`mapping_deletes_crlf`].
     MappingDeletesCrlf,
+    /// A string-returning `regsub -all` whose pattern is a literal bracket
+    /// class of every ARE metacharacter and whose substitution is `\\&`,
+    /// so each metacharacter of the subject comes back backslash-escaped.
+    /// See [`regsub_quotes_regex_metacharacters`].
+    RegsubQuotesRegexMetacharacters,
 }
 
 /// Selected authored transform and its optional frozen-operand proof.
@@ -723,13 +728,39 @@ impl TaintTransformCondition {
                 };
                 mapping_value_deletes_crlf(mapping, dialect.word_values)
             }
+            Self::RegsubQuotesRegexMetacharacters => {
+                let operands = arguments.slice_from(offset);
+                let Some(boundary) = options.leading_word_count(operands) else {
+                    return false;
+                };
+                let Some(len) = operands.exact_argv_len() else {
+                    return false;
+                };
+                let switches = (0..boundary)
+                    .map(|index| operands.literal_at(index))
+                    .collect::<Option<Vec<_>>>();
+                let (Some(switches), Some(pattern), Some(substitution)) = (
+                    switches,
+                    operands.literal_at(boundary),
+                    operands.literal_at(boundary + 2),
+                ) else {
+                    return false;
+                };
+                len == boundary + 3
+                    && regsub_switches_quote(&switches)
+                    && pattern_class_covers_regex_metacharacters(pattern)
+                    && substitution == r"\\&"
+            }
         }
     }
 
     /// Every condition, in declaration order — the closed vocabulary a pack
     /// may name (by variant spelling, as every catalogued enum is named) and
     /// the studio may offer.
-    pub const ALL: [Self; 1] = [Self::MappingDeletesCrlf];
+    pub const ALL: [Self; 2] = [
+        Self::MappingDeletesCrlf,
+        Self::RegsubQuotesRegexMetacharacters,
+    ];
 
     /// Whether this call's argument words (command name excluded) satisfy the
     /// condition.
@@ -737,8 +768,94 @@ impl TaintTransformCondition {
     pub fn holds(self, args: &[&str]) -> bool {
         match self {
             Self::MappingDeletesCrlf => mapping_deletes_crlf(args),
+            Self::RegsubQuotesRegexMetacharacters => regsub_quotes_regex_metacharacters(args),
         }
     }
+}
+
+/// Every ARE metacharacter: escaping each one makes any string match only
+/// itself, and also defeats `***` directors and embedded `(?…)` options.
+const REGEX_METACHARACTERS: &str = r"[]{}()*+?.\^$|";
+
+/// Does this raw `regsub` argument list provably return its subject with every
+/// regex metacharacter backslash-escaped?
+///
+/// The call must be `regsub -all ?-nocase? ?--? PATTERN SUBJECT SUBSPEC` with
+/// no `varName` (so the result is the substituted string), a braced pattern
+/// that is a plain bracket class containing every ARE metacharacter, and a
+/// braced substitution of exactly `\\&` (a backslash, then the match). Only
+/// braced words qualify: their value is their inner text verbatim. Any other
+/// switch, a range, a negated or named class, or a computed word proves
+/// nothing.
+#[must_use]
+pub fn regsub_quotes_regex_metacharacters(args: &[&str]) -> bool {
+    let operands = args.iter().position(|word| !word.starts_with('-'));
+    let Some(operands) = operands else {
+        return false;
+    };
+    let (switches, rest) = args.split_at(operands);
+    let braced = |word: &str| word.strip_prefix('{')?.strip_suffix('}').map(str::to_owned);
+    let [pattern, _subject, substitution] = rest else {
+        return false;
+    };
+    regsub_switches_quote(switches)
+        && braced(pattern)
+            .is_some_and(|pattern| pattern_class_covers_regex_metacharacters(&pattern))
+        && braced(substitution).is_some_and(|substitution| substitution == r"\\&")
+}
+
+fn regsub_switches_quote(switches: &[&str]) -> bool {
+    switches.contains(&"-all")
+        && switches
+            .iter()
+            .all(|switch| matches!(*switch, "-all" | "-nocase" | "--"))
+}
+
+/// Whether an ARE pattern value is one plain bracket expression whose set
+/// contains every metacharacter. A leading `]` is literal; `\` followed by a
+/// non-alphanumeric is that character; ranges, `^` negation and `[:…:]`,
+/// `[.….]`, `[=…=]` forms are refused rather than interpreted.
+fn pattern_class_covers_regex_metacharacters(pattern: &str) -> bool {
+    let Some(body) = pattern
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+    else {
+        return false;
+    };
+    let chars: Vec<char> = body.chars().collect();
+    if chars.first() == Some(&'^') {
+        return false;
+    }
+    let mut set = std::collections::BTreeSet::new();
+    let mut index = 0;
+    if chars.first() == Some(&']') {
+        set.insert(']');
+        index = 1;
+    }
+    while index < chars.len() {
+        let c = chars[index];
+        match c {
+            ']' => return false,
+            '\\' => {
+                let Some(&next) = chars.get(index + 1) else {
+                    return false;
+                };
+                if next.is_ascii_alphanumeric() {
+                    return false;
+                }
+                set.insert(next);
+                index += 2;
+                continue;
+            }
+            '-' if index + 1 < chars.len() && index > 0 => return false,
+            '[' if matches!(chars.get(index + 1), Some(':' | '.' | '=')) => return false,
+            _ => {
+                set.insert(c);
+            }
+        }
+        index += 1;
+    }
+    REGEX_METACHARACTERS.chars().all(|meta| set.contains(&meta))
 }
 
 /// Does this call's mapping provably delete every CR and LF from whatever it

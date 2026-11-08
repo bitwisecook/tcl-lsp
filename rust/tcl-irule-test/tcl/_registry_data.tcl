@@ -126,10 +126,6 @@ namespace eval ::tmm {
         pwd
         radiobutton
         raise
-        re_quote
-        regex::quote
-        regex_quote
-        regexp::quote
         registry
         rename
         scale

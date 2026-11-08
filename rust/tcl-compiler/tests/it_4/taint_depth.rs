@@ -681,12 +681,16 @@ mod t103_regsub_and_quotes {
         );
     }
 
+    /// The metacharacter-escaping substitution the T103 quick fix inserts.
+    /// tclsh 8.6 and 9.0: `a.b\\d` -> `a\\.b\\\\d`, matching only itself.
+    const QUOTE_HELPER: &str = "namespace eval regex {}\n\
+        proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }\n";
+
     #[test]
-    fn regexp_quote_suppresses_t103() {
-        // `regexp::quote` stamps REGEX_LITERAL → the pattern is trusted, no T103.
+    fn quoting_regsub_suppresses_t103() {
         assert_eq!(
             of_code(
-                "set x [read $fd]\nset q [regexp::quote $x]\nregexp $q subject",
+                "set x [read $fd]\nset q [regsub -all {[][{}()*+?.\\\\^$|]} $x {\\\\&}]\nregexp $q subject",
                 D,
                 "T103",
             ),
@@ -695,10 +699,10 @@ mod t103_regsub_and_quotes {
     }
 
     #[test]
-    fn regex_colon_quote_suppresses_t103() {
+    fn defined_quote_helper_suppresses_t103() {
         assert_eq!(
             of_code(
-                "set x [read $fd]\nset q [regex::quote $x]\nregexp $q subject",
+                &format!("{QUOTE_HELPER}set x [read $fd]\nregexp -- [::regex::quote $x] subject"),
                 D,
                 "T103",
             ),
@@ -707,10 +711,37 @@ mod t103_regsub_and_quotes {
     }
 
     #[test]
-    fn re_quote_suppresses_t103() {
-        assert_eq!(
+    fn an_undefined_quote_name_proves_nothing() {
+        // tclsh: `regex::quote` is `invalid command name` until defined.
+        assert_ne!(
             of_code(
-                "set x [read $fd]\nset q [re_quote $x]\nregsub -all $q subject {}",
+                "set x [read $fd]\nregexp -- [regex::quote $x] subject",
+                D,
+                "T103",
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
+    }
+
+    #[test]
+    fn a_class_without_backslash_does_not_quote() {
+        // tclsh: `\\d` survives this class as a digit class escape.
+        assert_ne!(
+            of_code(
+                "set x [read $fd]\nset q [regsub -all {[][(){}.*+?^$\\|]} $x {\\\\&}]\nregexp $q subject",
+                D,
+                "T103",
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
+    }
+
+    #[test]
+    fn a_literal_ampersand_substitution_does_not_quote() {
+        // tclsh: `{\\&}` replaces each metacharacter with `&`: `a.b` -> `a&b`.
+        assert_ne!(
+            of_code(
+                "set x [read $fd]\nset q [regsub -all {[][{}()*+?.\\\\^$|]} $x {\\&}]\nregexp $q subject",
                 D,
                 "T103",
             ),

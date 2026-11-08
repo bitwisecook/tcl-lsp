@@ -12663,18 +12663,7 @@ mod tests {
         // summary and a manpage/source attribution. A short allowlist covers
         // internal pseudo-commands and dialect placeholders that have no user
         // documentation.
-        // The four regex-quote spellings are internal idiom-recognition
-        // entries for the taint analyser (T103), not real Tcl commands --
-        // no manpage exists to cite (re_quote.html/.htm 404s on every
-        // tcl-lang.org tree for 8.4-9.1 alike; see re_quote.rs's own doc
-        // comment for the full explanation).
-        const HOVERLESS_OK: &[&str] = &[
-            "disabled_in_irules",
-            "re_quote",
-            "regex_quote",
-            "regex::quote",
-            "regexp::quote",
-        ];
+        const HOVERLESS_OK: &[&str] = &["disabled_in_irules"];
         let reg = CommandRegistry::build_default();
         let mut missing_hover = Vec::new();
         let mut missing_source = Vec::new();

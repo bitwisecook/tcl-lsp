@@ -2886,25 +2886,19 @@ mod list_canonical {
     }
 }
 
-// regex::quote / regexp::quote produce REGEX_LITERAL, lost
-// on interpolation, propagated through copies. (Does not suppress T100.)
+// A metacharacter-escaping `regsub -all` produces REGEX_LITERAL, lost on
+// interpolation, propagated through copies. (Does not suppress T100.)
 mod regex_literal {
     use super::*;
 
-    #[test]
-    fn regex_quote_produces_colour() {
-        let ws = of_code(
-            "set raw [read $fd]\nset safe [regex::quote $raw]\neval $safe",
-            D,
-            "T100",
-        );
-        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
-    }
+    /// `regsub -all {[][{}()*+?.\\^$|]} $raw {\\&}`: tclsh 8.6 and 9.0 turn
+    /// `a.b\d` into `a\.b\\d`, a pattern matching only itself.
+    const QUOTE: &str = "regsub -all {[][{}()*+?.\\\\^$|]} $raw {\\\\&}";
 
     #[test]
-    fn regexp_quote_produces_colour() {
+    fn quoting_regsub_produces_colour() {
         let ws = of_code(
-            "set raw [read $fd]\nset safe [regexp::quote $raw]\neval $safe",
+            &format!("set raw [read $fd]\nset safe [{QUOTE}]\neval $safe"),
             D,
             "T100",
         );
@@ -2914,7 +2908,9 @@ mod regex_literal {
     #[test]
     fn interpolation_invalidates_regex_literal() {
         let ws = of_code(
-            "set raw [read $fd]\nset safe [regex::quote $raw]\nset pat \"prefix${safe}suffix\"\neval $pat",
+            &format!(
+                "set raw [read $fd]\nset safe [{QUOTE}]\nset pat \"prefix${{safe}}suffix\"\neval $pat"
+            ),
             D,
             "T100",
         );
@@ -2924,7 +2920,7 @@ mod regex_literal {
     #[test]
     fn regex_literal_propagates_through_copy() {
         let ws = of_code(
-            "set raw [read $fd]\nset safe [regex::quote $raw]\nset copy $safe\neval $copy",
+            &format!("set raw [read $fd]\nset safe [{QUOTE}]\nset copy $safe\neval $copy"),
             D,
             "T100",
         );

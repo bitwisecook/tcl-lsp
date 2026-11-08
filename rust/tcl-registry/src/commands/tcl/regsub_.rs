@@ -286,6 +286,13 @@ pub fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         options: OPTIONS,
+        // A metacharacter-escaping substitution returns a literal pattern:
+        // `regsub -all {[][{}()*+?.\\^$|]} $s {\\&}` (tclsh 8.6 and 9.0:
+        // `a.b` -> `a\.b`, which no longer matches `axb`).
+        taint_transform: Some(TaintColour::REGEX_LITERAL),
+        taint_transform_when: Some(
+            crate::taint::TaintTransformCondition::RegsubQuotesRegexMetacharacters,
+        ),
         // `Tcl_RegsubObjCmd` resolves this table with `TCL_EXACT`: unlike
         // `switch`, neither `-c` nor any other unique prefix is a valid
         // `regsub` switch. Keep the source-aware layout proof and the legacy
