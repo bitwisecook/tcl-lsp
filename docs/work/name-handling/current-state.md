@@ -93,6 +93,16 @@ Sixth pass (7 November): in release, saved-target cleanup whose currency is alre
 - Runtime allocations: entered operations are stored inline with a per-thread serial instead of a shared entry allocated per scope, retired from the top of the stack; `NativeOriginalNameCell::check` keeps its refusal check and skips the selected-cell identity re-proof in release (its three refusal tests are debug-only). Runtime release 2129 tests and debug assertions 2405, both 107 failures identical to the base.
 - Totals at this pass (release, instructions per iteration, against the same upstream base): VM proc call 136.1K→106.6K, VM empty loop 30.8K→28.3K, runtime proc call 149.8K→135.0K, runtime empty loop 59.0K→53.0K. Pedantic clippy reports nothing on the changed lines of either crate.
 
+## Eighth pass: gates and determinism
+
+- `scripts/perf/interp_instructions.py` and `scripts/perf/interp/*.tcl` measure per-iteration interpreter instructions under callgrind; the `interp-instructions` job in `perf.yml` builds a pull request's base and head on one runner and fails when a benchmark grows past 2%.
+- The VM's instruction counts varied about 20% between identical runs: the compiler's source command table and variable namespace set hashed with a per-process random seed, so startup compile cost (and the sorting fed by their iteration order) differed between the two runs being subtracted. Fx hashing makes them deterministic; repeated runs now agree within 0.05%. `tcl-compiler` lib, one process per test: 10244 tests, 2515 failures against 2516 for the unchanged base, no new failure.
+- In one process the `tcl-compiler` lib suite cannot finish: `dynamic_names::tests::bracket_depth_exhaustion_fails_closed_for_dynamic_name_facts` overflows its stack and aborts, and later tests exhaust memory; CI's nextest isolates both.
+- CI already runs VM and runtime tests with debug assertions (nextest and `make runtime-rust-test` use the dev-derived test profile), so debug-only refusal tests and memo cross-checks are covered; nothing in CI exercises the release-only paths.
+- The runtime alias-key test's object free callback touched thread-locals already destroyed at thread exit and aborted the whole test process; it now records nothing once they are gone, and the runtime lib suite completes in one process (2129 tests, 110 failures; 107 one-per-process).
+- `cmd_try::native_fixture_tests::original_try_source_without_actual_core_keeps_native_preflight_refusal` relied on `format %c 123` needing native preflight; upstream all-literal `format` folding compiles it to a constant, so the test now uses a variable argument.
+- VM plain source operands are boxed: they exist only for logical eval and uplevel sources, and inline they pushed each boxed procedure activation past the allocator's small-size cache.
+
 ## Resource integrity and next work
 
 A prior cleanup followed an alias and removed13 tracked compressed fixtures; all were restored from Git with original hashes before any test/merge. No results were produced with them missing. `/tmp/lsp-failed-merge-recovery-1640/source-fixtures-restored.json`. Source aliases and tracked fixtures must never be treated as disposable artifacts.

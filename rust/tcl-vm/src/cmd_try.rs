@@ -1469,7 +1469,12 @@ mod native_fixture_tests {
             .lines()
             .find_map(|row| row.strip_prefix("malformed-unmatched-vars\t"))
             .unwrap();
-        let source = bytes_from_hex(source);
+        // An all-literal `format` folds to a constant that needs no native
+        // preflight; a variable argument keeps the fixture's compiled `format`.
+        let source = String::from_utf8(bytes_from_hex(source))
+            .unwrap()
+            .replace("[format %c 123]", "[format %c $n]");
+        let source = format!("set n 123; {source}").into_bytes();
         assert!(matches!(
             vm.try_eval_source_bytes(&source),
             Err(tcl_runtime_api::NativeExecutionError::CompilationAdmission(
