@@ -1117,27 +1117,18 @@ fn carries_code(diags: &[Value], code: &str) -> bool {
 
 // The class-side visibility channel must cross files.
 
-/// TP: `decl.tcl` declares a class-side `Cm` and immediately `self unexport`s
-/// it, so its own document cannot dispatch `C Cm` — the in-document provider
-/// correctly declines.  `revive.tcl` then `self export`s it, and the call must
-/// resolve again.
-///
-/// This is the class-side visibility channel end to end: the export written in
-/// one file has to reach the other file's **class-command** dispatch. A
-/// `self export` / `self unexport` must be recorded somewhere the
-/// workspace index can see — the instance-side pair is the instance-side
-/// record by contract, and a class-side flip must not enter it.
-///
-/// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+/// TN: a sibling's `self export` cannot revive the declaring document's own
+/// call. The sibling's `oo::define C` needs `C`, so it runs only after this
+/// document's create, and nothing here loads it before `C Cm`; that call
+/// always meets the unexported member. Oracle, tclsh 8.6 and 9.0:
 ///
 /// ```tcl
-/// oo::class create C { self { method Cm {} {…} ; unexport Cm } }
-/// C Cm                             ;# -> unknown method "Cm"
-/// oo::define C { self export Cm }
-/// C Cm                             ;# -> 1
+/// source decl.tcl     ;# its own `C Cm` -> unknown method "Cm"
+/// source revive.tcl   ;# oo::define C { self export Cm }
+/// C Cm                ;# a later caller -> 1
 /// ```
 #[test]
-fn tp_cross_file_self_export_revives_class_command_definition() {
+fn tn_cross_file_self_export_does_not_revive_the_declaring_documents_own_call() {
     let mut lsp = Lsp::tcl();
     let decl = unique_uri("tcl");
     let src = concat!(
@@ -1151,8 +1142,8 @@ fn tp_cross_file_self_export_revives_class_command_definition() {
     lsp.open_ready(&revive, "oo::define C { self export Cm }\n");
     lsp.open_ready(&decl, src);
     assert!(
-        !locations(&lsp.definition(&decl, 4, 3)).is_empty(),
-        "a cross-file `self export` must revive the class-side member's dispatch",
+        locations(&lsp.definition(&decl, 4, 3)).is_empty(),
+        "the declaring document's own `C Cm` runs before any sibling export",
     );
 }
 
@@ -1210,24 +1201,21 @@ fn tn_cross_file_self_unexport_leaves_the_instance_method_dispatchable() {
     );
 }
 
-// Suppression must reach the declaring document too.
+// A sibling's flip cannot reach the declaring document's own call.
 
-/// TP: the suppression direction of the class-side channel, queried from the
-/// **declaring document itself**.  `decl.tcl` declares and dispatches a
-/// class-side `cm`; `flip.tcl` `self unexport`s it.  The in-document provider
-/// resolves `C cm` from its local tables, so the cross-file flip must
-/// suppress the member in the document declaring the class too, not just
-/// every other document — exactly where the author is navigating.
-///
-/// Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+/// TN: `flip.tcl`'s `oo::define C { self unexport cm }` needs `C`, so it can
+/// only run after `decl.tcl` creates the class, and `decl.tcl` loads nothing
+/// before its own `C cm`. That call always dispatches; only later callers can
+/// meet the unexported member. Oracle, tclsh 8.6 and 9.0:
 ///
 /// ```tcl
-/// oo::class create C { self { method cm {} { return 1 } } }
-/// oo::define C { self unexport cm }
-/// C cm    ;# -> unknown method "cm": must be create, destroy or new
+/// source flip.tcl     ;# -> C does not refer to an object
+/// source decl.tcl     ;# its own `C cm` -> 1
+/// source flip.tcl
+/// C cm                ;# a later caller -> unknown method "cm"
 /// ```
 #[test]
-fn tp_cross_file_self_unexport_suppresses_in_the_declaring_document() {
+fn tn_cross_file_self_unexport_leaves_the_declaring_documents_own_call() {
     let mut lsp = Lsp::tcl();
     let decl = unique_uri("tcl");
     let src = concat!(
@@ -1240,21 +1228,20 @@ fn tp_cross_file_self_unexport_suppresses_in_the_declaring_document() {
     lsp.open_ready(&flip, "oo::define C { self unexport cm }\n");
     lsp.open_ready(&decl, src);
     assert!(
-        locations(&lsp.definition(&decl, 3, 3)).is_empty(),
-        "a cross-file `self unexport` must suppress the declaring document's own dispatch",
+        !locations(&lsp.definition(&decl, 3, 3)).is_empty(),
+        "the declaring document's own `C cm` dispatches before any sibling flip",
     );
-    // Hover shares the tier order, so it must decline at the same site.
     assert!(
-        hover_text(&lsp.hover(&decl, 3, 3)).is_empty(),
-        "hover must not describe a member the visibility union suppresses",
+        !hover_text(&lsp.hover(&decl, 3, 3)).is_empty(),
+        "hover describes the member the call reaches",
     );
 }
 
-/// TP: a cross-file `self deletemethod` tombstone suppresses the declaring
-/// document's dispatch the same way (the member is gone, not merely
-/// unexported).
+/// TN: the same holds for a sibling's `self deletemethod` (tclsh 8.6 and
+/// 9.0: the declaring document's own `C cm` -> 1, a later caller -> unknown
+/// method "cm").
 #[test]
-fn tp_cross_file_self_deletemethod_suppresses_in_the_declaring_document() {
+fn tn_cross_file_self_deletemethod_leaves_the_declaring_documents_own_call() {
     let mut lsp = Lsp::tcl();
     let decl = unique_uri("tcl");
     let src = concat!(
@@ -1267,8 +1254,8 @@ fn tp_cross_file_self_deletemethod_suppresses_in_the_declaring_document() {
     lsp.open_ready(&flip, "oo::define C { self deletemethod cm }\n");
     lsp.open_ready(&decl, src);
     assert!(
-        locations(&lsp.definition(&decl, 3, 3)).is_empty(),
-        "a cross-file `self deletemethod` must suppress the declaring document's own dispatch",
+        !locations(&lsp.definition(&decl, 3, 3)).is_empty(),
+        "the declaring document's own `C cm` dispatches before any sibling deletemethod",
     );
 }
 

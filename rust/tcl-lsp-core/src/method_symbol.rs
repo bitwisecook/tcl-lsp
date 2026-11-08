@@ -1023,8 +1023,11 @@ fn workspace_class_lookup_candidate(
                 procedures,
                 records,
                 *root,
-                query.selector_input(),
-                query.side(),
+                (
+                    query.selector_input(),
+                    query.side(),
+                    !query.is_declaration(),
+                ),
             )),
             [] if saw_procedure && !*known_class => ControlFlow::Continue(()),
             _ => ControlFlow::Break(None),
@@ -1052,8 +1055,11 @@ fn workspace_class_lookup_candidate(
             procedures,
             records,
             *root,
-            query.selector_input(),
-            query.side(),
+            (
+                query.selector_input(),
+                query.side(),
+                !query.is_declaration(),
+            ),
         )),
         Some([] | [Header::Procedure]) if !*known_class => ControlFlow::Continue(()),
         _ => ControlFlow::Break(None),
@@ -1147,8 +1153,11 @@ fn candidate_for_records(
                 procedures,
                 records,
                 root,
-                query.selector_input(),
-                query.side(),
+                (
+                    query.selector_input(),
+                    query.side(),
+                    !query.is_declaration(),
+                ),
             ))
         }
         Target::SourceClassProcCall(call) => {
@@ -1205,12 +1214,14 @@ fn owned_candidate(
     }
 }
 
+/// `external_call` is a dispatch through the class or object command from
+/// outside it, which C Tcl answers from the exported names only: an
+/// unexported member is `unknown method` there, not a target.
 fn metadata_candidate(
     procedures: &[&SourceDeclarationMetadata<ProcDef>],
     records: &[(&str, &SourceDeclarationMetadata<ClassDef>)],
     root: usize,
-    selector: &SignatureSourceNameInput,
-    side: MemberSide,
+    (selector, side, external_call): (&SignatureSourceNameInput, MemberSide, bool),
 ) -> Option<OriginalMethodCandidate> {
     let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
         selector
@@ -1218,7 +1229,8 @@ fn metadata_candidate(
         return None;
     };
     let selects = |method: &OriginalSourceMethodMetadata| {
-        method.original_name_input().policy() == selector.policy()
+        (!external_call || method.exported())
+            && method.original_name_input().policy() == selector.policy()
             && method.original_name_input().bytes() == selector.bytes()
             && method
                 .name_purpose()
@@ -1362,7 +1374,7 @@ pub fn member_metadata_candidate(
         .original_procedure_declarations()
         .map(|(_, record)| record)
         .collect::<Vec<_>>();
-    metadata_candidate(&procedures, &records, root, selector, side)
+    metadata_candidate(&procedures, &records, root, (selector, side, false))
 }
 
 /// Select a local readonly candidate directly from genuine analysis
@@ -1520,7 +1532,9 @@ mod tests {
             .unwrap();
         let records = [("", class)];
         let selector = method.original_name_input();
-        assert!(metadata_candidate(&[], &records, 0, selector, MemberSide::Instance).is_some());
+        assert!(
+            metadata_candidate(&[], &records, 0, (selector, MemberSide::Instance, false)).is_some()
+        );
         let image = SourceImage::document("$ping");
         let config = result.body_lexer_config.unwrap();
         let plan = tcl_lexer::native_script_words_in(image, Span::new(0, 5), config).unwrap();
@@ -1534,7 +1548,9 @@ mod tests {
         let root = SignatureSourceNameInput::OriginalVariableRoot(root);
         assert_eq!(root.bytes(), selector.bytes());
         assert_eq!(root.policy(), selector.policy());
-        assert!(metadata_candidate(&[], &records, 0, &root, MemberSide::Instance).is_none());
+        assert!(
+            metadata_candidate(&[], &records, 0, (&root, MemberSide::Instance, false)).is_none()
+        );
     }
 
     #[test]
