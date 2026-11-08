@@ -4574,9 +4574,21 @@ mod original_alias_key_tests {
     }
     extern "C" fn free(original: *mut TclObj) {
         let role = usize::try_from(obj::internal_rep(original)).unwrap();
-        ORDER.with(|rows| rows.borrow_mut().push(role));
-        if role == RETIRE_ROLE.with(Cell::get) && RETIRE.with(Cell::get) != 0 {
-            let mut interp = OWNER.with(|owner| owner.borrow().as_ref().unwrap().clone());
+        // An interpreter left in OWNER is dropped while this thread's locals
+        // are being destroyed; its objects then retire with nothing to record.
+        if ORDER.try_with(|rows| rows.borrow_mut().push(role)).is_err() {
+            return;
+        }
+        let (Ok(retire_role), Ok(retire)) =
+            (RETIRE_ROLE.try_with(Cell::get), RETIRE.try_with(Cell::get))
+        else {
+            return;
+        };
+        if role == retire_role && retire != 0 {
+            let Ok(owner) = OWNER.try_with(|owner| owner.borrow().clone()) else {
+                return;
+            };
+            let mut interp = owner.expect("retirement owner interpreter");
             // A real key destructor runs outside the Namespace borrow. The
             // original entry is already unlinked; later slot owners are distinct.
             assert!(interp.resolve_cmd_token(b"aliasKeyProbe").is_none());
