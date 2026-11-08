@@ -13817,8 +13817,17 @@ impl SourceCommandBindings {
         let mut outcomes = SourceOutcomes::default();
         let mut fallthrough = Some(boxed_source_branch(state));
         let mut branch_context = context;
-        for (condition, body) in branches {
+        let mut selected = None;
+        for (position, (condition, body)) in branches.iter().enumerate() {
             let Some(mut incoming) = fallthrough.take() else {
+                if let Some(selected) = selected {
+                    self.walk_unreached_branches(
+                        &branches[position..],
+                        operands,
+                        selected,
+                        context,
+                    );
+                }
                 break;
             };
             if let Some(condition) = condition {
@@ -13843,7 +13852,11 @@ impl SourceCommandBindings {
                     fallthrough = Some(incoming.clone());
                 }
                 if truth == Some(false) {
+                    self.walk_unreached_body(*body, operands, &incoming, context);
                     continue;
+                }
+                if truth == Some(true) {
+                    selected = Some(incoming.clone());
                 }
             }
             outcomes.join(&self.walk_body_operand(*body, operands, &mut incoming, &branch_context));
@@ -13853,6 +13866,43 @@ impl SourceCommandBindings {
         }
         outcomes.publish(state);
         outcomes
+    }
+
+    /// The original compiler still compiles a body the walk proves unreached
+    /// when its condition is not a compile-time constant. Its commands bind in
+    /// the incoming command world; no outcome reaches the successor.
+    fn walk_unreached_body(
+        &mut self,
+        body: usize,
+        operands: SourceScriptOperands<'_>,
+        incoming: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let mut unreached = boxed_source_branch(incoming);
+        drop(self.walk_body_operand(body, operands, &mut unreached, &context.conditional()));
+    }
+
+    /// Branches after a proved-true condition are compiled but never entered.
+    fn walk_unreached_branches(
+        &mut self,
+        branches: &[(Option<usize>, usize)],
+        operands: SourceScriptOperands<'_>,
+        incoming: Box<ModuleCommandBindings>,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let context = context.conditional();
+        let mut unreached = incoming;
+        for (condition, body) in branches {
+            if let Some(condition) = condition {
+                let evaluated =
+                    self.walk_expression_operand(*condition, operands, &mut unreached, context);
+                let Some(normal) = evaluated.normal else {
+                    return;
+                };
+                unreached = normal;
+            }
+            self.walk_unreached_body(*body, operands, &unreached, context);
+        }
     }
 
     fn walk_body_operand(

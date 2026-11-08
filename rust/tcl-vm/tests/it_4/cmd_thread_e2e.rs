@@ -34,7 +34,6 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect;
 use tcl_dialect::DialectProfile;
-use tcl_registry::CommandRegistry;
 use tcl_vm::CompileService;
 
 /// A `Write` sink over a shared byte buffer — used for both the main
@@ -59,13 +58,18 @@ fn compiler() -> Box<dyn CompileService<Module = tcl_bytecode::ModuleAsm>> {
 
 /// Compile and run `src` on a thread-enabled VM; return `(ok, result, stdout)`.
 fn run(src: &str) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
+    let registry =
+        tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
+            .commands();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Arc::new(Mutex::new(Vec::new()));
-    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(SharedBuf(Arc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_for(
+        tcl_vm::test_support::DEFAULT_ENVIRONMENT,
+        Box::new(SharedBuf(Arc::clone(&buf))),
+    );
     vm.set_compiler(compiler());
     vm.enable_threads(
         Arc::new(compiler),
@@ -139,11 +143,16 @@ fn thread_id_and_platform_flag() {
 fn thread_package_absent_without_enable() {
     // A VM that never called `enable_threads` reports `threaded` 0 and rejects
     // `thread::create`.
-    let registry = CommandRegistry::build_default();
+    let registry =
+        tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
+            .commands();
     let ir = lower_to_ir("set tcl_platform(threaded)", &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(std::io::sink()));
+    let mut vm = tcl_vm::test_support::native_vm_for(
+        tcl_vm::test_support::DEFAULT_ENVIRONMENT,
+        Box::new(std::io::sink()),
+    );
     vm.set_compiler(compiler());
     let c = vm.run_module(&asm);
     assert!(c.code.is_ok());

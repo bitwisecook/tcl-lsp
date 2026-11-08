@@ -28,7 +28,6 @@ use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -44,12 +43,17 @@ impl Write for Capture {
 
 /// Compile + run `src`; return `(ok, result, stdout)`.
 fn run(src: &str) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
+    let registry =
+        tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
+            .commands();
+    let ir = lower_to_ir(src, registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_for(
+        tcl_vm::test_support::DEFAULT_ENVIRONMENT,
+        Box::new(Capture(Rc::clone(&buf))),
+    );
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let c = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8");

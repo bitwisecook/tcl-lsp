@@ -119,6 +119,22 @@ impl SourceCommandBindings {
                 script.clone(),
             );
         }
+        if context.entered_frame().is_some() {
+            self.record_executed_script(
+                parent,
+                operand.argument,
+                script.clone(),
+                context.entered_frame(),
+                state.source_variables.namespace_identity.as_ref(),
+            );
+        } else {
+            self.record_conditional_in_frame_script(
+                parent,
+                operand.argument,
+                script.clone(),
+                Some(&context.namespace_identity()),
+            );
+        }
         let previous = state
             .current_source_origin
             .replace(Arc::clone(&script.origin));

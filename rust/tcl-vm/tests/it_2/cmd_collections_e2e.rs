@@ -33,7 +33,6 @@ use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -51,13 +50,18 @@ impl Write for Capture {
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
 fn run(src: &str) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
+    let registry =
+        tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
+            .commands();
     let ir = lower_to_ir(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_for(
+        tcl_vm::test_support::DEFAULT_ENVIRONMENT,
+        Box::new(Capture(Rc::clone(&buf))),
+    );
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
