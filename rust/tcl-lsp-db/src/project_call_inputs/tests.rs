@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::document_analysis_input;
 use salsa::Setter as _;
 
 fn configuration(db: &TclDatabase, overlay: u64) -> AnalyserConfig {

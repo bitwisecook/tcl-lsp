@@ -1555,6 +1555,15 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn original_editor_operator_rewrite_refuses_reflection_effects_and_reordered_leaves() {
+        // naming.core.original-expression-source-selection
+        // docs/design/analysis/name-resolution-proofs/original-expression-source-selection.md
+        use crate::registry_invocation::source_structure::OriginalExpressionOperatorRewriteKind::{
+            DeMorgan, InvertComparison,
+        };
         for (source, candidate, kind) in [
             ("expr {!(1 && 0)}", "!0 || !1", DeMorgan),
             ("expr {!(1 && 0)}", "!1 && !0", DeMorgan),
