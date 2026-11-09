@@ -2702,10 +2702,11 @@ impl SourceCommandBindings {
     ) -> bool {
         let tokens = command.tokens.as_ref();
         let site = &command.site;
+        let words: Arc<[crate::ir::WordExpr]> = Arc::from(tokens.words());
         let observations: Vec<_> = parents
             .iter()
             .map(|parent| DeclarationLayoutObservation {
-                words: Arc::from(tokens.words()),
+                words: Arc::clone(&words),
                 ..parent.clone()
             })
             .collect();
