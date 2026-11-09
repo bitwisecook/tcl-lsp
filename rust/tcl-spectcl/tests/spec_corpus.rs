@@ -1599,10 +1599,14 @@ fn shipped_string_pack_replays_actual_corpus_first_gates() {
                     "samples/diagnostics/W102_subst_injection/example.tcl",
                     "[string map [list {$name} $name] {Hello, $name}]",
                 ),
+                // Not the screenshot sample's `[string range $full 0 39]`: its
+                // callers pass 12-character names, so the `> 40` guard keeps
+                // that call from ever running (tclsh 9.0.4) and a hook attempt
+                // there would be an analysis of dead code.
                 (
                     "range",
-                    "samples/for_screenshots/07-formatting-side-by-side.tcl",
-                    "[string range $full 0 39]",
+                    "samples/wasm/t2-values/22_strings.tcl",
+                    "[string range $t 7 end]",
                 ),
             ] {
                 let sample = corpus_files
