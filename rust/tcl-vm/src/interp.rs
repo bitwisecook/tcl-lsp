@@ -4985,7 +4985,17 @@ impl Vm {
             Ok(scope) => scope,
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
-        let library = self.host_rc().env().get("TCL_LIBRARY").unwrap_or_default();
+        // `tclInit` tries an existing `tcl_library` first, then a non-empty
+        // `env(TCL_LIBRARY)`.
+        let selected = match self.read_var_traced("::tcl_library").unwrap_or_default() {
+            Some(value) => match tcl_syntax::value::ValueOps::native_string_bytes(self, &value) {
+                Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+                Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
+            },
+            None => None,
+        };
+        let library =
+            selected.unwrap_or_else(|| self.host_rc().env().get("TCL_LIBRARY").unwrap_or_default());
         if let Err(error) = scope.check(self) {
             return crate::command::completion_from_cmd_error(self, error);
         }
