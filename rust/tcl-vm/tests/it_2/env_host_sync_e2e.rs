@@ -37,6 +37,7 @@ struct MapHost {
     clock: MapClock,
     stdio: MapStdIo,
     env: MapEnv,
+    native: tcl_host_native::NativeHost,
 }
 
 struct MapClock;
@@ -107,6 +108,12 @@ impl tcl_platform::Host for MapHost {
     fn env(&self) -> &dyn tcl_platform::Env {
         &self.env
     }
+
+    // C integer conversions (`upvar #0`, ...) read the platform's own C
+    // numeric environment, which a mapped environment does not replace.
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        self.native.numeric_environment()
+    }
 }
 
 fn vars(entries: &[(&str, &str)]) -> Vars {
@@ -128,6 +135,7 @@ fn vm_on(version: TclVersion, env: &Vars) -> Vm {
         clock: MapClock,
         stdio: MapStdIo,
         env: MapEnv(Rc::clone(env)),
+        native: tcl_host_native::NativeHost::new(),
     }));
     vm
 }
@@ -445,6 +453,7 @@ fn a_rebound_host_is_hooked_and_the_old_one_is_left_alone() {
         clock: MapClock,
         stdio: MapStdIo,
         env: MapEnv(Rc::clone(&second)),
+        native: tcl_host_native::NativeHost::new(),
     }));
     assert_eq!(ok(&mut vm, "lsort [array names env]"), "SECOND");
     ok(&mut vm, "set env(AFTER) 1; unset env(SECOND)");

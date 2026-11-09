@@ -16019,11 +16019,20 @@ impl Vm {
                         .collect(),
                     _ => return Ok(Ok(())),
                 };
+            // `TclSetupEnv` unsets each stale element globally as the parts
+            // `env` and `NAME` (`Tcl_UnsetVar2`).
             for key in stale {
-                let mut element = b"::env(".to_vec();
-                element.extend_from_slice(key.as_bytes());
-                element.push(b')');
-                let _ = self.unset_var_bytes(&element);
+                if let Some(base) = self
+                    .resolve_var_parts_from_bytes(b"env", Some(key.as_bytes()), 0)
+                    .and_then(|resolved| resolved.base_id)
+                {
+                    let _ = self.array_unset_elem_reporting_bytes_at(
+                        base,
+                        b"env",
+                        key.as_bytes(),
+                        None,
+                    );
+                }
                 scope.check_native(self)?;
             }
             for (key, value) in vars {
@@ -17628,8 +17637,10 @@ impl Vm {
             array: parent.as_ref().map(|(array, _)| *array),
             elem: parent.map(|(_, key)| key),
         };
-        let has_array_trace =
-            self.variable_observers
+        // `env`'s host hook is an array trace C installs (`TclSetupEnv`).
+        let has_array_trace = self.variable_observers.env_cell == Some(id)
+            || self
+                .variable_observers
                 .script_traces
                 .get(&id)
                 .is_some_and(|traces| {
@@ -23129,7 +23140,11 @@ impl Vm {
                 display.push(b')');
                 (display, (name, Some(key)), true)
             } else {
-                (name.to_vec(), (name, None), false)
+                // C parses a combined `a(k)` name into its array and element,
+                // so the array's traces fire; an alias to an element does not.
+                let element_syntax =
+                    cell.elem.is_some() && name.last() == Some(&b')') && name.contains(&b'(');
+                (name.to_vec(), (name, None), element_syntax)
             };
             let reached = self.variable_trace_guest_or_unwind(|vm| {
                 vm.fire_var_traces_from_parts(

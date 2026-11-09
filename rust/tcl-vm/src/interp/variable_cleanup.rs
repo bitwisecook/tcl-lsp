@@ -264,9 +264,11 @@ impl OriginalVariableCleanup {
         let (taken, has_array) = match self.state_mut(vm) {
             Ok(state) => {
                 let taken = state.variable_observers.script_traces.remove(&id);
+                // The array's oldest observer may be native (`env`'s host hook).
                 let has_array = include_array
                     && cell.array_id().is_some_and(|array| {
                         state.variable_observers.script_traces.contains_key(&array)
+                            || state.variable_observers.env_cell == Some(array)
                     });
                 (taken, has_array)
             }
