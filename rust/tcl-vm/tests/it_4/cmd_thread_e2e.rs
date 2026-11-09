@@ -32,7 +32,6 @@ use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect;
 use tcl_dialect::DialectProfile;
 use tcl_vm::CompileService;
 
@@ -95,12 +94,7 @@ fn result(src: &str) -> String {
 fn assert_workers_inherit_a_separate_host_command_surface() {
     let dialect = DialectProfile::irules();
     let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
-    let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
-    let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
     let source = "set w [thread::create]; set threaded [thread::send $w {llength [info commands interp]}]; thread::release $w; set p [tpool::create -maxworkers 1]; set j [tpool::post $p {llength [info commands interp]}]; set pooled [tpool::get $p $j]; tpool::release $p; list $threaded $pooled";
-    let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, Some(dialect));
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     // The iRules source dialect has no native core of its own: it runs on the
     // host release's engine.
@@ -113,7 +107,10 @@ fn assert_workers_inherit_a_separate_host_command_surface() {
         Arc::new(Mutex::new(Box::new(std::io::sink()))),
     );
 
-    let completion = vm.run_module(&asm);
+    // The VM's own compile entry certifies the extension's commands.
+    let completion = vm
+        .try_eval_source(source)
+        .expect("the VM's own compile entry");
     assert!(completion.code.is_ok(), "{}", completion.result.to_str());
     assert_eq!(&*completion.result.to_str(), "1 1");
 }

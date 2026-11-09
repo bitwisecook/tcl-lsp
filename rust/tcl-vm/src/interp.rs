@@ -27413,6 +27413,9 @@ impl Vm {
         {
             Some(true) => NativeCompilerHookPresence::Present,
             Some(false) => NativeCompilerHookPresence::Absent,
+            // The Thread extension creates its commands with
+            // `Tcl_CreateObjCommand`: none has a compile procedure.
+            None if thread_extension_command(identity) => NativeCompilerHookPresence::Absent,
             None => NativeCompilerHookPresence::Unknown,
         }
     }
@@ -36665,4 +36668,13 @@ mod ordinary_entry_observer_tests {
         drop(vm);
         assert!(!restored.ordinary_entry_observers_absent_for(id));
     }
+}
+
+/// A command of the Thread extension the VM provides (`thread::`, `tsv::`,
+/// `tpool::`), which C registers without a compile procedure.
+fn thread_extension_command(identity: &str) -> bool {
+    let name = identity.strip_prefix("::").unwrap_or(identity);
+    ["thread::", "tsv::", "tpool::"]
+        .iter()
+        .any(|prefix| name.starts_with(prefix))
 }

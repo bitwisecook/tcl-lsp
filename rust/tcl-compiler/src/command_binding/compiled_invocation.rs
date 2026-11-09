@@ -1300,7 +1300,11 @@ fn select_target(
         }
     }
     let Some(registered) = registered else {
-        if closed_surface_catalogue_dispatch(target, state) {
+        // `TclCompileScript` invokes a command without a compile procedure;
+        // the runtime certifies that this registration has none.
+        if closed_surface_catalogue_dispatch(target, state)
+            || state.runtime_compiler_hook(target.identity.as_ref()) == Some(false)
+        {
             result.live = true;
             result.admit(NativeCompilationSelection::Generic);
             return;
