@@ -2747,30 +2747,36 @@ fn same_candidate(
 }
 
 pub(super) fn join_argument_words(
-    words: &mut Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    words: &mut Arc<[crate::registry_invocation::EffectiveInvocationWord]>,
     incoming: &[crate::registry_invocation::EffectiveInvocationWord],
 ) {
     use crate::registry_invocation::EffectiveInvocationWord as Word;
     if words.len() != incoming.len() {
-        words.resize_with(words.len().max(incoming.len()), || Word::Opaque);
-        words.fill(Word::Opaque);
+        *words = std::iter::repeat_n(Word::Opaque, words.len().max(incoming.len())).collect();
         return;
     }
-    for (word, other) in words.iter_mut().zip(incoming) {
-        if word != other {
-            *word = if matches!(
-                word,
-                Word::Expanded | Word::KnownExpansion(_) | Word::KnownByteExpansion(_)
-            ) || matches!(
-                other,
-                Word::Expanded | Word::KnownExpansion(_) | Word::KnownByteExpansion(_)
-            ) {
+    if words.iter().eq(incoming) {
+        return;
+    }
+    let expanded = |word: &Word| {
+        matches!(
+            word,
+            Word::Expanded | Word::KnownExpansion(_) | Word::KnownByteExpansion(_)
+        )
+    };
+    *words = words
+        .iter()
+        .zip(incoming)
+        .map(|(word, other)| {
+            if word == other {
+                word.clone()
+            } else if expanded(word) || expanded(other) {
                 Word::Expanded
             } else {
                 Word::Dynamic
-            };
-        }
-    }
+            }
+        })
+        .collect();
 }
 
 /// A converged implementation can transfer its normal effects without proving

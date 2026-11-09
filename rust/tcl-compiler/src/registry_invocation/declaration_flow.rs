@@ -1144,7 +1144,7 @@ mod tests {
             let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
             let effective = effective_command_words(&tokens).unwrap();
             let mut binding = crate::command_binding::SourceInvocationBinding::default();
-            binding.evaluated_argument_words = vec![EffectiveInvocationWord::Dynamic; 2];
+            binding.evaluated_argument_words = vec![EffectiveInvocationWord::Dynamic; 2].into();
             tokens.source_binding = Some(binding);
             assert_eq!(
                 declared_argument_words(&tokens, &effective, dialect),

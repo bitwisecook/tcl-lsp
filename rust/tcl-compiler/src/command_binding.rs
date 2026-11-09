@@ -1546,7 +1546,7 @@ pub struct SourceInvocationBinding {
     /// separate prefixes and never change these original word indices.
     pub evaluated_argument_values: Vec<Option<String>>,
     /// Argument facts frozen at their own evaluation points, including unknown indices.
-    pub evaluated_argument_words: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    pub evaluated_argument_words: Arc<[crate::registry_invocation::EffectiveInvocationWord]>,
     frozen_written_words: Option<Arc<[crate::registry_invocation::EffectiveInvocationWord]>>,
     frozen_written_names:
         Option<Arc<[Option<Arc<original_name_value::OriginalProducedNameValue>>]>>,
@@ -1870,7 +1870,7 @@ impl Default for SourceInvocationBinding {
             namespace_cell_presence: crate::var_resolve::NamespaceCellPresence::default(),
             known_namespaces: Arc::from([]),
             evaluated_argument_values: Vec::new(),
-            evaluated_argument_words: Vec::new(),
+            evaluated_argument_words: Arc::default(),
             frozen_written_words: None,
             frozen_written_names: None,
             frozen_head_object: None,
@@ -3249,7 +3249,7 @@ struct SourceBindingPoint {
     original_head_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
     original_written_words: Option<Arc<original_name_value::OriginalWrittenSourceWords>>,
     evaluated_argument_values: Vec<Option<String>>,
-    evaluated_argument_words: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    evaluated_argument_words: Arc<[crate::registry_invocation::EffectiveInvocationWord]>,
     frozen_written_words: Option<Arc<[crate::registry_invocation::EffectiveInvocationWord]>>,
     frozen_written_names:
         Option<Arc<[Option<Arc<original_name_value::OriginalProducedNameValue>>]>>,
@@ -10082,7 +10082,7 @@ impl SourceCommandBindings {
             original_head_input: None,
             original_written_words: None,
             evaluated_argument_values: Vec::new(),
-            evaluated_argument_words: Vec::new(),
+            evaluated_argument_words: Arc::default(),
             frozen_written_words: None,
             frozen_written_names: None,
             frozen_head_object: None,
@@ -13052,7 +13052,7 @@ impl SourceCommandBindings {
                     original_head_input: None,
                     original_written_words: None,
                     evaluated_argument_values: Vec::new(),
-                    evaluated_argument_words: Vec::new(),
+                    evaluated_argument_words: Arc::default(),
                     frozen_written_words: None,
                     frozen_written_names: None,
                     frozen_head_object: None,
@@ -15106,7 +15106,7 @@ fn source_binding_projection_in(
         namespace_cell_presence: state.source_variables.namespace_cells.clone(),
         known_namespaces: state.namespaces.advisory_names(),
         evaluated_argument_values: Vec::new(),
-        evaluated_argument_words: Vec::new(),
+        evaluated_argument_words: Arc::default(),
         frozen_written_words: None,
         frozen_written_names: None,
         frozen_head_object: None,
