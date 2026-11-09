@@ -5258,7 +5258,9 @@ pub fn find_taint_warnings_for_module_function<
 }
 
 /// Retain original Module correspondence and command-head replay availability.
-/// Stored callbacks are included by the whole-unit report.
+/// Stored callbacks are included by the whole-unit report. `solved` is the
+/// interprocedural solve the taints came from, whose return summaries judge an
+/// inline procedure call in a sink operand.
 #[must_use]
 pub fn taint_warning_report_for_module_function<
     S: std::hash::BuildHasher,
@@ -5269,12 +5271,12 @@ pub fn taint_warning_report_for_module_function<
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
-    module: &crate::ir::Module,
+    (module, solved): (
+        &crate::ir::Module,
+        Option<&crate::taint_interproc::InterprocTaintResult>,
+    ),
     shadowed_builtins: &HashSet<String, H>,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
-    procedure_summaries: Option<
-        &HashMap<crate::ir::ProcedureId, crate::taint_interproc::ProcTaintSummary>,
-    >,
 ) -> TaintWarningReport {
     taint_warning_report_for_function_with_identities(
         fu,
@@ -5282,7 +5284,7 @@ pub fn taint_warning_report_for_module_function<
         executable_blocks,
         registry,
         TaintSourceContext::for_module_function(registry, module, fu)
-            .with_procedure_summaries(procedure_summaries),
+            .with_procedure_summaries(solved.map(|solved| &solved.summaries)),
         shadowed_builtins,
         (
             module_traces,

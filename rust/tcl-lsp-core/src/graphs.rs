@@ -810,13 +810,8 @@ struct TaintWarnCtx<'a> {
     module_traces: tcl_compiler::compilation_unit::ModuleTraceFacts<'a>,
     /// Byte-offset → line/column index for the source.
     line_index: &'a LineIndex,
-    /// Return summaries the supplied taints were solved under.
-    summaries: Option<
-        &'a std::collections::HashMap<
-            tcl_compiler::ir::ProcedureId,
-            tcl_compiler::taint_interproc::ProcTaintSummary,
-        >,
-    >,
+    /// The interprocedural solve the supplied taints came from.
+    solved: Option<&'a tcl_compiler::taint_interproc::InterprocTaintResult>,
 }
 
 /// Aggregate every taint warning kind for one function unit into the
@@ -843,7 +838,7 @@ fn collect_taint_warnings(
         dialect,
         module_traces,
         line_index,
-        summaries,
+        solved,
     } = ctx;
     let module = &unit.ir_module;
     let profile = dialect;
@@ -877,10 +872,9 @@ fn collect_taint_warnings(
             taints,
             &fu.sccp.executable_blocks,
             registry,
-            module,
+            (module, solved),
             &shadowed,
             module_traces,
-            summaries,
         );
         replays = report.replays;
         for w in report.warnings {
@@ -1056,7 +1050,7 @@ fn dataflow_graph_for_input(
         dialect,
         module_traces,
         line_index: &line_index,
-        summaries: Some(&solved.summaries),
+        solved: Some(&solved),
     };
     let mut taint_warnings: Vec<Value> = Vec::new();
     let mut taint_replays = collect_taint_warnings(
@@ -1526,7 +1520,7 @@ mod tests {
                 .expect("fixture selects an explicit profile"),
             module_traces: traces,
             line_index: &index,
-            summaries: None,
+            solved: None,
         };
         let mut warnings = Vec::new();
         let replays = collect_taint_warnings(

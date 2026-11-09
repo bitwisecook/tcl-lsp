@@ -695,10 +695,9 @@ pub fn push_taint_and_module_checks(
                 &taints,
                 &fu.sccp.executable_blocks,
                 registry,
-                &cu.ir_module,
+                (&cu.ir_module, Some(solved)),
                 &shadowed,
                 module_traces,
-                Some(&solved.summaries),
             );
             taint_replays.merge(report.replays);
             for warning in report.warnings {
