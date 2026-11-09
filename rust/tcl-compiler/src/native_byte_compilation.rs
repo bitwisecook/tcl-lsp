@@ -189,6 +189,13 @@ pub fn native_byte_command_plan(
     if binding.compiler_hook != NativeCompilerHookPresence::Present {
         return Err(NativeByteCommandUnavailable::Registration);
     }
+    // An empty variadic procedure's `TclCompileNoOp` only evaluates the
+    // substituted operands and yields ""; invoking it does the same.
+    if binding.compiler.is_none()
+        && binding.procedure_header == Some(tcl_dialect::NativeProcedureHeaderCompilation::NoOp)
+    {
+        return Ok(NativeByteCommandPlan::Generic);
+    }
     if binding
         .compiler
         .as_ref()

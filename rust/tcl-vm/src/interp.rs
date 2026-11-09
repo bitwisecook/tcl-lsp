@@ -27439,9 +27439,9 @@ impl Vm {
         {
             Some(true) => NativeCompilerHookPresence::Present,
             Some(false) => NativeCompilerHookPresence::Absent,
-            // The Thread extension creates its commands with
-            // `Tcl_CreateObjCommand`: none has a compile procedure.
-            None if thread_extension_command(identity) => NativeCompilerHookPresence::Absent,
+            None if created_without_compile_procedure(identity) => {
+                NativeCompilerHookPresence::Absent
+            }
             None => NativeCompilerHookPresence::Unknown,
         }
     }
@@ -36696,11 +36696,13 @@ mod ordinary_entry_observer_tests {
     }
 }
 
-/// A command of the Thread extension the VM provides (`thread::`, `tsv::`,
-/// `tpool::`), which C registers without a compile procedure.
-fn thread_extension_command(identity: &str) -> bool {
+/// A command C creates with `Tcl_CreateObjCommand`, so with no compile
+/// procedure: the Thread extension's `thread::`, `tsv::` and `tpool::`
+/// commands, and 9.0's `ClockConfigureObjCmd`.
+fn created_without_compile_procedure(identity: &str) -> bool {
     let name = identity.strip_prefix("::").unwrap_or(identity);
-    ["thread::", "tsv::", "tpool::"]
-        .iter()
-        .any(|prefix| name.starts_with(prefix))
+    name == "tcl::unsupported::clock::configure"
+        || ["thread::", "tsv::", "tpool::"]
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
 }
