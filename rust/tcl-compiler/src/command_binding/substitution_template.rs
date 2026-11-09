@@ -59,10 +59,10 @@ impl SourceCommandBindings {
             SubstitutionTemplateSelection::Unknown => return opaque_source_invocation(state),
         };
         // Embedded command completions require the independent subst completion
-        // protocol. Keep that residual until this owner represents it exactly.
-        if kinds.commands {
-            return opaque_source_invocation(state);
-        }
+        // protocol, so a command part leaves the walk opaque where it stands
+        // (`walk_substitution_value`). Command substitution starts only at a
+        // `[`, so a template with none runs no command (tclsh 9.0.4:
+        // `subst {v=$x}` is `v=7`) and is walked exactly.
         let Some(template) = retained_script_operand(
             template_at,
             native.script_operands(),
@@ -224,6 +224,10 @@ impl SourceCommandBindings {
             })
         });
         outcomes.normal_object = None;
+        // The last part's read describes that variable, not the template.
+        outcomes.normal_name_value = None;
+        outcomes.normal_method_prefix = None;
+        outcomes.normal_rhs_read = None;
         outcomes
     }
 }
@@ -249,6 +253,15 @@ mod tests {
                     r"set x 7; set reads 0; proc Read args {incr ::reads; error BOOM}; trace add variable x read Read; catch {subst -nocommands {return $x}}; list $reads",
                     "1",
                 ),
+                (r"set x 7; set value [subst {v=$x}]; list $value", "v=7"),
+                (
+                    r"set x 7; set value [subst -nocommands {v=$x}]; list $value",
+                    "v=7",
+                ),
+                (
+                    r"set x 7; proc Read args {set ::x 8}; trace add variable x read Read; set value [subst {return $x}]; list $value",
+                    "return 8",
+                ),
             ] {
                 let bindings = SourceCommandBindings::analyse(
                     source,
@@ -263,6 +276,21 @@ mod tests {
                     "{profile}: {source}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn a_command_part_leaves_the_template_walk_opaque() {
+        for profile in ["tcl8.6", "tcl9.0"] {
+            let context = tcl_registry::model::ingress::static_context_for(profile);
+            let source = r"set x 7; set value [subst {v=[set x]}]; list $value";
+            let bindings = SourceCommandBindings::analyse(
+                source,
+                tcl_lexer::LexerConfig::for_profile(context.commands().profile()),
+                context.commands(),
+            );
+            let at = u32::try_from(source.rfind("list ").unwrap()).unwrap();
+            assert!(bindings.invocation_at_source("list", at).unknown, "{profile}");
         }
     }
 
