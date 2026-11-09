@@ -587,7 +587,11 @@ pub fn native_entry_options(
         compilation_scope: tcl_runtime_api::SourceCompilationScope::EnteredSource,
         native_entry: Some(entry),
         native_compilation: NativeCompilationContext {
-            mode: NativeCompilationMode::BytecodeObject,
+            mode: if entry.direct_evaluation {
+                NativeCompilationMode::Direct
+            } else {
+                NativeCompilationMode::BytecodeObject
+            },
             frame: NativeCompilationFrame::ScriptCode,
             loop_depth: 0,
             catch_depth: Some(0),

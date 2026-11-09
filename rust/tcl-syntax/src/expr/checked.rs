@@ -74,6 +74,14 @@ impl NativeExprSyntax {
     pub fn error_state(self, parser_code: Option<&[u8]>) -> Option<NativeExprSyntaxErrorState> {
         use NativeExprSyntaxErrorCodeUpdate as Update;
         let (direct, eval) = match self {
+            // C8.4's parser sets a range error's own code (`TclExprFloatError`,
+            // `Tcl_GetWideIntFromObj`); its syntax errors leave NONE.
+            Self::Tcl(TclVersion::V8_4)
+                if parser_code.is_some_and(|code| code.starts_with(b"ARITH ")) =>
+            {
+                let code = parser_code?.to_vec();
+                (Update::Set(code.clone()), Update::Set(code))
+            }
             Self::Tcl(TclVersion::V8_4 | TclVersion::V8_5) => {
                 (Update::Unchanged, Update::Set(b"NONE".to_vec()))
             }
@@ -379,6 +387,10 @@ impl ExprSyntaxFailure {
         source: &[u8],
         context: &ExprParseContext,
     ) -> Option<NativeExprSyntaxDiagnostic<Vec<u8>>> {
+        // Under its own grammar, C8.4's parser owns every diagnostic it raises.
+        if let Some(diagnostic) = tcl84_parser_diagnostic(source, context) {
+            return Some(diagnostic);
+        }
         if let Some(failure) = self.lexical {
             return native_lexical_diagnostic(source, context, failure);
         }
@@ -388,16 +400,6 @@ impl ExprSyntaxFailure {
             };
             if context.expr_grammar_base != Some(version) || context.f5_word_grammar.is_some() {
                 return None;
-            }
-            // C8.4's own parser owns every operator it predates.
-            if version == TclVersion::V8_4
-                && let Ok(text) = std::str::from_utf8(source)
-                && let Err(error) = crate::expr::syntax_84::parse_tcl84(text)
-            {
-                return Some(NativeExprSyntaxDiagnostic {
-                    message: error.message.into_bytes(),
-                    error_code: Some(error.error_code.unwrap_or("NONE").as_bytes().to_vec()),
-                });
             }
             let (start, end) = self.token?;
             let word = source.get(start as usize..=end as usize)?;
@@ -661,12 +663,40 @@ pub(super) fn parse_native_tokens(
     parsed
 }
 
+/// The diagnostic C8.4's own expression parser raises for `source` under
+/// its own grammar: message and code, as `tclParseExpr.c` and the literal
+/// conversions it makes leave them.
+#[must_use]
+pub fn tcl84_parser_diagnostic(
+    source: &[u8],
+    context: &ExprParseContext,
+) -> Option<NativeExprSyntaxDiagnostic<Vec<u8>>> {
+    if !rejected_by_tcl84_parser(source, context) {
+        return None;
+    }
+    let error = crate::expr::syntax_84::parse_tcl84(std::str::from_utf8(source).ok()?).err()?;
+    // A bareword's wording depends on the interpreter's math function table
+    // (`ParseLexeme` looks it up), which the caller's lookup presents.
+    if error.message.ends_with("variable references require preceding $")
+        || error
+            .message
+            .ends_with("expected parenthesis enclosing function arguments")
+    {
+        return None;
+    }
+    Some(NativeExprSyntaxDiagnostic {
+        message: error.message.into_bytes(),
+        error_code: Some(error.error_code.unwrap_or("NONE").as_bytes().to_vec()),
+    })
+}
+
 /// C8.4's lexer reads a leading `eq`/`ne` of a longer word as the operator,
 /// so `nextafter(0.5)` is a syntax error there before any function lookup.
 fn rejected_by_tcl84_parser(source: &[u8], context: &ExprParseContext) -> bool {
     context.native_syntax == NativeExprSyntax::Tcl(TclVersion::V8_4)
         && context.expr_grammar_base == Some(TclVersion::V8_4)
         && context.f5_word_grammar.is_none()
+        && !source.contains(&0)
         && tcl_dialect::DialectProfile::find(TclVersion::V8_4.dialect_profile_name())
             .is_some_and(|profile| profile.grammar == context.lexer_grammar)
         && std::str::from_utf8(source)

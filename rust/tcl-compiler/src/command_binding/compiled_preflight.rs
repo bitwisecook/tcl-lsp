@@ -1553,6 +1553,11 @@ impl CompilerTraversal<'_> {
             let Some(compilation) = body.entered_context(compilation) else {
                 continue;
             };
+            // A script the release evaluates directly (C8.4's `eval`) is not
+            // compiled: its commands fail as they run.
+            if compilation.mode != NativeCompilationMode::BytecodeObject {
+                continue;
+            }
             let failure = self.script(
                 &tcl_lexer::SourceImage::native(text.as_bytes()),
                 source.span.start().saturating_add(1),

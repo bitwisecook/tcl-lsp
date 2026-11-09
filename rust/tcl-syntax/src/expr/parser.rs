@@ -555,6 +555,7 @@ pub use checked::{
     NativeExprSyntaxErrorCodeUpdate, NativeExprSyntaxErrorState, NativeFunctionNameResolution,
     parse_expr_bytes_checked_with_context, parse_expr_checked_for_profile,
     parse_expr_checked_with_context, prepare_expr_bytes_checked_with_context,
+    tcl84_parser_diagnostic,
 };
 
 /// Parse a Tcl expression string into a structured AST.

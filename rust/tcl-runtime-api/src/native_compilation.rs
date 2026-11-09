@@ -534,6 +534,9 @@ pub struct NativeCompilationEntry {
     /// Actual interpreter flag disabling command compiler hooks. Parsing,
     /// argument evaluation and bytecode-object compilation remain enabled.
     pub inline_compilation_disabled: bool,
+    /// The script is evaluated directly, as `Tcl_EvalEx` does for C's
+    /// `TCL_EVAL_DIRECT` entries: its commands are invoked, never compiled.
+    pub direct_evaluation: bool,
     /// Actual fixed math-function compiler table, when the runtime can export
     /// one. Command catalogue names do not establish this separate table.
     pub math_functions: Option<NativeMathFunctionTable>,
@@ -712,6 +715,7 @@ impl NativeCompilationEntry {
             && self.compiled_local_layout == other.compiled_local_layout
             && self.lexer_grammar == other.lexer_grammar
             && self.inline_compilation_disabled == other.inline_compilation_disabled
+            && self.direct_evaluation == other.direct_evaluation
             && self.math_functions == other.math_functions
             && self.closed == other.closed
             && self.commands == other.commands

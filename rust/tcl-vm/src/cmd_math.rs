@@ -543,6 +543,10 @@ fn arity_err(name: &str, short: bool) -> Completion<Value> {
     } else {
         "too many arguments"
     };
+    // C8.4's `CompileMathFuncCall` names no function.
+    if release == tcl_dialect::TclVersion::V8_4 {
+        return err(format!("{words} for math function"));
+    }
     release_err_with_code(
         format!("{words} for math function \"{name}\""),
         "TCL WRONGARGS",

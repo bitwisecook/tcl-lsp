@@ -24535,7 +24535,15 @@ impl Vm {
                 "native procedure parse-failure context is unavailable".into(),
             );
         };
-        self.seed_error_info(information.clone());
+        if self.uses_c84_global_error_info() {
+            // C8.4 stores the message in the global errorInfo first, then
+            // appends each compiler frame to it.
+            self.seed_native_error_result_object(tail.message.as_bytes());
+            self.native_errors.error_info = Some(information.clone());
+            self.update_native_error_info();
+        } else {
+            self.seed_error_info(information.clone());
+        }
         self.clear_error_logged();
         self.set_error_line(tail.line);
         let options = crate::command::options_dict(
@@ -26008,10 +26016,7 @@ impl Vm {
                             tcl_runtime_api::NativeExpressionRefusal::UnpresentedSyntaxFailure,
                         ));
                     };
-                    self.seed_error_info_frame(
-                        &diagnostic.message,
-                        tcl_syntax::expr::ExprSyntaxError::error_info_frame_bytes(source),
-                    );
+                    self.seed_parsing_expression_frame_bytes(&diagnostic.message, source);
                     return Err(self.expression_syntax_error(
                         diagnostic.message,
                         diagnostic.error_code.as_deref(),
@@ -26075,6 +26080,16 @@ impl Vm {
             RuntimeExpressionPreparation, prepare_fixed_function_expression_bytes_with_preparation,
         };
         use tcl_runtime_api::native_compilation::NativeMathFunctionResolution as Installed;
+        if let Some(diagnostic) = tcl_syntax::expr::parser::tcl84_parser_diagnostic(source, context)
+        {
+            self.seed_parsing_expression_frame_bytes(&diagnostic.message, source);
+            return Err(self.expression_syntax_error(
+                diagnostic.message,
+                diagnostic.error_code.as_deref(),
+                context.native_syntax,
+                publication,
+            ));
+        }
         let table = self.native_math_function_table();
         let prepared =
             prepare_fixed_function_expression_bytes_with_preparation(source, context, |name| {
@@ -26123,10 +26138,7 @@ impl Vm {
                 Ok(node)
             }
             RuntimeExpressionPreparation::Rejected(diagnostic) => {
-                self.seed_error_info_frame(
-                    &diagnostic.message,
-                    tcl_syntax::expr::ExprSyntaxError::error_info_frame_bytes(source),
-                );
+                self.seed_parsing_expression_frame_bytes(&diagnostic.message, source);
                 Err(self.expression_syntax_error(
                     diagnostic.message,
                     diagnostic.error_code.as_deref(),
@@ -26172,7 +26184,13 @@ impl Vm {
                 Err(error) => return crate::command::completion_option_failure(self, error),
             }
         } else {
+            let set = matches!(update, tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(_));
             let code = self.apply_primitive_error_code(update);
+            // C8.4's parser sets a range error's code with `Tcl_SetErrorCode`,
+            // so the command log keeps it rather than defaulting to NONE.
+            if set && self.uses_c84_global_error_info() && code.to_str().as_ref() != "NONE" {
+                self.restore_guest_error_code(code.clone());
+            }
             crate::command::options_dict(Code::Error, 0, &[("-errorcode", code)])
         };
         TclError::from_completion(Completion::new_error_metadata(
@@ -26355,6 +26373,17 @@ impl Vm {
             RuntimeExpressionPreparation, prepare_fixed_function_expression,
         };
         use tcl_runtime_api::native_compilation::NativeMathFunctionResolution as Installed;
+        if let Some(diagnostic) =
+            tcl_syntax::expr::parser::tcl84_parser_diagnostic(source.as_bytes(), context)
+        {
+            self.seed_parsing_expression_frame_bytes(&diagnostic.message, source.as_bytes());
+            return Err(self.expression_syntax_error(
+                diagnostic.message,
+                diagnostic.error_code.as_deref(),
+                context.native_syntax,
+                tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
+            ));
+        }
         let table = self.native_math_function_table();
         let prepared = prepare_fixed_function_expression(source, context, |name| {
             match table.as_ref().map(|table| table.lookup(name)) {
@@ -26602,8 +26631,16 @@ impl Vm {
     /// Add C's `(parsing expression "…")` `errorInfo` frame for a rejected
     /// expression (`tclCompExpr.c:1461-1466`).
     fn seed_parsing_expression_frame(&mut self, src: &str, message: &str) {
-        let frame = tcl_syntax::expr::ExprSyntaxError::error_info_frame(src);
-        self.seed_error_info_frame(message, &frame);
+        self.seed_parsing_expression_frame_bytes(message.as_bytes(), src.as_bytes());
+    }
+
+    /// C8.4's expression parser writes no frame: the failing command's own
+    /// log starts the trace (`while executing`).
+    fn seed_parsing_expression_frame_bytes(&mut self, message: &[u8], source: &[u8]) {
+        if self.runtime_version() != tcl_dialect::TclVersion::V8_4 {
+            let frame = tcl_syntax::expr::ExprSyntaxError::error_info_frame_bytes(source);
+            self.seed_error_info_frame(message, frame);
+        }
     }
 
     fn native_math_function_table(
@@ -26945,6 +26982,7 @@ impl Vm {
                     .grammar_over(self.source_profile().grammar),
             ),
             inline_compilation_disabled: self.step_trace_active(),
+            direct_evaluation: false,
             math_functions: self.native_math_function_table(),
             closed: complete,
             commands,
@@ -27811,6 +27849,18 @@ impl Vm {
         namespace: &NamespacePath,
         plain: bool,
     ) -> Result<Rc<ModuleAsm>, TclError> {
+        self.compile_module_bytes_as(source, namespace, plain, false)
+    }
+
+    /// [`Self::compile_module_bytes`] for a script the release evaluates
+    /// `direct`ly (`TCL_EVAL_DIRECT`), whose commands are invoked uncompiled.
+    fn compile_module_bytes_as(
+        &mut self,
+        source: &tcl_lexer::SourceImage,
+        namespace: &NamespacePath,
+        plain: bool,
+        direct: bool,
+    ) -> Result<Rc<ModuleAsm>, TclError> {
         let current = self
             .current_namespace_execution_context()
             .resolved_token()
@@ -27820,8 +27870,9 @@ impl Vm {
         let current = current
             .filter(|token| self.native_namespace_token_has_owner(*token))
             .ok_or_else(Self::unavailable_native_compilation_namespace)?;
-        let entry =
-            std::sync::Arc::new(self.native_compilation_entry_for_namespace_token(current, false));
+        let mut entry = self.native_compilation_entry_for_namespace_token(current, false);
+        entry.direct_evaluation = direct;
+        let entry = std::sync::Arc::new(entry);
         let key = (namespace.clone(), source.clone());
         let cached = if plain {
             self.eval_cache_plain.get(&key)
@@ -27841,7 +27892,7 @@ impl Vm {
             {
                 return Ok(module);
             }
-            return self.compile_module_bytes(source, namespace, true);
+            return self.compile_module_bytes_as(source, namespace, true, direct);
         }
         let Some(compiler) = self.compiler.clone() else {
             return Err(self.compile_service_error_bytes(
@@ -27887,7 +27938,7 @@ impl Vm {
             &module.top_level,
             module.manifest.as_deref(),
         ) {
-            return self.compile_module_bytes(source, namespace, true);
+            return self.compile_module_bytes_as(source, namespace, true, direct);
         }
         let cache = if plain {
             &mut self.eval_cache_plain
@@ -28851,7 +28902,7 @@ impl Vm {
         evaluation: tcl_registry::native_eval_object::NativeEvalObjectProtocol,
         purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
     ) -> Result<CompiledUnit, TclError> {
-        let module = self.compile_module_bytes(admitted_source, namespace, true)?;
+        let module = self.compile_module_bytes_as(admitted_source, namespace, true, true)?;
         self.merge_procs(&module);
         let asm = Rc::new(module.top_level.clone());
         let unit = if let Some(unit) =

@@ -284,6 +284,7 @@ pub(super) mod tests {
             )),
             lexer_grammar: Some(profile.grammar),
             inline_compilation_disabled: false,
+            direct_evaluation: false,
             math_functions: None,
             closed: true,
             commands,

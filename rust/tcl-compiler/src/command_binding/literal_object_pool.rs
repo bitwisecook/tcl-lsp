@@ -621,6 +621,7 @@ mod tests {
             source_string_protocol: None,
             lexer_grammar: None,
             inline_compilation_disabled: false,
+            direct_evaluation: false,
             authored_tmm_static: None,
             namespace_variable_tables: None,
             empty_literal_world: None,
