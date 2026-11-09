@@ -34,7 +34,6 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use tcl_dialect::DialectProfile;
 
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::pack_hooks::{self, HookFamily, HookInputs};
@@ -84,12 +83,15 @@ fn load() -> Folders {
     let pack = pack_hooks::const_fold_fn(slot).expect("a fold slot has a fold thunk");
 
     let registry = overlay_registry(overlay_key("strlen", slot), |registry| {
-        registry.insert(CommandSpec {
-            name: "mylib::strlen",
-            arity: Arity::exact(1),
-            const_fold: Some(pack),
-            ..CommandSpec::DEFAULT
-        });
+        install_pack_command(
+            registry,
+            CommandSpec {
+                name: "mylib::strlen",
+                arity: Arity::exact(1),
+                const_fold: Some(pack),
+                ..CommandSpec::DEFAULT
+            },
+        );
     });
     Folders { pack, registry }
 }
@@ -103,13 +105,48 @@ fn overlay_key(command: &str, slot: pack_hooks::HookSlot) -> u64 {
     hasher.finish() | 1
 }
 
+/// Insert `spec` the way the pack installer adds a command the profile does
+/// not ship: an invoked command with no native hook, stamped with its pack.
+fn install_pack_command(registry: &mut CommandRegistry, spec: CommandSpec) {
+    use tcl_registry::native_compilation::{
+        NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
+    };
+    let spec: &'static CommandSpec = Box::leak(Box::new(CommandSpec {
+        native_compilation: Some(NativeCompilationSpec {
+            grammar: NativeCompilationGrammar::NoHook,
+            operation: tcl_registry::SemanticOperationId::Invoke,
+            body: NativeBodyCompilation::Inherit,
+        }),
+        ..spec
+    }));
+    registry.insert_static(spec);
+    registry.insert_pack_origin(
+        spec,
+        tcl_registry::pack_origin::PackOrigin {
+            pack: "mylib".to_owned(),
+            content_hash: 1,
+            vocabulary_version: "1".to_owned(),
+        },
+    );
+}
+
 /// A Tcl 8.6 store carrying the fixture's command as a pack overlay would,
 /// so the optimiser analyses it under a real profile.
 fn overlay_registry(
     key: u64,
     extend: impl FnOnce(&mut CommandRegistry),
 ) -> Arc<CommandRegistry> {
-    let profile = DialectProfile::find("tcl8.6").expect("a catalogue profile");
+    overlay_registry_for("tcl8.6", key, extend)
+}
+
+/// The store a host installs `dialect`'s pack overlay under, carrying the
+/// fixture's command.
+fn overlay_registry_for(
+    dialect: &str,
+    key: u64,
+    extend: impl FnOnce(&mut CommandRegistry),
+) -> Arc<CommandRegistry> {
+    let profile = tcl_registry::model::store_profile_for_environment(dialect);
     tcl_registry::model::profile_store_with_overlay(profile, key, extend)
 }
 
@@ -237,14 +274,6 @@ fn a_versioned_pack_fold_is_told_the_profiles_evaluation_point() {
     pack_hooks::install_host(host);
     let slot = installed[0].slot.expect("the hook claimed a slot");
     let versioned = pack_hooks::const_fold_versioned_fn(slot).expect("a versioned fold thunk");
-    let registry = overlay_registry(overlay_key("release", slot), |registry| {
-        registry.insert(CommandSpec {
-            name: "mylib::release",
-            arity: Arity::exact(0),
-            const_fold_versioned: Some(versioned),
-            ..CommandSpec::DEFAULT
-        });
-    });
     for (dialect, want) in [
         ("tcl8.6", Some("8.6")),
         ("tcl9.0", Some("9.0")),
@@ -255,6 +284,17 @@ fn a_versioned_pack_fold_is_told_the_profiles_evaluation_point() {
         ("synopsys-eda-tcl", None),
         ("tcl", None),
     ] {
+        let registry = overlay_registry_for(dialect, overlay_key("release", slot), |registry| {
+            install_pack_command(
+                registry,
+                CommandSpec {
+                    name: "mylib::release",
+                    arity: Arity::exact(0),
+                    const_fold_versioned: Some(versioned),
+                    ..CommandSpec::DEFAULT
+                },
+            );
+        });
         let folded: Vec<String> = optimise_raw(
             "proc ::f {} {\n    set y [mylib::release]\n}\n",
             &registry,

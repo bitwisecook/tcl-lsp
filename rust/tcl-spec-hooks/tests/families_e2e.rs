@@ -702,7 +702,10 @@ on_both_engines! {
             AliasWords, CallerFrameSelection, StateTransition, TransitionSubject, VariableAliasTarget,
             VariableAliasDestination, VariableCellAliasTransition,
         };
-        let literal = |word: &str| TransitionSubject::Literal(word.to_owned());
+        let located = |word: &str, argument_index| TransitionSubject::LocatedLiteral {
+            value: word.to_owned(),
+            argument_index,
+        };
         let slot = one_hook(host, HookProgram::new(
             "mylib::link",
             HookFamily::StateTransitionResolver,
@@ -716,7 +719,10 @@ on_both_engines! {
             InvocationWord::Literal("::app::count"),
             InvocationWord::Dynamic,
         ];
-        let transitions = resolver(InvocationArguments::structured(&words));
+        // A namespace variable's local name is the tail under the dialect's
+        // naming policy, so the call names its dialect.
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let transitions = resolver(InvocationArguments::structured(&words).with_dialect(dialect));
         let facts: Vec<&StateTransition> = transitions
             .facts()
             .iter()
@@ -727,10 +733,10 @@ on_both_engines! {
             facts[0],
             &StateTransition::VariableCellAlias(VariableCellAliasTransition {
                 destination: VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: literal("sum"),
+                local: located("sum", 2),
                 target: VariableAliasTarget::CallerSelectedFrame {
-                    frame: CallerFrameSelection::Explicit(literal("#0")),
-                    variable: literal("total"),
+                    frame: CallerFrameSelection::Explicit(located("#0", 0)),
+                    variable: located("total", 1),
                 },
                 writes_value: false,
                 words: AliasWords {
@@ -743,9 +749,9 @@ on_both_engines! {
             facts[1],
             &StateTransition::VariableCellAlias(VariableCellAliasTransition {
                 destination: VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: literal("count"),
+                local: located("count", 3),
                 target: VariableAliasTarget::CurrentNamespace {
-                    variable: literal("::app::count"),
+                    variable: located("::app::count", 3),
                 },
                 writes_value: false,
                 words: AliasWords::same(3),
@@ -779,7 +785,8 @@ on_both_engines! {
         let log = host.error_log();
         assert!(
             log.iter()
-                .any(|line| line.contains("invalid command name \"command-binding\"")),
+                .any(|line| line.contains("invalid command name")
+                    && line.contains("TCL LOOKUP COMMAND command-binding")),
             "{log:?}"
         );
         pack_hooks::clear_host();
