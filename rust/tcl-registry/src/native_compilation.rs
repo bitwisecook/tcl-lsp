@@ -4607,6 +4607,27 @@ impl NativeCompilationSpec {
         }
     }
 
+    fn select_format_string_concat(
+        self,
+        words: InvocationWords<'_>,
+        shapes: &[NativeCompilationWordShape],
+        version: TclVersion,
+        context: NativeCompilationContext,
+    ) -> NativeCompilationSelection {
+        crate::native_format_compilation::select_with_values(
+            &|index| {
+                words
+                    .arguments()
+                    .literal_at(index)
+                    .map(|word| word.as_bytes().to_vec())
+            },
+            shapes,
+            version,
+            context,
+            self.operation,
+        )
+    }
+
     fn select_delegated_grammar(
         self,
         words: InvocationWords<'_>,
@@ -4677,18 +4698,7 @@ impl NativeCompilationSpec {
                 substitution_template_compiler_grammar(words, shapes, version, self.operation)
             }
             NativeCompilationGrammar::FormatStringConcat => {
-                crate::native_format_compilation::select_with_values(
-                    &|index| {
-                        words
-                            .arguments()
-                            .literal_at(index)
-                            .map(|word| word.as_bytes().to_vec())
-                    },
-                    shapes,
-                    version,
-                    context,
-                    self.operation,
-                )
+                self.select_format_string_concat(words, shapes, version, context)
             }
             NativeCompilationGrammar::ClockReading(reading) => clock_reading_selection(
                 reading,

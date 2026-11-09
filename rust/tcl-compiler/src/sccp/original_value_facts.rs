@@ -1178,6 +1178,17 @@ fn sccp_process_statements(
             let _ = fold_math_expression(expr, &environment, policy, math);
         }
         for (&var, ver) in &stmt_ssa.defs {
+            let evaluated = || {
+                evaluate_def_with_math(
+                    stmt_ssa,
+                    &*values,
+                    lookup,
+                    policy,
+                    folds,
+                    math,
+                    reference_config,
+                )
+            };
             let val = if ssa.cell_key(var).is_none_or(|cell| observed.contains(cell))
                 || lookup.externally_mutable_given(
                     var,
@@ -1207,31 +1218,12 @@ fn sccp_process_statements(
                             .get(&(var, *prev_ver))
                             .cloned()
                             .unwrap_or(LatticeValue::Overdefined);
-                        join(
-                            &prev,
-                            &evaluate_def_with_math(
-                                stmt_ssa,
-                                &*values,
-                                lookup,
-                                policy,
-                                folds,
-                                math,
-                                reference_config,
-                            ),
-                        )
+                        join(&prev, &evaluated())
                     }
                     None => LatticeValue::Overdefined,
                 }
             } else {
-                evaluate_def_with_math(
-                    stmt_ssa,
-                    &*values,
-                    lookup,
-                    policy,
-                    folds,
-                    math,
-                    reference_config,
-                )
+                evaluated()
             };
             if set_value(values, (var, *ver), &val) {
                 changed = true;

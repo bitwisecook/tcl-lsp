@@ -1761,6 +1761,30 @@ pub(crate) fn in_frame_expression_arg_indices(
     descend
 }
 
+/// Parse one in-frame expression text under the walk's source dialect, or
+/// `None` when the source metadata names no dialect to parse it under.
+fn substitution_expression(
+    text: &str,
+    context: &SubstitutionWalkContext<'_>,
+) -> Option<tcl_syntax::expr::ExprNode> {
+    let Some(metadata) = context.metadata else {
+        return Some(crate::expr_parser::parse_expr(
+            text,
+            context.registry.profile().map(|profile| profile.name),
+        ));
+    };
+    let dialect = source_substitution_dialect(metadata)?;
+    let mut parser = dialect.expression_parse_context(
+        metadata
+            .source_analysis_input()
+            .map(crate::analyser::ResolvedAnalysisInput::unit_profile),
+    );
+    parser.lexer_grammar = context.config.grammar_over(parser.lexer_grammar);
+    Some(crate::expr_parser::parse_expr_with_syntax_context(
+        text, &parser,
+    ))
+}
+
 /// Descend the brace-quoted words a recovered command evaluates **in this
 /// frame**: an expression, and a protected script.
 ///
@@ -1841,24 +1865,10 @@ fn walk_in_frame_words(
         || (concatenated && words.iter().skip(1).any(|word| word.literal().is_none()));
     let mut opaque = false;
     for text in &expression_texts {
-        let expr = if let Some(metadata) = context.metadata {
-            let Some(dialect) = source_substitution_dialect(metadata) else {
-                opaque = true;
-                conditional = true;
-                continue;
-            };
-            let mut parser = dialect.expression_parse_context(
-                metadata
-                    .source_analysis_input()
-                    .map(crate::analyser::ResolvedAnalysisInput::unit_profile),
-            );
-            parser.lexer_grammar = context.config.grammar_over(parser.lexer_grammar);
-            crate::expr_parser::parse_expr_with_syntax_context(text, &parser)
-        } else {
-            crate::expr_parser::parse_expr(
-                text,
-                context.registry.profile().map(|profile| profile.name),
-            )
+        let Some(expr) = substitution_expression(text, context) else {
+            opaque = true;
+            conditional = true;
+            continue;
         };
         collect_expr_command_surface_refs(&expr, &mut Vec::new(), &mut opaque, &mut conditional, 0);
     }

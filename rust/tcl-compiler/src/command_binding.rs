@@ -3241,11 +3241,28 @@ impl Clone for PointBindingMemo {
     }
 }
 
+/// Whether a point was recorded by a walk of a body the source walk proves
+/// never entered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PointWalkEntry {
+    Entered,
+    NeverEntered,
+}
+
+impl PointWalkEntry {
+    const fn at_depth(unreached_walk_depth: usize) -> Self {
+        if unreached_walk_depth == 0 {
+            Self::Entered
+        } else {
+            Self::NeverEntered
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SourceBindingPoint {
     declaration_preview: bool,
-    /// Recorded by a walk of a body the source walk proves never entered.
-    unreached: bool,
+    walk_entry: PointWalkEntry,
     original_arguments_complete_normally: bool,
     observer_execution: SourceObserverExecution,
     realm: tcl_dialect::model::InvocationRealm,
@@ -3403,7 +3420,7 @@ impl SourceBindingPoint {
             proof.entered_execution_observer = self.observer_execution;
             // A retained Logical source continuation is conditional even at
             // the root. Its interpreted target supplies no entered handler.
-            proof.runtime_reachability = if self.unreached {
+            proof.runtime_reachability = if self.walk_entry == PointWalkEntry::NeverEntered {
                 SourceRuntimeReachability::NotEntered
             } else if self.declaration_preview || self.original_logical_lookup_head().is_some() {
                 SourceRuntimeReachability::Conditional
@@ -10078,7 +10095,7 @@ impl SourceCommandBindings {
         self.invalidate_unpositioned_projections();
         self.points.push(SourceBindingPoint {
             declaration_preview: self.declaration_preview_depth != 0,
-            unreached: self.unreached_walk_depth != 0,
+            walk_entry: PointWalkEntry::at_depth(self.unreached_walk_depth),
             original_arguments_complete_normally: false,
             observer_execution: SourceObserverExecution::Unobserved,
             realm: context.realm(),
@@ -10346,7 +10363,7 @@ impl SourceCommandBindings {
             .and_then(|word| word.as_registry_word().literal());
         let point = SourceBindingPoint {
             declaration_preview: self.declaration_preview_depth != 0,
-            unreached: self.unreached_walk_depth != 0,
+            walk_entry: PointWalkEntry::at_depth(self.unreached_walk_depth),
             original_arguments_complete_normally: arguments_complete_normally,
             observer_execution,
             realm: context.realm(),
@@ -13048,7 +13065,7 @@ impl SourceCommandBindings {
                 phase,
                 point: SourceBindingPoint {
                     declaration_preview: self.declaration_preview_depth != 0,
-                    unreached: self.unreached_walk_depth != 0,
+                    walk_entry: PointWalkEntry::at_depth(self.unreached_walk_depth),
                     original_arguments_complete_normally: false,
                     observer_execution: SourceObserverExecution::Unobserved,
                     realm: context.realm(),

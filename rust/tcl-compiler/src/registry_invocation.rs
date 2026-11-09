@@ -665,71 +665,82 @@ fn authored_simulation_structure_is_supported(
         return None;
     }
     selected.with_metadata_schema(registry, context, realm, |schema| {
-        use tcl_registry::hooks::LoweringHookId;
-        // A class or object definition, like a procedure, stores its body for
-        // later dispatch; its static words above are all that is modelled.
-        if schema
-            .authored_source_definition_body_grammar()
-            .is_some_and(|grammar| grammar.family.manufactures_runtime_commands())
-        {
-            return Some(());
-        }
-        let hook = schema.facts().lowering_hook;
-        // A definition stores its body for later calls in the procedure's own
-        // frame, so only a fully static name, parameter list and body is modelled.
-        let all_literal = tokens.words().iter().all(|word| {
-            matches!(
-                word,
-                WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
-            )
-        });
-        if hook == Some(LoweringHookId::Proc) {
-            return (schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
-                && all_literal)
-                .then_some(());
-        }
-        // A static `namespace eval` runs its body now, in the named namespace's
-        // frame; the walk models that frame for each command it contains.
-        if hook == Some(LoweringHookId::NamespaceEval) {
-            return (schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
-                && all_literal
-                && roles.iter().all(|&(argument, role)| {
-                    role != tcl_registry::ArgRole::Body
-                        || schema.authored_source_script_timing_at(argument)
-                            == Some(tcl_registry::ScriptTiming::SameInvocation)
-                }))
+        authored_simulation_schema_is_supported(schema, tokens, &roles, bodiless)
+    })?;
+    Some(())
+}
+
+/// The schema half of [`authored_simulation_structure_is_supported`]: which
+/// lowering structures the authored walk models, given the call's static words.
+fn authored_simulation_schema_is_supported(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    tokens: &CommandTokens,
+    roles: &[(usize, tcl_registry::ArgRole)],
+    bodiless: bool,
+) -> Option<()> {
+    use tcl_registry::hooks::LoweringHookId;
+    // A class or object definition, like a procedure, stores its body for
+    // later dispatch; its static words above are all that is modelled.
+    if schema
+        .authored_source_definition_body_grammar()
+        .is_some_and(|grammar| grammar.family.manufactures_runtime_commands())
+    {
+        return Some(());
+    }
+    let hook = schema.facts().lowering_hook;
+    // A definition stores its body for later calls in the procedure's own
+    // frame, so only a fully static name, parameter list and body is modelled.
+    let all_literal = tokens.words().iter().all(|word| {
+        matches!(
+            word,
+            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+        )
+    });
+    if hook == Some(LoweringHookId::Proc) {
+        return (schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+            && all_literal)
             .then_some(());
-        }
-        if !(bodiless
-            || matches!(
-                hook,
-                Some(
-                    LoweringHookId::If
-                        | LoweringHookId::Switch
-                        | LoweringHookId::While
-                        | LoweringHookId::For
-                        | LoweringHookId::Foreach
-                        | LoweringHookId::Lmap
-                        | LoweringHookId::Catch
-                        | LoweringHookId::Try
-                )
-            ))
-            || schema.semantics.frame_effect.is_some()
-            || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
-            || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+    }
+    // A static `namespace eval` runs its body now, in the named namespace's
+    // frame; the walk models that frame for each command it contains.
+    if hook == Some(LoweringHookId::NamespaceEval) {
+        return (schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+            && all_literal
+            && roles.iter().all(|&(argument, role)| {
+                role != tcl_registry::ArgRole::Body
+                    || schema.authored_source_script_timing_at(argument)
+                        == Some(tcl_registry::ScriptTiming::SameInvocation)
+            }))
+        .then_some(());
+    }
+    if !(bodiless
+        || matches!(
+            hook,
+            Some(
+                LoweringHookId::If
+                    | LoweringHookId::Switch
+                    | LoweringHookId::While
+                    | LoweringHookId::For
+                    | LoweringHookId::Foreach
+                    | LoweringHookId::Lmap
+                    | LoweringHookId::Catch
+                    | LoweringHookId::Try
+            )
+        ))
+        || schema.semantics.frame_effect.is_some()
+        || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+        || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+    {
+        return None;
+    }
+    for &(argument, role) in roles {
+        if role == tcl_registry::ArgRole::Body
+            && schema.authored_source_script_timing_at(argument)?
+                != tcl_registry::ScriptTiming::SameInvocation
         {
             return None;
         }
-        for &(argument, role) in &roles {
-            if role == tcl_registry::ArgRole::Body
-                && schema.authored_source_script_timing_at(argument)?
-                    != tcl_registry::ScriptTiming::SameInvocation
-            {
-                return None;
-            }
-        }
-        Some(())
-    })?;
+    }
     Some(())
 }
 

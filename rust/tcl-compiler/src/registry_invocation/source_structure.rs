@@ -2149,8 +2149,8 @@ fn hosted_expression_operator_rewrite(
     if original.group().kind != tcl_lexer::WordKind::Braced || original.group().expand {
         return None;
     }
-    let content = original.content_span().ok()?;
-    let bytes = original.image().bytes().get(content.as_range())?;
+    let body_span = original.content_span().ok()?;
+    let bytes = original.image().bytes().get(body_span.as_range())?;
     crate::command_binding::hosted_operator_rewrite_holds(
         bytes,
         candidate.as_bytes(),
