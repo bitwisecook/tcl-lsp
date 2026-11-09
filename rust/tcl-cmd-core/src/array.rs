@@ -395,11 +395,11 @@ fn statistics<O, V>(ops: &mut O, name: &V, located: Option<&ArrayTarget>) -> Res
 where
     O: ValueOps<Value = V> + VarStore<Value = V> + Frames,
 {
-    let version = match ops.name_policy_protocol().map(|policy| policy.recipe()) {
-        Some(tcl_syntax::naming::NativeNameProtocol::C(version)) => version,
-        _ => {
-            return Err(ValueError::CommandProtocolUnavailable("array statistics release").into());
-        }
+    let Some(tcl_syntax::naming::NativeNameProtocol::C(version)) = ops
+        .name_policy_protocol()
+        .map(tcl_syntax::naming::NamePolicyProtocol::recipe)
+    else {
+        return Err(ValueError::CommandProtocolUnavailable("array statistics release").into());
     };
     let name = ops.native_string_bytes(name)?;
     let target = locate(ops, &name, located)?;

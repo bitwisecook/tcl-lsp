@@ -3389,7 +3389,7 @@ fn c9_index_encoding_follows_the_64_bit_host() {
     let bound = |spec, before, after| {
         compiled_list_bound_in(spec, TclVersion::V9_0, before, after)
             .unwrap()
-            .map(|index| index.encoded())
+            .map(tcl_syntax::native_compiled_index::NativeCompiledListIndex::encoded)
     };
     // `string range` last-index coordinates: before NONE, after END.
     for (spec, encoded) in [

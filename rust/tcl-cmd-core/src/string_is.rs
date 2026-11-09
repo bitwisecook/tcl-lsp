@@ -192,7 +192,7 @@ fn scan_c_int(s: &str, numbers: NumberSyntax, unsigned_long_read: bool) -> (bool
         Number::Big { .. } => None,
         Number::Double(_) | Number::Nan { .. } => return (false, 0),
     };
-    if !value.is_some_and(|value| value.unsigned_abs() <= u64::from(u32::MAX)) {
+    if value.is_none_or(|value| u32::try_from(value.unsigned_abs()).is_err()) {
         return (false, -1);
     }
     let end = skip_trailing_ws(s, parsed.end);
