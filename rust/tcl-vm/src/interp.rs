@@ -29456,7 +29456,7 @@ impl VarStore for Vm {
         });
         let Some(Local::Array(elements)) = id
             .and_then(|id| self.var_arena.get(id))
-            .map(|cell| cell.state())
+            .map(super::vars::VarCell::state)
         else {
             return Ok(None);
         };

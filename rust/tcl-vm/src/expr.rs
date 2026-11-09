@@ -1419,12 +1419,31 @@ fn native_operand(
                     "can't use integer value too large to represent as operand of \"{}\"",
                     op.as_str()
                 ),
-                b"ARITH IOVERFLOW {integer value too large to represent}".to_vec(),
+                b"ARITH IOVERFLOW {integer value too large to represent}",
             );
         } else {
             context_operand_error(dialect, value, side, op.as_str())
         };
         selected_operand_error_code(dialect, error)
+    })
+}
+
+/// The error a unary operator raises for an operand that is not an integer.
+fn unary_integer_operand_error(
+    dialect: NumericContext<'_>,
+    value: &Value,
+    op: UnaryOp,
+) -> TclError {
+    expression_operand_error(
+        dialect,
+        tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer,
+        value,
+    )
+    .unwrap_or_else(|| {
+        selected_operand_error_code(
+            dialect,
+            context_operand_error(dialect, value, errors::OperandSide::Unary, op.as_str()),
+        )
     })
 }
 
@@ -1506,17 +1525,7 @@ pub(crate) fn unary_in<'a>(
         ));
     }
     if op == UnaryOp::BitNot && matches!(number, Num::Dbl(_)) {
-        return Err(expression_operand_error(
-            dialect,
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer,
-            value,
-        )
-        .unwrap_or_else(|| {
-            selected_operand_error_code(
-                dialect,
-                context_operand_error(dialect, value, errors::OperandSide::Unary, op.as_str()),
-            )
-        }));
+        return Err(unary_integer_operand_error(dialect, value, op));
     }
     if policy == tcl_dialect::NativeArithmetic::TclBignum {
         return unary(op, &native_num_value(number));
@@ -1538,17 +1547,7 @@ pub(crate) fn unary_in<'a>(
         }
         Num::Dbl(value) if op == UnaryOp::Neg => Ok(Value::double(-value)),
         Num::Dbl(value) if op == UnaryOp::Pos => Ok(Value::double(value)),
-        _ => Err(expression_operand_error(
-            dialect,
-            tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer,
-            value,
-        )
-        .unwrap_or_else(|| {
-            selected_operand_error_code(
-                dialect,
-                context_operand_error(dialect, value, errors::OperandSide::Unary, op.as_str()),
-            )
-        })),
+        _ => Err(unary_integer_operand_error(dialect, value, op)),
     }
 }
 

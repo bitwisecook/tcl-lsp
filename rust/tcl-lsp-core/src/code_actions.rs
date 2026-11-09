@@ -2620,6 +2620,32 @@ fn bootstrap_collect_choices(
     })
 }
 
+/// Remove the exact selected encoder substitution around `read`. A nearby
+/// bracket or a different variable is never an anchor.
+fn redundant_encoder_action(
+    source: &str,
+    command: &diagnostic_context::SourceCommand,
+    read: tcl_lexer::Span,
+    matched: &str,
+) -> Vec<CodeAction> {
+    if command.words.len() != 2
+        || command.words[1].span() != read
+        || command.span.start() == 0
+        || source.as_bytes().get(command.span.start() as usize - 1) != Some(&b'[')
+        || source.as_bytes().get(command.span.end() as usize) != Some(&b']')
+    {
+        return Vec::new();
+    }
+    vec![context_action(
+        "Remove redundant encoder".to_owned(),
+        vec![source_edit(
+            source,
+            tcl_lexer::Span::new(command.span.start() - 1, command.span.end() + 1),
+            matched.to_owned(),
+        )],
+    )]
+}
+
 fn taint_subject_actions(
     source: &str,
     analysis: &AnalysisResult,
@@ -2673,26 +2699,7 @@ fn taint_subject_actions(
                 )],
             )]
         }
-        "T106" if !native => {
-            // Only the exact selected encoder substitution can be removed.
-            // A nearby bracket or a different variable is never an anchor.
-            if command.words.len() != 2
-                || command.words[1].span() != read
-                || command.span.start() == 0
-                || source.as_bytes().get(command.span.start() as usize - 1) != Some(&b'[')
-                || source.as_bytes().get(command.span.end() as usize) != Some(&b']')
-            {
-                return Vec::new();
-            }
-            vec![context_action(
-                "Remove redundant encoder".to_owned(),
-                vec![source_edit(
-                    source,
-                    tcl_lexer::Span::new(command.span.start() - 1, command.span.end() + 1),
-                    matched.to_owned(),
-                )],
-            )]
-        }
+        "T106" if !native => redundant_encoder_action(source, command, read, matched),
         "T103" if native => {
             if !native_regex_quote_publication_proved(analysis, registry, command.span.start()) {
                 return Vec::new();

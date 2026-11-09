@@ -680,6 +680,35 @@ fn inherits_from(
     })
 }
 
+/// The current completed command world's member roster for `class`.
+fn class_member_roster(
+    document: OriginalDeclarationDocument<'_>,
+    identity: &OriginalDeclarationIdentity,
+    class: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+) -> Result<OriginalClassInstanceMethodRoster, OriginalMemberRenameRefusal> {
+    let world = document
+        .analysis
+        .original_completed_command_world()
+        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
+    if world.source_image() != &SourceImage::document(document.source)
+        || world.lexer_config() != identity.config()
+    {
+        return Err(OriginalMemberRenameRefusal::StaleSource);
+    }
+    let publication = world
+        .declaration_at(class.name().slot(), class.name().policy())
+        .filter(|row| row.declaration_site() == class.declaration_site())
+        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
+    let definition = publication
+        .definition()
+        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
+    world
+        .class_instance_method_roster(definition)
+        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)
+}
+
 fn original_member_rename_units(
     documents: &[OriginalDeclarationDocument<'_>],
     identity: &OriginalDeclarationIdentity,
@@ -745,25 +774,7 @@ fn original_member_rename_units(
     if methods.next().is_some() {
         return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
     }
-    let world = document
-        .analysis
-        .original_completed_command_world()
-        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
-    if world.source_image() != &SourceImage::document(document.source)
-        || world.lexer_config() != identity.config()
-    {
-        return Err(OriginalMemberRenameRefusal::StaleSource);
-    }
-    let publication = world
-        .declaration_at(class.name().slot(), class.name().policy())
-        .filter(|row| row.declaration_site() == class.declaration_site())
-        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
-    let definition = publication
-        .definition()
-        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
-    let roster = world
-        .class_instance_method_roster(definition)
-        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
+    let roster = class_member_roster(*document, identity, class)?;
     let input = method.declaration().original_name_input();
     let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
         input

@@ -102,9 +102,9 @@ pub struct OriginalMethodQuery {
 impl OriginalMethodQuery {
     fn without_call_point(&mut self) {
         match &mut self.target {
-            Target::Declaration { call_point, .. } => *call_point = false,
+            Target::Declaration { call_point, .. }
+            | Target::ForeignDeclaration { call_point, .. } => *call_point = false,
             Target::OwnObject(own) => own.call_point = false,
-            Target::ForeignDeclaration { call_point, .. } => *call_point = false,
             Target::SourceClassCall(_)
             | Target::SourceClassProcCall(_)
             | Target::ClassLookup { .. } => {}
@@ -952,6 +952,61 @@ pub fn candidate(
     candidate_for_records(caller_uri, query, &records, &procedures)
 }
 
+/// The class declarations a class lookup's publications resolve to, and
+/// whether a procedure publication shares the name; `None` when a publication
+/// is neither a single retained class nor a declared procedure.
+fn publication_class_roots(
+    index: &crate::workspace_index::WorkspaceIndex,
+    records: &[(&str, &SourceDeclarationMetadata<ClassDef>)],
+    publications: &[(
+        &str,
+        &tcl_compiler::command_binding::OriginalCommandPublication,
+    )],
+) -> Option<(Vec<usize>, bool)> {
+    let mut class_roots = Vec::new();
+    let mut saw_procedure = false;
+    for &(uri, publication) in publications {
+        let definition = publication.definition()?;
+        let definition_site = &definition.allocation().site;
+        if publication.kind()
+            == tcl_compiler::command_binding::OriginalCommandPublicationKind::Object
+            && definition.kind()
+                == tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
+        {
+            let mut matching_records = records.iter().enumerate().filter(|(_, (owner, record))| {
+                *owner == uri
+                    && record.declaration_site() == definition_site
+                    && record.name().policy() == publication.policy()
+            });
+            let (root, _) = matching_records.next()?;
+            if matching_records.next().is_some() {
+                return None;
+            }
+            if !class_roots.contains(&root) {
+                class_roots.push(root);
+            }
+            continue;
+        }
+        if publication.kind()
+            == tcl_compiler::command_binding::OriginalCommandPublicationKind::Procedure
+            && definition.kind()
+                == tcl_compiler::command_binding::SourceCommandDefinitionKind::Procedure
+            && index
+                .original_procedure_declarations()
+                .any(|(owner, declaration)| {
+                    owner == uri
+                        && declaration.declaration_site() == definition_site
+                        && declaration.name().policy() == publication.policy()
+                })
+        {
+            saw_procedure = true;
+            continue;
+        }
+        return None;
+    }
+    Some((class_roots, saw_procedure))
+}
+
 fn workspace_class_lookup_candidate(
     index: &crate::workspace_index::WorkspaceIndex,
     query: &OriginalMethodQuery,
@@ -969,52 +1024,11 @@ fn workspace_class_lookup_candidate(
         return ControlFlow::Break(None);
     };
     if !publications.is_empty() {
-        let mut class_roots = Vec::new();
-        let mut saw_procedure = false;
-        for (uri, publication) in publications {
-            let Some(definition) = publication.definition() else {
-                return ControlFlow::Break(None);
-            };
-            let definition_site = &definition.allocation().site;
-            if publication.kind()
-                == tcl_compiler::command_binding::OriginalCommandPublicationKind::Object
-                && definition.kind()
-                    == tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
-            {
-                let mut matching_records =
-                    records.iter().enumerate().filter(|(_, (owner, record))| {
-                        *owner == uri
-                            && record.declaration_site() == definition_site
-                            && record.name().policy() == publication.policy()
-                    });
-                let Some((root, _)) = matching_records.next() else {
-                    return ControlFlow::Break(None);
-                };
-                if matching_records.next().is_some() {
-                    return ControlFlow::Break(None);
-                }
-                if !class_roots.contains(&root) {
-                    class_roots.push(root);
-                }
-                continue;
-            }
-            if publication.kind()
-                == tcl_compiler::command_binding::OriginalCommandPublicationKind::Procedure
-                && definition.kind()
-                    == tcl_compiler::command_binding::SourceCommandDefinitionKind::Procedure
-                && index
-                    .original_procedure_declarations()
-                    .any(|(owner, declaration)| {
-                        owner == uri
-                            && declaration.declaration_site() == definition_site
-                            && declaration.name().policy() == publication.policy()
-                    })
-            {
-                saw_procedure = true;
-                continue;
-            }
+        let Some((class_roots, saw_procedure)) =
+            publication_class_roots(index, records, &publications)
+        else {
             return ControlFlow::Break(None);
-        }
+        };
         if !class_roots.is_empty() && saw_procedure {
             return ControlFlow::Break(None);
         }
@@ -1078,7 +1092,7 @@ fn candidate_for_records(
             name_span,
             call_point,
         } => {
-            let mut selected = records.iter().flat_map(|(uri, record)| {
+            let selected = records.iter().flat_map(|(uri, record)| {
                 record
                     .metadata()
                     .original_members
@@ -1090,12 +1104,9 @@ fn candidate_for_records(
                     })
                     .map(move |method| (uri, record, method))
             });
-            let Some((uri, record, method)) = selected.next() else {
+            let Some((uri, record, method)) = sole(selected) else {
                 return ControlFlow::Break(None);
             };
-            if selected.next().is_some() {
-                return ControlFlow::Break(None);
-            }
             ControlFlow::Break(Some(owned_candidate(
                 uri,
                 record,
@@ -1108,30 +1119,22 @@ fn candidate_for_records(
             method,
             call_point,
         } => {
-            let mut selected = records
+            let selected = records
                 .iter()
                 .filter(|(uri, record)| *uri == caller_uri && record.declaration_site() == class);
-            let Some((uri, record)) = selected.next() else {
+            let Some((uri, record)) = sole(selected) else {
                 return ControlFlow::Break(None);
             };
-            if selected.next().is_some() {
-                return ControlFlow::Break(None);
-            }
-            let mut methods =
-                record
-                    .metadata()
-                    .original_members
-                    .declarations()
-                    .filter(|declaration| {
-                        declaration.side() == query.side
-                            && declaration.declaration() == method.as_ref()
-                    });
-            let Some(method) = methods.next() else {
+            let methods = record
+                .metadata()
+                .original_members
+                .declarations()
+                .filter(|declaration| {
+                    declaration.side() == query.side && declaration.declaration() == method.as_ref()
+                });
+            let Some(method) = sole(methods) else {
                 return ControlFlow::Break(None);
             };
-            if methods.next().is_some() {
-                return ControlFlow::Break(None);
-            }
             ControlFlow::Break(Some(owned_candidate(
                 uri,
                 record,
@@ -1140,15 +1143,12 @@ fn candidate_for_records(
             )))
         }
         Target::SourceClassCall(call) => {
-            let mut selected = records.iter().enumerate().filter(|(_, (uri, record))| {
+            let selected = records.iter().enumerate().filter(|(_, (uri, record))| {
                 *uri == caller_uri && call.class_declaration().matches_source_declaration(record)
             });
-            let Some((root, _)) = selected.next() else {
+            let Some((root, _)) = sole(selected) else {
                 return ControlFlow::Break(None);
             };
-            if selected.next().is_some() {
-                return ControlFlow::Break(None);
-            }
             ControlFlow::Break(metadata_candidate(
                 procedures,
                 records,
@@ -1161,19 +1161,16 @@ fn candidate_for_records(
             ))
         }
         Target::SourceClassProcCall(call) => {
-            let mut selected = records.iter().filter(|(uri, record)| {
+            let selected = records.iter().filter(|(uri, record)| {
                 *uri == caller_uri && call.class_declaration().matches_source_declaration(record)
             });
-            let Some((uri, record)) = selected.next() else {
+            let Some((uri, record)) = sole(selected) else {
                 return ControlFlow::Break(None);
             };
-            if selected.next().is_some() {
-                return ControlFlow::Break(None);
-            }
             // Itcl installs only the class body's own `proc` members as
             // `Class::name` commands; instance methods are not addressable
             // this way and nothing is inherited into the class namespace.
-            let mut members = record
+            let members = record
                 .metadata()
                 .original_members
                 .declarations()
@@ -1181,12 +1178,9 @@ fn candidate_for_records(
                     method.metadata().kind == "proc"
                         && method.original_name_input().bytes() == call.member_name()
                 });
-            let Some(method) = members.next() else {
+            let Some(method) = sole(members) else {
                 return ControlFlow::Break(None);
             };
-            if members.next().is_some() {
-                return ControlFlow::Break(None);
-            }
             ControlFlow::Break(Some(owned_candidate(uri, record, method.clone(), false)))
         }
         // A local call with no authentic source-class owner cannot select a
@@ -1194,6 +1188,12 @@ fn candidate_for_records(
         // workspace current-publication inventory above.
         Target::OwnObject(_) | Target::ClassLookup { .. } => ControlFlow::Break(None),
     }
+}
+
+/// The only item `items` yields, or `None` for none or several.
+fn sole<T>(mut items: impl Iterator<Item = T>) -> Option<T> {
+    let first = items.next()?;
+    items.next().is_none().then_some(first)
 }
 
 fn owned_candidate(
