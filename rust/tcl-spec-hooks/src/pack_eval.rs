@@ -650,20 +650,31 @@ mod tests {
         assert_eq!(failure, PackEvalFailure::Budget("command steps"));
     }
 
+    /// `rand` is swept from the sandbox, so `rand()` meets `unknown` exactly as
+    /// a missing math function does in C Tcl (`tclsh9.0.4`: with
+    /// `proc unknown args {return U:$args}`, `expr {foo()}` is
+    /// `U:tcl::mathfunc::foo`) and the random generator is never reached.
     #[test]
     fn rand_is_unreachable_from_expr() {
-        let (_seen, vocabulary, unknown) = capture_all();
-        let failure = run_pack_program(
+        let (seen, vocabulary, unknown) = capture_all();
+        let outcome = run_pack_program(
             "register [expr {rand()}]\n",
             &vocabulary,
             &unknown,
             &PackEvalConfig::default(),
-        )
-        .expect_err("rand is removed");
+        );
+        let rows = seen.borrow();
         assert!(
-            matches!(&failure, PackEvalFailure::Script(message)
-                if message.contains("tcl::mathfunc::rand")),
-            "{failure:?}"
+            rows.iter().any(|row| row[0] == "?"
+                && tcl_syntax::naming::unroot_rooted_key(&row[1]).unwrap_or(&row[1])
+                    == "tcl::mathfunc::rand"),
+            "{outcome:?} {rows:?}"
+        );
+        assert!(
+            rows.iter()
+                .filter(|row| row[0] == "register")
+                .all(|row| row.get(1).is_none_or(|value| value.parse::<f64>().is_err())),
+            "no random value may be registered: {rows:?}"
         );
     }
 
