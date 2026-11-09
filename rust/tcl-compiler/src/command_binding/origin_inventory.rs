@@ -1505,7 +1505,7 @@ mod tests {
         let binding = analysis.invocation_at_source("list", offset);
         assert_eq!(
             binding.evaluated_argument_values,
-            vec![Some("1".to_owned())]
+            vec![Some("1".to_owned())].into()
         );
     }
 

@@ -772,12 +772,10 @@ mod tests {
                 .is_none()
         );
         let mut mixed = source_only.clone();
-        mixed
-            .source_binding
-            .as_mut()
-            .unwrap()
-            .evaluated_argument_values
-            .push(None);
+        let binding = mixed.source_binding.as_mut().unwrap();
+        let mut values = binding.evaluated_argument_values.to_vec();
+        values.push(None);
+        binding.evaluated_argument_values = values.into();
         assert!(
             bindings
                 .original_authored_declaration_source_tokens(&mixed, source_scope, registry)

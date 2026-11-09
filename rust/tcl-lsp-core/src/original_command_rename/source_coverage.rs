@@ -1023,7 +1023,7 @@ mod tests {
         let mut stronger = walk.tokens(source, &commands[0]);
         let retained = stronger.source_binding.as_mut().unwrap();
         retained.may_use_live_dispatch = true;
-        retained.evaluated_argument_values = vec![Some("retained argument fact".to_owned())];
+        retained.evaluated_argument_values = vec![Some("retained argument fact".to_owned())].into();
         let retained = stronger.source_binding.clone();
         assert!(
             layout

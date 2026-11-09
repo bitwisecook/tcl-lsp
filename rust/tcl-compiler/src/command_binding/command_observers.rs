@@ -1230,7 +1230,7 @@ mod tests {
             "list",
             u32::try_from(source.rfind("list").unwrap()).unwrap(),
         );
-        assert_eq!(result.evaluated_argument_values, vec![Some("3".to_owned())]);
+        assert_eq!(result.evaluated_argument_values, vec![Some("3".to_owned())].into());
     }
 
     #[test]

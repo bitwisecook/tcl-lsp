@@ -501,7 +501,7 @@ mod tests {
         let binding = bindings.invocation_at_source("list", offset);
         assert_eq!(
             binding.evaluated_argument_values,
-            [Some("OLDNEW".to_owned())]
+            [Some("OLDNEW".to_owned())].into()
         );
     }
 

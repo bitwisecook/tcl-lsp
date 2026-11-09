@@ -752,7 +752,7 @@ mod tests {
         assert_eq!(binding.invocation_site().unwrap().offset, call_offset);
         assert_eq!(
             binding.evaluated_argument_values,
-            [Some("first".to_owned())]
+            [Some("first".to_owned())].into()
         );
         assert_eq!(
             binding

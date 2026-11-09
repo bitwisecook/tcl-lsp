@@ -1544,7 +1544,7 @@ pub struct SourceInvocationBinding {
     /// Written argv values frozen left-to-right, excluding the command word.
     /// Unknown results and expansion retain `None`; aliases add their own
     /// separate prefixes and never change these original word indices.
-    pub evaluated_argument_values: Vec<Option<String>>,
+    pub evaluated_argument_values: Arc<[Option<String>]>,
     /// Argument facts frozen at their own evaluation points, including unknown indices.
     pub evaluated_argument_words: Arc<[crate::registry_invocation::EffectiveInvocationWord]>,
     frozen_written_words: Option<Arc<[crate::registry_invocation::EffectiveInvocationWord]>>,
@@ -1875,7 +1875,7 @@ impl Default for SourceInvocationBinding {
             existing_namespace_cells: Vec::new(),
             namespace_cell_presence: crate::var_resolve::NamespaceCellPresence::default(),
             known_namespaces: Arc::from([]),
-            evaluated_argument_values: Vec::new(),
+            evaluated_argument_values: Arc::default(),
             evaluated_argument_words: Arc::default(),
             frozen_written_words: None,
             frozen_written_names: None,
@@ -3271,7 +3271,7 @@ struct SourceBindingPoint {
     head: Option<String>,
     original_head_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
     original_written_words: Option<Arc<original_name_value::OriginalWrittenSourceWords>>,
-    evaluated_argument_values: Vec<Option<String>>,
+    evaluated_argument_values: Arc<[Option<String>]>,
     evaluated_argument_words: Arc<[crate::registry_invocation::EffectiveInvocationWord]>,
     frozen_written_words: Option<Arc<[crate::registry_invocation::EffectiveInvocationWord]>>,
     frozen_written_names:
@@ -10104,7 +10104,7 @@ impl SourceCommandBindings {
             head: None,
             original_head_input: None,
             original_written_words: None,
-            evaluated_argument_values: Vec::new(),
+            evaluated_argument_values: Arc::default(),
             evaluated_argument_words: Arc::default(),
             frozen_written_words: None,
             frozen_written_names: None,
@@ -13074,7 +13074,7 @@ impl SourceCommandBindings {
                     head: None,
                     original_head_input: None,
                     original_written_words: None,
-                    evaluated_argument_values: Vec::new(),
+                    evaluated_argument_values: Arc::default(),
                     evaluated_argument_words: Arc::default(),
                     frozen_written_words: None,
                     frozen_written_names: None,
@@ -14840,16 +14840,19 @@ fn bind_source_parameters(
     Some(true)
 }
 
-fn join_evaluated_words(values: &mut Vec<Option<String>>, other: &[Option<String>]) {
+fn join_evaluated_words(values: &mut Arc<[Option<String>]>, other: &[Option<String>]) {
     if values.len() != other.len() {
-        *values = vec![None; values.len().max(other.len())];
+        *values = std::iter::repeat_n(None, values.len().max(other.len())).collect();
         return;
     }
-    for (value, other) in values.iter_mut().zip(other) {
-        if value != other {
-            *value = None;
-        }
+    if values.iter().eq(other) {
+        return;
     }
+    *values = values
+        .iter()
+        .zip(other)
+        .map(|(value, other)| (value == other).then(|| value.clone()).flatten())
+        .collect();
 }
 
 fn source_effective_words(
@@ -15128,7 +15131,7 @@ fn source_binding_projection_in(
         },
         namespace_cell_presence: state.source_variables.namespace_cells.clone(),
         known_namespaces: state.namespaces.advisory_names(),
-        evaluated_argument_values: Vec::new(),
+        evaluated_argument_values: Arc::default(),
         evaluated_argument_words: Arc::default(),
         frozen_written_words: None,
         frozen_written_names: None,
@@ -23752,7 +23755,7 @@ mod tests {
         let analysis = allocation_source(source);
         let site = u32::try_from(source.find("list $n").unwrap()).unwrap();
         let point = analysis.invocation_at_source("list", site);
-        assert_eq!(point.evaluated_argument_values, vec![Some("2".to_owned())]);
+        assert_eq!(point.evaluated_argument_values, vec![Some("2".to_owned())].into());
         assert!(
             point
                 .lookup_command_word("set")

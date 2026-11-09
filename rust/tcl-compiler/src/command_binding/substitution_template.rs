@@ -272,7 +272,7 @@ mod tests {
                 let binding = bindings.invocation_at_source("list", at);
                 assert_eq!(
                     binding.evaluated_argument_values,
-                    [Some(expected.to_owned())],
+                    [Some(expected.to_owned())].into(),
                     "{profile}: {source}"
                 );
             }
@@ -312,7 +312,7 @@ mod tests {
             bindings
                 .invocation_at_source("list", at)
                 .evaluated_argument_values,
-            [Some("7".into())]
+            [Some("7".into())].into()
         );
         let source =
             r#"set template "\$[1+2]"; set value [subst -nocommands $template]; list $value"#;
@@ -341,7 +341,7 @@ mod tests {
                 bindings
                     .invocation_at_source("list", at)
                     .evaluated_argument_values,
-                [Some(expected.into())],
+                [Some(expected.into())].into(),
                 "{profile}"
             );
         }
@@ -357,7 +357,7 @@ mod tests {
             bindings
                 .invocation_at_source("list", at)
                 .evaluated_argument_values,
-            [Some("8".into())]
+            [Some("8".into())].into()
         );
         let source = r#"set a [list b VALUE]; set template "\${a(b)"; set value [subst -nocommands $template]; list $value"#;
         let bindings = SourceCommandBindings::analyse(
@@ -388,7 +388,7 @@ mod tests {
                 let binding = bindings.invocation_at_source("list", at);
                 assert_eq!(
                     binding.evaluated_argument_values,
-                    [Some(expected.to_owned())],
+                    [Some(expected.to_owned())].into(),
                     "{profile}: {source}"
                 );
                 let place = crate::var_resolve::resolve_literal_place(

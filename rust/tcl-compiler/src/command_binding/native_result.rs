@@ -1225,7 +1225,7 @@ mod tests {
         let binding = analysis.invocation_at_source("list", 0);
         assert_eq!(
             binding.evaluated_argument_values,
-            [Some("OLD".to_owned()), Some("NEW".to_owned())]
+            [Some("OLD".to_owned()), Some("NEW".to_owned())].into()
         );
     }
 }
