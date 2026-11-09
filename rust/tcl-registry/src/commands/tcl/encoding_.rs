@@ -172,9 +172,92 @@ const CONVERTTO_OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+const CONVERTFROM_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::encoding",
+        member: "convertfrom",
+        slot: "::tcl::encoding::convertfrom",
+        command: "encoding",
+        prepended: &["convertfrom"],
+    };
+const CONVERTTO_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::encoding",
+        member: "convertto",
+        slot: "::tcl::encoding::convertto",
+        command: "encoding",
+        prepended: &["convertto"],
+    };
+const DIRS_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::encoding",
+        member: "dirs",
+        slot: "::tcl::encoding::dirs",
+        command: "encoding",
+        prepended: &["dirs"],
+    };
+const NAMES_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::encoding",
+        member: "names",
+        slot: "::tcl::encoding::names",
+        command: "encoding",
+        prepended: &["names"],
+    };
+const SYSTEM_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::encoding",
+        member: "system",
+        slot: "::tcl::encoding::system",
+        command: "encoding",
+        prepended: &["system"],
+    };
+const PROFILES_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::encoding",
+        member: "profiles",
+        slot: "::tcl::encoding::profiles",
+        command: "encoding",
+        prepended: &["profiles"],
+    };
+const USER_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::encoding",
+        member: "user",
+        slot: "::tcl::encoding::user",
+        command: "encoding",
+        prepended: &["user"],
+    };
+
+// C8.6+ TclMakeEnsemble copies each member's TclCompileBasic*ArgCmd onto its
+// private worker (tclCmdAH.c encodingImplMap); 9.0 widens the conversions to
+// TclCompileBasic1To3ArgCmd.
+const fn encoding_member(
+    lookup: &'static crate::native_compilation::NativeCompilerImplementationLookup,
+    arity: Arity,
+    later_arity: Option<(TclVersion, Arity)>,
+) -> crate::native_compilation::NativeCompilationSpec {
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+            lookup,
+            implementation_from: TclVersion::V8_6,
+            hook_from: TclVersion::V8_6,
+            arity,
+            later_arity,
+        },
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    }
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "convertfrom",
+        native_compilation: Some(encoding_member(
+            &CONVERTFROM_LOOKUP,
+            Arity::new(1, 2),
+            Some((TclVersion::V9_0, Arity::new(1, 3))),
+        )),
         traits: Traits::TAINT_SOURCE.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         // Base form is 1 ("data" alone) to 2 ("encoding data") positional
         // words; the Tcl 9.0+ `-profile`/`-failindex` pair (each a flag +
@@ -199,6 +282,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "convertto",
+        native_compilation: Some(encoding_member(
+            &CONVERTTO_LOOKUP,
+            Arity::new(1, 2),
+            Some((TclVersion::V9_0, Arity::new(1, 3))),
+        )),
         subcommand_forms: CONVERTTO_FORMS,
         traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(1, 6),
@@ -228,6 +316,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "dirs",
+        native_compilation: Some(encoding_member(&DIRS_LOOKUP, Arity::new(0, 1), None)),
         // A single optional list-valued argument — `encoding dirs
         // ?directoryList?` — not a vararg tail.
         arity: Arity::new(0, 1),
@@ -250,6 +339,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "names",
+        native_compilation: Some(encoding_member(&NAMES_LOOKUP, Arity::exact(0), None)),
         arity: Arity::exact(0),
         detail: "Return a list of the names of all currently available encodings. utf-8 and iso8859-1 are always present.",
         synopsis: "encoding names",
@@ -262,6 +352,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "system",
+        native_compilation: Some(encoding_member(&SYSTEM_LOOKUP, Arity::new(0, 1), None)),
         arity: Arity::new(0, 1),
         detail: "Get or set the system encoding, used whenever Tcl passes strings to system calls.",
         synopsis: "encoding system ?encoding?",
@@ -279,6 +370,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "profiles",
+        native_compilation: Some(encoding_member(&PROFILES_LOOKUP, Arity::exact(0), None)),
         arity: Arity::exact(0),
         // `encoding profiles` was added in Tcl 9.0 (TIP 656) — absent from
         // the 8.4/8.5/8.6 synopsis; present, unchanged, in 9.0.4 and 9.1b0.
@@ -294,6 +386,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "user",
+        native_compilation: Some(encoding_member(&USER_LOOKUP, Arity::exact(0), None)),
         arity: Arity::exact(0),
         // `encoding user` was added in Tcl 9.0 (TIP 656) — absent from the
         // 8.4/8.5/8.6 synopsis; present, unchanged, in 9.0.4 and 9.1b0.

@@ -869,6 +869,8 @@ pub enum NativeCompilationGrammar {
         hook_from: TclVersion,
         /// Native compiler's post-member operand count.
         arity: crate::Arity,
+        /// A later release's own count, when its compiler accepts more.
+        later_arity: Option<(TclVersion, crate::Arity)>,
     },
     /// C8.6+ specialized array compiler with its original private worker.
     Array {
@@ -1820,7 +1822,9 @@ impl NativeCompilationSpec {
                 implementation_from,
                 hook_from,
                 arity,
+                later_arity,
             } if version >= implementation_from && version >= hook_from => {
+                let arity = named_arity_at(arity, later_arity, version);
                 let count = words.original_words().len() - operand_from;
                 if u16::try_from(count).is_ok_and(|count| arity.accepts(count)) {
                     FixedLookup(lookup)
@@ -4635,8 +4639,16 @@ impl NativeCompilationSpec {
                 lookup,
                 hook_from,
                 arity,
+                later_arity,
                 ..
-            } => named_ensemble_grammar(lookup, hook_from, arity, named_view, shapes, version),
+            } => named_ensemble_grammar(
+                lookup,
+                hook_from,
+                named_arity_at(arity, later_arity, version),
+                named_view,
+                shapes,
+                version,
+            ),
             NativeCompilationGrammar::Try => {
                 crate::native_try::select(self.operation, words, shapes, version, context)
             }
@@ -5475,6 +5487,19 @@ pub enum NamedCompilerOperandView {
     },
     /// No producer has retained the original operand layout.
     Unknown,
+}
+
+/// The operand count `version`'s member compiler accepts.
+#[must_use]
+pub fn named_arity_at(
+    arity: crate::Arity,
+    later_arity: Option<(TclVersion, crate::Arity)>,
+    version: TclVersion,
+) -> crate::Arity {
+    match later_arity {
+        Some((from, later)) if version >= from => later,
+        _ => arity,
+    }
 }
 
 fn named_ensemble_grammar(

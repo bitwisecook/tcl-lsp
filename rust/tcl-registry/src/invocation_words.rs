@@ -351,6 +351,8 @@ pub enum EnsembleImplementationFamily {
     Binary,
     /// Tcl's file ensemble has private workers from C Tcl 8.6.
     File,
+    /// Tcl's encoding became an ensemble with private workers in C Tcl 8.6.
+    Encoding,
 }
 
 /// Initial ensemble geometry, independently of registered callback tokens.
@@ -752,6 +754,11 @@ impl InvocationDialect {
             }
             (EnsembleImplementationFamily::File, Some(version)) if version >= TclVersion::V8_6 => {
                 Some("::tcl::file")
+            }
+            (EnsembleImplementationFamily::Encoding, Some(version))
+                if version >= TclVersion::V8_6 =>
+            {
+                Some("::tcl::encoding")
             }
             _ => None,
         }

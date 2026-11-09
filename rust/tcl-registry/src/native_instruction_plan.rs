@@ -406,7 +406,10 @@ pub fn native_named_worker_instruction(
 ) -> NativeNamedWorkerCompilation {
     use crate::native_compilation::NativeCompilationGrammar;
     let NativeCompilationGrammar::NamedEnsembleInvocation {
-        hook_from, arity, ..
+        hook_from,
+        arity,
+        later_arity,
+        ..
     } = spec.grammar
     else {
         return NativeNamedWorkerCompilation::Unavailable;
@@ -429,7 +432,9 @@ pub fn native_named_worker_instruction(
         || operands.iter().any(|word| {
             word.shape == crate::native_compilation::NativeCompilationWordShape::Expanded
         })
-        || !u16::try_from(operands.len()).is_ok_and(|count| arity.accepts(count))
+        || !u16::try_from(operands.len()).is_ok_and(|count| {
+            crate::native_compilation::named_arity_at(arity, later_arity, version).accepts(count)
+        })
     {
         return NativeNamedWorkerCompilation::Generic;
     }

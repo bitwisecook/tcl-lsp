@@ -3040,6 +3040,7 @@ impl Vm {
         crate::cmd_file::refresh_profile(self);
         crate::cmd_array::refresh_profile(self);
         crate::cmd_binary::refresh_profile(self);
+        crate::command::refresh_encoding_profile(self);
         crate::cmd_namespace::refresh_profile(self);
         crate::cmd_string::refresh_profile(self);
         crate::command::refresh_jim_exists(self);

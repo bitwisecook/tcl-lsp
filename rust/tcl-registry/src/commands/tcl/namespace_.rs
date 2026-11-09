@@ -1056,6 +1056,7 @@ const fn namespace_named_compilation(
             implementation_from: tcl_dialect::TclVersion::V8_6,
             hook_from: tcl_dialect::TclVersion::V8_6,
             arity,
+            later_arity: None,
         },
         operation: crate::SemanticOperationId::Invoke,
         body: crate::native_compilation::NativeBodyCompilation::Direct,

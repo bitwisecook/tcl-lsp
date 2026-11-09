@@ -2033,7 +2033,8 @@ fn encoding_command() {
     assert!(!ok);
     assert_eq!(
         msg,
-        "unknown or ambiguous subcommand \"bogus\": must be convertfrom, convertto, dirs, names, or system"
+        // tclsh 9.0.4 lists TIP 656's profiles and user.
+        "unknown or ambiguous subcommand \"bogus\": must be convertfrom, convertto, dirs, names, profiles, system, or user"
     );
     let (ok, msg, _) = run("encoding");
     assert!(!ok);

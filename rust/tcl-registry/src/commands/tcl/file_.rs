@@ -63,6 +63,7 @@ macro_rules! named_file_compiler {
                 implementation_from: $first,
                 hook_from: $first,
                 arity: $arity,
+                later_arity: None,
             },
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,

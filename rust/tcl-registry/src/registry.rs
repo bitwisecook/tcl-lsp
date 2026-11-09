@@ -10665,6 +10665,7 @@ mod tests {
                         implementation_from: tcl_dialect::TclVersion::V8_6,
                         hook_from: tcl_dialect::TclVersion::V8_6,
                         arity: crate::Arity::exact(0),
+                        later_arity: None,
                     },
                     operation: crate::SemanticOperationId::Invoke,
                     body: NativeBodyCompilation::Inherit,

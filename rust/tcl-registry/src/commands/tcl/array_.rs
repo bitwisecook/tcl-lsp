@@ -211,6 +211,7 @@ const fn array_named_compilation(
             implementation_from: tcl_dialect::TclVersion::V8_6,
             hook_from: tcl_dialect::TclVersion::V8_6,
             arity,
+            later_arity: None,
         },
         operation: crate::SemanticOperationId::Invoke,
         body: crate::native_compilation::NativeBodyCompilation::Inherit,
@@ -248,6 +249,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 implementation_from: tcl_dialect::TclVersion::V9_0,
                 hook_from: tcl_dialect::TclVersion::V9_0,
                 arity: Arity::new(2, 3),
+                later_arity: None,
             },
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
@@ -325,6 +327,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
                 lookup: &crate::array_iteration::IMPLEMENTATION_LOOKUP,
                 arity: Arity::exact(3),
+                later_arity: None,
                 implementation_from: tcl_dialect::TclVersion::V9_0,
                 hook_from: tcl_dialect::TclVersion::V9_0,
             },
