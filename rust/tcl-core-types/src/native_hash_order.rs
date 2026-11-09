@@ -278,7 +278,7 @@ impl NativeHashOrder {
             } else {
                 overflow += 1;
             }
-            if self.len() != 0 {
+            if !self.is_empty() {
                 // Tcl_HashStats accumulates one `double` per bucket before
                 // `%.1f`; preserve that operation order at decimal ties.
                 let entries = alloc::string::ToString::to_string(&entries)
@@ -301,7 +301,7 @@ impl NativeHashOrder {
             "number of buckets with {COUNTERS} or more entries: {overflow}"
         )
         .expect("writing to a String cannot fail");
-        if unguarded_empty_average && self.len() == 0 {
+        if unguarded_empty_average && self.is_empty() {
             result.push_str("average search distance for entry: -nan");
         } else {
             write!(result, "average search distance for entry: {average:.1}")
