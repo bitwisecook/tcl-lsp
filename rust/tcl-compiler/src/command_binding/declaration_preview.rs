@@ -1790,6 +1790,19 @@ struct NestedLayoutSyntaxKey {
 struct NestedLayoutCommand {
     site: CommandAllocationSite,
     tokens: Box<crate::ir::CommandTokens>,
+    /// Shared by every visit: a braced body word carries its whole body text.
+    words: Arc<[crate::ir::WordExpr]>,
+}
+
+impl NestedLayoutCommand {
+    fn new(site: CommandAllocationSite, tokens: Box<crate::ir::CommandTokens>) -> Self {
+        let words = Arc::from(tokens.words());
+        Self {
+            site,
+            tokens,
+            words,
+        }
+    }
 }
 
 /// A collector-local source tape, with no selected invocation or read/store facts.
@@ -1831,17 +1844,19 @@ impl NestedLayoutSyntax {
             segments
                 .iter()
                 .take_while(|segment| !segment.is_partial)
-                .map(|segment| NestedLayoutCommand {
-                    site: CommandAllocationSite {
-                        source: Arc::clone(&source.origin),
-                        offset: segment.span.start(),
-                    },
-                    tokens: super::source_command_tokens_boxed(
-                        &source.text,
-                        source.base(),
-                        config,
-                        segment,
-                    ),
+                .map(|segment| {
+                    NestedLayoutCommand::new(
+                        CommandAllocationSite {
+                            source: Arc::clone(&source.origin),
+                            offset: segment.span.start(),
+                        },
+                        super::source_command_tokens_boxed(
+                            &source.text,
+                            source.base(),
+                            config,
+                            segment,
+                        ),
+                    )
                 })
                 .collect::<Vec<_>>()
                 .into(),
@@ -2702,11 +2717,10 @@ impl SourceCommandBindings {
     ) -> bool {
         let tokens = command.tokens.as_ref();
         let site = &command.site;
-        let words: Arc<[crate::ir::WordExpr]> = Arc::from(tokens.words());
         let observations: Vec<_> = parents
             .iter()
             .map(|parent| DeclarationLayoutObservation {
-                words: Arc::clone(&words),
+                words: Arc::clone(&command.words),
                 ..parent.clone()
             })
             .collect();
@@ -2865,13 +2879,13 @@ impl SourceCommandBindings {
             {
                 return;
             }
-            let command = NestedLayoutCommand {
-                site: CommandAllocationSite {
+            let command = NestedLayoutCommand::new(
+                CommandAllocationSite {
                     source: Arc::clone(&site.source),
                     offset,
                 },
-                tokens: Box::new(child.clone()),
-            };
+                Box::new(child.clone()),
+            );
             if !self.retain_nested_layout_command(&command, parents, registry, pending) {
                 return;
             }
