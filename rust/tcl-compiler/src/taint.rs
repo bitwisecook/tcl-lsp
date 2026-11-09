@@ -7447,10 +7447,9 @@ fn emit_pattern_operand_warnings<S: std::hash::BuildHasher>(
             continue;
         }
         if wrapped.is_some()
-            && summarised_pattern_taint(env, registry, source_tokens, pattern_idx, arg)
-                .is_some_and(|word| {
-                    !word.is_tainted() || word.colours.intersects(TaintColour::REGEX_LITERAL)
-                })
+            && summarised_pattern_taint(env, registry, source_tokens, pattern_idx, arg).is_some_and(
+                |word| !word.is_tainted() || word.colours.intersects(TaintColour::REGEX_LITERAL),
+            )
         {
             continue;
         }

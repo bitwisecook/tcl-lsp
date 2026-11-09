@@ -677,7 +677,9 @@ pub fn tcl84_parser_diagnostic(
     let error = crate::expr::syntax_84::parse_tcl84(std::str::from_utf8(source).ok()?).err()?;
     // A bareword's wording depends on the interpreter's math function table
     // (`ParseLexeme` looks it up), which the caller's lookup presents.
-    if error.message.ends_with("variable references require preceding $")
+    if error
+        .message
+        .ends_with("variable references require preceding $")
         || error
             .message
             .ends_with("expected parenthesis enclosing function arguments")

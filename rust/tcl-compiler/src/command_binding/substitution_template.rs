@@ -290,7 +290,10 @@ mod tests {
                 context.commands(),
             );
             let at = u32::try_from(source.rfind("list ").unwrap()).unwrap();
-            assert!(bindings.invocation_at_source("list", at).unknown, "{profile}");
+            assert!(
+                bindings.invocation_at_source("list", at).unknown,
+                "{profile}"
+            );
         }
     }
 

@@ -34,7 +34,6 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::pack_hooks::{self, HookFamily, HookInputs};
 use tcl_registry::spec::CommandSpec;
@@ -132,10 +131,7 @@ fn install_pack_command(registry: &mut CommandRegistry, spec: CommandSpec) {
 
 /// A Tcl 8.6 store carrying the fixture's command as a pack overlay would,
 /// so the optimiser analyses it under a real profile.
-fn overlay_registry(
-    key: u64,
-    extend: impl FnOnce(&mut CommandRegistry),
-) -> Arc<CommandRegistry> {
+fn overlay_registry(key: u64, extend: impl FnOnce(&mut CommandRegistry)) -> Arc<CommandRegistry> {
     overlay_registry_for("tcl8.6", key, extend)
 }
 

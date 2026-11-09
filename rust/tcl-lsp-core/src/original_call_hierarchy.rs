@@ -190,9 +190,9 @@ pub fn prepare(
     if invocations.next().is_some() {
         return Vec::new();
     }
-    let Some(target) = procedure_target(documents, &calls, invocation).or_else(|| {
-        imported_procedure_target(documents, document, invocation, workspace?)
-    }) else {
+    let Some(target) = procedure_target(documents, &calls, invocation)
+        .or_else(|| imported_procedure_target(documents, document, invocation, workspace?))
+    else {
         return Vec::new();
     };
     documents

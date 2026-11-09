@@ -135,7 +135,10 @@ fn same_member(
 
 /// A native `classmethod` declaration, as distinct from a class-only
 /// `self method` sharing its member kind.
-fn native_classmethod(identity: &OriginalDeclarationIdentity, method: &OriginalSourceMethodMetadata) -> bool {
+fn native_classmethod(
+    identity: &OriginalDeclarationIdentity,
+    method: &OriginalSourceMethodMetadata,
+) -> bool {
     identity.role() == OriginalDeclarationRole::Method(MemberSide::ClassObject)
         && method.side() == MemberSide::ClassObject
         && native_classmethod_row(method)
@@ -663,14 +666,17 @@ fn inherits_from(
 ) -> bool {
     let tail = tcl_syntax::naming::key_tail(&class.metadata().qualified_name);
     documents.iter().any(|document| {
-        document.analysis.original_class_declarations().any(|other| {
-            other
-                .metadata()
-                .superclasses
-                .iter()
-                .chain(&other.metadata().mixins)
-                .any(|name| tcl_syntax::naming::key_tail(name) == tail)
-        })
+        document
+            .analysis
+            .original_class_declarations()
+            .any(|other| {
+                other
+                    .metadata()
+                    .superclasses
+                    .iter()
+                    .chain(&other.metadata().mixins)
+                    .any(|name| tcl_syntax::naming::key_tail(name) == tail)
+            })
     })
 }
 

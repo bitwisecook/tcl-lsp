@@ -361,7 +361,10 @@ fn rejects_invalid_new_symbol_name() {
     // bad-name` prints `hi`), and spaced or bracketed names are quoted; only
     // an empty name cannot be spelt as a command.
     let error = lsp.rename_error(&uri, 0, 6, "");
-    assert_eq!(error["data"]["code"], "invalid-original-command-tail", "{error}");
+    assert_eq!(
+        error["data"]["code"], "invalid-original-command-tail",
+        "{error}"
+    );
 }
 
 #[test]

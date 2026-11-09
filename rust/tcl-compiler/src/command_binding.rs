@@ -1573,8 +1573,14 @@ impl std::fmt::Debug for SourceInvocationBinding {
             .field("unknown", &self.unknown)
             .field("may_use_live_dispatch", &self.may_use_live_dispatch)
             .field("compiled_candidates", &self.compiled_candidates.len())
-            .field("compiled_named_candidates", &self.compiled_named_candidates.len())
-            .field("compiled_execution_residual", &self.compiled_execution_residual)
+            .field(
+                "compiled_named_candidates",
+                &self.compiled_named_candidates.len(),
+            )
+            .field(
+                "compiled_execution_residual",
+                &self.compiled_execution_residual,
+            )
             .field("native_inline_rejection", &self.native_inline_rejection)
             .field("native_handler_envelope", &self.native_handler_envelope)
             .field("provider_state_taint", &self.provider_state_taint)
