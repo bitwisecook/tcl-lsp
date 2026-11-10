@@ -58,6 +58,98 @@ pub(super) struct CompilationState {
     execution_refusal: Option<tcl_runtime_api::NativeExecutionError>,
     native_access_refusal: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
     host_command_refusal: Option<Box<tcl_runtime_api::NativeHostCommandRefusal>>,
+    /// Pure selection results, shared across every dispatch of the same words.
+    selection_cores: HashMap<SelectionKey, Option<Rc<SelectionCore>>>,
+}
+
+const MAX_SELECTION_CORES: usize = 4096;
+
+/// Everything a native selection's registry facts, spec choice and body
+/// contexts depend on. Command lookup, traces and worker replacement are
+/// decided live by each dispatch; `generic` records their verdict.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct SelectionKey {
+    dialect: tcl_registry::InvocationDialect,
+    registry: usize,
+    spec: NativeCompilationSpec,
+    identity: Box<str>,
+    arguments: Box<[SelectionWord]>,
+    shapes: Box<[Shape]>,
+    context: Context,
+    generic: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum SelectionWord {
+    Expanded,
+    Literal(Box<[u8]>),
+    Substituted,
+}
+
+impl SelectionWord {
+    fn of(word: &parse::Word<'_>) -> Self {
+        if word.expand {
+            return Self::Expanded;
+        }
+        match &word.body {
+            parse::WordBody::Literal(value) => Self::Literal(value.as_ref().into()),
+            parse::WordBody::Parts(_) => Self::Substituted,
+        }
+    }
+}
+
+struct SelectionCore {
+    facts: InvocationFacts,
+    selection: Selection,
+    body_contexts: HashMap<usize, Context>,
+}
+
+fn select_core(
+    registry: &tcl_registry::CommandRegistry,
+    key: &SelectionKey,
+    arguments: &[InvocationWord<'_>],
+    shapes: &[Shape],
+) -> Option<SelectionCore> {
+    let SelectionKey {
+        dialect,
+        spec,
+        identity,
+        context,
+        generic,
+        ..
+    } = key;
+    let words = InvocationWords::structured(InvocationWord::Literal(identity), arguments)
+        .with_dialect(*dialect);
+    let facts = registry
+        .resolve_structured_invocation(words, None)
+        .resolved()?
+        .facts();
+    let selection = if *generic {
+        Selection::Generic
+    } else {
+        spec.select(words, shapes, Some(*dialect), *context)
+    };
+    let mut body_contexts = HashMap::new();
+    if let NativeCompiledBodies::Known(bodies) =
+        spec.compiled_bodies(selection, words, shapes, &facts, Some(*dialect))
+    {
+        for body in bodies {
+            let enclosing = spec.body_context_for_operand(
+                Some(*dialect),
+                *context,
+                selection,
+                shapes[body.argument],
+            );
+            if let Some(entered) = body.entered_context(enclosing) {
+                body_contexts.insert(body.argument, entered);
+            }
+        }
+    }
+    Some(SelectionCore {
+        facts,
+        selection,
+        body_contexts,
+    })
 }
 
 #[derive(Default)]
@@ -685,15 +777,6 @@ impl Interp {
             .map(|(_, _, generation, _)| generation)
             .unwrap_or(lookup_generation);
         let identity = std::str::from_utf8(&identity).ok()?;
-        let arguments: Vec<_> = command.words[1..].iter().map(source_word).collect();
-        let shapes: Vec<_> = command.words[1..].iter().map(source_shape).collect();
-        let words = InvocationWords::structured(InvocationWord::Literal(identity), &arguments)
-            .with_dialect(self.native_invocation_dialect());
-        let registry = crate::environment::store_for_profile(self.dialect_profile());
-        let facts = registry
-            .resolve_structured_invocation(words, None)
-            .resolved()?
-            .facts();
         let observed = {
             let traces = self.traces.borrow();
             !traces.step_active.is_empty()
@@ -702,49 +785,51 @@ impl Interp {
                         && trace.ops & crate::cmd_trace::ops::EXEC_ANY != 0
                 })
         };
-        let prerequisites = spec.implementation_prerequisites(self.native_invocation_dialect());
+        let dialect = self.native_invocation_dialect();
+        let prerequisites = spec.implementation_prerequisites(dialect);
         let replaced_worker = prerequisites
             .as_ref()
             .is_some_and(|path| !self.native_implementation_path_holds(generation, path));
-        let selection = if observed || replaced_worker {
-            Selection::Generic
-        } else {
-            spec.select(
-                words,
-                &shapes,
-                Some(self.native_invocation_dialect()),
-                context,
-            )
+        let registry = crate::environment::store_for_profile(self.dialect_profile());
+        let shapes: Vec<_> = command.words[1..].iter().map(source_shape).collect();
+        let key = SelectionKey {
+            dialect,
+            registry: std::ptr::from_ref(registry).addr(),
+            spec,
+            identity: identity.into(),
+            arguments: command.words[1..].iter().map(SelectionWord::of).collect(),
+            shapes: shapes.clone().into(),
+            context,
+            generic: observed || replaced_worker,
         };
-        let mut body_contexts = HashMap::new();
-        if let NativeCompiledBodies::Known(bodies) = spec.compiled_bodies(
-            selection,
-            words,
-            &shapes,
-            &facts,
-            Some(self.native_invocation_dialect()),
-        ) {
-            for body in bodies {
-                let enclosing = spec.body_context_for_operand(
-                    Some(self.native_invocation_dialect()),
-                    context,
-                    selection,
-                    shapes[body.argument],
-                );
-                if let Some(entered) = body.entered_context(enclosing) {
-                    body_contexts.insert(body.argument, entered);
+        let cached = self
+            .native_compilation
+            .borrow()
+            .selection_cores
+            .get(&key)
+            .cloned();
+        let core = match cached {
+            Some(core) => core,
+            None => {
+                let arguments: Vec<_> = command.words[1..].iter().map(source_word).collect();
+                let core = select_core(registry, &key, &arguments, &shapes).map(Rc::new);
+                let mut state = self.native_compilation.borrow_mut();
+                if state.selection_cores.len() >= MAX_SELECTION_CORES {
+                    state.selection_cores.clear();
                 }
+                state.selection_cores.insert(key, core.clone());
+                core
             }
-        }
+        }?;
         Some(Box::new(SelectedInvocation {
             identity: identity.as_bytes().to_vec(),
-            body_contexts,
-            handler: matches!(selection, Selection::Inline { .. })
+            body_contexts: core.body_contexts.clone(),
+            handler: matches!(core.selection, Selection::Inline { .. })
                 .then_some(handler)
                 .flatten(),
-            facts,
+            facts: core.facts.clone(),
             spec,
-            selection,
+            selection: core.selection,
             shapes,
             context,
         }))
