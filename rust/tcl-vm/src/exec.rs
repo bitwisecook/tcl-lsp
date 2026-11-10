@@ -2516,6 +2516,8 @@ impl Vm {
         // The top activation the previous tick's freshness check accepted, when
         // that tick resumed it without running anything else.
         let mut fresh_top: Option<(usize, u64)> = None;
+        // The top activation last found fresh, and the world it was found in.
+        let mut verified: Option<((usize, u64), crate::interp::ActivationFreshnessWorld)> = None;
         loop {
             let top = acts.last().map(|frame| (acts.len(), frame.serial));
             if let Some(original) = acts.last().and_then(|frame| frame.original_target.as_ref()) {
@@ -2564,7 +2566,9 @@ impl Vm {
             }
             if fresh_top.take().is_none_or(|fresh| Some(fresh) != top) {
                 match self.unwind_stale_compilation_frame(acts, None) {
-                    Ok(false) => {}
+                    Ok(false) => {
+                        verified = top.map(|key| (key, self.activation_freshness_world()));
+                    }
                     Ok(true) => continue,
                     Err(exit) => return exit,
                 }
@@ -2599,10 +2603,28 @@ impl Vm {
                 // before the parent's catch/unwind consumes the failure.
                 self.restore_execution_frame(tick.take_selected_frame_restore());
             }
-            match self.unwind_stale_compilation_frame(acts, parent_namespace.as_ref()) {
-                Ok(false) => {}
-                Ok(true) => continue,
-                Err(exit) => return exit,
+            // An instruction that changes nothing the freshness query reads
+            // leaves the frame as fresh as it was when last checked.
+            let unchanged = parent_namespace.is_none()
+                && verified.as_ref().is_some_and(|(key, world)| {
+                    Some(*key) == top && *world == self.activation_freshness_world()
+                });
+            if !unchanged || crate::VERIFY_CURRENCY {
+                match self.unwind_stale_compilation_frame(acts, parent_namespace.as_ref()) {
+                    Ok(false) => {
+                        if parent_namespace.is_none() {
+                            verified = top.map(|key| (key, self.activation_freshness_world()));
+                        }
+                    }
+                    Ok(true) => {
+                        debug_assert!(!unchanged, "an unchanged world found a fresh frame stale");
+                        continue;
+                    }
+                    Err(exit) => {
+                        debug_assert!(!unchanged, "an unchanged world found a fresh frame stale");
+                        return exit;
+                    }
+                }
             }
             let checked_top = parent_namespace
                 .is_none()

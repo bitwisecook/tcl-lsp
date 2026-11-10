@@ -1388,6 +1388,18 @@ struct NativeCompilerPolicyInputs {
     providers: LogicalProviders,
 }
 
+/// Everything the activation freshness query reads outside its frame. While
+/// it is unchanged, a frame found fresh stays fresh.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct ActivationFreshnessWorld {
+    profile: u64,
+    compiler: u64,
+    policy: NativeCompilerPolicyInputs,
+    name_world: u64,
+    namespace: namespace_context::NamespaceExecutionContext,
+    execution_profile: usize,
+}
+
 #[derive(Clone)]
 enum NativeBootstrapPurpose {
     Distribution,
@@ -12173,6 +12185,25 @@ impl Vm {
 
     /// The stamp of the current [`Self::native_compiler_policy`], projecting it
     /// again only when one of its inputs has changed.
+    pub(crate) fn activation_freshness_world(&self) -> ActivationFreshnessWorld {
+        let address =
+            |profile: &'static tcl_dialect::DialectProfile| std::ptr::from_ref(profile).addr();
+        ActivationFreshnessWorld {
+            profile: self.profile_generation,
+            compiler: self.compiler_generation,
+            policy: NativeCompilerPolicyInputs {
+                pinned: address(self.pin.profile),
+                active: self.active_native_profile.map(address),
+                engine: self.actual_engine_profile.map(address),
+                release: self.runtime_version,
+                providers: self.logical_providers,
+            },
+            name_world: self.name_world_generation(),
+            namespace: self.current_namespace_execution_context(),
+            execution_profile: address(self.actual_native_execution_profile()),
+        }
+    }
+
     pub(crate) fn native_compiler_policy_stamp(&self) -> u64 {
         static NEXT_STAMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let address =
