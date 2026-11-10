@@ -160,6 +160,12 @@ impl<C, N> EnsembleToken<C, N> {
     pub fn is_deleted(&self) -> bool {
         self.dead.get()
     }
+
+    /// Read the live configuration without copying it. The query must not
+    /// dispatch or reconfigure this token; use [`Self::config`] to snapshot.
+    pub fn with_config<R>(&self, query: impl FnOnce(&C) -> R) -> R {
+        query(&self.config.borrow())
+    }
 }
 
 impl<C, N> Drop for EnsembleToken<C, N> {

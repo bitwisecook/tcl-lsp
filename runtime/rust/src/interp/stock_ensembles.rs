@@ -758,7 +758,7 @@ impl Interp {
                 || installed.nested.iter().any(|(_, token, config, _)| {
                     !matches!(self.command_by_generation(*token),
                         super::CommandGenerationLookup::Found { command: Command::Ensemble(ensemble), .. }
-                            if ensemble.config() == *config)
+                            if ensemble.with_config(|live| live == config))
                 })
             {
                 if !self.publish_stock_family(family, installed, &scope, None) {
@@ -876,7 +876,9 @@ impl Interp {
             _ => None,
         };
         match (&installed.config, command) {
-            (Some(config), Some(Command::Ensemble(token))) => token.config() == *config,
+            (Some(config), Some(Command::Ensemble(token))) => {
+                token.with_config(|live| live == config)
+            }
             (None, Some(Command::Builtin(callback))) => {
                 std::ptr::fn_addr_eq(callback, installed.compiler)
             }
@@ -962,7 +964,7 @@ impl Interp {
                     if *generation != root
                         || !matches!(self.command_by_generation(root),
                         super::CommandGenerationLookup::Found { command: Command::Ensemble(ensemble), .. }
-                            if ensemble.config() == *config)
+                            if ensemble.with_config(|live| live == config))
                     {
                         continue;
                     }
@@ -1098,7 +1100,7 @@ impl Interp {
                     })
                     && installed.nested.iter().all(|(_, token, config, _)| {
                         matches!(self.raw_command_by_generation(*token),
-                            Some(Command::Ensemble(ensemble)) if ensemble.config() == *config)
+                            Some(Command::Ensemble(ensemble)) if ensemble.with_config(|live| live == config))
                     })
             } else {
                 installed.nested.iter().any(|(_, token, config, _)| {
@@ -1107,7 +1109,7 @@ impl Interp {
                             self.namespaces().resolve_generation(GLOBAL, name) == Some(*worker)
                         })
                         && matches!(self.raw_command_by_generation(*token),
-                            Some(Command::Ensemble(ensemble)) if ensemble.config() == *config)
+                            Some(Command::Ensemble(ensemble)) if ensemble.with_config(|live| live == config))
                 })
             }
         })
@@ -1131,7 +1133,7 @@ impl Interp {
                         super::CommandGenerationLookup::Found {
                             command: Command::Ensemble(ensemble),
                             ..
-                        } if ensemble.config() == *config => Some(*callback),
+                        } if ensemble.with_config(|live| live == config) => Some(*callback),
                         _ => None,
                     };
                 }

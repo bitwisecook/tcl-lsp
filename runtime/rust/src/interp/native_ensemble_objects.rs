@@ -219,8 +219,7 @@ impl Interp {
         if token.is_deleted() {
             return None;
         }
-        let cfg = token.config();
-        let root = NativeEnsembleObjects::pointer(&cfg.originals.map)?;
+        let root = token.with_config(|cfg| NativeEnsembleObjects::pointer(&cfg.originals.map))?;
         if obj::obj_type_ptr(root) != &dict::TCL_DICT_TYPE {
             return None;
         }

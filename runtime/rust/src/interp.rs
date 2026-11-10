@@ -973,6 +973,13 @@ impl Drop for ObjCommand {
     }
 }
 
+/// Memoised [`Interp::builtin_command_visible_for_surface`] answers.
+#[derive(Default)]
+struct BuiltinSurfaceVisibility {
+    surface: Option<(tcl_dialect::TclVersion, usize, usize)>,
+    names: std::collections::HashMap<Vec<u8>, bool>,
+}
+
 #[derive(Clone)]
 pub enum Command {
     /// A native Rust handler.
@@ -1791,6 +1798,9 @@ pub struct InterpState {
     /// release-invariant. Filled at bootstrap (`cmd_oo::install`), read by
     /// [`Interp::resolve_dispatchable`].
     registry_object_roots: RefCell<std::collections::HashMap<OoId, Vec<u8>>>,
+    /// Builtin surface visibility per name, for the version, profile and
+    /// registry it was computed under.
+    builtin_surface_visibility: RefCell<BuiltinSurfaceVisibility>,
     /// TclOO owners whose visible, retained, and hidden commands are currently
     /// being retired. Delete traces are re-entrant, so the stable owner guards
     /// the one retirement transaction instead of any mutable spelling.
@@ -2222,6 +2232,7 @@ impl Interp {
             dialect_point: Cell::new(Some(crate::environment::surface_point(profile))),
             pin: RefCell::new(tcl_registry::model::PinnedContext::for_profile(profile)),
             registry_object_roots: RefCell::new(std::collections::HashMap::new()),
+            builtin_surface_visibility: RefCell::default(),
             retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
             original_command_retirement_recipes: RefCell::new(Vec::new()),
         }));
@@ -3001,6 +3012,33 @@ impl Interp {
     /// does not know remain callable, so a polyfill proc shadowing a hidden
     /// builtin keeps working.
     pub(crate) fn builtin_command_visible_for_surface(&self, name: &[u8]) -> bool {
+        let surface = (
+            self.runtime_version(),
+            std::ptr::from_ref(self.dialect_profile()).addr(),
+            self.0
+                .profile_registry
+                .get()
+                .map_or(0, |registry| std::ptr::from_ref(registry).addr()),
+        );
+        {
+            let memo = self.0.builtin_surface_visibility.borrow();
+            if memo.surface == Some(surface) {
+                if let Some(&visible) = memo.names.get(name) {
+                    return visible;
+                }
+            }
+        }
+        let visible = self.builtin_command_visible_for_surface_uncached(name);
+        let mut memo = self.0.builtin_surface_visibility.borrow_mut();
+        if memo.surface != Some(surface) {
+            memo.surface = Some(surface);
+            memo.names.clear();
+        }
+        memo.names.insert(name.to_vec(), visible);
+        visible
+    }
+
+    fn builtin_command_visible_for_surface_uncached(&self, name: &[u8]) -> bool {
         core::str::from_utf8(name).map_or(true, |name| {
             tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version())
                 .permits_builtin_math_function_command(name)
