@@ -697,7 +697,8 @@ mod tests {
                 compiler: None,
                 procedure_header: None,
                 has_execution_trace: false,
-            }],
+            }]
+            .into(),
             namespaces: vec![NativeCompilationNamespace {
                 path: tcl_core_types::ByteNamespacePath::root(),
                 jim_namespace_object: None,

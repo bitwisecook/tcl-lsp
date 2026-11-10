@@ -270,6 +270,47 @@ impl NativeCompilerSelectionPrerequisite {
     }
 }
 
+/// The visible command rows of an entry, shared between entries built from
+/// one unchanged table: an interpreter's table holds every builtin, and each
+/// compilation would otherwise copy it. Mutation copies only shared rows.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct NativeCompilationCommands(std::sync::Arc<Vec<NativeCompilationBinding>>);
+
+impl std::ops::Deref for NativeCompilationCommands {
+    type Target = Vec<NativeCompilationBinding>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for NativeCompilationCommands {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        std::sync::Arc::make_mut(&mut self.0)
+    }
+}
+
+impl From<Vec<NativeCompilationBinding>> for NativeCompilationCommands {
+    fn from(rows: Vec<NativeCompilationBinding>) -> Self {
+        Self(std::sync::Arc::new(rows))
+    }
+}
+
+impl<'a> IntoIterator for &'a NativeCompilationCommands {
+    type Item = &'a NativeCompilationBinding;
+    type IntoIter = std::slice::Iter<'a, NativeCompilationBinding>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut NativeCompilationCommands {
+    type Item = &'a mut NativeCompilationBinding;
+    type IntoIter = std::slice::IterMut<'a, NativeCompilationBinding>;
+    fn into_iter(self) -> Self::IntoIter {
+        std::sync::Arc::make_mut(&mut self.0).iter_mut()
+    }
+}
+
 /// One visible command binding at compilation entry.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NativeCompilationBinding {
@@ -543,7 +584,7 @@ pub struct NativeCompilationEntry {
     /// Whether the visible table/namespace rows are complete.
     pub closed: bool,
     /// Actual visible command slots, including opaque custom commands.
-    pub commands: Vec<NativeCompilationBinding>,
+    pub commands: NativeCompilationCommands,
     /// Same-entry original map target observations, independent of logical map
     /// bytes and of configuration/compiled-prerequisite equality. Missing rows
     /// or inventory do not imply a fresh String primary.

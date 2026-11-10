@@ -23805,7 +23805,10 @@ mod tests {
         let analysis = allocation_source(source);
         let site = u32::try_from(source.find("list $n").unwrap()).unwrap();
         let point = analysis.invocation_at_source("list", site);
-        assert_eq!(point.evaluated_argument_values, vec![Some("2".to_owned())].into());
+        assert_eq!(
+            point.evaluated_argument_values,
+            vec![Some("2".to_owned())].into()
+        );
         assert!(
             point
                 .lookup_command_word("set")

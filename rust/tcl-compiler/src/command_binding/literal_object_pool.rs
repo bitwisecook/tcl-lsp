@@ -633,7 +633,7 @@ mod tests {
             closed: true,
             current_namespace: 0,
             frame: tcl_runtime_api::native_compilation::NativeCompilationFrame::Global,
-            commands: Vec::new(),
+            commands: Vec::new().into(),
             namespaces: Vec::new(),
         };
         let mut runtime = bindings.final_state.as_ref().clone();

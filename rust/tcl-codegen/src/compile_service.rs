@@ -1438,7 +1438,7 @@ mod tests {
             procedure_header: None,
             has_execution_trace: false,
         };
-        entry.commands = vec![binding(2, 12), binding(9, 19)];
+        entry.commands = vec![binding(2, 12), binding(9, 19)].into();
         assert_eq!(
             entry
                 .lookup_command_bytes(2, b"k\xff\0tail")
@@ -1579,7 +1579,7 @@ mod tests {
                 tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
             math_functions: None,
             closed: false,
-            commands: Vec::new(),
+            commands: Vec::new().into(),
             namespaces: Vec::new(),
             current_namespace: 0,
             frame: NativeCompilationFrame::Unknown,
@@ -1830,7 +1830,8 @@ mod tests {
                 has_execution_trace: false,
                 compiler: None,
                 procedure_header: None,
-            }],
+            }]
+            .into(),
             namespaces: vec![NativeCompilationNamespace {
                 path: namespace,
                 jim_namespace_object: None,

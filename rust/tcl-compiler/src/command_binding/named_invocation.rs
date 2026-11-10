@@ -287,7 +287,7 @@ pub(super) mod tests {
             direct_evaluation: false,
             math_functions: None,
             closed: true,
-            commands,
+            commands: commands.into(),
             oo_classes: None,
             ensemble_target_objects: Some(vec![NativeEnsembleTargetObservation {
                 ensemble_token: 1,

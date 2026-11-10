@@ -1161,7 +1161,7 @@ mod tests {
             variable_observers: NativeVariableObserverPresence::Unknown,
             math_functions: None,
             closed: true,
-            commands: vec![],
+            commands: vec![].into(),
             namespaces: vec![namespace(1, ByteNamespacePath::root(), true)],
             current_namespace: 1,
             frame: NativeCompilationFrame::Global,

@@ -2046,7 +2046,7 @@ mod tests {
             variable_observers: NativeVariableObserverPresence::Unknown,
             math_functions: None,
             closed: true,
-            commands: vec![],
+            commands: vec![].into(),
             namespaces: vec![],
             current_namespace: 0,
             frame: NativeCompilationFrame::Global,

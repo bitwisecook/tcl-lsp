@@ -1373,7 +1373,7 @@ type CompilationCommandsKey = (
 /// A compilation command inventory and whether it is complete, by key.
 type CompilationCommandsMemo = (
     CompilationCommandsKey,
-    Vec<tcl_runtime_api::native_compilation::NativeCompilationBinding>,
+    tcl_runtime_api::native_compilation::NativeCompilationCommands,
     bool,
 );
 
@@ -27181,7 +27181,7 @@ impl Vm {
         &self,
         interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
     ) -> (
-        Vec<tcl_runtime_api::native_compilation::NativeCompilationBinding>,
+        tcl_runtime_api::native_compilation::NativeCompilationCommands,
         bool,
     ) {
         let key = (
@@ -27197,6 +27197,8 @@ impl Vm {
             return (commands.clone(), *complete);
         }
         let (commands, complete) = self.project_native_compilation_commands(interpreter);
+        let commands: tcl_runtime_api::native_compilation::NativeCompilationCommands =
+            commands.into();
         *self.compilation_commands_memo.borrow_mut() = Some((key, commands.clone(), complete));
         (commands, complete)
     }
