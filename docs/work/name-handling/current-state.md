@@ -135,6 +135,13 @@ Sixth pass (7 November): in release, saved-target cleanup whose currency is alre
 - The VM's remaining startup is mostly compiling its auto-load bootstrap (143M): source command-binding analysis builds the initial command world from the whole registry for each compiled script (about 20M each), the same per-compile cost item 8 covers.
 - `tcl-codegen` lib before and after the command-row change: 585 passed, 111 failed, the same tests. VM lib: 1102/268; four base failures fixed upstream and one new, `interp::native_namespace_origin_tests::original_namespace_origin_c85` (8.5 lookup errors now report errorCode `NONE` where `TCL LOOKUP COMMAND name` is expected), from the concurrent lookup-error changes, not from this pass.
 
+## Twelfth pass: broader benchmarks
+
+- `scripts/perf/interp/` gains `string_ops`, `list_ops`, `expr_arith`, `dict_ops` and `oo_method`: each runs inside a procedure on bounded data, and every engine (VM, runtime, `tclsh` 8.6 and 9.0) gives the same result. The `interp-instructions` gate measures them with the rest.
+- Release instructions per iteration (VM / runtime): `string_ops` 112K / 1,336K, `list_ops` 133K / 721K, `expr_arith` 72K / 132K, `dict_ops` 157K / 1,630K, `oo_method` 184K / 129K. Wall clock against `tclsh9.0` at 50,000 iterations, VM / runtime: string 21× / 238×, list 16× / 79×, expr 33× / 49×, dict 55× / 582×, TclOO 58× / 37×.
+- The runtime evaluates a loop body by reparsing and re-selecting each command's native invocation every iteration; ensemble dispatch dominated `dict_ops`. Stock ensemble checks cloned the whole configuration to compare it (`EnsembleToken::with_config` now reads it in place) and builtin visibility re-queried the registry surface on every dispatch (now memoised per name for its version, profile and registry): `dict_ops` 1,630K → 1,366K, `string_ops` 1,336K → 1,124K, `list_ops` 721K → 663K. The remaining gap is the per-iteration reparse and native selection, item 9.
+- Runtime release 2133 / debug 2409, 108 failures each. The one beyond the base, `builtins::tests::native_expression_and_increment_follow_selected_numeric_towers` (8.4 `expr {-(-9223372036854775808) < 0}` raises `integer value too large to represent`; `tclsh8.4` gives 1), fails identically on a runtime built before this pass, so it comes from the concurrent 8.4 expression changes.
+
 ## Resource integrity and next work
 
 A prior cleanup followed an alias and removed13 tracked compressed fixtures; all were restored from Git with original hashes before any test/merge. No results were produced with them missing. `/tmp/lsp-failed-merge-recovery-1640/source-fixtures-restored.json`. Source aliases and tracked fixtures must never be treated as disposable artifacts.
