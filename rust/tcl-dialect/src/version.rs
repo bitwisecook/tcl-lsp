@@ -1628,6 +1628,71 @@ pub fn compare_versions_for(a: &str, b: &str, release: TclVersion) -> core::cmp:
     compare_versions_bytes_for(a.as_bytes(), b.as_bytes(), release)
 }
 
+/// A version's comparison segments, parsed once and owned, ordered exactly
+/// as [`compare_versions`] orders the spelling it was built from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VersionOrderKey(Box<[OwnedSegment]>);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OwnedSegment {
+    Alpha,
+    Beta,
+    Number(Box<[u8]>),
+}
+
+impl OwnedSegment {
+    fn view(&self) -> Segment<'_> {
+        match self {
+            Self::Alpha => Segment::Alpha,
+            Self::Beta => Segment::Beta,
+            Self::Number(digits) => Segment::Number(digits),
+        }
+    }
+}
+
+impl VersionOrderKey {
+    /// The key [`compare_versions`] compares `version` by.
+    #[must_use]
+    pub fn new(version: &str) -> Self {
+        let bytes = version.as_bytes();
+        let allow_plus_suffix = TclVersion::V8_6.allows_package_version_suffix();
+        let segments = ParsedVersion::parse_bytes_for(bytes, allow_plus_suffix).map_or_else(
+            || ParsedVersion::lenient_bytes_for(bytes, allow_plus_suffix),
+            |parsed| parsed.segments,
+        );
+        Self(
+            segments
+                .iter()
+                .map(|segment| match *segment {
+                    Segment::Alpha => OwnedSegment::Alpha,
+                    Segment::Beta => OwnedSegment::Beta,
+                    Segment::Number(digits) => OwnedSegment::Number(digits.into()),
+                })
+                .collect(),
+        )
+    }
+}
+
+impl PartialOrd for VersionOrderKey {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for VersionOrderKey {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        for i in 0..self.0.len().max(other.0.len()) {
+            let x = self.0.get(i).map_or(ZERO, OwnedSegment::view);
+            let y = other.0.get(i).map_or(ZERO, OwnedSegment::view);
+            match x.cmp(y) {
+                core::cmp::Ordering::Equal => {}
+                order => return order,
+            }
+        }
+        core::cmp::Ordering::Equal
+    }
+}
+
 /// Byte-preserving package semantics for already selected input extents.
 #[must_use]
 pub fn compare_versions_bytes_for(a: &[u8], b: &[u8], release: TclVersion) -> core::cmp::Ordering {

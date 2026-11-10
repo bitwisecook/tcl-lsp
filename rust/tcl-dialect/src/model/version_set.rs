@@ -34,7 +34,7 @@
 //! `a0` padding rule: a bare `5.0` requirement reads as `5.0a0-6a0`
 //! (`tmp/tcl9.0.4/tests/package.test:1155-1164`), so `5.0a0` satisfies a
 //! plain `5.0` requirement. The one comparator is the existing
-//! [`compare_versions`] port — nothing here re-implements version
+//! [`crate::version::compare_versions`] port — nothing here re-implements version
 //! ordering — and the whole construction is differentially tested against
 //! the pinned `package vsatisfies` corpus in
 //! `tests/data/package_version_oracle.txt`.
@@ -42,7 +42,7 @@
 use std::sync::Arc;
 
 use crate::model::family::Family;
-use crate::version::{compare_versions, version_is_stable, version_satisfies};
+use crate::version::{version_is_stable, version_satisfies};
 
 /// The interned identity of one version axis (§4.1): a family's core
 /// release ladder or a named package's own version train.
@@ -165,7 +165,7 @@ impl std::fmt::Display for VersionAxisId {
 }
 
 /// A concrete version string, validated against the `tclPkg.c` grammar
-/// and ordered by the one ported comparator ([`compare_versions`]).
+/// and ordered by the one ported comparator ([`crate::version::compare_versions`]).
 ///
 /// Equality is **comparator equality** — `"1.2"`, `"1.2.0"`, and
 /// `"1.2.0.0"` are the same version (trailing zero components are not
@@ -174,6 +174,7 @@ impl std::fmt::Display for VersionAxisId {
 #[derive(Debug, Clone)]
 pub struct Version {
     text: Arc<str>,
+    key: Arc<crate::version::VersionOrderKey>,
 }
 
 impl Version {
@@ -189,12 +190,15 @@ impl Version {
         // `version_satisfies` doubles as the validator without exposing
         // the private parser.
         if version_satisfies(text, "0-") {
-            Ok(Self {
-                text: Arc::from(text),
-            })
+            Ok(Self::from_text(Arc::from(text)))
         } else {
             Err(VersionSetError::InvalidVersion(text.to_owned()))
         }
+    }
+
+    fn from_text(text: Arc<str>) -> Self {
+        let key = Arc::new(crate::version::VersionOrderKey::new(&text));
+        Self { text, key }
     }
 
     /// The version's original spelling.
@@ -212,7 +216,7 @@ impl std::fmt::Display for Version {
 
 impl PartialEq for Version {
     fn eq(&self, other: &Self) -> bool {
-        compare_versions(&self.text, &other.text) == std::cmp::Ordering::Equal
+        self.key.cmp(&other.key) == std::cmp::Ordering::Equal
     }
 }
 
@@ -226,7 +230,7 @@ impl PartialOrd for Version {
 
 impl Ord for Version {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        compare_versions(&self.text, &other.text)
+        self.key.cmp(&other.key)
     }
 }
 
@@ -590,9 +594,7 @@ fn normalise(mut ranges: Vec<HalfOpenRange>) -> Vec<HalfOpenRange> {
 fn padded_bound(bound: &str) -> Result<Version, VersionSetError> {
     let version = Version::parse(bound)?;
     if version_is_stable(bound) {
-        Ok(Version {
-            text: Arc::from(format!("{bound}a0")),
-        })
+        Ok(Version::from_text(Arc::from(format!("{bound}a0"))))
     } else {
         Ok(version)
     }
@@ -627,9 +629,7 @@ fn range_of_requirement(requirement: &str) -> Result<HalfOpenRange, VersionSetEr
     let Some((lo, hi)) = requirement.split_once('-') else {
         // Bare `min`: `[min·a0, (major+1)·a0)`.
         let min = padded_bound(requirement)?;
-        let max = Version {
-            text: Arc::from(format!("{}a0", next_major(requirement))),
-        };
+        let max = Version::from_text(Arc::from(format!("{}a0", next_major(requirement))));
         return Ok(HalfOpenRange::Span {
             min,
             max: Some(max),
