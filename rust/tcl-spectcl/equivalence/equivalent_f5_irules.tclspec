@@ -3,7 +3,7 @@
 # The native `f5-irules` command surface (1062 commands) as SpecTcl, for
 # like-for-like comparison with the compiled-in specs. Not loaded by any
 # product; see docs/design/registry/spectcl-compiled-surface-plan.md.
-# Fields the renderer cannot carry: 980.
+# Fields the renderer cannot carry: 990.
 
 # Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
 #   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
@@ -26658,6 +26658,9 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         synopsis {encoding convertfrom ?encoding? data}
         traits {UNCONDITIONAL_VARIABLE_WRITE TAINT_SOURCE}
         return_type String
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         is_unescape
         side_effect Variable -writes -available {tcl 9.0-}
 
@@ -26673,6 +26676,9 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         synopsis {encoding convertto ?encoding? data}
         traits UNCONDITIONAL_VARIABLE_WRITE
         return_type ByteArray
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         byte_array_effect Encodes
 
         refine value {
@@ -26694,6 +26700,9 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         synopsis {encoding dirs ?directoryList?}
         available {tcl 8.5-}
         return_type List
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         side_effect InterpState -reads -writes
     }
 
@@ -26702,6 +26711,9 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         detail {Return a list of the names of all currently available encodings. utf-8 and iso8859-1 are always present.}
         synopsis {encoding names}
         return_type List
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         pure
     }
 
@@ -26710,6 +26722,9 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         detail {Get or set the system encoding, used whenever Tcl passes strings to system calls.}
         synopsis {encoding system ?encoding?}
         return_type String
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         side_effect InterpState -reads -writes
     }
 
@@ -26719,6 +26734,9 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         synopsis {encoding profiles}
         available {tcl 9.0-}
         return_type List
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         pure
     }
 
@@ -26728,6 +26746,9 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         synopsis {encoding user}
         available {tcl 9.0-}
         return_type String
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         pure
     }
 }
@@ -29919,6 +29940,10 @@ command regsub {
 
     side_effect Variable -writes
 
+    taint_transform REGEX_LITERAL
+    taint_transform_when RegsubQuotesRegexMetacharacters
+    taint_double_encode_colour REGEX_LITERAL
+
     runtime_backing shipped-builtin regsub
 
     option -nocase \
@@ -30717,6 +30742,9 @@ if {[string first "World" $s] >= 0} {
         synopsis {string bytelength string}
         available {tcl 8.4-9.0}
         return_type Int
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         # TODO(spectcl): `successful_handler` is set on the source spec. The DSL
         #   spells it `successful_handler -native
         #   Leaf|ExpressionArguments|DictionaryConstructor|EnsembleLeaf|EnsemblePathLeaf
@@ -30935,6 +30963,9 @@ if {[string first "World" $s] >= 0} {
         synopsis {string insert string index insertString}
         available {tcl 9.0-}
         return_type String
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         # TODO(spectcl): `successful_handler` is set on the source spec. The DSL
         #   spells it `successful_handler -native
         #   Leaf|ExpressionArguments|DictionaryConstructor|EnsembleLeaf|EnsemblePathLeaf
@@ -31226,6 +31257,9 @@ if {[string first "World" $s] >= 0} {
         detail {Replace range with new string.}
         synopsis {string replace string first last ?newString?}
         return_type String
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         # TODO(spectcl): `successful_handler` is set on the source spec. The DSL
         #   spells it `successful_handler -native
         #   Leaf|ExpressionArguments|DictionaryConstructor|EnsembleLeaf|EnsemblePathLeaf
