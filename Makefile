@@ -232,7 +232,7 @@ check-vscode-test-partitions: ## Verify VS Code partition manifest and workflow 
 .PHONY: release release-tag release-zed-version release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
 # Rust runtime port
-.PHONY: runtime-rust-test runtime-rust-test-release runtime-rust-test-no-tommath runtime-rust-test-no-tommath-capability runtime-rust-lint zed-query-check vm-test vm-test-release vm-lint
+.PHONY: runtime-rust-test runtime-rust-test-release runtime-rust-test-no-tommath runtime-rust-test-no-tommath-capability runtime-rust-lint zed-query-check vm-test vm-test-release vm-lint pgo-engines
 # Screenshots
 .PHONY: screenshot screenshots clean-screenshots
 # Cleanup
@@ -2999,6 +2999,9 @@ vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-a
 
 vm-test-release: ## Run the bytecode VM crates' cargo test in the release profile
 	cargo test --release -p tcl-bytecode -p tcl-runtime-api -p tcl-vm
+
+pgo-engines: ## Build tclvm and the runtime runner with PGO for this host (OUT=target/pgo-engines)
+	bash scripts/perf/pgo_build.sh $(if $(OUT),$(OUT),$(ROOT)target/pgo-engines)
 
 vm-lint: ## Bytecode VM crates: cargo fmt --check + clippy -D warnings
 	cargo fmt -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
