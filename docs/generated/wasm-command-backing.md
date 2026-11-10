@@ -23,7 +23,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 
 | backing | wasm | count |
 | --- | --- | --- |
-| none | absent | 52 |
+| none | absent | 48 |
 | none | unsupported | 5 |
 | shipped-builtin | absent (known gap) | 17 |
 | shipped-builtin | builtin | 303 |
@@ -31,7 +31,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | tcl-body init.tcl | stdlib init.tcl | 7 |
 | tcl-body package.tcl | stdlib package.tcl | 3 |
 | tcl-body parray.tcl | stdlib parray.tcl | 1 |
-| **total** | | 394 |
+| **total** | | 390 |
 
 | command | release | backing | wasm | vm | note |
 | --- | --- | --- | --- | --- | --- |
@@ -153,8 +153,8 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `::tcl::mathop::~` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `::tcl::process` | 9.0 | none | absent | absent |  |
 | `::tcl::unsupported::corotype` | 9.0 | shipped-builtin | builtin | builtin |  |
-| `::tcl::unsupported::representation` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `::tcl::unsupported::grapheme` | 9.1 | none | absent | absent |  |
+| `::tcl::unsupported::representation` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `::tcl::zipfs` | 9.0 | shipped-builtin | absent (known gap) | absent | ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923 |
 | `<` | 9.0 | none | absent | absent |  |
 | `<<` | 9.0 | none | absent | absent |  |
@@ -195,7 +195,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `dict` | 9.0 | shipped-builtin | builtin | absent |  |
 | `disabled_in_irules` | 9.0 | none | absent | absent |  |
 | `divmod` | 9.1 | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) combined quotient/remainder list command; unsupported in runtime/rust |
-| `encoding` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `encoding` | 9.0 | shipped-builtin | builtin | absent |  |
 | `eof` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `eq` | 9.0 | none | absent | absent |  |
 | `error` | 9.0 | shipped-builtin | builtin | builtin |  |
@@ -284,13 +284,9 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `proc` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `puts` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `pwd` | 9.0 | shipped-builtin | builtin | builtin |  |
-| `re_quote` | 9.0 | none | absent | absent |  |
 | `read` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `readFile` | 9.0 | none | absent | absent |  |
-| `regex::quote` | 9.0 | none | absent | absent |  |
-| `regex_quote` | 9.0 | none | absent | absent |  |
 | `regexp` | 9.0 | shipped-builtin | builtin | builtin |  |
-| `regexp::quote` | 9.0 | none | absent | absent |  |
 | `registry` | 9.0 | none | absent | absent |  |
 | `regsub` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `remquo` | 9.1 | shipped-builtin | absent (known gap) | absent | TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; unsupported in runtime/rust |
@@ -399,8 +395,8 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `tcl::prefix` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `tcl::process` | 9.0 | none | absent | absent |  |
 | `tcl::unsupported::corotype` | 9.0 | shipped-builtin | builtin | builtin |  |
-| `tcl::unsupported::representation` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `tcl::unsupported::grapheme` | 9.1 | none | absent | absent |  |
+| `tcl::unsupported::representation` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `tclLog` | 9.0 | tcl-body init.tcl | stdlib init.tcl | absent |  |
 | `tclPkgSetup` | 9.0 | tcl-body package.tcl | stdlib package.tcl | absent |  |
 | `tclPkgUnknown` | 9.0 | tcl-body package.tcl | stdlib package.tcl | absent |  |
