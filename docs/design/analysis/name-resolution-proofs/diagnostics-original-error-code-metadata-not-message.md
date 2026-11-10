@@ -2240,8 +2240,8 @@ jim 0.84-9-g5bac7c9, revision `Exact pinned original source; source-control revi
 
 No implementation binding is claimed by this observation record.
 
-- [rust/tcl-vm/tests/embed_api_e2e.rs](../../../../rust/tcl-vm/tests/embed_api_e2e.rs), `an_error_a_host_took_as_its_own_leaves_error_code_and_error_info`: Keep caller-owned caught completion metadata and arbitrary message text separate in the software embedding consumer; actual Native430 release-specific public producers remain independent.
-- [rust/tcl-vm/tests/embed_api_e2e.rs](../../../../rust/tcl-vm/tests/embed_api_e2e.rs), `an_error_a_host_took_as_its_own_leaves_error_code_and_error_info` (linked): Software caller-owned completion metadata and arbitrary message text, independently from Native430 original script cases.
+- [rust/tcl-vm/tests/embed_api_e2e.rs](../../../../rust/tcl-vm/tests/it_3/embed_api_e2e.rs), `an_error_a_host_took_as_its_own_leaves_error_code_and_error_info`: Keep caller-owned caught completion metadata and arbitrary message text separate in the software embedding consumer; actual Native430 release-specific public producers remain independent.
+- [rust/tcl-vm/tests/embed_api_e2e.rs](../../../../rust/tcl-vm/tests/it_3/embed_api_e2e.rs), `an_error_a_host_took_as_its_own_leaves_error_code_and_error_info` (linked): Software caller-owned completion metadata and arbitrary message text, independently from Native430 original script cases.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
