@@ -97,6 +97,17 @@ impl PartialEq for ModuleRealmMemo {
 impl Eq for ModuleRealmMemo {}
 
 impl RetainedSourceModuleBindings {
+    /// Whether `name` reaches only a document-declared command in the
+    /// module's observed command world
+    /// ([`ModuleCommandBindings::names_only_a_declared_command`]).
+    pub(crate) fn names_only_a_declared_command(
+        &self,
+        name: &str,
+        namespace: &super::SourceNamespaceKey,
+    ) -> bool {
+        self.observed.names_only_a_declared_command(name, namespace)
+    }
+
     /// Whether every declaration-time walk of the procedure `identity` left
     /// the command world unchanged ([`SourceCommandBindings::procedure_preserves_command_world`]).
     #[must_use]

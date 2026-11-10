@@ -1275,6 +1275,42 @@ pub fn optimise_source_multipass(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #2524: a stub that states `-frame own` keeps the caller's constants,
+    /// so the optimiser folds a branch across the call; an unstated stub
+    /// still widens them.
+    #[test]
+    fn a_stub_stating_its_own_frame_keeps_a_branch_foldable_across_its_call() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let registry = context.commands();
+        let folds = |stub: &str| {
+            let src = format!(
+                "# tcl-lsp: stubs-begin\n# tcl-lsp: stub {stub}\n# tcl-lsp: stubs-end\n\
+                 proc p {{}} {{\n    set g 5\n    db_query {{select 1}}\n    \
+                 if {{$g == 5}} {{puts five}} else {{puts other}}\n}}\np\n"
+            );
+            let (_, applied, _) = optimise_source_multipass_admitting_standalone_at(
+                &src,
+                None,
+                (registry, Some(&input)),
+                4,
+                |_, candidates| candidates,
+            );
+            applied.iter().any(|o| o.code == DiagCode::O101)
+        };
+        assert!(folds("db_query {sql} -frame own"));
+        assert!(folds("db_query {sql} -frame none"));
+        assert!(!folds("db_query {sql}"));
+    }
     use tcl_lexer::Span;
 
     #[test]

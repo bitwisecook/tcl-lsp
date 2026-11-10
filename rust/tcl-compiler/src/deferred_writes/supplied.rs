@@ -223,11 +223,39 @@ impl SourceScan<'_> {
         }
     }
 
+    /// The frame effect a document declaration states for the plain call
+    /// `tokens`, when its head reaches nothing the module or the catalogue
+    /// binds ([`Module::declared_frame_effects`]).
+    fn declared_plain_call(
+        &self,
+        tokens: &CommandTokens,
+        binding: &crate::command_binding::SourceInvocationBinding,
+    ) -> Option<Option<tcl_registry::FrameEffectSpec>> {
+        let head = tokens.argv_texts.first()?;
+        let effect = *self
+            .module
+            .declared_frame_effects
+            .get(&tcl_registry::rooted_command_descriptor_label(head))?;
+        self.module
+            .retained_source_bindings
+            .as_ref()?
+            .names_only_a_declared_command(head, &binding.lookup_namespace_key)
+            .then_some(effect)
+    }
+
     fn original_registration(&mut self, tokens: &CommandTokens) {
         let Some(binding) = tokens.source_binding.as_ref() else {
             self.out.any = true;
             return;
         };
+        if let Some(effect) = self.declared_plain_call(tokens, binding) {
+            // A document-declared plain call names no callback word; run in
+            // the caller's frame it may still write any global there.
+            self.out.any |= effect.is_some_and(|effect| {
+                effect.layout == tcl_registry::frame_effect::FrameArgLayout::OpaqueCallerVars
+            });
+            return;
+        }
         let Some(footprint) =
             binding.original_materialized_footprint_for_module(tokens, self.module, self.registry)
         else {
