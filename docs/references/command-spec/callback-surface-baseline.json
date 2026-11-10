@@ -54,16 +54,8 @@
       "location": "option -stringcommand value"
     },
     {
-      "owner": "binary scan",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "body_scope",
       "location": "arg[0]"
-    },
-    {
-      "owner": "call",
-      "location": "dynamic-arg-role"
     },
     {
       "owner": "canvas",
@@ -111,6 +103,10 @@
     },
     {
       "owner": "clause_shape_check",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "clay::define form definition-script",
       "location": "arg[1]"
     },
     {
@@ -426,10 +422,6 @@
       "location": "dynamic-script-timing"
     },
     {
-      "owner": "glob",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "grade",
       "location": "arg[0]"
     },
@@ -658,16 +650,8 @@
       "location": "option -command value"
     },
     {
-      "owner": "my variable",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "namespace code",
       "location": "arg[0]"
-    },
-    {
-      "owner": "namespace delete",
-      "location": "dynamic-arg-role"
     },
     {
       "owner": "namespace eval",
@@ -680,14 +664,6 @@
     {
       "owner": "namespace unknown",
       "location": "dynamic-script-timing"
-    },
-    {
-      "owner": "namespace which",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "object_class",
-      "location": "arg[0]"
     },
     {
       "owner": "object_class",
@@ -766,10 +742,6 @@
       "location": "arg[0]"
     },
     {
-      "owner": "package require",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "package unknown",
       "location": "dynamic-script-timing"
     },
@@ -794,36 +766,12 @@
       "location": "arg[1]"
     },
     {
-      "owner": "puts",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "radiobutton",
       "location": "option -command value"
     },
     {
-      "owner": "read",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "regexp",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "regsub",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "report::defstyle",
       "location": "arg[2]"
-    },
-    {
-      "owner": "return",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "scan",
-      "location": "dynamic-arg-role"
     },
     {
       "owner": "script_timing_resolver",
@@ -904,10 +852,6 @@
     {
       "owner": "stooop::class",
       "location": "arg[1]"
-    },
-    {
-      "owner": "string match",
-      "location": "dynamic-arg-role"
     },
     {
       "owner": "stringprep::register",
@@ -1026,12 +970,20 @@
       "location": "dynamic-script-timing"
     },
     {
+      "owner": "text instance tag form bind-set",
+      "location": "arg[3]"
+    },
+    {
       "owner": "text tag",
       "location": "dynamic-arg-role"
     },
     {
       "owner": "text tag",
       "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "text tag form bind-set",
+      "location": "arg[3]"
     },
     {
       "owner": "time",
@@ -1146,6 +1098,10 @@
       "location": "dynamic-script-timing"
     },
     {
+      "owner": "tk::text instance tag form bind-set",
+      "location": "arg[3]"
+    },
+    {
       "owner": "tk::text sync",
       "location": "option -command value"
     },
@@ -1156,6 +1112,10 @@
     {
       "owner": "tk::text tag",
       "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "tk::text tag form bind-set",
+      "location": "arg[3]"
     },
     {
       "owner": "tk_chooseDirectory",
@@ -1171,15 +1131,7 @@
     },
     {
       "owner": "trace add",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "trace add",
       "location": "dynamic-script-timing"
-    },
-    {
-      "owner": "trace remove",
-      "location": "dynamic-arg-role"
     },
     {
       "owner": "trace remove",
@@ -1191,19 +1143,11 @@
     },
     {
       "owner": "trace variable",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "trace variable",
       "location": "dynamic-command-prefix"
     },
     {
       "owner": "trace variable",
       "location": "dynamic-script-timing"
-    },
-    {
-      "owner": "trace vdelete",
-      "location": "dynamic-arg-role"
     },
     {
       "owner": "trace vdelete",
@@ -1478,10 +1422,6 @@
       "location": "dynamic-script-timing"
     },
     {
-      "owner": "unset",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "uplevel",
       "location": "dynamic-arg-role"
     },
@@ -1492,6 +1432,10 @@
     {
       "owner": "values",
       "location": "arg[1]"
+    },
+    {
+      "owner": "vwait",
+      "location": "dynamic-arg-role"
     },
     {
       "owner": "while",

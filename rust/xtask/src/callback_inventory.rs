@@ -269,7 +269,11 @@ fn collect_spec(
         dialect,
         owner,
         "command",
-        dynamic_roles(spec.has_dynamic_argument_roles(), spec.clause_grammar),
+        dynamic_roles(
+            spec.has_dynamic_argument_roles(),
+            spec.arg_role_resolver_roles,
+            spec.clause_grammar,
+        ),
         spec.command_prefix_resolver.is_some(),
         spec.script_timing_resolver.is_some(),
         &format_lifecycle(spec.lifecycle),
@@ -342,7 +346,11 @@ fn collect_spec(
             dialect,
             &sub_owner,
             "subcommand",
-            dynamic_roles(sub.has_dynamic_argument_roles(), sub.clause_grammar),
+            dynamic_roles(
+                sub.has_dynamic_argument_roles(),
+                sub.arg_role_resolver_roles,
+                sub.clause_grammar,
+            ),
             sub.command_prefix_resolver.is_some(),
             sub.script_timing_resolver.is_some(),
             &combined_lifecycle(spec.lifecycle, sub.lifecycle),
@@ -418,7 +426,11 @@ fn collect_spec(
                 dialect,
                 &method_owner,
                 "instance-method",
-                dynamic_roles(method.arg_role_resolver.is_some(), method.clause_grammar),
+                dynamic_roles(
+                    method.arg_role_resolver.is_some(),
+                    method.arg_role_resolver_roles,
+                    method.clause_grammar,
+                ),
                 method.command_prefix_resolver.is_some(),
                 method.script_timing_resolver.is_some(),
                 &combined_lifecycle(spec.lifecycle, method.lifecycle),
@@ -629,13 +641,26 @@ fn classify_option(
 }
 
 /// The note of an owner's `dynamic-arg-role` row, or `None` when its roles do
-/// not depend on the words: an argument-role resolver, or a clause grammar
-/// whose keywords, noise words or groups the call's words place.
+/// not depend on the words: an argument-role resolver that may emit an
+/// executable role, or a clause grammar whose keywords, noise words or groups
+/// the call's words place. A resolver whose declared closed role set holds no
+/// executable role places only operands, never a callback.
 fn dynamic_roles(
     resolver: bool,
+    possible: &[ArgRole],
     grammar: Option<&tcl_registry::ClauseGrammarSpec>,
 ) -> Option<&'static str> {
-    if resolver {
+    let executable = possible.is_empty()
+        || possible.iter().any(|role| {
+            matches!(
+                role,
+                ArgRole::Body
+                    | ArgRole::OpaqueScript
+                    | ArgRole::LambdaLiteral
+                    | ArgRole::CommandPrefix
+            )
+        });
+    if resolver && executable {
         Some("argument-role resolver; executable positions, if any, are invocation-dependent")
     } else if grammar.is_some_and(tcl_registry::ClauseGrammarSpec::layout_depends_on_words) {
         Some("clause grammar; executable positions are invocation-dependent")
