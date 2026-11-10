@@ -125,6 +125,16 @@ Sixth pass (7 November): in release, saved-target cleanup whose currency is alre
 - The `tcl-compiler` lib suite now completes in one process (release, four threads): 10,247 tests, 7,781 passed, 2,464 failed, peak 8.7 GiB, 416 s. Against the earlier per-process list, 11 failures are new; four pass alone (cross-test interference in one process) and seven fail identically with these memory changes reverted, so they come from concurrent upstream changes: `command_binding::tests::trusts_proc_binding_true_for_untouched_proc`, `trusts_proc_binding_unaffected_by_unrelated_rename`, `an_absolute_only_method_body_leaves_no_frame_opacity`, `command_binding::declaration_flow::tests::conditional_loop_indexes_and_appends_retain_source_events`, `analyser::diagnostics::fp::sh::fp_sh_15_namespaced_rename_indirection_fires_s102`, `analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration` and `unit_scope::tests::an_uplevel_body_inside_a_catch_body_is_not_reattributed`.
 - The deep `if` analysis still takes 85 s: walks beyond the 64-level body cap continue to visit every level.
 
+## Eleventh pass: startup
+
+- `origin/work` no longer compiled the runtime: `2a210c57b` added `EnsembleImplementationFamily::Encoding` and the runtime's stock-family restore match did not cover it. The runtime keeps `encoding` as its own builtin, so that arm reinstalls it.
+- Startup instructions for `puts hi` (release, callgrind): VM 372M → 286M, runtime 160M → 89M. Wall clock, median of 15: VM 83 → 70 ms, runtime 35.5 → 29 ms (`tclsh9.0` 6 ms).
+  - Registry assembly turned the same few hundred authored requirement strings into version ranges about 12,000 times, each validating its bounds by evaluating a requirement (41M). Ranges are memoised per spelling, bounded.
+  - `Version` compares a key parsed once at construction instead of reparsing both spellings per comparison.
+  - Every compilation entry copied the interpreter's whole command table (about 1,700 rows); the VM memoised the table but cloned it per entry. `NativeCompilationEntry::commands` is now a copy-on-write `NativeCompilationCommands` that shares one table.
+- The VM's remaining startup is mostly compiling its auto-load bootstrap (143M): source command-binding analysis builds the initial command world from the whole registry for each compiled script (about 20M each), the same per-compile cost item 8 covers.
+- `tcl-codegen` lib before and after the command-row change: 585 passed, 111 failed, the same tests. VM lib: 1102/268; four base failures fixed upstream and one new, `interp::native_namespace_origin_tests::original_namespace_origin_c85` (8.5 lookup errors now report errorCode `NONE` where `TCL LOOKUP COMMAND name` is expected), from the concurrent lookup-error changes, not from this pass.
+
 ## Resource integrity and next work
 
 A prior cleanup followed an alias and removed13 tracked compressed fixtures; all were restored from Git with original hashes before any test/merge. No results were produced with them missing. `/tmp/lsp-failed-merge-recovery-1640/source-fixtures-restored.json`. Source aliases and tracked fixtures must never be treated as disposable artifacts.
