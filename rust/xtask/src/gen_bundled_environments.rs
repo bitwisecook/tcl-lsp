@@ -169,7 +169,7 @@ fn render() -> Result<String> {
     let root = repo_root();
     let set = tcl_spectcl::bundled::load_from_required(&root.join("specs"))
         .map_err(anyhow::Error::msg)?;
-    let mut text = HEADER.to_owned();
+    let mut text = crate::util::license_banner("//") + "\n" + HEADER;
     let mut rows = 0_usize;
     for pack in &set.packs {
         for environment in pack.environments.iter().filter(|e| !e.extends) {

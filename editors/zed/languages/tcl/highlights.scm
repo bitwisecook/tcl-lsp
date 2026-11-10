@@ -87,13 +87,12 @@
     "lset" "lsort" "lstring" "lt" "memory" "modf"
     "ne" "ni" "noop" "oo::copy" "open" "parray"
     "pid" "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts" "pwd"
-    "re_quote" "read" "readFile" "regex::quote" "regex_quote" "regexp"
-    "regexp::quote" "registry" "regsub" "remquo" "scan" "seek"
-    "socket" "split" "string" "subst" "tclLog" "tclPkgSetup"
-    "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter"
-    "tcl_wordBreakBefore" "tell" "time" "timer" "trace" "unicode"
-    "unknown" "unload" "unset" "update" "vwait" "writeFile"
-    "zipfs" "zlib"))
+    "read" "readFile" "regexp" "registry" "regsub" "remquo"
+    "scan" "seek" "socket" "split" "string" "subst"
+    "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord"
+    "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell" "time" "timer"
+    "trace" "unicode" "unknown" "unload" "unset" "update"
+    "vwait" "writeFile" "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

@@ -83,7 +83,7 @@ fn render() -> Result<String> {
         .filter(|path| path.extension().is_some_and(|ext| ext == "tclspec"))
         .collect();
     files.sort();
-    let mut out = HEADER.to_owned();
+    let mut out = crate::util::license_banner("//") + "\n" + HEADER;
     for path in files {
         let source = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
