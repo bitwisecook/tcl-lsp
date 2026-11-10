@@ -18869,6 +18869,7 @@ fn a_read_after_a_loop_keeps_the_taint_of_the_loop_contents() {
         "for {set i 0} {$i < 5} {incr i} {}\nputs $i\n",
         "proc p {} {set i 0; while {$i < 3} {incr i}; puts $i}\n",
         "proc p {} {set i 0; foreach x {1 2} {set i $x}; puts $i}\n",
+        "set l {a b c}\nfor {set i 0} {$i < 5} {incr i} {}\nset r [lindex $l $i]\nputs $r\n",
     ] {
         assert_eq!(codes(src), [] as [String; 0], "{src}");
     }
@@ -18894,4 +18895,27 @@ fn an_expression_assignment_around_a_constant_command_is_untainted() {
     ] {
         assert_eq!(codes(src), [] as [String; 0], "{src}");
     }
+}
+
+/// #2523: a loop at the top level does not deny a procedure defined after it
+/// the representation receipts its own literal stores issue, so its counter
+/// stays numeric and every loop's verdict is reached.
+#[test]
+fn a_procedure_after_a_top_level_loop_keeps_its_loop_verdicts() {
+    let w241 = |src: &str| {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W241")
+            .count()
+    };
+    assert_eq!(
+        w241(
+            "for {set i 0} {$i < 10} {incr i -1} {puts x}\n\
+             proc f {} {for {set i 0} {$i < 10} {incr i -1} {}}\n\
+             proc p {} { set i 0; while {$i < 10} {incr i -1} }\n"
+        ),
+        3
+    );
 }

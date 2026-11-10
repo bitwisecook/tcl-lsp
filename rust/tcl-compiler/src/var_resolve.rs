@@ -4015,6 +4015,21 @@ impl ResolveContext {
         self.value_representations.extend(stock);
     }
 
+    /// An activation the module may enter at any later point (a procedure
+    /// body walked as a deferred root) starts from no representation fact it
+    /// could inherit: every held representation is forgotten, and a fresh
+    /// stamp sequence is issued for the receipts its own stores make. An
+    /// exhausted sequence at the module's end (a loop join of differing
+    /// histories) otherwise denies the body every receipt it would issue.
+    pub(crate) fn restart_representation_world(&mut self) {
+        if self.representation_epoch_high_water.is_some() {
+            return;
+        }
+        self.value_representations.clear();
+        self.representation_epoch_high_water = Some(0);
+        self.representation_epoch = Some(0);
+    }
+
     /// A selected successful native constructor can issue a new representation
     /// receipt after an uncertain join. It cannot revive an older receipt.
     pub(crate) fn establish_created_representation_epoch(&mut self) {

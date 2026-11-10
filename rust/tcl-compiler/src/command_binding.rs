@@ -4367,6 +4367,7 @@ fn seed_deferred_inputs(
         branch.source_variables = Arc::new(branch.source_variables.in_frame(frame));
         branch.variable_frame = frame.clone();
         Arc::make_mut(&mut branch.source_variables).widen_deferred_namespace_inputs();
+        Arc::make_mut(&mut branch.source_variables).restart_representation_world();
         if let Some(statics) = &root.statics {
             Arc::make_mut(&mut branch.source_variables).install_callable_statics(statics, registry);
         }
