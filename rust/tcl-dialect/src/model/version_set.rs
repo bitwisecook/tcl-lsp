@@ -624,7 +624,32 @@ fn next_major(min: &str) -> String {
 
 /// One requirement string as a range, per `tclPkg.c`'s
 /// `CheckRequirement` / `RequirementSatisfied`.
+/// Registry assembly builds the same few hundred authored requirements
+/// thousands of times; the range is a pure function of the spelling.
 fn range_of_requirement(requirement: &str) -> Result<HalfOpenRange, VersionSetError> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock, PoisonError};
+    type Ranges = HashMap<Box<str>, Result<HalfOpenRange, VersionSetError>>;
+    static RANGES: OnceLock<Mutex<Ranges>> = OnceLock::new();
+    const MAX_RETAINED: usize = 4096;
+    let ranges = RANGES.get_or_init(Mutex::default);
+    if let Some(range) = ranges
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(requirement)
+    {
+        return range.clone();
+    }
+    let range = parse_requirement_range(requirement);
+    let mut retained = ranges.lock().unwrap_or_else(PoisonError::into_inner);
+    if retained.len() >= MAX_RETAINED {
+        retained.clear();
+    }
+    retained.insert(requirement.into(), range.clone());
+    range
+}
+
+fn parse_requirement_range(requirement: &str) -> Result<HalfOpenRange, VersionSetError> {
     let invalid = || VersionSetError::InvalidRequirement(requirement.to_owned());
     let Some((lo, hi)) = requirement.split_once('-') else {
         // Bare `min`: `[min·a0, (major+1)·a0)`.
