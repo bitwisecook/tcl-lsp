@@ -820,7 +820,8 @@ mod standalone_script_source_variable_tests {
     fn conditional_script_sink_keeps_actual_point_and_refuses_foreign_or_changed_vectors() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let text = "set x [read $fd]\neval $x";
-        let unit = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let unit =
+            crate::compilation_unit::CompilationUnit::build_standalone_for(text, registry, false);
         let point = scalar_point(&unit, "eval");
         let tokens = point.source_tokens().unwrap();
         let sink = AuthoredSourceTaintInvocation::capture(tokens, registry).unwrap();
@@ -842,7 +843,8 @@ mod standalone_script_source_variable_tests {
                 .proved_execution_target()
                 .is_none()
         );
-        let foreign = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let foreign =
+            crate::compilation_unit::CompilationUnit::build_standalone_for(text, registry, false);
         assert!(!sink.matches_point(scalar_point(&foreign, "eval")));
         let mut changed = tokens.clone();
         changed.argv_texts[1] = "different".to_owned();
@@ -916,7 +918,7 @@ mod standalone_script_source_variable_tests {
     #[test]
     fn possible_root_script_sink_uses_original_argv_without_execution_grant() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let unit = crate::compilation_unit::CompilationUnit::build_for(
+        let unit = crate::compilation_unit::CompilationUnit::build_standalone_for(
             "set x [read $fd]\neval $x",
             registry,
             false,
@@ -973,7 +975,8 @@ mod standalone_script_source_variable_tests {
     fn conditional_sink_retains_unknown_obligations_without_scalar_or_clean_facts() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let text = "unknown_host; eval $x";
-        let unit = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let unit =
+            crate::compilation_unit::CompilationUnit::build_standalone_for(text, registry, false);
         let point = scalar_point(&unit, "eval");
         let tokens = point.source_tokens().unwrap();
         let (source, candidate) = original_possible_sink_structure(tokens, registry)
@@ -1002,7 +1005,8 @@ mod standalone_script_source_variable_tests {
                 .sink_schema(registry, tokens, Some(selected.effective()), 0, &arguments)
                 .is_some()
         );
-        let foreign = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let foreign =
+            crate::compilation_unit::CompilationUnit::build_standalone_for(text, registry, false);
         let foreign_point = scalar_point(&foreign, "eval");
         assert!(!selected.matches_point(foreign_point));
         assert_eq!(selected.literal_read_coverage(foreign_point, None), None);

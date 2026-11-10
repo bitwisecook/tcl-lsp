@@ -600,7 +600,8 @@ mod tests {
     fn retained_original_interpolation_extent_requires_same_source_config_and_inside() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let source = "puts \"a[format %s b]$value\"";
-        let unit = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
+        let unit =
+            crate::compilation_unit::CompilationUnit::build_standalone_for(source, registry, false);
         let mut ctx = crate::optimiser::PassContext::new(
             source,
             crate::interprocedural::InterproceduralAnalysis::default(),

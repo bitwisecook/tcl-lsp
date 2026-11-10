@@ -565,7 +565,7 @@ mod tests {
         );
         let registry = CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
-        let standalone = CompilationUnit::build_for("set x 0", &registry, false);
+        let standalone = CompilationUnit::build_standalone_for("set x 0", &registry, false);
         assert!(
             standalone
                 .ir_module

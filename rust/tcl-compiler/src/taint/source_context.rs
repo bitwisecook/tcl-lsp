@@ -457,7 +457,8 @@ mod original_standalone_unit_tests {
     fn explicit_standalone_unit_uses_its_current_original_token_owner() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let text = "set x [read $fd]\neval $x";
-        let unit = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let unit =
+            crate::compilation_unit::CompilationUnit::build_standalone_for(text, registry, false);
         let source = TaintSourceContext::for_unit_function(registry, &unit, &unit.top_level);
         assert!(unit.ir_module.source_metadata_input.is_none());
         assert!(unit.ir_module.source_entry.metadata_context.is_standalone());
@@ -469,7 +470,8 @@ mod original_standalone_unit_tests {
             std::ptr::from_ref(&unit.ir_module)
         ));
 
-        let foreign = crate::compilation_unit::CompilationUnit::build_for(text, registry, false);
+        let foreign =
+            crate::compilation_unit::CompilationUnit::build_standalone_for(text, registry, false);
         assert!(
             !TaintSourceContext::for_unit_function(registry, &unit, &foreign.top_level,)
                 .allows_nominal_metadata()
@@ -555,7 +557,7 @@ mod original_standalone_unit_tests {
     fn coordinated_same_span_payload_edit_cannot_reuse_original_statement_custody() {
         use crate::ir::Statement;
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let unit = crate::compilation_unit::CompilationUnit::build_for(
+        let unit = crate::compilation_unit::CompilationUnit::build_standalone_for(
             "set x [read $fd]\neval $x",
             registry,
             false,

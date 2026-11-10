@@ -1016,6 +1016,13 @@ mod tests {
         CompilationUnit::build_for(source, &registry, false)
     }
 
+    /// [`cu`] as a dialect-blind standalone unit.
+    fn cu_standalone(source: &str) -> CompilationUnit {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::irules());
+        CompilationUnit::build_standalone_for(source, &registry, false)
+    }
+
     fn fixture_id(module: &crate::ir::Module, label: &str) -> crate::ir::ProcedureId {
         let ids = module
             .procedures
@@ -1490,7 +1497,7 @@ mod tests {
             NativeInterpreterIdentity, NativeNamespaceContext,
         };
 
-        let unit = cu("when HTTP_REQUEST { set static::x 1; log local0. $static::x }");
+        let unit = cu_standalone("when HTTP_REQUEST { set static::x 1; log local0. $static::x }");
         let mut fu = when_procs(&unit).into_values().next().unwrap();
         let (block, index, symbol) = fu
             .cfg

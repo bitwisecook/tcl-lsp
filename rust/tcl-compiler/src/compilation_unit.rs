@@ -4272,15 +4272,32 @@ impl CompilationUnit {
     /// top-level `foreach` / `catch` / `try` are compiled as
     /// opaque calls.
     ///
-    /// **Dialect-blind**: lowers with the default (Tcl-8.5+) lexer config and
-    /// an empty [`UnitBuildOptions::dialect`], so word tokenisation, the
-    /// expression grammar, and the fold policy are all plain Tcl.  Use it only
-    /// where the document genuinely has no dialect (tests, dialect-agnostic
-    /// helpers); a caller that knows the dialect must use
-    /// [`Self::build_for_dialect`], or an iRules word operator will neither
-    /// fold nor draw a constant-condition diagnostic.
+    /// A registry built for a profile is that profile's command world, so the
+    /// unit analyses under it ([`Self::build_for_profile`]): its procedures
+    /// install and its commands bind. A registry with no profile gives the
+    /// dialect-blind unit of [`Self::build_standalone_for`].
     #[must_use]
     pub fn build_for(source: &str, registry: &CommandRegistry, defer_top_level: bool) -> Self {
+        if let Some(profile) = registry.profile() {
+            return Self::build_for_profile(source, registry, defer_top_level, profile);
+        }
+        Self::build_standalone_for(source, registry, defer_top_level)
+    }
+
+    /// A **dialect-blind** standalone unit, whatever profile the registry was
+    /// built for: the default (Tcl-8.5+) lexer config and an empty
+    /// [`UnitBuildOptions::dialect`], so word tokenisation, the expression
+    /// grammar and the fold policy are plain Tcl, and an authored `proc`
+    /// stays an authored declaration body rather than an installed procedure.
+    /// A caller that knows the dialect must use [`Self::build_for_dialect`],
+    /// or an iRules word operator will neither fold nor draw a
+    /// constant-condition diagnostic.
+    #[must_use]
+    pub fn build_standalone_for(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+    ) -> Self {
         Self::build_for_with_config(
             source,
             registry,
@@ -8286,7 +8303,7 @@ namespace eval ::b { proc x {p2 extra} { set q $p2 } }
         );
         assert!(explicit.executable().world_state_ssa().is_some());
 
-        let legacy = CompilationUnit::build_for("puts hello", &registry(), false);
+        let legacy = CompilationUnit::build_standalone_for("puts hello", &registry(), false);
         assert!(matches!(
             legacy.top_level.semantic_facts.executable(),
             crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable

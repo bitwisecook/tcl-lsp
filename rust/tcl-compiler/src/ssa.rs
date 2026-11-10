@@ -13260,7 +13260,7 @@ mod tests {
             registry.option_variable_scope("entry", &arguments, 2, registry.own_surface_query()),
             Some(tcl_registry::VariableScope::Global)
         );
-        let unit = crate::compilation_unit::CompilationUnit::build_for(
+        let unit = crate::compilation_unit::CompilationUnit::build_standalone_for(
             "entry .e -textvariable value",
             registry,
             false,
@@ -13292,7 +13292,7 @@ mod tests {
                 .traits
                 .contains(tcl_registry::Traits::CONFIGURES_INSTANCE_OPTIONS)
         );
-        let unit = crate::compilation_unit::CompilationUnit::build_for(
+        let unit = crate::compilation_unit::CompilationUnit::build_standalone_for(
             "entry .e; .e configure -textvariable value",
             registry,
             false,
@@ -13342,7 +13342,7 @@ mod tests {
             registry.option_variable_scope("entry", &arguments, 2, registry.own_surface_query()),
             Some(tcl_registry::VariableScope::Global)
         );
-        let unit = crate::compilation_unit::CompilationUnit::build_for(
+        let unit = crate::compilation_unit::CompilationUnit::build_standalone_for(
             "namespace eval ns {}; entry .e -textvariable ::ns::value",
             registry,
             false,
@@ -13379,7 +13379,7 @@ mod tests {
     #[test]
     fn procedure_widget_catalogue_does_not_write_global_or_local_values() {
         let registry = tcl_registry::model::ingress::static_context_for("tk").commands();
-        let unit = crate::compilation_unit::CompilationUnit::build_for(
+        let unit = crate::compilation_unit::CompilationUnit::build_standalone_for(
             "proc make_entry {} {entry .e -textvariable value; .e configure -textvariable value}",
             registry,
             false,

@@ -25,7 +25,7 @@ use crate::compilation_unit::CompilationUnit;
 const SOURCE: &str = "proc do_eval {x} { eval $x }\nset data [read $fd]\ndo_eval $data\n";
 
 fn fixture(registry: &tcl_registry::CommandRegistry) -> CompilationUnit {
-    CompilationUnit::build_for(SOURCE, registry, false)
+    CompilationUnit::build_standalone_for(SOURCE, registry, false)
 }
 
 #[test]

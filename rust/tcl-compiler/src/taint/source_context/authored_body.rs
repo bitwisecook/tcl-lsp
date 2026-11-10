@@ -168,7 +168,7 @@ mod controls {
     const SOURCE: &str = "proc do_eval {x} { eval $x }\nset data [read $fd]\ndo_eval $data\n";
 
     fn fixture(source: &str, registry: &CommandRegistry) -> CompilationUnit {
-        CompilationUnit::build_for(source, registry, false)
+        CompilationUnit::build_standalone_for(source, registry, false)
     }
 
     fn function(unit: &CompilationUnit) -> &FunctionUnit {

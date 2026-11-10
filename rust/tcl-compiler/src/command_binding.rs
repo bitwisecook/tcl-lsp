@@ -27922,8 +27922,11 @@ mod standalone_document_layout_tests {
     #[test]
     fn original_source_layout_keeps_missing_foreign_and_changed_vector_refusals() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let unit =
-            crate::compilation_unit::CompilationUnit::build_for("set x value", registry, false);
+        let unit = crate::compilation_unit::CompilationUnit::build_standalone_for(
+            "set x value",
+            registry,
+            false,
+        );
         let tokens = original_tokens(&unit);
         assert!(
             crate::registry_invocation::original_authored_source_structure(&tokens, registry)

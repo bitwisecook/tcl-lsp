@@ -14258,8 +14258,10 @@ mod tests {
             tcl_dialect::DialectProfile::find("tcl8.6").expect("selected native profile"),
         );
         let source = "package require Tk; entry .one -validatecommand {eval %P}";
-        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
-            .with_interprocedural(&registry, None);
+        let cu = crate::compilation_unit::CompilationUnit::build_standalone_for(
+            source, &registry, false,
+        )
+        .with_interprocedural(&registry, None);
         reset_callback_replay_build_count();
         let _ = find_taint_warnings_for_cu(&cu, &registry, None);
         assert_eq!(callback_replay_build_count(), 0);
@@ -16318,7 +16320,7 @@ mod authored_script_read_ownership_tests {
             "eval $x [unknown_callback]",
             "trace add variable x read callback\neval $x",
         ] {
-            let unit = CompilationUnit::build_for(text, registry, false);
+            let unit = CompilationUnit::build_standalone_for(text, registry, false);
             let point = source_point(&unit, "eval");
             let tokens = point.source_tokens().unwrap();
             let selected = AuthoredSourceTaintInvocation::capture(tokens, registry)
@@ -16334,13 +16336,13 @@ mod authored_script_read_ownership_tests {
             let taints = HashMap::<ValueKey, TaintLattice>::new();
             assert!(read.taint("x", original, &taints).unwrap().is_tainted());
             assert!(read.taint("donated", original, &taints).is_none());
-            let foreign = CompilationUnit::build_for(text, registry, false);
+            let foreign = CompilationUnit::build_standalone_for(text, registry, false);
             let foreign_read = SourceWarningRead {
                 metadata: &metadata,
                 point: source_point(&foreign, "eval"),
             };
             assert!(foreign_read.taint("x", original, &taints).is_none());
-            let other = CompilationUnit::build_for("eval $y", registry, false);
+            let other = CompilationUnit::build_standalone_for("eval $y", registry, false);
             let other_point = source_point(&other, "eval");
             let unowned = &other_point.source_tokens().unwrap().words()[1];
             assert!(read.taint("y", unowned, &taints).is_none());
