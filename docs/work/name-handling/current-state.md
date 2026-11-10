@@ -142,6 +142,15 @@ Sixth pass (7 November): in release, saved-target cleanup whose currency is alre
 - The runtime evaluates a loop body by reparsing and re-selecting each command's native invocation every iteration; ensemble dispatch dominated `dict_ops`. Stock ensemble checks cloned the whole configuration to compare it (`EnsembleToken::with_config` now reads it in place) and builtin visibility re-queried the registry surface on every dispatch (now memoised per name for its version, profile and registry): `dict_ops` 1,630K → 1,366K, `string_ops` 1,336K → 1,124K, `list_ops` 721K → 663K. The remaining gap is the per-iteration reparse and native selection, item 9.
 - Runtime release 2133 / debug 2409, 108 failures each. The one beyond the base, `builtins::tests::native_expression_and_increment_follow_selected_numeric_towers` (8.4 `expr {-(-9223372036854775808) < 0}` raises `integer value too large to represent`; `tclsh8.4` gives 1), fails identically on a runtime built before this pass, so it comes from the concurrent 8.4 expression changes.
 
+## Thirteenth pass: failure backlog triage
+
+Failures grouped by panic site and message shape (release builds, current `work`):
+
+- Runtime lib (108 of 2133): no dominant cause; spread over about 60 test modules. Small clusters: seven `Option::unwrap()` on `None` in fixture setup, three `EMPTY.with(Cell::get)` thread-local probes, two `host.state_calls` counters, and Jim comparison witnesses whose expected bytes come from `jimsh` (not installed here).
+- VM lib (268 of 1370): 13 `command requires a genuine native expression provider`; about 18 `NativePreflightRequired` admission refusals where the fixture expects compilation; about 13 `CommandProtocolUnavailable` refusals; 18 in `cmd_package.rs` (package loader witnesses). The rest are single `left == right` witness differences.
+- `tcl-codegen` lib (107 of 696): 55 in `inlining`. Their fixtures built units from the profile-less default registry, which since `c9d93b82a` analyses an authored `proc` as a declaration, so every fixture found no procedure; `aab378740` builds them under the `tcl9.0` profile (111 → 107, none new). The remaining inlining failures assert that a body is spliced and it no longer is, a change in inlining behaviour rather than fixture setup. Four `NativePreflightRequired`, three `complete original Logical source input`.
+- `tcl-compiler` lib (2464 of 10247): led by `analyser::diagnostics` (339), `analyser::handlers` (89), `cfg_builder::global_write_info` (68), `command_binding::tests` (68), `lowering::tests` (60). 180 are `Option::unwrap()` on `None` and 61 `authored fixture body … absent`, the same profile-less fixture pattern as `tcl-codegen`; upstream is moving fixtures to profiled registries (`c9d93b82a`).
+
 ## Resource integrity and next work
 
 A prior cleanup followed an alias and removed13 tracked compressed fixtures; all were restored from Git with original hashes before any test/merge. No results were produced with them missing. `/tmp/lsp-failed-merge-recovery-1640/source-fixtures-restored.json`. Source aliases and tracked fixtures must never be treated as disposable artifacts.
