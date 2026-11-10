@@ -531,14 +531,31 @@ async fn catch_body_diagnostics_are_delivered() {
         .await
         .unwrap();
 
-    let pull = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/diagnostic","params":{"textDocument":{"uri":"file:///catch.tcl"}}}"#;
-    client_write
-        .write_all(frame(pull).as_bytes())
-        .await
-        .unwrap();
-    let report = read_until_id(&mut reader, "\"id\":2")
-        .await
-        .expect("diagnostic pull response");
+    // A pull before the latest content is analysed answers `ContentModified`
+    // with a retryable reason; the client asks again, as the e2e harness does.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(20);
+    let mut id = 2;
+    let report = loop {
+        let pull = format!(
+            r#"{{"jsonrpc":"2.0","id":{id},"method":"textDocument/diagnostic","params":{{"textDocument":{{"uri":"file:///catch.tcl"}}}}}}"#
+        );
+        client_write
+            .write_all(frame(&pull).as_bytes())
+            .await
+            .unwrap();
+        let report = read_until_id(&mut reader, &format!("\"id\":{id}"))
+            .await
+            .expect("diagnostic pull response");
+        let retryable = report.contains("\"code\":-32801")
+            && ["pending", "stale", "cancelled"]
+                .iter()
+                .any(|reason| report.contains(&format!("\"reason\":\"{reason}\"")));
+        if !retryable || tokio::time::Instant::now() >= deadline {
+            break report;
+        }
+        id += 1;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    };
     assert!(
         report.contains("W100"),
         "expected W100 from the catch body in the pull report, got {report}",
