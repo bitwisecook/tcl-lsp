@@ -26,9 +26,14 @@
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
+/// Register `encoding`, alone, so a restored stock family reinstalls it.
+pub(crate) fn install_encoding(interp: &mut Interp) {
+    interp.register_stock_builtin(b"encoding", encoding_cmd);
+}
+
 /// Register the misc bootstrap commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_stock_builtin(b"encoding", encoding_cmd);
+    install_encoding(interp);
     // init.tcl calls this clock configuration helper during startup. The
     // runtime has no clock configuration state, so the helper is a no-op.
     interp.register_stock_builtin(b"::tcl::unsupported::clock::configure", noop);

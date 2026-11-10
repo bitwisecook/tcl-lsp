@@ -813,6 +813,7 @@ impl Interp {
                 EnsembleImplementationFamily::Binary => crate::cmd_binary::install(self),
                 EnsembleImplementationFamily::String => crate::cmd_string::install_ensemble(self),
                 EnsembleImplementationFamily::Dict => crate::cmd_dict::install(self),
+                EnsembleImplementationFamily::Encoding => crate::cmd_misc::install_encoding(self),
             }
             // This is the old extracted record's genuine final configuration
             // role, outside every stock/namespace/frame borrow. Capture the new
