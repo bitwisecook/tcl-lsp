@@ -19451,13 +19451,13 @@ impl Interp {
         argv: &[*mut TclObj],
         arguments: &native_arguments::OriginalArguments,
     ) -> Code {
-        let mut current = token.config();
+        let mut current = token.config_shared();
         let mut reparsed = false;
         loop {
             // Re-read every structural field after an empty `-unknown` result:
             // the callback can reconfigure the ensemble before asking Tcl to
             // parse the same invocation again.
-            let cfg = &current;
+            let cfg: &crate::ensemble::EnsembleConfig = &current;
             let Some(layout) =
                 tcl_cmd_core::ensemble::invocation_layout(argv.len(), 1, cfg.parameters.len())
             else {
@@ -19565,7 +19565,7 @@ impl Interp {
                         );
                     }
                     EnsembleUnknown::Reparse => {
-                        current = token.config();
+                        current = token.config_shared();
                         continue;
                     }
                     EnsembleUnknown::Failed(code) => return code,

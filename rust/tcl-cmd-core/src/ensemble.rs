@@ -52,7 +52,7 @@ use crate::prefix::{OptionTable, Resolution};
 /// Both Rust runtimes use this owner so those lifecycle rules cannot drift.
 #[derive(Debug)]
 pub struct EnsembleToken<C, N> {
-    config: RefCell<C>,
+    config: RefCell<std::rc::Rc<C>>,
     name: RefCell<N>,
     dead: Cell<bool>,
     configuration_retired: Cell<bool>,
@@ -79,7 +79,7 @@ impl<C, N> EnsembleToken<C, N> {
         compiler_hook: tcl_runtime_api::native_compilation::NativeCompilerHookPresence,
     ) -> Self {
         Self {
-            config: RefCell::new(config),
+            config: RefCell::new(std::rc::Rc::new(config)),
             name: RefCell::new(name),
             dead: Cell::new(false),
             configuration_retired: Cell::new(false),
@@ -122,9 +122,9 @@ impl<C, N> EnsembleToken<C, N> {
     where
         C: Clone,
     {
-        let previous = self.config.replace(config);
+        let previous = self.config.replace(std::rc::Rc::new(config));
         if let Some(retire) = self.retire_configuration {
-            let current = self.config();
+            let current = self.config_shared();
             retire(&previous, Some(&current));
         }
     }
@@ -144,7 +144,7 @@ impl<C, N> EnsembleToken<C, N> {
         if !self.configuration_retired.replace(true)
             && let Some(retire) = self.retire_configuration
         {
-            retire(&self.config(), None);
+            retire(&self.config_shared(), None);
         }
     }
 
@@ -166,6 +166,14 @@ impl<C, N> EnsembleToken<C, N> {
     pub fn with_config<R>(&self, query: impl FnOnce(&C) -> R) -> R {
         query(&self.config.borrow())
     }
+
+    /// Share the current configuration without copying it. A later
+    /// reconfiguration replaces the token's configuration and leaves this
+    /// snapshot unchanged, as [`Self::config`]'s copy is.
+    #[must_use]
+    pub fn config_shared(&self) -> std::rc::Rc<C> {
+        std::rc::Rc::clone(&self.config.borrow())
+    }
 }
 
 impl<C, N> Drop for EnsembleToken<C, N> {
@@ -173,7 +181,7 @@ impl<C, N> Drop for EnsembleToken<C, N> {
         if !self.configuration_retired.get()
             && let Some(retire) = self.retire_configuration
         {
-            retire(self.config.get_mut(), None);
+            retire(&**self.config.get_mut(), None);
         }
     }
 }
@@ -220,7 +228,7 @@ impl<C: Clone, N> EnsembleToken<C, N> {
     /// callback that may reconfigure the token.
     #[must_use]
     pub fn config(&self) -> C {
-        self.config.borrow().clone()
+        C::clone(&self.config.borrow())
     }
 }
 
