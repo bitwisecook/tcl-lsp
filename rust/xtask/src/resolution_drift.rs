@@ -79,8 +79,10 @@ pub fn run(_check: bool) -> ExitCode {
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
+        let lines: Vec<&str> = text.lines().collect();
+        let test_tail = crate::util::test_module_start(&lines).unwrap_or(lines.len());
         for (line_no, window_text) in scan_windows(&text) {
-            if window_is_waived(&text, line_no) {
+            if line_no > test_tail || window_is_waived(&text, line_no) {
                 continue;
             }
             hits += 1;
@@ -198,6 +200,14 @@ fn window_is_waived(text: &str, line_no: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_scan_inside_a_test_module_is_not_production() {
+        let src = "fn f() {}\n#[cfg(test)]\nmod tests {\n    fn g(a: &A) { a.all_procs.values().find(|p| p.name == \"f\"); }\n}\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let tail = crate::util::test_module_start(&lines).unwrap();
+        assert!(scan_windows(src).iter().all(|(line, _)| *line > tail));
+    }
 
     #[test]
     fn flags_the_blind_scan_shape() {

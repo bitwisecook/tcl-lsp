@@ -70,6 +70,25 @@ pub fn license_banner(line_comment: &str) -> String {
     out
 }
 
+/// The line of the `#[cfg(test)]` that annotates a **module** (`mod tests`),
+/// after which nothing is production code. A `#[cfg(test)]` on a single
+/// `use` or helper item near the top of a file does not end the scan — that
+/// was how a dozen large files went unscanned.
+pub fn test_module_start(lines: &[&str]) -> Option<usize> {
+    lines.iter().enumerate().find_map(|(i, l)| {
+        if !l.trim_start().starts_with("#[cfg(test)]") {
+            return None;
+        }
+        let next = lines[i + 1..]
+            .iter()
+            .map(|l| l.trim_start())
+            .find(|l| !l.is_empty() && !l.starts_with("#["))?;
+        let item = next.strip_prefix("pub ").unwrap_or(next);
+        let item = item.strip_prefix("(crate) ").unwrap_or(item);
+        (item.starts_with("mod ")).then_some(i)
+    })
+}
+
 /// The repository root, derived from this crate's location
 /// (`<root>/rust/xtask`) so tasks work regardless of the working
 /// directory `cargo xtask` is invoked from.
