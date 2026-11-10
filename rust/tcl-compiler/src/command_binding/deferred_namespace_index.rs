@@ -102,7 +102,7 @@ impl Default for DeferredNamespaceIndexCache {
         Self {
             entries: Mutex::default(),
             #[cfg(any(test, debug_assertions))]
-            trace: std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some(),
+            trace: tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some(),
             #[cfg(any(test, debug_assertions))]
             requests: std::sync::atomic::AtomicUsize::default(),
             #[cfg(any(test, debug_assertions))]

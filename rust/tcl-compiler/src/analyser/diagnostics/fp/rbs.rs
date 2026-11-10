@@ -1673,7 +1673,7 @@ puts [list original_custom_setter $status $result]\n"
         .into_iter()
         .map(|reference| reference.path)
         .collect::<Vec<_>>();
-    let jim = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+    let jim = if tcl_dialect::trace_env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
         Some(tcl_test_support::require_jimsh().expect("required current Jim"))
     } else {
         tcl_test_support::locate_jimsh().expect("valid Jim override")

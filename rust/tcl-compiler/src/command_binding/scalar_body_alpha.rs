@@ -117,7 +117,7 @@ impl OriginalLocalStoreAlphaRename {
 }
 
 fn trace_alpha(stage: &str, offset: u32) {
-    if std::env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some() {
         eprintln!("SCALAR_ALPHA offset={offset} stage={stage}");
     }
 }
@@ -175,7 +175,7 @@ fn validate_alpha_formal<'a>(
     {
         return None;
     }
-    if std::env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some() {
         eprintln!(
             "SCALAR_ALPHA offset={} frame_source={} frame_identity={} frame_config={} formal_key={} formal_policy={}",
             site.offset,

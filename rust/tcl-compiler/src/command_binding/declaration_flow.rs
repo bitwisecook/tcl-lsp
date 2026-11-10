@@ -3079,7 +3079,7 @@ impl Builder<'_> {
             None
         };
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             if let Some((flow, _)) = &selected {
                 eprintln!(
                     "RBS_GRAPH stage=selection offset={} selected=true unknown_writes={} unknown_reads={} source_catalogue={} loop_flow={} case_flow={} writes={} loop_bindings={}",
@@ -4470,7 +4470,7 @@ impl Builder<'_> {
 
     #[cfg(debug_assertions)]
     fn trace_rbs_report(&self, report: &DeclarationFlowReport, warning_paths: &[Option<State>]) {
-        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             eprintln!(
                 "RBS_GRAPH stage=report nodes={} warnings={} strict_reads={} unavailable={} unknown_reads={}",
                 self.nodes.len(),

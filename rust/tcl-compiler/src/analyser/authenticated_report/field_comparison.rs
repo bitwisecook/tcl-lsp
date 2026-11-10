@@ -112,7 +112,9 @@ fn trace_held_subject_option(
     right: &crate::analyser::Diagnostic,
 ) -> Option<bool> {
     #[cfg(test)]
-    if value.is_none() && std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+    if value.is_none()
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some()
+    {
         eprintln!(
             "REPORT_CAPTURE stage=compare.diagnostic_subject_detail ordinal={ordinal} left={} right={} code_left={} code_right={} available=false",
             held_subject_kind(left.subject.as_ref()),
@@ -247,7 +249,7 @@ fn traced_command_realms_differ(
     left: Option<&std::sync::Arc<crate::realm::CommandBindingRealm>>,
     right: Option<&std::sync::Arc<crate::realm::CommandBindingRealm>>,
 ) -> bool {
-    if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_none() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_none() {
         return left != right;
     }
     match (left, right) {

@@ -76,7 +76,7 @@ impl WorkspaceCommandPhases {
     ];
 
     fn start(bytes: usize, site: u32) -> Option<Self> {
-        std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").map(|_| {
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").map(|_| {
             WORKSPACE_WALK_TOTALS.with(|totals| {
                 if let Some(mut value) = totals.get() {
                     value.commands = value.commands.saturating_add(1);
@@ -169,7 +169,7 @@ pub(super) struct WorkspaceWalkPhases {
 
 impl WorkspaceWalkPhases {
     pub(super) fn start() -> Option<Self> {
-        std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").map(|_| Self {
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").map(|_| Self {
             previous: WORKSPACE_WALK_TOTALS
                 .with(|totals| totals.replace(Some(WorkspaceWalkTotals::default()))),
         })
@@ -359,14 +359,14 @@ fn body_depths(
 
 #[cfg(debug_assertions)]
 fn trace_jim_body_entry(site: u32) {
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
         eprintln!("JIM_SOURCE_OWNER stage=jim.body.dispatch_entry offset={site}");
     }
 }
 
 #[cfg(debug_assertions)]
 fn trace_jim_body_token_fields(site: u32, tokens: Option<&crate::ir::CommandTokens>) {
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
         eprintln!(
             "JIM_SOURCE_OWNER stage=jim.body.token_fields offset={site} tokens={} binding={}",
             tokens.is_some(),
@@ -858,8 +858,8 @@ impl Analyser {
         let workspace_phase =
             WorkspaceCommandPhases::start(self.source.len(), arg_tokens_in[0].span.start());
         #[cfg(debug_assertions)]
-        let phase_started =
-            std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").map(|_| std::time::Instant::now());
+        let phase_started = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            .map(|_| std::time::Instant::now());
         #[cfg(debug_assertions)]
         let phase_site = arg_tokens_in[0].span.start();
         #[cfg(debug_assertions)]
@@ -1851,7 +1851,7 @@ impl Analyser {
             })
         })();
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_SYMBOL_ADVICE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_SYMBOL_ADVICE").is_some() {
             eprintln!(
                 "ORIGINAL_SYMBOL_ADVICE consumer offset={} tokens={} advice={} logical={}",
                 cmd_tok.span.start(),
@@ -2512,7 +2512,7 @@ impl Analyser {
             );
         }
         let unavailable = if presubstituted_args || original.is_some() {
-            if std::env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
                 eprintln!(
                     "COMMAND_AVAILABILITY offset={} stage=dispatch.domain passed=false presubstituted={presubstituted_args} selected={}",
                     cmd_tok.span.start(),
@@ -2522,7 +2522,8 @@ impl Analyser {
             None
         } else {
             let tokens = self.retained_invocation_tokens(cmd_tok.span.start(), arg_tokens);
-            if tokens.is_none() && std::env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some()
+            if tokens.is_none()
+                && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some()
             {
                 eprintln!(
                     "COMMAND_AVAILABILITY offset={} stage=dispatch.original-tokens passed=false",

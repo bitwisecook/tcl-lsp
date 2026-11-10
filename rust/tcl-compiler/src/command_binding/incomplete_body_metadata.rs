@@ -202,7 +202,7 @@ fn procedure_namespace(
         config,
     );
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
         eprintln!(
             "INCOMPLETE_HEADER site={} stage=prefix-lookup available={} closed={}",
             site.offset,
@@ -243,7 +243,7 @@ fn procedure_namespace(
             .state
             .original_conditional_procedure_key(&row.namespace, &input);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
             eprintln!(
                 "INCOMPLETE_HEADER site={} stage=procedure-geometry available={}",
                 site.offset,
@@ -297,7 +297,7 @@ fn incomplete_procedure_name(
         return None;
     };
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
         eprintln!(
             "INCOMPLETE_HEADER site={} stage=procedure-roles complete={} accepted={:?} roles={} values={}",
             site.offset,
@@ -445,7 +445,7 @@ impl SourceCommandBindings {
         let offset = tokens.words().first()?.source().span.start();
         let mut result = None;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
             eprintln!(
                 "INCOMPLETE_HEADER site={offset} stage=inventory rows={}",
                 self.declaration_layouts.len()
@@ -457,7 +457,7 @@ impl SourceCommandBindings {
             }
             let originals = original_declaration_layouts(rows);
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
                 eprintln!(
                     "INCOMPLETE_HEADER site={} stage=original-row available={} observations={}",
                     site.offset,
@@ -479,7 +479,7 @@ impl SourceCommandBindings {
                     continue;
                 };
                 #[cfg(debug_assertions)]
-                if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
                     eprintln!(
                         "INCOMPLETE_HEADER site={} stage=row-owner config={} words={} context={} frame={} contains={}",
                         site.offset,
@@ -570,7 +570,7 @@ fn incomplete_child_layout_advice(
         config,
     );
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
         eprintln!(
             "INCOMPLETE_HEADER site={offset} stage=child-lookup available={} closed={}",
             selected.is_some(),

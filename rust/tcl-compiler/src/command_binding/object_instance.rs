@@ -274,7 +274,7 @@ impl SourceInvocationBinding {
         &self,
     ) -> Option<(&SourceCommandTarget, &super::SourceReceiverMethodEntries)> {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_OO_METHOD_TABLE offset={:?} factory={} target_kind={:?} unknown={} absent={} reach={:?}",
                 self.invocation_site().map(|site| site.offset),

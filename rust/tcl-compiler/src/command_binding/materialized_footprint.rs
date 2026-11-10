@@ -28,7 +28,7 @@ use tcl_registry::CommandRegistry;
 
 #[cfg(test)]
 fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         eprintln!("ORIGINAL_CHILD_GUARD label={label} offset={offset:?} passed={passed}");
     }
 }
@@ -122,7 +122,9 @@ impl SourceInvocationBinding {
     pub(crate) fn begin_original_readonly_metadata_probe() -> OriginalReadonlyMetadataProbe {
         let previous = READONLY_METADATA_PROBE.with(|active| {
             let previous = active.get();
-            active.set(std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some());
+            active.set(
+                tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some(),
+            );
             previous
         });
         OriginalReadonlyMetadataProbe {
@@ -795,7 +797,7 @@ impl SourceInvocationBinding {
         registry: &CommandRegistry,
         metadata: Option<InvocationMetadataContext<'_>>,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             let offset = tokens.argv.first().map(|span| span.start());
             trace_original_child_guard(
                 "footprint.request",
@@ -825,7 +827,7 @@ impl SourceInvocationBinding {
         config: LexerConfig,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             let offset = Some(site.offset);
             trace_original_child_guard("footprint.known", offset, !self.unknown);
             trace_original_child_guard("footprint.present", offset, !self.may_be_absent);
@@ -1034,7 +1036,7 @@ impl<'a> OriginalSourceMaterializedFootprint<'a> {
         let context = input.context_registry();
         let words = body.source_words();
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             let offset = Some(self.head.span().start());
             trace_original_child_guard(
                 "body.head",

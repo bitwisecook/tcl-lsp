@@ -264,7 +264,7 @@ impl OriginalAuthoredJimClass {
             matches.next(),
         )?;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
             eprintln!(
                 "JIM_SOURCE_OWNER stage=jim.base.metadata_fields offset={} variables={}",
                 self.factory.site().offset,
@@ -345,7 +345,7 @@ impl OriginalSourceTransitionAdviceTape {
         &self,
         incoming: &std::collections::BTreeMap<u32, Option<Arc<OriginalAuthoredJimClass>>>,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_none() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_none() {
             return;
         }
         for (offset, incoming) in incoming {
@@ -539,7 +539,7 @@ impl AdviceInvocationContext<'_> {
             Some(Arc::clone(&class)),
         );
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
             eprintln!(
                 "JIM_SOURCE_OWNER stage=jim.class.tape_merge offset={} present={}",
                 class.factory.site().offset,
@@ -676,7 +676,7 @@ impl AdviceInvocationContext<'_> {
             obligations,
         };
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
             eprintln!(
                 "JIM_SOURCE_OWNER stage=jim.call.retained offset={} obligations={:?}",
                 first.span().start(),

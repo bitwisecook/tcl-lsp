@@ -57,7 +57,7 @@ impl OriginalClassFactoryTransfer {
             native, state, context,
         )?;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_FACTORY_CAPTURE offset={} constructor={:?} current={} quiet={}",
                 native.segment.span.start(),
@@ -113,7 +113,7 @@ impl OriginalClassFactoryTransfer {
             context.config,
         )?;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_FACTORY_BODY offset={} closed={}",
                 native.segment.span.start(),
@@ -159,7 +159,7 @@ impl OriginalClassFactoryTransfer {
         context: SourceExecutionContext<'_>,
     ) -> bool {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_FACTORY_POST offset={} quiet={} factory_current={} destination={:?} definition_count={}",
                 native.segment.span.start(),
@@ -312,7 +312,7 @@ fn closed_declarations(
     )?;
     for command in &commands {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             let words = crate::ir::CommandTokens::from_segmented(&map, context.config, command);
             let values = super::source_effective_words(words.words(), state.baseline.dialect, None);
             let member = values

@@ -2525,8 +2525,8 @@ impl Analyser {
         }
 
         let phase_start = ((cfg!(debug_assertions)
-            && std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
-            || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
+            && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
+            || tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
         .then(std::time::Instant::now);
         Self::trace_analysis_phase(phase_start, source.len(), "initial");
         self.unresolved_commands_emitted = false;
@@ -3723,8 +3723,8 @@ impl Analyser {
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
         use crate::analysis_control::{AnalysisCheckpoint, checkpoint};
         let phase_start = ((cfg!(debug_assertions)
-            && std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
-            || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
+            && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
+            || tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
         .then(std::time::Instant::now);
         let trace_phase = |stage: &str| {
             if let Some(start) = phase_start {

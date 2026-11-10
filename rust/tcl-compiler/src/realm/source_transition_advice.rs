@@ -27,14 +27,14 @@ use tcl_registry::model::{ContextRegistry, ResolvedContext};
 
 #[cfg(test)]
 fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         eprintln!("ORIGINAL_CHILD_GUARD label={label} offset={offset:?} passed={passed}");
     }
 }
 
 #[cfg(test)]
 fn trace_retained_source_preparation(offset: u32, tape: bool, native_vector: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         trace_original_child_guard("retained.tape", Some(offset), tape);
         trace_original_child_guard("retained.native_vector", Some(offset), native_vector);
     }
@@ -1973,7 +1973,7 @@ impl super::CommandBindingRealm {
         binding: &crate::command_binding::SourceInvocationBinding,
         logical: Option<&crate::analyser::ResolvedAnalysisInput>,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             let offset = tokens
                 .words()
                 .first()
@@ -2047,7 +2047,7 @@ impl super::CommandBindingRealm {
         advice: &OriginalSourceCommandTransitionAdvice,
     ) {
         let (image, config, offset) = source;
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             trace_original_child_guard(
                 "retained.advice_context",
                 Some(offset),

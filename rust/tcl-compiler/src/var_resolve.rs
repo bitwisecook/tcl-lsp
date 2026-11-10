@@ -2469,7 +2469,7 @@ impl ResolveContext {
             registry,
             tcl_registry::TraceOperation::Read,
         );
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
             let key = canonical_binding_value_key(&access);
             eprintln!(
                 "ORIGINAL_LITERAL_CONTENTS name_len={} kind={:?} observed={} dynamic={} presence={:?} key_present={} literal_present={} generation_current={} dynamic_bindings={} dynamic_traces={}",

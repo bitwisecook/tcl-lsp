@@ -59,10 +59,10 @@ pub(crate) fn jim_source_trace_row(stage: &str) -> bool {
     use std::sync::atomic::{AtomicU32, Ordering};
     const LIMIT: u32 = 1024;
     static ROWS: AtomicU32 = AtomicU32::new(0);
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some()
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some()
         && jim_source_trace_stage_selected(
             stage,
-            std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER_FILTER").as_deref(),
+            tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER_FILTER").as_deref(),
         )
     {
         match ROWS.try_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
@@ -90,7 +90,7 @@ fn jim_source_trace_stage_selected(stage: &str, filter: Option<&std::ffi::OsStr>
 
 #[cfg(test)]
 fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         eprintln!("ORIGINAL_CHILD_GUARD label={label} offset={offset:?} passed={passed}");
     }
 }
@@ -258,7 +258,7 @@ fn trace_original_source_role_option<T>(
     value: Option<T>,
 ) -> Option<T> {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
         eprintln!(
             "ORIGINAL_SOURCE_ROLE_ROUTE stage={stage} offset={offset:?} present={}",
             value.is_some()
@@ -275,7 +275,7 @@ fn trace_original_source_role_words(
     value: Option<OriginalRegistryWords>,
 ) -> Option<OriginalRegistryWords> {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
         if let Some(words) = value.as_ref() {
             let source = match &words.source {
                 OriginalRegistrySource::Selected => "Selected",
@@ -306,7 +306,7 @@ fn trace_original_source_role_binding(
     offset: Option<u32>,
     binding: Option<&crate::command_binding::SourceInvocationBinding>,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
         if let Some(binding) = binding {
             eprintln!(
                 "ORIGINAL_SOURCE_ROLE_BINDING stage={stage} offset={offset:?} targets={:?} unknown={} absent={} runtime_state={} compiler_state={} compiler_admission={:?}",
@@ -2543,7 +2543,7 @@ fn trace_source_registry_input(
     analysis: &AnalysisResult,
     segment: &crate::segmenter::SegmentedCommand,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         let offset = segment.argv.first().map(|word| word.span.start());
         trace_original_child_guard(
             "source.config",
@@ -2577,14 +2577,14 @@ fn trace_source_registry_barrier(
         tokens.source_binding.is_some(),
     );
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
         eprintln!(
             "ORIGINAL_SOURCE_ROLE_ROUTE stage=registry.barrier offset={:?} blocked={blocked}",
             segment.argv.first().map(|word| word.span.start())
         );
     }
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         let offset = segment.argv.first().map(|word| word.span.start());
         trace_original_child_guard("source.barrier", offset, !blocked);
         trace_original_child_guard("source.binding", offset, tokens.source_binding.is_some());
@@ -3043,7 +3043,7 @@ pub(super) fn trace_remote_source_option<T>(
     value: Option<T>,
 ) -> Option<T> {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
         eprintln!(
             "REMOTE_SOURCE_WORDS stage={stage} offset={offset:?} present={}",
             value.is_some()
@@ -3058,7 +3058,7 @@ pub(super) fn trace_remote_source_option<T>(
 #[inline]
 pub(super) fn trace_remote_source_flag(stage: &str, offset: Option<u32>, value: bool) -> bool {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
         eprintln!("REMOTE_SOURCE_WORDS stage={stage} offset={offset:?} value={value}");
     }
     #[cfg(not(test))]
@@ -4220,7 +4220,7 @@ fn original_case_patterns(
 
 #[cfg(test)]
 fn trace_original_folded_case_guard(stage: &str, offset: Option<u32>, passed: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
         eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
     }
 }
@@ -4248,7 +4248,8 @@ fn original_folded_case_subject(
     metadata: super::InvocationMetadataContext<'_>,
 ) -> Option<crate::ir::WordExpr> {
     #[cfg(test)]
-    let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+    let trace_enabled =
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
     #[cfg(test)]
     let trace = trace_original_folded_case_guard;
     let substitution = subject.sole_command_substitution();

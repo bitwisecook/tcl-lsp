@@ -4354,7 +4354,9 @@ fn define_values(
 
 fn n17_source_only_definition(value: bool, key: ValueKey) -> bool {
     #[cfg(debug_assertions)]
-    if value && std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+    if value
+        && tcl_dialect::trace_env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1")
+    {
         eprintln!("N17_NATIVE decline=sccp.source-only-definition key={key:?}");
     }
     #[cfg(not(debug_assertions))]

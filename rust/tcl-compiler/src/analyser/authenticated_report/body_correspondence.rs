@@ -98,7 +98,7 @@ impl ReportBodyInventory {
         // Hosted source is a separate actual-entry domain, never inferred from
         // a dialect label and never promoted to Native execution eligibility.
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
             eprintln!(
                 "REPORT_BODY_DOMAIN hosted={} vendor_input_matches={} native_entry={}",
                 input.has_hosted_source_name_context(),
@@ -126,7 +126,7 @@ impl ReportBodyInventory {
             }
         }
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
             eprintln!(
                 "REPORT_BODY_INVENTORY named={} units={} hosted_cards={} events={} definitions={} hosted_input={}",
                 module.procedures.len(),
@@ -384,7 +384,7 @@ impl ReportBodyInventory {
         role: ReportBodyRole,
     ) -> Option<ReportBodyOwner> {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
             let role = match role {
                 ReportBodyRole::Named(_) => "named",
                 ReportBodyRole::Unit(_) => "unit",
@@ -485,7 +485,7 @@ impl ReportBodyInventory {
         body: ReportBodyOwner,
     ) -> Option<()> {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
             eprintln!(
                 "REPORT_BODY_PUSH id={id:?} owns={} duplicate={} declaration_nonempty={}",
                 module.procedure_ids.owns(id),

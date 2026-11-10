@@ -522,7 +522,7 @@ impl SourceInvocationBinding {
     ) -> Option<super::SourceCommandTarget> {
         let rows = self.original_name_rows(key);
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PACKAGE_LOOKUP").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PACKAGE_LOOKUP").is_some() {
             eprintln!(
                 "ORIGINAL_PACKAGE_LOOKUP offset={} stage=rows rows={} site={} input_bytes={:?}",
                 key.original_word().group().span.start(),
@@ -535,7 +535,7 @@ impl SourceInvocationBinding {
         let mut unanimous = None;
         for row in rows {
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PACKAGE_LOOKUP").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PACKAGE_LOOKUP").is_some() {
                 eprintln!(
                     "ORIGINAL_PACKAGE_LOOKUP offset={} stage=snapshot opaque={} step={} execution={} namespace_known={} policy_agrees={}",
                     key.original_word().group().span.start(),
@@ -553,7 +553,7 @@ impl SourceInvocationBinding {
             }
             let advice = self.original_registry_layout_for_name_row(key, row);
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PACKAGE_LOOKUP").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PACKAGE_LOOKUP").is_some() {
                 eprintln!(
                     "ORIGINAL_PACKAGE_LOOKUP offset={} stage=advice present={} closed={} opaque={} targets={}",
                     key.original_word().group().span.start(),

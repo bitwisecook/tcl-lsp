@@ -3751,7 +3751,7 @@ impl AnalysisResult {
             return None;
         }
         let bindings = self.command_realm.as_ref()?.source_bindings_ref();
-        if std::env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some() {
             eprintln!(
                 "SCALAR_ALPHA offset={} symbols={} formals={} completed-world={}",
                 declaration.declaration_site().offset,
@@ -3766,7 +3766,7 @@ impl AnalysisResult {
         }
         let mut agreed = None;
         for occurrence in &self.original_variable_symbols {
-            if std::env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some()
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some()
                 && occurrence.receiver() == OriginalVariableSymbolReceiver::FormalDeclaration
             {
                 eprintln!(
@@ -4118,7 +4118,7 @@ impl AnalysisResult {
             return false;
         }
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
             eprintln!(
                 "ORIGINAL_VARIABLE_COVERAGE policy={:?} local={} dynamic={:?} unknowns={:?} aliases={:?} receipt_sites={:?} conflicts={:?}",
                 symbol.policy(),

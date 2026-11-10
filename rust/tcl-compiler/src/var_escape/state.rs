@@ -289,7 +289,7 @@ impl EscapeState {
 // WORK-only attribution of an existing conservative transition; no source facts queried.
 fn trace_first_pessimism(site: &'static std::panic::Location<'static>) {
     static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_none()
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_none()
         || LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 128
     {
         return;

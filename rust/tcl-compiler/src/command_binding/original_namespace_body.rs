@@ -312,7 +312,7 @@ impl OriginalNamespaceBody {
             &prepared.parent_variables,
         );
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMESPACE_BODY_CAPTURE site={} delegation={} quiet={} argc={:?} arity={:?} callbacks={:?} namespace_activation={} entered_frame={} namespace_identity={} namespace_known={}",
                 native.segment.span.start(),
@@ -364,7 +364,7 @@ impl OriginalNamespaceBody {
             .filter(|_| outcomes.normal_completion.is_some() && outcomes.abrupt.is_empty())
         else {
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
                 eprintln!(
                     "ORIGINAL_NAMESPACE_BODY_FINISH site={} normal={} child_complete={} abrupt={}",
                     native.segment.span.start(),
@@ -401,7 +401,7 @@ impl OriginalNamespaceBody {
             .as_ref()
                 == Some(&delegation.body);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMESPACE_BODY_FINISH site={} complete={} quiet={} parent_frame={} parent_namespace={}",
                 native.segment.span.start(),

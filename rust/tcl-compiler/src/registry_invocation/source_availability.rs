@@ -217,7 +217,7 @@ struct SourceAvailabilityTrace<'a>(&'a crate::ir::CommandTokens);
 
 impl SourceAvailabilityTrace<'_> {
     fn refused(&self, stage: &'static str) {
-        if std::env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
             eprintln!(
                 "COMMAND_AVAILABILITY offset={} stage={stage} passed=false",
                 self.0.argv.first().map_or(0, |word| word.start())

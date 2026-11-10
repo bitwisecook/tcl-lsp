@@ -26,7 +26,7 @@ fn compiler_syntax_trace_enabled() -> bool {
     if !(cfg!(test)
         || cfg!(debug_assertions)
         || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
-        || std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none()
+        || tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none()
     {
         return false;
     }
@@ -146,7 +146,7 @@ impl SourceInvocationBinding {
         registry: &tcl_registry::CommandRegistry,
         attachment: bool,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none() {
             return;
         }
         let syntax = self.original_compiler_argument_syntax(tokens, input, registry);
@@ -292,7 +292,7 @@ impl SourceCommandBindings {
         input: &crate::analyser::ResolvedAnalysisInput,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none() {
             return;
         }
         let in_span =
@@ -425,7 +425,7 @@ impl SourceCommandBindings {
         tokens: &crate::ir::CommandTokens,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
             eprintln!(
                 "ORIGINAL_COMPILER_SYNTAX_QUERY offset={offset:?} words={:?} argv_texts={:?} input_config={:?}",
                 tokens.words(),
@@ -531,7 +531,7 @@ impl SourceCommandBindings {
             .flatten()
             .collect::<Vec<_>>();
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
             eprintln!(
                 "ORIGINAL_COMPILER_SYNTAX_DIRECT offset={offset:?} visits={}",
                 visits.len()
@@ -553,7 +553,7 @@ impl SourceCommandBindings {
             .enumerate()
             .map(|(ordinal, visit)| {
                 #[cfg(debug_assertions)]
-                if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
                     eprintln!("ORIGINAL_COMPILER_SYNTAX_VISIT offset={offset:?} ordinal={ordinal} words={:?}", visit.original_words.as_ref().map(|words| &words.words));
                 }
                 #[cfg(not(debug_assertions))]
@@ -1969,7 +1969,7 @@ impl SourceCommandBindings {
         let reached = binding.runtime_reachability == SourceRuntimeReachability::Reached;
         let original = self.original_child_compiler_visits(&site);
         if reached && original.is_none() {
-            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
                 eprintln!(
                     "NATIVE_COMPILER_ATTACHMENT offset={offset} reason=reached-without-child selection={:?}",
                     binding.native_compilation_admission
@@ -1986,7 +1986,7 @@ impl SourceCommandBindings {
                 .map_or_else(Vec::new, |visits| visits.iter().collect())
         });
         let Some(first) = invocations.first() else {
-            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
                 eprintln!(
                     "NATIVE_COMPILER_ATTACHMENT offset={offset} reason=no-visits reachability={:?} selection={:?}",
                     binding.runtime_reachability, binding.native_compilation_admission
@@ -1995,7 +1995,7 @@ impl SourceCommandBindings {
             return binding;
         };
         if reached && first.namespace_key != binding.lookup_namespace_key {
-            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
                 eprintln!(
                     "NATIVE_COMPILER_ATTACHMENT offset={offset} reason=namespace-mismatch head={:?} visits={} selection={:?}",
                     first.head,
@@ -2006,7 +2006,7 @@ impl SourceCommandBindings {
             return binding;
         }
         attach_unanimous_original_compiler_metadata(&mut binding, first, &invocations, reached);
-        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
             eprintln!(
                 "NATIVE_COMPILER_ATTACHMENT offset={offset} head={:?} visits={} selections={:?} final={:?} original_words={} policy={} table={}",
                 first.head,

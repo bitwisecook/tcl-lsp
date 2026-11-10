@@ -217,7 +217,7 @@ type SourceBindings = Vec<(String, Arc<OriginalSourceRemoteResultAssociation>)>;
 macro_rules! remote_source_trace {
     ($($argument:tt)*) => {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
             eprintln!($($argument)*);
         }
     };

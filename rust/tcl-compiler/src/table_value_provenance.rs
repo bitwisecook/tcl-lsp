@@ -300,7 +300,7 @@ impl<'a> Query<'a> {
                     return None;
                 }
                 #[cfg(test)]
-                if std::env::var_os("TCL_TABLE_PROOF_DEBUG").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_TABLE_PROOF_DEBUG").is_some() {
                     eprintln!(
                         "table represented writer {offset}: {:?}",
                         tokens

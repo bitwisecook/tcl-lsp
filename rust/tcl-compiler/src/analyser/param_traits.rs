@@ -852,7 +852,7 @@ fn scan_segment<'p>(
     let body_aliases = aliases.clone();
     let view = ctx.body_assistance(source, seg);
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
         eprintln!(
             "ORIGINAL_PARAM_ROLES command local_offset={} base={:?} executed_source={} parameters={} full_values={} components={} assistance={} roles={}",
             seg.span.start(),

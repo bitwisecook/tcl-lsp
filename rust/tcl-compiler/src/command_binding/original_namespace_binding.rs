@@ -367,7 +367,7 @@ fn trace_capture(
     context: super::SourceExecutionContext<'_>,
 ) {
     use tcl_registry::{NamespaceTransition, StateTransition};
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
         && facts
             .state_transitions
             .declared()
@@ -574,7 +574,7 @@ impl OriginalNamespaceBinding {
             },
         )?;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMESPACE_BINDING_CAPTURED site={} namespace={namespace:?} exports={} bindings={} transitions={}",
                 native.segment.span.start(),
@@ -622,7 +622,7 @@ impl OriginalNamespaceBinding {
             && state.unknown_lookup_namespaces == self.expected.unknown_lookup_namespaces
             && state.unknown_export_namespaces == self.expected.unknown_export_namespaces;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMESPACE_BINDING_COMPLETED site={} complete={completed} quiet={} handler={} source={} context={} inputs={} bindings={} objects={} exports={} namespaces={} unknown_lookup={} unknown_exports={}",
                 native.segment.span.start(),

@@ -34,7 +34,7 @@ const MAX_POINTS: usize = 4096;
 fn diagnostic_source_point_memo_bypass() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ENABLED.get_or_init(|| {
-        let enabled = std::env::var_os("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS")
+        let enabled = tcl_dialect::trace_env::var_os("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS")
             .is_some_and(|value| value == "1");
         if enabled {
             eprintln!(

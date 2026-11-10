@@ -3575,7 +3575,7 @@ impl Analyser {
         self.result.original_variable_alias_sites.push(local_span);
         self.result.original_variable_alias_sites.push(target_span);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ALIAS_TEMPLATE_SOURCE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ALIAS_TEMPLATE_SOURCE").is_some() {
             eprintln!(
                 "ALIAS_SOURCE_LINK local={} remote={} namespace={} input={}",
                 local_span.start(),
@@ -3680,7 +3680,7 @@ impl Analyser {
     ) -> Option<crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt> {
         use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ALIAS_TEMPLATE_SOURCE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ALIAS_TEMPLATE_SOURCE").is_some() {
             eprintln!(
                 "ALIAS_SOURCE_RECEIPT local={} remote={} frame={} input={} operands={:?}",
                 local_span.start(),

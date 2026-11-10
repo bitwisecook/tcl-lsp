@@ -293,7 +293,7 @@ impl SourceCommandBindings {
         let created =
             state.record_class_definition(facts, native, context, entries, original_factory);
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_OO_REGISTRATION offset={} installed={}",
                 native.segment.span.start(),
@@ -1263,7 +1263,7 @@ fn closed_bounded_method_segments(
     segments.iter().all(|segment| {
         let closed = closed_definition_member(grammar, definition, map, segment, state, context);
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_OO_MEMBER offset={} keyword={} closed={closed}",
                 segment.span.start(),
@@ -1281,7 +1281,7 @@ fn select_bounded_method_definition(
     facts: &InvocationFacts,
 ) -> Option<BoundedMethodDefinition> {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
         eprintln!(
             "ORIGINAL_OO_REGISTRATION offset={} selected={} kind={:?} opaque={} policy={:?} roles={:?}",
             native.segment.span.start(),
@@ -1308,7 +1308,7 @@ fn select_bounded_method_definition(
     )?;
     if !state.default_construction_dependencies_hold(grammar) {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_OO_REGISTRATION declined=factory-dependencies offset={}",
                 native.segment.span.start()

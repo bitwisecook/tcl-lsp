@@ -548,8 +548,8 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
     ) {
         let phase_start = ((cfg!(any(test, debug_assertions))
-            && std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
-            || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
+            && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
+            || tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
         .then(std::time::Instant::now);
         let trace_phase = |stage: &'static str| {
             if let Some(start) = phase_start {

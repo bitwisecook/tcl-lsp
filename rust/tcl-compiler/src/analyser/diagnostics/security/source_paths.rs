@@ -516,7 +516,7 @@ mod tests {
         unit: &crate::compilation_unit::CompilationUnit,
         input: &ResolvedAnalysisInput,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_DIAGNOSTIC_VALUES").is_none() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_DIAGNOSTIC_VALUES").is_none() {
             return;
         }
         let module = &unit.ir_module;

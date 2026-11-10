@@ -744,7 +744,7 @@ impl SourceInvocationBinding {
             self.original_lexer_config_for_tokens(tokens),
         )?;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_LITERAL_BRACING").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_LITERAL_BRACING").is_some() {
             eprintln!(
                 "ORIGINAL_LITERAL_BRACING_HANDLER offset={:?} execution={} envelope={} lookup={} unknown={} compiler_names={}",
                 self.invocation_site().map(|site| site.offset),
@@ -1289,7 +1289,7 @@ fn finite_native_literal_result(
 
 fn brace_refusal<T>(tokens: &CommandTokens, stage: &str) -> Option<T> {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_LITERAL_BRACING").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_LITERAL_BRACING").is_some() {
         eprintln!(
             "ORIGINAL_LITERAL_BRACING offset={:?} stage={stage}",
             tokens

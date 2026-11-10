@@ -506,7 +506,7 @@ impl OriginalSourceCommandWorld {
             };
         }
         #[cfg(any(test, debug_assertions))]
-        let clone_started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        let clone_started = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(std::time::Instant::now);
         let mut world = self.clone();
@@ -1288,7 +1288,7 @@ impl OriginalCompletedCommandWorld {
 
     #[cfg(debug_assertions)]
     fn trace_roster_admission(&self, class: &SourceCommandDefinition) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_ROSTER_BEGIN kind={:?} source={} native={} opaque={} unavailable={} step={} quiet={} taint={} own_tables={}",
                 class.kind(),
@@ -1306,7 +1306,7 @@ impl OriginalCompletedCommandWorld {
 
     #[cfg(debug_assertions)]
     fn trace_roster_publications(&self, class: &SourceCommandDefinition) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_ROSTER_PUBLICATIONS count={}",
                 self.declarations()
@@ -1326,7 +1326,7 @@ impl OriginalCompletedCommandWorld {
         raw: &super::ResolvedCommandTarget,
         identity: &super::CommandIdentity,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_ROSTER_TARGET kind={:?} terminal={} registry={} prefix={} allocation={} token_allocation={} runtime={} observed={} taint={} definition={}",
                 raw.kind,
@@ -1349,7 +1349,7 @@ impl OriginalCompletedCommandWorld {
         raw: &super::ResolvedCommandTarget,
         definition: &super::ClassDefinitionReceipt,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_ROSTER_DEFINITION generation={} dispatcher={} ancestors={} dependencies={} factory={} support={} inventory={} entries={}",
                 definition.implementation_generation == raw.implementation_generation,
@@ -1725,7 +1725,7 @@ impl SourceCommandBindings {
     #[must_use]
     pub fn original_completed_command_world(&self) -> Option<OriginalCompletedCommandWorld> {
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_COMPLETED_WORLD root_state={}",
                 self.original_completed_root_state.is_some()
@@ -2254,7 +2254,7 @@ impl CapturedOriginalCommandTransfer {
 
     pub(super) fn finish(mut self, state: &mut ModuleCommandBindings) {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_WORLD_FINISH offset={} old_unavailable={} captured_unavailable={} operations={:?}",
                 self.site.offset,
@@ -2730,7 +2730,7 @@ impl OriginalSourceCommandWorld {
 // Temporary WORK-only owner diagnostic; no source or execution permission.
 #[inline]
 pub(super) fn trace_completed_world_option<T>(stage: &str, value: Option<T>) -> Option<T> {
-    if std::env::var_os("TCL_LSP_TRACE_COMPLETED_COMMAND_WORLD").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_COMPLETED_COMMAND_WORLD").is_some() {
         eprintln!(
             "COMPLETED_COMMAND_WORLD stage={stage} present={}",
             value.is_some()
@@ -2741,7 +2741,7 @@ pub(super) fn trace_completed_world_option<T>(stage: &str, value: Option<T>) -> 
 
 #[inline]
 pub(super) fn trace_completed_world_flag(stage: &str, value: bool) -> bool {
-    if std::env::var_os("TCL_LSP_TRACE_COMPLETED_COMMAND_WORLD").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_COMPLETED_COMMAND_WORLD").is_some() {
         eprintln!("COMPLETED_COMMAND_WORLD stage={stage} value={value}");
     }
     value

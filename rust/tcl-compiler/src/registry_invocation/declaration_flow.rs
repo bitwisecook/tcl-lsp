@@ -651,7 +651,7 @@ fn declared_lookup_stable(facts: &tcl_registry::InvocationFacts) -> bool {
     use tcl_registry::world_effect::CallbackKinds;
     #[cfg(debug_assertions)]
     let trace = |reason: &str| {
-        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             eprintln!("RBS_DECLARED_LOOKUP refusal={reason}");
         }
     };

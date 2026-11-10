@@ -57,7 +57,7 @@ use super::{ShimmerWarning, type_name};
 macro_rules! sh21_trace {
     ($($argument:tt)*) => {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_SH21_PRODUCER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SH21_PRODUCER").is_some() {
             eprintln!($($argument)*);
         }
     };

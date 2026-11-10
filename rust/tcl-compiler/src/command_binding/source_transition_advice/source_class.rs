@@ -455,7 +455,7 @@ impl OriginalSourceConstructorCall {
 
     #[cfg(test)]
     fn trace_source_factory_guard(&self, stage: &str, passed: bool) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
             let offset = self.site.offset;
             eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset} passed={passed}");
         }
@@ -471,7 +471,8 @@ impl OriginalSourceConstructorCall {
         analysis: &AnalysisResult,
     ) -> Option<OriginalSourceClassFactoryAttempt<'_>> {
         #[cfg(test)]
-        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+        let trace_enabled =
+            tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
         #[cfg(test)]
         let trace = |stage: &str, passed: bool| self.trace_source_factory_guard(stage, passed);
         #[cfg(test)]
@@ -656,7 +657,7 @@ impl AdviceGraph {
             seen.push(key.clone());
             let cell = self.cells.get(&key);
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
                 let kind = cell.map(|cell| match cell {
                     AdviceCell::SourceClass(_) => "SourceClass",
                     AdviceCell::AuthoredJimClass(_) => "AuthoredJimClass",
@@ -1099,7 +1100,7 @@ impl AdviceInvocationContext<'_> {
         written: &[SourceAdviceWord],
     ) -> bool {
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
             eprintln!(
                 "JIM_SOURCE_OWNER stage=constructor.retain_attempt offset={:?} words={}",
                 native.first().map(|word| word.span().start()),

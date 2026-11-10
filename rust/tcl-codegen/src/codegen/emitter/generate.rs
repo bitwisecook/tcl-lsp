@@ -1287,7 +1287,8 @@ fn retain_initial_dependencies(ctx: &mut CodegenCtx, cfg: &CfgFunction) {
     ctx.native_dependency_refusal =
         !preparations_retained || !ctx.retain_math_invocations(&cfg.required_math_invocations);
     if ctx.native_dependency_refusal
-        && std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1")
+        && tcl_dialect::trace_env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
+            == Ok("first-decline-v1")
     {
         eprintln!(
             "CCG_NATIVE_INITIAL_DEPENDENCY_REFUSAL stage={} preparations={} math={} source={:?}",

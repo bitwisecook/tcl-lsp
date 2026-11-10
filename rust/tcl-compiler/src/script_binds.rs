@@ -29,7 +29,7 @@ use tcl_registry::{ArgRole, CommandRegistry};
 
 fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
         eprintln!("RBS_READ_OWNER stage={stage} present={}", value.is_some());
     }
     #[cfg(not(test))]

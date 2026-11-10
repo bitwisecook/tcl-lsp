@@ -438,7 +438,7 @@ impl ModuleCommandBindings {
             namespace,
             super::CommandTargetLookup::CompilerSlots,
         ) else {
-            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
                 eprintln!(
                     "NATIVE_ORIGINAL_COMPILER_LOOKUP head={:?} reason=target-unavailable namespace={namespace:?}",
                     input.bytes()
@@ -451,7 +451,7 @@ impl ModuleCommandBindings {
             };
         };
         let Some(keys) = self.original_command_keys_for_input(namespace, input) else {
-            if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
                 eprintln!(
                     "NATIVE_ORIGINAL_COMPILER_LOOKUP head={:?} reason=keys-unavailable namespace={namespace:?}",
                     input.bytes()
@@ -466,7 +466,7 @@ impl ModuleCommandBindings {
         let mut eligible = BTreeSet::new();
         let mut generic = selection.may_be_absent;
         let mut unknown = selection.unknown;
-        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
             eprintln!(
                 "NATIVE_ORIGINAL_COMPILER_LOOKUP head={:?} selected_unknown={} absent={} keys={}",
                 input.bytes(),
@@ -540,7 +540,7 @@ impl ModuleCommandBindings {
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
         namespace: &super::SourceNamespaceKey,
     ) {
-        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
             let mut world = (*self.original_command_world).clone();
             let policy = world.select_policy(self);
             eprintln!(
@@ -569,7 +569,7 @@ impl ModuleCommandBindings {
         key: &super::SourceCommandKey,
         bindings: Option<&BTreeSet<MayBinding>>,
     ) {
-        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
             eprintln!(
                 "NATIVE_ORIGINAL_COMPILER_CELL key={key:?} alternatives={:?}",
                 bindings.as_ref().map(|alternatives| alternatives
@@ -1139,7 +1139,7 @@ fn trace_original_compiler_targets(
     context: &super::SourceExecutionContext<'_>,
     targets: &NativeCompilerTargets,
 ) {
-    if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
         eprintln!(
             "NATIVE_ORIGINAL_COMPILER_TARGET head={:?} namespace={:?} generic={} unknown={} targets={:?}",
             head_input.bytes(),
@@ -1578,7 +1578,7 @@ fn trace_missing_compiler_facts(
     state: &ModuleCommandBindings,
     context: super::SourceExecutionContext<'_>,
 ) {
-    if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
         eprintln!(
             "NATIVE_ORIGINAL_COMPILER_FACTS_MISSING command={:?} registry={} compiler_hook={:?}",
             target.command,

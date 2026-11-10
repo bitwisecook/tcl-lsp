@@ -751,7 +751,7 @@ pub(crate) fn trace_jim_body_dispatch(
     bodies: &[usize],
     arguments: &[tcl_lexer::Token],
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
         let arguments = arguments
             .iter()
             .map(|token| (token.kind, token.span))
@@ -772,7 +772,7 @@ fn trace_jim_structure_fields(
     selected: &ResolvedStatementInvocation,
     roles: Option<&StructuredSourceRoles>,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
         let logical_roles = match roles {
             Some(StructuredSourceRoles::Logical(roles)) => Some(roles),
             _ => None,
@@ -839,7 +839,7 @@ fn original_structured_operands_are_supported_untraced(
             .all(|(index, origin)| *origin == InvocationWordOrigin::Written(index))
     {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             trace_original_structure(
                 "roles_complete",
                 tokens,
@@ -8560,7 +8560,7 @@ fn receiver_source_trait_invocation<'a>(
     native_compiler_replay_source(tokens, site)?;
     let advice = binding.declaration_operand_layout_advice(tokens)?;
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_CALLER_FRAME").is_some() {
         eprintln!(
             "ORIGINAL_RECEIVER_TRAITS offset={} closed={} original_closed={} opaque={} targets={}",
             site.offset,

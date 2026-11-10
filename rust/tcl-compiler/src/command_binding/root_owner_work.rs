@@ -83,7 +83,7 @@ pub(super) struct Timing {
 }
 impl Timing {
     pub(super) fn at(query: Query) -> Option<Self> {
-        std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(|| Self {
                 query,

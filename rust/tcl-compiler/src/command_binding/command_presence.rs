@@ -43,7 +43,7 @@ fn trace_jim_diagnostic_presence(
     presence: SourceCommandSlotPresence,
 ) -> SourceCommandSlotPresence {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
         eprintln!(
             "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_return offset={offset} branch={branch} presence={presence:?}"
         );
@@ -192,7 +192,7 @@ impl SourceCommandBindings {
         };
         let actual = self.invocation_at_source("", offset);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
             eprintln!(
                 "JIM_SOURCE_OWNER stage=jim.diagnostic.presence_entry offset={offset} consumed_name={} actual_snapshot={}",
                 name.is_some(),
@@ -817,7 +817,7 @@ mod tests {
                 u32::try_from(source.rfind(head).unwrap()).unwrap()
             },
         );
-        if std::env::var_os("TCL_SLOT_DEBUG").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_SLOT_DEBUG").is_some() {
             eprintln!(
                 "slot {profile} {source:?} head={:?} targets={:?} unknown={} snapshot={:?}",
                 result.lookup_word,

@@ -244,7 +244,7 @@ impl OriginalFormalTopology {
         for (parameter, (outer, child)) in outer.iter().zip(children).enumerate() {
             let formal = &self.parameters[parameter];
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
                 eprintln!(
                     "ORIGINAL_FORMAL_FIELD policy={:?} parameter={parameter} name={:?} child={:?} default={} outer_literal={}",
                     self.producer.policy(),

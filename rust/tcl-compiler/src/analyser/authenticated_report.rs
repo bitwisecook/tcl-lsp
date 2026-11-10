@@ -148,7 +148,7 @@ impl AuthenticatedAnalysisReport {
         let capture = self.capture.as_ref().map_err(|reason| *reason)?;
         let matched = capture.matches_output(&self.analysis);
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
             eprintln!("REPORT_CAPTURE stage=current-output result={matched:?}");
         }
         matched?;
@@ -251,7 +251,7 @@ impl ReportOutputCorrespondence<'_> {
 // Borrowed current captures keep the same Result and original return path.
 fn trace_capture_result<T, E>(value: Result<T, E>, stage: &str) -> Result<T, E> {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
         eprintln!(
             "REPORT_CAPTURE stage={stage} current-owner={}",
             value.is_ok()
@@ -265,7 +265,7 @@ fn trace_capture_result<T, E>(value: Result<T, E>, stage: &str) -> Result<T, E> 
 // Preserve each original Option exactly once; diagnostic output is test-only.
 fn trace_capture_option<T>(value: Option<T>, stage: &str) -> Option<T> {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
         eprintln!("REPORT_CAPTURE stage={stage} available={}", value.is_some());
     }
     #[cfg(not(test))]
@@ -275,7 +275,7 @@ fn trace_capture_option<T>(value: Option<T>, stage: &str) -> Option<T> {
 
 fn trace_capture_gate(value: bool, stage: &str) -> bool {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
         eprintln!("REPORT_CAPTURE stage={stage} refuses={value}");
     }
     #[cfg(not(test))]

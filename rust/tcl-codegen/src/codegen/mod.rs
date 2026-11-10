@@ -822,7 +822,8 @@ impl<'r> CodegenCtx<'r> {
 
     #[track_caller]
     fn refuse_native_dependency(&mut self) {
-        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() == Ok("first-decline-v1")
+        if tcl_dialect::trace_env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref()
+            == Ok("first-decline-v1")
         {
             eprintln!(
                 "CCG_NATIVE_DEPENDENCY_REFUSAL caller={} source_len={} span={:?}",
@@ -831,7 +832,7 @@ impl<'r> CodegenCtx<'r> {
                 self.current_span.map(|span| (span.start(), span.end())),
             );
         }
-        if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
             eprintln!(
                 "NATIVE_CODEGEN_REFUSAL caller={} compilation={:?} invocation={:?} span={:?} source={:?}",
                 std::panic::Location::caller(),
@@ -904,7 +905,7 @@ impl<'r> CodegenCtx<'r> {
                 tcl_compiler::registry_invocation::native_implementation_dependencies(tokens),
             );
             if refused {
-                if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
                     eprintln!(
                         "NATIVE_CODEGEN_ADMISSION argv={:?} selection={:?} original_named={}",
                         tokens.argv_texts,

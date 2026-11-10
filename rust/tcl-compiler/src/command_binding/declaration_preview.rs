@@ -305,7 +305,8 @@ macro_rules! static_read_guard {
 
 fn trace_static_read_refusal<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(debug_assertions)]
-    if value.is_none() && std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if value.is_none() && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some()
+    {
         eprintln!("RBS_STATIC_REFUSAL stage={stage}");
     }
     #[cfg(not(debug_assertions))]
@@ -1980,7 +1981,7 @@ struct NestedLayoutTrace {
 impl NestedLayoutTrace {
     fn new() -> Self {
         Self {
-            started: std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            started: tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
                 .is_some()
                 .then(std::time::Instant::now),
         }
@@ -2551,7 +2552,7 @@ impl SourceCommandBindings {
         for (site, observation) in roots {
             let Some(tokens) = declaration_tokens(&site, &observation) else {
                 #[cfg(debug_assertions)]
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
                     eprintln!(
                         "ORIGINAL_DECLARATION offset={} stage=tokens-unavailable",
                         site.offset
@@ -2561,7 +2562,7 @@ impl SourceCommandBindings {
             };
             let Some(body) = declared_body(&site, &tokens, &observation, registry) else {
                 #[cfg(debug_assertions)]
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
                     eprintln!(
                         "ORIGINAL_DECLARATION offset={} stage=body-unavailable",
                         site.offset
@@ -2607,7 +2608,7 @@ impl SourceCommandBindings {
                 syntax.commands(source, config)
             });
         #[cfg(any(test, debug_assertions))]
-        if std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some() {
             let commands: usize = syntax
                 .commands
                 .values()
@@ -3186,7 +3187,7 @@ fn declared_body(
         observation.config,
     );
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
         eprintln!(
             "ORIGINAL_DECLARATION offset={} stage=body-advice available={}",
             site.offset,
@@ -3238,7 +3239,7 @@ fn declared_body(
             },
         );
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
             eprintln!(
                 "ORIGINAL_DECLARATION offset={} stage=procedure-recipe available={} arity={:?} roles={}",
                 site.offset,
@@ -4999,7 +5000,7 @@ mod tests {
                 );
             }
         }
-        if std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some() {
             let mut first = None;
             for (site, rows) in &cached.declaration_layouts {
                 let Some(originals) = original_declaration_layouts(rows) else {

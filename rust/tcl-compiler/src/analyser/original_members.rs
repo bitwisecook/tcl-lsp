@@ -696,7 +696,7 @@ impl Analyser {
             .is_none()
         {
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
                 eprintln!(
                     "ORIGINAL_MEMBER_DECLINED offset={} head={:?}",
                     command.span.start(),
@@ -1123,7 +1123,7 @@ impl Producer<'_> {
         })();
         if cfg!(debug_assertions)
             && retained.is_none()
-            && std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
+            && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
         {
             eprintln!(
                 "ORIGINAL_MEMBER_INSTALLER_DECLINED offset={:?} stage={checkpoint} caller_scope={:?} words={}",

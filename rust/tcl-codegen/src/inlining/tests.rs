@@ -116,7 +116,7 @@ fn inlined_native_top(source: &str) -> Vec<Statement> {
         registry.profile().expect("selected native profile"),
     )
     .ir_module;
-    if std::env::var_os("TCL_INLINE_PROOF_DEBUG").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_INLINE_PROOF_DEBUG").is_some() {
         let summaries =
             tcl_compiler::var_escape::analyse_var_escape_with_registry(&module, true, registry);
         let bound = InliningSummaries {

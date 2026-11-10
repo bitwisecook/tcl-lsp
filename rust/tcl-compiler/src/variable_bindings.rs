@@ -1875,7 +1875,7 @@ fn bind_alias_values_with_compiled_local(
             Some(slot)
         } else {
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
                 eprintln!(
                     "ORIGINAL_VARIABLE_ALIAS_BIND invalid_compiled_local frame={frame:?} policy={:?} dynamic={}",
                     state.execution_name_policy, state.dynamic_bindings
@@ -1892,7 +1892,7 @@ fn bind_alias_values_with_compiled_local(
         .is_some_and(|slot| slot.kind == PlaceKind::Unknown)
     {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
             eprintln!(
                 "ORIGINAL_VARIABLE_ALIAS_BIND unknown_destination frame={frame:?} local_ordinal={:?} original_input={} dynamic={}",
                 alias.local.argument_index(),
@@ -1924,7 +1924,7 @@ fn bind_alias_values_with_compiled_local(
         |operands| original_alias_target(state, alias.target, operands, registry, false),
     );
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
         eprintln!(
             "ORIGINAL_VARIABLE_ALIAS_BIND frame={frame:?} target_kind={:?} target_cell={} local_kind={:?} dynamic={}",
             target.kind,

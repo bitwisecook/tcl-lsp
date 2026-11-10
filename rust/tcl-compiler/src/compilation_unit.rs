@@ -1244,7 +1244,7 @@ struct SourcePipelineTrace {
 #[cfg(any(test, debug_assertions))]
 impl SourcePipelineTrace {
     fn new(label: &'static str, bytes: usize) -> Self {
-        let start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        let start = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(std::time::Instant::now);
         if start.is_some() {
@@ -3384,7 +3384,7 @@ fn memoized_procedure_unit(
             crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
             let matches = fu.cfg == *cfg;
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE").is_some() {
                 eprintln!(
                     "ORIGINAL_FUNCTION_LATTICE_ACCEPT qname={qname} event={} cfg_matches={matches}",
                     event_body.is_some()
@@ -6013,10 +6013,11 @@ impl CompilationUnit {
         // naming.source.original-collection-body-owner
         // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
         #[cfg(test)]
-        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+        let trace_enabled =
+            tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
         #[cfg(test)]
         let trace = |stage: &str, passed: bool| {
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
                 let offset = parent.argv.first().map(|span| span.start());
                 eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
             }
@@ -6246,10 +6247,11 @@ fn collect_known_classes(
     registry: &CommandRegistry,
 ) -> Option<HashSet<String>> {
     #[cfg(test)]
-    let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+    let trace_enabled =
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
     #[cfg(test)]
     let trace = |stage: &str, passed: bool| {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
             eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset=none passed={passed}");
         }
     };
@@ -6294,7 +6296,7 @@ fn collect_known_classes(
         return None;
     };
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
         let declared = signatures.class_declarations.len();
         let named = signatures
             .class_declarations

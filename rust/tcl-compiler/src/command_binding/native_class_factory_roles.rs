@@ -90,7 +90,7 @@ impl NativeClassFactoryState {
             _ => return None,
         };
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NATIVE_FACTORY_MANUFACTURER role={:?} intrinsic={intrinsic:?} current={}",
                 selected.bootstrap_role,
@@ -167,7 +167,7 @@ impl NativeClassFactoryState {
 
 #[cfg(debug_assertions)]
 fn trace_selected_factory_row(selected: &NativeOoClassObservation) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
         eprintln!(
             "ORIGINAL_NATIVE_FACTORY_ROW role={:?} maker={:?} object={:?} superclass={:?} class_mixins={} object_mixins={} class_filters={:?} object_filters={:?} class_namespace={} object_namespace={} ctor={:?} dtor={:?}",
             selected.bootstrap_role,
@@ -250,7 +250,7 @@ fn capture_factory_support(
     let support =
         entry.original_oo_class(runtime.token, target.runtime_implementation_generation?)?;
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
         eprintln!(
             "ORIGINAL_NATIVE_FACTORY_SUPPORT role={:?} maker_match={} superclass_match={} epoch_match={} ctor_absent={} dtor_absent={} class_namespace={} object_namespace={}",
             support.bootstrap_role,

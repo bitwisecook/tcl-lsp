@@ -380,7 +380,7 @@ pub fn classify_proc(
 
 fn trace_native_inline_decline(stage: &str, proc: &Procedure, summary: Option<&ProcEscapeSummary>) {
     static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    if std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_none()
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_none()
         || LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 16
     {
         return;

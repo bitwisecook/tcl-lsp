@@ -52,7 +52,7 @@ impl OriginalAliasCreation {
         context: SourceExecutionContext<'_>,
     ) -> Option<Self> {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_ALIAS_CAPTURE offset={} quiet={} handler={:?} kind={:?} current={} argc={:?} roles_complete={} effects={:?} transitions={:?}",
                 native.segment.span.start(),
@@ -97,7 +97,7 @@ impl OriginalAliasCreation {
             })
             .collect::<Option<Vec<_>>>()?;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_ALIAS_INPUTS offset={} inputs={:?}",
                 native.segment.span.start(),
@@ -123,7 +123,7 @@ impl OriginalAliasCreation {
         }
         let receipt = Self::capture_receipt(native, facts, state, context, inputs)?;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_ALIAS_PRE offset={} destination={:?} chain_closed={}",
                 native.segment.span.start(),
@@ -298,7 +298,7 @@ impl OriginalAliasCreation {
         context: SourceExecutionContext<'_>,
     ) -> bool {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_ALIAS_POST offset={} quiet={} current={} binding={:?} inputs_current={}",
                 native.segment.span.start(),

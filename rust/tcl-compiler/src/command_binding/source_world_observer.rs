@@ -26,7 +26,7 @@ pub(super) fn observe_command(
     command: &SourceOutcomes,
     prefix_complete: bool,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
         eprintln!(
             "ORIGINAL_COMMAND_COMPLETION site={} prefix_complete={} command_complete={} normal={} abrupt={}",
             segment.span.start(),

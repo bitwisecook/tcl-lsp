@@ -130,7 +130,7 @@ pub(crate) fn vendor_symbol_declaration_advice(
 
 fn trace_symbol_advice(stage: &str, tokens: &CommandTokens, command: Option<&str>, admitted: bool) {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_SYMBOL_ADVICE").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_SYMBOL_ADVICE").is_some() {
         eprintln!(
             "ORIGINAL_SYMBOL_ADVICE stage={stage} offset={:?} words={} command={command:?} admitted={admitted} catalogue={} binding={}",
             tokens

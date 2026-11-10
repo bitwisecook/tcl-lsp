@@ -31,7 +31,7 @@
 
 fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
         eprintln!("RBS_READ_OWNER stage={stage} present={}", value.is_some());
     }
     #[cfg(not(debug_assertions))]
@@ -41,14 +41,14 @@ fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
 
 #[cfg(debug_assertions)]
 fn rbs_trace_read(stage: &str, name: &str, span: tcl_lexer::Span) {
-    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
         eprintln!("RBS_READ_OWNER stage={stage} name={name} span={span:?}");
     }
 }
 
 #[cfg(debug_assertions)]
 fn rbs_trace_count(stage: &str, count: usize) {
-    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
         eprintln!("RBS_READ_OWNER stage={stage} count={count}");
     }
 }
@@ -724,7 +724,7 @@ struct W210ChainCtx<'a> {
 fn return_undefined_variable_message(name: &str, defined_vars: &HashSet<String>) -> String {
     use std::fmt::Write as _;
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
         eprintln!("RBS_READ_OWNER stage=return_phi_message name={name}");
     }
     let mut message = format!("Variable '{name}' is read before it is set");
@@ -1895,7 +1895,7 @@ is renamed or deleted in this file."
         ctx: &ReadBeforeSetCtx<'_>,
     ) -> HashSet<String> {
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             eprintln!(
                 "RBS_READ_OWNER stage=entry procedure={} dynamic_writes={} body_kind={:?}",
                 ir_proc.is_some(),
@@ -1910,7 +1910,7 @@ is renamed or deleted in this file."
         );
         let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             eprintln!(
                 "RBS_READ_OWNER stage=physical_missing count={}",
                 w210_min.len()
@@ -2226,7 +2226,7 @@ is renamed or deleted in this file."
         let mut reads = std::collections::HashMap::new();
         for (name, &span) in report.declared_absence_warning_occurrences() {
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
                 eprintln!(
                     "RBS_READ_OWNER stage=declared_absence_candidate name={name} span={span:?}"
                 );
@@ -2952,7 +2952,7 @@ is renamed or deleted in this file."
                         )
                     }));
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
                 let storage_kind = match cell_name.root() {
                     crate::var_resolve::VariableCellKey::Authored(_) => "authored",
                     crate::var_resolve::VariableCellKey::Activation { .. } => "activation",

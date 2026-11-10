@@ -40,7 +40,7 @@ use tcl_registry::CommandRegistry;
 macro_rules! trace_formal {
     ($source:expr, $stage:literal, $available:expr) => {
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
             eprintln!(
                 "ORIGINAL_FORMAL_VALUE span={:?} stage={} available={}",
                 $source.span, $stage, $available

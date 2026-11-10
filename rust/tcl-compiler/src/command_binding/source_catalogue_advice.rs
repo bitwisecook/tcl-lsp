@@ -153,7 +153,7 @@ impl OriginalCatalogueSourceCandidate {
 }
 #[cfg(debug_assertions)]
 fn trace_receiver_catalogue(binding: &SourceInvocationBinding, stage: &str, available: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
         && matches!(
             binding.variable_frame.layout(),
             crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }

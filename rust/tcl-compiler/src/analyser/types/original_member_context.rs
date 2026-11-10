@@ -333,7 +333,7 @@ impl OriginalLexicalNextCall {
             source, analysis, &command,
         );
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_LEXICAL_NEXT offset={} vector={} retained_schema={}",
                 head.span.start(),
@@ -353,7 +353,7 @@ impl OriginalLexicalNextCall {
             schema.semantics.native_compilation.map(|spec| spec.grammar)
         });
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_LEXICAL_NEXT offset={} schema={helper:?} arguments={}",
                 head.span.start(),

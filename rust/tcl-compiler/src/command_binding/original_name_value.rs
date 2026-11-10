@@ -83,7 +83,7 @@ impl OriginalWordSourcePurpose {
 
 #[cfg(test)]
 fn trace_original_word_config(stage: &str, tokens: &crate::ir::CommandTokens, passed: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
         let offset = tokens
             .words()
             .first()
@@ -1171,7 +1171,7 @@ impl super::SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
     ) -> Option<tcl_lexer::LexerConfig> {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             eprintln!(
                 "ORIGINAL_WORD_CONFIG stage=request offset={:?} words={} synthetic={:?} written={} compiler={} declaration={}",
                 tokens
@@ -1194,7 +1194,7 @@ impl super::SourceInvocationBinding {
         trace_original_word_config("compatibility_vector", tokens, true);
         if let Some(original) = &self.original_written_words {
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
                 trace_original_word_config(
                     "written_site",
                     tokens,
@@ -1221,12 +1221,12 @@ impl super::SourceInvocationBinding {
             self.declaration_layout_observations.as_deref()?,
         )?;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             trace_original_word_config("declaration_rows", tokens, rows.clone().next().is_some());
         }
         let first = rows.clone().next()?;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             trace_original_word_config(
                 "declaration_vector",
                 tokens,
@@ -1266,7 +1266,7 @@ impl super::SourceInvocationBinding {
         );
         let snapshot = self.compiler_lookup_state.as_ref()?;
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             trace_original_word_config(
                 "compiler_origin",
                 tokens,

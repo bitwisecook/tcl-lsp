@@ -321,7 +321,7 @@ impl Analyser {
             ))
             .is_some_and(|call| {
                 #[cfg(debug_assertions)]
-                if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
                     eprintln!("JIM_SOURCE_OWNER stage=jim.diagnostic.obligations offset={} obligations={:?}", inv.range.start(), call.obligations());
                 }
                 !call.has_earlier_unknown_mutations()
@@ -416,7 +416,7 @@ impl Analyser {
         &self,
         invocations: &[crate::signature_scan::types::SignatureCommandInvocation],
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MATH_SUBJECT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_MATH_SUBJECT").is_some() {
             for invocation in invocations {
                 eprintln!(
                     "ORIGINAL_MATH_SUBJECT stage=diagnostic-invocation name={:?} range={:?} math={} knowledge={:?}",

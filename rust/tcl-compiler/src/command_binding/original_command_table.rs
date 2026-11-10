@@ -62,7 +62,7 @@ struct BaselineLookupTiming(std::time::Instant);
 #[cfg(any(test, debug_assertions))]
 impl BaselineLookupTiming {
     fn at_query() -> Option<Self> {
-        std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(|| Self(std::time::Instant::now()))
     }
@@ -153,7 +153,7 @@ pub(super) struct ProviderValidationTiming(std::time::Instant);
 #[cfg(any(test, debug_assertions))]
 impl ProviderValidationTiming {
     pub(super) fn at_query() -> Option<Self> {
-        std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(|| {
                 PROVIDER_VALIDATION_DEPTH.with(|depth| depth.set(depth.get().saturating_add(1)));
@@ -222,7 +222,7 @@ struct OriginalGeometryTiming {
 #[cfg(any(test, debug_assertions))]
 impl OriginalGeometryTiming {
     fn at_query(query: usize) -> Option<Self> {
-        std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(|| Self {
                 query,
@@ -1509,7 +1509,7 @@ impl OriginalCommandOperands {
                 .iter()
                 .any(|(_, role)| *role == tcl_registry::ArgRole::Body);
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_COMMAND_CAPTURE offset={} facts={:?} procedure={:?} roles={:?} argument_offset={} inputs={:?} formals={} body={} opaque={} namespace={:?} baseline_policy={:?} variable_dialect={:?} variable_policy={:?}",
                 native.segment.span.start(),
@@ -1680,7 +1680,8 @@ impl OriginalCommandOperands {
                 };
                 state.install(key, MayBinding::Target(target));
                 #[cfg(test)]
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
+                {
                     eprintln!(
                         "ORIGINAL_COMMAND_INSTALLED offset={declaration} bindings={:?}",
                         state.bindings
@@ -2842,7 +2843,7 @@ impl ModuleCommandBindings {
         use super::SourceCommandSlotPresence as Presence;
         let input_is_current = input.is_current(&self.source_variables);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
             eprintln!(
                 "JIM_SOURCE_OWNER stage=jim.presence.entry input={:?} policy={:?} current={:?} input_current={} opaque={} unclosed={} native_entry={} unknown_entry={} namespace_known={}",
                 input.bytes(),
@@ -3286,7 +3287,7 @@ impl ModuleCommandBindings {
         lookup: super::CommandTargetLookup,
     ) -> Option<OriginalCommandTargetSelection> {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             let paths = self.original_command_paths_for_input(namespace, input);
             eprintln!(
                 "ORIGINAL_COMMAND_TARGET_QUERY input={:?} policy={:?} namespace={:?} opaque={} paths={:?} cells={:?}",

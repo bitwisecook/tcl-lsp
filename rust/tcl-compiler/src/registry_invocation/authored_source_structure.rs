@@ -215,7 +215,7 @@ pub(crate) fn original_authored_source_structure(
 
 fn trace_authored_script_option<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
         eprintln!(
             "TAINT_SCRIPT_INGRESS stage={stage} present={}",
             value.is_some()

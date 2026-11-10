@@ -246,7 +246,9 @@ impl VendorCatalogueSourceCandidate {
 }
 #[cfg(test)]
 fn vendor_candidate_option<T>(stage: &str, value: Option<T>) -> Option<T> {
-    if value.is_none() && std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+    if value.is_none()
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some()
+    {
         eprintln!("VENDOR_SOURCE_CANDIDATE_REFUSAL stage={stage}");
     }
     value
@@ -259,7 +261,7 @@ fn vendor_candidate_option<T>(_: &str, value: Option<T>) -> Option<T> {
 
 #[cfg(test)]
 fn vendor_candidate_rejection(stage: &str, value: bool) -> bool {
-    if value && std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+    if value && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
         eprintln!("VENDOR_SOURCE_CANDIDATE_REFUSAL stage={stage}");
     }
     value

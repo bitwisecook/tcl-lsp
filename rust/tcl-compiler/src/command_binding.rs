@@ -3008,7 +3008,7 @@ impl Drop for RbsOperandTraceScope {
 fn trace_rbs_operand_option<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(debug_assertions)]
     if RBS_OPERAND_TRACE_ACTIVE.with(std::cell::Cell::get)
-        && std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some()
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some()
     {
         use std::sync::atomic::{AtomicUsize, Ordering};
         static RECORDS: AtomicUsize = AtomicUsize::new(0);
@@ -3136,7 +3136,7 @@ fn trace_original_site_projection(
     snapshot: &SourceLookupSnapshot,
     projection: &SourceInvocationBinding,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
         eprintln!(
             "ORIGINAL_DECLARATION offset={} stage=layout logical={} frame={:?} targets={} unknown={} absent={} opaque={}",
             offset,
@@ -4824,7 +4824,7 @@ fn trace_original_selection(
     context: &SourceExecutionContext<'_>,
     compiled: &compiled_invocation::CompiledInvocationSelection,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
         let head = original_name_value::original_static_command_head_input(
             words,
             site,
@@ -4856,7 +4856,7 @@ fn trace_original_arguments(
     context: &SourceExecutionContext<'_>,
     arguments: &PreparedSourceArguments,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
         let head = original_name_value::original_command_head_input(words, site, state, *context);
         eprintln!(
             "ORIGINAL_ARGV site={} complete={} effective={:?} written={} names={} head={:?}",
@@ -4877,7 +4877,7 @@ fn trace_original_arguments(
 
 #[cfg(debug_assertions)]
 fn trace_original_generic_head(site: u32, state: &ModuleCommandBindings, has_head: bool) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
         eprintln!(
             "ORIGINAL_GENERIC_HEAD site={} input={} dynamic={} opaque={}",
             site, has_head, state.source_variables.dynamic_bindings, state.opaque_binding_mutation
@@ -4887,7 +4887,7 @@ fn trace_original_generic_head(site: u32, state: &ModuleCommandBindings, has_hea
 
 #[cfg(debug_assertions)]
 fn trace_original_generic_binding(site: u32, binding: Option<&SourceInvocationBinding>) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
         eprintln!(
             "ORIGINAL_GENERIC_BINDING site={} available={} unknown={} absent={} targets={}",
             site,
@@ -4903,7 +4903,7 @@ fn trace_original_generic_binding(site: u32, binding: Option<&SourceInvocationBi
 
 #[cfg(debug_assertions)]
 fn trace_original_generic_result(site: u32, outcomes: &SourceOutcomes) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
         eprintln!(
             "ORIGINAL_GENERIC_RESULT site={} normal={} abrupt={} normal_dynamic={}",
             site,
@@ -5963,8 +5963,8 @@ fn closed_procedure_definition(
     context: SourceExecutionContext<'_>,
 ) -> bool {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
-        || std::env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some()
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some()
+        || tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SCALAR_ALPHA").is_some()
     {
         let key = original_procedure_publication_key(native, state, context, facts);
         eprintln!(
@@ -7110,7 +7110,7 @@ fn join_source_procedure_noop(outcomes: &mut SourceOutcomes, incoming: &ModuleCo
 impl SourceOutcomes {
     #[cfg(debug_assertions)]
     fn trace_original_namespace_child(&self, stage: &str, offset: u32) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMESPACE_CHILD stage={stage} site={offset} normal={} complete={} native_complete={} conditional_complete={} unclosed={:?} routes={:?}",
                 self.normal.is_some(),
@@ -7259,7 +7259,7 @@ impl SourceOutcomes {
                 normal.unknown_handler_is_original(),
             ));
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_COMPLETED_NORMAL_WORLD complete={} unclosed={} routes={:?} opaque={} step={} observed={}",
                 self.normal_completion.is_some(),
@@ -7713,7 +7713,7 @@ struct SourceAnalysisTrace {
 #[cfg(any(test, debug_assertions))]
 impl SourceAnalysisTrace {
     fn start() -> Self {
-        let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        let phase_start = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(std::time::Instant::now);
         let lookup_start = phase_start.map(|_| original_command_table::baseline_lookup_totals());
@@ -8164,7 +8164,7 @@ impl SourceCommandBindings {
     ) {
         use crate::analysis_control::{AnalysisCheckpoint, checkpoint};
         #[cfg(any(test, debug_assertions))]
-        let started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        let started = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(std::time::Instant::now);
         #[cfg(any(test, debug_assertions))]
@@ -9908,7 +9908,7 @@ impl SourceCommandBindings {
         let mut outcomes = SourceOutcomes::normal(state);
         outcomes.retain_complete_normal_evaluation();
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMESPACE_CHILD_ENTRY base={base} entry_error={} segments={}",
                 entry_error.is_some(),
@@ -10005,7 +10005,7 @@ impl SourceCommandBindings {
         let preflight_timing = root_owner_work::Timing::at(root_owner_work::Query::Preflight);
         let assessment = compiled_preflight::preflight_image(image, base, state, context, snapshot);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMESPACE_CHILD_PREFLIGHT base={base} bytes={} failure={} possible_error={} native_entry_unavailable={} compiler_sites={} child_regions={} preview_depth={}",
                 image.len(),
@@ -12083,7 +12083,7 @@ impl SourceCommandBindings {
         write_complete: bool,
         route: &tcl_registry::completion_route::InvocationCompletionRoute,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
             eprintln!(
                 "ORIGINAL_HANDLER_CLOSED_RECEIVER site={} read_captured={} read_current={} write_current={} route={route:?}",
                 native.segment.span.start(),
@@ -12099,7 +12099,7 @@ impl SourceCommandBindings {
         native: &SourceNativeInvocation<'_>,
         outcomes: &SourceOutcomes,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
             eprintln!(
                 "ORIGINAL_HANDLER_RETURN site={} normal={} abrupt={} normal_dynamic={}",
                 native.segment.span.start(),
@@ -12419,7 +12419,7 @@ impl SourceCommandBindings {
         let implementation =
             native_implementation_dependency_holds(native, facts, effective, state, context);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
             eprintln!(
                 "ORIGINAL_HANDLER_ENTRY site={} implementation={} route={route:?} dynamic={}",
                 native.segment.span.start(),
@@ -12442,7 +12442,7 @@ impl SourceCommandBindings {
         }
         let object_protocol = self.prepare_object_callbacks(native, facts, state, context);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
             eprintln!(
                 "ORIGINAL_HANDLER_OBJECTS site={} preserves={} dynamic={}",
                 native.segment.span.start(),
@@ -14931,7 +14931,7 @@ fn source_binding_from_original_input_in(
     lookup: CommandTargetLookup,
 ) -> Option<SourceInvocationBinding> {
     #[cfg(test)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
         eprintln!(
             "ORIGINAL_COMMAND_BINDING input={:?} current={} namespace={:?} origin={} variable_policy={:?} baseline_policy={:?} opaque={}",
             head.bytes(),
@@ -15610,7 +15610,7 @@ impl ModuleCommandBindings {
             return false;
         };
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_OO_DEPENDENCIES root_known={} geometry_policy={} taint_all={} opaque={} step={} execution={}",
                 self.namespaces.contains(&root),
@@ -15631,7 +15631,7 @@ impl ModuleCommandBindings {
                     dependencies.iter().all(|command| {
                         let selected = self.original_registry_metadata_target(&root, command, policy);
                         #[cfg(test)]
-                        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+                        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
                             eprintln!("ORIGINAL_OO_DEPENDENCY command={command} tainted={} paths={} selected={} generation={:?}",
                                 self.tainted_object_dispatch.contains(*command), self.original_registry_command_paths(&root, command, policy).is_some(),
                                 selected.is_some(), selected.as_ref().map(|target| target.implementation_generation));

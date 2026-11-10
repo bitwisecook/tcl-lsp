@@ -70,7 +70,9 @@ macro_rules! println {
 #[must_use]
 pub fn trace_deferred_writes_any() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some())
+    *ENABLED.get_or_init(|| {
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some()
+    })
 }
 
 pub mod abbrev;

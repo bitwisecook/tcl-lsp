@@ -144,7 +144,7 @@ impl OriginalSourceLexicalCompilation {
     ) -> Place {
         let result = self.resolve_root_inner(root, element, context, registry, operation);
         if cfg!(debug_assertions)
-            && std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some()
+            && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some()
         {
             let input = SignatureSourceNameInput::OriginalVariableRoot(root.clone());
             let lookup =

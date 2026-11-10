@@ -531,7 +531,7 @@ impl Hash for HostedSourceTaintContext {
 }
 #[cfg(debug_assertions)]
 fn trace_hosted_source(tokens: &crate::ir::CommandTokens, stage: &str) {
-    if std::env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_HOSTED_TAINT").is_some() {
         let site = tokens
             .words()
             .first()

@@ -365,7 +365,7 @@ fn trace_jim_stock_entry(
     state: &ModuleCommandBindings,
     policy: NamePolicyProtocol,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
         eprintln!(
             "JIM_SOURCE_OWNER stage=jim.stock.fields offset={} policy={policy:?} native_entry={} source_point={} unknown_entry={} opaque={} unclosed={} unnameable={} dynamic_traces={} traced={} possible_traces={} namespace_known={} registry={} generation={} kind={:?} prepended={} traits={:?}",
             native.segment.span.start(),

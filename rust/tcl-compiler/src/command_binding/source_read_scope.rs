@@ -27,7 +27,9 @@ use std::sync::{Arc, Mutex};
 use tcl_registry::model::ContextRegistry;
 
 pub(super) fn trace_rbs_refusal(offset: u32, stage: &'static str) {
-    if cfg!(debug_assertions) && std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if cfg!(debug_assertions)
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some()
+    {
         eprintln!("RBS_SOURCE_READ offset={offset} stage={stage} passed=false");
     }
 }

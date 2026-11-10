@@ -218,7 +218,7 @@ fn trace_declaration_cardinality(
     procedure: &crate::ir::Procedure,
     total: usize,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_REPORT_DECLARATIONS").is_none() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_REPORT_DECLARATIONS").is_none() {
         return;
     }
     let Some(site) = procedure.declaration_site.as_ref() else {

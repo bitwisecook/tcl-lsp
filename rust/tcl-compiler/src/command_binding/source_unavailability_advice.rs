@@ -46,7 +46,7 @@ impl SourceInvocationBinding {
         realm: InvocationRealm,
     ) -> Option<OriginalNativeUnavailableCommand> {
         let trace = |stage: &'static str| {
-            if std::env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_COMMAND_AVAILABILITY").is_some() {
                 eprintln!(
                     "COMMAND_AVAILABILITY offset={} stage={stage} passed=false",
                     tokens.argv.first().map_or(0, |word| word.start())

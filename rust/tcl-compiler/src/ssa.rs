@@ -1732,7 +1732,7 @@ fn trace_original_definition_place(
     place: &crate::place::Place,
     key: &crate::var_resolve::VariableCellKey,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_SSA_DEFINITION").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_SSA_DEFINITION").is_some() {
         let selected = crate::var_resolve::canonical_binding_value_key(place);
         eprintln!(
             "original_definition site={} written={} policy={} frame={:?} place={:?} dynamic={} selected={} matches={} generation={:?}",
@@ -1999,7 +1999,7 @@ impl<'a> SsaSourceView<'a> {
         crate::place_bridge::def_places_at(&statement.statement, block, index, points, registry)
             .iter()
             .any(|place| {
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
                     eprintln!("ORIGINAL_STORE_CONTENTS site={} captured={} cell_matches={} dynamic={} presence={:?} generation_current={} source_matches={} offset_matches={}",
                         site.offset, captured.is_some(),
                         crate::var_resolve::canonical_binding_value_key(place).as_ref() == Some(key),
@@ -2214,7 +2214,7 @@ impl<'a> SsaSourceView<'a> {
                 tokens,
             );
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_SSA_DEFINITION").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_SSA_DEFINITION").is_some() {
             eprintln!(
                 "original_definition admission site={} normal={} operand_owner={} before_policy={} key_kind={:?}",
                 tokens
@@ -2702,7 +2702,7 @@ impl<'a> SsaSourceView<'a> {
             source,
             original_spelling,
         )?;
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
             eprintln!(
                 "ORIGINAL_REPLACEABLE_READ offset={} alternatives={} residual={:?} produces={}",
                 source.span.start(),

@@ -1712,7 +1712,7 @@ const MAX_CACHE_ENTRIES: usize = 8192;
 macro_rules! n17_live_trace {
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
-        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+        if tcl_dialect::trace_env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
             eprintln!("N17G_LIVE {}", format_args!($($arg)*));
         }
     };

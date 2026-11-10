@@ -1409,7 +1409,7 @@ fn fp_sh_21_scalar_literal_as_list_silent() {
         "set x 5\nlindex $x 0\n",
         "set l hello\nforeach y $l { puts $y }\n",
     ] {
-        if std::env::var_os("TCL_LSP_TRACE_SH21_PRODUCER").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SH21_PRODUCER").is_some() {
             eprintln!("SH21 stage=original-scalar-fixture source={src:?}");
         }
         assert!(

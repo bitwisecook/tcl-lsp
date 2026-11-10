@@ -1107,7 +1107,9 @@ fn compare_complete_corpus_input(label: &str, dialect: &str, source: &str) {
 
 #[test]
 fn source_point_cache_complete_original_corpus_old_and_mixed_reports_equal() {
-    assert!(std::env::var_os("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS").is_none());
+    assert!(
+        tcl_dialect::trace_env::var_os("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS").is_none()
+    );
 
     assert_eq!(ORIGINAL_CORPUS_INPUTS.len(), 117);
     for &(label, dialect, source) in ORIGINAL_CORPUS_INPUTS {
@@ -1154,7 +1156,9 @@ fn generate(kind: &str, n: usize) -> String {
 
 #[test]
 fn source_point_cache_original_generated_old_and_mixed_reports_equal() {
-    assert!(std::env::var_os("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS").is_none());
+    assert!(
+        tcl_dialect::trace_env::var_os("TCL_LSP_DIAGNOSTIC_SOURCE_POINT_MEMO_BYPASS").is_none()
+    );
     let cases = [
         ("calls", 10),
         ("calls", 20),

@@ -153,7 +153,7 @@ fn lower_original_boolean_unit(
     module: &crate::ir::Module,
 ) -> Result<(NativeFunction, FunctionReport), FunctionDecline> {
     let facts = &unit.top_level.semantic_facts;
-    if std::env::var_os("TCL_LSP_TRACE_NATIVE_BOOLEAN_SOURCE").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_NATIVE_BOOLEAN_SOURCE").is_some() {
         let mut pending = vec![(Vec::<usize>::new(), &module.top_level)];
         while let Some((path, script)) = pending.pop() {
             eprintln!(

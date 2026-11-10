@@ -131,7 +131,7 @@ impl CommandBindingRealm {
         };
         self.original_tokens.get_or_prepare(key, || {
             #[cfg(debug_assertions)]
-            let started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+            let started = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
                 .is_some()
                 .then(std::time::Instant::now);
             let source_map = SourceMap::from_image(image);

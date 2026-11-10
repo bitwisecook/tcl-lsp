@@ -32,7 +32,7 @@ const MAX_COMMANDS: usize = 2048;
 
 #[cfg(test)]
 fn trace_body_inventory(stage: &str, offset: Option<u32>, passed: bool, count: usize) {
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_none() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_none() {
         return;
     }
     eprintln!(
@@ -728,7 +728,7 @@ impl AdviceInvocationContext<'_> {
         let regions_complete = (expressions_complete || walk.inventory.is_some())
             && walk.regions(graph, advice, schema, 0).is_some();
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             let offset = advice
                 .original_words()
                 .first()
@@ -1062,7 +1062,7 @@ impl BodyWalk<'_, '_> {
         expression_span: Span,
         source: &str,
     ) {
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
             trace_body_inventory(
                 "expressions.original_value",
                 Some(expression_span.start()),

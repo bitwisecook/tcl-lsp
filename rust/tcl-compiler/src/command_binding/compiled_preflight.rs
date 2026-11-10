@@ -303,7 +303,7 @@ pub(super) fn preflight_image(
             .is_some_and(|own| own != required)
         {
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
                 eprintln!(
                     "ORIGINAL_NAMESPACE_CHILD_PROVIDER base={base} reason=math_table_prerequisite_mismatch"
                 );
@@ -451,7 +451,7 @@ impl CompilerTraversal<'_> {
     #[cfg_attr(debug_assertions, track_caller)]
     fn require_provider(&mut self) {
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMESPACE_CHILD_PROVIDER base={} previous_possible_error={} caller={}",
                 self.chunk.offset,

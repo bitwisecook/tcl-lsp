@@ -52,6 +52,7 @@ mod grammar;
 mod library;
 pub mod model;
 mod profile;
+pub mod trace_env;
 mod version;
 
 pub use arithmetic::NativeArithmetic;

@@ -221,7 +221,7 @@ impl IntoIterator for OriginalSubstitutionInventory {
 fn trace_substitution_fact<T>(stage: &'static str, value: Option<T>) -> Option<T> {
     static LOGS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     if value.is_none()
-        && std::env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some()
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_VAR_ESCAPE_BODY_OWNERS").is_some()
         && LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 64
     {
         eprintln!("NATIVE_READONLY_FACT stage={stage} present=false");

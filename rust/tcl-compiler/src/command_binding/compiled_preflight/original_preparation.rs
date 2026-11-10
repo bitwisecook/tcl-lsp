@@ -1031,7 +1031,9 @@ impl CompilerTraversal<'_> {
                 tcl_lexer::ExecutablePart::Expression { .. }
                 | tcl_lexer::ExecutablePart::ParseError(_) => {
                     #[cfg(debug_assertions)]
-                    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+                    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE")
+                        .is_some()
+                    {
                         eprintln!(
                             "ORIGINAL_NAMESPACE_CHILD_PROVIDER base={} reason=expression_or_parse_error_part span={:?}",
                             self.chunk.offset, component.span

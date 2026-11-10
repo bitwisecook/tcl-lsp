@@ -195,7 +195,7 @@ impl OriginalSourceVariableAliasOperands {
                 .0
         });
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ALIAS_TEMPLATE_SOURCE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ALIAS_TEMPLATE_SOURCE").is_some() {
             eprintln!(
                 "ALIAS_INGRESS_TRANSITIONS site={:?} selected={} origins={:?} transitions={selected:?}",
                 words

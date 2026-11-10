@@ -415,7 +415,7 @@ impl<'a> PassContext<'a> {
             crate::math_function_binding::ExpressionMathBindings::for_module_statement(module, span)
         });
         #[cfg(debug_assertions)]
-        let row24_trace = std::env::var_os("TCL_LSP_TRACE_CCG_ROW24").is_some()
+        let row24_trace = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_CCG_ROW24").is_some()
             && self.source == "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
         #[cfg(debug_assertions)]
         if row24_trace {

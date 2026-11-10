@@ -55,7 +55,8 @@ fn retain_original_store(
     };
     let variables = Arc::make_mut(&mut normal.source_variables);
     #[cfg(debug_assertions)]
-    let trace = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some();
+    let trace =
+        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some();
     let Some((receiver, value_word)) =
         original_store_receiver(facts, target, arguments, context, variables)
     else {
@@ -149,7 +150,7 @@ pub(super) fn capture_original_read_completion(
         .source_variables
         .original_normal_value_read(&receiver, registry);
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
         eprintln!(
             "ORIGINAL_READ_COMPLETION_CAPTURE site={} kind={:?} cell={} observed={} dynamic={} presence={:?} available={}",
             native.segment.span.start(),

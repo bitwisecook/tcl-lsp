@@ -178,7 +178,7 @@ impl SourceCommandBindings {
             return Some(super::opaque_source_invocation(state));
         }
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_CONSTRUCTOR_ALLOCATION site={site} retained_named={} current={}",
                 selected.name.is_some(),
@@ -412,7 +412,7 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
     ) {
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_CONSTRUCTOR_DEFINITION site={site} dispatcher={} lifecycle_closed={} generation_match={} dependencies={} constructor={} destructor={} factory={} words={} written={:?}",
                 definition.dispatcher.is_some(),
@@ -462,7 +462,7 @@ impl SourceCommandBindings {
             context,
         );
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_CONSTRUCTOR_INPUTS site={site} selector={:?} name={:?}",
                 inputs

@@ -56,6 +56,13 @@ pub struct StockBodyProviderVersion {
     pub core_lookups: &'static [&'static str],
 }
 
+/// Which authored surface a memoised intersection reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SurfaceKind {
+    Commands,
+    Exports,
+}
+
 impl StockBodyProvider {
     /// Potential core heads reached by at least one authored package version.
     #[must_use]
@@ -110,41 +117,61 @@ impl StockBodyProvider {
     /// optional extension hooks without inferring a package version from core.
     #[must_use]
     pub fn common_commands(self) -> Vec<&'static str> {
+        self.memoised(SurfaceKind::Commands, |version| version.commands)
+    }
+
+    /// The whitespace-separated names every authored version lists in
+    /// `field`, computed once per provider: the tables are static, and the
+    /// intersection was rescanned on every lowering that met the provider.
+    fn memoised(
+        self,
+        kind: SurfaceKind,
+        field: fn(&StockBodyProviderVersion) -> &'static str,
+    ) -> Vec<&'static str> {
+        type Key = (usize, SurfaceKind);
+        static CACHE: std::sync::OnceLock<
+            std::sync::RwLock<std::collections::HashMap<Key, &'static [&'static str]>>,
+        > = std::sync::OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+        let key = (self.versions.as_ptr() as usize, kind);
+        if let Some(names) = cache
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&key)
+        {
+            return names.to_vec();
+        }
+        let names: &'static [&'static str] =
+            Box::leak(self.common_surface(field).into_boxed_slice());
+        cache
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(key, names);
+        names.to_vec()
+    }
+
+    fn common_surface(
+        self,
+        field: fn(&StockBodyProviderVersion) -> &'static str,
+    ) -> Vec<&'static str> {
         let Some(first) = self.versions.first() else {
             return Vec::new();
         };
-        first
-            .commands
+        let sets: Vec<std::collections::HashSet<&'static str>> = self
+            .versions
+            .iter()
+            .map(|version| field(version).split_whitespace().collect())
+            .collect();
+        field(first)
             .split_whitespace()
-            .filter(|command| {
-                self.versions.iter().all(|version| {
-                    version
-                        .commands
-                        .split_whitespace()
-                        .any(|candidate| candidate == *command)
-                })
-            })
+            .filter(|name| sets.iter().all(|set| set.contains(name)))
             .collect()
     }
 
     /// Public exports common to every authored version.
     #[must_use]
     pub fn common_exports(self) -> Vec<&'static str> {
-        let Some(first) = self.versions.first() else {
-            return Vec::new();
-        };
-        first
-            .exports
-            .split_whitespace()
-            .filter(|export| {
-                self.versions.iter().all(|version| {
-                    version
-                        .exports
-                        .split_whitespace()
-                        .any(|candidate| candidate == *export)
-                })
-            })
-            .collect()
+        self.memoised(SurfaceKind::Exports, |version| version.exports)
     }
 }
 

@@ -1190,7 +1190,7 @@ mod tests {
         "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
 
     fn trace_incoming_arguments(unit: &CompilationUnit, common: &CommonAotProofPlan) {
-        if std::env::var_os("TCL_LSP_TRACE_NATIVE_INCOMING_ARGUMENTS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_NATIVE_INCOMING_ARGUMENTS").is_some() {
             eprintln!(
                 "NATIVE_INCOMING_CALLER function=::add evidence={:?}",
                 unit.caller_scope.call_sites.get("::add")

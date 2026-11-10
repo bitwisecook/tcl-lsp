@@ -73,7 +73,7 @@ impl OriginalNamedManufacture {
             super::namespace_slots::PublicationPurpose::Object,
         )?;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMED_CELL key={key:?} current={} namespace={} unknown_holder={} cell={:?}",
                 input.is_current(&state.source_variables),
@@ -177,7 +177,7 @@ impl OriginalNamedManufacture {
         }
         let allocation = target.implementation_allocation.as_ref()?;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
                 "ORIGINAL_NAMED_ALLOCATION site={} command_incarnation={:?} object_incarnation={:?} same_site={} same_namespace={} same_token={}",
                 allocation.site.offset,

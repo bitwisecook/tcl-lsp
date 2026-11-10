@@ -352,7 +352,7 @@ fn retain_reads(
             incoming_closed && retain_command_references(command, &mut procedure.formals);
         incoming_closed &= closed && references_closed;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_LOGICAL_FORMALS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_LOGICAL_FORMALS").is_some() {
             eprintln!(
                 "LOGICAL_FORMAL_COMMAND offset={} schema_closed={} references_closed={}",
                 command.span.start(),

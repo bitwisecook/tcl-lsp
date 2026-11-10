@@ -375,7 +375,7 @@ fn select_declaration_layouts(
                 && observation.issuer == DeclarationLayoutIssuer::ConditionalReceiverSource)
     });
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some()
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some()
         && original.clone().next().is_none()
     {
         eprintln!(
@@ -385,7 +385,7 @@ fn select_declaration_layouts(
     }
     let first = super::trace_rbs_operand_option("rows.first_original", original.clone().next())?;
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
         for observation in original.clone() {
             eprintln!(
                 "ORIGINAL_DECLARATION offset={} stage=owner entry={} config={} words={} frame={} origin={} context={}",
@@ -1133,7 +1133,7 @@ impl SourceCommandBindings {
         };
         let frame = self.original_variable_frame_at_span(span, config);
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
             eprintln!(
                 "ORIGINAL_VARIABLE_LOCAL span={span:?} bytes={:?} frame={} rows={}",
                 input.bytes(),
@@ -1206,7 +1206,9 @@ impl SourceCommandBindings {
                 );
                 let cell = place.cell.as_ref()?;
                 #[cfg(test)]
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+                if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS")
+                    .is_some()
+                {
                     eprintln!(
                         "ORIGINAL_VARIABLE_LOCAL_POINT span={span:?} site={} kind={:?} dynamic={} owner={:?} name={:?} activation={:?} bindings_unknown={}",
                         site.offset,
@@ -1477,7 +1479,9 @@ impl SourceCommandBindings {
                 );
                 if place.cell.is_none() {
                     #[cfg(test)]
-                    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS").is_some() {
+                    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_SYMBOLS")
+                        .is_some()
+                    {
                         eprintln!(
                             "ORIGINAL_VARIABLE_ALIAS_POINT span={span:?} producer={} site={} local={:?} kind={:?} dynamic={} bindings_unknown={} missing_cell",
                             alias.invocation_offset(),
@@ -1628,7 +1632,7 @@ impl SourceCommandBindings {
         let origin = self.root_origin.as_ref()?;
         let mut found: Option<SourceOriginalVariableFrame> = None;
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
             eprintln!(
                 "ORIGINAL_VARIABLE_FRAME offset={offset} layouts={} deferred={}",
                 self.declaration_layouts.len(),
@@ -1637,7 +1641,9 @@ impl SourceCommandBindings {
         }
         for observations in self.declaration_layouts.values() {
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION")
+                .is_some()
+            {
                 for row in observations {
                     if row.entry.owns_source_cursor(origin, offset) {
                         let layout = match row.entry.frame().layout() {
@@ -1697,7 +1703,10 @@ impl SourceCommandBindings {
                 Some(previous) if previous.source.text.len() == frame.source.text.len() => {
                     if previous != &frame {
                         #[cfg(debug_assertions)]
-                        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some()
+                        if tcl_dialect::trace_env::var_os(
+                            "TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION",
+                        )
+                        .is_some()
                         {
                             eprintln!(
                                 "ORIGINAL_VARIABLE_FRAME offset={offset} stage=conflicting-owners source_bytes={}",
@@ -1711,7 +1720,7 @@ impl SourceCommandBindings {
             }
         }
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_COMPLETION").is_some() {
             eprintln!(
                 "ORIGINAL_VARIABLE_FRAME offset={offset} stage=selected found={}",
                 found.is_some(),
@@ -2114,7 +2123,7 @@ impl DeclarationSourceVariableOperandAdvice {
 
 fn trace_root_script_option<T>(stage: &str, value: Option<T>) -> Option<T> {
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
+    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_TAINT_CU_INGRESS").is_some() {
         eprintln!(
             "TAINT_SCRIPT_INGRESS stage={stage} present={}",
             value.is_some()

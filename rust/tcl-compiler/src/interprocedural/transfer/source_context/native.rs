@@ -35,7 +35,7 @@ use crate::ssa::ValueKey;
 macro_rules! n17_native_trace {
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
-        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+        if tcl_dialect::trace_env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
             eprintln!("N17_NATIVE {}", format_args!($($arg)*));
         }
     };

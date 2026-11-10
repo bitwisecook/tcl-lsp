@@ -116,7 +116,9 @@ impl SourceInvocationBinding {
 }
 
 fn trace_availability_binding_refusal(field: &'static str) {
-    if cfg!(debug_assertions) && std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+    if cfg!(debug_assertions)
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some()
+    {
         eprintln!(
             "REPORT_CAPTURE stage=compare.availability_binding field={field} available=false"
         );

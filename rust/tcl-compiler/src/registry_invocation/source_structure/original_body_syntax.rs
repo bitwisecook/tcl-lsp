@@ -41,7 +41,7 @@ pub struct OriginalBodySyntaxInventory {
 fn nested_syntax_trace_enabled() -> bool {
     static ROWS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     if !(cfg!(debug_assertions) || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
-        || std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none()
+        || tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_none()
     {
         return false;
     }
@@ -77,7 +77,7 @@ fn trace_body_syntax_option<T>(
     value: Option<T>,
 ) -> Option<T> {
     if (cfg!(debug_assertions) || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
-        && std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some()
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some()
     {
         eprintln!(
             "ORIGINAL_BODY_SYNTAX_QUERY stage={stage} offset={offset:?} alternative={alternative:?} present={}",
@@ -94,7 +94,7 @@ fn trace_body_syntax_flag(
     value: bool,
 ) -> bool {
     if (cfg!(debug_assertions) || matches!(option_env!("TCL_LSP_TRACE_COARSE_SOURCE"), Some("1")))
-        && std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some()
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some()
     {
         eprintln!(
             "ORIGINAL_BODY_SYNTAX_QUERY stage={stage} offset={offset:?} alternative={alternative:?} value={value}"
@@ -166,7 +166,7 @@ impl OriginalBodySyntaxInventory {
             .chain(module.body_lowerings())
         {
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
                 eprintln!(
                     "ORIGINAL_BODY_SYNTAX_CANDIDATE duplicate={} original_summary={} installed_summary={} statements={}",
                     bodies.contains(id),
@@ -227,7 +227,7 @@ impl OriginalBodySyntaxInventory {
                 retained.owns_original_analysis_attachment(tokens),
             );
             #[cfg(debug_assertions)]
-            if std::env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_BODY_SYNTAX").is_some() {
                 eprintln!(
                     "ORIGINAL_BODY_SYNTAX_NESTED_CARRIERS parent_offset={:?} nested_offsets={:?}",
                     tokens

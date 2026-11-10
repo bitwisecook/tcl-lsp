@@ -2367,7 +2367,7 @@ impl Analyser {
             word.content_span().ok().map(tcl_lexer::Span::start)
         });
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
             eprintln!(
                 "ORIGINAL_PARAM_ROLES begin body={}..{} parameters={} executed_source={} deep={}",
                 body_span.start(),
@@ -2409,7 +2409,7 @@ impl Analyser {
             shallow
         };
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
             eprintln!(
                 "ORIGINAL_PARAM_ROLES end body={} traits={} caller_parameters={} caller_literals={}",
                 body_span.start(),
@@ -7852,7 +7852,8 @@ impl Analyser {
             .or(self.result.resolved_input.as_ref());
 
         #[cfg(test)]
-        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some();
+        let trace_enabled =
+            tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some();
         #[cfg(test)]
         let trace = |label: &str, passed: bool| {
             if trace_enabled {

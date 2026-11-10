@@ -2004,7 +2004,7 @@ impl<'r> Lowerer<'r> {
         namespace: &crate::command_binding::SourceNamespaceKey,
     ) -> Script {
         #[cfg(any(test, debug_assertions))]
-        let started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+        let started = tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
             .then(std::time::Instant::now);
         #[cfg(any(test, debug_assertions))]
@@ -2094,10 +2094,11 @@ impl<'r> Lowerer<'r> {
         // naming.source.original-collection-body-owner
         // docs/design/analysis/name-resolution-proofs/original-collection-body-owner.md
         #[cfg(test)]
-        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+        let trace_enabled =
+            tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
         #[cfg(test)]
         let trace = |stage: &str, passed: bool| {
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
                 let offset = parent.argv.first().map(|span| span.start());
                 eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
             }
@@ -4662,7 +4663,7 @@ impl<'r> Lowerer<'r> {
 
     // Preserve each queried Option; this reports source ownership only.
     fn trace_report_event_option<T>(value: Option<T>, stage: &str) -> Option<T> {
-        if std::env::var_os("TCL_LSP_TRACE_EVENT_OPERAND").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_EVENT_OPERAND").is_some() {
             eprintln!(
                 "REPORT_EVENT_SOURCE stage={stage} available={}",
                 value.is_some()
@@ -4672,7 +4673,7 @@ impl<'r> Lowerer<'r> {
     }
 
     fn trace_report_event_refusal(value: bool, stage: &str) -> bool {
-        if std::env::var_os("TCL_LSP_TRACE_EVENT_OPERAND").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_EVENT_OPERAND").is_some() {
             eprintln!("REPORT_EVENT_SOURCE stage={stage} refused={value}");
         }
         value

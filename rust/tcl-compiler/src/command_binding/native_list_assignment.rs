@@ -57,7 +57,7 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
             eprintln!(
                 "ORIGINAL_ASSIGNMENT offset={} stage=selection preview={} live={} unknown={} error={} named={} proofs={} structured={}",
                 input.segment.span.start(),
@@ -89,7 +89,7 @@ impl SourceCommandBindings {
         let mut run = AssignmentRun::new(input, base, list, state);
         let mut outcomes = self.evaluate_assignment_operand(list, &mut run, state, context);
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
             eprintln!(
                 "ORIGINAL_ASSIGNMENT offset={} stage=list normal={} complete={} targets={}",
                 input.segment.span.start(),
@@ -297,7 +297,7 @@ impl SourceCommandBindings {
         let _ = index;
         let closed = run.list_effects_closed(state, context);
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
             eprintln!(
                 "ORIGINAL_ASSIGNMENT offset={} target={} stage=conversion effects={} converted={} pool={}",
                 run.input.segment.span.start(),
@@ -384,7 +384,7 @@ impl SourceCommandBindings {
         let arguments = argument_context.context();
         let Some(compilation) = arguments.original_variable_compilation else {
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
                 eprintln!(
                     "ORIGINAL_ASSIGNMENT offset={} target={} stage=missing-compilation",
                     run.input.segment.span.start(),
@@ -401,7 +401,7 @@ impl SourceCommandBindings {
             )
         else {
             #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
                 eprintln!(
                     "ORIGINAL_ASSIGNMENT offset={} target={} stage=missing-target",
                     run.input.segment.span.start(),
@@ -430,7 +430,7 @@ impl SourceCommandBindings {
             .as_ref()
             .and_then(|value| ascii_value(value.bytes()));
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_ASSIGNMENT").is_some() {
             eprintln!(
                 "ORIGINAL_ASSIGNMENT offset={} target={} stage=store receiver={receiver:?} value={} current={} normal-write={}",
                 run.input.segment.span.start(),

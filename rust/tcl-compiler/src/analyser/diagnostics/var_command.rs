@@ -1887,10 +1887,11 @@ impl Analyser {
             &cu.ir_module,
         );
         #[cfg(test)]
-        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
+        let trace_enabled =
+            tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some();
         #[cfg(test)]
         let trace = |stage: &str, offset: Option<u32>, passed: bool| {
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
+            if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS").is_some() {
                 eprintln!("ORIGINAL_FACTORY_GUARD stage={stage} offset={offset:?} passed={passed}");
             }
         };
@@ -1990,7 +1991,7 @@ impl Analyser {
             )
             .collect::<HashSet<_>>();
         #[cfg(test)]
-        if std::env::var_os("TCL_TABLE_PROOF_DEBUG").is_some() {
+        if tcl_dialect::trace_env::var_os("TCL_TABLE_PROOF_DEBUG").is_some() {
             eprintln!("table consumption sites={consumed:?}");
         }
         let Some(input) = self.result.resolved_input.as_ref() else {
