@@ -157,6 +157,12 @@ Failures grouped by panic site and message shape (release builds, current `work`
 - `make pgo-engines` (`scripts/perf/pgo_build.sh`) builds `tclvm` and the runtime script runner for the host with profile-guided optimisation, trained on every benchmark in `scripts/perf/interp/`; it takes about 22 minutes. Against a plain release build of the same commit, wall clock at 50,000 iterations: the VM is 16–28% faster and the runtime 22–33% faster. The profile is trained on the same benchmarks, so these are upper bounds.
 - Shipped release binaries do not run the interpreter on a hot path: the `tcl` CLI reaches the VM only through SpecTcl spec hooks, and neither `tclvm` nor the runtime runner is a release artefact. Release PGO would chiefly speed analysis, which needs an analysis training corpus (LSP and CLI workloads) and native training runs per target; the cross-compiled riscv64 and Windows-arm builds cannot collect their own profiles. Release wiring is left as a decision.
 
+## Fifteenth pass: VM per-call cost
+
+- A `proc_call` iteration (about 100K instructions) is now a long tail of small memoised checks rather than one hot spot; the procedure return's unwind and frame teardown are about a quarter of it.
+- After every instruction the VM re-ran the activation freshness query (about 300 instructions, 19 times per `proc_call` iteration). The drive loop now records where the top frame was last found fresh: profile and compiler generations, native policy inputs, name-world generation, namespace context and execution profile. It skips the query while those are unchanged. Debug builds still run it and assert that the skip agreed. Release instructions per iteration fall 1.0–6.0% on every benchmark: `dict_ops` and `proc_body` −6.0%, `expr_arith` −5.3%, `empty_loop` −5.1%, `proc_call` −1.7%.
+- VM lib: release 1102/268 and debug assertions 1198/268, with no skip assertion fired; the one failure outside the base is the upstream `original_namespace_origin_c85`.
+
 ## Resource integrity and next work
 
 A prior cleanup followed an alias and removed13 tracked compressed fixtures; all were restored from Git with original hashes before any test/merge. No results were produced with them missing. `/tmp/lsp-failed-merge-recovery-1640/source-fixtures-restored.json`. Source aliases and tracked fixtures must never be treated as disposable artifacts.
