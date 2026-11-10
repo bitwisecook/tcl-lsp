@@ -799,6 +799,16 @@ impl<'a> Commands<'a> {
     fn declared_frame_effect(self, command: &str) -> Option<FrameEffectSpec> {
         crate::declared_frame_effects::declared_frame_effect_for_metadata(self.declared, command)
     }
+
+    /// Whether a document declaration states that `command` runs in its own
+    /// frame or none, so it reaches no name of the caller's.
+    fn declares_no_caller_frame(self, command: &str) -> bool {
+        matches!(
+            self.declared
+                .get(&tcl_registry::rooted_command_descriptor_label(command)),
+            Some(None)
+        )
+    }
 }
 
 fn scan_call_with_tokens(
@@ -885,6 +895,7 @@ fn scan_call_with_tokens(
             && !tokens.source_binding.as_ref().is_some_and(
                 crate::command_binding::SourceInvocationBinding::targets_only_source_procedures,
             )
+            && !commands.declares_no_caller_frame(command)
         {
             *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         }
@@ -1039,6 +1050,10 @@ fn scan_original_substitutions(
             && !tokens.source_binding.as_ref().is_some_and(
                 crate::command_binding::SourceInvocationBinding::targets_only_source_procedures,
             )
+            && !tokens
+                .argv_texts
+                .first()
+                .is_some_and(|head| commands.declares_no_caller_frame(head))
         {
             *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         }

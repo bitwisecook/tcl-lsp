@@ -11234,7 +11234,7 @@ impl SourceCommandBindings {
                 // procedure) is trusted to leave the command world intact; its
                 // frame effect bounds what it does to variables.
                 if frame != tcl_registry::model::DeclaredFrameEffect::Stated(None) {
-                    Arc::make_mut(&mut residual.source_variables).widen();
+                    Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
                 }
             } else {
                 residual.mark_opaque_binding_mutation();
@@ -19965,6 +19965,11 @@ fn apply_embedded_command_transition(
         bindings.mark_opaque_binding_mutation();
         return;
     };
+    if bindings.names_only_a_declared_command(head_name, command_namespace.as_ref()) {
+        // A document-declared command leaves the command world intact, as a
+        // direct call to it does.
+        return;
+    }
     let source_may_be_unknown =
         bindings.target_may_be_unknown(head_name, command_namespace.as_ref());
     if source_order_mode

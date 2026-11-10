@@ -4028,6 +4028,21 @@ impl ResolveContext {
         self.representation_epoch = self.representation_epoch_high_water;
     }
 
+    /// [`Self::widen`] for code declared to install no variable observer (a
+    /// document-declared command running in the caller's frame): contents,
+    /// bindings and lifetimes widen, the enumerated observers stand.
+    pub fn widen_keeping_observers(&mut self) {
+        let dynamic_traces = self.dynamic_traces;
+        let inventory = self.activation_observer_inventory.clone();
+        let closed = self.closed_observer_allocations.clone();
+        let caller = self.caller.clone();
+        self.widen();
+        self.dynamic_traces = dynamic_traces;
+        self.activation_observer_inventory = inventory;
+        self.closed_observer_allocations = closed;
+        self.caller = caller;
+    }
+
     /// Evaluated code may retarget bindings and change traces and lifetimes.
     pub fn widen(&mut self) {
         self.invalidate_original_contents();

@@ -761,6 +761,11 @@ impl<'a> CfgBuilder<'a> {
 
     fn source_upvar_effects(&self, tokens: Option<&CommandTokens>) -> ResolvedUpvarEffects {
         let mut combined = ResolvedUpvarEffects::default();
+        // A document declaration that states its own frame (or none) reaches
+        // no variable of the caller's.
+        if tokens.is_some_and(|tokens| self.declares_no_caller_frame(tokens)) {
+            return combined;
+        }
         let calls =
             tokens.and_then(|tokens| self.procedure_summary_owners.calls(tokens, self.registry));
         let Some(calls) = calls else {
@@ -1479,6 +1484,9 @@ impl<'a> CfgBuilder<'a> {
     }
 
     fn source_global_writes(&self, tokens: Option<&CommandTokens>) -> (Vec<String>, bool) {
+        if tokens.is_some_and(|tokens| self.declares_no_caller_frame(tokens)) {
+            return (Vec::new(), false);
+        }
         let Some(calls) = tokens.and_then(|tokens| {
             self.procedure_summary_owners
                 .may_calls(tokens, self.registry)
@@ -1508,6 +1516,29 @@ impl<'a> CfgBuilder<'a> {
     /// Recorded flow-insensitively on the function, in the same lattice and
     /// the same abstention direction as the dynamic-name barrier
     /// ([`crate::dynamic_names`]).
+    /// Whether the call `tokens` reaches only a document-declared command
+    /// whose declaration states it runs in its own frame or in none.
+    fn declares_no_caller_frame(&self, tokens: &CommandTokens) -> bool {
+        summary_candidates::original_head(tokens)
+            .or_else(|| tokens.argv_texts.first().cloned())
+            .is_some_and(|head| self.declared_head_has_no_caller_frame(&head))
+    }
+
+    /// [`Self::declares_no_caller_frame`] for a literal head.
+    fn declared_head_has_no_caller_frame(&self, head: &str) -> bool {
+        let Some(namespace) = self.invocation_namespace.for_head_context(head) else {
+            return false;
+        };
+        self.command_bindings
+            .names_only_a_declared_command(head, namespace.as_ref())
+            && matches!(
+                self.command_bindings
+                    .declared_frame_effects()
+                    .get(&tcl_registry::rooted_command_descriptor_label(head)),
+                Some(None)
+            )
+    }
+
     fn record_caller_frame_barrier(&mut self, stmt: &Statement) {
         let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
         let mut raised = crate::dynamic_names::DynamicNameBarrier::default();
@@ -1836,7 +1867,9 @@ impl<'a> CfgBuilder<'a> {
                 words
                     .first()
                     .and_then(crate::ir_helpers::CommandWord::literal)
-                    .is_none_or(|head| !summarised.contains(head))
+                    .is_none_or(|head| {
+                        !summarised.contains(head) && !self.declared_head_has_no_caller_frame(head)
+                    })
             }),
             self.registry,
         );
