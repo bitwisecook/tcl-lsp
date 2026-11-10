@@ -63,8 +63,14 @@ pub(super) fn logical_module_for(
     (context, module)
 }
 
+/// The command world of a plain Tcl release: a registry with no profile
+/// analyses an authored `proc` as a declaration, never an installed body.
+fn fixture_registry() -> &'static CommandRegistry {
+    tcl_registry::model::ingress::static_context_for("tcl9.0").commands()
+}
+
 fn module_for(source: &str) -> Module {
-    CompilationUnit::build_for(source, &CommandRegistry::build_default(), false).ir_module
+    CompilationUnit::build_for(source, fixture_registry(), false).ir_module
 }
 
 fn module_for_namespace(source: &str, namespace: &str, registry: &CommandRegistry) -> Module {
@@ -80,7 +86,7 @@ fn module_for_namespace(source: &str, namespace: &str, registry: &CommandRegistr
 
 /// `inline_module` against a freshly-built default registry.
 fn inline_module_default(module: Module) -> Module {
-    inline_module(module, &CommandRegistry::build_default())
+    inline_module(module, fixture_registry())
 }
 
 /// Count statement-position calls to `command` across the top level.
@@ -95,7 +101,7 @@ fn top_calls_to(module: &Module, command: &str) -> usize {
 
 /// All top-level statements after inlining.
 fn inlined_top(source: &str) -> Vec<Statement> {
-    inline_module(module_for(source), &CommandRegistry::build_default())
+    inline_module(module_for(source), fixture_registry())
         .top_level
         .statements
 }
@@ -244,7 +250,7 @@ f {$x}",
 fn empty_body_call_vanishes() {
     let module = module_for("proc ::noop {} {}\nnoop\nputs done");
     assert_eq!(top_calls_to(&module, "noop"), 1);
-    let inlined = inline_module(module, &CommandRegistry::build_default());
+    let inlined = inline_module(module, fixture_registry());
     assert_eq!(
         top_calls_to(&inlined, "noop"),
         0,
@@ -256,14 +262,14 @@ fn empty_body_call_vanishes() {
 #[test]
 fn verbatim_wrapper_body_is_spliced() {
     let module = module_for("proc ::greet {} { puts hello }\ngreet");
-    let inlined = inline_module(module, &CommandRegistry::build_default());
+    let inlined = inline_module(module, fixture_registry());
     assert_eq!(top_calls_to(&inlined, "greet"), 0, "wrapper call replaced");
     assert_eq!(top_calls_to(&inlined, "puts"), 1, "wrapper body spliced");
 }
 
 #[test]
 fn runtime_script_top_level_inlines_from_its_explicit_namespace() {
-    let registry = CommandRegistry::build_default();
+    let registry = fixture_registry();
     let module = module_for_namespace(
         "proc ::pick {} { puts GLOBAL }\n\
          proc ::n::pick {} { puts NAMESPACED }\n\
@@ -404,7 +410,7 @@ fn procedure_caller_can_still_inline_across_namespaces() {
 
 #[test]
 fn executable_pipeline_retains_consumed_user_proc_binding() {
-    let registry = CommandRegistry::build_default();
+    let registry = fixture_registry();
     let module = inline_module(
         module_for("proc ::greet {} { puts hello }\ngreet"),
         &registry,
@@ -433,7 +439,7 @@ fn executable_pipeline_retains_consumed_user_proc_binding() {
 #[test]
 fn multi_statement_verbatim_wrapper() {
     let module = module_for("proc ::two {} { puts a\n puts b }\ntwo");
-    let inlined = inline_module(module, &CommandRegistry::build_default());
+    let inlined = inline_module(module, fixture_registry());
     assert_eq!(top_calls_to(&inlined, "two"), 0);
     assert_eq!(top_calls_to(&inlined, "puts"), 2, "both body stmts spliced");
 }
@@ -442,7 +448,7 @@ fn multi_statement_verbatim_wrapper() {
 fn redefined_proc_is_not_inlined() {
     let module = module_for("proc ::r {} { puts a }\nproc ::r {} { puts b }\nr");
     assert!(module.redefined_procedures.contains("::r"));
-    let inlined = inline_module(module, &CommandRegistry::build_default());
+    let inlined = inline_module(module, fixture_registry());
     assert_eq!(top_calls_to(&inlined, "r"), 1, "redefined proc kept");
 }
 
@@ -451,14 +457,14 @@ fn arg_command_subst_blocks_inline() {
     // `puts [clock seconds]` depends on frame command resolution — neither
     // verbatim nor v3 may splice it.
     let module = module_for("proc ::w {} { puts [clock seconds] }\nw");
-    let inlined = inline_module(module, &CommandRegistry::build_default());
+    let inlined = inline_module(module, fixture_registry());
     assert_eq!(top_calls_to(&inlined, "w"), 1);
 }
 
 #[test]
 fn inline_inside_control_flow_body() {
     let module = module_for("proc ::greet {} { puts hi }\nif {1} { greet }");
-    let inlined = inline_module(module, &CommandRegistry::build_default());
+    let inlined = inline_module(module, fixture_registry());
     let if_has_puts = inlined.top_level.statements.iter().any(|s| {
         matches!(s, Statement::If { clauses, .. }
             if clauses.iter().any(|c| c.body.statements.iter().any(|b|
@@ -769,7 +775,7 @@ fn v3_wrapped_return_preserves_nested_command_binding() {
 
 #[test]
 fn repeated_v3_wrap_preserves_transitive_procedure_bindings_in_asm() {
-    let registry = CommandRegistry::build_default();
+    let registry = fixture_registry();
     let source = concat!(
         "proc ::nested {} { puts nested }\n",
         "proc ::outer {x} { ::nested\n return $x }\n",
@@ -852,7 +858,7 @@ fn v3_return_inside_loop_declines() {
 #[test]
 fn idempotent_second_pass_is_noop() {
     let once = inline_module_default(module_for("proc ::id {x} { puts $x }\nid 1"));
-    let twice = inline_module(once.clone(), &CommandRegistry::build_default());
+    let twice = inline_module(once.clone(), fixture_registry());
     assert_eq!(once, twice, "re-running the inliner changes nothing");
 }
 
@@ -867,7 +873,7 @@ fn classify_large_single_call_is_if_single_call() {
     let summaries = tcl_compiler::var_escape::analyse_var_escape(&module, true);
     let bound = InliningSummaries {
         module: &module,
-        registry: &CommandRegistry::build_default(),
+        registry: fixture_registry(),
         escapes: &summaries,
     };
     let counts = count_static_calls(&module, &bound);
@@ -886,7 +892,7 @@ fn classify_large_single_call_is_if_single_call() {
         InlineDecision::IfSingleCall
     );
     // The pass leaves IF_SINGLE_CALL procs alone.
-    let inlined = inline_module(module, &CommandRegistry::build_default());
+    let inlined = inline_module(module, fixture_registry());
     assert_eq!(top_calls_to(&inlined, "big"), 1);
 }
 
