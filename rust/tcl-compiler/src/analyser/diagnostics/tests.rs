@@ -18873,3 +18873,25 @@ fn a_read_after_a_loop_keeps_the_taint_of_the_loop_contents() {
         assert_eq!(codes(src), [] as [String; 0], "{src}");
     }
 }
+
+/// #2531: a fused `set n [expr {…}]` reads its nested commands through the
+/// `set` invocation's retained words, so a constant one leaves `n` untainted.
+#[test]
+fn an_expression_assignment_around_a_constant_command_is_untainted() {
+    let codes = |src: &str| -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .filter(|code| code.starts_with('T'))
+            .collect()
+    };
+    for src in [
+        "set n [expr {[string length abc] * 2}]\nif {$n == 6} {puts yes}\n",
+        "set n [expr {[llength [list 1]] + 2}]\nputs [expr {$n + 1}]\n",
+        "proc p {} {set n [expr {[string length abc] * 2}]; if {$n == 6} {puts yes}}\n",
+    ] {
+        assert_eq!(codes(src), [] as [String; 0], "{src}");
+    }
+}

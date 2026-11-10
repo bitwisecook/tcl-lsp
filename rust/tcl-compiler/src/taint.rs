@@ -1747,6 +1747,7 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
+    base: Option<u32>,
     depth: u32,
 ) -> TaintLattice {
     // Native-stack safety net: this walks the `ExprNode`
@@ -1762,9 +1763,14 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
         // A bracketed command substitution is classified exactly as a word; an
         // unparseable `Raw` fallback is treated the same way, scanning its text
         // for `[cmd]` substitutions.
-        ExprNode::Command { text, .. } | ExprNode::Raw { text } => {
+        ExprNode::Command { text, start, .. } => {
+            let ctx = TaintCtx {
+                word_offset: base.and_then(|base| base.checked_add(*start)),
+                ..ctx
+            };
             word_taint(text, uses, taints, ctx)
         }
+        ExprNode::Raw { text } => word_taint(text, uses, taints, ctx),
         // A quoted string undergoes substitution, so an embedded `[cmd]`
         // counts; a braced `{…}` string is literal (no substitution) and is
         // skipped to avoid a false positive.
@@ -1786,28 +1792,31 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
                 word_taint(text, uses, taints, ctx)
             }
         }
-        ExprNode::Binary { left, right, .. } => expr_command_taint(
-            left,
-            uses,
-            taints,
-            ctx,
-            depth + 1,
-        )
-        .join(expr_command_taint(right, uses, taints, ctx, depth + 1)),
+        ExprNode::Binary { left, right, .. } => {
+            expr_command_taint(left, uses, taints, ctx, base, depth + 1).join(expr_command_taint(
+                right,
+                uses,
+                taints,
+                ctx,
+                base,
+                depth + 1,
+            ))
+        }
         ExprNode::Unary { operand, .. } => {
-            expr_command_taint(operand, uses, taints, ctx, depth + 1)
+            expr_command_taint(operand, uses, taints, ctx, base, depth + 1)
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
             ..
-        } => expr_command_taint(condition, uses, taints, ctx, depth + 1)
+        } => expr_command_taint(condition, uses, taints, ctx, base, depth + 1)
             .join(expr_command_taint(
                 true_branch,
                 uses,
                 taints,
                 ctx,
+                base,
                 depth + 1,
             ))
             .join(expr_command_taint(
@@ -1815,10 +1824,11 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
                 uses,
                 taints,
                 ctx,
+                base,
                 depth + 1,
             )),
         ExprNode::Call { args, .. } => args.iter().fold(TaintLattice::clean(), |acc, a| {
-            acc.join(expr_command_taint(a, uses, taints, ctx, depth + 1))
+            acc.join(expr_command_taint(a, uses, taints, ctx, base, depth + 1))
         }),
         // Literals and variable references carry no command substitution
         // (variables are covered by the statement's `uses` join).
@@ -2152,8 +2162,16 @@ fn evaluate_taint_def_at<S: std::hash::BuildHasher>(
         // A comparison or logical operator yields only `0`/`1`, whatever
         // its operands held, so the result carries no attacker text.
         Statement::AssignExpr { expr, .. } if expr_yields_boolean(expr) => TaintLattice::clean(),
-        Statement::AssignExpr { expr, .. } => {
-            join_uses(uses, taints).join(expr_command_taint(expr, uses, taints, ctx, 0))
+        Statement::AssignExpr {
+            expr, expr_base, ..
+        } => {
+            let ctx = TaintCtx {
+                source_tokens: point.and_then(|(block, index)| {
+                    ssa.point_contexts.as_ref()?.source_tokens_at(block, index)
+                }),
+                ..ctx
+            };
+            join_uses(uses, taints).join(expr_command_taint(expr, uses, taints, ctx, *expr_base, 0))
         }
 
         // Value assignment: evaluate the RHS word.
@@ -11770,7 +11788,7 @@ mod tests {
                 operand: Box::new(node),
             };
         }
-        let _ = expr_command_taint(&node, &uses, &taints, ctx, 0);
+        let _ = expr_command_taint(&node, &uses, &taints, ctx, None, 0);
     }
 
     #[test]

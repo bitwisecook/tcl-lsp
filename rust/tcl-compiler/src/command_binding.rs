@@ -16334,6 +16334,14 @@ impl ModuleCommandBindings {
         baseline.unknown_entry = options.unknown_entry;
         baseline.native_entry = options.native_entry.cloned().map(Arc::new);
         baseline.declared_surface = options.retained_declared_command_contracts();
+        // A declared command's stated frame effect binds it in every walk's
+        // baseline, not only in one built from a lowered module.
+        baseline.declared = Arc::new(
+            crate::declared_frame_effects::collect_declared_frame_effects(
+                registry,
+                options.declared_commands,
+            ),
+        );
         baseline.declared_commands = Arc::new(
             tcl_registry::unique_command_descriptor_coordinates(
                 tcl_registry::model::DocumentCommandSurface::new(
@@ -18177,11 +18185,7 @@ impl ModuleCommandBindings {
             if !visiting.insert(key.clone()) {
                 continue;
             }
-            if !self.bindings.contains_key(&key)
-                && key
-                    .authored_spelling()
-                    .is_some_and(|name| self.baseline.declared.contains_key(name))
-            {
+            if !self.bindings.contains_key(&key) && self.declares_command_key(&key) {
                 named = true;
             }
             for binding in self.binding_alternatives(&key) {
@@ -18210,6 +18214,44 @@ impl ModuleCommandBindings {
             visiting.remove(&key);
         }
         unresolved || !named
+    }
+
+    /// Whether `name` reaches only document-declared commands: each lookup
+    /// key is one a declaration names and nothing in this world binds.
+    pub(crate) fn names_only_a_declared_command<Q: NamespaceKeyQuery + ?Sized>(
+        &self,
+        name: &str,
+        namespace: &Q,
+    ) -> bool {
+        !self.baseline.declared.is_empty()
+            && self.source_keys_checked(name, namespace).is_ok_and(|keys| {
+                !keys.is_empty()
+                    && keys.iter().all(|key| {
+                        !self.bindings.contains_key(key) && self.declares_command_key(key)
+                    })
+            })
+    }
+
+    /// Whether a document declaration (`# tcl-lsp: stub …`) names `key`. A
+    /// symbolic key is the declared spelling; a selected slot is the one the
+    /// declaration's metadata coordinate occupies under the execution policy.
+    fn declares_command_key(&self, key: &SourceCommandKey) -> bool {
+        if let Some(name) = key.authored_spelling() {
+            return self.baseline.declared.contains_key(name);
+        }
+        let Some(policy) = self
+            .baseline
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        else {
+            return false;
+        };
+        self.baseline.declared.keys().any(|name| {
+            original_command_table::original_registry_metadata_slot(policy, name)
+                .and_then(|slot| self.original_command_key_for_slot(&slot, policy))
+                .as_ref()
+                == Some(key)
+        })
     }
 
     fn alias_target_namespace_key<Q: NamespaceKeyQuery + ?Sized>(
@@ -20013,6 +20055,14 @@ fn apply_may_invocation_transitions(
     execution_namespace: &crate::ir_helpers::ExecutionNamespace,
     context: &mut InvocationBindingContext<'_>,
 ) -> bool {
+    if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt
+        && bindings.names_only_a_declared_command(command, command_namespace)
+    {
+        // A document-declared command is trusted to leave the command world
+        // intact, as the source walk trusts it; its stated frame effect
+        // bounds what it does to variables.
+        return false;
+    }
     let (source_may_be_unknown, invocations, reaches_user_procedure) = invocation_transition_inputs(
         stmt,
         registry,

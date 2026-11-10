@@ -1427,6 +1427,11 @@ impl<'a> CfgBuilder<'a> {
             return true;
         };
         let namespace = namespace.as_ref();
+        // A document-declared command is one the module names: its stated
+        // frame effect, not the unknown command's, is what the call brings.
+        if bindings.names_only_a_declared_command(head, namespace) {
+            return false;
+        }
         if bindings.has_unnameable_rebinding_subject()
             || bindings.may_dispatch_unresolved(head, namespace)
             || bindings.target_resolution_may_be_unknown(head, namespace)

@@ -238,6 +238,26 @@ fn loop_blocks(
     seen
 }
 
+/// The SSA symbol of a loop counter. A frame cell whose canonical key is not
+/// its bare spelling is found through the reads the loop itself proves, its
+/// header condition first.
+fn loop_symbol(
+    fu: &crate::compilation_unit::FunctionUnit,
+    blocks: &HashSet<crate::cfg::BlockId>,
+    var: &str,
+) -> Option<crate::ssa::Symbol> {
+    fu.ssa.var_symbol(var).or_else(|| {
+        let mut ordered: Vec<_> = blocks.iter().copied().collect();
+        ordered.sort();
+        ordered.into_iter().find_map(|block| {
+            fu.ssa
+                .source_symbols_at(block, usize::MAX)?
+                .get(var)
+                .copied()
+        })
+    })
+}
+
 /// What may write `var` over a loop's passes, its `blocks`
 /// ([`crate::analyser::bounds_checks::LoopWrites`]): each statement of the
 /// blocks whose SSA definitions name it — a cell update, a write a
@@ -253,7 +273,7 @@ fn loop_writes(
     var: &str,
     module: &crate::analyser::bounds_checks::ModuleUnseenWrites,
 ) -> crate::analyser::bounds_checks::LoopWrites {
-    let symbol = fu.ssa.var_symbol(var);
+    let symbol = loop_symbol(fu, blocks, var);
     let statements = blocks
         .iter()
         .filter_map(|block| fu.ssa.blocks.get(block))
@@ -279,13 +299,14 @@ fn loop_writes(
 fn loop_start_integer(
     fu: &crate::compilation_unit::FunctionUnit,
     node: &crate::cfg::LoopNode,
+    blocks: &HashSet<crate::cfg::BlockId>,
     var: &str,
 ) -> Option<i64> {
     use crate::analyses::{ConstValue, LatticeValue};
     if !fu.sccp.executable_blocks.contains(&node.start) {
         return None;
     }
-    let symbol = fu.ssa.var_symbol(var)?;
+    let symbol = loop_symbol(fu, blocks, var)?;
     let version = fu
         .ssa
         .blocks
@@ -3777,7 +3798,7 @@ is renamed or deleted in this file."
                 let module = &self.loop_unseen_writes;
                 candidate.settle(
                     |var| loop_writes(fu, &blocks, var, module),
-                    |var| loop_start_integer(fu, node, var),
+                    |var| loop_start_integer(fu, node, &blocks, var),
                 );
             }
             self.loop_candidates.push(candidate);
