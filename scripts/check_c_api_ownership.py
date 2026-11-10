@@ -97,6 +97,9 @@ KNOWN_INTERNAL_EXPORTS = frozenset(
         "tcl_test_alloc_count",
         "tcl_test_double_free_count",
         "tcl_test_finalize",
+        "tcl_test_live_obj_count",
+        "tcl_test_live_buf_count",
+        "tcl_test_observe_heap_roots",
     }
 )
 
