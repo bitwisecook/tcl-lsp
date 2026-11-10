@@ -49,12 +49,16 @@ struct NamespaceGeometry {
 struct NamespaceLedger {
     rows: Arc<Vec<NamespaceGeometry>>,
     first: std::sync::OnceLock<Arc<rustc_hash::FxHashMap<SourceNamespaceKey, (usize, usize)>>>,
+    c_scopes: std::sync::OnceLock<
+        Arc<rustc_hash::FxHashMap<tcl_core_types::ByteNamespacePath, Vec<SourceNamespaceKey>>>,
+    >,
 }
 
 impl NamespaceLedger {
     fn push(&mut self, row: NamespaceGeometry) {
         Arc::make_mut(&mut self.rows).push(row);
         self.first = std::sync::OnceLock::new();
+        self.c_scopes = std::sync::OnceLock::new();
     }
 
     fn retain(&mut self, mut keep: impl FnMut(&NamespaceGeometry) -> bool) {
@@ -65,6 +69,7 @@ impl NamespaceLedger {
         let mut kept = kept.into_iter();
         Arc::make_mut(&mut self.rows).retain(|_| kept.next().unwrap_or(false));
         self.first = std::sync::OnceLock::new();
+        self.c_scopes = std::sync::OnceLock::new();
     }
 
     /// `key`'s first row position and its number of rows.
@@ -93,6 +98,26 @@ impl NamespaceLedger {
     fn has_key(&self, key: &SourceNamespaceKey) -> bool {
         self.first_for(key).is_some()
     }
+
+    /// Keys whose first row's scope is C `path`.
+    fn keys_with_c_scope(&self, path: &tcl_core_types::ByteNamespacePath) -> &[SourceNamespaceKey] {
+        self.c_scopes
+            .get_or_init(|| {
+                let mut index = rustc_hash::FxHashMap::<_, Vec<SourceNamespaceKey>>::default();
+                for (position, row) in self.rows.iter().enumerate() {
+                    if let SignatureNamespaceScope::C(path) = &row.scope
+                        && self
+                            .rows_for(&row.key)
+                            .is_some_and(|(first, _)| first == position)
+                    {
+                        index.entry(path.clone()).or_default().push(row.key.clone());
+                    }
+                }
+                Arc::new(index)
+            })
+            .get(path)
+            .map_or(&[], Vec::as_slice)
+    }
 }
 
 impl From<Vec<NamespaceGeometry>> for NamespaceLedger {
@@ -100,6 +125,7 @@ impl From<Vec<NamespaceGeometry>> for NamespaceLedger {
         Self {
             rows: Arc::new(rows),
             first: std::sync::OnceLock::new(),
+            c_scopes: std::sync::OnceLock::new(),
         }
     }
 }
@@ -425,24 +451,6 @@ fn original_covered_alias_target(
         return None;
     }
     Some((publication.clone(), allocation.clone()))
-}
-
-/// A borrowed [`SignatureNamespaceScope`].
-#[derive(Clone, Copy)]
-pub(super) enum SignatureNamespaceScopeView<'a> {
-    Symbolic,
-    C(&'a tcl_core_types::ByteNamespacePath),
-    Jim,
-}
-
-impl<'a> From<&'a SignatureNamespaceScope> for SignatureNamespaceScopeView<'a> {
-    fn from(scope: &'a SignatureNamespaceScope) -> Self {
-        match scope {
-            SignatureNamespaceScope::Symbolic(_) => Self::Symbolic,
-            SignatureNamespaceScope::C(path) => Self::C(path),
-            SignatureNamespaceScope::Jim(_) => Self::Jim,
-        }
-    }
 }
 
 /// Private flow-sensitive source ledger. Full structural equality participates
@@ -825,32 +833,48 @@ impl OriginalSourceCommandWorld {
         matches.next().is_none().then_some(selected)
     }
 
-    /// [`Self::scope`] without materialising it: a C scope borrows its path.
-    pub(super) fn scope_view<'a>(
-        &'a self,
-        key: &'a SourceNamespaceKey,
+    /// Whether [`Self::scope`] of `key` under `policy` is a Jim scope.
+    pub(super) fn has_jim_scope(
+        &self,
+        key: &SourceNamespaceKey,
         policy: NamePolicyProtocol,
-    ) -> Option<SignatureNamespaceScopeView<'a>> {
-        if self.unavailable || self.policy.is_some_and(|selected| selected != policy) {
-            return None;
-        }
-        let retained = || {
-            self.namespaces
+    ) -> bool {
+        let retained = !matches!(policy.recipe(), NativeNameProtocol::C(_))
+            || matches!(key, SourceNamespaceKey::Authored(_));
+        !self.unavailable
+            && self.policy.is_none_or(|selected| selected == policy)
+            && retained
+            && self
+                .namespaces
                 .first_for(key)
-                .map(|entry| SignatureNamespaceScopeView::from(&entry.scope))
-        };
-        match key {
-            SourceNamespaceKey::Native(context) => match policy.recipe() {
-                NativeNameProtocol::C(_) => Some(SignatureNamespaceScopeView::C(&context.path)),
-                NativeNameProtocol::Jim084 => retained(),
-            },
-            SourceNamespaceKey::Allocated { path, .. }
-                if matches!(policy.recipe(), NativeNameProtocol::C(_)) =>
-            {
-                Some(SignatureNamespaceScopeView::C(path))
-            }
-            _ => retained(),
+                .is_some_and(|entry| matches!(entry.scope, SignatureNamespaceScope::Jim(_)))
+    }
+
+    /// Every key of `namespaces` whose [`Self::scope`] under `policy` is C
+    /// `path`, without visiting the others.
+    pub(super) fn keys_with_c_scope_view<'a>(
+        &self,
+        namespaces: &'a super::namespace_context::SourceNamespaceSet,
+        path: &tcl_core_types::ByteNamespacePath,
+        policy: NamePolicyProtocol,
+    ) -> Vec<&'a SourceNamespaceKey> {
+        if self.unavailable || self.policy.is_some_and(|selected| selected != policy) {
+            return Vec::new();
         }
+        let c = matches!(policy.recipe(), NativeNameProtocol::C(_));
+        let mut keys: Vec<&SourceNamespaceKey> = if c {
+            namespaces.keys_at_path(path).iter().collect()
+        } else {
+            Vec::new()
+        };
+        keys.extend(
+            self.namespaces
+                .keys_with_c_scope(path)
+                .iter()
+                .filter(|key| !c || matches!(key, SourceNamespaceKey::Authored(_)))
+                .filter_map(|key| namespaces.get(key)),
+        );
+        keys
     }
 
     pub(super) fn scope(

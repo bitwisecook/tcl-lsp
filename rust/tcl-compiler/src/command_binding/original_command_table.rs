@@ -20,7 +20,6 @@
 //! Geometry is conditional source metadata; installations occur only in the
 //! existing selected operation transfer, never by a publication-side replay.
 
-use super::source_command_world::SignatureNamespaceScopeView;
 use super::{
     BTreeSet, BindingKind, MayBinding, ModuleCommandBindings, ResolvedCommandTarget,
     SourceCommandKey, SourceExecutionContext, SourceNamespaceKey, SourceNativeInvocation,
@@ -1959,28 +1958,24 @@ impl ModuleCommandBindings {
         if query.selected_policy()? != policy {
             return None;
         }
-        let mut root = None;
-        let mut namespaces = self.namespaces.iter().filter(|namespace| {
-            query
-                .world()
-                .scope_view(namespace, policy)
-                .is_some_and(|scope| match scope {
-                    SignatureNamespaceScopeView::C(path) => *path == slot.namespace,
-                    SignatureNamespaceScopeView::Jim => {
-                        slot.namespace.is_root()
-                            && **namespace
-                                == *root.get_or_insert_with(|| {
-                                    self.source_root_namespace_key().unwrap_or_default()
-                                })
-                    }
-                    SignatureNamespaceScopeView::Symbolic => false,
-                })
-        });
-        let namespace = namespaces.next()?.clone();
-        if namespaces.next().is_some() {
-            return None;
+        let world = query.world();
+        let mut namespaces =
+            world.keys_with_c_scope_view(&self.namespaces, &slot.namespace, policy);
+        if slot.namespace.is_root() {
+            let root = self.source_root_namespace_key().unwrap_or_default();
+            if let Some(root) = self.namespaces.get(&root)
+                && world.has_jim_scope(root, policy)
+            {
+                namespaces.push(root);
+            }
         }
-        Some(SourceCommandKey::slot(namespace, slot.simple.clone()))
+        let [namespace] = namespaces.as_slice() else {
+            return None;
+        };
+        Some(SourceCommandKey::slot(
+            (*namespace).clone(),
+            slot.simple.clone(),
+        ))
     }
 
     pub(super) fn original_command_paths_for_input(

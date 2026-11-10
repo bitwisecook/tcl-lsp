@@ -392,7 +392,12 @@ impl<K: Into<SourceNamespaceKey>, V> FromIterator<(K, V)> for SourceNamespaceMap
 pub(super) struct SourceNamespaceSet(
     std::collections::BTreeSet<SourceNamespaceKey>,
     std::sync::OnceLock<std::sync::Arc<[String]>>,
+    std::sync::OnceLock<std::sync::Arc<NamespacePathIndex>>,
 );
+
+/// Native and allocated keys by their constructed path.
+type NamespacePathIndex =
+    rustc_hash::FxHashMap<tcl_core_types::ByteNamespacePath, Vec<SourceNamespaceKey>>;
 impl PartialEq for SourceNamespaceSet {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
@@ -412,6 +417,7 @@ impl SourceNamespaceSet {
         let inserted = self.0.insert(key.into());
         if inserted {
             self.1 = std::sync::OnceLock::new();
+            self.2 = std::sync::OnceLock::new();
         }
         inserted
     }
@@ -419,6 +425,7 @@ impl SourceNamespaceSet {
         let removed = self.0.remove(key.namespace_key().as_ref());
         if removed {
             self.1 = std::sync::OnceLock::new();
+            self.2 = std::sync::OnceLock::new();
         }
         removed
     }
@@ -433,6 +440,7 @@ impl SourceNamespaceSet {
         self.0.retain(keep);
         if self.0.len() != before {
             self.1 = std::sync::OnceLock::new();
+            self.2 = std::sync::OnceLock::new();
         }
     }
     pub(super) fn extend<K: Into<SourceNamespaceKey>>(
@@ -443,7 +451,33 @@ impl SourceNamespaceSet {
         self.0.extend(keys.into_iter().map(Into::into));
         if self.0.len() != before {
             self.1 = std::sync::OnceLock::new();
+            self.2 = std::sync::OnceLock::new();
         }
+    }
+    /// The retained key equal to `key`.
+    pub(super) fn get(&self, key: &SourceNamespaceKey) -> Option<&SourceNamespaceKey> {
+        self.0.get(key)
+    }
+    /// Native and allocated keys whose constructed path is `path`.
+    pub(super) fn keys_at_path(
+        &self,
+        path: &tcl_core_types::ByteNamespacePath,
+    ) -> &[SourceNamespaceKey] {
+        self.2
+            .get_or_init(|| {
+                let mut index = NamespacePathIndex::default();
+                for key in &self.0 {
+                    let path = match key {
+                        SourceNamespaceKey::Native(context) => &context.path,
+                        SourceNamespaceKey::Allocated { path, .. } => path,
+                        SourceNamespaceKey::Authored(_) => continue,
+                    };
+                    index.entry(path.clone()).or_default().push(key.clone());
+                }
+                std::sync::Arc::new(index)
+            })
+            .get(path)
+            .map_or(&[], Vec::as_slice)
     }
     /// Advisory spellings of every namespace, in key order, shared.
     pub(super) fn advisory_names(&self) -> std::sync::Arc<[String]> {
