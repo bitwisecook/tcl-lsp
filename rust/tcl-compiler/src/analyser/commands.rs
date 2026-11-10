@@ -5589,7 +5589,6 @@ impl Analyser {
             let image = self.command_document_source_image();
             return self
                 .head_identities
-                .source_bindings_ref()
                 .original_math_functions_in_source(
                     registry,
                     &image,

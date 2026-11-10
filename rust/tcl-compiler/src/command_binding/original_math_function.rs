@@ -26,6 +26,56 @@ use super::{
 use tcl_lexer::{LexerConfig, SourceImage, Span};
 use tcl_registry::mathfunc::NativeMathFunctionDispatch;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct OriginalMathFunctionWordKey {
+    site: CommandAllocationSite,
+    written: usize,
+    registry: tcl_registry::RegistrySemanticKey,
+    config: LexerConfig,
+}
+
+/// Region-independent math-function occurrences of each original word, for
+/// one immutable realm's bindings. A copy starts empty.
+#[derive(Debug, Default)]
+pub(crate) struct OriginalMathFunctionWordMemo(
+    std::sync::Mutex<
+        std::collections::HashMap<
+            OriginalMathFunctionWordKey,
+            Arc<[OriginalMathFunctionOccurrence]>,
+        >,
+    >,
+);
+
+impl Clone for OriginalMathFunctionWordMemo {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl OriginalMathFunctionWordMemo {
+    fn get(
+        &self,
+        key: &OriginalMathFunctionWordKey,
+    ) -> Option<Arc<[OriginalMathFunctionOccurrence]>> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(key)
+            .cloned()
+    }
+
+    fn insert(
+        &self,
+        key: OriginalMathFunctionWordKey,
+        value: Arc<[OriginalMathFunctionOccurrence]>,
+    ) {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(key, value);
+    }
+}
+
 /// Readonly function identifier issued by the checked original expression.
 /// This is neither a command-head word nor an expression evaluation, normal
 /// result, function registration or native compiler capability.
@@ -281,6 +331,19 @@ impl SourceCommandBindings {
         config: LexerConfig,
         region: Span,
     ) -> Vec<OriginalMathFunctionOccurrence> {
+        self.original_math_functions_in_source_with(registry, image, config, region, None)
+    }
+
+    /// [`Self::original_math_functions_in_source`], reusing each word's
+    /// region-independent occurrences from `memo`.
+    pub(crate) fn original_math_functions_in_source_with(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        image: &SourceImage,
+        config: LexerConfig,
+        region: Span,
+        memo: Option<&OriginalMathFunctionWordMemo>,
+    ) -> Vec<OriginalMathFunctionOccurrence> {
         if !self.matches_original_source_image(image, config) {
             return Vec::new();
         }
@@ -310,35 +373,43 @@ impl SourceCommandBindings {
             }) {
                 continue;
             }
-            let Some(mut tokens) = super::declaration_preview::declaration_tokens(site, first)
-            else {
-                continue;
-            };
-            self.stamp_original_tokens(&mut tokens);
+            let mut tokens = None;
             for (written, word) in first.words.iter().enumerate().skip(1) {
                 if word.source().span.end() <= region.start()
                     || word.source().span.start() >= region.end()
                 {
                     continue;
                 }
-                let Some(expression) = tokens.source_binding.as_ref().and_then(|binding| {
-                    binding.conditional_expression_evaluation_for_original_word(
-                        registry, &tokens, written,
-                    )
-                }) else {
-                    continue;
-                };
-                if expression.source().origin != site.source {
-                    continue;
-                }
-                for occurrence in self.original_expression_function_occurrences(
-                    registry,
-                    site,
-                    &expression,
-                    &rows,
-                    region,
+                let key = OriginalMathFunctionWordKey {
+                    site: site.clone(),
+                    written,
+                    registry: registry.snapshot().semantic_key(),
                     config,
-                ) {
+                };
+                let word_occurrences = match memo.and_then(|memo| memo.get(&key)) {
+                    Some(cached) => cached,
+                    None => {
+                        let computed: Arc<[OriginalMathFunctionOccurrence]> = self
+                            .original_word_function_occurrences(
+                                registry,
+                                site,
+                                first,
+                                &rows,
+                                &mut tokens,
+                                written,
+                                config,
+                            )
+                            .into();
+                        if let Some(memo) = memo {
+                            memo.insert(key, Arc::clone(&computed));
+                        }
+                        computed
+                    }
+                };
+                for occurrence in word_occurrences.iter().filter(|occurrence| {
+                    occurrence.span.end() > region.start() && occurrence.span.start() < region.end()
+                }) {
+                    let occurrence = occurrence.clone();
                     if let Some(previous) = occurrences
                         .iter_mut()
                         .find(|previous| previous.span == occurrence.span)
@@ -358,6 +429,48 @@ impl SourceCommandBindings {
         occurrences.sort_by_key(|occurrence| (occurrence.span.start(), occurrence.span.end()));
         occurrences
     }
+
+    /// Every occurrence the original word `written` of `site` issues, before
+    /// any region selection. `tokens` is stamped once per site.
+    #[allow(clippy::too_many_arguments)]
+    fn original_word_function_occurrences(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        site: &CommandAllocationSite,
+        first: &DeclarationLayoutObservation,
+        rows: &[&DeclarationLayoutObservation],
+        tokens: &mut Option<Option<crate::ir::CommandTokens>>,
+        written: usize,
+        config: LexerConfig,
+    ) -> Vec<OriginalMathFunctionOccurrence> {
+        let Some(tokens) = tokens
+            .get_or_insert_with(|| {
+                let mut tokens = super::declaration_preview::declaration_tokens(site, first)?;
+                self.stamp_original_tokens(&mut tokens);
+                Some(tokens)
+            })
+            .as_ref()
+        else {
+            return Vec::new();
+        };
+        let Some(expression) = tokens.source_binding.as_ref().and_then(|binding| {
+            binding.conditional_expression_evaluation_for_original_word(registry, tokens, written)
+        }) else {
+            return Vec::new();
+        };
+        if expression.source().origin != site.source {
+            return Vec::new();
+        }
+        self.original_expression_function_occurrences(
+            registry,
+            site,
+            &expression,
+            rows,
+            Span::new(0, u32::MAX),
+            config,
+        )
+    }
+
     fn original_expression_function_occurrences(
         &self,
         registry: &tcl_registry::CommandRegistry,

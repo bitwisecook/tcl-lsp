@@ -217,6 +217,7 @@ mod trusted_package_transfer;
 pub(crate) use expression_preparation::SourceConditionalExpressionEvaluation;
 mod original_math_function;
 pub use original_math_function::OriginalMathFunctionOccurrence;
+pub(crate) use original_math_function::OriginalMathFunctionWordMemo;
 mod math_occurrence;
 pub use math_occurrence::{SourceConditionalMathInvocation, SourceMathInvocation};
 #[doc(hidden)]

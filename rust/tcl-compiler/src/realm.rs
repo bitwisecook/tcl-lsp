@@ -133,6 +133,7 @@ pub struct CommandBindingRealm {
     source_call_advice: source_transition_advice::OriginalSourceTransitionAdviceCache,
     query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo,
     stamped: StampedTokenMemo,
+    math_functions: crate::command_binding::OriginalMathFunctionWordMemo,
 }
 
 /// [`CommandBindingRealm::stamp_original_tokens`] is a pure function of the
@@ -223,6 +224,24 @@ impl CommandBindingRealm {
             registry,
             self.bindings.source_metadata_owner(),
             Some(&self.query_memo),
+        )
+    }
+
+    /// [`SourceCommandBindings::original_math_functions_in_source`], sharing
+    /// each word's occurrences across this realm's regions.
+    pub(crate) fn original_math_functions_in_source(
+        &self,
+        registry: &CommandRegistry,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        region: tcl_lexer::Span,
+    ) -> Vec<crate::command_binding::OriginalMathFunctionOccurrence> {
+        self.bindings.original_math_functions_in_source_with(
+            registry,
+            image,
+            config,
+            region,
+            Some(&self.math_functions),
         )
     }
 
@@ -719,6 +738,7 @@ impl CommandBindingRealm {
             query_memo:
                 crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
             stamped: StampedTokenMemo::default(),
+            math_functions: Default::default(),
         };
         Some((script, realm))
     }
@@ -1196,6 +1216,7 @@ fn realm_from_source_bindings(
         ),
         query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
         stamped: StampedTokenMemo::default(),
+        math_functions: Default::default(),
     }
 }
 

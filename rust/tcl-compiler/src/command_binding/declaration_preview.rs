@@ -2675,9 +2675,15 @@ impl SourceCommandBindings {
             pending.len(),
             self.declaration_layouts.len(),
         );
+        // Source binding records nothing past the shared nest cap, so a body
+        // below it has no consumer for its layouts.
+        let mut depths = vec![1_u32; pending.len()];
         let mut visits: usize = 0;
         while let Some((source, parents)) = pending.pop() {
-            if !visit(&source, &parents) {
+            let depth = depths.pop().unwrap_or(1);
+            if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth)
+                || !visit(&source, &parents)
+            {
                 continue;
             }
             visits += 1;
@@ -2694,7 +2700,10 @@ impl SourceCommandBindings {
                 continue;
             };
             for command in commands.iter() {
-                if !self.retain_nested_layout_command(command, &parents, registry, &mut pending) {
+                let retains_successor =
+                    self.retain_nested_layout_command(command, &parents, registry, &mut pending);
+                depths.resize(pending.len(), depth + 1);
+                if !retains_successor {
                     break;
                 }
             }
