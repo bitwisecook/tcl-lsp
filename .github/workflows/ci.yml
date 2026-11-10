@@ -1969,6 +1969,12 @@ jobs:
         if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
         run: make runtime-rust-test
 
+      # Release builds take the paths shipped binaries take: debug-only
+      # currency re-proofs are skipped and their tests gated out.
+      - name: make runtime-rust-test-release (release-profile runtime unit suite)
+        if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        run: make runtime-rust-test-release
+
   # The real whole-program WASM link (`tcl-compiler`'s `wasm_real_link.rs`):
   # an emitted module linked against the real `runtime/rust` compiled to
   # `wasm32-wasip1`, composed and executed by the wasmtime CLI.

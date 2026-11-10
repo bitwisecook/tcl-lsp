@@ -27,3 +27,7 @@ jobs:
       # (not `test-vm`).
       - name: Run bytecode VM crate tests
         run: make vm-test
+
+      # Release builds skip the debug-only re-proofs the dev profile runs.
+      - name: Run bytecode VM crate tests (release profile)
+        run: make vm-test-release

@@ -232,7 +232,7 @@ check-vscode-test-partitions: ## Verify VS Code partition manifest and workflow 
 .PHONY: release release-tag release-zed-version release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
 # Rust runtime port
-.PHONY: runtime-rust-test runtime-rust-test-no-tommath runtime-rust-test-no-tommath-capability runtime-rust-lint zed-query-check vm-test vm-lint
+.PHONY: runtime-rust-test runtime-rust-test-release runtime-rust-test-no-tommath runtime-rust-test-no-tommath-capability runtime-rust-lint zed-query-check vm-test vm-test-release vm-lint
 # Screenshots
 .PHONY: screenshot screenshots clean-screenshots
 # Cleanup
@@ -2911,6 +2911,18 @@ runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + 
 	fi; \
 	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked --features engine
 
+# Release builds skip the debug-only currency re-proofs and gate their tests
+# out, so the paths shipped binaries take need a run of their own.
+runtime-rust-test-release: ## Run the Rust runtime port's cargo test in the release profile
+	@set -eu; \
+	tommath="$${TCL_TOMMATH_DIR:-$(ROOT)tmp/tcl9.0.4/libtommath}"; \
+	if [ ! -f "$$tommath/tommath.h" ]; then \
+		echo "ERROR: semantic runtime tests require libtommath at $$tommath" >&2; \
+		echo "Fetch it with: make ensure-tcl90-reference" >&2; \
+		exit 1; \
+	fi; \
+	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked --release --features engine
+
 # The optional whole-suite no-TomMath run retains every semantic assertion.
 # CI uses the capability target below: original scalar-cache tests have explicit
 # missing-bignum refusal branches, and the dedicated refusal control verifies
@@ -2984,6 +2996,9 @@ zed-query-check: ## Validate the generated Zed highlight queries against the pin
 
 vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-api + tcl-vm)
 	cargo test -p tcl-bytecode -p tcl-runtime-api -p tcl-vm
+
+vm-test-release: ## Run the bytecode VM crates' cargo test in the release profile
+	cargo test --release -p tcl-bytecode -p tcl-runtime-api -p tcl-vm
 
 vm-lint: ## Bytecode VM crates: cargo fmt --check + clippy -D warnings
 	cargo fmt -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
