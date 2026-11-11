@@ -206,7 +206,7 @@ type Expectation = (&'static [&'static str], &'static str);
 
 /// Scripts whose error passes through nested commands, each with what every
 /// release reports: tclsh 8.4.20 through 9.1.0's, the path written `PATH`.
-const NESTED_CASES: [(&str, &str, &[Expectation]); 10] = [
+const NESTED_CASES: [(&str, &str, &[Expectation]); 11] = [
     (
         "expr.tcl",
         "proc p {} {error boom}\nset w [expr {[p]}]\n",
@@ -336,6 +336,27 @@ const NESTED_CASES: [(&str, &str, &[Expectation]); 10] = [
                  (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
                  (\"eval\" body line 1)\n    \
                  invoked from within\n\"eval {set w [expr {[p]}]}\"\n    \
+                 (procedure \"q\" line 1)\n    invoked from within\n\"q\"\n    \
+                 (file \"PATH\" line 3)\n",
+            ),
+        ],
+    ),
+    (
+        "runtime.tcl",
+        "proc p {} {error boom}\nproc q {} {set e {[p]+1}; set w [list a [expr $e]]}\nq\n",
+        &[
+            (
+                &["8.4"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 (procedure \"q\" line 1)\n    invoked from within\n\"q\"\n    \
+                 (file \"PATH\" line 3)\n",
+            ),
+            (
+                &["8.5", "8.6", "9.0", "9.1"],
+                "boom\n    while executing\n\"error boom\"\n    \
+                 (procedure \"p\" line 1)\n    invoked from within\n\"p\"\n    \
+                 invoked from within\n\"expr $e\"\n    \
                  (procedure \"q\" line 1)\n    invoked from within\n\"q\"\n    \
                  (file \"PATH\" line 3)\n",
             ),

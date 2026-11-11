@@ -2361,7 +2361,11 @@ impl CodegenCtx<'_> {
                             size: 1,
                         };
                     let index = self.literals.register_private_return_options(options);
-                    if syntax.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message) {
+                    // C's compiler seeds `-errorinfo` from the folded error; an
+                    // expression the release evaluates directly is compiled
+                    // without folding and raises the error as it runs.
+                    let direct = self.direct_statement.is_some() || self.in_direct_statement();
+                    if !direct && syntax.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message) {
                         self.literals.retain_syntax_error_info(index, message_index);
                     }
                     self.push_native_pool_literal(index);

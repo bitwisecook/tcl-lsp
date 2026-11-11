@@ -193,8 +193,9 @@ enum BytecodeEntry {
 enum ActivationErrorLog {
     /// By the activation's own instructions and body frames.
     Own,
-    /// A compiled `subst` template: like C's TEBC leaving `Tcl_SubstObj`'s
-    /// bytecode, the command that invoked it is logged too.
+    /// A compiled `subst` template or a runtime expression: like C's TEBC
+    /// leaving `Tcl_SubstObj`'s or `Tcl_ExprObj`'s bytecode, the command that
+    /// invoked it is logged too.
     InvokingCommand,
 }
 
@@ -1011,6 +1012,9 @@ impl Frame {
     fn new_expression(req: ExpressionReq, placeholder: crate::compiled::CompiledUnit) -> Self {
         let mut frame = Self::new(placeholder, false);
         frame.expression = Some(Box::new(req));
+        // Like C's `expr` returning to the command that ran it: that command
+        // logs its level unless the expression's error is still logged.
+        frame.error_log = ActivationErrorLog::InvokingCommand;
         frame
     }
 
