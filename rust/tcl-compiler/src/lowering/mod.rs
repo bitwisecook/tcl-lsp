@@ -1364,6 +1364,45 @@ pub(crate) const SUBST_NOCOMMANDS_KINDS: tcl_registry::substitution::Substitutio
         variables: true,
     };
 
+/// [`ContextRegistry::with_command_store`] is a pure function of the
+/// context generation and the store, and a lowering rebuilds it for every
+/// snippet; reuse a few recent assemblies. Held handles keep both addresses
+/// from being reused while an entry remains.
+fn context_with_command_store(
+    context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    commands: std::sync::Arc<CommandRegistry>,
+) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+    type Entry = (
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+        std::sync::Arc<CommandRegistry>,
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    );
+    const MAX_RETAINED: usize = 8;
+    static MEMO: std::sync::OnceLock<std::sync::Mutex<Vec<Entry>>> = std::sync::OnceLock::new();
+    let memo = MEMO.get_or_init(Default::default);
+    let lock = || {
+        memo.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    };
+    if let Some((_, _, assembled)) = lock().iter().find(|(base, store, _)| {
+        std::sync::Arc::ptr_eq(base, context) && std::sync::Arc::ptr_eq(store, &commands)
+    }) {
+        return std::sync::Arc::clone(assembled);
+    }
+    let assembled =
+        std::sync::Arc::new(context.with_command_store(std::sync::Arc::clone(&commands)));
+    let mut entries = lock();
+    if entries.len() >= MAX_RETAINED {
+        entries.remove(0);
+    }
+    entries.push((
+        std::sync::Arc::clone(context),
+        commands,
+        std::sync::Arc::clone(&assembled),
+    ));
+    assembled
+}
+
 impl<'r> Lowerer<'r> {
     /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
     #[must_use]
@@ -1513,9 +1552,7 @@ impl<'r> Lowerer<'r> {
                 {
                     context
                 } else {
-                    std::sync::Arc::new(
-                        context.with_command_store(self.registry.snapshot().shared_registry()),
-                    )
+                    context_with_command_store(&context, self.registry.snapshot().shared_registry())
                 }
             });
         }
