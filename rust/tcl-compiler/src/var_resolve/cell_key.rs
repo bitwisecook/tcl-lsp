@@ -900,6 +900,12 @@ impl<T: Clone + Eq + Hash> SharedSet<T> {
     {
         self.0.contains(value) && Arc::make_mut(&mut self.0).remove(value)
     }
+    /// Retain, sharing the set unchanged when every value is kept.
+    pub fn retain(&mut self, mut keep: impl FnMut(&T) -> bool) {
+        if !self.0.iter().all(&mut keep) {
+            Arc::make_mut(&mut self.0).retain(keep);
+        }
+    }
 }
 impl<T: Eq + Hash> FromIterator<T> for SharedSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
@@ -908,9 +914,14 @@ impl<T: Eq + Hash> FromIterator<T> for SharedSet<T> {
 }
 impl<T: Clone + Eq + Hash> Extend<T> for SharedSet<T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        let mut iter = iter.into_iter().peekable();
+        // Values already present leave the set shared.
+        let mut iter = iter
+            .into_iter()
+            .filter(|value| !self.0.contains(value))
+            .peekable();
         if iter.peek().is_some() {
-            Arc::make_mut(&mut self.0).extend(iter);
+            let missing: Vec<T> = iter.collect();
+            Arc::make_mut(&mut self.0).extend(missing);
         }
     }
 }
