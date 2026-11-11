@@ -102,8 +102,8 @@ impl Interp {
         token: GuardToken,
         generation: u64,
     ) -> bool {
-        let lookups = self.command_guard_lookups.borrow();
-        let Some(original) = lookups.get(&token) else {
+        let guards = self.guards.borrow();
+        let Some(original) = guards.data(token) else {
             return false;
         };
         original.as_ref().is_none_or(|original| {

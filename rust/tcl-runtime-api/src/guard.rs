@@ -464,12 +464,12 @@ impl GuardManager {
 /// Guard snapshots bound to the exact live allocation selected at issuance.
 /// Equal semantic identities on replacement allocations cannot revive a token.
 #[derive(Debug)]
-pub struct OwnedGuardManager<Owner> {
+pub struct OwnedGuardManager<Owner, Data = ()> {
     epochs: GuardManager,
-    owners: BTreeMap<GuardToken, Owner>,
+    owners: BTreeMap<GuardToken, (Owner, Data)>,
 }
 
-impl<Owner: PartialEq> OwnedGuardManager<Owner> {
+impl<Owner: PartialEq, Data: Default> OwnedGuardManager<Owner, Data> {
     /// Observe the current unpoisoned domain epoch without issuing a guard.
     /// This delegates currency to the same kernel used by owned guard checks.
     #[must_use]
@@ -498,14 +498,28 @@ impl<Owner: PartialEq> OwnedGuardManager<Owner> {
         owner: Owner,
     ) -> Result<GuardToken, GuardError> {
         let token = self.epochs.prepare(expected, observed, domains)?;
-        self.owners.insert(token, owner);
+        self.owners.insert(token, (owner, Data::default()));
         Ok(token)
+    }
+
+    /// The data the issuing owner retained with one live token.
+    #[must_use]
+    pub fn data(&self, token: GuardToken) -> Option<&Data> {
+        self.owners.get(&token).map(|(_, data)| data)
+    }
+
+    /// Retain owner data with one live token; it is released with the token.
+    pub fn data_mut(&mut self, token: GuardToken) -> Option<&mut Data> {
+        self.owners.get_mut(&token).map(|(_, data)| data)
     }
 
     /// Verify the original owner, semantic identity, and selected epochs.
     #[must_use]
     pub fn check(&self, token: GuardToken, observed: Option<GuardIdentity>, owner: &Owner) -> bool {
-        self.owners.get(&token) == Some(owner) && self.epochs.check(token, observed)
+        self.owners
+            .get(&token)
+            .is_some_and(|(issued, _)| issued == owner)
+            && self.epochs.check(token, observed)
     }
 
     /// Verify one expected semantic form on the exact original allocation.
@@ -517,7 +531,9 @@ impl<Owner: PartialEq> OwnedGuardManager<Owner> {
         observed: Option<GuardIdentity>,
         owner: &Owner,
     ) -> bool {
-        self.owners.get(&token) == Some(owner)
+        self.owners
+            .get(&token)
+            .is_some_and(|(issued, _)| issued == owner)
             && self.epochs.check_expected(token, expected, observed)
     }
 
@@ -578,7 +594,7 @@ mod tests {
 
     #[test]
     fn owned_guards_cannot_rebind_equal_semantics_to_another_allocation() {
-        let mut manager = OwnedGuardManager::new(GuardManager::default());
+        let mut manager: OwnedGuardManager<_> = OwnedGuardManager::new(GuardManager::default());
         let domains = GuardDomains::one(GuardDomain::Interpreter);
         let token = manager
             .prepare(EXPECTED, Some(EXPECTED), domains, 7_u64)

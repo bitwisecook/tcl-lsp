@@ -1456,12 +1456,9 @@ pub struct InterpState {
     /// cannot suppress or unbalance another coroutine's trace walk.
     active_var_trace_scopes: RefCell<Vec<crate::cmd_trace::VarTraceScope>>,
     /// Runtime-issued speculative guards and explicitly attested builtin IDs.
-    guards: RefCell<OwnedGuardManager<u64>>,
+    guards: RefCell<OwnedGuardManager<u64, Option<crate::namespace::CommandGuardLookup>>>,
     guard_lookup_environment_revision: Cell<Option<u64>>,
     guard_command_lookup_policy_revision: Cell<Option<u64>>,
-    command_guard_lookups: RefCell<
-        std::collections::BTreeMap<GuardToken, Option<crate::namespace::CommandGuardLookup>>,
-    >,
     guarded_definitions: RefCell<Vec<guarded_definition::DefinitionRequest>>,
     guarded_commands:
         RefCell<std::collections::BTreeMap<u64, std::collections::BTreeSet<GuardIdentity>>>,
@@ -2143,7 +2140,6 @@ impl Interp {
             guards: RefCell::new(OwnedGuardManager::new(guards)),
             guard_lookup_environment_revision: Cell::new(Some(0)),
             guard_command_lookup_policy_revision: Cell::new(Some(0)),
-            command_guard_lookups: RefCell::new(std::collections::BTreeMap::new()),
             guarded_definitions: RefCell::new(Vec::new()),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
@@ -3765,9 +3761,9 @@ impl Interp {
                 return Err(error);
             }
         };
-        self.command_guard_lookups
-            .borrow_mut()
-            .insert(token, lookup);
+        if let Some(retained) = self.guards.borrow_mut().data_mut(token) {
+            *retained = lookup;
+        }
         Ok(token)
     }
 
@@ -3859,7 +3855,6 @@ impl Interp {
     /// Release one runtime guard token exactly once.
     #[must_use]
     pub fn release_command_guard(&self, token: GuardToken) -> bool {
-        self.command_guard_lookups.borrow_mut().remove(&token);
         self.guards.borrow_mut().release(token)
     }
 

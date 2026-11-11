@@ -1086,7 +1086,7 @@ fn validate_command_guard_consumers(root: &Path) -> Result<Vec<String>> {
         ),
         (
             "runtime/rust/src/interp.rs",
-            "OwnedGuardManager<u64>",
+            "OwnedGuardManager<u64, Option<crate::namespace::CommandGuardLookup>>",
             ".resolve_generation(",
         ),
     ] {
