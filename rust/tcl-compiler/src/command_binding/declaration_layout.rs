@@ -308,14 +308,15 @@ fn original_alias_place_matches(
     true
 }
 
+// Derived equality compares in field order: the whole lookup snapshot last.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DeclarationLayoutObservation {
     pub(super) issuer: DeclarationLayoutIssuer,
-    pub(super) entry: Arc<OriginalDiagnosticFrameEntry>,
-    pub(super) snapshot: Arc<SourceLookupSnapshot>,
-    pub(super) namespace: super::SourceNamespaceKey,
     pub(super) config: tcl_lexer::LexerConfig,
     pub(super) words: Arc<[crate::ir::WordExpr]>,
+    pub(super) namespace: super::SourceNamespaceKey,
+    pub(super) entry: Arc<OriginalDiagnosticFrameEntry>,
+    pub(super) snapshot: Arc<SourceLookupSnapshot>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -1003,10 +1003,11 @@ pub struct SourceCompilerInvocation {
     pub structured: Option<Arc<super::compiled_invocation::SourceNativeStructuredPreparation>>,
     pub original_words: Option<Arc<super::compiled_invocation::SourceOriginalCompilerWords>>,
     pub policy: Option<Arc<SourceNativeCompilerPolicy>>,
-    pub table: Arc<super::SourceLookupSnapshot>,
     pub namespace: String,
     pub namespace_key: super::SourceNamespaceKey,
     pub head: Option<String>,
+    // Derived equality compares in field order: the whole table last.
+    pub table: Arc<super::SourceLookupSnapshot>,
 }
 
 pub(super) type SourceCompilerVisits =
