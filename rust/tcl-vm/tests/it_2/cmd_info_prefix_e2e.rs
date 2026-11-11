@@ -99,9 +99,9 @@ fn run(src: &str) -> (bool, String, String) {
     let registry =
         tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
             .commands();
-    let ir = lower_to_ir(src, &registry);
+    let ir = lower_to_ir(src, registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = tcl_vm::test_support::native_vm_for(

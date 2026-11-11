@@ -264,7 +264,7 @@ list [t {9223372036854775807 + 1}] [t {9223372036854775807 * 2}] [t {-(-92233720
             TclVersion::V9_0,
             TclVersion::V9_1,
         ],
-        r#"list [catch {expr {1 << -1}} m] $m $::errorCode"#,
+        r"list [catch {expr {1 << -1}} m] $m $::errorCode",
         "1 {negative shift argument} NONE",
     );
 }

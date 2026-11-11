@@ -60,9 +60,9 @@ fn run(src: &str) -> (bool, String, String) {
     let registry =
         tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
             .commands();
-    let ir = lower_to_ir(src, &registry);
+    let ir = lower_to_ir(src, registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let buf = Arc::new(Mutex::new(Vec::new()));
     let mut vm = tcl_vm::test_support::native_vm_for(
@@ -143,9 +143,9 @@ fn thread_package_absent_without_enable() {
     let registry =
         tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
             .commands();
-    let ir = lower_to_ir("set tcl_platform(threaded)", &registry);
+    let ir = lower_to_ir("set tcl_platform(threaded)", registry);
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
+    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let mut vm = tcl_vm::test_support::native_vm_for(
         tcl_vm::test_support::DEFAULT_ENVIRONMENT,
         Box::new(std::io::sink()),

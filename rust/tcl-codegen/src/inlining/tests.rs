@@ -275,11 +275,11 @@ fn runtime_script_top_level_inlines_from_its_explicit_namespace() {
          proc ::n::pick {} { puts NAMESPACED }\n\
          pick",
         "n",
-        &registry,
+        registry,
     );
     assert_eq!(module.top_level_namespace, "::n");
 
-    let inlined = inline_module(module, &registry);
+    let inlined = inline_module(module, registry);
     assert!(
         inlined
             .top_level
@@ -413,7 +413,7 @@ fn executable_pipeline_retains_consumed_user_proc_binding() {
     let registry = fixture_registry();
     let module = inline_module(
         module_for("proc ::greet {} { puts hello }\ngreet"),
-        &registry,
+        registry,
     );
     let requirement = module
         .top_level
@@ -428,7 +428,7 @@ fn executable_pipeline_retains_consumed_user_proc_binding() {
     assert_eq!(requirement.body, " puts hello ");
 
     let cfg = tcl_compiler::cfg_builder::build_cfg_codegen(&module, true);
-    let asm = crate::codegen::codegen_module(&cfg, &module, &registry)
+    let asm = crate::codegen::codegen_module(&cfg, &module, registry)
         .expect("original source namespace");
     assert_eq!(
         asm.top_level.procedure_bindings,
@@ -787,10 +787,10 @@ fn repeated_v3_wrap_preserves_transitive_procedure_bindings_in_asm() {
     // eligible for v3 inlining. The second pass consumes the non-terminal
     // `outer` call and therefore routes its rewritten body through the
     // return-as-break wrapper.
-    let once = inline_module(module_for(source), &registry);
-    let module = inline_module(once, &registry);
+    let once = inline_module(module_for(source), registry);
+    let module = inline_module(once, registry);
     let cfg = tcl_compiler::cfg_builder::build_cfg_codegen(&module, true);
-    let asm = crate::codegen::codegen_module(&cfg, &module, &registry)
+    let asm = crate::codegen::codegen_module(&cfg, &module, registry)
         .expect("original source namespace");
     let bindings: Vec<_> = asm
         .top_level
