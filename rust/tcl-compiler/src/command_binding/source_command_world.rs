@@ -464,6 +464,22 @@ pub(super) struct OriginalSourceCommandWorld {
     // detach; ledger order and full row equality/hash remain semantic.
     publications: Vec<Arc<OriginalCommandPublication>>,
     exports: Vec<(SignatureNamespaceScope, Vec<SignatureSourceNameInput>)>,
+    jim_stock: MayHoldJimStockPublication,
+}
+
+/// Whether any Jim stock publication was ever published into this ledger.
+/// Publications only leave by join or removal, so a clear flag proves none
+/// remain; a set flag proves nothing. A hint outside equality and hash.
+#[derive(Debug, Clone, Copy, Default)]
+struct MayHoldJimStockPublication(bool);
+impl PartialEq for MayHoldJimStockPublication {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+impl Eq for MayHoldJimStockPublication {}
+impl std::hash::Hash for MayHoldJimStockPublication {
+    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
 }
 
 /// Readonly access to the selected original ledger. An already initialised
@@ -931,7 +947,11 @@ impl OriginalSourceCommandWorld {
         if !std::ptr::eq(self, state.original_command_world.as_ref()) {
             return Vec::new();
         }
-        if self.unavailable || state.has_opaque_domain() || state.unclosed_command_world {
+        if !self.jim_stock.0
+            || self.unavailable
+            || state.has_opaque_domain()
+            || state.unclosed_command_world
+        {
             return Vec::new();
         }
         self.publications
@@ -1032,6 +1052,11 @@ impl OriginalSourceCommandWorld {
     }
 
     fn publish(&mut self, publication: OriginalCommandPublication) {
+        if let SignatureSourceNameInput::OriginalValue(value) = &publication.input
+            && value.jim_stock_name().is_some()
+        {
+            self.jim_stock.0 = true;
+        }
         self.publications
             .retain(|previous| previous.slot != publication.slot);
         self.publications.push(Arc::new(publication));
