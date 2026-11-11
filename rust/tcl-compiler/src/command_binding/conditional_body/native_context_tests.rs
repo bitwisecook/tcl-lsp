@@ -206,11 +206,13 @@ fn lambda_original_namespace_overrides_callers_context_key() {
     assert!(entered.iter().any(|binding| {
         binding
             .execution_targets()
+            // value-transfer-ok: irreducible — asserts which user procedure is the target.
             .any(|target| !target.registry_backed && target.command == "::other::helper")
     }));
     assert!(!entered.iter().any(|binding| {
         binding
             .execution_targets()
+            // value-transfer-ok: irreducible — asserts which user procedure is the target.
             .any(|target| !target.registry_backed && target.command == "::helper")
     }));
 }

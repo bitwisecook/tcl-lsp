@@ -2775,6 +2775,7 @@ fn capture_jim_alias_prefix(
 
 // WORK-only, same admission and nonwrapping process quota as the Jim owner trace.
 fn trace_jim_alias_option<T>(command: &str, stage: &'static str, value: Option<T>) -> Option<T> {
+    // value-transfer-ok: irreducible — selects which calls a debug trace logs.
     if command == "alias" {
         crate::registry_invocation::source_structure::trace_jim_source_option(stage, value)
     } else {
@@ -2783,6 +2784,7 @@ fn trace_jim_alias_option<T>(command: &str, stage: &'static str, value: Option<T
 }
 
 fn trace_jim_alias_guard(command: &str, stage: &'static str, value: bool) -> bool {
+    // value-transfer-ok: irreducible — selects which calls a debug trace logs.
     if command == "alias" {
         let _ = crate::registry_invocation::source_structure::trace_jim_source_option(
             stage,

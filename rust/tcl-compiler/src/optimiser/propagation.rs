@@ -2715,6 +2715,8 @@ fn visit_call_cmd_subst_folds(
                     )
                 })
                 .map_or(DiagCode::O129, |invocation| {
+                    // value-transfer-ok: irreducible — names the reported
+                    // rewrite family of a fold already made; no value depends on it.
                     match invocation.facts.canonical_command.as_str() {
                         "list" => DiagCode::O116,
                         "lindex" => DiagCode::O118,

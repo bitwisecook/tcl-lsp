@@ -723,13 +723,16 @@ fn eval(
                 if let Some(value) = file_route(&sub, &names, registry) {
                     return Some(value);
                 }
-                // value-transfer-ok: explicit host path algebra when the portable route declines platform-relative names.
+                // value-transfer-ok: irreducible — host path algebra when the
+                // portable route declines platform-relative names.
                 if sub == "dirname" && names.len() == 1 {
                     return Some(path_dirname(&names[0]));
                 }
+                // value-transfer-ok: irreducible — as above, for normalize.
                 if sub == "normalize" && names.len() == 1 {
                     return eval_file_normalize(&names[0]);
                 }
+                // value-transfer-ok: irreducible — as above, for join.
                 if sub == "join" {
                     return Some(path_join(&names));
                 }

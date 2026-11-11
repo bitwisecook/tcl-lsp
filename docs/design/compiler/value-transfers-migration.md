@@ -614,33 +614,19 @@ axes*), which waives the sites by axis.
 
 | File | Sites | Reviewed by |
 |---|---|---|
-| `rust/tcl-cli/src/commands/minimize.rs` | 1 | the `arg_roles` axis — `var_target_positions`, a reimplementation of the role axis for eight commands |
-| `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 | the `definition_body` axis — `oo::objdefine`, `oo::copy`, and `info` by name |
-| `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
-| `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |
-| `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 6 | the `special_vars` and `side_effects` axes — the `static::`, `log`, and `global` checks |
+| `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 2 | the `special_vars` and `side_effects` axes — the `static::`, `log`, and `global` checks |
 | `rust/tcl-codegen/src/codegen/cmd_subst.rs` | 3 | the `native_lowering` axis — instruction selection for `set` and the `array` intrinsics |
 | `rust/tcl-codegen/src/codegen/emitter/bytecoded.rs` | 4 | the `native_lowering` axis — instruction selection for the `dict` and `array` ensembles |
-| `rust/tcl-codegen/src/codegen/emitter/loop_blocks.rs` | 2 | the `native_lowering` axis — the loop emitter's `foreach` / `lmap` collect flag, which the declared iteration plan can carry |
-| `rust/tcl-codegen/src/codegen/statements.rs` | 2 | the `native_lowering` axis — `break` / `continue` as loop exits |
-| `rust/tcl-codegen/src/codegen/structured.rs` | 2 | the `native_lowering` axis — `break` / `continue` as loop exits |
-| `rust/tcl-compiler/src/connection_scope.rs` | 1 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 | the `native_lowering` axis — the inliner's synthesised `break` / `continue`, the expected waiver |
-| `rust/tcl-compiler/src/irules_checks.rs` | 3 | the `side_effects` axis — `drop` / `reject` / `discard`, `DNS::return`, `event disable all` |
-| `rust/tcl-compiler/src/lowering/mod.rs` | 1 | the `frame_effect` axis — the `namespace` body |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 2 | the `native_lowering` axis — `dict for` / `dict map` lowering by subcommand |
-| `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 | the `arg_roles` axis — O128's length-position table is the index-argument role the registry does not carry, the same debt as the W230–W232 family |
-| `rust/tcl-compiler/src/place_bridge.rs` | 2 | the `arg_roles` axis — `namespace upvar` positions by name |
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 | the `native_lowering` axis — a thunked `break` |
 | `rust/tcl-compiler/src/ssa.rs` | 1 | the `arg_roles` axis — `trace add variable` positions by name |
-| `rust/tcl-compiler/src/taint.rs` | 3 | the `side_effects` and `traits` axes — the `file` path-sink narrowing, the `string match` / `first` / `equal` guard parse, and the `interp` / `proc` rebinding order |
-| `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 | the `arg_roles` and `traits` axes — `namespace upvar`'s positions and `info exists` by name; the walker still calls the file, so it is reviewed, not deleted |
-| `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 | the `traits` axis — `info exists` beside `INTROSPECTS_BY_NAME` |
+| `rust/tcl-compiler/src/taint.rs` | 2 | the `side_effects` and `traits` axes — the `file` path-sink narrowing, the `string match` / `first` / `equal` guard parse, and the `interp` / `proc` rebinding order |
+| `rust/tcl-compiler/src/var_escape/handlers.rs` | 1 | the `arg_roles` and `traits` axes — `namespace upvar`'s positions and `info exists` by name; the walker still calls the file, so it is reviewed, not deleted |
 | `rust/tcl-compiler/src/var_scoping.rs` | 1 | the `arg_roles` axis — `namespace upvar` positions by name |
 | `rust/tcl-irules/src/lib.rs` | 1 | the `options` axis — the `class match` / `class search` option scan ahead of the data-group reference |
-| `rust/tcl-lsp-core/src/oo_body.rs` | 1 | the `definition_body` axis — `oo::define` / `oo::objdefine` by name |
-| `rust/tcl-mcp/src/irule_gen.rs` | 2 | the `side_effects` axis — `table`'s shared-state subcommands and the terminal-action table; the `set` / `incr` recognisers read the resolved cell update |
-| `rust/tcl-mcp/src/irule_test.rs` | 2 | the `side_effects` axis — the `pool` / `node` sinks and the terminal-action table, where every listed command carries a `TaintColour` |
+| `rust/tcl-mcp/src/irule_gen.rs` | 1 | the `side_effects` axis — `table`'s shared-state subcommands and the terminal-action table; the `set` / `incr` recognisers read the resolved cell update |
+| `rust/tcl-mcp/src/irule_test.rs` | 1 | the `side_effects` axis — the `pool` / `node` sinks and the terminal-action table, where every listed command carries a `TaintColour` |
 | `rust/tcl-sslictcl/src/bin/sslictcl-data.rs` | 4 | irreducible — the tool's own CLI verbs (`testssl-to-dsl`, `check-trust`, `compile-trust`), not Tcl commands; a file waiver at review |
 
 ## Validation
