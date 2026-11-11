@@ -92,26 +92,8 @@ const PHYSICAL: &[&str] = &[
 /// The protocol a physical selector yields for strings and compounds.
 const STRING_PROTOCOL: &str = "native_string_protocol";
 
-const COROUTINE: &str =
-    "coroutines are absent from the Tcl 8.4 surface; their relay lists stay in the engine";
-const TCLOO: &str = "TclOO is absent from the Tcl 8.4 surface";
-
 /// `(file under SCOPE, function, reason)` for each reviewed physical site.
-const PHYSICAL_ONLY: &[(&str, &str, &str)] = &[
-    ("cmd_coro.rs", "cmd_coroutine", COROUTINE),
-    ("cmd_coro.rs", "invoke_original_relay", COROUTINE),
-    ("cmd_coro.rs", "request_yieldto", COROUTINE),
-    ("cmd_coro.rs", "request_yieldto_original", COROUTINE),
-    ("cmd_coro.rs", "resume_delivery_value", COROUTINE),
-    ("cmd_oo/native_context.rs", "helper_context_error", TCLOO),
-    ("exec.rs", "tcloo_next_list", TCLOO),
-    ("exec.rs", "tick_original_invocation", COROUTINE),
-    (
-        "interp.rs",
-        "error_stack_log_value",
-        "the error stack is the physical engine's own record",
-    ),
-];
+const PHYSICAL_ONLY: &[(&str, &str, &str)] = &[];
 
 /// Run the gate; `check` is accepted for symmetry, the gate never rewrites.
 pub fn run(_check: bool) -> ExitCode {
