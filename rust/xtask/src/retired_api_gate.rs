@@ -393,9 +393,14 @@ const OWNED: &[OwnedPattern] = &[
     // consumer outside the registry that legitimately asks: a
     // fold skips the runtime availability gate, so it must; anything else
     // asking is a second availability rule.
+    // The Jim own-surface test asserts this owner's answer for a Jim document.
     OwnedPattern {
         needle: "has_command_in_this_dialect",
-        owners: &["rust/tcl-registry/src/", "rust/tcl-codegen/src/codegen/"],
+        owners: &[
+            "rust/tcl-registry/src/",
+            "rust/tcl-codegen/src/codegen/",
+            "rust/tcl-spectcl/tests/it_2/jim_own_surface.rs",
+        ],
     },
     OwnedPattern {
         needle: "all_dialect_command_names",
@@ -410,9 +415,15 @@ const OWNED: &[OwnedPattern] = &[
         needle: "is_closed_world_package",
         owners: &["rust/tcl-registry/src/"],
     },
+    // The bundled-manifest generator precompiles exactly this classification
+    // into the deferrable-pack table, asking the predicate rather than
+    // recomputing it.
     OwnedPattern {
         needle: "is_placement_gated_package",
-        owners: &["rust/tcl-registry/src/"],
+        owners: &[
+            "rust/tcl-registry/src/",
+            "rust/xtask/src/gen_bundled_manifests.rs",
+        ],
     },
     // **What did this call do to the command table?** — one
     // vocabulary. The registry resolves the facts; `tcl_compiler::alias` is
@@ -451,12 +462,22 @@ const OWNED: &[OwnedPattern] = &[
     // hands `build_declared_surface`'s set to `DocumentCommandSurface`), but
     // it never spells `DeclaredSurface` itself, so it is not listed as an
     // owner: an inert entry would silence a future hand-built
-    // `DeclaredSurface::new()` there instead of catching it.
+    // `DeclaredSurface::new()` there instead of catching it. The retained
+    // source entry, the optimiser's source-owner options and the LSP server's
+    // fresh-analysis and proposal inputs carry the workspace set the same way;
+    // `declared_frame_effects.rs` reads it only through `DocumentCommandSurface`;
+    // the advice-slot tests hand-build one as a fixture.
     OwnedPattern {
         needle: "DeclaredSurface",
         owners: &[
             "rust/tcl-registry/src/",
             "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs",
+            "rust/tcl-compiler/src/command_binding/retained_source.rs",
+            "rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs",
+            "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+            "rust/tcl-compiler/src/declared_frame_effects.rs",
+            "rust/tcl-lsp-server/src/fresh_analysis_cache.rs",
+            "rust/tcl-lsp-server/src/proposal_diagnostics.rs",
             "rust/tcl-compiler/src/analyser/",
             "rust/tcl-compiler/src/compilation_unit.rs",
             "rust/tcl-compiler/src/interprocedural.rs",
