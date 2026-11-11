@@ -79,6 +79,21 @@ fn native_namespace_creation_error(
 }
 
 impl Interp {
+    /// A namespace a script names, resolved under the selected issuer: a C
+    /// name through the shared address owner, Jim's flat namespaces and an
+    /// unissued profile through the namespace table's own walk.
+    pub(crate) fn find_named_namespace(&self, current: NsId, original: &[u8]) -> Option<NsId> {
+        let c_issuer = self
+            .name_policy_protocol()
+            .is_some_and(|policy| !policy.recipe().is_jim084());
+        if !c_issuer {
+            return self.namespaces().find_namespace(current, original);
+        }
+        let (anchor, components) = self.namespace_address_components(current, original).ok()?;
+        self.namespaces()
+            .namespace_at_components(anchor, &components)
+    }
+
     pub(crate) fn namespace_address_components(
         &self,
         current: NsId,

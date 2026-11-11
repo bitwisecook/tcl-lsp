@@ -1180,9 +1180,7 @@ impl Namespaces for Interp {
     // Namespace-tree navigation. The contract's `NsId` is a `u32` newtype; the
     // runtime's arena id is a `usize` (both `ROOT_NS`/`GLOBAL` = 0).
     fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId> {
-        self.namespaces()
-            .find_namespace(cxt.0 as usize, name.as_bytes())
-            .map(|id| NsId(id as u32))
+        self.find_namespace_bytes(cxt, name.as_bytes())
     }
 
     fn namespace_is_live(&self, ns: NsId) -> bool {
@@ -1321,8 +1319,7 @@ impl Namespaces for Interp {
     }
 
     fn find_namespace_bytes(&self, cxt: NsId, name: &[u8]) -> Option<NsId> {
-        self.namespaces()
-            .find_namespace(cxt.0 as usize, name)
+        self.find_named_namespace(cxt.0 as usize, name)
             .map(|id| NsId(id as u32))
     }
 

@@ -11481,9 +11481,7 @@ impl Interp {
 
     /// Resolve a (relative/absolute) namespace name to its id, or `None`.
     pub(crate) fn find_namespace_id(&self, name: &[u8]) -> Option<NsId> {
-        self.namespaces
-            .borrow()
-            .find_namespace(self.current_ns.get(), name)
+        self.find_named_namespace(self.current_ns.get(), name)
     }
 
     // introspection (`info` / `array`)
