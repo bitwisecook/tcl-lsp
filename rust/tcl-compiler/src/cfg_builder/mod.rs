@@ -7730,6 +7730,43 @@ mod tests {
         ));
     }
 
+    /// A loop that only writes variables leaves the command table it found:
+    /// the commands after it are the module's own, with no unseen code
+    /// (#2523, #2531).
+    #[test]
+    fn a_loop_that_writes_only_variables_keeps_the_commands_after_it_named() {
+        let markers = |src: &str| -> Vec<Statement> {
+            build_cfg(&lower_module(src), false)
+                .top_level
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .filter(|stmt| {
+                    stmt.tokens().is_some_and(|tokens| {
+                        matches!(
+                            tokens.synthetic,
+                            Some(
+                                crate::ir::SyntheticMarker::UnseenCall
+                                    | crate::ir::SyntheticMarker::CallerFrameOpaque
+                            )
+                        )
+                    })
+                })
+                .cloned()
+                .collect()
+        };
+        for src in [
+            "for {set i 0} {$i < 10} {incr i} {}\nproc p {} { set i 0; incr i }\n",
+            "set i 0\nwhile {$i < 5} {incr i}\nset r [lindex {a b} $i]\n",
+            "foreach x {1 2} {set y $x}\nputs $y\n",
+        ] {
+            let found = markers(src);
+            assert!(found.is_empty(), "{src}: {found:?}");
+        }
+        // A loop that rebinds a command leaves the commands after it unknown.
+        assert!(!markers("foreach n {a b} {proc puts args {}}\nputs hi\n").is_empty());
+    }
+
     /// The marker for a call whose own head runs code the module cannot see
     /// follows the call and carries nothing: the names the call's words read,
     /// which may be rewritten as it runs, are the SSA's to state.

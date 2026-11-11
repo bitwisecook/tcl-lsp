@@ -19795,15 +19795,25 @@ fn collect_binding_states(
                 if matches!(
                     stmt,
                     Statement::For { .. } | Statement::While { .. } | Statement::Foreach { .. }
-                ) && source_order_entry
+                ) && let Some(before) = source_order_entry
                     .as_ref()
-                    .is_some_and(|before| !before.same_state(current))
+                    .filter(|before| !before.same_state(current))
                 {
                     // One source pass cannot close a loop-carried command
                     // binding state. Publish an explicitly opaque region
                     // state rather than mistaking the first post-state for a
-                    // fixed point.
-                    current.mark_opaque_binding_mutation();
+                    // fixed point. A loop that leaves the command world as
+                    // it found it changed only variables: those it may
+                    // write on a later pass are what stays unknown.
+                    if before.same_command_world(current)
+                        && before.logical_alias_prefixes == current.logical_alias_prefixes
+                        && before.command_observers == current.command_observers
+                    {
+                        Arc::make_mut(&mut current.source_variables).widen();
+                        current.ordinary_literal_pool = None;
+                    } else {
+                        current.mark_opaque_binding_mutation();
+                    }
                 }
                 // A structured node can execute its condition/body more than
                 // once or select a later branch. Join the post-region state
