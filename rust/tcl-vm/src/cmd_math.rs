@@ -184,6 +184,21 @@ fn shared_math_using(
             if let Some(integer) = crate::expr::value_as_bigint_with_stages(value, original)? {
                 return Ok(NumValue::Big(integer));
             }
+            // 8.4's `Tcl_GetDoubleFromObj` refuses a string `strtod` reads
+            // only with `ERANGE`.
+            if release == Some(tcl_dialect::TclVersion::V8_4)
+                && number::is_out_of_range_double(
+                    &math_text(value, original)?,
+                    tcl_dialect::NumberSyntax::Tcl84,
+                )
+            {
+                let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+                    name,
+                    "",
+                    tcl_dialect::TclVersion::V8_4,
+                );
+                return Err(TclError::Guest(err_with_code(message, code)));
+            }
             if let Some(number) = quiet_guest(value.as_double_with_stages(original))? {
                 return Ok(NumValue::Float(number));
             }

@@ -420,6 +420,45 @@ list [t {"x" + 1}] [t {1.5 % 1}] [t {~1.5}] [t {!"x"}] [t {foo(1)}]"#;
     );
 }
 
+/// 8.4 refuses a string `strtod` reads only with `ERANGE` (#2483): an
+/// operand names a subnormal a floating-point value and an underflow or
+/// overflow a non-numeric string, a math function finds no numeric value,
+/// `format` and `lsort -real` raise the float error, and `<` compares the
+/// strings. Measured on tclsh 8.4.20; 8.5 onward read the numbers.
+#[test]
+fn out_of_range_strings_per_release() {
+    let src = r#"set out {}
+foreach x {1e-320 1e-400 1e400} {
+    lappend out [catch {expr {$x*1}} r] $r [catch {expr {sin($x)}} r] $r
+    lappend out [catch {format %f $x} r] $r [catch {lsort -real [list $x 1]} r] $r
+    lappend out [expr {$x < 1}]
+}
+set out"#;
+    assert_releases(
+        &[TclVersion::V8_4],
+        src,
+        "1 {can't use floating-point value as operand of \"*\"} \
+         1 {argument to math function didn't have numeric value} \
+         1 {floating-point value too large to represent} \
+         1 {floating-point value too large to represent} 0 \
+         1 {can't use non-numeric string as operand of \"*\"} \
+         1 {argument to math function didn't have numeric value} \
+         1 {floating-point value too small to represent} \
+         1 {floating-point value too small to represent} 0 \
+         1 {can't use non-numeric string as operand of \"*\"} \
+         1 {argument to math function didn't have numeric value} \
+         1 {floating-point value too large to represent} \
+         1 {floating-point value too large to represent} 0",
+    );
+    assert_releases(
+        &[TclVersion::V8_5, TclVersion::V8_6],
+        src,
+        "0 1e-320 0 1e-320 0 0.000000 0 {1e-320 1} 1 \
+         0 0.0 0 0.0 0 0.000000 0 {1e-400 1} 1 \
+         0 Inf 1 {domain error: argument not in valid range} 0 inf 0 {1 1e400} 0",
+    );
+}
+
 /// 8.4's `string` reads its option with `Tcl_GetIndexFromObj` (`bad option`,
 /// table order); from 8.5 it is an ensemble with `TCL LOOKUP SUBCOMMAND`.
 /// `bytelength` exists through 8.6.

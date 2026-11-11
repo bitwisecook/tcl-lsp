@@ -62,6 +62,19 @@ pub enum OperandDesc {
 }
 
 impl OperandDesc {
+    /// 8.4's description of an operand string whose `strtod` set `ERANGE`
+    /// and returned `value`: a subnormal it read back is a floating-point
+    /// value, an underflow to zero or an overflow a non-numeric string.
+    /// Measured on tclsh 8.4.20: `$x*1` with `x` `1e-320`, `1e-400`, `1e400`.
+    #[must_use]
+    pub fn for_c84_range_error(value: f64) -> Self {
+        if value == 0.0 || value.is_infinite() {
+            OperandDesc::NonNumericString
+        } else {
+            OperandDesc::FloatingPointValue
+        }
+    }
+
     /// The description as it appears inside the message (and, except for
     /// [`Self::List`], inside the error code).
     #[must_use]

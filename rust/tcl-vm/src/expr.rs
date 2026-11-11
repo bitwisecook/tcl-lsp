@@ -1247,9 +1247,16 @@ fn context_operand_error(
             number::parse_whole_with(text, number::ParseFlags::for_syntax(context.numbers))
         })
     };
+    let range_error = release == tcl_dialect::TclVersion::V8_4
+        && std::str::from_utf8(&original).is_ok_and(|text| {
+            number::is_out_of_range_double(text, tcl_dialect::NumberSyntax::Tcl84)
+        });
     let description = match parsed {
         Some(Number::Double(double)) if double.is_nan() => {
             errors::OperandDesc::NonNumericFloatingPointValue
+        }
+        Some(Number::Double(double)) if range_error => {
+            errors::OperandDesc::for_c84_range_error(double)
         }
         Some(Number::Double(_)) => errors::OperandDesc::FloatingPointValue,
         Some(Number::Nan { .. }) => errors::OperandDesc::NonNumericFloatingPointValue,
