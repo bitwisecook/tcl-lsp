@@ -581,6 +581,32 @@ fn diag_reports_an_lset_at_the_length_only_before_8_6() {
     }
 }
 
+/// A builtin reading a variable an earlier fold made constant folds in the
+/// same pass (tclsh 8.6/9.0: `set u [string toupper abc]; string length $u`
+/// is 3). A value reassigned on some path, or read through a trace, does not.
+#[test]
+fn opt_folds_a_builtin_over_a_folded_builtin_result() {
+    let fold = |source: &str| {
+        String::from_utf8(run_tcl(&["opt", "--dialect", "tcl8.6", "--source", source]))
+            .expect("utf-8 output")
+    };
+    let chained = fold("set u [string toupper abc]\nputs [string length $u]\n");
+    assert!(chained.contains("puts 3"), "{chained}");
+    let expr = fold("set t [expr {3+4}]\nputs [string length $t]\n");
+    assert!(expr.contains("puts 1"), "{expr}");
+    let reassigned = fold(
+        "set u [string toupper abc]\nif {[gets stdin x] > 0} {set u $x}\nputs [string length $u]\n",
+    );
+    assert!(
+        reassigned.contains("puts [string length $u]"),
+        "{reassigned}"
+    );
+    let traced = fold(
+        "set u [string toupper abc]\ntrace add variable u read {apply {args {set ::u zz}}}\nputs [string length $u]\n",
+    );
+    assert!(traced.contains("puts [string length $u]"), "{traced}");
+}
+
 /// The transform verbs auto-detect a document's dialect, so an iRule folds
 /// the same with and without an explicit `--dialect`.
 ///

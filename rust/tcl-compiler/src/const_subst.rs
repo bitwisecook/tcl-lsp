@@ -384,6 +384,24 @@ impl<'a> ConstSubstCtx<'a> {
             context.contents_native_string_access_closed_at(&place, self.registry)
         })
     }
+    /// A read every alternative of which reaches one bound variable holding a
+    /// value, whose contents the source walk did not itself record. Only a
+    /// caller's lattice can supply that value.
+    fn retained_argument_variable_bound_without_contents(
+        &self,
+        access: &crate::command_binding::SourceVariableAccess,
+    ) -> bool {
+        !access.context_alternatives().is_empty()
+            && access.context_residual()
+                == crate::command_binding::SourceVariableReadResidual::Closed
+            && access.context_alternatives().iter().all(|context| {
+                context.binding_identity == crate::var_resolve::BindingIdentity::Bound
+                    && context.read_produces_value(
+                        &access.place_in_context(context, self.registry),
+                        self.registry,
+                    )
+            })
+    }
 
     fn retained_token_arguments_at_depth(
         &self,
@@ -448,11 +466,19 @@ impl<'a> ConstSubstCtx<'a> {
                     }
                     crate::ir::WordExpr::Variable { spelling, source } => {
                         let access = tokens.variable_access_at(source, spelling)?;
-                        if !self.retained_argument_variable_access_closed(access) {
-
-                    return None;
+                        if self.retained_argument_variable_access_closed(access) {
+                            return value();
                         }
-                        value()
+                        // The source walk records only the values it evaluated
+                        // itself. A bound read of a value only the caller's
+                        // lattice holds (a folded builtin's result) asks it.
+                        if !self.retained_argument_variable_bound_without_contents(access) {
+                            return None;
+                        }
+                        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+                        let name =
+                            tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)?;
+                        (self.lookup_var)(name)
                     }
                     crate::ir::WordExpr::CommandSubstitution { source, .. } => {
                         let mut selected = calls

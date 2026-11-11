@@ -1506,12 +1506,16 @@ fn fold_retained_builtin(
     calls: &[crate::word_subst::LiftedCall],
     defining_class: Option<&str>,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
-    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    (dialect, constants): (
+        Option<&'static tcl_dialect::DialectProfile>,
+        Option<&std::collections::HashMap<String, String>>,
+    ),
 ) -> Option<String> {
     let metadata = metadata?;
     let release = dialect.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
         profile.vm_runtime_version
     });
+    let lookup = |name: &str| constants.and_then(|constants| constants.get(name).cloned());
     crate::const_subst::ConstSubstCtx {
         registry,
         resolution_namespace: "::",
@@ -1522,7 +1526,7 @@ fn fold_retained_builtin(
         version: None,
         defining_class,
         trusts: &|_| false,
-        lookup_var: &|_| None,
+        lookup_var: &lookup,
     }
     .fold_retained_call_with_metadata_context(call, calls, metadata)
     .filter(|value| !crate::const_subst::folded_literal_reads_apart(value, release))
@@ -1609,7 +1613,7 @@ fn visit_oo_frame_folds(
             &calls,
             Some(&frame.defining_class),
             metadata,
-            ctx.dialect,
+            (ctx.dialect, None),
         ) && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
         {
             rewrites.push((call.span, word));
@@ -1666,7 +1670,7 @@ fn try_oo_frame_return_fold(
         &calls,
         Some(&frame.defining_class),
         metadata,
-        ctx.dialect,
+        (ctx.dialect, None),
     ) else {
         return;
     };
@@ -2693,9 +2697,14 @@ fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
-        if let Some(value) =
-            fold_retained_builtin(registry, call, &calls, None, metadata, ctx.dialect)
-            && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
+        if let Some(value) = fold_retained_builtin(
+            registry,
+            call,
+            &calls,
+            None,
+            metadata,
+            (ctx.dialect, Some(constants)),
+        ) && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
         {
             let code = call
                 .tokens
@@ -2975,7 +2984,7 @@ fn visit_string_interpolation_cmd_subs(
     tokens: &CommandTokens,
     span: tcl_lexer::Span,
     text: &str,
-    _constants: &std::collections::HashMap<String, String>,
+    constants: &std::collections::HashMap<String, String>,
 ) {
     let Some(registry) = ctx.registry else {
         return;
@@ -3036,9 +3045,9 @@ fn visit_string_interpolation_cmd_subs(
     let mut out = String::with_capacity(inside.len());
     let mut last = 0;
     let mut folded_any = false;
+    let lattice = (ctx.dialect, Some(constants));
     for call in roots {
-        let Some(result) =
-            fold_retained_builtin(registry, call, &calls, None, metadata, ctx.dialect)
+        let Some(result) = fold_retained_builtin(registry, call, &calls, None, metadata, lattice)
         else {
             continue;
         };
@@ -6027,7 +6036,9 @@ mod tests {
             )
             .expect("selected builtin independent of native object effects");
         assert!(invocation.facts.effects.requires_world_barrier());
-        assert!(fold_retained_builtin(registry, call, &calls, None, metadata, None).is_none());
+        assert!(
+            fold_retained_builtin(registry, call, &calls, None, metadata, (None, None)).is_none()
+        );
     }
 
     #[test]
@@ -6171,14 +6182,24 @@ mod tests {
         let calls = retained_substitution_calls(tokens, &cu.ir_module, registry).unwrap();
         let outer = calls.iter().find(|call| call.command == "list").unwrap();
         assert_eq!(
-            fold_retained_builtin(registry, outer, &calls, None, Some(current.into()), None),
+            fold_retained_builtin(
+                registry,
+                outer,
+                &calls,
+                None,
+                Some(current.into()),
+                (None, None)
+            ),
             Some("{key value}".into())
         );
         let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
             .with_command_store(std::sync::Arc::clone(registry));
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
         for metadata in [Some((&older).into()), Some(foreign.into()), None] {
-            assert!(fold_retained_builtin(registry, outer, &calls, None, metadata, None).is_none());
+            assert!(
+                fold_retained_builtin(registry, outer, &calls, None, metadata, (None, None))
+                    .is_none()
+            );
         }
         let tokens = tokens.clone();
         let span = statement.span();

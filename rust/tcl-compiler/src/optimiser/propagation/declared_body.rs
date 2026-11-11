@@ -153,7 +153,7 @@ impl OriginalBodyCallSource<'_> {
                     &calls,
                     None,
                     Some(self.metadata),
-                    ctx.dialect,
+                    (ctx.dialect, None),
                 ) else {
                     continue;
                 };
