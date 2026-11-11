@@ -4151,6 +4151,7 @@ pub struct SourceCommandBindings {
     unrepresented_entries: SharedSourceInventory<pre_handler_failure::UnrepresentedEntries>,
     unpositioned_projections: SourceHeadProjectionCache,
     declaration_flow_cache: declaration_flow::SourceDeclarationFlowCache,
+    module_projection_memo: retained_source::ModuleProjectionMemo,
     deferred_namespace_index: deferred_namespace_index::DeferredNamespaceIndexCache,
     deferred_body_index: deferred_body_index::DeferredBodyIndexCache,
     root_origin: Option<Arc<SourceOriginId>>,

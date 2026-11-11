@@ -1005,15 +1005,72 @@ impl RetainedSourceModuleBindings {
 
 impl SourceCommandBindings {
     pub(super) fn module_projection(&self, module: &Module) -> ModuleCommandBindings {
-        let mut observed = self.final_state.as_ref().clone();
-        for point in &self.points {
-            observed.join(&point.state);
-        }
-        for future in &self.deferred_outcomes {
-            observed.join(&future.state);
-        }
-        observed.root_boundary_bindings = Arc::clone(&self.final_state.bindings);
+        let mut observed = self.module_projection_memo.get_or_join(self, || {
+            let mut observed = self.final_state.as_ref().clone();
+            for point in &self.points {
+                observed.join(&point.state);
+            }
+            for future in &self.deferred_outcomes {
+                observed.join(&future.state);
+            }
+            observed.root_boundary_bindings = Arc::clone(&self.final_state.bindings);
+            observed
+        });
         observed.has_redefined_procedures = !module.redefined_procedures.is_empty();
+        observed
+    }
+}
+
+/// The last whole-module join with the exact inventories it read. The memo
+/// holds those handles, so any later write detaches them and no longer
+/// matches; clones share it, and equality never consults it.
+#[derive(Default, Clone)]
+pub(super) struct ModuleProjectionMemo(Arc<std::sync::Mutex<Option<ModuleProjectionEntry>>>);
+
+struct ModuleProjectionEntry {
+    points: super::SharedSourceInventory<Vec<super::SourceBindingPoint>>,
+    deferred: super::SharedSourceInventory<Vec<super::SourceDeferredOutcome>>,
+    final_state: Arc<ModuleCommandBindings>,
+    observed: ModuleCommandBindings,
+}
+
+impl std::fmt::Debug for ModuleProjectionMemo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ModuleProjectionMemo")
+            .finish_non_exhaustive()
+    }
+}
+
+impl ModuleProjectionMemo {
+    fn get_or_join(
+        &self,
+        bindings: &SourceCommandBindings,
+        join: impl FnOnce() -> ModuleCommandBindings,
+    ) -> ModuleCommandBindings {
+        let matches = |entry: &ModuleProjectionEntry| {
+            entry.points.shares(&bindings.points)
+                && entry.deferred.shares(&bindings.deferred_outcomes)
+                && Arc::ptr_eq(&entry.final_state, &bindings.final_state)
+        };
+        if let Some(entry) = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .filter(|entry| matches(entry))
+        {
+            return entry.observed.clone();
+        }
+        let observed = join();
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(ModuleProjectionEntry {
+            points: bindings.points.clone(),
+            deferred: bindings.deferred_outcomes.clone(),
+            final_state: Arc::clone(&bindings.final_state),
+            observed: observed.clone(),
+        });
         observed
     }
 }
