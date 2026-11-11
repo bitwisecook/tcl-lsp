@@ -151,9 +151,13 @@ impl SourceCommandBindings {
         };
         let mut effects = Vec::new();
         for (point_index, point) in self.points.iter().enumerate() {
-            // Every class continuation is a rule-loader point; checking that
-            // first spares each other point a scan of its world's publications.
-            if point.declaration_preview
+            // A class continuation needs a rule-loader point whose world holds
+            // a Jim stock publication; both are checked before any scan.
+            if !point
+                .state
+                .original_command_world
+                .may_hold_jim_stock_publication()
+                || point.declaration_preview
                 || point.dispatch
                 || point.realm != tcl_dialect::model::InvocationRealm::RuleLoader
                 || point

@@ -934,6 +934,11 @@ impl OriginalSourceCommandWorld {
             .map(|entry| entry.scope.clone())
     }
 
+    /// Whether a Jim stock publication may remain in this ledger.
+    pub(super) fn may_hold_jim_stock_publication(&self) -> bool {
+        self.jim_stock.0
+    }
+
     pub(super) fn jim_stock_source_effects(
         &self,
         bindings: &super::SourceCommandBindings,
