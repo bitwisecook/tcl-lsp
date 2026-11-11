@@ -132,6 +132,7 @@ impl NamePolicyProtocol {
         Ok(AuthoredNamespaceImportControl {
             policy: self,
             source_value,
+            // registry-axis-ok: options — the native name policy's force flag; until the option table marks the force flag
             forces: source_value == "-force",
         })
     }

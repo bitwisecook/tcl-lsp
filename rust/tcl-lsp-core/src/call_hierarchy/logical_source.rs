@@ -930,6 +930,7 @@ fn class_member(
         .values()
         .filter_map(|method| owner.member(MemberSide::ClassObject, method))
         .filter(|member| {
+            // registry-axis-ok: definition_body — TclOO member visibility as the declaration records it; until member metadata carries a typed visibility
             member.metadata().visibility == "public"
                 && member
                     .original_name_word()

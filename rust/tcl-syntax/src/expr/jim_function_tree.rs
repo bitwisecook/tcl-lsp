@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// registry-axis-ok(file): irreducible — expression operators, not commands; until never
+
 //! Jim's eager function resolution and shared argument-term stack.
 
 use super::ast::{BinOp, ExprNode, ExprText, UnaryOp};

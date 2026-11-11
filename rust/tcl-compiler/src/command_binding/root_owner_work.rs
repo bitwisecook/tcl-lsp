@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// registry-axis-ok(file): irreducible — work-stage labels of the root owner's trace, not Tcl words; until never
+
 //! Optional timings of reached original owners, outside retained semantics.
 
 use std::cell::Cell;

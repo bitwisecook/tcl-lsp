@@ -305,6 +305,7 @@ fn bounded_installation_member_name(
     if grammar.family != tcl_registry::definer::DefinerFamily::Itcl {
         return true;
     }
+    // registry-axis-ok: definition_body — snit member keywords that define a callable; until the snit definition grammar marks callable members
     let name = if matches!(member.keyword, "method" | "proc") {
         values
             .get(1)

@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// registry-axis-ok(file): irreducible — a URI scheme and a home-directory marker, not Tcl words; until never
+
 //! File URI construction and checked native document/workspace path conversion.
 
 use std::borrow::Cow;

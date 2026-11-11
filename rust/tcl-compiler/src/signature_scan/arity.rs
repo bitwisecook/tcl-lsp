@@ -42,7 +42,9 @@ use super::types::ParamDef;
 /// which collects every argument past the others into one list.
 #[must_use]
 pub fn is_variadic(params: &[ParamDef]) -> bool {
-    params.last().is_some_and(|p| p.name == "args")
+    params
+        .last()
+        .is_some_and(|p| tcl_syntax::formal_params::is_variadic_formal_name(&p.name))
 }
 
 /// Compute a proc/method's declared `(min, max)` argument arity from its
@@ -57,9 +59,12 @@ pub fn arity_of(params: &[ParamDef]) -> Arity {
 #[must_use]
 pub fn arity_of_in(params: &[ParamDef], grammar: tcl_dialect::ParameterGrammar) -> Arity {
     let shape = tcl_syntax::formal_params::formal_argument_count_shape(
-        params
-            .iter()
-            .map(|parameter| (parameter.name == "args", parameter.has_default)),
+        params.iter().map(|parameter| {
+            (
+                tcl_syntax::formal_params::is_variadic_formal_name(&parameter.name),
+                parameter.has_default,
+            )
+        }),
         grammar,
     );
     arity_from_count_shape(shape).unwrap_or_else(Arity::any)

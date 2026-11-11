@@ -184,6 +184,7 @@ pub fn original_source_object_operands(
     // A typed declaration owns both admitted candidates and abstention.
     // Other custom resolvers still require complete original literal values.
     if typed_configuration_layout.is_none()
+        // registry-axis-ok: subcommands — iRules source-object resolver selectors; until the resolver reads its typed configuration layout
         && matches!(lower.as_str(), "class" | "persist")
         && let Some(values) = (0..count)
             .map(|index| literal(arguments, index))
@@ -210,6 +211,7 @@ pub fn original_source_object_operands(
                 .iter()
                 .any(|template| template.command == lower)
                 && literal(arguments, argument).is_some_and(|value| {
+                    // registry-axis-ok: subcommands — iRules source-object resolver selectors; until the resolver reads its typed configuration layout
                     matches!(value.to_ascii_lowercase().as_str(), "member" | "members")
                 })
             {

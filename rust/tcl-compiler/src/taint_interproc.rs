@@ -408,7 +408,9 @@ fn source_formal_argument_taints(
             let parameters = formals.parameters();
             let mut argument = 0;
             for (parameter, formal) in parameters.iter().enumerate() {
-                if parameter + 1 == parameters.len() && formal.name == "args" {
+                if parameter + 1 == parameters.len()
+                    && tcl_syntax::formal_params::is_variadic_formal_name(&formal.name)
+                {
                     for value in args.get(argument..)? {
                         bound[parameter] = bound[parameter].join(*value);
                     }
@@ -460,7 +462,11 @@ pub fn apply_proc_return_summary(
     let mut bound: Vec<(String, TaintLattice)> = Vec::with_capacity(summary.params.len());
     if let Some(source_bound) = source_bound {
         bound = source_bound;
-    } else if summary.params.last().is_some_and(|p| p == "args") {
+    } else if summary
+        .params
+        .last()
+        .is_some_and(|p| tcl_syntax::formal_params::is_variadic_formal_name(p))
+    {
         let fixed = summary.params.len() - 1;
         for (i, p) in summary.params.iter().take(fixed).enumerate() {
             let t = arg_taints
@@ -1540,7 +1546,11 @@ fn update_entry(
         return changed;
     }
 
-    if summary.params.last().is_some_and(|p| p == "args") {
+    if summary
+        .params
+        .last()
+        .is_some_and(|p| tcl_syntax::formal_params::is_variadic_formal_name(p))
+    {
         let fixed = summary.params.len() - 1;
         for (i, param) in summary.params.iter().take(fixed).enumerate() {
             let incoming = args.get(i).copied().unwrap_or_else(TaintLattice::clean);

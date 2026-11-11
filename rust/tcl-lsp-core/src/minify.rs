@@ -1635,7 +1635,7 @@ fn process_scope<'a>(
             }
             let is_param = param_names.contains(var_name.as_str());
             if is_param
-                && (var_name == "args"
+                && (tcl_syntax::formal_params::is_variadic_formal_name(var_name)
                     || formal_sources.as_ref().is_none_or(|formals| {
                         !formals
                             .iter()

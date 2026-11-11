@@ -123,9 +123,12 @@ impl LogicalProcedureFormalTopology {
     #[must_use]
     pub fn argument_count_shape(&self) -> tcl_syntax::formal_params::FormalArgumentCountShape {
         tcl_syntax::formal_params::formal_argument_count_shape(
-            self.parameters
-                .iter()
-                .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+            self.parameters.iter().map(|parameter| {
+                (
+                    tcl_syntax::formal_params::is_variadic_formal_name(&parameter.name),
+                    parameter.default.is_some(),
+                )
+            }),
             tcl_dialect::ParameterGrammar::Tcl,
         )
     }

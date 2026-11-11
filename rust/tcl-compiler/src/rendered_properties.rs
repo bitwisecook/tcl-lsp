@@ -372,6 +372,7 @@ fn rendered_command_properties(
     let traits = normal.rendered_value_traits()?;
     let normalised = traits.contains(Traits::UNNORMALISED_HTTP_GETTER)
         && (0..normal.argument_count())
+            // registry-axis-ok: options — the HTTP getter's normalising flag; until the getter's option table marks the normalising flag
             .any(|index| normal.argument_literal(index).as_deref() == Some("-normalized"));
     let mut may = if substitution {
         RenderedProperties::HAS_INTERPOLATION

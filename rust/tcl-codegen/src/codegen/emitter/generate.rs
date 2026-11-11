@@ -1309,6 +1309,42 @@ fn retain_initial_dependencies(ctx: &mut CodegenCtx, cfg: &CfgFunction) {
     }
 }
 
+/// The bodies a registry command runs that the release does not compile
+/// where they stand: their commands are evaluated directly.
+fn direct_regions(ctx: &CodegenCtx, cfg: &CfgFunction) -> Vec<tcl_lexer::Span> {
+    let locals = ctx.is_proc
+        && ctx
+            .compiled_variable_protocol
+            .is_some_and(tcl_syntax::naming::NativeCompiledVariableProtocol::has_indexed_locals);
+    cfg.inline_body_error_sites
+        .iter()
+        .filter(|site| {
+            if !matches!(site.context, BodyErrorContext::Registry(_)) {
+                return false;
+            }
+            let apart = cfg.inline_body_error_sites.iter().any(|eval| {
+                matches!(eval.context, BodyErrorContext::Registry(_))
+                    && eval.span != site.span
+                    && eval.region.start() <= site.span.start()
+                    && site.span.end() <= eval.region.end()
+            });
+            // An inlined `eval` body is compiled apart, as a script
+            // outside a procedure.
+            let same_frame = site.context
+                == BodyErrorContext::Registry(
+                    tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation,
+                );
+            ctx.direct_commands.contains(&site.span)
+                || !if locals && !apart && !same_frame {
+                    site.compiled.in_procedure
+                } else {
+                    site.compiled.outside_procedure
+                }
+        })
+        .map(|site| site.region)
+        .collect()
+}
+
 /// Generate bytecode for one CFG function.
 ///
 /// Handles: straight-line code, if/else, switch jump tables, proc
@@ -1400,40 +1436,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
         .map(|site| (site.span.start(), site.span.end()))
         .collect();
 
-    // The bodies a registry command runs that the release does not compile
-    // where they stand: their commands are evaluated directly.
-    let locals = ctx.is_proc
-        && ctx
-            .compiled_variable_protocol
-            .is_some_and(tcl_syntax::naming::NativeCompiledVariableProtocol::has_indexed_locals);
-    ctx.direct_regions = cfg
-        .inline_body_error_sites
-        .iter()
-        .filter(|site| {
-            if !matches!(site.context, BodyErrorContext::Registry(_)) {
-                return false;
-            }
-            let apart = cfg.inline_body_error_sites.iter().any(|eval| {
-                matches!(eval.context, BodyErrorContext::Registry(_))
-                    && eval.span != site.span
-                    && eval.region.start() <= site.span.start()
-                    && site.span.end() <= eval.region.end()
-            });
-            // An inlined `eval` body is compiled apart, as a script
-            // outside a procedure.
-            let same_frame = site.context
-                == BodyErrorContext::Registry(
-                    tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation,
-                );
-            ctx.direct_commands.contains(&site.span)
-                || !if locals && !apart && !same_frame {
-                    site.compiled.in_procedure
-                } else {
-                    site.compiled.outside_procedure
-                }
-        })
-        .map(|site| site.region)
-        .collect();
+    ctx.direct_regions = direct_regions(ctx, cfg);
 
     let fe = setup_foreach(ctx, cfg, &mut loop_ctx);
 

@@ -353,9 +353,12 @@ pub fn original_procedure_formal_count_shape(
 ) -> Option<FormalArgumentCountShape> {
     let (parameters, grammar) = original_procedure_parameters(module, procedure, registry)?;
     Some(tcl_syntax::formal_params::formal_argument_count_shape(
-        parameters
-            .iter()
-            .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+        parameters.iter().map(|parameter| {
+            (
+                tcl_syntax::formal_params::is_variadic_formal_name(&parameter.name),
+                parameter.default.is_some(),
+            )
+        }),
         grammar,
     ))
 }
@@ -373,9 +376,12 @@ pub fn original_procedure_scalar_bindings(
     use tcl_syntax::formal_params::FormalArgumentBinding as Binding;
     let (parameters, grammar) = original_procedure_parameters(module, procedure, registry)?;
     let shape = tcl_syntax::formal_params::formal_argument_count_shape(
-        parameters
-            .iter()
-            .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+        parameters.iter().map(|parameter| {
+            (
+                tcl_syntax::formal_params::is_variadic_formal_name(&parameter.name),
+                parameter.default.is_some(),
+            )
+        }),
         grammar,
     );
     let mut common: Option<std::collections::HashSet<String>> = None;

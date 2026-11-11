@@ -182,8 +182,10 @@ fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
     let mut too_many_paths = false;
     for &word in words {
         if !past_flags && word.starts_with('-') {
+            // registry-axis-ok: options — the interp create flag run; until the option table carries the safe-interpreter flag
             if word == "--" {
                 past_flags = true;
+            // registry-axis-ok: options — the interp create flag run; until the option table carries the safe-interpreter flag
             } else if word == "-safe" {
                 safe = true;
             }
@@ -4458,6 +4460,7 @@ impl Analyser {
         scope_path: &[usize],
         head: Option<Token>,
     ) -> bool {
+        // registry-axis-ok: subcommands — a namespace eval wrapper's subcommand; until the resolved invocation's selected subcommand is read
         if args.len() != 2 || args[0] != "eval" {
             return false;
         }
@@ -5033,7 +5036,9 @@ impl Analyser {
         // `namespace ensemble configure -map` gap) names an *existing* ensemble
         // command explicitly, resolved like any other command reference.
         // Both share the same `-command`/`-map`/`-subcommands` option set.
+        // registry-axis-ok: subcommands — namespace ensemble create and configure; until the resolved invocation's selected subcommand is read
         let is_create = args[1] == "create";
+        // registry-axis-ok: subcommands — namespace ensemble create and configure; until the resolved invocation's selected subcommand is read
         let is_configure = args[1] == "configure";
         if !is_create && !is_configure {
             return;
@@ -5076,6 +5081,7 @@ impl Analyser {
             .then(|| {
                 opts.iter()
                     .enumerate()
+                    // registry-axis-ok: options — namespace ensemble configuration options; until the ensemble option table drives the walk
                     .find_map(|(i, o)| (o == "-command").then(|| opts.get(i + 1)).flatten())
             })
             .flatten()
@@ -5109,6 +5115,7 @@ impl Analyser {
                 // `-command NAME` names the ensemble command — its namespace
                 // is recorded so `<ns> sub` calls resolve.  A dynamic value
                 // (`$var` / `[cmd]`) can't be resolved statically.
+                // registry-axis-ok: options — namespace ensemble configuration options; until the ensemble option table drives the walk
                 "-command" => {
                     if let Some(value) = value
                         && !value.is_empty()
@@ -5124,6 +5131,7 @@ impl Analyser {
                 // — and, keyed by the ensemble's own resolved command name, so
                 // the W129 safe-interpreter gate can resolve a call through
                 // this redirect to the target.
+                // registry-axis-ok: options — namespace ensemble configuration options; until the ensemble option table drives the walk
                 "-map" => {
                     if let (Some(value), Some(tok)) = (value, value_tok)
                         && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
@@ -5138,6 +5146,7 @@ impl Analyser {
                 }
                 // `-subcommands {a b c}` — each subcommand `a` dispatches to
                 // the command `<ns>::a` in the ensemble's namespace.
+                // registry-axis-ok: options — namespace ensemble configuration options; until the ensemble option table drives the walk
                 "-subcommands" => {
                     if let (Some(value), Some(tok)) = (value, value_tok)
                         && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
@@ -5150,6 +5159,7 @@ impl Analyser {
                         );
                     }
                 }
+                // registry-axis-ok: options — namespace ensemble configuration options; until the ensemble option table drives the walk
                 "-prefixes" => self.record_ensemble_prefixes(value, ensemble_key.as_deref()),
                 _ => {}
             }
@@ -5232,6 +5242,7 @@ impl Analyser {
         let descended = descend_token(&sm, value_tok, config);
         let segs = segments_from_tree(descended.tree(), &sm);
         let [seg] = segs.as_slice() else { return None };
+        // registry-axis-ok: subcommands — a dict merge value shape; until the resolved invocation's selected subcommand is read
         if seg.texts.len() != 4 || seg.texts[0] != "dict" || seg.texts[1] != "merge" {
             return None;
         }
@@ -12455,6 +12466,7 @@ impl Analyser {
     /// [`crate::auto_path_eval::evaluate_auto_path_entry`] applies the list
     /// grammar at consumption.
     pub fn handle_auto_path_set(&mut self, args: &[String], arg_tokens: &[Token]) {
+        // registry-axis-ok: special_vars — the auto_path special variable; until the special-variable table marks the package search path
         if args.first().map(String::as_str) != Some("auto_path") || args.len() < 2 {
             return;
         }

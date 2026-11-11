@@ -2516,6 +2516,42 @@ impl Vm {
         }
     }
 
+    /// Check every activation's retained execution owners before a tick, and
+    /// the exit when that or a stale compiled-local layout refuses execution.
+    fn refused_before_tick(&mut self, acts: &mut Vec<Frame>) -> Option<RunExit> {
+        if let Some(original) = acts.last().and_then(|frame| frame.original_target.as_ref()) {
+            let _ = original.check_current(self);
+        }
+        for original in acts
+            .iter()
+            .flat_map(|activation| activation.exec_leave.iter())
+            .flat_map(|context| context.original_scopes.iter())
+        {
+            if matches!(original, OriginalExecutionOwner::Parked(_)) {
+                let _ = original.check(self);
+                let refused = self.refuse_host_command(
+                    "parked VM continuation has no entered execution owner".into(),
+                );
+                drop(refused);
+                break;
+            }
+            let _ = original.check(self);
+        }
+        if self.execution_refusal.is_some() {
+            return Some(RunExit::Done(self.abort_refused_activations(acts)));
+        }
+        if acts
+            .last()
+            .is_some_and(|frame| !self.compiled_local_layout_matches(&frame.asm))
+        {
+            let _ = self.refuse_host_command(
+                "borrowed compiled-local layout is no longer available".into(),
+            );
+            return Some(RunExit::Done(self.abort_refused_activations(acts)));
+        }
+        None
+    }
+
     fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         // The top activation the previous tick's freshness check accepted, when
         // that tick resumed it without running anything else.
@@ -2524,35 +2560,8 @@ impl Vm {
         let mut verified: Option<((usize, u64), crate::interp::ActivationFreshnessWorld)> = None;
         loop {
             let top = acts.last().map(|frame| (acts.len(), frame.serial));
-            if let Some(original) = acts.last().and_then(|frame| frame.original_target.as_ref()) {
-                let _ = original.check_current(self);
-            }
-            for original in acts
-                .iter()
-                .flat_map(|activation| activation.exec_leave.iter())
-                .flat_map(|context| context.original_scopes.iter())
-            {
-                if matches!(original, OriginalExecutionOwner::Parked(_)) {
-                    let _ = original.check(self);
-                    let refused = self.refuse_host_command(
-                        "parked VM continuation has no entered execution owner".into(),
-                    );
-                    drop(refused);
-                    break;
-                }
-                let _ = original.check(self);
-            }
-            if self.execution_refusal.is_some() {
-                return RunExit::Done(self.abort_refused_activations(acts));
-            }
-            if acts
-                .last()
-                .is_some_and(|frame| !self.compiled_local_layout_matches(&frame.asm))
-            {
-                let _ = self.refuse_host_command(
-                    "borrowed compiled-local layout is no longer available".into(),
-                );
-                return RunExit::Done(self.abort_refused_activations(acts));
+            if let Some(exit) = self.refused_before_tick(acts) {
+                return exit;
             }
             // Enforce `interp limit $i time` for unbounded bytecode loops: the
             // counter is Vm-scoped so it survives the short activations a

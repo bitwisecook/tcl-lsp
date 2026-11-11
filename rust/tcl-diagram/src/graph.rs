@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// registry-axis-ok(file): irreducible — the diagram IR's own node kinds and branch labels, not Tcl words; until never
+
 //! Deterministic control-flow graph serialiser for [`crate::diagram_data`].
 //!
 //! Turns the IR-derived `{events, procedures}` flow tree into a `{nodes, edges}`

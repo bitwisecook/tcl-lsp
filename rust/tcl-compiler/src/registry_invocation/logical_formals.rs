@@ -305,7 +305,9 @@ fn declared_formals(word: &NativeWord) -> Option<Vec<OriginalLogicalFormalBindin
         {
             return None;
         }
-        if ordinal + 1 == parameters.len() && parameter.name == "args" {
+        if ordinal + 1 == parameters.len()
+            && tcl_syntax::formal_params::is_variadic_formal_name(&parameter.name)
+        {
             continue;
         }
         let start = content

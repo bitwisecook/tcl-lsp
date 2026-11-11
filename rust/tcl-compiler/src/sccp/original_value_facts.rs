@@ -3000,6 +3000,7 @@ fn single_iteration_binding(
         && tokens.map_or_else(
             // value-transfer-ok: irreducible — the tokenless legacy caller has
             // no retained invocation to ask; tokens consult the synthetic marker.
+            // registry-axis-ok: command — tokenless legacy fold; the tokened path asks the registry; until the tokenless SCCP caller is retired
             || matches!(command, "foreach" | "lmap"),
             |tokens| {
                 matches!(
@@ -3779,6 +3780,7 @@ fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     // `[llength LIST]` with a literal or lattice-resolvable list.
     // value-transfer-ok: irreducible — tokenless legacy fold; a retained
     // invocation folds through the registry's const_fold instead.
+    // registry-axis-ok: command — tokenless legacy fold; the tokened path asks the registry; until the tokenless SCCP caller is retired
     if cmd == "llength" {
         let arg = rest?.trim();
         // Unlike `foreach`'s `list_arg` (already delimiter-stripped by the
@@ -3809,10 +3811,12 @@ fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     // (Counting the chars of the *unresolved* operand text would mis-fold
     // `string length $s` to the length of "$s".)
     // value-transfer-ok: irreducible — tokenless legacy fold, as for llength.
+    // registry-axis-ok: command — tokenless legacy fold; the tokened path asks the registry; until the tokenless SCCP caller is retired
     if cmd == "string" {
         if let Some(after_cmd) = rest {
             let (sub, sub_rest) = split_head(after_cmd.trim());
             // value-transfer-ok: irreducible — tokenless legacy fold, as above.
+            // registry-axis-ok: command — tokenless legacy fold; the tokened path asks the registry; until the tokenless SCCP caller is retired
             if sub == "length"
                 && let Some(raw) = sub_rest
                 && let Some(s) =
@@ -3833,6 +3837,7 @@ fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 
     // `[expr {EXPR}]` — parse + fold under the current lattice.
     // value-transfer-ok: irreducible — tokenless legacy fold, as for llength.
+    // registry-axis-ok: command — tokenless legacy fold; the tokened path asks the registry; until the tokenless SCCP caller is retired
     if cmd == "expr" {
         let arg = rest?.trim();
         // Braced (`expr {…}`) vs quoted / bare (`expr "…"`, `expr …`) changes

@@ -1191,14 +1191,14 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:736` | site | as above, for join. |
 | irreducible | `rust/tcl-compiler/src/command_binding/conditional_body/native_context_tests.rs:210` | site | asserts which user procedure is the target. |
 | irreducible | `rust/tcl-compiler/src/command_binding/conditional_body/native_context_tests.rs:216` | site | asserts which user procedure is the target. |
-| irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2779` | site | selects which calls a debug trace logs. |
-| irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2788` | site | selects which calls a debug trace logs. |
+| irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2780` | site | selects which calls a debug trace logs. |
+| irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2790` | site | selects which calls a debug trace logs. |
 | irreducible | `rust/tcl-compiler/src/optimiser/propagation.rs:2720` | site | names the reported |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3003` | site | the tokenless legacy caller has |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3782` | site | tokenless legacy fold; a retained |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3812` | site | tokenless legacy fold, as for llength. |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3816` | site | tokenless legacy fold, as above. |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3836` | site | tokenless legacy fold, as for llength. |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3004` | site | the tokenless legacy caller has |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3784` | site | tokenless legacy fold; a retained |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3815` | site | tokenless legacy fold, as for llength. |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3820` | site | tokenless legacy fold, as above. |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3841` | site | tokenless legacy fold, as for llength. |
 
 ## The ratchet
 

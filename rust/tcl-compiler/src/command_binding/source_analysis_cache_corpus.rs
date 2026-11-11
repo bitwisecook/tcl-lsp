@@ -1130,6 +1130,7 @@ fn generate(kind: &str, n: usize) -> String {
                 s.push_str("p 1\n");
             }
         }
+        // registry-axis-ok: irreducible — a corpus fixture key, not a command; until never
         "procs" => {
             for i in 0..n {
                 let _ = writeln!(s, "proc capped_{i} {{}} {{}}");
@@ -1140,6 +1141,7 @@ fn generate(kind: &str, n: usize) -> String {
                 let _ = writeln!(s, "set v{i} {i}");
             }
         }
+        // registry-axis-ok: irreducible — a corpus fixture key, not a command; until never
         "upvar" => {
             s.push_str("proc inc {name} {upvar 1 $name v; incr v}\n");
             for i in 0..n {

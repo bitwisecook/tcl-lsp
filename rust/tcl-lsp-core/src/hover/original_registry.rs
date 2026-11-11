@@ -187,6 +187,7 @@ fn member_keyword_hover(source: &str, analysis: &AnalysisResult, cursor: u32) ->
     }
     let word = crate::source_structure::original_complete_cursor_word(source, analysis, cursor)
         .and_then(|word| word.static_unicode_value())?;
+    // registry-axis-ok: definition_body — TclOO lifecycle member keywords; until the definition-body grammar exposes lifecycle members
     if word != "constructor" && word != "destructor" {
         return None;
     }
@@ -196,6 +197,7 @@ fn member_keyword_hover(source: &str, analysis: &AnalysisResult, cursor: u32) ->
         .filter(|class| class.body_span.start() < cursor && cursor < class.body_span.end())
         .min_by_key(|class| class.body_span.end() - class.body_span.start())?;
     let qname = &class.qualified_name;
+    // registry-axis-ok: definition_body — TclOO lifecycle member keywords; until the definition-body grammar exposes lifecycle members
     if word == "constructor" {
         let ctor = class
             .constructors

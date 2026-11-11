@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// registry-axis-ok(file): irreducible — a conformance table's empty-cell marker, not a Tcl word; until never
+
 //! Executable binding, package and autoload observations shared by consumers.
 //! The scripts use the interpreter's own operations; these rows do not replace
 //! the production resolver or bless a compiler result as its own oracle.

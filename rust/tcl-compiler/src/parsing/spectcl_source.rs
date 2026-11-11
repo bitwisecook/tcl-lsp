@@ -241,6 +241,7 @@ fn pack_source_body(
 /// Name/cardinality admission remains a separate shared query.
 #[must_use]
 pub fn is_pack_file_include_row(row: &SegmentedCommand) -> bool {
+    // registry-axis-ok: irreducible — the SpecTcl DSL's own include row, which the loader defines; until never
     row.name() == "include" && row.texts.get(1).is_none_or(|word| word != "from")
 }
 

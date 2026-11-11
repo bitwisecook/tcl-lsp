@@ -1175,6 +1175,7 @@ fn candidate_for_records(
                 .original_members
                 .declarations()
                 .filter(|method| {
+                    // registry-axis-ok: definition_body — an Itcl class-body proc member's recorded kind; until member metadata carries a typed kind
                     method.metadata().kind == "proc"
                         && method.original_name_input().bytes() == call.member_name()
                 });

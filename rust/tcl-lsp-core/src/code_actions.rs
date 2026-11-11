@@ -2665,6 +2665,7 @@ fn taint_subject_actions(
     // This hardening changes subst's accepted input, independently of a
     // semantics-preserving refactoring. The selected source head, option
     // grammar and written insertion extent must all be current.
+    // registry-axis-ok: command — the hardening edit rewrites subst's own option word; until the substitution option table offers the hardening edit
     if diagnostic.code.as_str() == "T100" && command.canonical == "subst" {
         return subst_nocommands_action(source, analysis, registry, command);
     }
@@ -2826,11 +2827,13 @@ fn subst_nocommands_action(
     if !spec
         .options
         .iter()
+        // registry-axis-ok: options — the hardening edit rewrites subst's own option word; until the substitution option table offers the hardening edit
         .any(|option| option.name == "-nocommands")
         || command
             .words
             .iter()
             .skip(1)
+            // registry-axis-ok: options — the hardening edit rewrites subst's own option word; until the substitution option table offers the hardening edit
             .any(|word| diagnostic_context::source_literal(word) == Some("-nocommands"))
     {
         return Vec::new();

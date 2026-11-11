@@ -1598,6 +1598,7 @@ fn fp_sh_23_bignum_folds_are_exact() {
         .diagnostic_value_facts()
         .values()
         .iter()
+        // registry-axis-ok: irreducible — a fixture variable named next, not the next command; until never
         .find(|((sym, ver), _)| fu.ssa.var_name(*sym) == "next" && *ver > 0)
         .map(|(_, v)| v.clone());
     assert_eq!(
@@ -1609,6 +1610,7 @@ fn fp_sh_23_bignum_folds_are_exact() {
     );
     assert!(
         fu.sccp.values.iter().any(|((sym, ver), value)| {
+            // registry-axis-ok: irreducible — a fixture variable named next, not the next command; until never
             fu.ssa.var_name(*sym) == "next"
                 && *ver > 0
                 && *value == crate::analyses::LatticeValue::Overdefined

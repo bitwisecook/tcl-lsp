@@ -102,6 +102,7 @@ fn monolithic_namespace_compiler_owns_original_member_coordinates() {
             binding
                 .compiler
                 .as_ref()
+                // registry-axis-ok: irreducible — a test asserting which registry compiler was selected; until never
                 .is_some_and(|compiler| compiler.registry_identity == "namespace")
         })
         .unwrap();

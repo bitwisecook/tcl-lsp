@@ -405,6 +405,7 @@ fn analyse_switch(
 
     let regular: Vec<&(String, String)> = pairs
         .iter()
+        // registry-axis-ok: clause_grammar — a switch case list's fallthrough arm and body marker; until the case-list query names the fallthrough arm
         .filter(|(pat, body)| pat != "default" && body.trim() != "-")
         .collect();
     if regular.len() < 3 {

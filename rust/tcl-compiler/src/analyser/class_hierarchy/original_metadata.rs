@@ -737,10 +737,12 @@ pub fn original_instance_method_display(
         let Some(method) = owners[index].own_method(selector)?.into_option() else {
             continue;
         };
+        // registry-axis-ok: definition_body — TclOO member visibility as the declaration records it; until member metadata carries a typed visibility
         if method.metadata.visibility == "private" {
             return None;
         }
         let mut exported = method.native.as_ref().map_or(
+            // registry-axis-ok: definition_body — TclOO member visibility as the declaration records it; until member metadata carries a typed visibility
             method.metadata.visibility == "public",
             crate::analyser::types::OriginalSourceMethodMetadata::exported,
         );

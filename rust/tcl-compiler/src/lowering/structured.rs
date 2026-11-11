@@ -257,14 +257,19 @@ pub(crate) fn parse_switch_options(args: &[String]) -> (usize, SwitchMode, bool,
     let mut ended = false;
     while i < args.len() && args[i].starts_with('-') {
         match args[i].as_str() {
+            // registry-axis-ok: options — switch's match-mode options; until the switch option table selects the match mode
             "--" => {
                 i += 1;
                 ended = true;
                 break;
             }
+            // registry-axis-ok: options — switch's match-mode options; until the switch option table selects the match mode
             "-exact" => mode = SwitchMode::Exact,
+            // registry-axis-ok: options — switch's match-mode options; until the switch option table selects the match mode
             "-glob" => mode = SwitchMode::Glob,
+            // registry-axis-ok: options — switch's match-mode options; until the switch option table selects the match mode
             "-regexp" => mode = SwitchMode::Regexp,
+            // registry-axis-ok: options — switch's match-mode options; until the switch option table selects the match mode
             "-nocase" => nocase = true,
             _ => {
                 unknown = true;
@@ -984,6 +989,7 @@ impl Lowerer<'_> {
         keyword: &str,
         match_arg: &str,
     ) -> Result<Option<Vec<String>>, ()> {
+        // registry-axis-ok: clause_grammar — try's trap clause; until the clause plan names the trap handler
         if keyword != "trap" || !super::seg_word_is_static_literal(seg, written) {
             return Ok(None);
         }
@@ -1428,6 +1434,7 @@ impl Lowerer<'_> {
         let sub_args = &args[1..];
 
         match sub.as_str() {
+            // registry-axis-ok: subcommands — dict's iterating and scoping subcommands; until the resolved invocation's selected subcommand is read
             "for" | "map" if sub_args.len() >= 3 => {
                 let Some(var_names) = crate::registry_invocation::original_name_role_values(
                     self.registry,
@@ -1463,6 +1470,7 @@ impl Lowerer<'_> {
                     }],
                     body,
                     body_span: body_tok.map_or(seg.span, |t| self.script_word_span(t)),
+                    // registry-axis-ok: subcommands — dict's iterating and scoping subcommands; until the resolved invocation's selected subcommand is read
                     is_lmap: sub == "map",
                     raw_args: args.to_vec(),
                     is_dict_iteration: true,
@@ -1475,6 +1483,7 @@ impl Lowerer<'_> {
             // mapping is runtime behaviour) — ordered before the generic
             // sub-mutator arm below, whose registry query also matches
             // their `VarWrite` role.
+            // registry-axis-ok: subcommands — dict's iterating and scoping subcommands; until the resolved invocation's selected subcommand is read
             "update" | "with" => Statement::Barrier {
                 span: seg.span,
                 reason: format!("dict {sub}"),

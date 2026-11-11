@@ -1206,7 +1206,7 @@ fn record_logical_alias_pairs(
             context.params,
             context.bindings.input.lexer_config(),
         ) {
-            if parameter == "args" {
+            if tcl_syntax::formal_params::is_variadic_formal_name(&parameter) {
                 if let Some(local) = local {
                     info.args_tail_upvar.push(local);
                 } else {
@@ -1506,7 +1506,7 @@ fn record_resolved_alias_pairs(
                 info.uplevel_literal_writes.insert(target.to_owned());
             }
         } else if let Some(parameter) = invocation.scalar_parameter_argument(source, parameters) {
-            if parameter == "args" {
+            if tcl_syntax::formal_params::is_variadic_formal_name(parameter) {
                 if let Some(local) = local {
                     info.args_tail_upvar.push(local.to_owned());
                 } else {
@@ -1584,7 +1584,7 @@ fn record_upvar_call(
         } else if let Some(param) = parameter {
             // `upvar 1 $param x` — substitution-driven, gated on
             // the param existing on the proc.
-            if param == "args" {
+            if tcl_syntax::formal_params::is_variadic_formal_name(param) {
                 if dst_is_literal {
                     info.args_tail_upvar.push(dst.to_string());
                 } else {

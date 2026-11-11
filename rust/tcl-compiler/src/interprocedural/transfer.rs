@@ -732,9 +732,12 @@ impl<'a> ModuleProcedures<'a> {
     ) -> Option<CallTransfer> {
         let (formals, grammar) = self.formals(callee)?;
         let shape = tcl_syntax::formal_params::formal_argument_count_shape(
-            formals
-                .iter()
-                .map(|formal| (formal.name == "args", formal.default.is_some())),
+            formals.iter().map(|formal| {
+                (
+                    tcl_syntax::formal_params::is_variadic_formal_name(&formal.name),
+                    formal.default.is_some(),
+                )
+            }),
             grammar,
         );
         if !shape.accepts(words.len()) {
@@ -1326,9 +1329,12 @@ impl<'a> ModuleProcedures<'a> {
         let words = selected.literal_arguments(inputs.ir)?;
         let (formals, grammar) = self.formals(callee)?;
         let shape = tcl_syntax::formal_params::formal_argument_count_shape(
-            formals
-                .iter()
-                .map(|formal| (formal.name == "args", formal.default.is_some())),
+            formals.iter().map(|formal| {
+                (
+                    tcl_syntax::formal_params::is_variadic_formal_name(&formal.name),
+                    formal.default.is_some(),
+                )
+            }),
             grammar,
         );
         if !shape.accepts(words.len()) {

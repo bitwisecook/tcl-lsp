@@ -348,6 +348,7 @@ impl CodegenCtx<'_> {
         words: &[CompileWord<'_>],
     ) -> Option<u8> {
         let (sub, rest) = match command.strip_prefix("::").unwrap_or(command) {
+            // registry-axis-ok: subcommands — dict's scoping subcommands in codegen; until the native compilation descriptor selects them
             "dict" => {
                 let (sub, rest) = words.split_first()?;
                 (sub.literal.then_some(sub.text)?, rest)
@@ -364,6 +365,7 @@ impl CodegenCtx<'_> {
             return None;
         }
         let locals: Vec<&str> = match sub {
+            // registry-axis-ok: subcommands — dict's scoping subcommands in codegen; until the native compilation descriptor selects them
             "update" if self.vm_release() >= tcl_dialect::TclVersion::V8_5 => {
                 let (variable, pairs) = scope.split_first()?;
                 if !local_scalar(variable)
@@ -377,6 +379,7 @@ impl CodegenCtx<'_> {
                     .chain(pairs.chunks(2).map(|pair| pair[1].text))
                     .collect()
             }
+            // registry-axis-ok: subcommands — dict's scoping subcommands in codegen; until the native compilation descriptor selects them
             "with" if self.vm_release() >= tcl_dialect::TclVersion::V8_6 => {
                 let variable = scope.first()?;
                 if local_scalar(variable) {
@@ -1742,6 +1745,7 @@ impl CodegenCtx<'_> {
 
         while i < args.len() {
             let flag = &args[i].0;
+            // registry-axis-ok: options — return's -code/-level options in codegen; until the return option table drives the emitter
             if flag == "-code" && i + 1 < args.len() {
                 let val = &args[i + 1].0;
                 code = code_names
@@ -1756,6 +1760,7 @@ impl CodegenCtx<'_> {
                     break;
                 }
                 i += 2;
+            // registry-axis-ok: options — return's -code/-level options in codegen; until the return option table drives the emitter
             } else if flag == "-level" && i + 1 < args.len() {
                 level = self
                     .parse_int_operand(&args[i + 1].0)
@@ -1764,6 +1769,7 @@ impl CodegenCtx<'_> {
                     break;
                 }
                 i += 2;
+            // registry-axis-ok: options — return's -code/-level options in codegen; until the return option table drives the emitter
             } else if flag == "--" {
                 i += 1;
                 break;

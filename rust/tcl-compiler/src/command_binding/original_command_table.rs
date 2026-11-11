@@ -205,6 +205,7 @@ impl Drop for ProviderValidationTiming {
 pub(super) const ORIGINAL_GEOMETRY_QUERIES: [&str; 7] = [
     "command-key",
     "slot-paths",
+    // registry-axis-ok: irreducible — a field label of the command-table trace, not the namespace command; until never
     "namespace",
     "metadata-advice",
     "lookup-key",

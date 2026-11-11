@@ -37,6 +37,16 @@ pub use bytes::{
 /// Static display fragments for formal-list elements. These preserve the
 /// historical non-nested fallback shapes; actual validation and activation
 /// continue through the complete list/formal owners in this module.
+/// The formal that collects a procedure's remaining arguments when it is the
+/// last parameter (`proc p {a args} …`).
+pub const VARIADIC_FORMAL_NAME: &str = "args";
+
+/// Whether `name` spells the variadic formal.
+#[must_use]
+pub fn is_variadic_formal_name(name: &str) -> bool {
+    name == VARIADIC_FORMAL_NAME
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StaticFormalParameterDisplay {
     /// One bare displayed parameter token.
@@ -283,7 +293,7 @@ pub fn parse_formal_parameters_in(
         };
         if grammar == tcl_dialect::ParameterGrammar::Tcl {
             validate_name(name)?;
-        } else if name == "args" {
+        } else if is_variadic_formal_name(name) {
             if jim_args_seen {
                 return Err(FormalParameterError::DuplicateArgs);
             }
@@ -406,7 +416,7 @@ pub fn formal_parameter_usage(
         .iter()
         .enumerate()
         .map(|(index, parameter)| {
-            let rest = parameter.name == "args"
+            let rest = is_variadic_formal_name(&parameter.name)
                 && (grammar == tcl_dialect::ParameterGrammar::Jim || index + 1 == parameters.len());
             if rest {
                 let name = if grammar == tcl_dialect::ParameterGrammar::Jim {
@@ -470,7 +480,7 @@ pub fn split_overlong_parameter_specifier(
 pub fn has_trailing_args(parameters: &[FormalParameter]) -> bool {
     parameters
         .last()
-        .is_some_and(|parameter| parameter.name == "args")
+        .is_some_and(|parameter| is_variadic_formal_name(&parameter.name))
 }
 
 fn validate_name(name: &str) -> Result<(), FormalParameterError> {

@@ -20679,9 +20679,12 @@ fn apply_readable_evaluated_body(
                 return true;
             };
             let count = tcl_syntax::formal_params::formal_argument_count_shape(
-                parameters
-                    .iter()
-                    .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+                parameters.iter().map(|parameter| {
+                    (
+                        tcl_syntax::formal_params::is_variadic_formal_name(&parameter.name),
+                        parameter.default.is_some(),
+                    )
+                }),
                 grammar,
             );
             if !count.accepts(argument_count.saturating_sub(1)) {

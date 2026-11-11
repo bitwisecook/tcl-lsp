@@ -201,7 +201,8 @@ pub fn vendor_source_formal_extents(
             ordinal,
             name: start..end,
             has_default: parameter.default.is_some(),
-            is_rest: ordinal + 1 == parsed.len() && parameter.name == "args",
+            is_rest: ordinal + 1 == parsed.len()
+                && crate::formal_params::is_variadic_formal_name(&parameter.name),
         });
         offset = specifier.next;
     }

@@ -430,7 +430,7 @@ impl OriginalSourceMethodMetadata {
                 &parsed,
                 parsed.len(),
             )?;
-            parsed.iter().all(|parameter| parameter.default.is_none() && parameter.name != "args")
+            parsed.iter().all(|parameter| parameter.default.is_none() && !tcl_syntax::formal_params::is_variadic_formal_name(&parameter.name))
                 && bindings.iter().enumerate().all(|(index, binding)| matches!(
                     binding,
                     tcl_syntax::formal_params::FormalByteArgumentBinding::Value { parameter, argument }

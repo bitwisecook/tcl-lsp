@@ -1275,9 +1275,11 @@ impl Producer<'_> {
             // Registry member owns layout and slot behavior; keyword reports
             // never select or reconstruct an operand's bytes.
             let relation = match member.keyword {
+                // registry-axis-ok: definition_body — class-definition relation keywords; until the definition-body grammar exposes relation kinds
                 "superclass" if side == MemberSide::Instance => {
                     Some(OriginalSourceClassRelationKind::Superclass)
                 }
+                // registry-axis-ok: definition_body — class-definition relation keywords; until the definition-body grammar exposes relation kinds
                 "mixin" => Some(OriginalSourceClassRelationKind::Mixin),
                 _ => None,
             };

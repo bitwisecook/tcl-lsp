@@ -147,6 +147,7 @@ fn native_classmethod(
 /// Either side's row of a native `classmethod`: tclsh 9.0 installs it on the
 /// class's delegate, so it is listed for the class object and its instances.
 fn native_classmethod_row(method: &OriginalSourceMethodMetadata) -> bool {
+    // registry-axis-ok: definition_body — a native classmethod row's recorded kind; until member metadata carries a typed kind
     method.metadata().kind == "classmethod" && !method.metadata().is_self_method
 }
 

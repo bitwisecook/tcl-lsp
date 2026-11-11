@@ -100,6 +100,7 @@ fn loads_external_unit(facts: &tcl_registry::InvocationFacts) -> bool {
 /// from the definer's registry grammar (`implicit_vars`); this is only the
 /// narrower *type*-body subset, which the flat grammar list doesn't
 /// distinguish — a `typemethod` body sees `type` but not `self`.
+// registry-axis-ok: special_vars — snit's implicit type variable in a typemethod body; until the snit definition grammar declares its implicit variables
 const SNIT_TYPE_IMPLICIT: &[&str] = &["type"];
 
 /// A definer's grammar plus the class being populated and where its members
@@ -1715,7 +1716,9 @@ impl Analyser {
     ) {
         // These are the same analyser-local field routes as apply_oo_subcommand_in.
         let names = match texts.first().map(String::as_str) {
+            // registry-axis-ok: definition_body — class-definition relation keywords; until the definition-body grammar exposes relation kinds
             Some("superclass" | "inherit") => &class.superclasses,
+            // registry-axis-ok: definition_body — class-definition relation keywords; until the definition-body grammar exposes relation kinds
             Some("mixin") => &class.mixins,
             _ => return,
         };
@@ -4716,7 +4719,9 @@ fn extract_property_defs(args: &[String], arg_tokens: &[Token], class_def: &mut 
             let value = &args[i + 1];
             match stripped {
                 "kind" => kind.clone_from(value),
+                // registry-axis-ok: definition_body — property accessor keywords of the class body; until the definition-body grammar exposes property accessors
                 "get" => getter_defined = true,
+                // registry-axis-ok: definition_body — property accessor keywords of the class body; until the definition-body grammar exposes property accessors
                 "set" => setter_defined = true,
                 _ => {}
             }
@@ -4756,6 +4761,7 @@ fn collect_property_accessor_bodies(
             // Every property option takes a value; only `-get`/`-set` carry a
             // body to analyse.
             if i + 1 < texts.len() {
+                // registry-axis-ok: definition_body — property accessor keywords of the class body; until the definition-body grammar exposes property accessors
                 if matches!(opt, "get" | "set")
                     && let Some(tok) = argv.get(i + 1).copied()
                     && tok.kind == TokenType::Str

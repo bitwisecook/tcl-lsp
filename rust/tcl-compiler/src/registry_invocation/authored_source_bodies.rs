@@ -163,9 +163,12 @@ impl OriginalAuthoredProcedureBody {
     ) -> Option<tcl_syntax::formal_params::FormalArgumentCountShape> {
         self.matches_procedure(module, procedure).then_some(())?;
         Some(tcl_syntax::formal_params::formal_argument_count_shape(
-            self.parameters
-                .iter()
-                .map(|formal| (formal.name == "args", formal.default.is_some())),
+            self.parameters.iter().map(|formal| {
+                (
+                    tcl_syntax::formal_params::is_variadic_formal_name(&formal.name),
+                    formal.default.is_some(),
+                )
+            }),
             module.parameter_grammar()?,
         ))
     }
@@ -621,10 +624,12 @@ impl AuthoredProcedureFormalTopology {
     #[must_use]
     pub fn argument_count_shape(&self) -> tcl_syntax::formal_params::FormalArgumentCountShape {
         tcl_syntax::formal_params::formal_argument_count_shape(
-            self.card
-                .parameters
-                .iter()
-                .map(|parameter| (parameter.name == "args", parameter.default.is_some())),
+            self.card.parameters.iter().map(|parameter| {
+                (
+                    tcl_syntax::formal_params::is_variadic_formal_name(&parameter.name),
+                    parameter.default.is_some(),
+                )
+            }),
             tcl_dialect::ParameterGrammar::Tcl,
         )
     }

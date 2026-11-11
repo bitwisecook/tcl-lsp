@@ -1604,7 +1604,7 @@ is renamed or deleted in this file."
             // Tcl's variadic ``args`` parameter is conventionally
             // declared even when unused (as a "consume the rest"
             // marker).  Skip it from W214.
-            if param == "args" {
+            if tcl_syntax::formal_params::is_variadic_formal_name(param) {
                 continue;
             }
             // Quoted source keywords are positional protocol markers.
@@ -1698,7 +1698,7 @@ is renamed or deleted in this file."
             let params = body
                 .params
                 .iter()
-                .take_while(|name| *name != "args")
+                .take_while(|name| !tcl_syntax::formal_params::is_variadic_formal_name(name))
                 .cloned()
                 .collect::<Vec<_>>();
             if params.is_empty() {

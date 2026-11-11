@@ -76,6 +76,7 @@ pub(super) fn candidate(
     let [head, _, parameters, body] = tokens.word_exprs.as_slice() else {
         return None;
     };
+    // registry-axis-ok: command — the WASM publisher admits only a procedure definition; until the definition-body query identifies a procedure definition
     if literal(head)? != "proc"
         || literal(parameters)? != procedure.params_raw
         || literal(body)? != procedure.body_source.as_deref()?
