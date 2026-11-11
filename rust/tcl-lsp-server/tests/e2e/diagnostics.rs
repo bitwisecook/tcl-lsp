@@ -1396,19 +1396,23 @@ fn w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122() {
 // not attempted here.
 
 #[test]
-fn w210_still_fires_for_a_plain_call_wrapper_923_idx18() {
+fn w210_silent_for_a_plain_call_wrapper_923_idx18() {
+    // tclsh 8.6 / 9.0 print `f=1 n=2`: the wrapper passes its own names
+    // through, `real_worker` upvars and sets them in the wrapper's frame,
+    // and `uplevel 1` runs the script there.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc wrapper {fvar nvar script} {\n    real_worker $fvar $nvar $script\n}\nwrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
-    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
 #[test]
-fn w210_still_fires_across_a_two_hop_plain_call_wrapper_chain_923_idx18() {
+fn w210_silent_across_a_two_hop_plain_call_wrapper_chain_923_idx18() {
+    // tclsh 8.6 / 9.0 print `f=1 n=2`, as for the single wrapper.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc real_worker {fvar nvar script} {\n    upvar 1 $fvar f\n    upvar 1 $nvar n\n    set f 1\n    set n 2\n    uplevel 1 $script\n}\nproc middle_wrapper {fvar nvar script} {\n    real_worker $fvar $nvar $script\n}\nproc outer_wrapper {fvar nvar script} {\n    middle_wrapper $fvar $nvar $script\n}\nouter_wrapper myf myn {\n    puts \"f=$myf n=$myn\"\n}\n";
-    assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
+    assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
 #[test]

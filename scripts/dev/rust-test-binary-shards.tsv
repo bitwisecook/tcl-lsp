@@ -57,6 +57,7 @@
 2	tcl-vm-cli::channel_output	test	tcl-vm-cli	channel_output
 2	tcl-vm-cli::static_extensions	test	tcl-vm-cli	static_extensions
 2	tcl-vm-cli::top_level_e2e	test	tcl-vm-cli	top_level_e2e
+2	tcl-vm-cli::wide_min_spelling	test	tcl-vm-cli	wide_min_spelling
 2	tcl-vm::it_2	test	tcl-vm	it_2
 2	tcl-vm::command_resolution_conformance	test	tcl-vm	command_resolution_conformance
 2	tcl-vm::element_recovery_traces_e2e	test	tcl-vm	element_recovery_traces_e2e

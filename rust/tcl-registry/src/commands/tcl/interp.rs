@@ -576,7 +576,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // interp cancel ?-unwind? ?--? ?path? ?result?" error, and a bare
         // `interp cancel` (0 words) is valid (it cancels the invoking
         // interpreter's own evaluation).
-        arity: Arity::new(0, 2),
+        arity: Arity::new(0, 2).with_positionals(),
         detail: "Cancel a script evaluation.",
         synopsis: "interp cancel ?-unwind? ?--? ?path? ?result?",
         return_type: Some(TclType::String),

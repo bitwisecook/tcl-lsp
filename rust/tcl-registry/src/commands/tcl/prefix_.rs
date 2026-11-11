@@ -64,7 +64,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // leading-option scan `check_simple_arity` already runs against
         // `options` below — not counted here, mirroring `interp create`'s
         // identical `-safe`/`--` precedent.
-        arity: Arity::exact(2),
+        arity: Arity::exact(2).with_positionals(),
+        reserved_trailing_words: 2,
         detail: "Resolve string to the unique element of table it is an unambiguous prefix of.",
         synopsis: "tcl::prefix match ?-exact? ?-message string? ?-error options? table string",
         pure: true,

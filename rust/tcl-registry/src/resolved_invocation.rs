@@ -9453,16 +9453,76 @@ mod tests {
         let arguments = [Literal("-nonewline"), Dynamic];
         let invocation = registry
             .resolve_structured_invocation(
-                crate::InvocationWords::structured(Literal("puts"), &arguments),
+                crate::InvocationWords::structured(Literal("read"), &arguments),
                 None,
             )
             .resolved()
-            .expect("literal puts resolves");
+            .expect("literal read resolves");
         assert_eq!(
             invocation.argument_count_for_arity(),
             Some(2),
             "raw argument signatures retain their authored count axis"
         );
+    }
+
+    #[test]
+    fn leading_flags_are_not_positionals_and_the_final_word_never_is_one() {
+        use crate::InvocationWord::Literal;
+        let registry = CommandRegistry::build_default();
+        // tclsh 8.4-9.0: a leading flag is not a positional, and the final
+        // word never is a flag (`puts -nonewline` prints `-nonewline`).
+        for (head, arguments, expected) in [
+            (
+                "puts",
+                vec![Literal("-nonewline"), Literal("stdout"), Literal("x")],
+                2,
+            ),
+            ("puts", vec![Literal("-nonewline")], 1),
+            (
+                "file",
+                vec![
+                    Literal("link"),
+                    Literal("-symbolic"),
+                    Literal("a"),
+                    Literal("b"),
+                ],
+                2,
+            ),
+            ("file", vec![Literal("link"), Literal("-hard")], 1),
+            (
+                "tcl::prefix",
+                vec![
+                    Literal("match"),
+                    Literal("-exact"),
+                    Literal("t"),
+                    Literal("s"),
+                ],
+                2,
+            ),
+            (
+                "interp",
+                vec![
+                    Literal("cancel"),
+                    Literal("-unwind"),
+                    Literal("--"),
+                    Literal("x"),
+                ],
+                1,
+            ),
+        ] {
+            let invocation = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal(head), &arguments),
+                    None,
+                )
+                .resolved()
+                .expect("literal command resolves");
+            assert_eq!(
+                invocation.argument_count_for_arity(),
+                Some(expected),
+                "{head} {arguments:?}"
+            );
+        }
     }
 
     fn structured_boundary_options() -> [OptionSpec; 2] {

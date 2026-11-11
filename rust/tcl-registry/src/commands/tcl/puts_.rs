@@ -114,7 +114,9 @@ pub fn spec() -> CommandSpec {
         // (here, `-nonewline`, declared below) before counting positional
         // words, so the flag itself is not part of this range. Unchanged
         // across every fetched version, 8.4 through 9.1.
-        arity: Arity::new(1, 2),
+        arity: Arity::new(1, 2).with_positionals(),
+        // The string is always the last word: `puts -nonewline` prints it.
+        reserved_trailing_words: 1,
         arg_role_layout_resolver: Some(puts_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Channel],
         return_type: Some(TclType::String),
