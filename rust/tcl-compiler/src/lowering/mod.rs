@@ -5750,6 +5750,31 @@ impl<'r> Lowerer<'r> {
     // in one place so consumers never need per-command recovery logic.
     #[allow(clippy::too_many_lines)]
     #[inline(never)]
+    /// Whether the document declares `command` with a word this call runs as
+    /// code: a body, a lambda or a command prefix.
+    fn declares_executable_word(&self, command: &str, args: &[String]) -> bool {
+        let Some(declared) = self
+            .source_declared_commands
+            .as_ref()
+            .or(self.declared_commands)
+        else {
+            return false;
+        };
+        let Some(command) =
+            tcl_registry::model::DocumentCommandSurface::new(self.registry, Some(declared))
+                .declared_command(command)
+        else {
+            return false;
+        };
+        [
+            ArgRole::Body,
+            ArgRole::LambdaLiteral,
+            ArgRole::CommandPrefix,
+        ]
+        .into_iter()
+        .any(|role| !command.arg_indices_for_role(role, args.len()).is_empty())
+    }
+
     fn lower_default_with_tokens(
         &mut self,
         seg: &SegmentedCommand,
@@ -5765,6 +5790,19 @@ impl<'r> Lowerer<'r> {
             .and_then(|binding| binding.proved_execution_target())
             .filter(|target| target.registry_backed)
         else {
+            // A document-declared command with a word it runs as code lowers
+            // to the barrier a registry body command lowers to, whatever the
+            // frame effect it states (#2533).
+            if self.declares_executable_word(cmd_name, args) {
+                return Statement::Barrier {
+                    span: seg.span,
+                    reason: "unsupported body command".into(),
+                    command: cmd_name.into(),
+                    canonical_command: None,
+                    args: args.to_vec(),
+                    tokens: Some(tokens),
+                };
+            }
             return source_body_syntax::generic_call(seg.span, cmd_name, args, Some(tokens));
         };
         let Some(role_cmd) = self.retained_metadata_descriptor_label(&tokens) else {
