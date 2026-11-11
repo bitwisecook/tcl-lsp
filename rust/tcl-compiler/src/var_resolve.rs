@@ -4030,6 +4030,21 @@ impl ResolveContext {
         self.representation_epoch = Some(0);
     }
 
+    /// A loop's exit state, whose joined stamp histories exhausted the
+    /// sequence, resumes in a stamp domain of the loop's own `site`: every
+    /// pass of an enclosing fixpoint resumes at the same stamp, and no stamp
+    /// issued before the loop, or by another loop, can equal one issued here.
+    /// Representations the join kept are equal on both sides, so they hold
+    /// in the joined world. An exhaustion the loop did not cause stands.
+    pub(crate) fn resume_representation_world_at(&mut self, site: u32, entered: bool) {
+        if !entered || self.representation_epoch_high_water.is_some() {
+            return;
+        }
+        let stamp = (1_u64 << 63) | (u64::from(site) << 24);
+        self.representation_epoch_high_water = Some(stamp);
+        self.representation_epoch = Some(stamp);
+    }
+
     /// A selected successful native constructor can issue a new representation
     /// receipt after an uncertain join. It cannot revive an older receipt.
     pub(crate) fn establish_created_representation_epoch(&mut self) {

@@ -4124,6 +4124,9 @@ pub struct SourceCommandBindings {
     /// Loop iterations this walk has unrolled exactly from literal lists; see
     /// [`MAX_FINITE_SOURCE_UNROLLING`]. Walk-time budget, outside equality.
     finite_unrolled_iterations: usize,
+    /// Source loops whose repetition the walk is inside. Walk-time state,
+    /// outside equality.
+    active_source_loops: usize,
     // Derived point-memo lifetime, outside semantic equality and hash.
     source_point_cache_lease: Option<Arc<source_analysis_cache::SourcePointCacheLease>>,
     conditional_source: conditional_source::SourceConditionalKernel,

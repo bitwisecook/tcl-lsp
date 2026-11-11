@@ -36,6 +36,35 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
+        // An outermost loop that exhausts the representation stamps resumes
+        // them, once it exits, in a domain of its own site (#2534). Its
+        // repetition, and every loop nested in it, keeps the exhausted world,
+        // so the fixpoint still converges on equal states.
+        let site = context.invocation_offset;
+        let entered = self.active_source_loops == 0
+            && state
+                .source_variables
+                .representation_epoch_high_water
+                .is_some();
+        self.active_source_loops += 1;
+        let outcomes = self.walk_source_loop_states(operands, scripts, state, context);
+        self.active_source_loops -= 1;
+        let mut outcomes = outcomes;
+        if let Some(normal) = outcomes.normal.as_mut() {
+            Arc::make_mut(&mut normal.source_variables)
+                .resume_representation_world_at(site, entered);
+        }
+        Arc::make_mut(&mut state.source_variables).resume_representation_world_at(site, entered);
+        outcomes
+    }
+
+    fn walk_source_loop_states(
+        &mut self,
+        operands: SourceLoopOperands<'_>,
+        scripts: SourceScriptOperands<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
         let mut outcomes = Box::<SourceOutcomes>::default();
         self.prepare_source_loop(operands, scripts, state, context, &mut outcomes);
         let Some(mut head) = outcomes.normal.take() else {
