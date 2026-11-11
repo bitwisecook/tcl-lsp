@@ -7270,6 +7270,17 @@ impl Vm {
                         ],
                     )
                 };
+                // `INST_SYNTAX` clears `ERR_ALREADY_LOGGED` after the result
+                // is published, whether or not the release keeps an inner
+                // context (8.5 has none), so the failing command still logs.
+                if c.code == Code::Error
+                    && self
+                        .native_invocation_dialect()
+                        .native_return_options_application(application)
+                        .is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::clears_logged_after_result)
+                {
+                    self.forget_error_logged();
+                }
                 if c.code == Code::Error
                     && let Some((name, result, options)) = native_context
                 {

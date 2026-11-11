@@ -454,3 +454,33 @@ fn a_script_starts_with_the_error_variables_its_release_leaves() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// From 8.5 a compiled `expr` whose constant folding fails raises through
+/// `TclCompileSyntaxError`, whose options seed `errorInfo` with the message,
+/// so its first frame reads "invoked from within" (#2535).
+#[test]
+fn a_folded_expression_error_starts_as_each_release_starts_it() {
+    let dir = scratch("folded");
+    let path = write(&dir, "fold.tcl", "proc q {} {set w [expr {1/0}]}\nq\n");
+    for release in RELEASES {
+        let verb = if release == "8.4" {
+            "while executing"
+        } else {
+            "invoked from within"
+        };
+        assert_eq!(
+            run(&path, release),
+            (
+                String::new(),
+                format!(
+                    "divide by zero\n    {verb}\n\"expr {{1/0}}\"\n    \
+                     (procedure \"q\" line 1)\n    invoked from within\n\"q\"\n    \
+                     (file \"PATH\" line 2)\n"
+                ),
+                true
+            ),
+            "{release}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

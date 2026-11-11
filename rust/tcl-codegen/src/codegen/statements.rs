@@ -2343,29 +2343,36 @@ impl CodegenCtx<'_> {
                     .invocation_dialect
                     .and_then(tcl_registry::InvocationDialect::native_string_protocol);
                 if let Some(protocol) = protocol {
-                    let options =
-                        tcl_runtime_api::native_return_literal::NativeReturnOptionsLiteral {
-                            protocol,
-                            words: vec![
-                                tcl_runtime_api::native_return_literal::NativeKnownWordLiteral {
-                                    pieces: vec![b"-errorcode".to_vec()],
-                                    composite: false,
-                                },
-                                tcl_runtime_api::native_return_literal::NativeKnownWordLiteral {
-                                    pieces: vec![error_code.unwrap_or_else(|| b"NONE".to_vec())],
-                                    composite: false,
-                                },
-                            ],
-                            code: 0,
-                            level: 1,
-                            size: 1,
-                        };
-                    let index = self.literals.register_private_return_options(options);
+                    use tcl_runtime_api::native_return_literal::NativeKnownWordLiteral;
+                    let word = |bytes: Vec<u8>| NativeKnownWordLiteral {
+                        pieces: vec![bytes],
+                        composite: false,
+                    };
                     // C's compiler seeds `-errorinfo` from the folded error; an
                     // expression the release evaluates directly is compiled
                     // without folding and raises the error as it runs.
                     let direct = self.direct_statement.is_some() || self.in_direct_statement();
-                    if !direct && syntax.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message) {
+                    let shares_message = syntax.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message);
+                    let mut words = vec![
+                        word(b"-errorcode".to_vec()),
+                        word(error_code.unwrap_or_else(|| b"NONE".to_vec())),
+                    ];
+                    // Before 9.1 `Tcl_GetReturnOptions` copies the message
+                    // into the options as their own `-errorinfo`.
+                    if !direct && syntax.is_some() && !shares_message {
+                        words.extend([word(b"-errorinfo".to_vec()), word(message.clone())]);
+                    }
+                    let size = words.len() / 2;
+                    let options =
+                        tcl_runtime_api::native_return_literal::NativeReturnOptionsLiteral {
+                            protocol,
+                            words,
+                            code: 0,
+                            level: 1,
+                            size,
+                        };
+                    let index = self.literals.register_private_return_options(options);
+                    if !direct && shares_message {
                         self.literals.retain_syntax_error_info(index, message_index);
                     }
                     self.push_native_pool_literal(index);
