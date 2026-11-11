@@ -139,11 +139,8 @@ impl Interp {
                 .var_table_mut(owner)
                 .mark_namespace_declared(&home.base);
         }
-        let mut result = self.namespaces.borrow().qualified_name(owner);
-        if owner != crate::namespace::GLOBAL {
-            result.extend_from_slice(b"::");
-        }
-        result.extend_from_slice(
+        let mut result = self.namespaces.borrow().qualified_member_report(
+            owner,
             tcl_syntax::naming::native_oo_variable_key_report(protocol, &home.base)
                 .expect("selected TclOO reporting"),
         );

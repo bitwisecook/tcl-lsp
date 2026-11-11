@@ -227,14 +227,10 @@ impl Interp {
                         self.native_invocation_dialect()
                             .info_oo_ensemble_namespace(member)
                     });
-                let mut target = nested.map_or_else(
-                    || namespace.as_bytes().to_vec(),
+                let target = nested.map_or_else(
+                    || tcl_syntax::naming::rooted_member_key_bytes(namespace.as_bytes(), member),
                     |name| name.as_bytes().to_vec(),
                 );
-                if nested.is_none() {
-                    target.extend_from_slice(b"::");
-                    target.extend_from_slice(member);
-                }
                 let _ = self.register_stock_worker(&target, callback, &mut installed);
                 if let Err(first) = scope.currency().ensure_current_or_refuse() {
                     self.refuse_native_execution(first);
@@ -246,9 +242,8 @@ impl Interp {
                 .native_invocation_dialect()
                 .ensemble_bootstrap_deferred_members(family)
             {
-                let mut target = namespace.as_bytes().to_vec();
-                target.extend_from_slice(b"::");
-                target.extend_from_slice(member);
+                let target =
+                    tcl_syntax::naming::rooted_member_key_bytes(namespace.as_bytes(), member);
                 map.push((member.to_vec(), vec![target]));
             }
             let config = EnsembleConfig {
@@ -701,9 +696,7 @@ impl Interp {
             let ns = self.ensure_stock_namespace(name, &mut installed);
             let mut map = Vec::new();
             for &(member, worker) in members {
-                let mut target = name.to_vec();
-                target.extend_from_slice(b"::");
-                target.extend_from_slice(member);
+                let target = tcl_syntax::naming::rooted_member_key_bytes(name, member);
                 let _ = self.register_stock_worker(&target, worker, &mut installed);
                 if let Err(first) = scope.currency().ensure_current_or_refuse() {
                     self.refuse_native_execution(first);

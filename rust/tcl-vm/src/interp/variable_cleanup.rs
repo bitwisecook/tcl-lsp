@@ -905,10 +905,12 @@ impl OriginalVariableCleanup {
         owner: super::VarTableOwner,
         table_birth: &Weak<()>,
     ) {
+        // Every member's flat key begins with the namespace's own empty member key.
         let prefix = (!canonical.is_empty()).then(|| {
-            let mut prefix = canonical.to_vec();
-            prefix.extend_from_slice(b"::");
-            prefix
+            tcl_syntax::naming::jim_global_variable_key_bytes(
+                &tcl_syntax::naming::root_unrooted_key_bytes(canonical),
+                b"",
+            )
         });
         let names = self
             .state_mut(vm)

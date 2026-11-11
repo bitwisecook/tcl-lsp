@@ -189,12 +189,10 @@ impl Interp {
                     let namespace = self.native_namespace_token_at(cfg.ns).ok_or(
                         ValueError::CommandProtocolUnavailable("ensemble namespace incarnation"),
                     )?;
-                    let mut qualified = namespace.full_name().as_bytes().to_vec();
-                    if namespace.parent().is_some() {
-                        qualified.extend_from_slice(b"::");
-                    }
-                    qualified.extend_from_slice(&name);
-                    qualified
+                    tcl_syntax::naming::rooted_member_key_bytes(
+                        namespace.full_name().as_bytes(),
+                        &name,
+                    )
                 };
                 let head = Owned::fresh(obj::new_string_bytes(&target));
                 Owned::fresh(list::new_list_obj_native(&[head.as_ptr()], protocol))

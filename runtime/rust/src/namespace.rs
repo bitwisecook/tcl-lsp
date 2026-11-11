@@ -1679,7 +1679,13 @@ impl Namespaces {
                 },
             );
         }
-        let namespace = if ns != GLOBAL && self.arena[ns].jim_namespace.is_some() {
+        self.qualified_member_report(ns, simple)
+    }
+
+    /// The reporting parts of an already reached namespace: its Jim flat
+    /// holder when it has one, otherwise its constructed C path.
+    pub(crate) fn report_parts(&self, ns: NsId) -> tcl_syntax::naming::NativeNamespaceReportParts {
+        if ns != GLOBAL && self.arena[ns].jim_namespace.is_some() {
             tcl_syntax::naming::NativeNamespaceReportParts::JimFlat(
                 self.jim_namespace_bytes(ns)
                     .expect("Jim namespace reporting requires an already reached namespace getter")
@@ -1689,8 +1695,12 @@ impl Namespaces {
             tcl_syntax::naming::NativeNamespaceReportParts::CConstructed(
                 self.arena[ns].constructed_path.clone(),
             )
-        };
-        tcl_syntax::naming::native_qualified_inventory_report_bytes(&namespace, simple)
+        }
+    }
+
+    /// A member's qualified report under an already reached namespace.
+    pub(crate) fn qualified_member_report(&self, ns: NsId, member: &[u8]) -> Vec<u8> {
+        tcl_syntax::naming::native_qualified_inventory_report_bytes(&self.report_parts(ns), member)
     }
 
     /// Install one real command binding. Replacement deletes the displaced

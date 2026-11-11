@@ -147,13 +147,11 @@ impl Vm {
             .ok_or_else(|| {
                 self.refuse_host_command("actual TclOO variable table key unavailable".into())
             })?;
-        let mut result = tcl_runtime_api::Namespaces::name_bytes(self, owner);
-        if owner != tcl_core_types::ROOT_NS {
-            result.extend_from_slice(b"::");
-        }
-        result.extend_from_slice(
-            tcl_syntax::naming::native_oo_variable_key_report(protocol, key.as_bytes())
-                .map_err(|error| self.refuse_host_command(format!("{error:?}")))?,
+        let member = tcl_syntax::naming::native_oo_variable_key_report(protocol, key.as_bytes())
+            .map_err(|error| self.refuse_host_command(format!("{error:?}")))?;
+        let mut result = tcl_syntax::naming::rooted_member_key_bytes(
+            &tcl_runtime_api::Namespaces::name_bytes(self, owner),
+            &member,
         );
         if let Some((_, key)) = parent {
             result.push(b'(');
