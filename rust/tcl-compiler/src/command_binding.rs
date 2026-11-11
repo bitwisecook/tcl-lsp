@@ -20064,6 +20064,36 @@ fn join_transition_alternative(
     }
 }
 
+/// Whether every procedure a recovered definition installs, `qname` among
+/// them, already has a retained body, with no unretained executable root.
+fn procedure_inventory_complete(
+    module: &crate::ir::Module,
+    qname: &str,
+    bindings: &ModuleCommandBindings,
+) -> bool {
+    !module.oo_evidence.unretained_executable_roots
+        && std::iter::once(qname)
+            .chain(
+                module
+                    .procedures
+                    .values()
+                    .map(|procedure| procedure.qualified_name.as_str()),
+            )
+            .all(|name| bindings.procedure_bodies.contains(name))
+}
+
+/// Whether `stmt` calls a document-declared command, which is trusted to
+/// leave the command world intact, as the source walk trusts it; its stated
+/// frame effect bounds what it does to variables.
+fn names_a_declared_command(
+    stmt: &Statement,
+    bindings: &ModuleCommandBindings,
+    command_namespace: &(impl NamespaceKeyQuery + ?Sized),
+) -> bool {
+    matches!(stmt, Statement::Call { command, .. } | Statement::Barrier { command, .. }
+        if bindings.names_only_a_declared_command(command, command_namespace))
+}
+
 fn apply_may_invocation_transitions(
     stmt: &Statement,
     registry: &CommandRegistry,
@@ -20073,12 +20103,7 @@ fn apply_may_invocation_transitions(
     execution_namespace: &crate::ir_helpers::ExecutionNamespace,
     context: &mut InvocationBindingContext<'_>,
 ) -> bool {
-    if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt
-        && bindings.names_only_a_declared_command(command, command_namespace)
-    {
-        // A document-declared command is trusted to leave the command world
-        // intact, as the source walk trusts it; its stated frame effect
-        // bounds what it does to variables.
+    if names_a_declared_command(stmt, bindings, command_namespace) {
         return false;
     }
     let (source_may_be_unknown, invocations, reaches_user_procedure) = invocation_transition_inputs(
@@ -20111,15 +20136,8 @@ fn apply_may_invocation_transitions(
         );
         let precise_procedure = match &procedure_body {
             ProcedureDefinitionReplay::Recovered { qname, module } => {
-                let inventory_was_complete = !module.oo_evidence.unretained_executable_roots
-                    && std::iter::once(qname)
-                        .chain(
-                            module
-                                .procedures
-                                .values()
-                                .map(|procedure| &procedure.qualified_name),
-                        )
-                        .all(|name| alternative.procedure_bodies.contains(name));
+                let inventory_was_complete =
+                    procedure_inventory_complete(module, qname, &alternative);
                 if module.oo_evidence.unretained_executable_roots {
                     alternative.mark_opaque_binding_mutation();
                 }

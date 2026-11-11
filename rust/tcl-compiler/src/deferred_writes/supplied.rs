@@ -223,14 +223,15 @@ impl SourceScan<'_> {
         }
     }
 
-    /// The frame effect a document declaration states for the plain call
-    /// `tokens`, when its head reaches nothing the module or the catalogue
-    /// binds ([`Module::declared_frame_effects`]).
-    fn declared_plain_call(
+    /// For the plain call `tokens` whose head reaches nothing the module or
+    /// the catalogue binds, whether the frame effect its document declaration
+    /// states ([`Module::declared_frame_effects`]) may write any caller
+    /// global; `None` when it is not such a call.
+    fn declared_plain_call_writes_caller_vars(
         &self,
         tokens: &CommandTokens,
         binding: &crate::command_binding::SourceInvocationBinding,
-    ) -> Option<Option<tcl_registry::FrameEffectSpec>> {
+    ) -> Option<bool> {
         let head = tokens.argv_texts.first()?;
         let effect = *self
             .module
@@ -240,7 +241,11 @@ impl SourceScan<'_> {
             .retained_source_bindings
             .as_ref()?
             .names_only_a_declared_command(head, &binding.lookup_namespace_key)
-            .then_some(effect)
+            .then(|| {
+                effect.is_some_and(|effect| {
+                    effect.layout == tcl_registry::frame_effect::FrameArgLayout::OpaqueCallerVars
+                })
+            })
     }
 
     fn original_registration(&mut self, tokens: &CommandTokens) {
@@ -248,12 +253,10 @@ impl SourceScan<'_> {
             self.out.any = true;
             return;
         };
-        if let Some(effect) = self.declared_plain_call(tokens, binding) {
+        if let Some(writes) = self.declared_plain_call_writes_caller_vars(tokens, binding) {
             // A document-declared plain call names no callback word; run in
             // the caller's frame it may still write any global there.
-            self.out.any |= effect.is_some_and(|effect| {
-                effect.layout == tcl_registry::frame_effect::FrameArgLayout::OpaqueCallerVars
-            });
+            self.out.any |= writes;
             return;
         }
         let Some(footprint) =

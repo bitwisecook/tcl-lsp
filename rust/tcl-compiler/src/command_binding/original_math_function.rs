@@ -373,7 +373,7 @@ impl SourceCommandBindings {
             }) {
                 continue;
             }
-            let mut tokens = None;
+            let tokens = std::cell::OnceCell::new();
             for (written, word) in first.words.iter().enumerate().skip(1) {
                 if word.source().span.end() <= region.start()
                     || word.source().span.start() >= region.end()
@@ -386,25 +386,18 @@ impl SourceCommandBindings {
                     registry: registry.snapshot().semantic_key(),
                     config,
                 };
-                let word_occurrences = match memo.and_then(|memo| memo.get(&key)) {
-                    Some(cached) => cached,
-                    None => {
-                        let computed: Arc<[OriginalMathFunctionOccurrence]> = self
-                            .original_word_function_occurrences(
-                                registry,
-                                site,
-                                first,
-                                &rows,
-                                &mut tokens,
-                                written,
-                                config,
-                            )
-                            .into();
-                        if let Some(memo) = memo {
-                            memo.insert(key, Arc::clone(&computed));
-                        }
-                        computed
+                let word_occurrences = if let Some(cached) = memo.and_then(|memo| memo.get(&key)) {
+                    cached
+                } else {
+                    let computed: Arc<[OriginalMathFunctionOccurrence]> = self
+                        .original_word_function_occurrences(
+                            registry, site, first, &rows, &tokens, written, config,
+                        )
+                        .into();
+                    if let Some(memo) = memo {
+                        memo.insert(key, Arc::clone(&computed));
                     }
+                    computed
                 };
                 for occurrence in word_occurrences.iter().filter(|occurrence| {
                     occurrence.span.end() > region.start() && occurrence.span.start() < region.end()
@@ -439,12 +432,12 @@ impl SourceCommandBindings {
         site: &CommandAllocationSite,
         first: &DeclarationLayoutObservation,
         rows: &[&DeclarationLayoutObservation],
-        tokens: &mut Option<Option<crate::ir::CommandTokens>>,
+        tokens: &std::cell::OnceCell<Option<crate::ir::CommandTokens>>,
         written: usize,
         config: LexerConfig,
     ) -> Vec<OriginalMathFunctionOccurrence> {
         let Some(tokens) = tokens
-            .get_or_insert_with(|| {
+            .get_or_init(|| {
                 let mut tokens = super::declaration_preview::declaration_tokens(site, first)?;
                 self.stamp_original_tokens(&mut tokens);
                 Some(tokens)

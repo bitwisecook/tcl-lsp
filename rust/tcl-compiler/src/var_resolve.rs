@@ -4048,7 +4048,7 @@ impl ResolveContext {
     /// bindings and lifetimes widen, the enumerated observers stand.
     pub fn widen_keeping_observers(&mut self) {
         let dynamic_traces = self.dynamic_traces;
-        let inventory = self.activation_observer_inventory.clone();
+        let inventory = self.activation_observer_inventory;
         let closed = self.closed_observer_allocations.clone();
         let caller = self.caller.clone();
         self.widen();

@@ -738,7 +738,7 @@ impl CommandBindingRealm {
             query_memo:
                 crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
             stamped: StampedTokenMemo::default(),
-            math_functions: Default::default(),
+            math_functions: crate::command_binding::OriginalMathFunctionWordMemo::default(),
         };
         Some((script, realm))
     }
@@ -1216,7 +1216,7 @@ fn realm_from_source_bindings(
         ),
         query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
         stamped: StampedTokenMemo::default(),
-        math_functions: Default::default(),
+        math_functions: crate::command_binding::OriginalMathFunctionWordMemo::default(),
     }
 }
 
