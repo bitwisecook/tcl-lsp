@@ -214,9 +214,12 @@ enum DeclarationFlowPurpose {
     Reads,
     Representation,
 }
+/// One memoised declaration-flow report per selected key.
+type DeclarationFlowEntries = Vec<(DeclarationFlowKey, Arc<DeclarationFlowReport>)>;
+
 /// Reports of one inventory; equal inventories may share them.
 #[derive(Default)]
-struct DeclarationFlowReports(Arc<Mutex<Vec<(DeclarationFlowKey, Arc<DeclarationFlowReport>)>>>);
+struct DeclarationFlowReports(Arc<Mutex<DeclarationFlowEntries>>);
 impl std::fmt::Debug for DeclarationFlowReports {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DeclarationFlowReports")
