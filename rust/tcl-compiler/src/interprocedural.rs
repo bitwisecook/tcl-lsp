@@ -1060,37 +1060,40 @@ pub(crate) fn global_instance_classes_with(
         }
     }
     sites.sort_by_key(|(statement, _, _)| statement.span().start());
-    source_bodies
+    // Callable bodies keep their actual eager horizon. A readonly declaration
+    // can only borrow setup preceding its own source site. Each horizon sees
+    // a prefix of the ordered sites, so one ordered pass serves them all.
+    let mut horizons: Vec<(Option<u32>, ProcedureId)> = source_bodies
         .iter()
         .map(|(id, procedure)| {
-            // Callable bodies keep their actual eager horizon. A readonly
-            // declaration can only borrow setup preceding its own source site.
             let eager = if ir_module.procedures.contains_key(id) {
                 invocations.named(id)
             } else {
                 Some(procedure.span.start())
             };
-            let mut classes = crate::taint::InstanceClassState::new();
-            for &(statement, tokens, direct) in &sites {
-                if eager.is_some_and(|call| statement.span().start() >= call) {
-                    continue;
-                }
-                if direct {
-                    crate::taint::transfer_instance_command(&mut classes, registry, source, tokens);
-                } else {
-                    let mut candidate = classes.clone();
-                    crate::taint::transfer_instance_command(
-                        &mut candidate,
-                        registry,
-                        source,
-                        tokens,
-                    );
-                    classes.retain(|name, class| candidate.get(name) == Some(class));
-                }
-            }
-            (*id, classes)
+            (eager, *id)
         })
-        .collect()
+        .collect();
+    horizons.sort_by_key(|(eager, _)| eager.map_or(u64::MAX, u64::from));
+    let mut classes = crate::taint::InstanceClassState::new();
+    let mut applied = 0;
+    let mut out = HashMap::with_capacity(horizons.len());
+    for (eager, id) in horizons {
+        while let Some(&(statement, tokens, direct)) = sites.get(applied)
+            && eager.is_none_or(|call| statement.span().start() < call)
+        {
+            applied += 1;
+            if direct {
+                crate::taint::transfer_instance_command(&mut classes, registry, source, tokens);
+            } else {
+                let mut candidate = classes.clone();
+                crate::taint::transfer_instance_command(&mut candidate, registry, source, tokens);
+                classes.retain(|name, class| candidate.get(name) == Some(class));
+            }
+        }
+        out.insert(id, classes.clone());
+    }
+    out
 }
 
 /// Global variables tainted by registry-declared instance configuration in a
