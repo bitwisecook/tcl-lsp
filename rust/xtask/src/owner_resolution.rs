@@ -1156,7 +1156,7 @@ fn validate_native_compiler_pass_consumers(root: &Path) -> Result<Vec<String>> {
             "rust/tcl-vm/src/interp.rs",
             vec![
                 "capture_native_compiler_pass_environment(",
-                "self.native_compiler_pass_owner.capture(",
+                ".capture_with_ordinary_entry_observation(",
                 "self.command_owned_procedure_namespace(&proc)",
             ],
         ),

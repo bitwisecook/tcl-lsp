@@ -427,13 +427,13 @@ list [t {"x" + 1}] [t {1.5 % 1}] [t {~1.5}] [t {!"x"}] [t {foo(1)}]"#;
 /// strings. Measured on tclsh 8.4.20; 8.5 onward read the numbers.
 #[test]
 fn out_of_range_strings_per_release() {
-    let src = r#"set out {}
+    let src = r"set out {}
 foreach x {1e-320 1e-400 1e400} {
     lappend out [catch {expr {$x*1}} r] $r [catch {expr {sin($x)}} r] $r
     lappend out [catch {format %f $x} r] $r [catch {lsort -real [list $x 1]} r] $r
     lappend out [expr {$x < 1}]
 }
-set out"#;
+set out";
     assert_releases(
         &[TclVersion::V8_4],
         src,

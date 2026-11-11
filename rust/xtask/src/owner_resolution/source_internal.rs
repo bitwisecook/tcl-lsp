@@ -1407,6 +1407,35 @@ struct ConsumerReferences<'a> {
 }
 
 impl ConsumerReferences<'_> {
+    /// `Option::map(Owner::method)` applies the owner path to the same single
+    /// value the closure form binds.
+    fn option_map_applies_target(&self, call: &syn::ExprMethodCall) -> bool {
+        if call.method == "map"
+            && call.turbofish.is_none()
+            && super::route_attrs_are_plain(&call.attrs)
+            && call.args.len() == 1
+            && let Some(syn::Expr::Path(path)) = call.args.first()
+            && path.qself.is_none()
+            && super::route_attrs_are_plain(&path.attrs)
+            && self
+                .modules
+                .resolve(&self.row.consumer_module, &path.path, 0)
+                .as_ref()
+                == Some(&self.target)
+            && let Some((target_type, _)) = self.target.rsplit_once("::")
+            && let Some(value) = self.expression_identity(&call.receiver)
+            && value
+                .identity
+                .strip_prefix("Option<")
+                .and_then(|inner| inner.strip_suffix('>'))
+                .is_some_and(|inner| Self::unwrapped_pointer(inner).unwrap_or(inner) == target_type)
+            && value.origin == self.row.route
+        {
+            return true;
+        }
+        false
+    }
+
     fn parameter_origin_is_shadowed(&self, value: &TypedReference) -> bool {
         struct ShadowedType<'a> {
             names: &'a BTreeSet<String>,
@@ -2146,6 +2175,9 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
             && Self::unwrapped_pointer(&value.identity).unwrap_or(&value.identity) == target_type
             && value.origin == self.row.route
         {
+            self.matched = true;
+        }
+        if self.option_map_applies_target(call) {
             self.matched = true;
         }
         // Only the standard Option identity can supply its single map argument.

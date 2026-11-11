@@ -5348,8 +5348,11 @@ fn authored_scalar_source_variable(
         &mut original,
         i64::from(site.offset) - i64::from(offset),
     );
-    crate::registry_invocation::original_authored_scalar_invocation(&original, registry)
-        .and_then(|invocation| invocation.scalar_source_variable(registry))
+    let invocation =
+        crate::registry_invocation::original_authored_scalar_invocation(&original, registry);
+    let scalar = invocation.map(|invocation| invocation.scalar_source_variable(registry));
+    scalar
+        .flatten()
         .map(|(symbol, name, definition)| {
             let access = if definition {
                 crate::registry_invocation::AuthoredSourceVariableAccess::Write

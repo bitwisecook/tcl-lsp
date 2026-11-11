@@ -2936,27 +2936,27 @@ impl Value {
                 }
                 _ => None,
             };
-            if let Some((kind, value)) = scalar {
-                if let Some(formatter) = formatter {
-                    let build = formatter.build();
-                    self.native_string_stage_check(check)?;
-                    if build.version[..2] != [8, 4] {
-                        return Err(failure(
-                            tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
-                        ));
-                    }
-                    let reached = formatter.format(kind, value).map_err(|_| {
-                        failure(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
-                    });
-                    self.native_string_stage_check(check)?;
-                    let bytes: Rc<[u8]> = Rc::from(reached?);
-                    self.native_string_stage_check(check)?;
-                    *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
-                    self.0
-                        .string_storage
-                        .set(NativeStringStorageIdentity::Allocated);
-                    return Ok(bytes);
+            if let Some((kind, value)) = scalar
+                && let Some(formatter) = formatter
+            {
+                let build = formatter.build();
+                self.native_string_stage_check(check)?;
+                if build.version[..2] != [8, 4] {
+                    return Err(failure(
+                        tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+                    ));
                 }
+                let reached = formatter.format(kind, value).map_err(|_| {
+                    failure(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
+                });
+                self.native_string_stage_check(check)?;
+                let bytes: Rc<[u8]> = Rc::from(reached?);
+                self.native_string_stage_check(check)?;
+                *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
+                self.0
+                    .string_storage
+                    .set(NativeStringStorageIdentity::Allocated);
+                return Ok(bytes);
             }
         }
         // A release whose integer updater garbles INT64_MIN spells it `-8`.

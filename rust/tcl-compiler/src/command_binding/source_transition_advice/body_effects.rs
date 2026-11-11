@@ -1413,8 +1413,8 @@ impl BodyWalk<'_, '_> {
             lineage: &lineage,
         };
         self.context.retain_arity_debt(graph, invocation, &schema)?;
-        #[cfg(test)]
-        self.context.note_source_point_body_walk(
+        note_source_point_body_walk(
+            self.context,
             invocation.native,
             self.catalogue_body.is_some() || self.member_catalogue_body.is_some(),
         );
@@ -2805,3 +2805,15 @@ mod normal_case_mutation_coverage_tests {
         assert!(unchanged);
     }
 }
+
+#[cfg(test)]
+fn note_source_point_body_walk(
+    context: &AdviceInvocationContext<'_>,
+    original: &[NativeWord],
+    catalogue: bool,
+) {
+    context.note_source_point_body_walk(original, catalogue);
+}
+
+#[cfg(not(test))]
+const fn note_source_point_body_walk(_: &AdviceInvocationContext<'_>, _: &[NativeWord], _: bool) {}

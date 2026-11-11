@@ -566,7 +566,7 @@ fn render_bignum_spec<O: ValueOps>(
         && radix == Radix::Dec
         && digits == i64::MIN.unsigned_abs().to_string()
     {
-        digits = "8".to_owned();
+        "8".clone_into(&mut digits);
     }
     let nonzero = digits.bytes().any(|b| b != b'0');
     let prefix = alternate_prefix(spec, nonzero, syntax);

@@ -481,7 +481,9 @@ pub(crate) fn original_source_name_roles(
     {
         return None;
     }
-    let binding = probe_role("roles.binding", tokens.source_binding.as_ref())?;
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return probe_role("roles.binding", None);
+    };
     if binding.has_original_authored_source_body_name_role_owner()
         && let Some(scalar) = super::original_authored_scalar_invocation(tokens, registry)
     {

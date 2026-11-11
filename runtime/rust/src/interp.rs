@@ -96,6 +96,19 @@ mod native_ensemble_objects;
 mod native_error_variables;
 pub(crate) use native_error_variables::OriginalJimErrorCodeCapture;
 mod command_guard_lookup;
+
+#[cfg(test)]
+fn remember_guard_sync(
+    previous: Option<u64>,
+    revision: Option<u64>,
+    previous_policy: Option<u64>,
+    policy: Option<u64>,
+) {
+    command_guard_lookup::remember_sync(previous, revision, previous_policy, policy);
+}
+
+#[cfg(not(test))]
+const fn remember_guard_sync(_: Option<u64>, _: Option<u64>, _: Option<u64>, _: Option<u64>) {}
 mod guarded_definition;
 mod native_execution_constants;
 mod native_hidden_invocation;
@@ -3888,17 +3901,11 @@ impl Interp {
     /// Observe the actual table owner's policy revision before any guard door.
     /// A mutable namespace borrow alone is not a lookup-policy mutation.
     fn synchronise_command_environment_guards(&self) {
-        let (revision, policy) = {
-            let namespaces = self.namespaces();
-            (
-                namespaces.guard_lookup_environment_revision(),
-                namespaces.guard_command_lookup_policy_revision(),
-            )
-        };
+        let revision = self.namespaces().guard_lookup_environment_revision();
+        let policy = self.namespaces().guard_command_lookup_policy_revision();
         let previous = self.guard_lookup_environment_revision.replace(revision);
         let previous_policy = self.guard_command_lookup_policy_revision.replace(policy);
-        #[cfg(test)]
-        command_guard_lookup::remember_sync(previous, revision, previous_policy, policy);
+        remember_guard_sync(previous, revision, previous_policy, policy);
         if revision.is_none() || policy.is_none() {
             let mut guards = self.guards.borrow_mut();
             for domain in [

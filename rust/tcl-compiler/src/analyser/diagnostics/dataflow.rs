@@ -39,16 +39,19 @@ fn rbs_read_option<T>(stage: &str, value: Option<T>) -> Option<T> {
     value
 }
 
-#[cfg(debug_assertions)]
+fn rbs_trace_enabled() -> bool {
+    cfg!(debug_assertions)
+        && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some()
+}
+
 fn rbs_trace_read(stage: &str, name: &str, span: tcl_lexer::Span) {
-    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if rbs_trace_enabled() {
         eprintln!("RBS_READ_OWNER stage={stage} name={name} span={span:?}");
     }
 }
 
-#[cfg(debug_assertions)]
 fn rbs_trace_count(stage: &str, count: usize) {
-    if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+    if rbs_trace_enabled() {
         eprintln!("RBS_READ_OWNER stage={stage} count={count}");
     }
 }
@@ -1894,8 +1897,7 @@ is renamed or deleted in this file."
         ir_proc: Option<&crate::ir::Procedure>,
         ctx: &ReadBeforeSetCtx<'_>,
     ) -> HashSet<String> {
-        #[cfg(debug_assertions)]
-        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
+        if rbs_trace_enabled() {
             eprintln!(
                 "RBS_READ_OWNER stage=entry procedure={} dynamic_writes={} body_kind={:?}",
                 ir_proc.is_some(),
@@ -1909,13 +1911,7 @@ is renamed or deleted in this file."
             fu.source_lexer_config(),
         );
         let mut w210_min = self.definite_missing_read_spans(fu, ctx, &exists_guards);
-        #[cfg(debug_assertions)]
-        if tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
-            eprintln!(
-                "RBS_READ_OWNER stage=physical_missing count={}",
-                w210_min.len()
-            );
-        }
+        rbs_trace_count("physical_missing", w210_min.len());
         let original_image = tcl_lexer::SourceImage::document(&self.source);
         let declared_flow = ir_proc.and_then(|procedure| {
             self.declared_read_flow_for_procedure(fu, procedure, &original_image)
@@ -1953,7 +1949,6 @@ is renamed or deleted in this file."
             });
             suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
             let reported = w210_min.keys().cloned().collect();
-            #[cfg(debug_assertions)]
             rbs_trace_count("map_dynamic", w210_min.len());
             self.emit_w210_read_spans(w210_min, ctx);
             self.emit_declaration_potential_reads(potential);
@@ -1994,7 +1989,6 @@ is renamed or deleted in this file."
         });
         suppress_declared_read_warnings(fu, ctx, declared_flow.as_deref(), &mut w210_min);
         let reported = w210_min.keys().cloned().collect();
-        #[cfg(debug_assertions)]
         rbs_trace_count("map_chain", w210_min.len());
         self.emit_w210_read_spans(w210_min, ctx);
         self.emit_declaration_potential_reads(potential);
@@ -2190,7 +2184,6 @@ is renamed or deleted in this file."
             let mut potential: Vec<_> = potential.into_iter().collect();
             potential.sort_by_key(|(_, span)| span.start());
             for (name, span) in potential {
-                #[cfg(debug_assertions)]
                 rbs_trace_read("emit_declared_potential", &name, span);
                 self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
                     DiagCode::W210, span,
@@ -2515,7 +2508,6 @@ is renamed or deleted in this file."
                         continue;
                     }
                     let span = fu.abs_span(access.source.span);
-                    #[cfg(debug_assertions)]
                     rbs_trace_read("physical_candidate", &name, span);
                     missing
                         .entry(name)
@@ -2540,7 +2532,6 @@ is renamed or deleted in this file."
         let mut entries: Vec<(String, tcl_lexer::Span)> = spans.into_iter().collect();
         entries.sort_by_key(|(_, s)| s.start());
         for (var, span) in entries {
-            #[cfg(debug_assertions)]
             rbs_trace_read("emit_read_map", &var, span);
             let mut message = format!("Variable '{var}' is read before it is set");
             if let Some(similar) = undefined_var_suggestion(&var, ctx.defined_vars) {
@@ -2969,7 +2960,6 @@ is renamed or deleted in this file."
             if static_alternative {
                 continue;
             }
-            #[cfg(debug_assertions)]
             rbs_trace_read("chain_candidate", var, read_span);
             w210_min
                 .entry(var.to_owned())
@@ -3312,7 +3302,6 @@ is renamed or deleted in this file."
                 }
             }
         }
-        #[cfg(debug_assertions)]
         rbs_trace_count("map_provably_unset", spans.len());
         self.emit_w210_read_spans(spans, ctx);
     }

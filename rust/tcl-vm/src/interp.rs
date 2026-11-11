@@ -594,6 +594,16 @@ fn elem_ref(name: &str) -> Option<(&str, &str)> {
     tcl_syntax::naming::split_element_ref(name)
 }
 
+#[cfg(test)]
+fn run_observer_probe(vm: &Vm) {
+    if let Some(probe) = vm.debug_hooks.observer_probe {
+        probe(vm);
+    }
+}
+
+#[cfg(not(test))]
+const fn run_observer_probe(_: &Vm) {}
+
 /// The bytecode VM: the engine driving a tree of interpreters.
 ///
 /// Every interpreter's state lives in one arena (`interps`), addressed by a
@@ -5248,10 +5258,7 @@ impl Vm {
         // Take the hook out so the closure can borrow `self`-derived data
         // (already captured in `snapshot`) without aliasing the field.
         let mut hook = self.debug_hooks.debug_hook.take();
-        #[cfg(test)]
-        if let Some(probe) = self.debug_hooks.observer_probe {
-            probe(self);
-        }
+        run_observer_probe(self);
         let action = hook
             .as_mut()
             .map_or(crate::debug::DebugAction::Continue, |h| h(&snapshot));
