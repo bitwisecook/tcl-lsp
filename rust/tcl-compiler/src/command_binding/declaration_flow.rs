@@ -122,17 +122,14 @@ impl PartialEq for DeclarationFlowInventory {
 }
 impl Eq for DeclarationFlowInventory {}
 
-/// Derived inventory retained only by this mutable builder. Clones start empty.
-#[derive(Default)]
+/// The last derived inventory, shared by clones of one builder. A caller
+/// reuses it (and the reports it holds) only when a fresh inventory would be
+/// equal, so a clone that has since diverged builds its own.
+#[derive(Default, Clone)]
 pub(super) struct SourceDeclarationFlowCache(
-    Mutex<Option<Arc<DeclarationFlowInventory>>>,
+    Arc<Mutex<Option<Arc<DeclarationFlowInventory>>>>,
     Arc<super::source_read_scope::SourceReadCatalogueMemo>,
 );
-impl Clone for SourceDeclarationFlowCache {
-    fn clone(&self) -> Self {
-        Self(Mutex::new(None), Arc::clone(&self.1))
-    }
-}
 impl std::fmt::Debug for SourceDeclarationFlowCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SourceDeclarationFlowCache")
@@ -6484,11 +6481,11 @@ mod tests {
             },
         ));
         assert!(inventory.reports.get(&changed).is_none());
+        // An unchanged clone shares the inventory and the reports it holds.
         let clone = bindings.clone();
-        assert!(clone.declaration_flow_cache.0.lock().unwrap().is_none());
-        let detached = clone.current_declaration_flow_inventory();
-        assert!(!Arc::ptr_eq(inventory, &detached));
-        assert!(detached.reports.0.lock().unwrap().is_empty());
+        let shared = clone.current_declaration_flow_inventory();
+        assert!(Arc::ptr_eq(inventory, &shared));
+        assert!(!shared.reports.0.lock().unwrap().is_empty());
         let point = bindings.points[0].clone();
         bindings.points.push(point);
         let next = bindings.current_declaration_flow_inventory();
