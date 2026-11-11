@@ -64,7 +64,7 @@
 //!
 //! ## Corpus
 //!
-//! `samples/` is the in-repo corpus: 81 `.tcl` files and 15 `.irul` iRules. A
+//! `samples/` is the in-repo corpus: 82 `.tcl` files and 15 `.irul` iRules. A
 //! pack takes the corpus files that mention one of its commands — a
 //! **word-boundary text match**, not resolution, so a vendor pack owning a
 //! short generic name (`eda_mentor`'s `run`, `add`) picks up sample files that
@@ -1599,14 +1599,13 @@ fn shipped_string_pack_replays_actual_corpus_first_gates() {
                     "samples/diagnostics/W102_subst_injection/example.tcl",
                     "[string map [list {$name} $name] {Hello, $name}]",
                 ),
-                // Not the screenshot sample's `[string range $full 0 39]`: its
-                // callers pass 12-character names, so the `> 40` guard keeps
-                // that call from ever running (tclsh 9.0.4) and a hook attempt
-                // there would be an analysis of dead code.
+                // The other corpus slices take their subject from `string trim`,
+                // which this pack's own `string` does not declare, or from a
+                // runtime value, so none presents the hook a constant subject.
                 (
                     "range",
-                    "samples/wasm/t2-values/22_strings.tcl",
-                    "[string range $t 7 end]",
+                    "samples/tcl/14_string_slicing.tcl",
+                    "[string range $greeting 7 end]",
                 ),
             ] {
                 let sample = corpus_files

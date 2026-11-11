@@ -246,15 +246,21 @@ pub(crate) fn fold_index(args: &[&str]) -> Option<String> {
 /// value route; an unversioned fold requires C/Jim container and origin
 /// agreement and is restricted to ASCII character geometry.
 pub(crate) fn fold_range(args: &[&str], version: Option<TclVersion>) -> Option<String> {
-    if let Some(version) = version {
-        return crate::value_transfer::evaluate_literal(
+    if let Some(version) = version
+        && let Some(value) = crate::value_transfer::evaluate_literal(
             &crate::value_transfer::builtins::STRING_RANGE,
             "string",
             Some("range"),
             args,
             Some(version),
-        );
+        )
+    {
+        return Some(value);
     }
+    // An ASCII subject over indices every release reads alike selects the
+    // same range in each, so the release-wide answer is this release's too.
+    // The detached evaluator above declines such calls (tclsh 8.4–9.1:
+    // `string range abcdef 1 3` is `bcd`).
     let [s, first_s, last_s] = args else {
         return None;
     };
@@ -2632,8 +2638,30 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
-    use super::{fold_is, string_is_member_type, string_is_member_type_for_dialect};
+    use super::{fold_is, fold_range, string_is_member_type, string_is_member_type_for_dialect};
     use crate::hooks::TclVersion;
+
+    /// tclsh 8.4–9.1: `string range abcdef 1 3` is `bcd` and `1 end` is
+    /// `bcdef`; `1+1` is an index from 8.5 only (8.4: `bad index "1+1"`).
+    #[test]
+    fn the_range_fold_answers_every_release_and_declines_a_release_split_index() {
+        for version in TclVersion::ALL {
+            assert_eq!(
+                fold_range(&["abcdef", "1", "3"], Some(version)).as_deref(),
+                Some("bcd"),
+                "{version:?}"
+            );
+            assert_eq!(
+                fold_range(&["abcdef", "1", "end"], Some(version)).as_deref(),
+                Some("bcdef"),
+                "{version:?}"
+            );
+        }
+        assert_eq!(
+            fold_range(&["abcdef", "1+1", "3"], Some(TclVersion::V8_4)),
+            None
+        );
+    }
     use crate::types::TclType;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
 
