@@ -2957,12 +2957,27 @@ impl Value {
                         .set(NativeStringStorageIdentity::Allocated);
                     return Ok(bytes);
                 }
-                if value == i64::MIN {
-                    return Err(failure(
-                        tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
-                    ));
-                }
             }
+        }
+        // A release whose integer updater garbles INT64_MIN spells it `-8`.
+        if let NativeStringProtocol::C(version) = protocol
+            && version.garbles_wide_min()
+            && matches!(
+                self.native_scalar_cache(),
+                Some(
+                    NativeScalarCache::Tcl84Long(i64::MIN)
+                        | NativeScalarCache::Number(Number::Int(i64::MIN))
+                )
+            )
+        {
+            let bytes: Rc<[u8]> =
+                Rc::from(tcl_syntax::number::native_integer_string(i64::MIN, true).into_bytes());
+            self.native_string_stage_check(check)?;
+            *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
+            self.0
+                .string_storage
+                .set(NativeStringStorageIdentity::Allocated);
+            return Ok(bytes);
         }
         self.materialize_native_selected_primary_using(protocol, formatter, failure, check)
     }
@@ -7469,10 +7484,15 @@ impl Value {
                 RawString::from_bytes(offset.string_update().expect("legacy end-offset updater")),
                 false,
             ),
-            IntRep::Int(n)
-            | IntRep::Tcl84Long(n)
-            | IntRep::Tcl84Wide(n)
-            | IntRep::CoercedDouble(n) => (RawString::from_unicode(n.to_string()), false),
+            IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::Tcl84Wide(n) => (
+                RawString::from_unicode(tcl_syntax::number::native_integer_string(
+                    *n,
+                    tcl_syntax::number::runtime_release()
+                        .is_some_and(tcl_dialect::TclVersion::garbles_wide_min),
+                )),
+                false,
+            ),
+            IntRep::CoercedDouble(n) => (RawString::from_unicode(n.to_string()), false),
             IntRep::Big {
                 negative,
                 radix,

@@ -1235,10 +1235,10 @@ pub fn from_big_digits(negative: bool, radix: Radix, digits: &str) -> *mut TclOb
 fn store(mut mp: MpInt) -> *mut TclObj {
     // SAFETY: `mp` is a live, owned mp_int.
     let bits = unsafe { mp_count_bits(&mp) };
-    if bits <= 63 {
-        // Fits a wide (magnitude < 2^63) — demote. (i64::MIN, a 64-bit
-        // magnitude, conservatively stays bignum; correctness-safe.)
-        let v = unsafe { mp_get_i64(&mp) };
+    // Fits a wide — demote, as `Tcl_SetBignumObj` does. A negative 64-bit
+    // magnitude fits only as exactly 2^63, which reads back as `i64::MIN`.
+    let v = unsafe { mp_get_i64(&mp) };
+    if bits <= 63 || (bits == 64 && mp.sign != 0 && v == i64::MIN) {
         unsafe { mp_clear(&mut mp) };
         return obj::new_wide_int_obj(v);
     }

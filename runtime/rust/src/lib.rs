@@ -276,7 +276,7 @@ mod tests {
         // this test asserts the *counter*, not leak-freedom.
     }
 
-    /// i64::MIN formats without overflow (itoa edge case).
+    /// i64::MIN formats without overflow under the default integer updater.
     #[test]
     fn int_min_shimmers() {
         assert_leak_free(|| unsafe {

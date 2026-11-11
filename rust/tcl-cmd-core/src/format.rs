@@ -62,11 +62,20 @@ pub fn format_cmd_with_syntax<O: ValueOps>(
     args: &[O::Value],
     syntax: tcl_dialect::NumberSyntax,
 ) -> Result<O::Value, CmdError> {
+    format_cmd_rendering(ops, args, syntax, false)
+}
+
+fn format_cmd_rendering<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    syntax: tcl_dialect::NumberSyntax,
+    garbles_wide_min: bool,
+) -> Result<O::Value, CmdError> {
     let Some((fmt, rest)) = args.split_first() else {
         return Err(CmdError::wrong_args("format formatString ?arg ...?"));
     };
     let fmt = ops.try_as_str(fmt)?.to_string();
-    let rendered = render(ops, &fmt, rest, syntax)?;
+    let rendered = render(ops, &fmt, rest, syntax, garbles_wide_min)?;
     Ok(ops.new_string(rendered))
 }
 
@@ -87,7 +96,13 @@ pub fn format_cmd_for_release<O: ValueOps>(
     args: &[O::Value],
     release: tcl_dialect::TclVersion,
 ) -> Result<O::Value, CmdError> {
-    format_cmd_with_syntax(ops, args, release.number_syntax()).map_err(|error| {
+    format_cmd_rendering(
+        ops,
+        args,
+        release.number_syntax(),
+        release.format_garbles_wide_min(),
+    )
+    .map_err(|error| {
         if release < tcl_dialect::TclVersion::V8_6
             && error
                 .error_code_bytes()
@@ -112,6 +127,7 @@ fn render<O: ValueOps>(
     fmt: &str,
     args: &[O::Value],
     syntax: tcl_dialect::NumberSyntax,
+    garbles_wide_min: bool,
 ) -> Result<String, CmdError> {
     let bytes = fmt.as_bytes();
     let mut out = String::new();
@@ -198,7 +214,7 @@ fn render<O: ValueOps>(
                 .max(precision as u64);
             (out.len() as u64).saturating_add(field)
         })?;
-        out.push_str(&render_spec(ops, &spec, arg, syntax)?);
+        out.push_str(&render_spec(ops, &spec, arg, syntax, garbles_wide_min)?);
         i = j;
     }
     Ok(out)
@@ -406,6 +422,7 @@ fn render_spec<O: ValueOps>(
     spec: &Spec,
     arg: &O::Value,
     syntax: tcl_dialect::NumberSyntax,
+    garbles_wide_min: bool,
 ) -> Result<String, CmdError> {
     let verb = spec.verb;
     if let Some(size) = spec.size {
@@ -426,7 +443,7 @@ fn render_spec<O: ValueOps>(
     if spec.size.is_some_and(SizeModifier::is_big)
         && matches!(verb, b'd' | b'i' | b'u' | b'x' | b'X' | b'o' | b'b')
     {
-        return render_bignum_spec(ops, spec, arg, syntax);
+        return render_bignum_spec(ops, spec, arg, syntax, garbles_wide_min);
     }
     match verb {
         b'd' | b'i' => {
@@ -434,7 +451,13 @@ fn render_spec<O: ValueOps>(
             // are then read signed. See `tcl_syntax::format::integer_width`.
             let n = tcl_syntax::format::integer_width(spec.size, syntax)
                 .signed(fixed_integer_value(ops, arg, syntax)?);
-            let mut digits = int_digits(n, spec, syntax);
+            // The release's integer updater spells INT64_MIN `-8`
+            // ([`tcl_dialect::TclVersion::format_garbles_wide_min`]).
+            let mut digits = if garbles_wide_min && n == i64::MIN {
+                apply_precision("8".to_owned(), spec, syntax)
+            } else {
+                int_digits(n, spec, syntax)
+            };
             // Tcl 9 `%#d` / `%#i` alternate form: a `0d` radix prefix on a
             // non-zero value (dropped for zero, like `%#x 0` → `0`). `%u` takes
             // no prefix. The sign and width are applied around it by
@@ -515,6 +538,7 @@ fn render_bignum_spec<O: ValueOps>(
     spec: &Spec,
     arg: &O::Value,
     syntax: tcl_dialect::NumberSyntax,
+    garbles_wide_min: bool,
 ) -> Result<String, CmdError> {
     let radix = match spec.verb {
         b'd' | b'i' | b'u' => Radix::Dec,
@@ -535,6 +559,14 @@ fn render_bignum_spec<O: ValueOps>(
     }
     if spec.verb == b'X' {
         digits.make_ascii_uppercase();
+    }
+    // An integer of -2^63 is a wide value, spelled by the release's updater.
+    if garbles_wide_min
+        && negative
+        && radix == Radix::Dec
+        && digits == i64::MIN.unsigned_abs().to_string()
+    {
+        digits = "8".to_owned();
     }
     let nonzero = digits.bytes().any(|b| b != b'0');
     let prefix = alternate_prefix(spec, nonzero, syntax);

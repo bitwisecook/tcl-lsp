@@ -539,7 +539,11 @@ pub static TCL_DOUBLE_TYPE: TclObjType = TclObjType {
 extern "C" fn int_update_string(obj: *mut TclObj) {
     // SAFETY: `obj` is a live int object whose string rep needs generating.
     unsafe {
-        let s = itoa((*obj).wide());
+        let s = tcl_syntax::number::native_integer_string(
+            (*obj).wide(),
+            tcl_syntax::number::runtime_release()
+                .is_some_and(tcl_dialect::TclVersion::garbles_wide_min),
+        );
         set_owned_string(obj, s.as_ptr(), s.len());
     }
 }
@@ -3189,26 +3193,6 @@ unsafe fn libc_strlen(s: *const c_char) -> usize {
         }
         n
     }
-}
-
-/// Decimal formatting of a signed 64-bit integer (Tcl's int string rep).
-fn itoa(v: TclWideInt) -> Vec<u8> {
-    if v == 0 {
-        return vec![b'0'];
-    }
-    let neg = v < 0;
-    let mut buf = Vec::new();
-    // Work in u128 so i64::MIN's magnitude does not overflow.
-    let mut n = (v as i128).unsigned_abs();
-    while n > 0 {
-        buf.push(b'0' + (n % 10) as u8);
-        n /= 10;
-    }
-    if neg {
-        buf.push(b'-');
-    }
-    buf.reverse();
-    buf
 }
 
 #[cfg(test)]

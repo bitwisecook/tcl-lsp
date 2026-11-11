@@ -984,6 +984,19 @@ pub fn spell_double(f: f64, spelling: NumberSpelling) -> Option<String> {
     (whole && in_range && same).then_some(text)
 }
 
+/// The string rep a release's integer updater (`UpdateStringOfInt` through
+/// `TclFormatInt`) gives a computed `value`: its decimal digits, except
+/// `INT64_MIN`, which a release that garbles it
+/// ([`tcl_dialect::TclVersion::garbles_wide_min`]) spells `-8`.
+#[must_use]
+pub fn native_integer_string(value: i64, garbles_wide_min: bool) -> String {
+    if value == i64::MIN && garbles_wide_min {
+        "-8".to_owned()
+    } else {
+        value.to_string()
+    }
+}
+
 /// The source text a computed wide integer may be written as for a target
 /// that spells numbers as `spelling` does: its decimal digits, or `None` for
 /// `INT64_MIN` on a release whose string rep of it is `-8`
@@ -2133,6 +2146,22 @@ mod tests {
             spell_double(2.0, jim.with_precision_written(true)).as_deref(),
             Some("2.0")
         );
+    }
+
+    #[test]
+    fn native_integer_string_garbles_only_int64_min_where_the_release_does() {
+        use super::native_integer_string;
+        assert_eq!(native_integer_string(i64::MIN, true), "-8");
+        assert_eq!(
+            native_integer_string(i64::MIN, false),
+            "-9223372036854775808"
+        );
+        assert_eq!(
+            native_integer_string(i64::MIN + 1, true),
+            "-9223372036854775807"
+        );
+        assert_eq!(native_integer_string(-8, true), "-8");
+        assert_eq!(native_integer_string(i64::MAX, true), "9223372036854775807");
     }
 
     #[test]

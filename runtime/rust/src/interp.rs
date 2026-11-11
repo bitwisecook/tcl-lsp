@@ -2016,6 +2016,7 @@ fn install_ambient_release(version: tcl_dialect::TclVersion) {
         dialect.lexer_grammar.escapes,
     );
     obj::install_double_string_policy(tcl_dialect::DoubleStringPolicy::for_tcl_version(version));
+    tcl_syntax::number::set_runtime_release(version);
 }
 
 pub(crate) fn default_host() -> Rc<dyn tcl_platform::Host> {
@@ -14484,6 +14485,9 @@ impl Interp {
             obj::install_double_string_policy(policy);
         }
         let dialect = self.native_invocation_dialect();
+        if let Some(release) = dialect.tcl_version {
+            tcl_syntax::number::set_runtime_release(release);
+        }
         parse::install_native_list_policy(
             dialect.lexer_grammar.list_parse,
             dialect.lexer_grammar.escapes,

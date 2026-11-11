@@ -716,6 +716,18 @@ impl TclVersion {
         matches!(self, Self::V8_4 | Self::V8_5)
     }
 
+    /// Whether `format %d`/`%i` spells `INT64_MIN` through the same garbled
+    /// updater ([`Self::garbles_wide_min`]): its digits become `8`, and the
+    /// sign, width and precision then apply around them. 8.5's
+    /// `Tcl_AppendFormatToObj` takes the digits from a new integer object's
+    /// string rep; 8.4's `sprintf` path is unaffected. Measured on tclsh
+    /// 8.5.19: `format %d`, `%ld`, `%lld` and `%i` give `-8`, `%05d` gives
+    /// `-0008` and `%.3d` gives `-008`; 8.4.20 and 8.6 print the full digits.
+    #[must_use]
+    pub const fn format_garbles_wide_min(self) -> bool {
+        matches!(self, Self::V8_5)
+    }
+
     /// Whether the core implements `namespace path` (introduced in Tcl 8.5).
     #[must_use]
     pub const fn has_namespace_path(self) -> bool {
