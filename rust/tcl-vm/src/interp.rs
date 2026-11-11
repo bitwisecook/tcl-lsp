@@ -4874,10 +4874,36 @@ impl Vm {
             ""
         };
         let bootstrap = AUTO_LOAD_BOOTSTRAP.replace("@LOOKUP_ERRORCODE@", errorcode);
-        match self.eval_source(&bootstrap) {
+        // The bootstrap's caught errors are its own: a script starts with
+        // `errorInfo` and `errorCode` as the interpreter had them.
+        let mut prior = Vec::new();
+        for name in ["::errorInfo", "::errorCode"] {
+            match self.read_var_traced(name) {
+                Ok(value) => prior.push((name, value)),
+                Err(completion) => return completion,
+            }
+        }
+        let completion = match self.eval_source(&bootstrap) {
             Ok(c) => c,
             Err(e) => crate::command::completion_from_tcl_error(self, e),
+        };
+        // 8.4's interpreter starts with both variables empty; from 8.5 they
+        // are absent until an error sets them. Measured on tclsh 8.4.20-9.1.
+        let empty = self.runtime_version == tcl_dialect::TclVersion::V8_4;
+        for (name, value) in prior {
+            match value.or_else(|| empty.then(Value::empty)) {
+                Some(value) => {
+                    if let Err(completion) = self.store_var_result(name, value) {
+                        return completion;
+                    }
+                }
+                None => {
+                    self.unset_var(name);
+                }
+            }
         }
+        self.reset_error_state_for_eval();
+        completion
     }
 
     pub(crate) fn init_auto_path(&mut self, args: &[Value]) -> Completion<Value> {

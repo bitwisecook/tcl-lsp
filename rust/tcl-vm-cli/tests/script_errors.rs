@@ -428,3 +428,29 @@ fn a_nested_error_logs_each_level_the_release_evaluates() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Initialisation's own caught errors leave nothing behind: 8.4 starts with
+/// `errorInfo` and `errorCode` empty, later releases without either (#2536).
+#[test]
+fn a_script_starts_with_the_error_variables_its_release_leaves() {
+    let dir = scratch("startup");
+    let path = write(
+        &dir,
+        "vars.tcl",
+        "foreach v {::errorInfo ::errorCode} {\n  \
+         puts [expr {[info exists $v] ? \"<[set $v]>\" : \"-\"}]\n}\n",
+    );
+    for release in RELEASES {
+        let expected = if release == "8.4" {
+            "<>\n<>\n"
+        } else {
+            "-\n-\n"
+        };
+        assert_eq!(
+            run(&path, release),
+            (expected.to_owned(), String::new(), false),
+            "{release}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
