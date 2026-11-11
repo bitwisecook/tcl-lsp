@@ -122,14 +122,32 @@ impl PartialEq for DeclarationFlowInventory {
 }
 impl Eq for DeclarationFlowInventory {}
 
-/// The last derived inventory, shared by clones of one builder. A caller
-/// reuses it (and the reports it holds) only when a fresh inventory would be
-/// equal, so a clone that has since diverged builds its own.
-#[derive(Default, Clone)]
+impl DeclarationFlowInventory {
+    /// Equality, rejecting inventories of different sizes before any deep walk.
+    fn shares_inputs(&self, other: &Self) -> bool {
+        self.layouts.len() == other.layouts.len()
+            && self.accesses.len() == other.accesses.len()
+            && self.origin_accesses.len() == other.origin_accesses.len()
+            && self.points.len() == other.points.len()
+            && self.origin_points.len() == other.origin_points.len()
+            && self == other
+    }
+}
+
+/// Derived inventory retained by this builder, plus the last one any clone of
+/// it built. A fresh clone adopts the shared inventory (and the reports it
+/// holds) only when a fresh inventory would be equal to it.
+#[derive(Default)]
 pub(super) struct SourceDeclarationFlowCache(
-    Arc<Mutex<Option<Arc<DeclarationFlowInventory>>>>,
+    Mutex<Option<Arc<DeclarationFlowInventory>>>,
     Arc<super::source_read_scope::SourceReadCatalogueMemo>,
+    Arc<Mutex<Option<Arc<DeclarationFlowInventory>>>>,
 );
+impl Clone for SourceDeclarationFlowCache {
+    fn clone(&self) -> Self {
+        Self(Mutex::new(None), Arc::clone(&self.1), Arc::clone(&self.2))
+    }
+}
 impl std::fmt::Debug for SourceDeclarationFlowCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SourceDeclarationFlowCache")
@@ -196,8 +214,9 @@ enum DeclarationFlowPurpose {
     Reads,
     Representation,
 }
+/// Reports of one inventory; equal inventories may share them.
 #[derive(Default)]
-struct DeclarationFlowReports(Mutex<Vec<(DeclarationFlowKey, Arc<DeclarationFlowReport>)>>);
+struct DeclarationFlowReports(Arc<Mutex<Vec<(DeclarationFlowKey, Arc<DeclarationFlowReport>)>>>);
 impl std::fmt::Debug for DeclarationFlowReports {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DeclarationFlowReports")
@@ -304,8 +323,26 @@ impl super::SourceCommandBindings {
         if let Some(current) = current.as_ref().filter(|current| current.as_ref() == &next) {
             return Arc::clone(current);
         }
+        let mut shared = self
+            .declaration_flow_cache
+            .2
+            .lock()
+            .expect("shared declaration inventory cache poisoned");
+        // Only a fresh clone consults its siblings' inventory; a builder that
+        // has moved on would mostly compare against unequal inventories.
+        if current.is_none()
+            && let Some(adopted) = shared.as_ref().filter(|shared| shared.shares_inputs(&next))
+        {
+            // Keep this builder's own handles, so its later checks stay
+            // shallow, and share the equal sibling's reports.
+            next.reports = DeclarationFlowReports(Arc::clone(&adopted.reports.0));
+            let next = Arc::new(next);
+            *current = Some(Arc::clone(&next));
+            return next;
+        }
         let next = Arc::new(next);
         *current = Some(Arc::clone(&next));
+        *shared = Some(Arc::clone(&next));
         next
     }
 }
@@ -6481,10 +6518,10 @@ mod tests {
             },
         ));
         assert!(inventory.reports.get(&changed).is_none());
-        // An unchanged clone shares the inventory and the reports it holds.
+        // A fresh, unchanged clone shares the reports of the equal inventory.
         let clone = bindings.clone();
         let shared = clone.current_declaration_flow_inventory();
-        assert!(Arc::ptr_eq(inventory, &shared));
+        assert!(Arc::ptr_eq(&inventory.reports.0, &shared.reports.0));
         assert!(!shared.reports.0.lock().unwrap().is_empty());
         let point = bindings.points[0].clone();
         bindings.points.push(point);
