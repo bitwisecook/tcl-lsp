@@ -637,7 +637,7 @@ impl BytecodeCompileService {
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let config = Self::native_entry_config(config, entry);
         reject_malformed_byte_script(target.source, config)?;
-        let ir = lower_script_bytes_module_for_bytecode_with_options(
+        let mut ir = lower_script_bytes_module_for_bytecode_with_options(
             target,
             registry,
             config,
@@ -651,6 +651,11 @@ impl BytecodeCompileService {
             ),
         )
         .map_err(native_word_compile_error)?;
+        // A script the release evaluates directly (C8.4's `eval`, `uplevel`
+        // and `source`) invokes its own commands, which log as they fail.
+        if entry.is_some_and(|entry| entry.direct_evaluation) {
+            ir.top_level_evaluation = tcl_runtime_api::CommandEvaluation::Direct;
+        }
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);

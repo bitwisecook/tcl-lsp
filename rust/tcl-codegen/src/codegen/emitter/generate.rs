@@ -1017,6 +1017,7 @@ fn finalize_function(
     if let Some(failure) = cfg.native_compilation_failure.as_deref() {
         super::super::native_failure::retain_dependencies(ctx, failure);
     }
+    ctx.drop_compiled_substitution_levels();
     super::super::native_compiler_pass::capture_first_pass(ctx);
     if ctx.compact_compiler_pass {
         super::super::native_compiler_pass::omit_command_markers(ctx);
@@ -1397,6 +1398,41 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
                 )
         })
         .map(|site| (site.span.start(), site.span.end()))
+        .collect();
+
+    // The bodies a registry command runs that the release does not compile
+    // where they stand: their commands are evaluated directly.
+    let locals = ctx.is_proc
+        && ctx
+            .compiled_variable_protocol
+            .is_some_and(tcl_syntax::naming::NativeCompiledVariableProtocol::has_indexed_locals);
+    ctx.direct_regions = cfg
+        .inline_body_error_sites
+        .iter()
+        .filter(|site| {
+            if !matches!(site.context, BodyErrorContext::Registry(_)) {
+                return false;
+            }
+            let apart = cfg.inline_body_error_sites.iter().any(|eval| {
+                matches!(eval.context, BodyErrorContext::Registry(_))
+                    && eval.span != site.span
+                    && eval.region.start() <= site.span.start()
+                    && site.span.end() <= eval.region.end()
+            });
+            // An inlined `eval` body is compiled apart, as a script
+            // outside a procedure.
+            let same_frame = site.context
+                == BodyErrorContext::Registry(
+                    tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation,
+                );
+            ctx.direct_commands.contains(&site.span)
+                || !if locals && !apart && !same_frame {
+                    site.compiled.in_procedure
+                } else {
+                    site.compiled.outside_procedure
+                }
+        })
+        .map(|site| site.region)
         .collect();
 
     let fe = setup_foreach(ctx, cfg, &mut loop_ctx);

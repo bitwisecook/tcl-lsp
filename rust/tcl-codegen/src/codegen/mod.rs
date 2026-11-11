@@ -390,6 +390,15 @@ pub struct CodegenCtx<'r> {
     /// The commands of the script bodies the release evaluates without
     /// compiling them ([`Self::direct_body`]), as their blocks are emitted.
     pub(crate) direct_body_commands: Vec<Span>,
+    /// The regions of the script bodies inlined here that the release
+    /// evaluates directly rather than compiling where they stand.
+    pub(crate) direct_regions: Vec<Span>,
+    /// The directly evaluated statements a substitution's `errorInfo` levels
+    /// were named under, so those levels survive the function's finish.
+    pub(crate) direct_levels: Vec<String>,
+    /// The directly evaluated statement being emitted, if any
+    /// ([`Self::direct_statement_error_info`]).
+    pub(crate) direct_statement: Option<(String, u32)>,
     /// How many expressions enclose the code being emitted. The release
     /// compiles an expression, and the commands in it, even in a command it
     /// evaluates without compiling.
@@ -530,6 +539,9 @@ impl<'r> CodegenCtx<'r> {
             direct_commands: Vec::new(),
             direct_body: false,
             direct_body_commands: Vec::new(),
+            direct_regions: Vec::new(),
+            direct_levels: Vec::new(),
+            direct_statement: None,
             expr_depth: 0,
             release_holds: HashMap::new(),
             current_command_namespace: tcl_runtime_api::ByteNamespacePath::root(),
@@ -594,7 +606,12 @@ impl<'r> CodegenCtx<'r> {
     /// it: one of [`Self::direct_commands`], or a command of a script body it
     /// evaluates directly ([`Self::direct_body`]).
     pub(crate) fn evaluates_directly(&self, span: Span) -> bool {
-        self.direct_body || self.direct_commands.contains(&span)
+        self.direct_body
+            || self.direct_commands.contains(&span)
+            || self
+                .direct_regions
+                .iter()
+                .any(|region| region.start() <= span.start() && span.end() <= region.end())
     }
 
     /// How the release binds an invocation of `command` of `shape`, where it
@@ -1675,6 +1692,9 @@ impl<'r> CodegenCtx<'r> {
         // Evaluated directly, each substitution is a script of its own that
         // the enclosing one logs again as the error leaves it.
         let direct = self.direct_statement_error_info();
+        if let Some((text, _)) = &direct {
+            self.direct_levels.push(text.clone());
+        }
         // An inlined body inside the substitution names its own commands.
         for instruction in self
             .instructions
@@ -1699,6 +1719,8 @@ impl<'r> CodegenCtx<'r> {
                 }
             }
         }
+        // Commands a native recipe emitted inside it keep their own text.
+        self.stamp_native_substitution_except(start, inner, Some(&statement));
     }
 
     /// Whether the statement being emitted is one the release evaluates
@@ -1722,6 +1744,111 @@ impl<'r> CodegenCtx<'r> {
                     self.span_line(),
                 )
             })
+            .or_else(|| self.direct_statement.clone())
+    }
+
+    /// Clear the enclosing levels of a nested command no directly evaluated
+    /// statement ends: compiled code logs only the innermost command, so the
+    /// levels a native substitution named on the way out mean nothing there.
+    pub(crate) fn drop_compiled_substitution_levels(&mut self) {
+        let direct: std::collections::HashSet<String> = self
+            .direct_commands
+            .iter()
+            .chain(&self.direct_body_commands)
+            .map(|span| {
+                String::from_utf8_lossy(self.error_info_source_text(*span).bytes()).into_owned()
+            })
+            .chain(self.direct_levels.iter().cloned())
+            .collect();
+        for instruction in &mut self.instructions {
+            if let Some(command) = instruction.error_info_command.as_mut()
+                && command.nested
+                && command
+                    .enclosing
+                    .last()
+                    .is_some_and(|(text, _)| !direct.contains(text))
+            {
+                command.enclosing.clear();
+            }
+        }
+    }
+
+    /// Name the commands a bracket script compiled by a native recipe emitted
+    /// from `start`, whose instructions each carry their own command's text.
+    /// Each logs as a nested command; one a deeper substitution named already
+    /// gains this script's command as its next enclosing level; and in a
+    /// statement the release evaluates directly, the statement logs last.
+    pub(crate) fn stamp_native_substitution(&mut self, start: usize, script: &str) {
+        self.stamp_native_substitution_except(start, script, None);
+    }
+
+    /// [`Self::stamp_native_substitution`] over the instructions from `start`
+    /// that are not the enclosing statement's own (`statement`).
+    fn stamp_native_substitution_except(
+        &mut self,
+        start: usize,
+        script: &str,
+        statement: Option<&tcl_lexer::SourceImage>,
+    ) {
+        let separators = self.lexer_config().word_separators;
+        let single = !cmd_subst::has_command_separator_with_config(script, self.lexer_config());
+        let text = script.trim_matches(|c: char| {
+            c == '\n' || u8::try_from(c).is_ok_and(|byte| separators.is_separator(byte))
+        });
+        let line = self
+            .instructions
+            .iter()
+            .skip(start)
+            .find(|instruction| instruction.source_cmd_text.try_text().ok() == Some(text))
+            .map_or_else(|| self.span_line(), |instruction| instruction.source_line);
+        let direct = self.direct_statement_error_info();
+        if let Some((text, _)) = &direct {
+            self.direct_levels.push(text.clone());
+        }
+        for instruction in self
+            .instructions
+            .iter_mut()
+            .skip(start)
+            .filter(|instruction| statement.is_none_or(|own| instruction.source_cmd_text != *own))
+        {
+            match instruction.error_info_command.as_mut() {
+                Some(command) if command.nested => {
+                    if single && !text.is_empty() {
+                        // A level named under the directly evaluated
+                        // statement goes inside it.
+                        let at = if direct.is_some() && command.enclosing.last() == direct.as_ref()
+                        {
+                            command.enclosing.len() - 1
+                        } else {
+                            command.enclosing.len()
+                        };
+                        command.enclosing.insert(at, (text.to_owned(), line));
+                    }
+                }
+                _ => {
+                    let (own, own_line) = instruction.error_info_text();
+                    // A command of its own text sits deeper in this script,
+                    // which logs as its next level.
+                    let enclosing = if single && !text.is_empty() && own != text {
+                        vec![(text.to_owned(), line)]
+                    } else {
+                        Vec::new()
+                    };
+                    instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                        text: own.to_owned(),
+                        line: own_line,
+                        nested: true,
+                        enclosing,
+                    });
+                }
+            }
+            if let (Some(statement), Some(command)) =
+                (&direct, instruction.error_info_command.as_mut())
+                && command.enclosing.last() != Some(statement)
+            {
+                command.enclosing.push(statement.clone());
+            }
+        }
     }
 
     /// A substitution of several commands runs as a script of its own: in a
@@ -1730,6 +1857,7 @@ impl<'r> CodegenCtx<'r> {
         let Some(statement) = self.direct_statement_error_info() else {
             return;
         };
+        self.direct_levels.push(statement.0.clone());
         let text = self.command_span_text();
         for instruction in self
             .instructions

@@ -167,6 +167,10 @@ enum NativeEmissionTask {
         tcl_lexer::LexerConfig,
     ),
     Command(tcl_lexer::NativeScriptCommandWords),
+    /// Name the commands a bracket script emitted from this instruction on in
+    /// `errorInfo`, once they are all emitted and the enclosing statement's
+    /// source is restored.
+    StampSubstitution(usize, String),
     RestoreSource(NativeEmissionSource),
     Operation(Op, Vec<Operand>),
     NativeListIndex(tcl_syntax::native_compiled_index::NativeCompiledListIndex),
@@ -324,7 +328,12 @@ impl CodegenCtx<'_> {
         }
 
         let mut used_generic_invoke = false;
+        // The statement a substitution inside it logs last when the release
+        // evaluates it directly, wherever the emission's own source moves.
+        let statement = self.direct_statement_error_info();
+        let enclosing_direct = std::mem::replace(&mut self.direct_statement, statement);
         self.emit_stmt(stmt, &mut used_generic_invoke);
+        self.direct_statement = enclosing_direct;
 
         // A typed emitter may have consumed a binding from an inlined source
         // site whose namespace differs from this function's. The wrapper was
@@ -1953,6 +1962,16 @@ impl CodegenCtx<'_> {
                 | Task::Command(..)) => self.emit_native_source_task(selected, &mut pending),
                 selected @ Task::Part(..) => self.emit_native_part_task(selected, &mut pending),
                 Task::Substitution(arena) => self.emit_substitution(&arena),
+                Task::StampSubstitution(start, text) => {
+                    if super::cmd_subst::has_command_separator_with_config(
+                        &text,
+                        self.lexer_config(),
+                    ) {
+                        self.stamp_substitution_script(start);
+                    } else {
+                        self.stamp_substitution_error_info(start, &format!("[{text}]"), None);
+                    }
+                }
                 selected @ Task::ExpressionNode(..) => {
                     self.emit_native_expression_task(selected, &mut pending);
                 }
@@ -2513,6 +2532,14 @@ impl CodegenCtx<'_> {
                         }
                     }
                     ExecutablePart::Command { body } => {
+                        // Runs once the script's commands are all emitted.
+                        pending.push(Task::StampSubstitution(
+                            self.instructions.len(),
+                            String::from_utf8_lossy(
+                                arena.bytes(*body).expect("native arena command"),
+                            )
+                            .into_owned(),
+                        ));
                         pending.push(Task::Script(
                             arena.image().clone(),
                             *body,

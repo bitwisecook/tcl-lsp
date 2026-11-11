@@ -310,7 +310,10 @@ pub fn has_command_separator(text: &str) -> bool {
     has_command_separator_with_config(text, tcl_lexer::LexerConfig::default())
 }
 
-fn has_command_separator_with_config(text: &str, config: tcl_lexer::LexerConfig) -> bool {
+pub(super) fn has_command_separator_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     let Ok(end) = u32::try_from(text.len()) else {
         return true;
     };

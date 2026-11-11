@@ -1170,11 +1170,21 @@ impl CodegenCtx<'_> {
                     self.refuse_native_dependency();
                 }
             }
-            ExprNode::Command { start, end, .. } => pending.push(Task::Script(
-                original,
-                tcl_lexer::Span::new(program.span.start() + start + 1, program.span.start() + end),
-                config,
-            )),
+            ExprNode::Command { start, end, .. } => {
+                let region = tcl_lexer::Span::new(
+                    program.span.start() + start + 1,
+                    program.span.start() + end,
+                );
+                // Runs once the script's commands are all emitted.
+                pending.push(Task::StampSubstitution(
+                    self.instructions.len(),
+                    String::from_utf8_lossy(
+                        original.bytes().get(region.as_range()).unwrap_or_default(),
+                    )
+                    .into_owned(),
+                ));
+                pending.push(Task::Script(original, region, config));
+            }
             ExprNode::Unary { op, operand } => {
                 pending.push(Task::Operation(
                     Op::from_unaryop(op).expect("selected native operator"),

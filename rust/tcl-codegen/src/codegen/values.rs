@@ -259,7 +259,9 @@ impl CodegenCtx<'_> {
             ) && selected.spec.grammar
                 == tcl_registry::native_compilation::NativeCompilationGrammar::ArgumentList
             {
+                let start = self.instructions.len();
                 self.emit_native_words(&words);
+                self.stamp_substitution_error_info(start, value.trim(), None);
                 return true;
             }
         }
