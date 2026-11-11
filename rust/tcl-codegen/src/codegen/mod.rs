@@ -1778,12 +1778,7 @@ impl<'r> CodegenCtx<'r> {
     /// Each logs as a nested command; one a deeper substitution named already
     /// gains this script's command as its next enclosing level; and in a
     /// statement the release evaluates directly, the statement logs last.
-    pub(crate) fn stamp_native_substitution(&mut self, start: usize, script: &str) {
-        self.stamp_native_substitution_except(start, script, None);
-    }
-
-    /// [`Self::stamp_native_substitution`] over the instructions from `start`
-    /// that are not the enclosing statement's own (`statement`).
+    /// Instructions of the enclosing statement's own (`statement`) are left.
     fn stamp_native_substitution_except(
         &mut self,
         start: usize,
