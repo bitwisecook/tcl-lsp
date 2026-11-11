@@ -2378,6 +2378,15 @@ pub(super) fn special_variable_definition_at_span(
         data.statements.iter().enumerate().find_map(|(index, _)| {
             let tokens =
                 crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()?;
+            let contains = |word: &crate::ir::WordExpr| {
+                let original = fu.abs_span(word.source().span);
+                original.start() <= span.start() && span.end() <= original.end()
+            };
+            // Only an argument word holding `span` can select a definition;
+            // checking that first spares every other statement its resolution.
+            if !tokens.words().iter().skip(1).any(contains) {
+                return None;
+            }
             let binding = tokens.source_binding.as_ref()?;
             let normal =
                 crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
