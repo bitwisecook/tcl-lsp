@@ -3925,10 +3925,7 @@ impl OriginalSourceTransitionSeed {
             return entry.source_advice_graph(context)?.child_graph(policy);
         }
         let dialect = baseline.dialect?;
-        let seed = baseline
-            .advice_slots
-            .catalogue_seeds
-            .get(context, policy, dialect)?;
+        let seed = AdviceCatalogueSeedMemo::shared().get(context, policy, dialect)?;
         let mut graph = AdviceGraph::from_catalogue_seed(policy, dialect, &seed);
         if let Some(entry) = &baseline.native_entry {
             graph.retain_native_baseline(context, entry)?;

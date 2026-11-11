@@ -138,6 +138,13 @@ impl std::fmt::Debug for AdviceCatalogueSeedMemo {
 }
 
 impl AdviceCatalogueSeedMemo {
+    /// The process-wide memo. A seed is a pure function of its complete key,
+    /// and a registry's weak handle keeps its address from being reused.
+    pub(super) fn shared() -> &'static Self {
+        static SHARED: std::sync::OnceLock<AdviceCatalogueSeedMemo> = std::sync::OnceLock::new();
+        SHARED.get_or_init(Self::default)
+    }
+
     pub(super) fn get(
         &self,
         context: &ContextRegistry,
@@ -173,16 +180,17 @@ impl AdviceCatalogueSeedMemo {
         {
             return entry.seed.clone();
         }
-        if entries.len() < MAX_SEEDS {
-            entries.push(SeedEntry {
-                commands: Arc::downgrade(context.commands()),
-                generation,
-                context: context.context().clone(),
-                policy: policy.clone(),
-                dialect,
-                seed: seed.clone(),
-            });
+        if entries.len() >= MAX_SEEDS {
+            entries.remove(0);
         }
+        entries.push(SeedEntry {
+            commands: Arc::downgrade(context.commands()),
+            generation,
+            context: context.context().clone(),
+            policy: policy.clone(),
+            dialect,
+            seed: seed.clone(),
+        });
         seed
     }
 }
@@ -308,8 +316,9 @@ mod tests {
             let policy = AdviceNamingPolicy::Logical(input);
             let first = bounded.get(&next_context, &policy, dialect).unwrap();
             if index == 8 {
+                // A full memo evicts its oldest entry and retains the newest.
                 let second = bounded.get(&next_context, &policy, dialect).unwrap();
-                assert!(!Arc::ptr_eq(&first, &second));
+                assert!(Arc::ptr_eq(&first, &second));
                 assert_eq!(first.cells, second.cells);
             }
         }
