@@ -8554,7 +8554,7 @@ impl<'a> WildcardImportIndex<'a> {
         source_ns: &'e str,
         name: &'e str,
         install_at: ImportSite<'e>,
-        destroy_point: impl Fn(&'e WorkspaceCommandDeletion) -> RunPoint<'e> + 'e,
+        query: Option<RunPoint<'e>>,
     ) -> impl Iterator<Item = crate::namespace_import::AliasEvent<'e>> + 'e {
         use crate::namespace_import::{AliasEvent, AliasEventKind};
         let forgets = self
@@ -8622,12 +8622,25 @@ impl<'a> WildcardImportIndex<'a> {
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
-            .filter(move |_| {
-                self.purpose == crate::namespace_import::NamespaceStatementPurpose::Modeled
+            .map(|d| RunPoint {
+                uri: d.uri.as_str(),
+                at: d.at,
+                enclosing_body: None,
             })
-            .map(move |d| AliasEvent {
+            .filter(move |&at| match self.purpose {
+                crate::namespace_import::NamespaceStatementPurpose::Modeled => true,
+                // Source advice drops a destruction unless the call's own
+                // document runs it, in straight-line order, before the call.
+                crate::namespace_import::NamespaceStatementPurpose::SourceHorizon => query
+                    .is_some_and(|query| {
+                        query.uri == at.uri
+                            && self.order.source_advice_statement_precedence(at, query)
+                                == Some(true)
+                    }),
+            })
+            .map(|at| AliasEvent {
                 kind: AliasEventKind::Remove,
-                at: destroy_point(d),
+                at,
             });
         forgets.chain(redefinitions).chain(deletions)
     }
@@ -8669,14 +8682,13 @@ impl<'a> WildcardImportIndex<'a> {
             kind: AliasEventKind::Install,
             at: install_at.point(),
         });
-        let mut events =
-            install.chain(
-                self.removal_events(importing_ns, source_ns, name, install_at, |d| RunPoint {
-                    uri: d.uri.as_str(),
-                    at: d.at,
-                    enclosing_body: None,
-                }),
-            );
+        let mut events = install.chain(self.removal_events(
+            importing_ns,
+            source_ns,
+            name,
+            install_at,
+            Some(call.point()),
+        ));
         crate::namespace_import::alias_for_purpose(
             &mut events,
             &self.order,
@@ -8797,14 +8809,13 @@ impl<'a> WildcardImportIndex<'a> {
             kind: AliasEventKind::Install,
             at: install_at.point(),
         });
-        let mut events =
-            install.chain(
-                self.removal_events(importing_ns, source_ns, name, install_at, |d| RunPoint {
-                    uri: d.uri.as_str(),
-                    at: d.at,
-                    enclosing_body: None,
-                }),
-            );
+        let mut events = install.chain(self.removal_events(
+            importing_ns,
+            source_ns,
+            name,
+            install_at,
+            Some(call.point()),
+        ));
         crate::namespace_import::alias_certainly_live(
             &mut events,
             &self.order,
@@ -8869,11 +8880,7 @@ impl<'a> WildcardImportIndex<'a> {
             &gate.source_ns,
             &gate.name,
             gate.site(uri),
-            |d| RunPoint {
-                uri: d.uri.as_str(),
-                at: d.at,
-                enclosing_body: None,
-            },
+            None,
         ));
         crate::namespace_import::alias_live_at(&mut events, &self.order, None)
     }

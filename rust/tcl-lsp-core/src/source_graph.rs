@@ -1391,6 +1391,11 @@ pub(crate) struct SourceOrderContext {
     sites: Vec<OriginalSourceOrderSite>,
     // Complete only for the retained readonly syntax inventory, never execution.
     command_spans: Vec<tcl_lexer::Span>,
+    // Commands whose head is a literal word: order needs no admitted site.
+    literal_head_commands: Vec<tcl_lexer::Span>,
+    // Bodies whose commands issue no site, and those run during their command.
+    unavailable_bodies: Vec<tcl_lexer::Span>,
+    invocation_scoped_bodies: Vec<tcl_lexer::Span>,
     // Same-document straight-line sequence; None keeps every point Conditional.
     sequence: Option<DocumentSequence>,
 }
@@ -1415,6 +1420,27 @@ impl SourceOrderContext {
         let command_spans = structure
             .commands
             .iter()
+            .map(|command| command.span)
+            .collect();
+        let literal_head_commands = structure
+            .commands
+            .iter()
+            .filter(|command| {
+                !command.is_partial
+                    && command
+                        .expand_word
+                        .as_ref()
+                        .is_none_or(|expand| !expand.first().copied().unwrap_or(false))
+                    && command.word_fragments.first().is_some_and(|head| {
+                        !head.is_empty()
+                            && head.iter().all(|fragment| {
+                                matches!(
+                                    fragment.token.kind,
+                                    tcl_lexer::TokenType::Esc | tcl_lexer::TokenType::Str
+                                )
+                            })
+                    })
+            })
             .map(|command| command.span)
             .collect();
         // One original Registry selection per command, shared by both owners.
@@ -1467,6 +1493,9 @@ impl SourceOrderContext {
             realm: realm.clone(),
             sites,
             command_spans,
+            literal_head_commands,
+            unavailable_bodies: structure.caller_context_unavailable_bodies.clone(),
+            invocation_scoped_bodies: structure.invocation_scoped_bodies.clone(),
             sequence,
         })
     }
@@ -1510,6 +1539,57 @@ impl SourceOrderContext {
                         .matches_registry(self.input.borrowed_context_registry().commands())
             })
             .min_by_key(|site| site.span.end() - site.span.start())
+    }
+
+    /// `point` under the definition body ordering it: its own site's, or none
+    /// for a literal-headed command no site admits that runs at the position
+    /// of the innermost enclosing straight-line command, every region between
+    /// them being straight or run during its command (`namespace eval`). A
+    /// dynamic head, a branch, or a deferred or unretained body stays unordered.
+    fn ordered_point<'a>(&self, point: RunPoint<'a>) -> Option<RunPoint<'a>> {
+        let at = point.at;
+        if let Some(site) = self.site(at) {
+            return Some(RunPoint {
+                enclosing_body: site.body,
+                ..point
+            });
+        }
+        let sequence = self.sequence.as_ref()?;
+        let contains = |span: &tcl_lexer::Span| span.start() <= at && at < span.end();
+        let innermost = |spans: &mut dyn Iterator<Item = &tcl_lexer::Span>| {
+            spans.min_by_key(|span| span.end() - span.start()).copied()
+        };
+        let head = innermost(&mut self.command_spans.iter().filter(|span| contains(span)))?;
+        let anchor = innermost(
+            &mut self
+                .command_spans
+                .iter()
+                .filter(|span| contains(span) && self.sequence_position(span.start())),
+        )?;
+        let within_anchor = |span: &tcl_lexer::Span| {
+            contains(span) && anchor.start() < span.start() && span.end() <= anchor.end()
+        };
+        (self.literal_head_commands.contains(&head)
+            && !self
+                .sites
+                .iter()
+                .any(|site| site.body.as_ref().is_some_and(contains))
+            && sequence
+                .regions
+                .iter()
+                .filter(|region| within_anchor(&region.span))
+                .all(|region| {
+                    region.straight || self.invocation_scoped_bodies.contains(&region.span)
+                })
+            && self
+                .unavailable_bodies
+                .iter()
+                .filter(|body| contains(body))
+                .all(|body| self.invocation_scoped_bodies.contains(body)))
+        .then_some(RunPoint {
+            enclosing_body: None,
+            ..point
+        })
     }
 
     /// The document end when it is a sequence position: the document is
@@ -1872,6 +1952,8 @@ impl RunOrder {
         {
             return Some(known);
         }
+        self.site_point(a)?;
+        self.site_point(b)?;
         let answer = self.comparison_relation(a, b)?;
         Some(self.source_navigation_answer(answer))
     }
@@ -1957,8 +2039,8 @@ impl RunOrder {
         a: RunPoint<'_>,
         b: RunPoint<'_>,
     ) -> Option<std::cmp::Ordering> {
-        let a = self.original_point(a)?;
-        let b = self.original_point(b)?;
+        let a = self.site_point(a)?;
+        let b = self.site_point(b)?;
         if (a.enclosing_body.is_some() || b.enclosing_body.is_some())
             && (a.uri != b.uri || a.enclosing_body != b.enclosing_body)
         {
@@ -2189,7 +2271,16 @@ impl RunOrder {
         let Some(contexts) = &self.source_contexts else {
             return Some(point);
         };
-        let site = SourceOrderContext::site(contexts.get(point.uri)?, point.at)?;
+        contexts.get(point.uri)?.ordered_point(point)
+    }
+
+    /// [`Self::original_point`] admitting only a point an issued site owns: a
+    /// comparison cancels an install Tcl performs, so it needs that site.
+    fn site_point<'a>(&self, point: RunPoint<'a>) -> Option<RunPoint<'a>> {
+        let Some(contexts) = &self.source_contexts else {
+            return Some(point);
+        };
+        let site = contexts.get(point.uri)?.site(point.at)?;
         Some(RunPoint {
             enclosing_body: site.body,
             ..point

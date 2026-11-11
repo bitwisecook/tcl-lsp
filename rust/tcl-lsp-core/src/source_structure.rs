@@ -84,6 +84,8 @@ pub(crate) struct SourceStructure {
         Option<tcl_compiler::registry_invocation::source_structure::OriginalBodySyntaxInventory>,
     // Refusal-only source contexts: none establishes an entered or new frame.
     pub(crate) caller_context_unavailable_bodies: Vec<Span>,
+    // The subset run during their command's own invocation, in another frame.
+    pub(crate) invocation_scoped_bodies: Vec<Span>,
     definition_members:
         Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberRegion>,
     definition_members_unavailable: Vec<Span>,
@@ -1287,6 +1289,7 @@ impl SourceStructure {
             bodies: Vec::new(),
             scripts: Vec::new(),
             caller_context_unavailable_bodies: Vec::new(),
+            invocation_scoped_bodies: Vec::new(),
             definition_members: Vec::new(),
             definition_members_unavailable: Vec::new(),
             scoped_environment_regions: Vec::new(),
@@ -1827,6 +1830,9 @@ impl SourceStructure {
             if !body.inherits_immediate_caller_source_context(&context) {
                 self.caller_context_unavailable_bodies
                     .push(body.content_span());
+                if body.runs_during_invocation(&context) {
+                    self.invocation_scoped_bodies.push(body.content_span());
+                }
             }
             let parent = matches!(
                 purpose,

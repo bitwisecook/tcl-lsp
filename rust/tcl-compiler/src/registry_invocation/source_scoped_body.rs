@@ -651,6 +651,17 @@ impl OriginalSourceScriptBody {
     /// It supplies no physical frame, runtime entry or completed invocation.
     #[must_use]
     pub fn inherits_immediate_caller_source_context(&self, context: &ContextRegistry) -> bool {
+        self.runs_during_invocation(context)
+            && self.source.with_source_schema(context, |schema| {
+                schema.facts().body_kind == tcl_registry::BodyKind::Plain
+            }) == Some(true)
+    }
+
+    /// Every script operand of this original role runs during the command's
+    /// own invocation in the current interpreter, whatever frame or namespace
+    /// it enters, so its commands take their source order at the command.
+    #[must_use]
+    pub fn runs_during_invocation(&self, context: &ContextRegistry) -> bool {
         if !self.matches_context(context) {
             return false;
         }
@@ -666,8 +677,7 @@ impl OriginalSourceScriptBody {
                 .iter()
                 .filter(|(_, role)| *role == ArgRole::Body)
                 .peekable();
-            schema.facts().body_kind == tcl_registry::BodyKind::Plain
-                && schema.facts().body_interpreter == tcl_registry::BodyInterpreter::Current
+            schema.facts().body_interpreter == tcl_registry::BodyInterpreter::Current
                 && bodies.peek().is_some()
                 && bodies.all(|(argument, _)| {
                     schema.authored_source_script_timing_at(*argument)

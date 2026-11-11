@@ -879,7 +879,7 @@ fn tp_classmethod_lens_click_and_count_reach_a_consumer_document() {
 /// corrupting an unrelated class's call site in a different file.
 #[test]
 fn tn_consumer_bare_dispatch_is_attributed_to_its_own_namespaces_class() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let a = unique_uri("tcl");
     lsp.open_ready(
         &a,
@@ -915,7 +915,7 @@ fn tn_consumer_bare_dispatch_is_attributed_to_its_own_namespaces_class() {
 /// rename still reaches it.
 #[test]
 fn tp_consumer_bare_dispatch_belongs_to_the_matching_namespaces_class() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let a = unique_uri("tcl");
     lsp.open_ready(
         &a,
