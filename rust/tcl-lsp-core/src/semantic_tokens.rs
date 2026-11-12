@@ -5649,11 +5649,13 @@ mod tests {
         assert!(!custom.contains(&"interface"));
     }
 
-    /// The plain-Tcl profile these tests tokenise under. A named helper keeps
-    /// the 140-odd call sites readable — spelling the resolution out at each
-    /// one buries the assertion it belongs to.
+    /// The plain-Tcl release these tests tokenise under. The lenient `tcl`
+    /// span abstains wherever its releases could differ, so a test of plain
+    /// Tcl names one. A named helper keeps the 140-odd call sites readable —
+    /// spelling the resolution out at each one buries the assertion it
+    /// belongs to.
     fn tcl() -> &'static tcl_dialect::DialectProfile {
-        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
     }
 
     fn reg() -> CommandRegistry {

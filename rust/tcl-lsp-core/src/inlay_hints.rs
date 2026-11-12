@@ -1334,6 +1334,8 @@ mod tests {
             false,
             true,
         );
+        // Line 0 carries the `proc` command's own built-in hints.
+        let hints: Vec<_> = hints.into_iter().filter(|h| h.position_line == 1).collect();
         assert_eq!(hints.len(), 1);
         let h = &hints[0];
         assert_eq!(h.position_line, 1);
@@ -1373,7 +1375,8 @@ mod tests {
             false,
             true,
         );
-        // Only the `first` arg gets a hint.
+        // Only the `first` arg gets a hint; line 0 is the `proc` command's own.
+        let hints: Vec<_> = hints.into_iter().filter(|h| h.position_line == 1).collect();
         assert_eq!(hints.len(), 1);
         assert_eq!(hints[0].label, "first:");
     }
@@ -1426,9 +1429,9 @@ mod tests {
 
     #[test]
     fn extra_args_past_param_count_not_hinted() {
-        // `proc one {a} {}` then `one 1 2 3` — only `a` has
-        // a corresponding parameter; the extra args produce
-        // no hints (no name to attach).
+        // `proc one {a} {}` then `one 1 2 3` — the call binds no formal at
+        // all: every release raises `wrong # args: should be "one a"`
+        // (tclsh 8.4-9.1, jimsh), so no argument carries a parameter name.
         let src = "proc one {a} {}\none 1 2 3\n";
         let analysis = analyse(src);
         let hints = inlay_hints(
@@ -1440,8 +1443,7 @@ mod tests {
             false,
             true,
         );
-        assert_eq!(hints.len(), 1);
-        assert_eq!(hints[0].label, "a:");
+        assert!(hints.iter().all(|h| h.position_line != 1), "{hints:?}");
     }
 
     #[test]
@@ -1475,13 +1477,14 @@ mod tests {
     /// the public API, so this is parity: the narrow-range result must equal
     /// the in-range subset of the full-range result, for a document whose
     /// out-of-range lines exercise *both* resolution branches the skip has to
-    /// short-circuit — an unresolvable call (line 2) and a real builtin call
-    /// that would otherwise emit its own hints (line 3, `puts`, two
-    /// positionals).
+    /// short-circuit — real builtin calls that would otherwise emit their own
+    /// hints (lines 2 and 3, `puts`, two positionals) and an unresolvable
+    /// call (line 5). The unresolvable call comes last: run earlier, it would
+    /// stop the script before line 4 in every release.
     #[test]
     fn out_of_range_segments_are_skipped_without_changing_in_range_results() {
         let src =
-            "proc greet {name} {}\ngreet alice\nunknownproc foo bar\nputs hello world\ngreet zed\n";
+            "proc greet {name} {}\ngreet alice\nputs stdout a\nputs stdout b\ngreet zed\nnosuch\n";
         let analysis = analyse(src);
         let reg = registry();
         let full = LspRange {
@@ -1786,8 +1789,9 @@ mod tests {
     }
 
     #[test]
-    fn builtin_hint_not_emitted_without_registry() {
-        // Same source, no registry — no built-in hints.
+    fn builtin_hints_use_the_analysis_registry_without_a_caller_registry() {
+        // Same source, no caller registry: the analysis carries its own
+        // command store, so the built-in hints still come from it.
         let src = "string index $s 3\n";
         let analysis = analyse(src);
         let hints = inlay_hints(
@@ -1799,7 +1803,8 @@ mod tests {
             false,
             true,
         );
-        assert!(hints.is_empty(), "{hints:?}");
+        let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
+        assert_eq!(labels, vec!["string:", "charIndex:"], "{hints:?}");
     }
 
     #[test]
@@ -1901,8 +1906,9 @@ mod tests {
     }
 
     #[test]
-    fn type_hints_require_registry_for_inference() {
-        // Without a registry the type map can't be built; no type hints.
+    fn type_hints_use_the_analysis_registry_without_a_caller_registry() {
+        // No caller registry: the analysis's own command store builds the
+        // type map.
         let src = "set x 42\n";
         let analysis = analyse(src);
         let hints = inlay_hints(
@@ -1915,7 +1921,9 @@ mod tests {
             false,
         );
         assert!(
-            hints.iter().all(|h| h.kind != InlayHintKind::Type),
+            hints
+                .iter()
+                .any(|h| h.kind == InlayHintKind::Type && h.label == ": int"),
             "{hints:?}",
         );
     }

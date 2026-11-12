@@ -3168,7 +3168,7 @@ mod tests {
         // braces, so the transform declines and says why.
         let src = "proc f {p} { puts $p }\nf {a b}\n";
         let reason = inline_outcome(src, 1).unwrap_err();
-        assert!(reason.contains("plain word"), "{reason}");
+        assert!(reason.contains("inert literal"), "{reason}");
     }
 
     #[test]

@@ -4595,11 +4595,9 @@ mod tests {
 
     #[test]
     fn subcommand_completion_falls_through_when_word_index_not_1() {
-        // `string length f` — cursor at word-index 2 (after
-        // `length` argument).  Subcommand completion should NOT
-        // fire; we fall through to command + proc completion
-        // (which would surface built-ins like `foreach`,
-        // `format`, etc.).
+        // `string length f` — cursor at word-index 2, the string operand.
+        // Subcommand completion must not fire, and a data operand offers no
+        // command names either.
         let src = "string length f\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
@@ -4613,11 +4611,9 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-        // Some f-prefixed command should surface (foreach,
-        // format, file…), confirming we fell through.
         assert!(
-            labels.iter().any(|l| l.starts_with('f')),
-            "expected at least one f-prefixed command via fallback; got {labels:?}",
+            !labels.iter().any(|l| l.starts_with('f')),
+            "a data operand offers no command names; got {labels:?}",
         );
         // String's `length` subcommand should NOT be in the
         // result — we're past word-index 1.
@@ -4629,9 +4625,8 @@ mod tests {
 
     #[test]
     fn subcommand_completion_skipped_when_command_has_no_subcommands() {
-        // `puts hel` — `puts` declares no subcommands, so we
-        // should fall through to command + proc completion (and
-        // ideally find no commands starting with `hel`).
+        // `puts hel` — `puts` declares no subcommands, and `hel` is the
+        // string it writes: data, where no procedure name is offered.
         let src = "proc helper {} {}\nputs hel\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
@@ -4645,10 +4640,9 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
-        // The user proc `helper` should surface (fallback path).
         assert!(
-            labels.contains(&"helper"),
-            "expected `helper` proc via fallback; got {labels:?}",
+            !labels.contains(&"helper"),
+            "a data operand offers no procedure names; got {labels:?}",
         );
     }
 
@@ -5034,7 +5028,7 @@ mod tests {
         // surface against `he` either way — but we use it as
         // additional cover.
         let src = "proc helper {} {}\nproc help_inner {} {}\nproc unrelated {} {}\ncall he\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-irules");
         let registry = irules_registry();
         let items = completions(
             src,
@@ -5067,8 +5061,8 @@ mod tests {
 
     #[test]
     fn call_completion_does_not_fire_in_plain_tcl_dialect() {
-        // Plain Tcl registry has no `call` spec — completion
-        // should fall through to built-in + proc completion.
+        // Plain Tcl registry has no `call` spec, so `help` is an argument of
+        // an unknown command: data, where no command name is offered.
         let src = "proc helper {} {}\ncall help\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
@@ -5081,11 +5075,10 @@ mod tests {
             None,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
-        // The user proc still appears via the fallback path.
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
-            labels.contains(&"helper"),
-            "fallback should still surface `helper`; got {labels:?}",
+            !labels.contains(&"helper"),
+            "the iRules `call` completion must not fire; got {labels:?}",
         );
     }
 
@@ -5095,7 +5088,7 @@ mod tests {
         // context, the completion list should contain user
         // procs starting with `p` but never `puts`.
         let src = "proc parade {} {}\ncall p\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-irules");
         let registry = irules_registry();
         let items = completions(
             src,
@@ -5245,11 +5238,10 @@ mod tests {
 
     #[test]
     fn call_completion_skipped_at_word_index_other_than_1() {
-        // `call helper extra` — word-index 2.  Completion
-        // should fall through to plain command + proc
-        // completion (built-ins included).
+        // `call helper extra` — word-index 2 is an argument of the called
+        // procedure: data, where neither procedures nor built-ins are offered.
         let src = "proc helper {} {}\ncall helper e\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-irules");
         let registry = irules_registry();
         let items = completions(
             src,
@@ -5260,12 +5252,10 @@ mod tests {
             None,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
-        // Plain fallback fires — any e-prefixed builtin
-        // (`eval`, `exec`, `expr`, `error`…) should surface.
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
-            labels.iter().any(|l| l.starts_with('e') && *l != "helper"),
-            "fallback should surface some e-prefixed built-in at word-index 2; got {labels:?}",
+            labels.is_empty(),
+            "no command name belongs at word-index 2; got {labels:?}",
         );
     }
 

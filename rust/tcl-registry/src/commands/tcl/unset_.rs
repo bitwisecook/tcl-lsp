@@ -80,8 +80,16 @@ fn unset_layout_roles(
         return None;
     }
     let names_from = if let Some(dialect) = arguments.dialect() {
+        // Every C release from 8.4 to 9.1 reads the same option prefix, so
+        // the unversioned C span selects that grammar for its roles too.
+        let unversioned_c = dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+            && dialect.tcl_version.is_none()
+            && dialect.core_point.is_none();
         dialect
-            .unset_option_protocol()?
+            .unset_option_protocol()
+            .or_else(|| {
+                unversioned_c.then_some(crate::native_unset_options::UnsetOptionProtocol::C)
+            })?
             .parse(count, |index| {
                 arguments
                     .native_bytes_at(index)

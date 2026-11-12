@@ -1311,7 +1311,7 @@ mod tests {
         let src =
             "proc reset {} {\n    if {1} {\n        set total 0\n    }\n}\nset total 99\nreset\n";
         let reason = outcome(src, "reset\n").unwrap_err();
-        assert!(reason.contains("assigns a variable"), "{reason}");
+        assert!(reason.contains("assigns or binds variables"), "{reason}");
     }
 
     /// A loop's own binding leaks exactly as an assignment does, and it is a
@@ -1323,7 +1323,7 @@ mod tests {
     fn fp_refuses_a_loop_binding_in_the_body() {
         let src = "proc show {} {\n    foreach n {1 2 3} {\n        puts $n\n    }\n}\nshow\n";
         let reason = outcome(src, "show\n").unwrap_err();
-        assert!(reason.contains("on every iteration"), "{reason}");
+        assert!(reason.contains("binds variables"), "{reason}");
     }
 
     /// A frame-sensitive command one level down is still frame-bound: a
@@ -1345,7 +1345,7 @@ mod tests {
     fn fp_refuses_a_bareword_bound_to_a_nested_expression_operand() {
         let src = "proc check {n} {\n    puts [expr {$n eq \"abc\"}]\n}\ncheck abc\n";
         let reason = outcome(src, "check abc").unwrap_err();
-        assert!(reason.contains("expression operand"), "{reason}");
+        assert!(reason.contains("expression variable"), "{reason}");
     }
 
     // -- TP: binding is performed and the result is correct ---------------
@@ -1413,7 +1413,7 @@ mod tests {
         // textual splice emitted `puts "hello {a b}"`, printing the braces.
         let src = "proc greet {name} {\n    puts \"hello $name\"\n}\ngreet {a b}\n";
         let reason = outcome(src, "greet {a b}").unwrap_err();
-        assert!(reason.contains("plain word"), "{reason}");
+        assert!(reason.contains("inert literal"), "{reason}");
     }
 
     #[test]
@@ -1428,7 +1428,7 @@ mod tests {
         // `expr {abc * 2}` reads `abc` as a function name, not the string.
         let src = "proc double {x} {\n    expr {$x * 2}\n}\ndouble abc\n";
         let reason = outcome(src, "double abc").unwrap_err();
-        assert!(reason.contains("not a number"), "{reason}");
+        assert!(reason.contains("nonnumeric"), "{reason}");
     }
 
     #[test]
@@ -1442,7 +1442,7 @@ mod tests {
     fn fp_refuses_too_many_arguments() {
         let src = "proc one {a} {\n    puts $a\n}\none 1 2\n";
         let reason = outcome(src, "one 1 2").unwrap_err();
-        assert!(reason.contains("wrong # args"), "{reason}");
+        assert!(reason.contains("bind its original formals"), "{reason}");
     }
 
     #[test]
@@ -1457,7 +1457,7 @@ mod tests {
         // `total` would survive in the caller and clobber a same-named one.
         let src = "proc reset {} {\n    set total 0\n}\nreset\n";
         let reason = outcome(src, "reset\n").unwrap_err();
-        assert!(reason.contains("assigns a variable"), "{reason}");
+        assert!(reason.contains("assigns or binds variables"), "{reason}");
     }
 
     #[test]
@@ -1492,14 +1492,14 @@ mod tests {
     fn fp_refuses_an_empty_body() {
         let src = "proc nothing {} {}\nnothing\n";
         let reason = outcome(src, "nothing\n").unwrap_err();
-        assert!(reason.contains("empty"), "{reason}");
+        assert!(reason.contains("0 commands"), "{reason}");
     }
 
     #[test]
     fn fp_refuses_a_computed_parameter_list() {
         let src = "proc makeargs {} {return {a b}}\nproc p [makeargs] {\n    puts $a\n}\np 1 2\n";
-        let reason = outcome(src, "p 1 2").unwrap_err();
-        assert!(reason.contains("computed"), "{reason}");
+        // The formals are a run-time value, so no procedure is offered.
+        assert!(at(src, "p 1 2").is_none());
     }
 
     // TN: nothing to offer.
@@ -1601,7 +1601,7 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
         )
         .unwrap_err();
-        assert!(reason.contains("not a number"), "{reason}");
+        assert!(reason.contains("nonnumeric"), "{reason}");
     }
 
     /// The bug end-to-end: `0xZZZ` is not a number in any release, so the
@@ -1610,7 +1610,7 @@ mod tests {
     fn fp_refuses_radix_invalid_digits_in_an_expr_operand() {
         let src = "proc double {x} {\n    expr {$x * 2}\n}\ndouble 0xZZZ\n";
         let reason = outcome(src, "double 0xZZZ").unwrap_err();
-        assert!(reason.contains("not a number"), "{reason}");
+        assert!(reason.contains("nonnumeric"), "{reason}");
     }
 
     #[test]
