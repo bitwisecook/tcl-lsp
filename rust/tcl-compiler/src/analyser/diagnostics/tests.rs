@@ -7439,7 +7439,7 @@ fn codes_for(src: &str) -> Vec<String> {
 }
 
 /// [`codes_for`] under one release rather than the lenient span, which
-/// includes 8.4 (no TclOO) and so proves nothing about a method body.
+/// includes 8.4 (no `TclOO`) and so proves nothing about a method body.
 fn codes_for_in(src: &str, dialect: &str) -> Vec<String> {
     let mut a = Analyser::new();
     a.profile = tcl_dialect::DialectProfile::find(dialect).unwrap();

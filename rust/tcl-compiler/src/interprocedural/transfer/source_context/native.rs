@@ -371,20 +371,24 @@ impl<'a> NativeSummaryContext<'a> {
                     "statement.body-owner",
                     self.module.procedure_ids.owns(body).then_some(()),
                 )?;
-                let procedure =
-                    n17_native_option("statement.body", self.module.body_units.get(&body))?;
-                n17_native_option(
-                    "statement.card-match",
+                if let Some(procedure) = self.module.body_units.get(&body) {
                     n17_native_option(
-                        "statement.card",
-                        self.module
-                            .original_native_declaration_body_units
-                            .get(&body),
-                    )?
-                    .matches_procedure(self.module, procedure)
-                    .then_some(()),
-                )?;
-                &procedure.body
+                        "statement.card-match",
+                        n17_native_option(
+                            "statement.card",
+                            self.module
+                                .original_native_declaration_body_units
+                                .get(&body),
+                        )?
+                        .matches_procedure(self.module, procedure)
+                        .then_some(()),
+                    )?;
+                    &procedure.body
+                } else {
+                    // An installed declaration's body: each statement below
+                    // still proves its own original tokens and metadata.
+                    &n17_native_option("statement.body", self.module.procedures.get(&body))?.body
+                }
             }
             None => &self.module.top_level,
         };

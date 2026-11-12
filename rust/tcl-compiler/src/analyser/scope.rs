@@ -38,8 +38,6 @@ use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
-use crate::naming::normalise_qualified_name;
-
 use super::state::Analyser;
 use super::types::{ClassDef, ProcDef, Scope, ScopeKind, VarDef};
 
@@ -109,36 +107,6 @@ pub(super) fn scope_at<'a>(root: &'a Scope, path: &[usize]) -> Option<&'a Scope>
     Some(cursor)
 }
 
-/// Append a namespace component `part` onto the absolute namespace
-/// `ns` (`"::"`-rooted), mirroring the join in
-/// [`Analyser::command_resolution_namespace`]: an absolute `part` rebases,
-/// a relative one is appended.
-///
-/// `part` is a *written* namespace name — canonicalise it once (colon runs
-/// collapse to one separator; a trailing run drops, as C's namespace-name
-/// lookup does) and then join with one exact `::`.  The accumulated `ns` is a
-/// *constructed* key and is never re-parsed: a `::`-run inside it is a
-/// legitimately colon-named segment (`namespace eval :`), which a
-/// concat-then-normalise would collapse into its parent.
-fn join_namespace(ns: &str, part: &str) -> String {
-    if part.starts_with("::") {
-        return normalise_qualified_name(part);
-    }
-    let segs = crate::naming::qualifier_segments_owned(part);
-    if segs.is_empty() {
-        // `namespace eval {}` (and an all-separator name) is the namespace
-        // itself resolved relative — the empty name is the *global* namespace
-        // in C, but as a relative component it contributes nothing.
-        return ns.to_owned();
-    }
-    let joined = segs.join("::");
-    if ns == "::" || ns.is_empty() {
-        format!("::{joined}")
-    } else {
-        format!("{ns}::{joined}")
-    }
-}
-
 /// Mutable counterpart to [`scope_at`].
 pub(super) fn scope_at_mut<'a>(root: &'a mut Scope, path: &[usize]) -> Option<&'a mut Scope> {
     let mut cursor = root;
@@ -188,7 +156,7 @@ fn advance_command_resolution_namespace(ns: &str, child: &Scope) -> String {
         return display;
     }
     match child.kind {
-        ScopeKind::Namespace => join_namespace(ns, &child.name),
+        ScopeKind::Namespace => crate::naming::qualify_namespace(ns, &child.name),
         // A `TclOO` method body executes with the *object's* namespace current
         // (`::oo::ObjN`, path `::oo::Helpers`) — the class's defining
         // namespace is never searched, so the static approximation is
@@ -353,10 +321,8 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
                 };
                 let coordinate = if crate::naming::unroot_rooted_key(name).is_some() {
                     name.clone()
-                } else if namespace == "::" {
-                    crate::naming::root_unrooted_key(name)
                 } else {
-                    format!("{namespace}::{name}")
+                    tcl_syntax::naming::rooted_member_key(namespace, name)
                 };
                 if self
                     .variable_definition(&coordinate)
@@ -1309,10 +1275,8 @@ pub fn qualified_name_for_var_decl(root: &Scope, def_span: tcl_lexer::Span) -> O
             // unqualified literal `set`) needs `ns` prepended.
             return Some(if v.name.starts_with("::") {
                 v.name.clone()
-            } else if ns == "::" {
-                format!("::{}", v.name)
             } else {
-                format!("{ns}::{}", v.name)
+                tcl_syntax::naming::rooted_member_key(ns, &v.name)
             });
         }
         node.children.iter().find_map(|child| {

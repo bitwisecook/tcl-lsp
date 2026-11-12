@@ -589,11 +589,7 @@ impl SignatureNamespaceImportSource {
     /// Construct the candidate command for a literal, unqualified command tail.
     #[must_use]
     pub fn command_key(&self, tail: &str) -> String {
-        if self.namespace == "::" {
-            format!("::{tail}")
-        } else {
-            format!("{}::{tail}", self.namespace)
-        }
+        tcl_syntax::naming::rooted_member_key(&self.namespace, tail)
     }
 
     /// Match a name and return its constructed source key.

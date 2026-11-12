@@ -164,11 +164,7 @@ impl ModuleCommandBindings {
             SourceCommandKey::Slot { namespace, simple } => {
                 let holder = namespace.display()?;
                 let simple = simple.try_utf8().ok()?;
-                Some(if holder == "::" {
-                    format!("::{simple}")
-                } else {
-                    format!("{holder}::{simple}")
-                })
+                Some(tcl_syntax::naming::rooted_member_key(&holder, simple))
             }
         }
     }

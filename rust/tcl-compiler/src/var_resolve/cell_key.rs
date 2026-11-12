@@ -154,7 +154,7 @@ impl VariableCellKey {
             Self::Namespace { identity, simple } => match identity {
                 SourceNamespaceKey::Authored(namespace) if namespace == "::" => byte_label(simple),
                 SourceNamespaceKey::Authored(namespace) => {
-                    format!("{namespace}::{}", byte_label(simple))
+                    tcl_syntax::naming::rooted_member_key(namespace, &byte_label(simple))
                 }
                 _ => format!("{identity:?}::{}", byte_label(simple)),
             },

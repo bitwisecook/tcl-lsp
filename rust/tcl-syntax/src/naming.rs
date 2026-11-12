@@ -1544,6 +1544,23 @@ pub fn root_unrooted_key_bytes(key: &[u8]) -> Vec<u8> {
     rooted
 }
 
+/// String twin of [`rooted_member_key_bytes`]: neither key is reparsed.
+///
+/// ```
+/// use tcl_syntax::naming::rooted_member_key;
+/// assert_eq!(rooted_member_key("::", "v"), "::v");
+/// assert_eq!(rooted_member_key("::a", "b"), "::a::b");
+/// assert_eq!(rooted_member_key(":::", ":"), "::::::");
+/// ```
+#[must_use]
+pub fn rooted_member_key(rooted_namespace: &str, member: &str) -> String {
+    if rooted_namespace == "::" {
+        format!("::{member}")
+    } else {
+        format!("{rooted_namespace}::{member}")
+    }
+}
+
 /// A member's rooted reporting key under a rooted constructed namespace key:
 /// the root's members take one marker, any other namespace one separator.
 /// Neither input is reparsed; this supplies no lookup or table identity.
