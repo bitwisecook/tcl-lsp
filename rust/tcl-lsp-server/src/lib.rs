@@ -33482,6 +33482,11 @@ impl Backend {
         roots_count: usize,
         files_count: usize,
     ) {
+        // The first published package database and workspace index are
+        // diagnostics inputs: reports computed before them are stale.
+        if !self.workspace_scan_ready.is_complete() {
+            self.invalidate_diag_inputs();
+        }
         self.workspace_scan_ready.mark_complete();
         workspace_scan_trace!(
             "scan.ready elapsed_ms={}",
@@ -34665,7 +34670,10 @@ impl LanguageServer for Backend {
         // open document now so any diagnostics published before the scan
         // completed are refreshed against the now-populated workspace state —
         // the same pattern `did_change_watched_files` already uses after its
-        // own `scan_workspace_folders` call on a config change.
+        // own `scan_workspace_folders` call on a config change. The populated
+        // package database is a diagnostics input, so a report computed
+        // against the empty one is stale rather than complete.
+        self.invalidate_diag_inputs();
         self.reschedule_all_open_documents().await;
         // VS Code computes a document's sticky-scroll model once, when the
         // editor opens, and a folding provider that registers *after* that

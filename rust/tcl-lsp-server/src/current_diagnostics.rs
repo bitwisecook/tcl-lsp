@@ -2236,6 +2236,13 @@ impl Backend {
         &self,
         expected: &DiagnosticSourceExpectation,
     ) -> jsonrpc::Result<CurrentDiagnostics> {
+        // Workspace refinements (W120/W123 against the package database and
+        // source graph) are unsettled until the startup scan has published.
+        if !self.workspace_scan_ready.is_complete() {
+            return Ok(CurrentDiagnostics::Unavailable {
+                reason: DiagnosticUnavailable::Pending,
+            });
+        }
         let source = DiagnosticReportExpectation {
             uri: expected.uri.clone(),
             version: Some(expected.version),

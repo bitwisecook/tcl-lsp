@@ -302,7 +302,7 @@ fn file_link_too_many_positionals_is_e003() {
     // arity error must still fire (the fix skips options, not real arguments).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "file link $a $b $c\n");
+    let diags = lsp.open_ready(&uri, "file link a b c\n");
     let e003: Vec<&Value> = diags
         .iter()
         .filter(|d| code_str(d).as_deref() == Some("E003"))

@@ -206,10 +206,18 @@ impl PackageResolver {
         list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
     ) {
         self.invalidate();
+        // The same text read with core `package`/`if` semantics, as
+        // `tclPkgUnknown` sources it, decides version guards the original
+        // survey keeps undecidable. An entry it excludes for a release is not
+        // offered for that release.
+        let decided = super::parse_pkg_index(content, directory, index, exists, list_files);
         for version in tcl_dialect::TclVersion::ALL {
             for info in
                 original_package_entries(content, directory, index, exists, list_files, version)
             {
+                if guard_excludes(&decided, &info.info, version) {
+                    continue;
+                }
                 self.original_packages
                     .entry(info.name.clone())
                     .or_default()
@@ -335,7 +343,34 @@ impl PackageResolver {
     ) -> Vec<PathBuf> {
         match name {
             PackageRequirementAdviceKey::Original(key) => {
-                self.resolve_original_require(key, requirements, exact, prefer)
+                if self.original_packages.contains_key(key) {
+                    return self.resolve_original_require(key, requirements, exact, prefer);
+                }
+                // A registration the original survey could not see at all
+                // (nested in `apply`, a loop or both arms of a branch) falls
+                // back to the textual index under the key's own release.
+                let tcl_syntax::naming::NativeNameProtocol::C(version) = key.policy().recipe()
+                else {
+                    return Vec::new();
+                };
+                let Ok(name) = std::str::from_utf8(key.bytes()) else {
+                    return Vec::new();
+                };
+                let mut files = Vec::new();
+                for provider in self.candidate_providers_for_require(
+                    name,
+                    requirements,
+                    exact,
+                    prefer,
+                    Some(version),
+                ) {
+                    for file in &provider.source_files {
+                        if !files.contains(file) {
+                            files.push(file.clone());
+                        }
+                    }
+                }
+                files
             }
             PackageRequirementAdviceKey::AuthoredMetadata(name) => {
                 let mut files = Vec::new();
@@ -766,6 +801,21 @@ fn analyse_index_with(
         );
     }
     analysis
+}
+
+fn guard_excludes(
+    decided: &[super::PackageInfo],
+    entry: &super::PackageInfo,
+    version: tcl_dialect::TclVersion,
+) -> bool {
+    let mut same = decided
+        .iter()
+        .filter(|info| info.name == entry.name && info.version == entry.version)
+        .peekable();
+    same.peek().is_some()
+        && same.all(|info| {
+            info.availability(Some(version)) == super::reachability::Availability::Unavailable
+        })
 }
 
 fn original_package_entries(
