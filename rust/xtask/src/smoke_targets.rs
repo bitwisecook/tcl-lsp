@@ -1785,10 +1785,7 @@ impl CargoTestArtifacts {
         executable: &Path,
     ) -> Result<RuntimeEnvironment> {
         let mut environment = BTreeMap::new();
-        let profile_dir = executable
-            .parent()
-            .and_then(Path::parent)
-            .context("test executable has no Cargo profile directory")?;
+        let profile_dir = &cargo_profile_dir(executable)?;
         if let Some(candidates) = self.build_environments.get(&target.package_id) {
             let matching = matching_build_environments(candidates, profile_dir);
             let Some(first) = matching.first() else {
@@ -1858,10 +1855,7 @@ impl CargoTestArtifacts {
             let Some(executable) = self.executable(target) else {
                 continue;
             };
-            let profile_dir = executable
-                .parent()
-                .and_then(Path::parent)
-                .context("test executable has no Cargo profile directory")?;
+            let profile_dir = &cargo_profile_dir(executable)?;
             for package_id in &target.link_path_packages {
                 let Some(candidates) = self.build_environments.get(package_id) else {
                     continue;
@@ -1959,10 +1953,26 @@ fn dynamic_library_variable() -> &'static str {
     }
 }
 
-fn cargo_profile_library_paths(executable: &Path) -> Result<(PathBuf, PathBuf)> {
+/// Cargo before 1.100 links test executables into `<profile>/deps` (or
+/// `examples`); 1.100's build-dir layout leaves them in
+/// `<profile>/build/<package>/<hash>/out`.
+fn cargo_profile_layout(executable: &Path) -> Result<(PathBuf, bool)> {
     let artifact_directory = executable
         .parent()
         .context("test executable has no parent")?;
+    let build_dir = artifact_directory.ancestors().nth(3);
+    if artifact_directory
+        .file_name()
+        .is_some_and(|name| name == "out")
+        && build_dir
+            .and_then(Path::file_name)
+            .is_some_and(|name| name == "build")
+    {
+        let profile = build_dir
+            .and_then(Path::parent)
+            .context("Cargo build directory has no profile parent")?;
+        return Ok((profile.to_path_buf(), true));
+    }
     let profile = if matches!(
         artifact_directory.file_name(),
         Some(name) if name == "deps" || name == "examples"
@@ -1973,7 +1983,23 @@ fn cargo_profile_library_paths(executable: &Path) -> Result<(PathBuf, PathBuf)> 
     } else {
         artifact_directory
     };
-    Ok((profile.to_path_buf(), profile.join("deps")))
+    Ok((profile.to_path_buf(), false))
+}
+
+fn cargo_profile_dir(executable: &Path) -> Result<PathBuf> {
+    Ok(cargo_profile_layout(executable)?.0)
+}
+
+/// The profile paths Cargo appends to a test's dynamic-library search path:
+/// the profile and its `deps` in the flat layout, the profile alone in the
+/// build-dir layout.
+fn cargo_profile_library_paths(executable: &Path) -> Result<Vec<PathBuf>> {
+    let (profile, build_dir_layout) = cargo_profile_layout(executable)?;
+    let mut paths = vec![profile.clone()];
+    if !build_dir_layout {
+        paths.push(profile.join("deps"));
+    }
+    Ok(paths)
 }
 
 fn harness_command(executable: &Path, context: &HarnessContext<'_>) -> Result<Command> {
@@ -1989,9 +2015,7 @@ fn harness_command(executable: &Path, context: &HarnessContext<'_>) -> Result<Co
             .package_environment
             .get(OsStr::new(variable))
             .map_or_else(Vec::new, |value| env::split_paths(value).collect());
-        let (profile, dependencies) = cargo_profile_library_paths(executable)?;
-        paths.push(profile);
-        paths.push(dependencies);
+        paths.extend(cargo_profile_library_paths(executable)?);
         paths.push(context.rust_runtime_library.to_path_buf());
         if let Some(existing) = env::var_os(variable) {
             paths.extend(env::split_paths(&existing));
@@ -2493,14 +2517,14 @@ host_only = []
         "e/src/lib.rs",
         concat!(
             "#[test]\nfn ",
-            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"inherited\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e-\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f-\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/r-\") && path.ends_with(\"/out/build-only-native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) && !cfg!(target_os = \"macos\") { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
+            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"inherited\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/r\") && path.ends_with(\"/out/build-only-native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) && !cfg!(target_os = \"macos\") { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
             "#[test]\nfn long_smoke_dependency() { panic!(\"deep test must not run\"); }\n\n",
             "#[test]\nfn deep() { panic!(\"deep test must not run\"); }\n",
         ),
     ),
     (
         "e/build.rs",
-        "fn main() { let out = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()); let native = out.join(\"native\"); let later = out.join(\"aaa-native\"); let shared = out.parent().unwrap().parent().unwrap().parent().unwrap().join(\"shared-native\"); let escaped = out.ancestors().nth(5).unwrap().join(\"../outside-native\"); std::fs::create_dir_all(&native).unwrap(); std::fs::create_dir_all(&later).unwrap(); std::fs::create_dir_all(&shared).unwrap(); std::fs::create_dir_all(&escaped).unwrap(); let context = if std::env::var_os(\"CARGO_FEATURE_HOST_ONLY\").is_some() { \"host\" } else { \"owned\" }; println!(\"cargo::rustc-env=TCL_LSP_BUILD_ENV={context}\"); println!(\"cargo::rustc-env=CARGO_PKG_NAME=overridden\"); println!(\"cargo::rustc-env=CARGO_PKG_VERSION=9.9.9\"); println!(\"cargo::rustc-env=CARGO_MANIFEST_DIR=overridden\"); println!(\"cargo::rustc-env=CARGO_MANIFEST_PATH=overridden\"); println!(\"cargo::rustc-link-search=native={}\", native.display()); println!(\"cargo::rustc-link-search=native={}\", later.display()); println!(\"cargo::rustc-link-search=native={}\", shared.display()); println!(\"cargo::rustc-link-search=native={}\", escaped.display()); }\n",
+        "fn main() { let out = std::path::PathBuf::from(std::env::var_os(\"OUT_DIR\").unwrap()); let native = out.join(\"native\"); let later = out.join(\"aaa-native\"); let shared = out.parent().unwrap().parent().unwrap().parent().unwrap().join(\"shared-native\"); let escaped = out.ancestors().find(|path| path.file_name().is_some_and(|name| name == \"target\")).unwrap().join(\"../outside-native\"); std::fs::create_dir_all(&native).unwrap(); std::fs::create_dir_all(&later).unwrap(); std::fs::create_dir_all(&shared).unwrap(); std::fs::create_dir_all(&escaped).unwrap(); let context = if std::env::var_os(\"CARGO_FEATURE_HOST_ONLY\").is_some() { \"host\" } else { \"owned\" }; println!(\"cargo::rustc-env=TCL_LSP_BUILD_ENV={context}\"); println!(\"cargo::rustc-env=CARGO_PKG_NAME=overridden\"); println!(\"cargo::rustc-env=CARGO_PKG_VERSION=9.9.9\"); println!(\"cargo::rustc-env=CARGO_MANIFEST_DIR=overridden\"); println!(\"cargo::rustc-env=CARGO_MANIFEST_PATH=overridden\"); println!(\"cargo::rustc-link-search=native={}\", native.display()); println!(\"cargo::rustc-link-search=native={}\", later.display()); println!(\"cargo::rustc-link-search=native={}\", shared.display()); println!(\"cargo::rustc-link-search=native={}\", escaped.display()); }\n",
     ),
     (
         "f/Cargo.toml",
@@ -2772,7 +2796,7 @@ fn smoke_proc_macro_link_path() {
     let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>();
     assert!(paths.iter().any(|path| {
         let path = path.to_string_lossy().replace(char::from(92), "/");
-        path.contains("/build/d-") && path.ends_with("/out/proc-macro-native")
+        path.contains("/build/d") && path.ends_with("/out/proc-macro-native")
     }));
     if let Some(record) = std::env::var_os("TCL_LSP_RECORD_PROC_MACRO_PATH") {
         let text = paths
@@ -2891,11 +2915,11 @@ fn verify_fixture_runtime_environment(
         .context("fixture package e has no build-script runtime paths")?;
     let own_first = build_paths.iter().position(|path| {
         let path = path.to_string_lossy().replace('\\', "/");
-        path.contains("/build/e-") && path.ends_with("/out/native")
+        path.contains("/build/e") && path.ends_with("/out/native")
     });
     let own_second = build_paths.iter().position(|path| {
         let path = path.to_string_lossy().replace('\\', "/");
-        path.contains("/build/e-") && path.ends_with("/out/aaa-native")
+        path.contains("/build/e") && path.ends_with("/out/aaa-native")
     });
     if !matches!((own_first, own_second), (Some(first), Some(second)) if second < first) {
         bail!("build-script linked-path ordering self-test failed");
@@ -2923,18 +2947,13 @@ fn verify_fixture_runtime_environment(
     if !command_paths.starts_with(&build_paths) {
         bail!("build-script runtime paths were not prepended to harness paths");
     }
-    let (profile, dependencies) = cargo_profile_library_paths(executable)?;
-    if command_paths.get(build_paths.len()) != Some(&profile)
-        || command_paths.get(build_paths.len() + 1) != Some(&dependencies)
-    {
+    let profile_paths = cargo_profile_library_paths(executable)?;
+    if !command_paths[build_paths.len()..].starts_with(&profile_paths) {
         bail!("Cargo profile runtime path ordering self-test failed");
     }
     let mut expected_paths = build_paths;
-    expected_paths.extend([
-        profile,
-        dependencies,
-        context.rust_runtime_library.to_path_buf(),
-    ]);
+    expected_paths.extend(profile_paths);
+    expected_paths.push(context.rust_runtime_library.to_path_buf());
     if let Some(existing) = env::var_os(variable) {
         expected_paths.extend(env::split_paths(&existing));
     }
@@ -2957,21 +2976,21 @@ fn fixture_linked_path_order(paths: &[PathBuf]) -> Vec<&'static str> {
         .iter()
         .filter_map(|path| {
             let path = path.to_string_lossy().replace('\\', "/");
-            if path.contains("/build/e-") && path.ends_with("/out/native") {
+            if path.contains("/build/e") && path.ends_with("/out/native") {
                 Some("e-native")
-            } else if path.contains("/build/e-") && path.ends_with("/out/aaa-native") {
+            } else if path.contains("/build/e") && path.ends_with("/out/aaa-native") {
                 Some("e-aaa-native")
-            } else if path.contains("/build/c-") && path.ends_with("/out/native") {
+            } else if path.contains("/build/c") && path.ends_with("/out/native") {
                 Some("c-native")
-            } else if path.contains("/build/d-") && path.ends_with("/out/proc-macro-native") {
+            } else if path.contains("/build/d") && path.ends_with("/out/proc-macro-native") {
                 Some("d-proc-macro-native")
-            } else if path.contains("/build/f-") && path.ends_with("/out/native") {
+            } else if path.contains("/build/f") && path.ends_with("/out/native") {
                 Some("f-native")
-            } else if path.contains("/build/r-") && path.ends_with("/out/build-only-native") {
+            } else if path.contains("/build/r") && path.ends_with("/out/build-only-native") {
                 Some("r-build-only-native")
             } else if path.ends_with("/shared-native") {
                 Some("e-shared-native")
-            } else if path.contains("/build/s-")
+            } else if path.contains("/build/s")
                 && path.ends_with("/out/unrelated-proc-macro-native")
             {
                 Some("s-unrelated-proc-macro-native")
@@ -3030,9 +3049,9 @@ fn fixture_override_path_order(paths: &[PathBuf]) -> Vec<&'static str> {
         .iter()
         .filter_map(|path| {
             let path = path.to_string_lossy().replace('\\', "/");
-            if path.contains("/build/q-") && path.ends_with("/out/custom") {
+            if path.contains("/build/q") && path.ends_with("/out/custom") {
                 Some("q-custom")
-            } else if path.contains("/build/q-") && path.ends_with("/out/linked") {
+            } else if path.contains("/build/q") && path.ends_with("/out/linked") {
                 Some("q-linked")
             } else {
                 None
@@ -4149,10 +4168,16 @@ fn cargo_profile_library_paths_self_test() -> Result<()> {
         profile.join("direct-harness"),
     ] {
         if cargo_profile_library_paths(&executable)?
-            != (profile.to_path_buf(), profile.join("deps"))
+            != [profile.to_path_buf(), profile.join("deps")]
         {
             bail!("Cargo profile library-path self-test failed");
         }
+    }
+    let build_dir_executable = profile.join("build/t/0123456789abcdef/out/t-0123456789abcdef");
+    if cargo_profile_library_paths(&build_dir_executable)? != [profile.to_path_buf()]
+        || cargo_profile_dir(&build_dir_executable)? != profile
+    {
+        bail!("Cargo build-dir layout library-path self-test failed");
     }
     Ok(())
 }

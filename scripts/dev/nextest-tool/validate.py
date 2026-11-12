@@ -171,6 +171,9 @@ def build_pinned(work):
     env["CARGO_TARGET_DIR"] = str(target)
     env["RUSTC_WRAPPER"] = ""
     env["RUSTC_WORKSPACE_WRAPPER"] = ""
+    # The job denies warnings for this repository's crates; a newer Cargo's
+    # lints on the pinned upstream manifest must not fail the tool build.
+    env["CARGO_BUILD_WARNINGS"] = "allow"
     supervise(
         [
             "cargo",
