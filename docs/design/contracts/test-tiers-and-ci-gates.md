@@ -104,9 +104,8 @@ modules and relative `include_*!` paths are written relative to
    exhaustive tier and are not debt.
 2a. **The light tier is a time box, not a quarantine.** A root test leaves
    the light tier only by being listed in `scripts/dev/rust-heavy-tests.tsv`
-   for its run time (above about one second at opt-level 1 on hosted CI;
-   half a second in the `tcl-compiler` and `tcl-lsp-core` libs, which each
-   fill a shard alone) or its resources. A failing test is fixed, never
+   for its run time (above half a second at opt-level 1 on CI, which leaves
+   room for hosted-runner speed variance) or its resources. A failing test is fixed, never
    listed. The heavy tier and every release tag still run the listed tests,
    and the `rust-tests` aggregate proves that each unlisted assigned test ran
    exactly once. Shard balance comes from the `exec_time` totals in each

@@ -28,7 +28,6 @@
 2	tcl-bigip-io	lib	tcl-bigip-io	tcl_bigip_io
 2	tcl-bigip-query	lib	tcl-bigip-query	tcl_bigip_query
 2	tcl-bigip::integration	test	tcl-bigip	integration
-2	tcl-compiler::it_2	test	tcl-compiler	it_2
 2	tcl-engine-tclvm::doors	test	tcl-engine-tclvm	doors
 2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 2	tcl-lexer::it_2	test	tcl-lexer	it_2
@@ -67,6 +66,7 @@
 3	tcl-codegen	lib	tcl-codegen	tcl_codegen
 3	tcl-codegen::it_3	test	tcl-codegen	it_3
 3	tcl-compiler::command_resolution_conformance	test	tcl-compiler	command_resolution_conformance
+3	tcl-compiler::it_2	test	tcl-compiler	it_2
 3	tcl-compiler::it_3	test	tcl-compiler	it_3
 3	tcl-compiler::native_arithmetic_conformance	test	tcl-compiler	native_arithmetic_conformance
 3	tcl-cshim	lib	tcl-cshim	tcl_cshim
@@ -98,6 +98,7 @@
 3	tcl-test-support	lib	tcl-test-support	tcl_test_support
 3	tcl-test-support::variable_containers_conformance	test	tcl-test-support	variable_containers_conformance
 3	tcl-vm-cli::channel_output	test	tcl-vm-cli	channel_output
+3	tcl-vm-cli::nested_loop_exits	test	tcl-vm-cli	nested_loop_exits
 3	tcl-vm-cli::script_errors	test	tcl-vm-cli	script_errors
 3	tcl-vm::command_traces_e2e	test	tcl-vm	command_traces_e2e
 3	tcl-vm::cross_interp_alias_e2e	test	tcl-vm	cross_interp_alias_e2e
