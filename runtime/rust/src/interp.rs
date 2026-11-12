@@ -23510,7 +23510,11 @@ mod tests {
                 b"namespace import src::p",
                 b"namespace forget src::p",
             ),
-            (GuardDomain::UnknownHandling, b"", b"namespace unknown handler"),
+            (
+                GuardDomain::UnknownHandling,
+                b"",
+                b"namespace unknown handler",
+            ),
             (
                 GuardDomain::UnknownHandling,
                 b"",

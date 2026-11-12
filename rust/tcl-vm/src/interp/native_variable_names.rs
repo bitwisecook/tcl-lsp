@@ -1524,6 +1524,7 @@ impl Vm {
         reached
     }
 
+    #[cfg(test)]
     pub(crate) fn unset_original_c_variable_parts(
         &mut self,
         original: &Value,

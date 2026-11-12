@@ -1795,7 +1795,9 @@ pub struct InterpState {
     /// Runtime-issued speculative guard tokens and mutation-domain snapshots.
     guards: std::cell::RefCell<VmCommandGuards>,
     /// The `::unknown` binding last seen at a guard door
-    /// ([`Vm::synchronise_unknown_binding_guards`]).
+    /// ([`Vm::synchronise_unknown_binding_guards`]): `None` before the first
+    /// door, `Some(None)` when `::unknown` was unbound there.
+    #[allow(clippy::option_option)]
     guard_unknown_binding: std::cell::RefCell<Option<Option<CommandTokenIdentity>>>,
     /// What is known of command tokens by generation: their guard
     /// attestations and which of them an embedder registered.
