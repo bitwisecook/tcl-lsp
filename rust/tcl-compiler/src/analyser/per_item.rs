@@ -2592,6 +2592,38 @@ mod tests {
         }
     }
 
+    /// Proven-word findings inside a procedure body reach the per-item path
+    /// as they reach the whole-file one (#2294).
+    #[test]
+    fn per_item_body_keeps_proven_word_findings() {
+        for (src, code) in [
+            (
+                "proc p {} {\n set l {a b c}\n lindex $l 9\n}\n",
+                tcl_core_types::DiagCode::W230,
+            ),
+            (
+                "proc p {input} {set re {(a+)+$}; regexp $re $input}\n",
+                tcl_core_types::DiagCode::W303,
+            ),
+        ] {
+            let codes = |result: &AnalysisResult| {
+                result
+                    .diagnostics
+                    .iter()
+                    .filter(|d| d.code == code)
+                    .map(|d| d.span)
+                    .collect::<Vec<_>>()
+            };
+            let want = codes(&Analyser::new().analyse(src, "tcl8.6"));
+            assert_eq!(want.len(), 1, "{code}: {src}");
+            assert_eq!(
+                codes(&Analyser::new().analyse_per_item(src, "tcl8.6")),
+                want,
+                "{code}: {src}"
+            );
+        }
+    }
+
     fn eq(src: &str) {
         let want = Analyser::new().analyse(src, "tcl8.6");
         let got = Analyser::new().analyse_per_item(src, "tcl8.6");
