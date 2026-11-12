@@ -590,6 +590,19 @@ pub enum EnsembleManagementOperation {
     Other,
 }
 
+/// The one command slot a literal `namespace ensemble create` installs.
+/// Nothing else in the command table changes; subcommands dispatch at call
+/// time through the ensemble's own configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EnsembleCommandName {
+    /// No `-command`: the current namespace's own qualified name, published
+    /// in its parent namespace (`::` itself for the global namespace).
+    CurrentNamespace,
+    /// The last `-command` value; a relative name resolves against the
+    /// current namespace.
+    Named(TransitionSubject),
+}
+
 /// A mutation of namespace-owned state.
 ///
 /// These are deliberately semantic operations, rather than command names or
@@ -658,6 +671,10 @@ pub enum NamespaceTransition {
         /// Consumers must use the selected Registry option schema before
         /// assigning map or subcommand meaning to these values.
         arguments: Vec<TransitionSubject>,
+        /// The command a `create` whose every option and value is literal,
+        /// known and valid for the selected release installs; `None` for any
+        /// other operation or form.
+        created: Option<EnsembleCommandName>,
     },
 }
 
@@ -1554,10 +1571,16 @@ fn transition_namespace_visit(
         NamespaceTransition::Ensemble {
             namespace: target,
             arguments,
+            created,
             ..
         } => {
             visit_namespace_subject(target, visit);
-            arguments.iter_mut().for_each(visit);
+            for argument in arguments {
+                visit(argument);
+            }
+            if let Some(EnsembleCommandName::Named(subject)) = created {
+                visit(subject);
+            }
         }
         NamespaceTransition::Export {
             namespace: target,

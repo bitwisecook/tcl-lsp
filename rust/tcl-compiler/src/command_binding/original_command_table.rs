@@ -1398,6 +1398,13 @@ fn command_operand_subjects(facts: &InvocationFacts) -> Vec<&TransitionSubject> 
             {
                 subjects.push(path);
             }
+            if let StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensemble {
+                created: Some(tcl_registry::EnsembleCommandName::Named(name)),
+                ..
+            }) = &fact.transition
+            {
+                subjects.push(name);
+            }
             let StateTransition::CommandBinding(transition) = &fact.transition else {
                 continue;
             };
@@ -1643,6 +1650,32 @@ impl OriginalCommandOperands {
         };
         state.rebound_names.insert(key.clone());
         state.install(key, binding);
+        Some(())
+    }
+
+    /// Install the one command a literal `namespace ensemble create` creates,
+    /// at its `-command` operand or the current namespace's own name.
+    pub(super) fn apply_ensemble_creation(
+        &self,
+        state: &mut ModuleCommandBindings,
+        created: &tcl_registry::EnsembleCommandName,
+        current: &SourceNamespaceKey,
+        declaration: u32,
+    ) -> Option<()> {
+        let key = match created {
+            tcl_registry::EnsembleCommandName::Named(name) => state.original_definition_key(
+                current,
+                self.input(name)?,
+                CommandBindingDefinitionKind::Command,
+            )?,
+            tcl_registry::EnsembleCommandName::CurrentNamespace => {
+                let policy = state.baseline.execution_name_policy?.native_recipe()?;
+                let scope = state.original_namespace_geometry(current, policy)?;
+                let slot = super::source_command_world::namespace_own_command_slot(&scope)?;
+                state.original_command_key_for_slot(&slot, policy)?
+            }
+        };
+        state.install_created_command(key, declaration);
         Some(())
     }
 

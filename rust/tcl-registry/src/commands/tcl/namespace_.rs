@@ -850,9 +850,67 @@ fn namespace_ensemble_state_transitions(arguments: InvocationArguments<'_>) -> S
             arguments: (0..arguments.len())
                 .filter_map(|index| TransitionSubject::from_argument(arguments, index))
                 .collect(),
+            created: literal_ensemble_creation(arguments),
         }));
     }
     transitions
+}
+
+/// The one command `namespace ensemble create` installs, when every word
+/// after `create` is a literal pair from `ensembleCreateOptions`
+/// (`tclEnsemble.c`) whose value C Tcl accepts on the selected release.
+///
+/// C Tcl parses every option before it creates the command, so a rejected
+/// value creates nothing. Tcl 8.5 ignores a trailing option without a value
+/// where 8.6+ reject it, 8.5 rejects `-parameters`, and 8.4 has no
+/// `namespace ensemble`, so an odd count, an abbreviated or unknown option, a
+/// computed word or a release not known to be 8.5+ selects nothing.
+fn literal_ensemble_creation(
+    arguments: InvocationArguments<'_>,
+) -> Option<crate::state_transition::EnsembleCommandName> {
+    use crate::state_transition::EnsembleCommandName;
+    use tcl_dialect::TclVersion;
+    let dialect = arguments.dialect()?;
+    let version = dialect.tcl_version?;
+    if version < TclVersion::V8_5
+        || arguments.literal_at(1)? != "create"
+        || !arguments.len().is_multiple_of(2)
+    {
+        return None;
+    }
+    let words = dialect.word_values;
+    let is_list = |value: &str| words.split_list(value).is_ok();
+    let mut command = None;
+    for index in (2..arguments.len()).step_by(2) {
+        let value = arguments.literal_at(index + 1)?;
+        let accepted = match arguments.literal_at(index)? {
+            "-command" => {
+                command = Some(index + 1);
+                true
+            }
+            "-map" => words.split_list(value).is_ok_and(|entries| {
+                entries.len().is_multiple_of(2)
+                    && entries.chunks(2).all(|entry| {
+                        words
+                            .split_list(&entry[1])
+                            .is_ok_and(|target| !target.is_empty())
+                    })
+            }),
+            "-parameters" => version >= TclVersion::V8_6 && is_list(value),
+            "-subcommands" | "-unknown" => is_list(value),
+            "-prefixes" => tcl_syntax::boolean::truthiness(value).is_some(),
+            _ => false,
+        };
+        if !accepted {
+            return None;
+        }
+    }
+    Some(match command {
+        Some(index) => {
+            EnsembleCommandName::Named(TransitionSubject::from_argument(arguments, index)?)
+        }
+        None => EnsembleCommandName::CurrentNamespace,
+    })
 }
 
 fn namespace_eval_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
@@ -2141,6 +2199,82 @@ mod tests {
                 && access.mode == EffectAccessMode::Write));
             assert_eq!(facts.effects.callback().kinds, CallbackKinds::TRACE);
         }
+    }
+
+    /// tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1.0: a literal create installs one
+    /// command, at `-command` (the last one wins) or the current namespace's
+    /// name; a rejected value creates nothing; 8.5 ignores a trailing option
+    /// and rejects `-parameters`, which 8.6+ accept.
+    #[test]
+    fn only_a_literal_valid_ensemble_create_names_its_command() {
+        use crate::state_transition::EnsembleCommandName;
+        use tcl_dialect::TclVersion;
+        let created = |version: Option<TclVersion>, words: &[&str]| {
+            let arguments = InvocationArguments::literals(words);
+            let arguments = match version {
+                Some(version) => {
+                    arguments.with_dialect(crate::InvocationDialect::for_version(version))
+                }
+                None => arguments.with_dialect(crate::InvocationDialect::of_profile(
+                    tcl_dialect::DialectProfile::plain_tcl(),
+                )),
+            };
+            super::literal_ensemble_creation(arguments)
+        };
+        let v86 = Some(TclVersion::V8_6);
+        assert_eq!(
+            created(v86, &["ensemble", "create", "-map", "foo ::e::Foo"]),
+            Some(EnsembleCommandName::CurrentNamespace)
+        );
+        assert_eq!(
+            created(
+                v86,
+                &["ensemble", "create", "-command", "m8", "-command", "m9"]
+            ),
+            Some(EnsembleCommandName::Named(
+                TransitionSubject::LocatedLiteral {
+                    value: "m9".to_owned(),
+                    argument_index: 5,
+                }
+            ))
+        );
+        assert!(
+            created(
+                v86,
+                &[
+                    "ensemble",
+                    "create",
+                    "-command",
+                    "x",
+                    "-prefixes",
+                    "2",
+                    "-parameters",
+                    "p"
+                ]
+            )
+            .is_some()
+        );
+        for rejected in [
+            &["ensemble", "create", "-map"][..],
+            &["ensemble", "create", "-com", "m"],
+            &["ensemble", "create", "-namespace", "::m"],
+            &["ensemble", "create", "-map", "a"],
+            &["ensemble", "create", "-map", "a {}"],
+            &["ensemble", "create", "-prefixes", "maybe"],
+            &["ensemble", "create", "-subcommands", "{"],
+            &["ensemble", "cr", "-command", "m"],
+            &["ensemble", "configure", "::e", "-map", ""],
+        ] {
+            assert_eq!(created(v86, rejected), None, "{rejected:?}");
+        }
+        let parameters = ["ensemble", "create", "-parameters", "x"];
+        assert_eq!(created(Some(TclVersion::V8_5), &parameters), None);
+        assert!(created(Some(TclVersion::V8_5), &["ensemble", "create"]).is_some());
+        assert_eq!(
+            created(Some(TclVersion::V8_4), &["ensemble", "create"]),
+            None
+        );
+        assert_eq!(created(None, &["ensemble", "create"]), None);
     }
 
     #[test]

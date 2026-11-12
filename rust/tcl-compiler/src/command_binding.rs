@@ -18628,6 +18628,26 @@ impl ModuleCommandBindings {
         })
     }
 
+    /// Install a command whose narrower identity this lattice does not track,
+    /// created by the operation at `declaration`.
+    fn install_created_command(&mut self, key: SourceCommandKey, declaration: u32) {
+        let command = Self::command_key_label(&key).unwrap_or_default();
+        self.install(
+            key,
+            MayBinding::Target(ResolvedCommandTarget {
+                command,
+                prepended: Vec::new(),
+                registry_backed: false,
+                kind: BindingKind::Command,
+                implementation_generation: declaration,
+                terminal: true,
+                target_lookup: tcl_registry::AliasTargetLookup::Global,
+                token: None,
+                implementation_allocation: None,
+            }),
+        );
+    }
+
     fn install(&mut self, key: impl Into<SourceCommandKey>, mut implementation: MayBinding) {
         let key = key.into();
         self.rebound_names.insert(key.clone());
@@ -22084,14 +22104,67 @@ fn apply_namespace_transition(
                 state.mark_opaque_resolution();
             }
         }
-        NamespaceTransition::Ensemble { namespace, .. } => {
-            if let Some(name) = state.namespace_target_key_at(namespace, current) {
-                Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(name);
-            } else {
-                state.mark_opaque_resolution();
-            }
+        NamespaceTransition::Ensemble { .. } => {
+            apply_ensemble_transition(state, transition, current, offset, original_operands);
         }
     }
+}
+
+/// C Tcl's ensemble operations create at most one command and change no other
+/// name's resolution; `configure` only rewrites the dispatch configuration of
+/// an existing ensemble.
+fn apply_ensemble_transition(
+    state: &mut ModuleCommandBindings,
+    transition: &NamespaceTransition,
+    current: &SourceNamespaceKey,
+    offset: u32,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
+) {
+    let NamespaceTransition::Ensemble {
+        namespace,
+        operation,
+        created,
+        ..
+    } = transition
+    else {
+        return;
+    };
+    if let Some(created) = created
+        && install_created_ensemble(state, created, current, offset, original_operands).is_some()
+    {
+        return;
+    }
+    if *operation == Some(tcl_registry::state_transition::EnsembleManagementOperation::Configure) {
+        return;
+    }
+    if let Some(name) = state.namespace_target_key_at(namespace, current) {
+        Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(name);
+    } else {
+        state.mark_opaque_resolution();
+    }
+}
+
+fn install_created_ensemble(
+    state: &mut ModuleCommandBindings,
+    created: &tcl_registry::EnsembleCommandName,
+    current: &SourceNamespaceKey,
+    declaration: u32,
+    original_operands: Option<&original_command_table::OriginalCommandOperands>,
+) -> Option<()> {
+    if let Some(operands) = original_operands {
+        return operands.apply_ensemble_creation(state, created, current, declaration);
+    }
+    let name = match created {
+        tcl_registry::EnsembleCommandName::Named(name) => name.literal()?,
+        tcl_registry::EnsembleCommandName::CurrentNamespace => match current {
+            SourceNamespaceKey::Authored(namespace) if namespace != "::" => namespace.as_str(),
+            _ => return None,
+        },
+    };
+    let key =
+        state.publication_key_at(current, name, namespace_slots::PublicationPurpose::Command)?;
+    state.install_created_command(key, declaration);
+    Some(())
 }
 
 fn apply_namespace_deletion(
@@ -22322,6 +22395,28 @@ fn collect_namespace_resolution(
     resolution: &mut bool,
     opaque: &mut std::collections::HashSet<String>,
 ) -> bool {
+    if let NamespaceTransition::Ensemble {
+        namespace,
+        created: Some(created),
+        ..
+    } = transition
+    {
+        *resolution = true;
+        let Some(target) = transition_namespace(namespace, site) else {
+            return false;
+        };
+        let name = match created {
+            tcl_registry::EnsembleCommandName::Named(name) => {
+                let Some(name) = literal_subject(name) else {
+                    return false;
+                };
+                tcl_syntax::naming::qualify(&target, name)
+            }
+            tcl_registry::EnsembleCommandName::CurrentNamespace => target,
+        };
+        rebound.insert(name);
+        return true;
+    }
     let (namespace, patterns) = match transition {
         NamespaceTransition::Import {
             namespace,
@@ -25228,7 +25323,6 @@ Animal new",
             "namespace forget ::m::*",
             "namespace path {::m}",
             "namespace unknown handler",
-            "namespace ensemble create",
             "set value ::m\nnamespace path $value",
             "set value handler\nnamespace unknown $value",
         ] {
@@ -25248,13 +25342,11 @@ Animal new",
             "set result [namespace forget ::m::*]",
             "set result [namespace path {::m}]",
             "set result [namespace unknown handler]",
-            "set result [namespace ensemble create]",
             "interp alias {} mutate {} namespace delete\nmutate ::n",
             "interp alias {} mutate {} namespace import -force\nmutate ::m::*",
             "interp alias {} mutate {} namespace forget\nmutate ::m::*",
             "interp alias {} mutate {} namespace path\nmutate {::m}",
             "interp alias {} mutate {} namespace unknown\nmutate handler",
-            "interp alias {} mutate {} namespace ensemble\nmutate create",
         ] {
             let (cu, reg) = analyse(source);
             let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);

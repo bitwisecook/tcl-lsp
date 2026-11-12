@@ -544,9 +544,9 @@ pub use special_vars::{
 pub use state_transition::{
     AbruptTransitionTransfer, AliasTargetLookup, AliasWords, CallerFrameSelection,
     ChildInterpreterSafety, CommandBindingDefinitionKind, CommandBindingTransition,
-    CommandResolutionImpact, InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget,
-    ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition,
-    ObjectPrivateNamespace, ResolvedStateTransitions, StateTransition,
+    CommandResolutionImpact, EnsembleCommandName, InterpreterTransition, NamespaceTransition,
+    NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget,
+    ObjectDispatchTransition, ObjectPrivateNamespace, ResolvedStateTransitions, StateTransition,
     StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
     StateTransitionDescriptor, StateTransitionDomain, StateTransitionFact,
     StateTransitionKnowledge, StateTransitionOperandLayout, StateTransitionResolver,

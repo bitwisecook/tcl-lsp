@@ -29,9 +29,10 @@ use super::{
 };
 use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
 use tcl_core_types::ByteCommandSlot;
+use tcl_registry::state_transition::EnsembleManagementOperation;
 use tcl_registry::{
-    CommandBindingDefinitionKind, CommandBindingTransition, InvocationFacts, NamespaceTransition,
-    NamespaceTransitionTarget, StateTransition, TransitionSubject,
+    CommandBindingDefinitionKind, CommandBindingTransition, EnsembleCommandName, InvocationFacts,
+    NamespaceTransition, NamespaceTransitionTarget, StateTransition, TransitionSubject,
 };
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameProtocol, NativeNamePurpose};
 
@@ -2070,6 +2071,25 @@ impl SourceWorldCapture<'_> {
             CommandBindingTransition::Unknown { .. } => None,
         }
     }
+    /// A literal `namespace ensemble create` publishes its one command slot;
+    /// a `-command` word is a source declaration like any other command name,
+    /// while the current namespace's own name has no source word to publish,
+    /// so only its previous occupant is retired.
+    fn ensemble_operation(&self, created: &EnsembleCommandName) -> Option<Operation> {
+        match created {
+            EnsembleCommandName::Named(name) => {
+                self.command_operation(&CommandBindingTransition::Define {
+                    name: name.clone(),
+                    kind: CommandBindingDefinitionKind::Command,
+                })
+            }
+            EnsembleCommandName::CurrentNamespace => self
+                .selected_scope
+                .as_ref()
+                .and_then(namespace_own_command_slot)
+                .map(Operation::Delete),
+        }
+    }
     fn namespace_operation(&self, transition: &NamespaceTransition) -> Option<Operation> {
         match transition {
             NamespaceTransition::Ensure { namespace } => {
@@ -2196,8 +2216,17 @@ pub(super) fn capture(
                     capture.command_operation(transition)
                 }
                 StateTransition::Namespace(
-                    NamespaceTransition::SetPath { .. } | NamespaceTransition::SetUnknown { .. },
+                    NamespaceTransition::SetPath { .. }
+                    | NamespaceTransition::SetUnknown { .. }
+                    | NamespaceTransition::Ensemble {
+                        operation: Some(EnsembleManagementOperation::Configure),
+                        ..
+                    },
                 ) => continue,
+                StateTransition::Namespace(NamespaceTransition::Ensemble {
+                    created: Some(created),
+                    ..
+                }) => capture.ensemble_operation(created),
                 StateTransition::Namespace(transition) => capture.namespace_operation(transition),
                 StateTransition::Widen(widening)
                     if widening.domains.iter().any(|domain| {
@@ -2233,6 +2262,19 @@ pub(super) fn capture(
         current,
         site,
     })
+}
+
+/// The slot `namespace ensemble create` without `-command` publishes: the
+/// namespace's own qualified name in its parent, and `::` for the root.
+pub(super) fn namespace_own_command_slot(
+    scope: &SignatureNamespaceScope,
+) -> Option<ByteCommandSlot> {
+    let SignatureNamespaceScope::C(path) = scope else {
+        return None;
+    };
+    let mut namespace = path.clone();
+    let simple = namespace.pop().unwrap_or_default();
+    Some(ByteCommandSlot { namespace, simple })
 }
 
 pub(super) fn publication_slot(
