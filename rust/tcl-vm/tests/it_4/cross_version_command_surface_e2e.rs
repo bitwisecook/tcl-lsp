@@ -2251,3 +2251,31 @@ fn a_context_the_ingress_refuses_leaves_the_pin_unchanged() {
     assert_eq!(vm.runtime_context().overlay_generation, OVERLAY);
     assert!(std::ptr::eq(vm.dialect_profile(), profile));
 }
+
+/// `tk` is a runnable compile target (#2314): a module compiled for it
+/// states its own environment at its 8.6 point rather than `tcl/9.0`, a VM
+/// pinned to `tk` on its 8.6 core admits it, and code runs with 8.6
+/// semantics.
+#[test]
+fn a_module_compiled_for_tk_states_tk_and_runs_under_a_tk_pin() {
+    let profile = DialectProfile::tk();
+    let module = BytecodeCompileService::for_profile(profile)
+        .compile("set x 1")
+        .expect("compiles");
+    let manifest = module.manifest.as_ref().expect("a compiler states a manifest");
+    assert_eq!(manifest.environment, "tk");
+    assert_eq!(manifest.release, "8.6");
+
+    let host = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(host, Box::new(std::io::sink()));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    vm.set_dialect_profile(profile);
+    assert_eq!(vm.held_identity(), &**manifest);
+    let completion = vm.run_module(&module);
+    assert_eq!(completion.code, Code::Ok, "{}", completion.result.to_str());
+    let completion = vm
+        .try_eval_source("list [expr {010}] [catch {string insert abc 1 X}]")
+        .expect("the VM's own compile entry");
+    assert_eq!(completion.code, Code::Ok, "{}", completion.result.to_str());
+    assert_eq!(&*completion.result.to_str(), "8 1", "8.6: octal 010, no string insert");
+}

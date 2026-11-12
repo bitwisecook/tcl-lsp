@@ -11931,26 +11931,38 @@ mod tests {
     /// the point the registry's floors make, however late a floor arrives.
     #[test]
     fn a_command_is_known_here_only_where_the_floored_point_admits_it() {
+        // The `tk` environment runs on its 8.6 core and ships the Tk that
+        // tracks it: its own Tk 8.6 floor admits a Tk 8.6 command whatever
+        // weaker floor is declared, and its core never admits a Tk 9 one.
         const FROM_8_6: &[tcl_dialect::model::SpecWindow] = &[("8.6", None)];
-        let gated = synthetic_spec(
-            "floor_probe_from_86",
-            Some(surface![SpecSurface::package_in("Tk", FROM_8_6)]),
-            Traits::empty(),
-        );
-        for (floor, known) in [(None, true), (Some("8.5"), false), (Some("8.6"), true)] {
+        const FROM_9_0: &[tcl_dialect::model::SpecWindow] = &[("9.0", None)];
+        let probes = [
+            synthetic_spec(
+                "floor_probe_from_86",
+                Some(surface![SpecSurface::package_in("Tk", FROM_8_6)]),
+                Traits::empty(),
+            ),
+            synthetic_spec(
+                "floor_probe_from_90",
+                Some(surface![SpecSurface::package_in("Tk", FROM_9_0)]),
+                Traits::empty(),
+            ),
+        ];
+        for floor in [None, Some("8.5"), Some("9.0")] {
             let mut authored = CommandRegistry::build_default();
-            authored.insert_static(gated);
+            for probe in probes {
+                authored.insert_static(probe);
+            }
             let mut registry = authored.project_for_profile(tcl_dialect::DialectProfile::tk());
-            assert!(
-                registry.has_command_in_this_dialect("floor_probe_from_86"),
-                "indexed, and admitted while no floor is stated"
-            );
             if let Some(floor) = floor {
                 registry.insert_ambient_package("Tk", floor);
             }
-            assert_eq!(
+            assert!(
                 registry.has_command_in_this_dialect("floor_probe_from_86"),
-                known,
+                "under a floor of {floor:?}"
+            );
+            assert!(
+                !registry.has_command_in_this_dialect("floor_probe_from_90"),
                 "under a floor of {floor:?}"
             );
         }

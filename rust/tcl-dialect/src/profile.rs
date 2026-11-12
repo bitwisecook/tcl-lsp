@@ -1532,9 +1532,11 @@ static TK_PROFILE: DialectProfile = DialectProfile {
     grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")],
     version_ceiling: None,
     signature_base: None,
-    runtime_base: None,
-    leading_zero_is_octal: Ternary::Inert,
-    expr_grammar_base: None,
+    // The runtime is its 8.6 core: compiled code takes that core's native
+    // recipes and release semantics.
+    runtime_base: Some(TclVersion::V8_6),
+    leading_zero_is_octal: Ternary::Yes,
+    expr_grammar_base: Some(TclVersion::V8_6),
     grammar: GRAMMAR_TCL86,
     operators_as_commands: true,
     tcloo: true,
