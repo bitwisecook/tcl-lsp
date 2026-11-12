@@ -104,10 +104,15 @@ modules and relative `include_*!` paths are written relative to
    exhaustive tier and are not debt.
 2a. **The light tier is a time box, not a quarantine.** A root test leaves
    the light tier only by being listed in `scripts/dev/rust-heavy-tests.tsv`
-   for its run time (above about one second at opt-level 1 on hosted CI) or
-   its resources. A failing test is fixed, never listed. The heavy tier and
-   every release tag still run the listed tests, and the `rust-tests`
-   aggregate proves that each unlisted assigned test ran exactly once.
+   for its run time (above about one second at opt-level 1 on hosted CI;
+   half a second in the `tcl-compiler` and `tcl-lsp-core` libs, which each
+   fill a shard alone) or its resources. A failing test is fixed, never
+   listed. The heavy tier and every release tag still run the listed tests,
+   and the `rust-tests` aggregate proves that each unlisted assigned test ran
+   exactly once. Shard balance comes from the `exec_time` totals in each
+   shard's `rust-tests-terminal-*` capture: move whole binaries between
+   hosted shards 2-5 in `rust-test-binary-shards.tsv` before listing more
+   tests.
 3. **No shipped xfails.** Shipped tests have no expected-failure markers;
    failures require a root-cause fix. Do not confuse an xfail with rule 2. The one
    standing exception is the eglot semantic-token repaint failure in
