@@ -22204,7 +22204,19 @@ impl Vm {
             return Err(refused);
         }
         if !existed && complain {
-            return Err(self.variable_access_error_bytes("unset", name, reason));
+            // A name that reached a valueless cell fails at the unset itself.
+            let reached_cell =
+                resolved.is_some_and(|resolved| resolved.elem.is_none() && resolved.id.is_some());
+            return Err(self.variable_access_error_at(
+                "unset",
+                tcl_syntax::naming::NativeVariableInputForm::Combined(name),
+                reason,
+                if reached_cell {
+                    tcl_syntax::naming::NativeVariableFailureSite::ValueUnset
+                } else {
+                    tcl_syntax::naming::NativeVariableFailureSite::NameLookup
+                },
+            ));
         }
         Ok(())
     }

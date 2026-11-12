@@ -734,7 +734,17 @@ impl Vm {
             return Err(refusal);
         }
         if !existed && complain {
-            return Err(self.variable_access_error_input("unset", input, reason));
+            // A compiled local always has a cell, so a scalar fails at the unset itself.
+            return Err(self.variable_access_error_at(
+                "unset",
+                input,
+                reason,
+                if element.is_none() {
+                    tcl_syntax::naming::NativeVariableFailureSite::ValueUnset
+                } else {
+                    tcl_syntax::naming::NativeVariableFailureSite::NameLookup
+                },
+            ));
         }
         Ok(())
     }

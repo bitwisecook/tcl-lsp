@@ -2843,6 +2843,7 @@ fn native_variable_failure_code(
             (ValueRead, NoSuchVariable | NoSuchElement | IsArray | DetachedElement) => {
                 &[b"TCL", b"READ", b"VARNAME"]
             }
+            (ValueUnset, NoSuchVariable) => &[b"TCL", b"UNSET", b"VARNAME"],
             (ValueWrite, Constant) if operation == Increment => &[b"TCL", b"WRITE", b"CONST"],
             (
                 ValueWrite,
@@ -2854,10 +2855,48 @@ fn native_variable_failure_code(
             _ => return Err(NameProjectionUnavailable::PurposeNotModelled),
         };
         Some(words.iter().map(|word| word.to_vec()).collect::<Vec<_>>())
+    } else if protocol == NativeNameProtocol::C(TclVersion::V8_5)
+        && operation == NativeVariableDiagnosticOperation::Unset
+        && reason == NoSuchElement
+        && matches!(site, NameLookup | ValueUnset)
+    {
+        // C8.5's element lookup tags only the unset miss.
+        element.map(|element| {
+            vec![
+                b"TCL".to_vec(),
+                b"LOOKUP".to_vec(),
+                b"ELEMENT".to_vec(),
+                element.to_vec(),
+            ]
+        })
     } else {
         None
     };
     Ok(error_code)
+}
+
+/// C checks a link into a deleted namespace only when storing; a read or
+/// unset finds the dead cell undefined.
+fn retired_namespace_failure(
+    protocol: NativeNameProtocol,
+    operation: NativeVariableDiagnosticOperation,
+    reason: NativeVariableDiagnosticReason,
+    site: NativeVariableFailureSite,
+) -> (NativeVariableDiagnosticReason, NativeVariableFailureSite) {
+    use NativeVariableDiagnosticOperation::{Read, Unset};
+    use NativeVariableDiagnosticReason::{NoSuchVariable, RetiredNamespace};
+    use NativeVariableFailureSite::{IndexedNameLookup, ValueRead, ValueUnset};
+    if !matches!(protocol, NativeNameProtocol::C(_))
+        || reason != RetiredNamespace
+        || site == IndexedNameLookup
+    {
+        return (reason, site);
+    }
+    match operation {
+        Read => (NoSuchVariable, ValueRead),
+        Unset => (NoSuchVariable, ValueUnset),
+        _ => (reason, site),
+    }
 }
 
 /// Project the original input at the actual physical failure site. C lookup
@@ -2877,6 +2916,7 @@ pub fn report_native_variable_diagnostic_at(
     use NativeVariableDiagnosticOperation::{Increment, Read, Unset, Write};
     use NativeVariableDiagnosticReason::{Constant, NoSuchElement, NoSuchVariable, NotArray};
     use NativeVariableFailureSite::{IndexedNameLookup, ValueRead, ValueUnset, ValueWrite};
+    let (reason, site) = retired_namespace_failure(protocol, operation, reason, site);
     if site == IndexedNameLookup
         && !(matches!(protocol, NativeNameProtocol::C(_))
             && operation == Write
@@ -4019,6 +4059,70 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn retired_namespace_read_and_unset_report_no_such_variable() {
+        use NativeVariableDiagnosticOperation::{Read, Unset};
+        use NativeVariableDiagnosticReason::{NoSuchVariable, RetiredNamespace};
+        use NativeVariableFailureSite::{NameLookup, ValueRead, ValueUnset};
+        for version in VERSIONS {
+            let protocol = NativeNameProtocol::C(version);
+            for (operation, site, verb) in [
+                (Read, ValueRead, b"READ".as_slice()),
+                (Read, NameLookup, b"READ"),
+                (Unset, ValueUnset, b"UNSET"),
+                (Unset, NameLookup, b"UNSET"),
+            ] {
+                let projection = report_native_variable_diagnostic_at(
+                    protocol,
+                    operation,
+                    RetiredNamespace,
+                    site,
+                    NativeVariableInputForm::Combined(b"y"),
+                )
+                .unwrap();
+                assert_eq!(projection.name, b"y");
+                assert_eq!(projection.reason, NoSuchVariable);
+                assert_eq!(
+                    projection.error_code,
+                    (version >= TclVersion::V8_6).then(|| vec![
+                        b"TCL".to_vec(),
+                        verb.to_vec(),
+                        b"VARNAME".to_vec()
+                    ])
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn c85_tags_only_the_missing_element_unset() {
+        use NativeVariableDiagnosticOperation::{Read, Unset};
+        use NativeVariableDiagnosticReason::NoSuchElement;
+        use NativeVariableFailureSite::NameLookup;
+        let code = |version, operation| {
+            report_native_variable_diagnostic_at(
+                NativeNameProtocol::C(version),
+                operation,
+                NoSuchElement,
+                NameLookup,
+                NativeVariableInputForm::Combined(b"arr(k)"),
+            )
+            .unwrap()
+            .error_code
+        };
+        assert_eq!(
+            code(TclVersion::V8_5, Unset),
+            Some(vec![
+                b"TCL".to_vec(),
+                b"LOOKUP".to_vec(),
+                b"ELEMENT".to_vec(),
+                b"k".to_vec()
+            ])
+        );
+        assert_eq!(code(TclVersion::V8_5, Read), None);
+        assert_eq!(code(TclVersion::V8_4, Unset), None);
     }
 
     #[test]

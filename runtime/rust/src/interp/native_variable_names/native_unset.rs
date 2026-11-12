@@ -338,6 +338,9 @@ impl Interp {
             traced?;
             Ok(if existed {
                 Verdict::Complete
+            } else if capture.element.is_none() {
+                // The name reached a valueless cell, so the unset itself fails.
+                Verdict::Failure(reason, Site::ValueUnset)
             } else {
                 Verdict::Failure(reason, Site::NameLookup)
             })
