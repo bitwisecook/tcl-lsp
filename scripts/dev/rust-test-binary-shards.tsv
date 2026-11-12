@@ -10,7 +10,8 @@
 # harness, tests/it_<k>/main.rs (target `it_<k>`), so a shard links one binary
 # per crate rather than one per file; see test-tiers-and-ci-gates.md.
 #
-# Initial weights came from the complete 2026-09-07 CI run. The verifier
+# Initial weights came from the complete 2026-09-07 CI run; hosted shards 2-5
+# were rebalanced on 2026-11-12 light-tier timings. The verifier
 # derives target coverage from locked Cargo metadata; a new or renamed target
 # fails closed until this table assigns it.
 @partitions	5
@@ -22,22 +23,15 @@
 1	tcl-compiler	lib	tcl-compiler	tcl_compiler
 2	bigip-report-gen-rust	lib	bigip-report-gen-rust	bigip_report_gen_rust
 2	bpf-tcl-codegen	lib	bpf-tcl-codegen	bpf_tcl_codegen
-2	bpf-tcl-ir	lib	bpf-tcl-ir	bpf_tcl_ir
 2	bpf-tcl::hardening	test	bpf-tcl	hardening
 2	bpf-tcl::loops	test	bpf-tcl	loops
-2	tcl-bigip	lib	tcl-bigip	tcl_bigip
 2	tcl-bigip-io	lib	tcl-bigip-io	tcl_bigip_io
 2	tcl-bigip-query	lib	tcl-bigip-query	tcl_bigip_query
 2	tcl-bigip::integration	test	tcl-bigip	integration
-2	tcl-cli::value_transfers_cli	test	tcl-cli	value_transfers_cli
-2	tcl-compiler::it_2	test	tcl-compiler	it_2
-2	tcl-codegen::it_2	test	tcl-codegen	it_2
-2	tcl-engine-tclvm	lib	tcl-engine-tclvm	tcl_engine_tclvm
 2	tcl-engine-tclvm::doors	test	tcl-engine-tclvm	doors
 2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 2	tcl-lexer::it_2	test	tcl-lexer	it_2
 2	tcl-lsp-core	lib	tcl-lsp-core	tcl_lsp_core
-2	tcl-lsp-core::it_2	test	tcl-lsp-core	it_2
 2	tcl-lsp-db::compiler_check_corpus	test	tcl-lsp-db	compiler_check_corpus
 2	tcl-lsp-db::it_2	test	tcl-lsp-db	it_2
 2	tcl-pkg	lib	tcl-pkg	tcl_pkg
@@ -48,21 +42,15 @@
 2	tcl-spec-hooks	lib	tcl-spec-hooks	tcl_spec_hooks
 2	tcl-spec-hooks::const_fold_e2e	test	tcl-spec-hooks	const_fold_e2e
 2	tcl-spec-studio::it_2	test	tcl-spec-studio	it_2
-2	tcl-spectcl::it_2	test	tcl-spectcl	it_2
 2	tcl-spectcl::pack_is_real_tcl	test	tcl-spectcl	pack_is_real_tcl
 2	tcl-sslictcl	lib	tcl-sslictcl	tcl_sslictcl
 2	tcl-sslictcl::golden	test	tcl-sslictcl	golden
 2	tcl-syntax::expr_parser_coverage	test	tcl-syntax	expr_parser_coverage
-2	tcl-vm	lib	tcl-vm	tcl_vm
-2	tcl-vm-cli::channel_output	test	tcl-vm-cli	channel_output
 2	tcl-vm-cli::static_extensions	test	tcl-vm-cli	static_extensions
 2	tcl-vm-cli::switch_option_scan	test	tcl-vm-cli	switch_option_scan
-2	tcl-vm-cli::top_level_e2e	test	tcl-vm-cli	top_level_e2e
 2	tcl-vm-cli::wide_min_spelling	test	tcl-vm-cli	wide_min_spelling
-2	tcl-vm::it_2	test	tcl-vm	it_2
 2	tcl-vm::command_resolution_conformance	test	tcl-vm	command_resolution_conformance
 2	tcl-vm::element_recovery_traces_e2e	test	tcl-vm	element_recovery_traces_e2e
-2	tcl-vm::native_compilation_conformance	test	tcl-vm	native_compilation_conformance
 3	bigip-report-gen-rust::apm	test	bigip-report-gen-rust	apm
 3	bigip-report-gen-rust::gtm	test	bigip-report-gen-rust	gtm
 3	bpf-tcl	lib	bpf-tcl	bpf_tcl
@@ -75,23 +63,28 @@
 3	f5-xc	lib	f5-xc	f5_xc
 3	tcl-cli::compile_verbs	test	tcl-cli	compile_verbs
 3	tcl-cmd-core	lib	tcl-cmd-core	tcl_cmd_core
+3	tcl-codegen	lib	tcl-codegen	tcl_codegen
 3	tcl-codegen::it_3	test	tcl-codegen	it_3
 3	tcl-compiler::command_resolution_conformance	test	tcl-compiler	command_resolution_conformance
 3	tcl-compiler::it_3	test	tcl-compiler	it_3
 3	tcl-compiler::native_arithmetic_conformance	test	tcl-compiler	native_arithmetic_conformance
 3	tcl-cshim	lib	tcl-cshim	tcl_cshim
 3	tcl-cshim::pkga_e2e	test	tcl-cshim	pkga_e2e
+3	tcl-engine-tclvm	lib	tcl-engine-tclvm	tcl_engine_tclvm
 3	tcl-explorer	lib	tcl-explorer	tcl_explorer
 3	tcl-f5mku	lib	tcl-f5mku	tcl_f5mku
+3	tcl-host-c-abi	lib	tcl-host-c-abi	tcl_host_c_abi
 3	tcl-irules::event_emission	test	tcl-irules	event_emission
 3	tcl-irules::object_refs	test	tcl-irules	object_refs
 3	tcl-irules::script_bearing_args	test	tcl-irules	script_bearing_args
 3	tcl-lexer::edge_structural	test	tcl-lexer	edge_structural
+3	tcl-lsp-core::it_2	test	tcl-lsp-core	it_2
 3	tcl-lsp-core::it_3	test	tcl-lsp-core	it_3
 3	tcl-lsp-db::file_analysis_corpus	test	tcl-lsp-db	file_analysis_corpus
 3	tcl-lsp-db::interned_gc	test	tcl-lsp-db	interned_gc
 3	tcl-pkg::manifest_env_drift	test	tcl-pkg	manifest_env_drift
 3	tcl-registry::it_3	test	tcl-registry	it_3
+3	tcl-registry::package_protocol_oracle	test	tcl-registry	package_protocol_oracle
 3	tcl-runtime-api	lib	tcl-runtime-api	tcl_runtime_api
 3	tcl-sandbox	lib	tcl-sandbox	tcl_sandbox
 3	tcl-spec-hooks::containment_e2e	test	tcl-spec-hooks	containment_e2e
@@ -103,19 +96,18 @@
 3	tcl-syntax::body_execution_conformance	test	tcl-syntax	body_execution_conformance
 3	tcl-test-support	lib	tcl-test-support	tcl_test_support
 3	tcl-test-support::variable_containers_conformance	test	tcl-test-support	variable_containers_conformance
+3	tcl-vm-cli::channel_output	test	tcl-vm-cli	channel_output
 3	tcl-vm-cli::script_errors	test	tcl-vm-cli	script_errors
-3	tcl-vm::it_3	test	tcl-vm	it_3
 3	tcl-vm::command_traces_e2e	test	tcl-vm	command_traces_e2e
 3	tcl-vm::cross_interp_alias_e2e	test	tcl-vm	cross_interp_alias_e2e
+3	tcl-vm::it_3	test	tcl-vm	it_3
 3	tcl-vm::legacy_variable_traces_e2e	test	tcl-vm	legacy_variable_traces_e2e
 3	tcl-vm::variable_name_resolution_e2e	test	tcl-vm	variable_name_resolution_e2e
 3	tcl-vm::variable_trace_semantics_e2e	test	tcl-vm	variable_trace_semantics_e2e
-3	tcl-host-c-abi	lib	tcl-host-c-abi	tcl_host_c_abi
-3	tcl-registry::package_protocol_oracle	test	tcl-registry	package_protocol_oracle
-3	tcl-codegen	lib	tcl-codegen	tcl_codegen
 4	bigip-report-gen-rust::bin/bigip-report-gen	bin	bigip-report-gen-rust	bigip-report-gen
 4	bigip-report-gen-rust::certs	test	bigip-report-gen-rust	certs
 4	bigip-report-gen-rust::render_arch	test	bigip-report-gen-rust	render_arch
+4	bpf-tcl-ir	lib	bpf-tcl-ir	bpf_tcl_ir
 4	bpf-tcl::bin/bpf-tcl	bin	bpf-tcl	bpf-tcl
 4	bpf-tcl::composition	test	bpf-tcl	composition
 4	bpf-tcl::kernel_attach	test	bpf-tcl	kernel_attach
@@ -123,17 +115,18 @@
 4	bpf-tcl::kernel_load	test	bpf-tcl	kernel_load
 4	f5-xc::differential	test	f5-xc	differential
 4	f5-xc::model	test	f5-xc	model
+4	tcl-bigip	lib	tcl-bigip	tcl_bigip
 4	tcl-bigip-io::ucs	test	tcl-bigip-io	ucs
 4	tcl-bytecode	lib	tcl-bytecode	tcl_bytecode
 4	tcl-cli	lib	tcl-cli	tcl_cli
 4	tcl-cli-support	lib	tcl-cli-support	tcl_cli_support
 4	tcl-cli::bin/tcl	bin	tcl-cli	tcl
 4	tcl-cli::cli	test	tcl-cli	cli
-4	tcl-compiler::it_4	test	tcl-compiler	it_4
 4	tcl-codegen::codegen_depth	test	tcl-codegen	codegen_depth
+4	tcl-codegen::wasm_tiers	test	tcl-codegen	wasm_tiers
+4	tcl-compiler::it_4	test	tcl-compiler	it_4
 4	tcl-compiler::per_item_corpus	test	tcl-compiler	per_item_corpus
 4	tcl-compiler::resolution_rewrite_oracles	test	tcl-compiler	resolution_rewrite_oracles
-4	tcl-codegen::wasm_tiers	test	tcl-codegen	wasm_tiers
 4	tcl-core-types	lib	tcl-core-types	tcl_core_types
 4	tcl-debugger	lib	tcl-debugger	tcl_debugger
 4	tcl-debugger::bin/tcl-debug	bin	tcl-debugger	tcl-debug
@@ -154,6 +147,7 @@
 4	tcl-registry::it_4	test	tcl-registry	it_4
 4	tcl-spec-studio::it_4	test	tcl-spec-studio	it_4
 4	tcl-spectcl::eval_loader	test	tcl-spectcl	eval_loader
+4	tcl-spectcl::it_2	test	tcl-spectcl	it_2
 4	tcl-spectcl::it_4	test	tcl-spectcl	it_4
 4	tcl-spectcl::pack_source_e2e	test	tcl-spectcl	pack_source_e2e
 4	tcl-spectcl::spec_corpus	test	tcl-spectcl	spec_corpus
@@ -164,7 +158,9 @@
 4	tcl-syntax::it_4	test	tcl-syntax	it_4
 4	tcl-syntax::namespace_op_conformance	test	tcl-syntax	namespace_op_conformance
 4	tcl-userdirs	lib	tcl-userdirs	tcl_userdirs
+4	tcl-vm::it_2	test	tcl-vm	it_2
 4	tcl-vm::it_4	test	tcl-vm	it_4
+4	tcl-vm::native_compilation_conformance	test	tcl-vm	native_compilation_conformance
 4	tcl-vm::regexp_cmd_corpus	test	tcl-vm	regexp_cmd_corpus
 4	xtask::bin/xtask	bin	xtask	xtask
 5	bigip-report-gen-rust::architecture	test	bigip-report-gen-rust	architecture
@@ -178,11 +174,14 @@
 5	tcl-bigip-query::integration	test	tcl-bigip-query	integration
 5	tcl-bigip-query::x509_only	test	tcl-bigip-query	x509_only
 5	tcl-cli::it_5	test	tcl-cli	it_5
-5	tcl-compiler::it_5	test	tcl-compiler	it_5
+5	tcl-cli::value_transfers_cli	test	tcl-cli	value_transfers_cli
 5	tcl-codegen::codegen_integration	test	tcl-codegen	codegen_integration
+5	tcl-codegen::it_2	test	tcl-codegen	it_2
 5	tcl-codegen::it_5	test	tcl-codegen	it_5
-5	tcl-compiler::differential_incremental	test	tcl-compiler	differential_incremental
 5	tcl-codegen::wasm_real_link	test	tcl-codegen	wasm_real_link
+5	tcl-compiler::differential_incremental	test	tcl-compiler	differential_incremental
+5	tcl-compiler::it_2	test	tcl-compiler	it_2
+5	tcl-compiler::it_5	test	tcl-compiler	it_5
 5	tcl-cshim::it_5	test	tcl-cshim	it_5
 5	tcl-dialect::model_version_set	test	tcl-dialect	model_version_set
 5	tcl-dialect::package_version_oracle	test	tcl-dialect	package_version_oracle
@@ -198,11 +197,13 @@
 5	tcl-spec-studio	lib	tcl-spec-studio	tcl_spec_studio
 5	tcl-spec-studio::it_5	test	tcl-spec-studio	it_5
 5	tcl-spectcl	lib	tcl-spectcl	tcl_spectcl
-5	tcl-spectcl::it_5	test	tcl-spectcl	it_5
 5	tcl-spectcl::golden_packs	test	tcl-spectcl	golden_packs
+5	tcl-spectcl::it_5	test	tcl-spectcl	it_5
+5	tcl-syntax::jim_name_resolution_conformance	test	tcl-syntax	jim_name_resolution_conformance
 5	tcl-syntax::variable_resolution_conformance	test	tcl-syntax	variable_resolution_conformance
 5	tcl-version	lib	tcl-version	tcl_version
+5	tcl-vm	lib	tcl-vm	tcl_vm
 5	tcl-vm-cli::bin/tclvm	bin	tcl-vm-cli	tclvm
+5	tcl-vm-cli::top_level_e2e	test	tcl-vm-cli	top_level_e2e
 5	tcl-vm::it_5	test	tcl-vm	it_5
 5	tcl-vm::step_trace_inline_e2e	test	tcl-vm	step_trace_inline_e2e
-5	tcl-syntax::jim_name_resolution_conformance	test	tcl-syntax	jim_name_resolution_conformance
