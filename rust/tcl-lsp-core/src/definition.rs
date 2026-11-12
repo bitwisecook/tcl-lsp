@@ -626,10 +626,7 @@ fn positioned_definition_target(
                         .map(|declaration| declaration.name_span)
                 })
         });
-    Some(
-        span.map(|span| vec![span_to_range(source, line_index, span)])
-            .unwrap_or_default(),
-    )
+    Some(span.map_or_default(|span| vec![span_to_range(source, line_index, span)]))
 }
 
 /// The cursor context [`position_definition`] needs beyond the offset.
@@ -683,8 +680,9 @@ fn position_definition(
     {
         return Some(
             crate::receiver_identity::method_at_cursor(ctx.analysis, source, cursor_off)
-                .map(|selected| vec![span_to_range(source, line_index, selected.method.name_span)])
-                .unwrap_or_default(),
+                .map_or_default(|selected| {
+                    vec![span_to_range(source, line_index, selected.method.name_span)]
+                }),
         );
     }
     let DefCtx {
@@ -760,8 +758,9 @@ fn position_definition(
         return Some(
             selected
                 .and_then(|selected| selected.procedure_metadata())
-                .map(|row| vec![span_to_range(source, line_index, row.metadata().name_span)])
-                .unwrap_or_default(),
+                .map_or_default(|row| {
+                    vec![span_to_range(source, line_index, row.metadata().name_span)]
+                }),
         );
     }
     if let Some(inv) = crate::expr_context::mathfunc_call_at(analysis, cursor_off) {
@@ -772,8 +771,9 @@ fn position_definition(
             inv.resolved_qualified_name
                 .as_deref()
                 .and_then(|resolved| analysis.all_procs.get(resolved))
-                .map(|proc_def| vec![span_to_range(source, line_index, proc_def.name_span)])
-                .unwrap_or_default(),
+                .map_or_default(|proc_def| {
+                    vec![span_to_range(source, line_index, proc_def.name_span)]
+                }),
         );
     }
     (param_position == ParamListPosition::LiteralData).then(Vec::new)
@@ -806,8 +806,7 @@ fn caller_frame_definition(
         name,
     );
     crate::caller_frame::primary_binding(&bindings)
-        .map(|binding| vec![span_to_range(source, line_index, binding.arg_span)])
-        .unwrap_or_default()
+        .map_or_default(|binding| vec![span_to_range(source, line_index, binding.arg_span)])
 }
 
 /// Go-to-definition for an instance-method call site (`$obj method` /

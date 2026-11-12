@@ -37,7 +37,6 @@ use bpf_tcl_ir::{
 use tcl_lexer::SourceMap;
 
 /// CLI entry point.
-#[must_use]
 pub fn run(args: impl Iterator<Item = String>) -> ExitCode {
     let mut args = args;
     let _argv0 = args.next();

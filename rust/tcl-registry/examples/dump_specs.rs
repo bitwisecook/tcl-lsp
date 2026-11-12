@@ -546,10 +546,7 @@ fn main() {
         // subcommands
         let subcommand_names: Vec<&str> = spec.subcommands.iter().map(|s| s.name).collect();
         // return type
-        let return_type = spec
-            .return_type
-            .map(|t| format!("{t:?}"))
-            .unwrap_or_default();
+        let return_type = spec.return_type.map_or_default(|t| format!("{t:?}"));
         let body_kind = format!("{:?}", spec.body_kind);
 
         // event_requires: `CommandSpec` carries an `event_requires` field;

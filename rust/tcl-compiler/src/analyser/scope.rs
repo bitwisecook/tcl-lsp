@@ -1375,8 +1375,7 @@ impl Analyser {
                     &self.result,
                     cmd,
                 )
-                .map(|selected| selected.written_argument_roles())
-                .unwrap_or_default()
+                .map_or_default(|selected| selected.written_argument_roles())
                 .into_iter()
                 .filter_map(|(index, role)| (role == tcl_registry::ArgRole::Expr).then_some(index))
                 .collect();
@@ -2601,8 +2600,7 @@ impl Analyser {
     #[must_use]
     pub(in crate::analyser) fn scope_variable_names(&self, scope_path: &[usize]) -> Vec<String> {
         scope_at(&self.result.global_scope, scope_path)
-            .map(|s| s.variables.keys().cloned().collect())
-            .unwrap_or_default()
+            .map_or_default(|s| s.variables.keys().cloned().collect())
     }
 
     /// Record a **namespace-qualified** variable occurrence (see
@@ -4095,10 +4093,9 @@ fn collect_script_command_reads(
     collect_name_role_reads(source, analysis, cmd, out);
     let selected =
         crate::registry_invocation::source_structure::source_registry_words(source, analysis, cmd);
-    let roles = selected
-        .as_ref()
-        .map(crate::registry_invocation::source_structure::OriginalRegistryWords::written_argument_roles)
-        .unwrap_or_default();
+    let roles = selected.as_ref().map_or_default(
+        crate::registry_invocation::source_structure::OriginalRegistryWords::written_argument_roles,
+    );
     let expr_idx: std::collections::HashSet<_> = roles
         .iter()
         .filter_map(|(index, role)| (*role == tcl_registry::ArgRole::Expr).then_some(*index))

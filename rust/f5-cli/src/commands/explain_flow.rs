@@ -1623,11 +1623,11 @@ fn session_to_value(se: &SessionExplain) -> Value {
         // `--simulate` outcome (all empty / false when not requested).
         (
             "simulated_pool",
-            Value::String(sim.map(|s| s.pool.clone()).unwrap_or_default()),
+            Value::String(sim.map_or_default(|s| s.pool.clone())),
         ),
         (
             "simulated_node",
-            Value::String(sim.map(|s| s.node.clone()).unwrap_or_default()),
+            Value::String(sim.map_or_default(|s| s.node.clone())),
         ),
         (
             "simulated_response_committed",
@@ -1654,7 +1654,7 @@ fn session_to_value(se: &SessionExplain) -> Value {
         ),
         (
             "simulation_error",
-            Value::String(sim.map(|s| s.error.clone()).unwrap_or_default()),
+            Value::String(sim.map_or_default(|s| s.error.clone())),
         ),
     ])
 }
@@ -1714,8 +1714,7 @@ pub fn explain_flow_value(pcap: &Path, options: &ExplainFlowOptions<'_>) -> Resu
     let use_tshark = options.tshark || options.keylog.is_some() || options.tshark_filter.is_some();
     let keylog_path = options
         .keylog
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_default();
+        .map_or_default(|p| p.to_string_lossy().into_owned());
     let tshark_filter = options.tshark_filter.unwrap_or("");
 
     let opts = crate::cli::PassphraseArgs::default().to_options();
@@ -1768,9 +1767,7 @@ pub fn run_explain_flow(
     // `--tshark-filter` implies tshark; `--tshark` / `--keylog` request the
     // overlay. `keylog` is forwarded to tshark only when it points at a file.
     let use_tshark = tshark || keylog.is_some() || tshark_filter.is_some();
-    let keylog_path = keylog
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let keylog_path = keylog.map_or_default(|p| p.to_string_lossy().into_owned());
     let tshark_filter = tshark_filter.unwrap_or("");
 
     let opts = crate::cli::PassphraseArgs::default().to_options();

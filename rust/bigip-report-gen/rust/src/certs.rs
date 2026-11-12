@@ -128,9 +128,7 @@ fn epoch(iso: &str) -> String {
     if iso.is_empty() {
         return String::new();
     }
-    chrono::DateTime::parse_from_rfc3339(iso)
-        .map(|d| d.timestamp().to_string())
-        .unwrap_or_default()
+    chrono::DateTime::parse_from_rfc3339(iso).map_or_default(|d| d.timestamp().to_string())
 }
 
 /// ISO-8601 → `Aug 13 2026 12:47 UTC`, or `""`.
@@ -139,8 +137,7 @@ fn human_date(iso: &str) -> String {
         return String::new();
     }
     chrono::DateTime::parse_from_rfc3339(iso)
-        .map(|d| d.format("%b %d %Y %H:%M UTC").to_string())
-        .unwrap_or_default()
+        .map_or_default(|d| d.format("%b %d %Y %H:%M UTC").to_string())
 }
 
 /// `RSAPublicKey` → `rsa`; `EC` → `ec` — matches the config wording.
@@ -215,8 +212,7 @@ fn resolve_chain(leaf: &Certificate, pool: &[Certificate], unix_time: i64) -> (J
                         .unwrap_or_default(),
                     issuer_cn: cn(&certificate.issuer),
                     not_after: chrono::DateTime::from_timestamp(certificate.not_after, 0)
-                        .map(|date| date.to_rfc3339())
-                        .unwrap_or_default(),
+                        .map_or_default(|date| date.to_rfc3339()),
                     self_signed: certificate.is_self_issued(),
                 },
             )
@@ -343,7 +339,7 @@ pub(crate) fn collect_certs(
                             }
                         };
                         let pem = cert_pems.get(&member);
-                        let x509 = pem.map(|pem| x509_dicts(pem)).unwrap_or_default();
+                        let x509 = pem.map_or_default(|pem| x509_dicts(pem));
                         let certificates = pem
                             .and_then(|pem| tcl_sslictcl::parse_certificates(pem.as_bytes()).ok())
                             .unwrap_or_default();
@@ -497,8 +493,7 @@ pub(crate) fn collect_certs(
             if cfg.is_empty() {
                 leaf.and_then(|m| m.get("key_size"))
                     .and_then(J::as_i64)
-                    .map(|n| n.to_string())
-                    .unwrap_or_default()
+                    .map_or_default(|n| n.to_string())
             } else {
                 cfg.to_string()
             }

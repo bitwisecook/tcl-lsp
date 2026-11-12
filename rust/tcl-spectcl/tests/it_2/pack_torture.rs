@@ -1267,7 +1267,7 @@ fn injection_shapes_in_spec_strings_stay_literal() {
     );
     let pack = evaluate_pack(&source);
     let cmd = pack.command("evil::cmd").expect("the command must load");
-    let summary = cmd.spec.hover.map(|h| h.summary).unwrap_or_default();
+    let summary = cmd.spec.hover.map_or_default(|h| h.summary);
     assert!(
         summary.contains("[exec") && summary.contains("${env(HOME)}"),
         "the injection shapes must survive verbatim as data, got: {summary:?}"
@@ -1294,7 +1294,7 @@ fn path_traversal_in_a_path_field_is_not_resolved() {
     // Whatever the field carries, the loader must not have opened anything —
     // proven by the load having succeeded with no read error and the text
     // arriving unchanged.
-    let source_field = cmd.spec.hover.map(|h| h.source).unwrap_or_default();
+    let source_field = cmd.spec.hover.map_or_default(|h| h.source);
     assert!(
         source_field.contains("etc/passwd"),
         "the field is data; got {source_field:?}"
@@ -1593,8 +1593,7 @@ fn a_bom_inside_a_block_is_content_not_a_prologue() {
         .expect("the command must load")
         .spec
         .hover
-        .map(|h| h.summary)
-        .unwrap_or_default();
+        .map_or_default(|h| h.summary);
     assert!(
         summary.starts_with('\u{feff}'),
         "a mark inside a block is the author's character, got {summary:?}"
@@ -1646,8 +1645,7 @@ fn a_bom_prefixed_pack_survives_the_cache_round_trip() {
             .expect("bomdemo::a")
             .spec
             .hover
-            .map(|h| h.summary)
-            .unwrap_or_default();
+            .map_or_default(|h| h.summary);
         (pack.name.clone(), pack.commands.len(), summary.to_owned())
     };
 

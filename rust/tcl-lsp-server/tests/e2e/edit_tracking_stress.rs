@@ -211,22 +211,16 @@ fn char_boundary(text: &str, off: usize) -> usize {
 /// server.
 fn legend(lsp: &Lsp) -> (Vec<String>, Vec<String>) {
     let prov = &lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"];
-    let types = prov["tokenTypes"]
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .map(|v| v.as_str().unwrap_or("").to_owned())
-                .collect()
-        })
-        .unwrap_or_default();
-    let mods = prov["tokenModifiers"]
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .map(|v| v.as_str().unwrap_or("").to_owned())
-                .collect()
-        })
-        .unwrap_or_default();
+    let types = prov["tokenTypes"].as_array().map_or_default(|a| {
+        a.iter()
+            .map(|v| v.as_str().unwrap_or("").to_owned())
+            .collect()
+    });
+    let mods = prov["tokenModifiers"].as_array().map_or_default(|a| {
+        a.iter()
+            .map(|v| v.as_str().unwrap_or("").to_owned())
+            .collect()
+    });
     (types, mods)
 }
 

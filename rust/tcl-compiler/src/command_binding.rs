@@ -6976,8 +6976,8 @@ fn source_iteration_variable_lists(
     registry: &CommandRegistry,
     realm: tcl_dialect::model::InvocationRealm,
 ) -> Vec<usize> {
-    resolve_source_invocation_facts(registry, None, *native.invocation, realm)
-        .map(|facts| {
+    resolve_source_invocation_facts(registry, None, *native.invocation, realm).map_or_default(
+        |facts| {
             facts
                 .arg_roles
                 .iter()
@@ -6986,8 +6986,8 @@ fn source_iteration_variable_lists(
                         .then_some(facts.argument_offset + usize::from(index))
                 })
                 .collect()
-        })
-        .unwrap_or_default()
+        },
+    )
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

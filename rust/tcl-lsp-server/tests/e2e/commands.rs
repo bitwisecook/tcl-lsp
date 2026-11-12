@@ -43,12 +43,11 @@ fn applied_codes(result: &Value) -> std::collections::BTreeSet<String> {
     result
         .get("applied")
         .and_then(Value::as_array)
-        .map(|arr| {
+        .map_or_default(|arr| {
             arr.iter()
                 .filter_map(|e| e.get("code").and_then(Value::as_str).map(str::to_owned))
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 /// A result's `source` string (empty if absent).
@@ -378,8 +377,7 @@ fn list_irule_events_nonempty() {
     let events: Vec<&str> = data
         .get("events")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).collect())
-        .unwrap_or_default();
+        .map_or_default(|a| a.iter().filter_map(Value::as_str).collect());
     assert!(events.contains(&"HTTP_REQUEST"), "{events:?}");
 }
 
@@ -392,12 +390,11 @@ fn diagram_extracts_irule_events() {
     let names: Vec<&str> = result
         .get("events")
         .and_then(Value::as_array)
-        .map(|a| {
+        .map_or_default(|a| {
             a.iter()
                 .filter_map(|e| e.get("name").and_then(Value::as_str))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     assert!(names.contains(&"HTTP_REQUEST"), "{names:?}");
     let event = result["events"]
         .as_array()
@@ -769,13 +766,12 @@ fn core_commands_are_advertised() {
         .and_then(|c| c.get("executeCommandProvider"))
         .and_then(|p| p.get("commands"))
         .and_then(Value::as_array)
-        .map(|a| {
+        .map_or_default(|a| {
             a.iter()
                 .filter_map(Value::as_str)
                 .map(str::to_owned)
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     let missing: Vec<&str> = CORE_COMMANDS
         .iter()
         .copied()
@@ -851,12 +847,11 @@ fn list_subcommands_shape() {
     let names: std::collections::BTreeSet<&str> = data
         .get("subcommands")
         .and_then(Value::as_array)
-        .map(|a| {
+        .map_or_default(|a| {
             a.iter()
                 .filter_map(|s| s.get("name").and_then(Value::as_str))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     for expected in ["length", "range", "map"] {
         assert!(
             names.contains(expected),

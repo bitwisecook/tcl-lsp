@@ -332,8 +332,7 @@ pub(super) fn slot(
                 .oo
                 .property_members
                 .get(&(target, class, writable))
-                .map(|members| members.keys().cloned().collect())
-                .unwrap_or_default());
+                .map_or_default(|members| members.keys().cloned().collect()));
         }
         // ResolveAll/Slot_Set's actual caller List retains original headers;
         // this is distinct from the setter's later incoming-reference stage.

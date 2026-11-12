@@ -372,19 +372,17 @@ impl Analyser {
             // renamed-away builtin is still in the registry candidate set,
             // and suggesting the very name that no longer resolves would be
             // a self-referential fix.
-            let suggestions = original_name
-                .map(|name| {
-                    crate::text::suggest_similar(
-                        name,
-                        candidate_strs
-                            .iter()
-                            .copied()
-                            .filter(|candidate| *candidate != name),
-                        1,
-                        crate::text::scaled_max_distance(name),
-                    )
-                })
-                .unwrap_or_default();
+            let suggestions = original_name.map_or_default(|name| {
+                crate::text::suggest_similar(
+                    name,
+                    candidate_strs
+                        .iter()
+                        .copied()
+                        .filter(|candidate| *candidate != name),
+                    1,
+                    crate::text::scaled_max_distance(name),
+                )
+            });
             let mut message = format!("Unresolved command '{name}' at this source point");
             let mut fixes: Vec<super::types::CodeFix> = Vec::new();
             if let Some(best) = suggestions.first() {

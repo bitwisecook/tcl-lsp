@@ -39,9 +39,7 @@ pub(super) fn spans(
     class: &ClassDef,
     method: &str,
 ) -> Vec<Span> {
-    inventory(source, analysis, dialect, class, method)
-        .map(|(spans, _)| spans)
-        .unwrap_or_default()
+    inventory(source, analysis, dialect, class, method).map_or_default(|(spans, _)| spans)
 }
 
 pub(super) fn checked_spans(

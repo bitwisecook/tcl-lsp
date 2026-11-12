@@ -686,15 +686,12 @@ fn join_entry<E: std::hash::BuildHasher>(
     executable_edges: &HashSet<(BlockId, BlockId), E>,
     block_exit: &HashMap<BlockId, HashMap<ValueKey, CommitState>>,
 ) -> HashMap<ValueKey, CommitState> {
-    let mut exec_preds: Vec<BlockId> = preds
-        .get(&block_id)
-        .map(|ps| {
-            ps.iter()
-                .filter(|p| executable_edges.contains(&(**p, block_id)))
-                .copied()
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut exec_preds: Vec<BlockId> = preds.get(&block_id).map_or_default(|ps| {
+        ps.iter()
+            .filter(|p| executable_edges.contains(&(**p, block_id)))
+            .copied()
+            .collect()
+    });
     exec_preds.sort_unstable();
 
     let mut entry: HashMap<ValueKey, CommitState> = HashMap::new();

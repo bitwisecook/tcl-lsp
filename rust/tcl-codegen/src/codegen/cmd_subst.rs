@@ -5006,8 +5006,7 @@ mod tests {
             let windows = registry
                 .get("string")
                 .and_then(|s| s.subcommand(sub))
-                .map(|s| s.inline_codegen_hook_windows)
-                .unwrap_or_default();
+                .map_or_default(|s| s.inline_codegen_hook_windows);
             assert_eq!(
                 windows.iter().map(|w| w.value).collect::<Vec<_>>(),
                 [hook],

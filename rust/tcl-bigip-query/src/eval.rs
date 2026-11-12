@@ -304,8 +304,7 @@ impl EvalContext {
             .merged_view
             .borrow()
             .as_ref()
-            .map(|v| v.roots())
-            .unwrap_or_default()
+            .map_or_default(|v| v.roots())
     }
 
     /// Whether this context runs over a merged namespace (`--merge`).

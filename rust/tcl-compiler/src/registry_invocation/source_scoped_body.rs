@@ -1786,8 +1786,7 @@ impl OriginalSourceScriptBody {
         let mut regions = metadata
             .catalogue()
             .script_body_origin()
-            .map(|origin| origin.source_regions().to_vec())
-            .unwrap_or_default();
+            .map_or_default(|origin| origin.source_regions().to_vec());
         regions.push(self.content);
         Some(std::sync::Arc::new(OriginalSourceScriptBodyOrigin {
             regions,

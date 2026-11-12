@@ -110,19 +110,15 @@ pub fn probes_of(set: &PackSet) -> Vec<CommandProbe> {
                 }),
                 pure: spec.traits.contains(Traits::PURE),
                 return_type: spec.return_type,
-                examples: spec
-                    .hover
-                    .as_ref()
-                    .map(|hover| {
-                        hover
-                            .examples
-                            .lines()
-                            .map(str::trim)
-                            .filter(|line| !line.is_empty() && !line.starts_with('#'))
-                            .map(str::to_owned)
-                            .collect()
-                    })
-                    .unwrap_or_default(),
+                examples: spec.hover.as_ref().map_or_default(|hover| {
+                    hover
+                        .examples
+                        .lines()
+                        .map(str::trim)
+                        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                        .map(str::to_owned)
+                        .collect()
+                }),
                 reference: match spec.runtime_backing {
                     RuntimeBacking::TclBody {
                         source: BodySource::PackText { text },

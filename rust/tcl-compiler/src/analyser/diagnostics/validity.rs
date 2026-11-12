@@ -508,7 +508,7 @@ pub(super) fn arity_verdict(
     excess: Option<ExcessArgs>,
     usage: Option<&str>,
 ) -> Option<crate::analyser::types::Diagnostic> {
-    let usage_suffix = usage.map(|u| format!(" — usage: {u}")).unwrap_or_default();
+    let usage_suffix = usage.map_or_default(|u| format!(" — usage: {u}"));
     let min = usize::from(arity.min);
     let max = usize::from(arity.max);
     // `also_exact` is valid regardless of `min`/`max`/`step` — checked
@@ -1968,15 +1968,14 @@ impl Analyser {
         let fixes = original
             .written_index(argument)
             .and_then(|_| word.try_text().ok())
-            .map(|spelling| {
+            .map_or_default(|spelling| {
                 vec![super::types::CodeFix {
                     span: source_extent,
                     new_text: format!("-- {spelling}"),
                     description: "Insert '--' option terminator".to_owned(),
                     safety: crate::irules_checks::FixSafety::BehaviourHardening,
                 }]
-            })
-            .unwrap_or_default();
+            });
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::W304,
@@ -2021,15 +2020,14 @@ impl Analyser {
             .word(arguments.start)
             .filter(|_| original.written_index(arguments.start) == Some(0))
             .and_then(|word| Some((word.span(), word.try_text().ok()?)))
-            .map(|(span, spelling)| {
+            .map_or_default(|(span, spelling)| {
                 vec![super::types::CodeFix {
                     span,
                     new_text: format!("-- {spelling}"),
                     description: "Insert '--' so the following words are variable names".to_owned(),
                     safety: crate::irules_checks::FixSafety::BehaviourHardening,
                 }]
-            })
-            .unwrap_or_default();
+            });
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::W217, span,

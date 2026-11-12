@@ -896,8 +896,7 @@ fn unproved_implementation_lookup(reason: &OwnedInvocationResolutionUnresolved) 
 /// The successor block names of a terminator (terminator-only, no
 /// exception edges).
 fn block_successors<'a>(func: &'a Function, term: Option<&Terminator>) -> Vec<&'a str> {
-    term.map(Terminator::successors)
-        .unwrap_or_default()
+    term.map_or_default(Terminator::successors)
         .into_iter()
         .map(|id| func.block_name(id))
         .collect()
@@ -1781,7 +1780,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                     let ssa_block = bid.and_then(|id| ssa.blocks.get(&id));
 
                     let phis: Vec<Value> = ssa_block
-                        .map(|sb| {
+                        .map_or_default(|sb| {
                             sb.phis
                                 .iter()
                                 .map(|phi| {
@@ -1811,8 +1810,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                                     })
                                 })
                                 .collect()
-                        })
-                        .unwrap_or_default();
+                        });
 
                     let statements: Vec<Value> = block
                         .statements
@@ -3109,13 +3107,12 @@ pub fn serialise_interproc(
             // `docs/design/compiler/interprocedural-call-site-seeding.md`.
             "paramConstants": param_constants
                 .get(qname)
-                .map(|seeds| {
+                .map_or_default(|seeds| {
                     seeds
                         .iter()
                         .map(|(param, _version, literal)| format!("{param} = {literal}"))
                         .collect::<Vec<_>>()
-                })
-                .unwrap_or_default(),
+                }),
         }));
     }
 

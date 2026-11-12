@@ -341,8 +341,7 @@ impl OriginalSourceViewDraft {
         } else {
             self.inherited
                 .as_ref()
-                .map(|inherited| vec![Arc::clone(&inherited.parent)])
-                .unwrap_or_default()
+                .map_or_default(|inherited| vec![Arc::clone(&inherited.parent)])
         }
     }
 
@@ -1391,9 +1390,8 @@ impl Backend {
         } else {
             None
         };
-        let completion_dependencies = completed_child
-            .map(|completed| completed.dependencies.clone())
-            .unwrap_or_default();
+        let completion_dependencies =
+            completed_child.map_or_default(|completed| completed.dependencies.clone());
         let parent_analysis = Arc::clone(&parent.draft.producer.seed.analysis);
         let child_analysis = Arc::clone(&child_prefix.draft.producer.seed.analysis);
         let chain = super::super::rt::spawn_blocking(move || {

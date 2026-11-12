@@ -3165,8 +3165,7 @@ fn format_docstring(text: &str) -> String {
             let name = name.trim_end_matches(['-', ' ']);
             let desc = iter
                 .next()
-                .map(|s| s.trim_start_matches(['-', ' ']).to_string())
-                .unwrap_or_default();
+                .map_or_default(|s| s.trim_start_matches(['-', ' ']).to_string());
             params.push((name.to_string(), desc));
             let _ = rest;
             continue;

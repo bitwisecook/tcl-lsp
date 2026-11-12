@@ -98,16 +98,14 @@ pub(crate) fn send_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         0 => Vec::new(),
         1 => u8::try_from(index)
             .ok()
-            .map(|index| vec![(index, ArgRole::Name)])
-            .unwrap_or_default(),
+            .map_or_default(|index| vec![(index, ArgRole::Name)]),
         2 => match (u8::try_from(index), u8::try_from(index + 1)) {
             (Ok(app), Ok(body)) => vec![(app, ArgRole::Name), (body, ArgRole::Body)],
             _ => Vec::new(),
         },
         _ => u8::try_from(index)
             .ok()
-            .map(|index| vec![(index, ArgRole::Name)])
-            .unwrap_or_default(),
+            .map_or_default(|index| vec![(index, ArgRole::Name)]),
     }
 }
 
@@ -121,19 +119,16 @@ fn send_script_timing(args: crate::InvocationArguments<'_>) -> Vec<(u8, ScriptTi
     {
         return Vec::new();
     }
-    u8::try_from(index + 1)
-        .ok()
-        .map(|body| {
-            vec![(
-                body,
-                if asynchronous {
-                    ScriptTiming::Deferred
-                } else {
-                    ScriptTiming::SameInvocation
-                },
-            )]
-        })
-        .unwrap_or_default()
+    u8::try_from(index + 1).ok().map_or_default(|body| {
+        vec![(
+            body,
+            if asynchronous {
+                ScriptTiming::Deferred
+            } else {
+                ScriptTiming::SameInvocation
+            },
+        )]
+    })
 }
 
 const FORMS: &[FormSpec] = &[FormSpec {

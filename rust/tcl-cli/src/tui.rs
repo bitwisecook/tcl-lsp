@@ -184,8 +184,7 @@ impl App {
         let rows = self.visible();
         rows.get(self.cursor)
             .and_then(|r| Self::node_at(&self.roots, &r.path))
-            .map(|n| n.detail.clone())
-            .unwrap_or_default()
+            .map_or_default(|n| n.detail.clone())
     }
 }
 

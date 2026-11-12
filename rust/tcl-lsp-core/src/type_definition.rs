@@ -57,20 +57,18 @@ pub fn type_definition(
             .is_some()
         {
             return crate::receiver_identity::class_at_read(analysis, source, cursor)
-                .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
-                .unwrap_or_default();
+                .map_or_default(|class| vec![span_to_range(source, &line_index, class.name_span)]);
         }
         return match crate::method_symbol::local_candidate(source, analysis, line, character) {
             std::ops::ControlFlow::Break(Some(method)) => method
                 .declaring_class_in(source, analysis)
-                .map(|class| {
+                .map_or_default(|class| {
                     vec![span_to_range(
                         source,
                         &line_index,
                         class.name_input().span(),
                     )]
-                })
-                .unwrap_or_default(),
+                }),
             std::ops::ControlFlow::Break(None) | std::ops::ControlFlow::Continue(()) => Vec::new(),
         };
     }
@@ -82,8 +80,7 @@ pub fn type_definition(
     {
         let cursor = byte_offset_at(&line_index, source, line, character);
         return crate::receiver_identity::class_at_read(analysis, source, cursor)
-            .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
-            .unwrap_or_default();
+            .map_or_default(|class| vec![span_to_range(source, &line_index, class.name_span)]);
     }
 
     analysis
@@ -92,8 +89,7 @@ pub fn type_definition(
             current.config(),
             cursor,
         )
-        .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
-        .unwrap_or_default()
+        .map_or_default(|class| vec![span_to_range(source, &line_index, class.name_span)])
 }
 
 #[cfg(test)]

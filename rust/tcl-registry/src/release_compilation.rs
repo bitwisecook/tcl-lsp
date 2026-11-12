@@ -429,13 +429,9 @@ pub fn compiled_loop_variables(command: &str, words: &[CompileWord<'_>]) -> Vec<
     let lists: Vec<&str> = match command {
         "foreach" | "lmap" => words
             .split_last()
-            .map(|(_, pairs)| pairs.iter().step_by(2).map(|word| word.text).collect())
-            .unwrap_or_default(),
-        "dict" => words.get(1).map(|word| vec![word.text]).unwrap_or_default(),
-        "tcl::dict::for" | "tcl::dict::map" => words
-            .first()
-            .map(|word| vec![word.text])
-            .unwrap_or_default(),
+            .map_or_default(|(_, pairs)| pairs.iter().step_by(2).map(|word| word.text).collect()),
+        "dict" => words.get(1).map_or_default(|word| vec![word.text]),
+        "tcl::dict::for" | "tcl::dict::map" => words.first().map_or_default(|word| vec![word.text]),
         _ => Vec::new(),
     };
     lists

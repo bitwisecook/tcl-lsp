@@ -169,8 +169,7 @@ fn list_items(field: Option<&Value>) -> Vec<&Value> {
         .and_then(|f| f.get("L"))
         .and_then(|l| l.get("items"))
         .and_then(Value::as_array)
-        .map(|arr| arr.iter().filter_map(|it| it.get("v")).collect())
-        .unwrap_or_default()
+        .map_or_default(|arr| arr.iter().filter_map(|it| it.get("v")).collect())
 }
 
 fn non_empty_str(field: Option<&Value>) -> Option<&str> {

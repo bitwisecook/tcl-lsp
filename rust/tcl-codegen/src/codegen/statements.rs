@@ -4098,9 +4098,7 @@ impl CodegenCtx<'_> {
             (false, _, false, None) => Op::APPEND_STK,
             (false, _, true, None) => Op::APPEND_ARRAY_STK,
         };
-        let operands = slot
-            .map(|slot| vec![Operand::Imm(super::bytecode_imm(slot))])
-            .unwrap_or_default();
+        let operands = slot.map_or_default(|slot| vec![Operand::Imm(super::bytecode_imm(slot))]);
         let count = if list { 1 } else { recipe.values.len() };
         if count > 1 {
             if slot.is_none() || array {
@@ -4184,8 +4182,7 @@ impl CodegenCtx<'_> {
         };
         operations.push(Task::Operation(
             op,
-            slot.map(|slot| vec![Operand::Imm(super::bytecode_imm(slot))])
-                .unwrap_or_default(),
+            slot.map_or_default(|slot| vec![Operand::Imm(super::bytecode_imm(slot))]),
         ));
     }
 

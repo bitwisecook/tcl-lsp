@@ -589,7 +589,7 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 types = args
                     .get(i + 1)
                     .and_then(|v| v.as_list().ok())
-                    .map(|items| {
+                    .map_or_default(|items| {
                         items
                             .iter()
                             .filter_map(|s| {
@@ -598,8 +598,7 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                                 cs.next().filter(|_| cs.next().is_none())
                             })
                             .collect()
-                    })
-                    .unwrap_or_default();
+                    });
                 i += 2;
             }
             // `--` ends the option scan.

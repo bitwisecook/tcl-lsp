@@ -259,8 +259,7 @@ impl SemtokState {
 
 fn as_i64_vec(v: Option<&Value>) -> Vec<i64> {
     v.and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_i64).collect())
-        .unwrap_or_default()
+        .map_or_default(|a| a.iter().filter_map(Value::as_i64).collect())
 }
 
 /// Compare two token lists for exact structural equality (position, length,

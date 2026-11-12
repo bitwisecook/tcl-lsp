@@ -515,13 +515,12 @@ fn run_install(common: &PkgCommon, no_dev: bool, frozen: bool) -> anyhow::Result
             let reqs = existing_lock
                 .as_ref()
                 .and_then(|lf| lf.lookup(name))
-                .map(|p| {
+                .map_or_default(|p| {
                     p.requires
                         .iter()
                         .filter_map(|s| parse_locked_ref(s))
                         .collect()
-                })
-                .unwrap_or_default();
+                });
             Ok(reqs)
         };
 

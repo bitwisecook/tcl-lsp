@@ -300,8 +300,7 @@ impl CommandSemantics for ListUpdateSemantics {
     /// The list operand: every list cell update reads the list it rewrites.
     fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
         self.layout(input)
-            .map(|(target, _)| vec![target])
-            .unwrap_or_default()
+            .map_or_default(|(target, _)| vec![target])
     }
 
     fn transfer(

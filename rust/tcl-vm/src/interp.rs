@@ -798,26 +798,22 @@ fn retained_children_of(
     parents: &[Option<NsId>],
     arena: &[NamespacePath],
 ) -> Vec<NsId> {
-    record
-        .child_orders
-        .get(&parent)
-        .map(|order| {
-            order
-                .keys()
-                .into_iter()
-                .filter_map(|tail| {
-                    record.subtree.values().find_map(|id| {
-                        (parents.get(id.0 as usize).copied().flatten() == Some(parent)
-                            && arena
-                                .get(id.0 as usize)
-                                .and_then(|path| path.last())
-                                .is_some_and(|segment| segment.as_bytes() == tail))
-                        .then_some(*id)
-                    })
+    record.child_orders.get(&parent).map_or_default(|order| {
+        order
+            .keys()
+            .into_iter()
+            .filter_map(|tail| {
+                record.subtree.values().find_map(|id| {
+                    (parents.get(id.0 as usize).copied().flatten() == Some(parent)
+                        && arena
+                            .get(id.0 as usize)
+                            .and_then(|path| path.last())
+                            .is_some_and(|segment| segment.as_bytes() == tail))
+                    .then_some(*id)
                 })
-                .collect()
-        })
-        .unwrap_or_default()
+            })
+            .collect()
+    })
 }
 
 /// Identity domain for metadata that follows a command binding.  Tcl permits
@@ -4424,8 +4420,7 @@ impl Vm {
         }
         let child_ids: Vec<InterpId> = self
             .st_of(id)
-            .map(|st| st.children.values().copied().collect())
-            .unwrap_or_default();
+            .map_or_default(|st| st.children.values().copied().collect());
         for c in child_ids {
             self.retire_interp(c);
         }
@@ -9239,18 +9234,15 @@ impl Vm {
     }
 
     pub(crate) fn mark_interp_trusted(&mut self, id: InterpId) {
-        let names: Vec<NameBytes> = self
-            .st_of(id)
-            .map(|state| {
-                state
-                    .hidden
-                    .tokens_by_name
-                    .iter()
-                    .filter(|(_, key)| state.hidden.commands.contains_key(*key))
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+        let names: Vec<NameBytes> = self.st_of(id).map_or_default(|state| {
+            state
+                .hidden
+                .tokens_by_name
+                .iter()
+                .filter(|(_, key)| state.hidden.commands.contains_key(*key))
+                .map(|(name, _)| name.clone())
+                .collect()
+        });
         self.in_interp(id, |vm| {
             vm.bump_cmd_epoch();
             vm.invalidate_lookup_guards();
@@ -10882,18 +10874,15 @@ impl Vm {
     }
 
     fn child_hidden_names(&self, id: InterpId) -> Completion<Value> {
-        let mut names: Vec<NameBytes> = self
-            .st_of(id)
-            .map(|state| {
-                state
-                    .hidden
-                    .tokens_by_name
-                    .iter()
-                    .filter(|(_, key)| state.hidden.commands.contains_key(*key))
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+        let mut names: Vec<NameBytes> = self.st_of(id).map_or_default(|state| {
+            state
+                .hidden
+                .tokens_by_name
+                .iter()
+                .filter(|(_, key)| state.hidden.commands.contains_key(*key))
+                .map(|(name, _)| name.clone())
+                .collect()
+        });
         names.sort();
         ok(Value::list(
             names
@@ -13598,7 +13587,7 @@ impl Vm {
         world
             .ns_command_order
             .get(&namespace)
-            .map(|order| {
+            .map_or_default(|order| {
                 order
                     .keys()
                     .into_iter()
@@ -13613,7 +13602,6 @@ impl Vm {
                     })
                     .collect()
             })
-            .unwrap_or_default()
     }
 
     /// One retained namespace token's command entries in its Tcl hash-table
@@ -13628,7 +13616,7 @@ impl Vm {
         record
             .command_orders
             .get(&namespace)
-            .map(|order| {
+            .map_or_default(|order| {
                 order
                     .keys()
                     .into_iter()
@@ -13643,7 +13631,6 @@ impl Vm {
                     })
                     .collect()
             })
-            .unwrap_or_default()
     }
 
     /// Record `namespace export` patterns for the current namespace. C's
@@ -15285,8 +15272,7 @@ impl Vm {
             .ns_deferral
             .retained
             .get(&id)
-            .map(|record| record.commands.keys().cloned().collect())
-            .unwrap_or_default();
+            .map_or_default(|record| record.commands.keys().cloned().collect());
         let coroutine_keys: Vec<String> = retained_keys
             .into_iter()
             .filter(|key| crate::cmd_coro::is_coroutine(self, key))
@@ -15590,7 +15576,7 @@ impl Vm {
             .borrow()
             .ns_child_order
             .get(&parent)
-            .map(|order| {
+            .map_or_default(|order| {
                 order
                     .keys()
                     .into_iter()
@@ -15603,7 +15589,6 @@ impl Vm {
                     })
                     .collect()
             })
-            .unwrap_or_default()
     }
 
     /// Record a version under an already selected package-database key.
@@ -15803,13 +15788,12 @@ impl Vm {
         self.selected_package_state()
             .package_ifneeded
             .get(name.as_ref())
-            .map(|versions| {
+            .map_or_default(|versions| {
                 versions
                     .iter()
                     .map(|(version, _)| version.clone())
                     .collect()
             })
-            .unwrap_or_default()
     }
 
     pub(crate) fn package_loading_version_bytes(
@@ -27314,16 +27298,14 @@ impl Vm {
         path: &NamespacePath,
         token: NsId,
     ) -> tcl_runtime_api::native_compilation::NativeCompilationNamespace {
-        let (retained_exports, retained_paths, retained_unknown) = self
-            .retained_record_of(token)
-            .map(|record| {
+        let (retained_exports, retained_paths, retained_unknown) =
+            self.retained_record_of(token).map_or_default(|record| {
                 (
                     record.exports.get(&token).cloned(),
                     record.paths.get(&token).cloned(),
                     record.unknowns.get(&token).cloned(),
                 )
-            })
-            .unwrap_or_default();
+            });
         let exports = retained_exports
             .or_else(|| self.ns_exports.get(&token).cloned())
             .unwrap_or_default();

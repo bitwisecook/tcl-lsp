@@ -288,7 +288,8 @@ fn original_alias_place_matches(
     if place.dynamic || place.kind == crate::place::PlaceKind::Unknown {
         return false;
     }
-    let matched = match alias.target().slot() {
+
+    match alias.target().slot() {
         SignatureSourceVariableSlot::C { namespace, simple } => {
             &cell.name == simple
                 && row
@@ -301,11 +302,7 @@ fn original_alias_place_matches(
         }
         SignatureSourceVariableSlot::Jim(key) => &cell.name == key,
         SignatureSourceVariableSlot::Local { .. } => false,
-    };
-    if !matched {
-        return false;
     }
-    true
 }
 
 // Derived equality compares in field order: the whole lookup snapshot last.

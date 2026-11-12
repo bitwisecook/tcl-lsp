@@ -1701,8 +1701,7 @@ fn collect_device(
     let re_tmsh = Regex::new(r"#TMSH-VERSION:\s*(\S+)").expect("valid tmsh regex");
     let tmsh = re_tmsh
         .captures(source)
-        .map(|c| c[1].to_string())
-        .unwrap_or_default();
+        .map_or_default(|c| c[1].to_string());
     let bigip_version = BigipVersion::parse(&tmsh);
 
     let mut device = Map::new();
@@ -1944,8 +1943,7 @@ fn collect_device(
         for v in virtuals.iter_mut() {
             let rule_refs: Vec<String> = v
                 .as_object()
-                .map(|vm| sarr(vm, "rules").iter().map(|s| (*s).to_string()).collect())
-                .unwrap_or_default();
+                .map_or_default(|vm| sarr(vm, "rules").iter().map(|s| (*s).to_string()).collect());
             let mut acts: Vec<J> = Vec::new();
             for rule_ref in &rule_refs {
                 let fp = if rule_actions.contains_key(rule_ref) {

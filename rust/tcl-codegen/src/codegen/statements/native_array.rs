@@ -78,9 +78,8 @@ impl CodegenCtx<'_> {
         } else {
             Op::ARRAY_EXISTS_STK
         };
-        let immediate = slot
-            .map(|index| vec![Operand::Imm(super::super::bytecode_imm(index))])
-            .unwrap_or_default();
+        let immediate =
+            slot.map_or_default(|index| vec![Operand::Imm(super::super::bytecode_imm(index))]);
         if recipe.command == Command::Exists {
             operations.push(Task::SwitchOperation(exists, immediate, version));
             return true;
@@ -215,9 +214,8 @@ impl CodegenCtx<'_> {
         } else {
             Op::ARRAY_EXISTS_STK
         };
-        let immediate = slot
-            .map(|index| vec![Operand::Imm(super::super::bytecode_imm(index))])
-            .unwrap_or_default();
+        let immediate =
+            slot.map_or_default(|index| vec![Operand::Imm(super::super::bytecode_imm(index))]);
         let no_operation = self.fresh_label("native_array_no_operation");
         let ready = self.fresh_label("native_array_ready");
         if slot.is_none() {

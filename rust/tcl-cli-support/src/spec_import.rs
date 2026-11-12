@@ -232,8 +232,7 @@ const TAR_SUFFIXES: &[&str] = &[".tar.gz", ".tgz", ".tar"];
 pub fn snapshot_kind(path: &Path) -> SnapshotKind {
     let name = path
         .file_name()
-        .map(|n| n.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
+        .map_or_default(|n| n.to_string_lossy().to_lowercase());
     let ends_with_any = |suffixes: &[&str]| suffixes.iter().any(|suffix| name.ends_with(suffix));
     if ends_with_any(ZIP_SUFFIXES) {
         SnapshotKind::Zip

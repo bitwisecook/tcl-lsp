@@ -238,8 +238,7 @@ impl NameIndex {
         let mut names: Vec<String> = exact
             .iter()
             .find(|(a, _)| *a == canon)
-            .map(|(_, n)| n.clone())
-            .unwrap_or_default();
+            .map_or_default(|(_, n)| n.clone());
         for (net, label) in subnets {
             if net.contains(ip) && !names.iter().any(|n| n == label) {
                 names.push(label.clone());
@@ -691,11 +690,7 @@ pub fn build_name_index(cfg: &BigipConfig, source: Option<&str>) -> NameIndex {
         let ModelObject::VirtualServer(vs) = obj else {
             continue;
         };
-        let dest_text = vs
-            .destination
-            .as_ref()
-            .map(ToString::to_string)
-            .unwrap_or_default();
+        let dest_text = vs.destination.as_ref().map_or_default(ToString::to_string);
         let addr = split_destination(&dest_text);
         if addr.is_empty() {
             continue;
@@ -715,11 +710,7 @@ pub fn build_name_index(cfg: &BigipConfig, source: Option<&str>) -> NameIndex {
             let crate::value::ListItemValue::PoolMember(member) = &item.value else {
                 continue;
             };
-            let member_addr_text = member
-                .address
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default();
+            let member_addr_text = member.address.as_ref().map_or_default(ToString::to_string);
             let addr = if member_addr_text.is_empty() {
                 resolve_pool_member_address(&member.name, cfg)
             } else {

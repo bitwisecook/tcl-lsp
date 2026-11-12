@@ -2259,8 +2259,7 @@ impl CfgBuilder<'_> {
                 .blocks
                 .get(name)
                 .and_then(|b| b.terminator.as_ref())
-                .map(crate::cfg::Terminator::successors)
-                .unwrap_or_default();
+                .map_or_default(crate::cfg::Terminator::successors);
             if terminator_succs.contains(&end_id) || terminator_succs.contains(&ok_id) {
                 return true;
             }

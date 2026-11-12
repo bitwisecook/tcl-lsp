@@ -178,8 +178,7 @@ fn help_json_impl(
         .collect();
     if matches.is_empty() {
         let available: Vec<String> = list_features(conn)
-            .map(|g| g.into_iter().map(|(category, _)| category).collect())
-            .unwrap_or_default();
+            .map_or_default(|g| g.into_iter().map(|(category, _)| category).collect());
         return serde_json::json!({
             "error": format!("No features match '{query}'"),
             "available_sections": available,

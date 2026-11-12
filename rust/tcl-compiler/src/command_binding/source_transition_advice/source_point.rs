@@ -289,7 +289,7 @@ fn normal_source_variable_effects_bounded(facts: &tcl_registry::InvocationFacts)
     use tcl_registry::world_effect::{
         CallbackKinds, EffectAccessMode, InterpreterScope, Reentrancy, WorldStateDomain,
     };
-    if facts.arity_accepts_frozen_arguments() != Some(true)
+    !(facts.arity_accepts_frozen_arguments() != Some(true)
         || !facts.arg_roles_complete
         || facts.argument_offset != 0
         || facts.arg_roles.as_slice() != [(0, tcl_registry::ArgRole::VarWrite)]
@@ -312,11 +312,7 @@ fn normal_source_variable_effects_bounded(facts: &tcl_registry::InvocationFacts)
                     }
                     _ => true,
                 }
-        })
-    {
-        return false;
-    }
-    true
+        }))
 }
 
 fn normal_source_variable_point_is_closed(
@@ -372,18 +368,14 @@ fn normal_source_variable_point_is_closed(
         tcl_registry::TraceOperation::Write,
         false,
     );
-    if receiver.dynamic
+    !(receiver.dynamic
         || receiver.observed
         || receiver.kind != crate::place::PlaceKind::Scalar
         || receiver.index.is_some()
         || state
             .source_variables
             .original_normal_value_write(&receiver, registry)
-            .is_none()
-    {
-        return false;
-    }
-    true
+            .is_none())
 }
 
 impl crate::command_binding::SourceCommandBindings {

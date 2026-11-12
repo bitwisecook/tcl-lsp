@@ -3694,7 +3694,6 @@ impl FunctionBuilder {
         Ok(self.complete_region(statement, node, join, control, tail))
     }
 
-    #[allow(clippy::too_many_arguments)]
     /// Emit the `on`/`trap` handler clauses and return, per completion code,
     /// the first handler entry that code should try.
     ///

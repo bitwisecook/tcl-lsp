@@ -1027,8 +1027,7 @@ fn append_single_op(address: AppendAddress, list: bool) -> (Op, Vec<Operand>) {
     };
     (
         op,
-        slot.map(|slot| vec![Operand::Imm(bytecode_imm(slot))])
-            .unwrap_or_default(),
+        slot.map_or_default(|slot| vec![Operand::Imm(bytecode_imm(slot))]),
     )
 }
 

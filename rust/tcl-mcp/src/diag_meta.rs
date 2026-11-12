@@ -53,15 +53,12 @@ pub struct DiagMeta {
 }
 
 fn str_set(value: Option<&Value>) -> HashSet<String> {
-    value
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect()
-        })
-        .unwrap_or_default()
+    value.and_then(Value::as_array).map_or_default(|a| {
+        a.iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect()
+    })
 }
 
 impl DiagMeta {
@@ -96,7 +93,7 @@ impl DiagMeta {
         let prefix_rules = data
             .get("prefix_rules")
             .and_then(Value::as_array)
-            .map(|rules| {
+            .map_or_default(|rules| {
                 rules
                     .iter()
                     .filter_map(|r| {
@@ -106,8 +103,7 @@ impl DiagMeta {
                         ))
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         let take = |key: &str| category_codes.get(key).cloned().unwrap_or_default();
 

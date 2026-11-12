@@ -1460,8 +1460,7 @@ fn cmd_tsv_keys(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let keys = with_tsv(vm, |t| {
         t.get(&*arr.to_str())
-            .map(|m| m.keys().cloned().collect::<Vec<_>>())
-            .unwrap_or_default()
+            .map_or_default(|m| m.keys().cloned().collect::<Vec<_>>())
     });
     match keys {
         Ok(keys) => ok(filtered_list(keys, pattern.as_deref())),

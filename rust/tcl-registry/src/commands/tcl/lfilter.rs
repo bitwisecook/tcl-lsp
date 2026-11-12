@@ -83,9 +83,7 @@ const FORMS: &[FormSpec] = &[
 /// `lmap`.
 fn lfilter_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.len() >= 3 {
-        u8::try_from(args.len() - 1)
-            .map(|last| vec![(last, ArgRole::Body)])
-            .unwrap_or_default()
+        u8::try_from(args.len() - 1).map_or_default(|last| vec![(last, ArgRole::Body)])
     } else {
         Vec::new()
     }

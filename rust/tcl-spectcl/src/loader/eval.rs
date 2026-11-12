@@ -1231,7 +1231,7 @@ fn stage_command(
     let nodes = {
         let mut st = state.borrow_mut();
         st.base_lines.pop();
-        st.scopes.pop().map(|(_, nodes)| nodes).unwrap_or_default()
+        st.scopes.pop().map_or_default(|(_, nodes)| nodes)
     };
     outcome?;
     state
@@ -1292,7 +1292,7 @@ fn stage_subcommand(
     let nodes = {
         let mut st = state.borrow_mut();
         st.base_lines.pop();
-        st.scopes.pop().map(|(_, nodes)| nodes).unwrap_or_default()
+        st.scopes.pop().map_or_default(|(_, nodes)| nodes)
     };
     outcome?;
     state.borrow_mut().push_node(Node::Sub(StagedSub {
@@ -1404,7 +1404,7 @@ fn stage_block(
     let nodes = {
         let mut st = state.borrow_mut();
         st.base_lines.pop();
-        st.scopes.pop().map(|(_, nodes)| nodes).unwrap_or_default()
+        st.scopes.pop().map_or_default(|(_, nodes)| nodes)
     };
     outcome?;
     state
@@ -1930,9 +1930,7 @@ pub fn evaluate_pack_in(
     let outcome = pack_eval::run_pack_program(source, &vocabulary, &unknown, &options.config);
     drop(vocabulary);
     drop(unknown);
-    let state = Rc::try_unwrap(state)
-        .map(RefCell::into_inner)
-        .unwrap_or_default();
+    let state = Rc::try_unwrap(state).map_or_default(RefCell::into_inner);
 
     match outcome {
         Ok(()) => {

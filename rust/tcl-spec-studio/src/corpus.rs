@@ -343,8 +343,7 @@ fn arms(body: &str, config: LexerConfig) -> Vec<Arm> {
                 .iter()
                 .skip(i + 1)
                 .find(|a| a.script.trim() != "-")
-                .map(|a| a.script.clone())
-                .unwrap_or_default();
+                .map_or_default(|a| a.script.clone());
             out[i].script = next;
         }
     }

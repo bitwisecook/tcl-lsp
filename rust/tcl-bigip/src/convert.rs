@@ -247,11 +247,7 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
         let ListItemValue::PoolMember(member) = &item.value else {
             continue;
         };
-        let addr_text = member
-            .address
-            .as_ref()
-            .map(ToString::to_string)
-            .unwrap_or_default();
+        let addr_text = member.address.as_ref().map_or_default(ToString::to_string);
         let addr = if addr_text.is_empty() {
             split_destination(&member.name).0
         } else {
@@ -299,11 +295,7 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
 }
 
 fn convert_virtual(cfg: &BigipConfig, vs: &crate::model::BigipVirtualServer) -> Json {
-    let dest_text = vs
-        .destination
-        .as_ref()
-        .map(ToString::to_string)
-        .unwrap_or_default();
+    let dest_text = vs.destination.as_ref().map_or_default(ToString::to_string);
     let (addr, port) = split_destination(&dest_text);
     let virtual_addresses = if addr.is_empty() {
         Json::Array(vec![])

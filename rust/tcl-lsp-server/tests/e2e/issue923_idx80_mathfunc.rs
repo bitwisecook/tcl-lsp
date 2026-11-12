@@ -100,15 +100,12 @@ fn w123_names(diags: &[Value]) -> Vec<String> {
 
 /// Every code-action title the server offers over `range`.
 fn action_titles(actions: &Value) -> Vec<String> {
-    actions
-        .as_array()
-        .map(|list| {
-            list.iter()
-                .filter_map(|a| a.get("title").and_then(Value::as_str))
-                .map(ToOwned::to_owned)
-                .collect()
-        })
-        .unwrap_or_default()
+    actions.as_array().map_or_default(|list| {
+        list.iter()
+            .filter_map(|a| a.get("title").and_then(Value::as_str))
+            .map(ToOwned::to_owned)
+            .collect()
+    })
 }
 
 /// A one-character range on `line` at `ch` — a caret, the way an editor asks.

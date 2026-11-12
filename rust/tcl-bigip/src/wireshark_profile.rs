@@ -418,11 +418,7 @@ fn dfilters_for_virtual_servers(config: &BigipConfig) -> Vec<(String, String)> {
         let ModelObject::VirtualServer(vs) = obj else {
             continue;
         };
-        let dest_text = vs
-            .destination
-            .as_ref()
-            .map(ToString::to_string)
-            .unwrap_or_default();
+        let dest_text = vs.destination.as_ref().map_or_default(ToString::to_string);
         let addr = split_destination(&dest_text);
         if addr.is_empty() {
             continue;
@@ -486,11 +482,7 @@ fn services_from_virtuals(config: &BigipConfig) -> Vec<(String, i64, String)> {
         let ModelObject::VirtualServer(vs) = obj else {
             continue;
         };
-        let dest_text = vs
-            .destination
-            .as_ref()
-            .map(ToString::to_string)
-            .unwrap_or_default();
+        let dest_text = vs.destination.as_ref().map_or_default(ToString::to_string);
         let Some((port, _default_proto)) = vs_port_proto(&dest_text) else {
             continue;
         };

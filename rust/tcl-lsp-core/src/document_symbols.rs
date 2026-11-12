@@ -789,7 +789,7 @@ fn proc_symbol(
         .find(|child| {
             matches!(child.kind, ScopeKind::Proc) && child.body_span == Some(proc_def.body_span)
         })
-        .map(|child| {
+        .map_or_default(|child| {
             scope_symbols(
                 source,
                 child,
@@ -800,8 +800,7 @@ fn proc_symbol(
                 },
                 ctx,
             )
-        })
-        .unwrap_or_default();
+        });
 
     let body_range = span_to_range(source, line_index, proc_def.body_span);
     let name_range = span_to_range(source, line_index, proc_def.name_span);

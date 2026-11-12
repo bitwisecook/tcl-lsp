@@ -1915,10 +1915,7 @@ const PARRAY_SRC: &str = r#"proc ::parray {a {pattern *}} {
 /// library procs are provided on demand (so e.g. `info body ::parray` works).
 /// Returns 1 if the command was made available, 0 otherwise.
 fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let name = args
-        .first()
-        .map(|v| v.to_str().to_string())
-        .unwrap_or_default();
+    let name = args.first().map_or_default(|v| v.to_str().to_string());
     // The shared `namespace tail` op (separator-run-aware, matching C).
     let simple = std::str::from_utf8(tcl_cmd_core::namespace::tail(name.as_bytes()))
         .expect("subslice of valid UTF-8");

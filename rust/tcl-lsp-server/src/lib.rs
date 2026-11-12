@@ -21560,8 +21560,7 @@ impl Backend {
         let names = self
             .ensure_logical_library_candidates(uri, source, analysis, pos)
             .await?
-            .map(|(candidates, _)| candidates)
-            .unwrap_or_default()
+            .map_or_default(|(candidates, _)| candidates)
             .into_iter()
             .map(|candidate| candidate.qualified_name().to_owned())
             .collect::<Vec<_>>();
@@ -25812,12 +25811,11 @@ impl Backend {
         let keep_paths: HashSet<String> = args
             .get(1)
             .and_then(serde_json::Value::as_array)
-            .map(|a| {
+            .map_or_default(|a| {
                 a.iter()
                     .filter_map(|v| v.as_str().map(str::to_owned))
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         let mut sources: Vec<(String, String)> = Vec::new();
         for value in uris {
@@ -27815,7 +27813,7 @@ impl Backend {
             .and_then(serde_json::Value::as_object)
             .and_then(|d| d.get("exclude"))
             .and_then(serde_json::Value::as_array)
-            .map(|patterns| {
+            .map_or_default(|patterns| {
                 patterns
                     .iter()
                     .filter_map(serde_json::Value::as_str)
@@ -27823,8 +27821,7 @@ impl Backend {
                     .filter(|s| !s.is_empty())
                     .map(str::to_owned)
                     .collect()
-            })
-            .unwrap_or_default();
+            });
         *self.diagnostics_exclude.lock().await = exclude;
         // The pulled value is the *content* of the `tclLsp` section; the
         // `settings_non_ascii_mode` helper expects it wrapped (it looks under
@@ -28102,7 +28099,7 @@ impl Backend {
         // registry describing the same dialect.
         let mut subs: Vec<serde_json::Value> = tcl_lsp_core::document_context_for_dialect(&dialect)
             .resolve_spec(&registry, &name)
-            .map(|spec| {
+            .map_or_default(|spec| {
                 spec.subcommands
                     .iter()
                     .map(|sub| {
@@ -28119,8 +28116,7 @@ impl Backend {
                         })
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
         subs.sort_by(|a, b| {
             a.get("name")
                 .and_then(serde_json::Value::as_str)
@@ -37742,13 +37738,13 @@ impl LanguageServer for Backend {
             renames
                 .iter()
                 .flat_map(|(old, new)| {
-                    core_file_ops::FileRenameSourceAction::new(old, new, &roots)
-                        .map(|action| {
+                    core_file_ops::FileRenameSourceAction::new(old, new, &roots).map_or_default(
+                        |action| {
                             core_file_ops::compute_rename_edits(&action, &index, &|owner| {
                                 uri_norm::file_action_path(&owner.parse::<Uri>().ok()?)
                             })
-                        })
-                        .unwrap_or_default()
+                        },
+                    )
                 })
                 .collect()
         };
@@ -39518,15 +39514,14 @@ fn parse_ilx_plugins(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<Il
                 extra_rule_dirs: rules
                     .and_then(|r| r.get(plugin))
                     .and_then(serde_json::Value::as_array)
-                    .map(|dirs| {
+                    .map_or_default(|dirs| {
                         dirs.iter()
                             .filter_map(serde_json::Value::as_str)
                             .map(str::trim)
                             .filter(|d| !d.is_empty())
                             .map(str::to_owned)
                             .collect()
-                    })
-                    .unwrap_or_default(),
+                    }),
             })
         })
         .collect();
@@ -63321,8 +63316,7 @@ proc p {} {
         assert!(!blocked, "nothing blocks this rename");
         let a_edit_lines: std::collections::BTreeSet<u32> = changes
             .get(&a)
-            .map(|edits| edits.iter().map(|e| e.range.start.line).collect())
-            .unwrap_or_default();
+            .map_or_default(|edits| edits.iter().map(|e| e.range.start.line).collect());
         assert_eq!(
             a_edit_lines,
             [2, 3].into_iter().collect(),

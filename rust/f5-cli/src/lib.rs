@@ -41,7 +41,6 @@ use clap::Parser;
 use crate::cli::{Cli, Command};
 
 /// Parse `args` and run the selected verb, returning the process exit code.
-#[must_use]
 pub fn run<I, T>(args: I) -> ExitCode
 where
     I: IntoIterator<Item = T>,

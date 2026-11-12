@@ -2325,7 +2325,7 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
 /// Advance past a flag and return its value word's text.
 fn next_text(words: &[Word], i: &mut usize) -> String {
     *i += 1;
-    words.get(*i).map(|w| w.text.clone()).unwrap_or_default()
+    words.get(*i).map_or_default(|w| w.text.clone())
 }
 
 /// The three lifecycle flags every gateable row shares — `-introduced`,
@@ -5961,10 +5961,7 @@ fn result_stability_row(stmt: &Stmt, log: &mut Log) -> Option<ResultStability> {
     let value = stmt.word_text(1);
     let words = list_words(value);
     if words.first().map(String::as_str) == Some("ReadsVersionedWorld") {
-        let listed = words
-            .get(1)
-            .map(|text| list_words(text))
-            .unwrap_or_default();
+        let listed = words.get(1).map_or_default(|text| list_words(text));
         if listed.is_empty() {
             log.say(
                 stmt.line,

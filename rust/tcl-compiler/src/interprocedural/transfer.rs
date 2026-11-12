@@ -1833,19 +1833,16 @@ fn links_of(
     declared: &crate::ir::Procedure,
     frames: &HashMap<crate::ir::ProcedureId, UpvarInfo>,
 ) -> Vec<(usize, String)> {
-    let mut links: Vec<(usize, String)> = frames
-        .get(id)
-        .map(|frame| {
-            frame
-                .param_targets
-                .iter()
-                .filter_map(|(local, param)| {
-                    let index = declared.params.iter().position(|p| p == param)?;
-                    Some((index, local.clone()))
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut links: Vec<(usize, String)> = frames.get(id).map_or_default(|frame| {
+        frame
+            .param_targets
+            .iter()
+            .filter_map(|(local, param)| {
+                let index = declared.params.iter().position(|p| p == param)?;
+                Some((index, local.clone()))
+            })
+            .collect()
+    });
     links.sort_unstable();
     links
 }
@@ -2166,8 +2163,7 @@ fn linked_roles(
 ) -> Vec<ParamRole> {
     let linked: HashSet<&str> = frames
         .get(qname)
-        .map(|frame| frame.param_targets.values().map(String::as_str).collect())
-        .unwrap_or_default();
+        .map_or_default(|frame| frame.param_targets.values().map(String::as_str).collect());
     value_roles(qname, declared, inputs)
         .into_iter()
         .zip(&declared.params)

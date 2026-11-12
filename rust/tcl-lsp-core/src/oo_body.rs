@@ -874,14 +874,13 @@ mod original_definition_grammar_cursor_tests {
     ) -> Vec<&'static str> {
         selection
             .for_selected_source(source, analysis)
-            .map(|grammar| {
+            .map_or_default(|grammar| {
                 grammar
                     .members
                     .iter()
                     .map(|member| member.keyword)
                     .collect()
             })
-            .unwrap_or_default()
     }
 
     #[test]

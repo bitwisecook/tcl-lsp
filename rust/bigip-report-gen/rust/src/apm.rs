@@ -75,17 +75,15 @@ impl Node {
     /// both one-per-line named sub-objects (`items { /a { } /b { } }`) and an
     /// inline word list (`… { de en es }`).
     fn names_in(&self, key: &str) -> Vec<String> {
-        self.child(key)
-            .map(|n| {
-                // Each child may be a named sub-object (`/a { … }` → its name is
-                // the first word) or, for an inline list (`{ /a /b }`), several
-                // bare words in one statement — take every word either way.
-                n.children
-                    .iter()
-                    .flat_map(|c| c.words.iter().cloned())
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.child(key).map_or_default(|n| {
+            // Each child may be a named sub-object (`/a { … }` → its name is
+            // the first word) or, for an inline list (`{ /a /b }`), several
+            // bare words in one statement — take every word either way.
+            n.children
+                .iter()
+                .flat_map(|c| c.words.iter().cloned())
+                .collect()
+        })
     }
 }
 
@@ -695,7 +693,7 @@ pub(crate) fn collect_apm(source: &str, device: &Map<String, J>) -> J {
     let virtuals: Vec<(String, Vec<String>)> = device
         .get("virtuals")
         .and_then(J::as_array)
-        .map(|arr| {
+        .map_or_default(|arr| {
             arr.iter()
                 .filter_map(J::as_object)
                 .map(|vm| {
@@ -703,13 +701,13 @@ pub(crate) fn collect_apm(source: &str, device: &Map<String, J>) -> J {
                     let profs = vm
                         .get("profiles")
                         .and_then(J::as_array)
-                        .map(|p| p.iter().filter_map(J::as_str).map(str::to_owned).collect())
-                        .unwrap_or_default();
+                        .map_or_default(|p| {
+                            p.iter().filter_map(J::as_str).map(str::to_owned).collect()
+                        });
                     (fp, profs)
                 })
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     let mut out = Vec::new();
     for (full_path, body) in &apm.access_profiles {

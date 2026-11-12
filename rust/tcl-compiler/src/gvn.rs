@@ -1721,15 +1721,12 @@ fn run_partial_redundancy_fixpoint(
             if !executable.contains(bn) {
                 continue;
             }
-            let pred_set: Vec<BlockId> = preds
-                .get(bn)
-                .map(|s| {
-                    s.iter()
-                        .filter(|p| executable.contains(*p))
-                        .copied()
-                        .collect()
-                })
-                .unwrap_or_default();
+            let pred_set: Vec<BlockId> = preds.get(bn).map_or_default(|s| {
+                s.iter()
+                    .filter(|p| executable.contains(*p))
+                    .copied()
+                    .collect()
+            });
             let (new_must_in, new_may_in) = if bn == &ssa.entry || pred_set.is_empty() {
                 (FxHashSet::default(), FxHashSet::default())
             } else {

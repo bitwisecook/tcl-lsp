@@ -62,8 +62,7 @@ pub fn run_enrich_wireshark(configs: &[PathBuf], output: &Path, force: bool) -> 
 
     let profile_name = output
         .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
+        .map_or_default(|n| n.to_string_lossy().into_owned());
     let files = profile.render_files(&profile_name);
 
     if let Err(e) = std::fs::create_dir_all(output) {

@@ -4252,7 +4252,6 @@ dependencies = [
  "tcl-registry",
  "tcl-syntax",
  "temp-env",
- "ureq",
  "x509-parser",
 ]
 
@@ -4435,7 +4434,6 @@ dependencies = [
 name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.13.2",
  "tcl-core-types",
 ]
 

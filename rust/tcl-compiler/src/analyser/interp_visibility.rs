@@ -846,10 +846,8 @@ impl Analyser {
             arguments,
             tcl_registry::hooks::AnalyserHookId::InterpDelete,
         );
-        let keys = invocation
-            .as_ref()
-            .map(|invocation| {
-                invocation
+        let keys = invocation.as_ref().map_or_default(|invocation| {
+            invocation
                     .transitions
                     .facts()
                     .iter()
@@ -863,8 +861,7 @@ impl Analyser {
                         self.original_interp_state_key(invocation, &invocation.input(interpreter)?)
                     })
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        });
         for key in keys {
             if self.interpreters.remove(&key).is_some() {
                 *self.interp_epochs.entry(key).or_insert(0) += 1;

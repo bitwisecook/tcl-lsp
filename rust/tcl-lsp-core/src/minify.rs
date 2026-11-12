@@ -1590,9 +1590,8 @@ fn process_scope<'a>(
         } else {
             None
         };
-        let param_names: FxHashSet<&str> = proc_def
-            .map(|pd| pd.params.iter().map(|p| p.name.as_str()).collect())
-            .unwrap_or_default();
+        let param_names: FxHashSet<&str> =
+            proc_def.map_or_default(|pd| pd.params.iter().map(|p| p.name.as_str()).collect());
         // Obtain all formal geometry before adding any parameter-body edits.
         // An unavailable header or cooked name cannot leave a partial rename.
         let formal_sources = proc_def.and_then(|procedure| {

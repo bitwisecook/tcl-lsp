@@ -410,10 +410,9 @@ fn conditional_source_observations(
         .retained_source_bindings
         .as_ref()
         .and_then(|bindings| bindings.positioned_for_module(&cu.ir_module, registry))
-        .map(|positioned| {
+        .map_or_default(|positioned| {
             positioned.conditional_representation_observations(&cu.ir_module, registry)
         })
-        .unwrap_or_default()
 }
 
 fn conditional_source_variable_name(

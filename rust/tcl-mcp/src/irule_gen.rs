@@ -637,18 +637,16 @@ fn build_test_body(
     let args: Vec<String> = action
         .and_then(|a| a.get("args"))
         .and_then(Value::as_array)
-        .map(|a| {
+        .map_or_default(|a| {
             a.iter()
                 .filter_map(Value::as_str)
                 .map(str::to_owned)
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     let conditions: Vec<&Value> = path
         .get("conditions")
         .and_then(Value::as_array)
-        .map(|a| a.iter().collect())
-        .unwrap_or_default();
+        .map_or_default(|a| a.iter().collect());
 
     let mut body: Vec<String> = Vec::new();
     if !conditions.is_empty() {

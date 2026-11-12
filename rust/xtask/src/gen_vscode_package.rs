@@ -234,8 +234,7 @@ fn diagnostic_sections() -> Vec<Value> {
                 by_section
                     .iter()
                     .find(|(sk, _)| sk == k)
-                    .map(|(_, v)| v.clone())
-                    .unwrap_or_default()
+                    .map_or_default(|(_, v)| v.clone())
             })
             .collect();
         if diags.is_empty() {

@@ -944,8 +944,7 @@ mod tests {
             .arg_values
             .iter()
             .find(|(i, _)| *i == 0)
-            .map(|(_, vs)| vs.iter().map(|v| v.value).collect())
-            .unwrap_or_default();
+            .map_or_default(|(_, vs)| vs.iter().map(|v| v.value).collect());
         assert_eq!(forms, ["D", "C", "KD", "KC"]);
         assert!(spec.closed_value_args.contains(&0), "form arg is closed");
     }

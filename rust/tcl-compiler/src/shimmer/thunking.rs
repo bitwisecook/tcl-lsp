@@ -78,15 +78,12 @@ pub(super) fn natural_loop_blocks(
 ) -> HashSet<String> {
     let mut body: HashSet<String> = HashSet::new();
     body.insert(header.to_owned());
-    let mut stack: Vec<String> = preds
-        .get(header)
-        .map(|ps| {
-            ps.iter()
-                .filter(|p| loop_blocks.contains(*p))
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut stack: Vec<String> = preds.get(header).map_or_default(|ps| {
+        ps.iter()
+            .filter(|p| loop_blocks.contains(*p))
+            .cloned()
+            .collect()
+    });
     for s in &stack {
         body.insert(s.clone());
     }

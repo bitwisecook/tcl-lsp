@@ -167,8 +167,7 @@ fn git_is_dirty() -> bool {
         .args(["status", "--porcelain", "--untracked-files=no"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
-        .ok()
-        .is_some_and(|o| o.status.success() && !o.stdout.is_empty())
+        .is_ok_and(|o| o.status.success() && !o.stdout.is_empty())
 }
 
 /// Strip the `-dirty` and `-g<hash>` suffixes `git describe` may have appended,

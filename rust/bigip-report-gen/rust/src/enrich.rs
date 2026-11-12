@@ -163,15 +163,14 @@ pub fn build_enrichment(devices: &[J], architecture: &J) -> J {
         .and_then(J::as_object)
         .and_then(|m| m.get("cidrNames"))
         .and_then(J::as_array)
-        .map(|arr| {
+        .map_or_default(|arr| {
             arr.iter()
                 .filter_map(|e| {
                     let em = e.as_object()?;
                     Some((bstr(em, "cidr").to_string(), bstr(em, "label").to_string()))
                 })
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     let cidr_nets = parse_nets(&cidr_pairs);
 
     let (addrs, ports) = collect_addrs_ports(devices);

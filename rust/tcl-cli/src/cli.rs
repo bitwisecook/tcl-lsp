@@ -1388,10 +1388,7 @@ mod tests {
             .map(|value| {
                 (
                     value.get_name().to_owned(),
-                    value
-                        .get_help()
-                        .map(ToString::to_string)
-                        .unwrap_or_default(),
+                    value.get_help().map_or_default(ToString::to_string),
                 )
             })
             .collect()

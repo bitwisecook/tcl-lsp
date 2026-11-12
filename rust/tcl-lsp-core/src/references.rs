@@ -1466,9 +1466,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         dialect,
         resolution,
         byte_offset,
-        &find_word_span_at_position(source, line, character)
-            .map(|(w, _, _)| w)
-            .unwrap_or_default(),
+        &find_word_span_at_position(source, line, character).map_or_default(|(w, _, _)| w),
     ) {
         // The cursor is on the bare call-site word itself.
         let name = source

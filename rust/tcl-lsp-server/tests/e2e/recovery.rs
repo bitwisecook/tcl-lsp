@@ -122,12 +122,11 @@ fn diag_identity(d: &Value) -> String {
 fn legend(lsp: &Lsp) -> Vec<String> {
     lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
         .as_array()
-        .map(|a| {
+        .map_or_default(|a| {
             a.iter()
                 .map(|v| v.as_str().unwrap_or("").to_owned())
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 /// A semantic token with its resolved type name: decode the delta encoding,

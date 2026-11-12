@@ -793,7 +793,7 @@ pub fn classify_side_effects_with_context(
             .is_some_and(|sc| sc.mutator);
         if !sub_is_mutator {
             let effects = dialect_side_effect_hints(registry, command, effective_sub, dialect)
-                .map(|hints| {
+                .map_or_default(|hints| {
                     hints
                         .into_iter()
                         .map(|mut e| {
@@ -802,8 +802,7 @@ pub fn classify_side_effects_with_context(
                             e
                         })
                         .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
+                });
             return CommandSideEffects {
                 effects,
                 pure: true,

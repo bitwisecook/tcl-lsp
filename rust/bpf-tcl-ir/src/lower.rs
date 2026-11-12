@@ -1337,8 +1337,7 @@ fn back_edge_source(func: &Function) -> Option<String> {
                 stack.push(Step::Exit(node.clone()));
                 let succs = func
                     .block_id(&node)
-                    .map(|id| func.block_successors(id))
-                    .unwrap_or_default();
+                    .map_or_default(|id| func.block_successors(id));
                 for succ_id in succs {
                     let succ = func.block_name(succ_id).to_owned();
                     match color.get(&succ).copied() {

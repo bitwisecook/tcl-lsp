@@ -763,17 +763,13 @@ fn cfg_shape(func: &Function) -> CfgShape {
                 .values()
                 .find(|block| block.name == name)
                 .expect("an ordered block name is a block");
-            let successors = block
-                .terminator
-                .as_ref()
-                .map(|terminator| {
-                    terminator
-                        .successors()
-                        .into_iter()
-                        .map(|id| func.block_name(id).to_owned())
-                        .collect()
-                })
-                .unwrap_or_default();
+            let successors = block.terminator.as_ref().map_or_default(|terminator| {
+                terminator
+                    .successors()
+                    .into_iter()
+                    .map(|id| func.block_name(id).to_owned())
+                    .collect()
+            });
             let assigned = block
                 .statements
                 .iter()

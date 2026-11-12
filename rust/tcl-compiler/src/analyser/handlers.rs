@@ -5096,12 +5096,11 @@ impl Analyser {
             .as_deref()
             .and_then(|r| r.get("namespace"))
             .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec, sub)))
-            .map(|(spec, sub)| {
+            .map_or_default(|(spec, sub)| {
                 self.analysis_context()
                     .context()
                     .available_sub_option_specs(spec, sub)
-            })
-            .unwrap_or_default();
+            });
 
         let mut i = 0usize;
         while i < opts.len() {
@@ -6877,8 +6876,7 @@ impl Analyser {
         let (seed, prior_state_conditional) = keys
             .first()
             .and_then(|k| self.objdefine_binding_state(k, frame))
-            .map(|st| (st.methods.clone(), st.conditional))
-            .unwrap_or_default();
+            .map_or_default(|st| (st.methods.clone(), st.conditional));
         object_class.methods = seed;
         if let Some(source) = self.logical_object_member_source_input()
             && let Some(previous) = keys
@@ -7075,8 +7073,7 @@ impl Analyser {
                     });
             let key_seed = self
                 .objdefine_binding_state(key, frame)
-                .map(|st| st.methods.clone())
-                .unwrap_or_default();
+                .map_or_default(|st| st.methods.clone());
             let mut new_methods: Vec<super::types::MethodDef> = object_class
                 .methods
                 .values()
@@ -15782,8 +15779,7 @@ mod tests {
                 .command_invocations
                 .iter()
                 .find(|i| i.name == "helper")
-                .map(|i| i.resolution_candidates.clone())
-                .unwrap_or_default()
+                .map_or_default(|i| i.resolution_candidates.clone())
         };
         assert!(
             candidates("tcl8.6").iter().any(|c| c == "::mymod::helper"),

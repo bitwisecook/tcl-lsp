@@ -1154,9 +1154,8 @@ impl Analyser {
             suppression_context.commands(),
             function_unit.source_lexer_config(),
         );
-        let rbs_params: HashSet<&str> = ir_proc
-            .map(|p| p.params.iter().map(String::as_str).collect())
-            .unwrap_or_default();
+        let rbs_params: HashSet<&str> =
+            ir_proc.map_or_default(|p| p.params.iter().map(String::as_str).collect());
         let read_before_set_ctx = dataflow::ReadBeforeSetCtx {
             initial_global,
             original_unit: None,

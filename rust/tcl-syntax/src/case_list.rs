@@ -371,9 +371,7 @@ mod tests {
         split_case_list(inner, shape)
             .into_iter()
             .map(|c| {
-                let t = |e: Option<super::Element>| {
-                    e.map(|e| &inner[e.start..e.end]).unwrap_or_default()
-                };
+                let t = |e: Option<super::Element>| e.map_or_default(|e| &inner[e.start..e.end]);
                 (
                     c.flags.iter().map(|f| &inner[f.start..f.end]).collect(),
                     t(c.pattern),

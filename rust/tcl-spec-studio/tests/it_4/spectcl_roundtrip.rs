@@ -102,13 +102,12 @@ fn compare_unrenderable(rendered: &Value, shipped: &Value, prefix: &str, out: &m
         value
             .get(draft::UNRENDERABLE_KEY)
             .and_then(Value::as_array)
-            .map(|keys| {
+            .map_or_default(|keys| {
                 keys.iter()
                     .filter_map(Value::as_str)
                     .map(ToOwned::to_owned)
                     .collect()
             })
-            .unwrap_or_default()
     };
     let (a, b) = (keys(rendered), keys(shipped));
     for key in b.difference(&a) {
@@ -173,12 +172,11 @@ fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
         value
             .get("subcommands")
             .and_then(Value::as_array)
-            .map(|subs| {
+            .map_or_default(|subs| {
                 subs.iter()
                     .map(|sub| sub["name"].as_str().unwrap_or("").to_owned())
                     .collect()
             })
-            .unwrap_or_default()
     };
     let (a, b) = (names(rendered), names(shipped));
     if a == b {
@@ -207,13 +205,12 @@ fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
             .get("object_class")
             .and_then(|class| class.get("instance_methods"))
             .and_then(Value::as_array)
-            .map(|methods| {
+            .map_or_default(|methods| {
                 methods
                     .iter()
                     .map(|method| method["name"].as_str().unwrap_or("").to_owned())
                     .collect()
             })
-            .unwrap_or_default()
     };
     let (a, b) = (class_methods(rendered), class_methods(shipped));
     if a == b && rendered.get("object_class").is_some() && shipped.get("object_class").is_some() {
@@ -315,13 +312,12 @@ fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool 
     let prefixes: BTreeSet<u64> = rendered
         .get("command_prefixes")
         .and_then(Value::as_array)
-        .map(|entries| {
+        .map_or_default(|entries| {
             entries
                 .iter()
                 .filter_map(|entry| entry["index"].as_u64())
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     let roles = |value: &Value| -> Vec<Value> {
         value
             .get("arg_roles")
@@ -1263,12 +1259,11 @@ fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
         ops.iter()
             .find(|row| row["name"] == op)
             .and_then(|row| row["options"].as_array())
-            .map(|opts| {
+            .map_or_default(|opts| {
                 opts.iter()
                     .map(|o| o["name"].as_str().unwrap_or_default().to_owned())
                     .collect()
             })
-            .unwrap_or_default()
     };
     assert_eq!(
         names_of("create"),

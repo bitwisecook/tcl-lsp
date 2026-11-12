@@ -3149,8 +3149,7 @@ impl ResolveContext {
         }
         canonical_binding_value_key(place)
             .and_then(|name| self.value_representations.get(&name))
-            .map(crate::native_numeric::StoredNativeRepresentation::representation)
-            .unwrap_or_default()
+            .map_or_default(crate::native_numeric::StoredNativeRepresentation::representation)
     }
 
     /// Closed possible ordinary container representations at this live read.

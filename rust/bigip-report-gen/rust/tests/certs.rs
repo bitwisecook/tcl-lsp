@@ -499,13 +499,11 @@ fn default_objects_are_tagged_and_never_orphans() {
     // Defaults are never orphans; the user's unreferenced pool still is.
     let orphan_profiles: Vec<&str> = d["orphans"]["profiles"]
         .as_array()
-        .map(|a| a.iter().map(|v| v.as_str().unwrap()).collect())
-        .unwrap_or_default();
+        .map_or_default(|a| a.iter().map(|v| v.as_str().unwrap()).collect());
     assert!(!orphan_profiles.contains(&"tcp"), "default not orphaned");
     let orphan_rules: Vec<&str> = d["orphans"]["rules"]
         .as_array()
-        .map(|a| a.iter().map(|v| v.as_str().unwrap()).collect())
-        .unwrap_or_default();
+        .map_or_default(|a| a.iter().map(|v| v.as_str().unwrap()).collect());
     assert!(
         !orphan_rules.contains(&"_sys_https_redirect"),
         "_sys_ default not orphaned"

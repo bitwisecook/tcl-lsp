@@ -90,9 +90,7 @@ pub fn run() -> Result<ExitCode> {
     problems.extend(validate_counted_name_facade_consumers(&root)?);
     problems.extend(validate_f5_string_predicate_consumers(&root)?);
     if problems.is_empty() {
-        let owner_count = parse_manifest(&contract)
-            .map(|rows| rows.len())
-            .unwrap_or_default();
+        let owner_count = parse_manifest(&contract).map_or_default(|rows| rows.len());
         println!(
             "owner-resolution: OK ({owner_count} owner row(s) resolve to live source and gates)"
         );

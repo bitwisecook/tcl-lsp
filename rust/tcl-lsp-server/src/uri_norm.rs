@@ -302,8 +302,7 @@ pub fn file_action_path(uri: &Uri) -> Option<std::path::PathBuf> {
     }
     let authority = uri
         .authority()
-        .map(|authority| authority.as_str())
-        .unwrap_or_default();
+        .map_or_default(|authority| authority.as_str());
     if !(authority.is_empty() || cfg!(unix) && authority.eq_ignore_ascii_case("localhost")) {
         return None;
     }

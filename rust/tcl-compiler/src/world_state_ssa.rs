@@ -1494,8 +1494,8 @@ impl<'a> Planner<'a> {
         for symbol in phi_symbols {
             versions.insert(Symbol::Phi(symbol.0, symbol.1), take_version(&mut next)?);
         }
-        for token in 0..self.tokens.len() {
-            if self.tokens[token].kind != WorldStateIntentKind::Use {
+        for (token, intent) in self.tokens.iter().enumerate() {
+            if intent.kind != WorldStateIntentKind::Use {
                 versions.insert(Symbol::Token(token), take_version(&mut next)?);
             }
         }

@@ -1058,9 +1058,7 @@ fn lifecycle_line(key: &str, draft: &Value, indent: &str) -> LifecycleLine {
     };
     if *first == key {
         return LifecycleLine::Emit(
-            lifecycle_expr(draft)
-                .map(|expr| format!("{indent}lifecycle: {expr},\n"))
-                .unwrap_or_default(),
+            lifecycle_expr(draft).map_or_default(|expr| format!("{indent}lifecycle: {expr},\n")),
         );
     }
     if rest.contains(&key) {
@@ -1150,14 +1148,11 @@ fn option_value_expr(value: &Value, inner: &str) -> Option<String> {
         "Fixed" => Some(format!("OptionArity::Fixed({})", as_u64(&arity["n"]))),
         "OptionalOneOf" => Some(format!(
             "OptionArity::OptionalOneOf(&[{}])",
-            arity["values"]
-                .as_array()
-                .map(|values| values
-                    .iter()
-                    .map(|v| format!("{:?}", as_str(v)))
-                    .collect::<Vec<_>>()
-                    .join(", "))
-                .unwrap_or_default()
+            arity["values"].as_array().map_or_default(|values| values
+                .iter()
+                .map(|v| format!("{:?}", as_str(v)))
+                .collect::<Vec<_>>()
+                .join(", "))
         )),
         "OptionalNotOption" => Some("OptionArity::OptionalNotOption".to_owned()),
         // The hook is a function pointer, so seeding cannot recover it — but

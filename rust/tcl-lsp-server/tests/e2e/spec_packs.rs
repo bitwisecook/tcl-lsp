@@ -861,7 +861,7 @@ fn offers(result: &Value, code: &str) -> Vec<(String, String)> {
     result
         .get("optimisations")
         .and_then(Value::as_array)
-        .map(|items| {
+        .map_or_default(|items| {
             items
                 .iter()
                 .filter(|item| item.get("code").and_then(Value::as_str) == Some(code))
@@ -879,7 +879,6 @@ fn offers(result: &Value, code: &str) -> Vec<(String, String)> {
                 })
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 #[test]

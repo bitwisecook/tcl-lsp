@@ -180,8 +180,7 @@ impl NavigationVariable<'_> {
                 vec![procedure.formals()[*ordinal].declaration_span()]
             }
             Self::Caller { bindings, .. } => crate::caller_frame::primary_binding(bindings)
-                .map(|binding| vec![binding.arg_span])
-                .unwrap_or_default(),
+                .map_or_default(|binding| vec![binding.arg_span]),
         }
     }
 

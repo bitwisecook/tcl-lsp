@@ -378,9 +378,7 @@ fn walk_region(
     // stock Tcl does? If so this region exercises one of the two axes the
     // scanner cannot see, and only the tally records it.
     let stock = LexerConfig::default();
-    let stock_spans = lex(src, stock)
-        .map(|t| owner_spans(src, stock, &t))
-        .unwrap_or_default();
+    let stock_spans = lex(src, stock).map_or_default(|t| owner_spans(src, stock, &t));
     if spans == stock_spans {
         failures.extend(violations(src, &spans, ctx));
     } else {

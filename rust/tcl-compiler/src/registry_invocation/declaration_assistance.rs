@@ -114,8 +114,7 @@ fn original_logical_alias_name_obligations(
                         return advice
                             .original_words()
                             .first()
-                            .map(|head| vec![(head.span(), None)])
-                            .unwrap_or_default();
+                            .map_or_default(|head| vec![(head.span(), None)]);
                     }
                     return Vec::new();
                 };

@@ -193,11 +193,7 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
             .line
             .map_or_else(String::new, |l| format!(" (line {l})"));
         if entry.kind == "function" {
-            let params = entry
-                .params
-                .as_ref()
-                .map(|p| p.join(", "))
-                .unwrap_or_default();
+            let params = entry.params.as_ref().map_or_default(|p| p.join(", "));
             lines.push(format!(
                 "{indent}function {}({params}){line_suffix}",
                 entry.name
@@ -232,14 +228,13 @@ fn append_symbolgraph_scope(
             let params = proc
                 .get("params")
                 .and_then(Value::as_array)
-                .map(|items| {
+                .map_or_default(|items| {
                     items
                         .iter()
                         .filter_map(Value::as_str)
                         .collect::<Vec<_>>()
                         .join(", ")
-                })
-                .unwrap_or_default();
+                });
             let line_suffix = proc
                 .get("line")
                 .and_then(Value::as_i64)
@@ -401,14 +396,13 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
             let params = node
                 .get("params")
                 .and_then(Value::as_array)
-                .map(|items| {
+                .map_or_default(|items| {
                     items
                         .iter()
                         .map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned))
                         .collect::<Vec<_>>()
                         .join(", ")
-                })
-                .unwrap_or_default();
+                });
             let line_suffix = node
                 .get("line")
                 .and_then(Value::as_i64)

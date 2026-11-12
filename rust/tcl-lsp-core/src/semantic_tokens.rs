@@ -1921,8 +1921,7 @@ fn insert_object_method_overrides(
     let mut candidates: Vec<String> = if let Some(name) = variable {
         object_classes
             .get(name)
-            .map(|classes| classes.iter().cloned().collect())
-            .unwrap_or_default()
+            .map_or_default(|classes| classes.iter().cloned().collect())
     } else {
         match head_tok.kind {
             // The genuine whole receiver word, child source binding and selected
@@ -1942,8 +1941,7 @@ fn insert_object_method_overrides(
             },
             TokenType::Esc => object_classes
                 .get(head_text.as_str())
-                .map(|s| s.iter().cloned().collect())
-                .unwrap_or_default(),
+                .map_or_default(|s| s.iter().cloned().collect()),
             _ => Vec::new(),
         }
     };
@@ -9863,8 +9861,7 @@ mod tests {
             }
             let mapped: std::collections::BTreeSet<&str> = block["scopes"]
                 .as_object()
-                .map(|m| m.keys().map(String::as_str).collect())
-                .unwrap_or_default();
+                .map_or_default(|m| m.keys().map(String::as_str).collect());
 
             // `tcl-apl` owns the `apl*` types and nothing else needs them.
             if lang == "tcl-apl" {
@@ -9983,8 +9980,7 @@ mod tests {
             checked += 1;
             let mapped: std::collections::BTreeSet<&str> = block["scopes"]
                 .as_object()
-                .map(|m| m.keys().map(String::as_str).collect())
-                .unwrap_or_default();
+                .map_or_default(|m| m.keys().map(String::as_str).collect());
             require_mapped(lang, &shared_custom, &mapped, &mut failures);
         }
         assert!(

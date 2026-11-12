@@ -209,9 +209,7 @@ impl VmBackend {
         let _ = vm.run_module(&module);
         vm.set_debug_hook(None);
 
-        Ok(Rc::try_unwrap(trace)
-            .map(RefCell::into_inner)
-            .unwrap_or_default())
+        Ok(Rc::try_unwrap(trace).map_or_default(RefCell::into_inner))
     }
 
     /// The snapshot at the current cursor, or `None` before launch / at end.

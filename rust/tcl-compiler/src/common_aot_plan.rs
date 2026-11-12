@@ -2364,9 +2364,7 @@ fn collect_materialisable_slots(
         } else {
             None
         };
-        let local_slots = summary
-            .map(|summary| summary.local_slots.clone())
-            .unwrap_or_default();
+        let local_slots = summary.map_or_default(|summary| summary.local_slots.clone());
         // The lowered module's own numeral grammar (`Module::dialect`) — the
         // same source `codegen_module` reads, so a slot decision made here and
         // the code emitted for it agree on what `0755` is.

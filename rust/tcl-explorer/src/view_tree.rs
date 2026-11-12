@@ -137,7 +137,7 @@ impl ViewNode {
 // Scalar/JSON accessors.
 
 fn s(v: &Value, key: &str) -> String {
-    v.get(key).map(jstr).unwrap_or_default()
+    v.get(key).map_or_default(jstr)
 }
 
 fn jstr(v: &Value) -> String {
@@ -260,8 +260,7 @@ fn join_str_array(v: &Value) -> String {
 
 fn arr_to_strings(v: &Value) -> Vec<String> {
     v.as_array()
-        .map(|a| a.iter().map(jstr).collect())
-        .unwrap_or_default()
+        .map_or_default(|a| a.iter().map(jstr).collect())
 }
 
 // --- IR ---
@@ -364,15 +363,12 @@ fn build_cfg(funcs: &[Value], post: bool) -> Vec<ViewNode> {
             let mut items: Vec<ViewNode> = Vec::new();
             if post {
                 for p in arr(b, "phis") {
-                    let inc = p["incoming"]
-                        .as_object()
-                        .map(|o| {
-                            o.iter()
-                                .map(|(k, v)| format!("{k}:{}", jstr(v)))
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        })
-                        .unwrap_or_default();
+                    let inc = p["incoming"].as_object().map_or_default(|o| {
+                        o.iter()
+                            .map(|(k, v)| format!("{k}:{}", jstr(v)))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    });
                     items.push(ViewNode::leaf(
                         format!("phi {}#{} ← {inc}", s(p, "name"), s(p, "version")),
                         vec![
@@ -653,8 +649,7 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
         for value in arr(f, "values") {
             let detail = value["type"]
                 .as_str()
-                .map(|folded| vec![det("type", folded)])
-                .unwrap_or_default();
+                .map_or_default(|folded| vec![det("type", folded)]);
             children.push(ViewNode::leaf(
                 format!(
                     "{}#{} = {}",

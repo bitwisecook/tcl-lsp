@@ -96,8 +96,7 @@ pub fn run_command_info(
     let synopsis: Vec<String> = spec
         .hover
         .as_ref()
-        .map(|h| h.synopsis.iter().map(|s| (*s).to_owned()).collect())
-        .unwrap_or_default();
+        .map_or_default(|h| h.synopsis.iter().map(|s| (*s).to_owned()).collect());
     let mut switches: Vec<String> = context
         .available_option_names(spec)
         .into_iter()

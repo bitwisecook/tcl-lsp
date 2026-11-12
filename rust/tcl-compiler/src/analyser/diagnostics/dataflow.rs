@@ -3192,16 +3192,12 @@ is renamed or deleted in this file."
             cell_name,
             &ctx.registry,
         );
-        if !known_killed
-            && ctx.exists_guards.iter().any(|(guard, block)| {
+        known_killed
+            || !ctx.exists_guards.iter().any(|(guard, block)| {
                 (original_cells.contains(guard)
                     || fu.ssa.point_contexts.is_none() && guard == cell_name)
                     && block_dominated_by(&fu.ssa, bn, *block)
             })
-        {
-            return false;
-        }
-        true
     }
 
     /// W210 from a selected original matcher that leaves its targets unchanged.

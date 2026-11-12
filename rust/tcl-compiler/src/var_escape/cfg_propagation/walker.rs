@@ -306,15 +306,11 @@ fn handle_barrier(
 }
 
 fn synthesise_eval_args(tokens: Option<&CommandTokens>) -> Vec<String> {
-    tokens
-        .map(|t| t.argv_texts.iter().skip(1).cloned().collect())
-        .unwrap_or_default()
+    tokens.map_or_default(|t| t.argv_texts.iter().skip(1).cloned().collect())
 }
 
 fn synthesise_uplevel_args(tokens: Option<&CommandTokens>) -> Vec<String> {
-    tokens
-        .map(|t| t.argv_texts.iter().skip(1).cloned().collect())
-        .unwrap_or_default()
+    tokens.map_or_default(|t| t.argv_texts.iter().skip(1).cloned().collect())
 }
 
 fn is_eval_block(tokens: Option<&CommandTokens>, registry: &tcl_registry::CommandRegistry) -> bool {

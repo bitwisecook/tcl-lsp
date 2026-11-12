@@ -137,9 +137,7 @@ fn regsub_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, Appende
     if options.prefix_contains(words, "-command") == Some(true)
         && words.exact_argv_len().is_some_and(|count| index < count)
     {
-        u8::try_from(index)
-            .map(|index| vec![(index, AppendedArity::AtLeast(1))])
-            .unwrap_or_default()
+        u8::try_from(index).map_or_default(|index| vec![(index, AppendedArity::AtLeast(1))])
     } else {
         Vec::new()
     }

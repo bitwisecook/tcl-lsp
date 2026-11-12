@@ -727,19 +727,17 @@ Use braces: {{ \u{2026} }}"
                 let start = tok.span.start() + u32::try_from(rel).unwrap_or(0);
                 let end = start + u32::try_from(ch.len_utf8()).unwrap_or(1);
                 let span = tcl_lexer::Span::new(start, end);
-                let fixes = fix
-                    .map(|repl| {
-                        vec![super::types::CodeFix {
-                            span,
-                            new_text: repl.to_string(),
-                            description: "Replace with ASCII equivalent".to_string(),
-                            // W108: substituting the ASCII look-alike changes the character's
-                            // value. In an identifier that is the repair; inside a string literal
-                            // it rewrites the program's data.
-                            safety: crate::irules_checks::FixSafety::BehaviourHardening,
-                        }]
-                    })
-                    .unwrap_or_default();
+                let fixes = fix.map_or_default(|repl| {
+                    vec![super::types::CodeFix {
+                        span,
+                        new_text: repl.to_string(),
+                        description: "Replace with ASCII equivalent".to_string(),
+                        // W108: substituting the ASCII look-alike changes the character's
+                        // value. In an identifier that is the repair; inside a string literal
+                        // it rewrites the program's data.
+                        safety: crate::irules_checks::FixSafety::BehaviourHardening,
+                    }]
+                });
                 self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
     DiagCode::W108,
     span,

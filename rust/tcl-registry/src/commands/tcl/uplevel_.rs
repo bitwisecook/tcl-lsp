@@ -109,8 +109,7 @@ fn uplevel_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     u8::try_from(start)
         .ok()
         .filter(|&i| (i as usize) < args.len())
-        .map(|i| vec![(i, ArgRole::Body)])
-        .unwrap_or_default()
+        .map_or_default(|i| vec![(i, ArgRole::Body)])
 }
 
 /// Command spec for `uplevel`.

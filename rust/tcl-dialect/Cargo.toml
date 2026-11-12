@@ -45,7 +45,6 @@ authors.workspace = true
 description = "Foundational dialect vocabulary: DialectSet, TclVersion, grammar structs, and the DialectProfile catalog"
 
 [dependencies]
-bitflags = "2"
 tcl-core-types = { path = "../tcl-core-types" }
 
 [lints]

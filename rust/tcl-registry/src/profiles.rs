@@ -332,8 +332,7 @@ impl ProfileRegistry {
     #[must_use]
     pub fn profile_parents(&self, profile: &str) -> Vec<&'static str> {
         self.get_profile(profile)
-            .map(ProfileSpec::inferred_parents)
-            .unwrap_or_default()
+            .map_or_default(ProfileSpec::inferred_parents)
     }
 
     /// True when `active`'s expanded profile stack satisfies any one of the

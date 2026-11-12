@@ -927,8 +927,7 @@ fn cmd_coroprobe(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .coro
         .live
         .get(&CommandSidecarKey::visible(&fqn))
-        .map(CoroState::original_currencies)
-        .unwrap_or_default();
+        .map_or_default(CoroState::original_currencies);
     let mut parked = {
         let Some(state) = vm.coro.live.get_mut(&CommandSidecarKey::visible(&fqn)) else {
             return err("can only inject a probe command into a coroutine");
@@ -1044,8 +1043,7 @@ pub(crate) fn eval_retained_activation(
         .coro
         .live
         .get(&key)
-        .map(CoroState::original_currencies)
-        .unwrap_or_default();
+        .map_or_default(CoroState::original_currencies);
     let mut parked = {
         let Some(state) = vm.coro.live.get_mut(&key) else {
             return ScheduledCallbackOutcome::Activation(RetainedActivationRefusal::RetiredFrame);

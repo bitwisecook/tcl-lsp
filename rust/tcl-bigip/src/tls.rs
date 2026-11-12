@@ -250,8 +250,7 @@ pub fn import_bigip_tls<S: BuildHasher>(
     for profile in &mut profiles {
         profile.used_by_virtuals = used
             .get(&profile.full_path)
-            .map(|names| names.iter().cloned().collect())
-            .unwrap_or_default();
+            .map_or_default(|names| names.iter().cloned().collect());
     }
     profiles.sort_by(|left, right| left.full_path.cmp(&right.full_path));
     endpoints.sort_by(|left, right| {
@@ -472,8 +471,7 @@ fn factory_default_fields(
 ) -> BTreeMap<String, EffectiveTlsField> {
     let type_name = type_name(side);
     version
-        .map(|version| profile_field_defaults(type_name, Some(version)))
-        .unwrap_or_default()
+        .map_or_default(|version| profile_field_defaults(type_name, Some(version)))
         .into_iter()
         .filter(|(field, _)| TLS_FIELDS.contains(field))
         .map(|(field, value)| {
@@ -541,7 +539,7 @@ fn resolve_bindings(
 ) -> Vec<CertificateBinding> {
     let mut bindings = raw_properties
         .and_then(|properties| properties.get("cert-key-chain"))
-        .map(|value| {
+        .map_or_default(|value| {
             parse_keyed_block_entries(value)
                 .into_iter()
                 .map(|(name, body)| CertKeyChain::from_raw(&name, &body))
@@ -550,8 +548,7 @@ fn resolve_bindings(
                     materialise_binding(binding, pem_by_object, key_by_object, path, notices)
                 })
                 .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+        });
     let cert = field_value(fields, "cert");
     if bindings.is_empty() && !cert.is_empty() && cert != "none" {
         bindings.push(materialise_binding(
@@ -675,8 +672,7 @@ fn endpoint_variants(
     let destination = virtual_server
         .destination
         .as_ref()
-        .map(ToString::to_string)
-        .unwrap_or_default();
+        .map_or_default(ToString::to_string);
     let bindings: Vec<Option<&CertificateBinding>> = if profile.certificate_bindings.is_empty() {
         vec![None]
     } else {
@@ -727,9 +723,7 @@ fn endpoint_variants(
                     ))],
                 );
             }
-            let certificates = binding
-                .map(|binding| binding.certificates.clone())
-                .unwrap_or_default();
+            let certificates = binding.map_or_default(|binding| binding.certificates.clone());
             let key_match = binding.map_or_else(
                 || KeyMatch::unknown("endpoint has no certificate/key binding"),
                 |binding| binding.key_match.clone(),
@@ -929,8 +923,7 @@ fn factory_profile_side(reference: &str) -> Option<TlsProfileSide> {
 fn field_value(fields: &BTreeMap<String, EffectiveTlsField>, name: &str) -> String {
     fields
         .get(name)
-        .map(|field| normalise_scalar(&field.value))
-        .unwrap_or_default()
+        .map_or_default(|field| normalise_scalar(&field.value))
 }
 
 fn normalise_scalar(value: &str) -> String {

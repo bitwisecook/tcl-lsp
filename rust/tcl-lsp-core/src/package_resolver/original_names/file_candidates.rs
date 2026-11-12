@@ -160,7 +160,7 @@ impl<'a> FileCandidateScanner<'a> {
             .iter()
             .find(|command| command.span.start() == head.span().start())
             .and_then(|command| source_registry_words(self.source, self.analysis, command))
-            .map(|words| {
+            .map_or_default(|words| {
                 words
                     .source_script_bodies_for(
                         &self.context,
@@ -175,7 +175,6 @@ impl<'a> FileCandidateScanner<'a> {
                     .map(|body| body.content_span())
                     .collect::<Vec<_>>()
             })
-            .unwrap_or_default()
     }
 
     fn source_path_argument(&self, schema: &OriginalRegistryWords) -> Option<usize> {

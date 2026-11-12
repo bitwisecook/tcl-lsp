@@ -477,14 +477,11 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
                 {
                     out.entry(v).or_default().push(AssignKind::PerObject);
                 }
-                let assignments = stmt
-                    .tokens()
-                    .map(|tokens| {
-                        crate::registry_invocation::advisory_value_assignments_in_context(
-                            &context, tokens,
-                        )
-                    })
-                    .unwrap_or_default();
+                let assignments = stmt.tokens().map_or_default(|tokens| {
+                    crate::registry_invocation::advisory_value_assignments_in_context(
+                        &context, tokens,
+                    )
+                });
                 for assignment in assignments {
                     let kind = classify_bound_rhs(
                         &assignment.value,

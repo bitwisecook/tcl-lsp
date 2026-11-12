@@ -1092,7 +1092,6 @@ version = "0.1.0"
 name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
- "bitflags",
  "tcl-core-types",
 ]
 

@@ -671,8 +671,7 @@ fn emit_use_site_warning(
     let related = warning.related_override.clone().unwrap_or_else(|| {
         ctx.def_map
             .get(&(warning.sym, warning.ver))
-            .map(|&sp| vec![(sp, "value defined here".to_owned())])
-            .unwrap_or_default()
+            .map_or_default(|&sp| vec![(sp, "value defined here".to_owned())])
     });
     // A loop-invariant variable coerced to a single intrep inside the
     // loop converts once and is cached → S100, not the per-iteration

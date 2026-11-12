@@ -250,7 +250,7 @@ struct Row {
 }
 
 fn parse_row(words: &[String], line: u32, log: &mut Log) -> Option<Row> {
-    let provider = words.first().map(String::as_str).unwrap_or_default();
+    let provider = words.first().map_or_default(String::as_str);
     let rest = &words[1.min(words.len())..];
     match provider {
         "tcl" => core_row(Family::Tcl, rest, line, log),

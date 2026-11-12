@@ -989,34 +989,32 @@ fn declaration_increment_inputs(
     ssa: &SsaFunction,
     declaration: Option<&tcl_registry::CommandRegistry>,
 ) -> HashMap<ValueKey, (ValueKey, i64)> {
-    declaration
-        .map(|registry| {
-            ssa.blocks
-                .iter()
-                .flat_map(|(&block, body)| {
-                    body.statements
-                        .iter()
-                        .enumerate()
-                        .flat_map(move |(index, statement)| {
-                            statement
-                                .defs
-                                .iter()
-                                .filter_map(move |(&symbol, &version)| {
-                                    declaration_increment_input(
-                                        SsaSourceView::at_statement(ssa, block, index),
-                                        ssa,
-                                        block,
-                                        index,
-                                        symbol,
-                                        registry,
-                                    )
-                                    .map(|input| ((symbol, version), input))
-                                })
-                        })
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    declaration.map_or_default(|registry| {
+        ssa.blocks
+            .iter()
+            .flat_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .flat_map(move |(index, statement)| {
+                        statement
+                            .defs
+                            .iter()
+                            .filter_map(move |(&symbol, &version)| {
+                                declaration_increment_input(
+                                    SsaSourceView::at_statement(ssa, block, index),
+                                    ssa,
+                                    block,
+                                    index,
+                                    symbol,
+                                    registry,
+                                )
+                                .map(|input| ((symbol, version), input))
+                            })
+                    })
+            })
+            .collect()
+    })
 }
 
 fn compute_intervals_kernel<S: std::hash::BuildHasher>(

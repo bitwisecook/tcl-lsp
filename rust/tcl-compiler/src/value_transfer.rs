@@ -1285,9 +1285,7 @@ impl<'a> LatticeDriver<'a> {
         let context = AnalysisContext {
             registry_generation: key.map_or(0, |k| k.registry_generation),
             overlay_generation: key.and_then(|k| k.overlay_generation),
-            bindings: key
-                .map(|k| k.bindings.binding_evidence())
-                .unwrap_or_default(),
+            bindings: key.map_or_default(|k| k.bindings.binding_evidence()),
             namespace: "::".to_owned(),
             profile,
             grammar: lexer_config.grammar_over(
@@ -6832,8 +6830,7 @@ impl Words {
             Self::Ordered(evaluated) => evaluated
                 .borrow()
                 .as_ref()
-                .map(|words| words.state.writes.clone())
-                .unwrap_or_default(),
+                .map_or_default(|words| words.state.writes.clone()),
             Self::Independent => Vec::new(),
         }
     }
@@ -10507,9 +10504,7 @@ mod tests {
             let calls = inputs.calls.borrow();
             assert_eq!(
                 calls.as_slice(),
-                expected
-                    .map(|(start, end)| vec![("leaf".into(), start, end)])
-                    .unwrap_or_default()
+                expected.map_or_default(|(start, end)| vec![("leaf".into(), start, end)])
             );
         }
         assert_eq!(

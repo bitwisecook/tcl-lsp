@@ -716,8 +716,7 @@ impl PackStore {
     pub fn patch_stamp_refusals(&self) -> Vec<(u32, String)> {
         self.patch
             .as_ref()
-            .map(|patch| stamp_refusals_at(&patch.pack, Tier::StudioOverride))
-            .unwrap_or_default()
+            .map_or_default(|patch| stamp_refusals_at(&patch.pack, Tier::StudioOverride))
     }
 
     /// Install `patch` as this document's standing patch pack, replacing any
@@ -746,18 +745,14 @@ impl PackStore {
         if self.patch_draft(name).is_none() {
             return false;
         }
-        let keep: Vec<(String, Draft)> = self
-            .patch
-            .as_ref()
-            .map(|patch| {
-                patch
-                    .drafts
-                    .iter()
-                    .filter(|(key, _)| key != name)
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
+        let keep: Vec<(String, Draft)> = self.patch.as_ref().map_or_default(|patch| {
+            patch
+                .drafts
+                .iter()
+                .filter(|(key, _)| key != name)
+                .cloned()
+                .collect()
+        });
         self.patch = self.render_patch(&keep);
         true
     }
@@ -825,8 +820,7 @@ impl PackStore {
         let mut commands: Vec<(String, Draft)> = self
             .patch
             .as_ref()
-            .map(|patch| patch.drafts.clone())
-            .unwrap_or_default();
+            .map_or_default(|patch| patch.drafts.clone());
         // Editing a command's `name` field renames the override, so the old
         // entry goes as well as the new one arriving.
         commands.retain(|(key, _)| key != name && key != &written);
@@ -1871,8 +1865,7 @@ impl<'a> Resolution<'a> {
                     .store
                     .pack
                     .command(name)
-                    .map(|c| c.hooks.iter().map(hook_json).collect())
-                    .unwrap_or_default();
+                    .map_or_default(|c| c.hooks.iter().map(hook_json).collect());
                 json!({
                     "name": name,
                     "origin": self.origin(name).map_or("pack", Origin::key),
@@ -2223,33 +2216,29 @@ impl SourceIndex {
             .map(|word| word.inner.clone());
 
         let mut commands = BTreeMap::new();
-        let mut body_statements = pack_body
-            .clone()
-            .map(|body| {
-                let base = body.start;
-                segments(&source[body], SourceSegmentationPurpose::NestedScript)
-                    .into_iter()
-                    .map(|mut statement| {
-                        if statement.words.first().map(String::as_str) == Some("command")
-                            && statement.words.len() >= 3
-                            && let (Some(name), Some(word)) =
-                                (statement.words.get(1), statement.spans.last())
-                            && source.as_bytes().get(base + word.outer.start) == Some(&b'{')
-                        {
-                            commands
-                                .entry(name.clone())
-                                .or_insert_with(|| CommandLocation {
-                                    statement: base + statement.span.start
-                                        ..base + statement.span.end,
-                                    body: base + word.inner.start..base + word.inner.end,
-                                });
-                        }
-                        statement.inside_pack = true;
-                        statement
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        let mut body_statements = pack_body.clone().map_or_default(|body| {
+            let base = body.start;
+            segments(&source[body], SourceSegmentationPurpose::NestedScript)
+                .into_iter()
+                .map(|mut statement| {
+                    if statement.words.first().map(String::as_str) == Some("command")
+                        && statement.words.len() >= 3
+                        && let (Some(name), Some(word)) =
+                            (statement.words.get(1), statement.spans.last())
+                        && source.as_bytes().get(base + word.outer.start) == Some(&b'{')
+                    {
+                        commands
+                            .entry(name.clone())
+                            .or_insert_with(|| CommandLocation {
+                                statement: base + statement.span.start..base + statement.span.end,
+                                body: base + word.inner.start..base + word.inner.end,
+                            });
+                    }
+                    statement.inside_pack = true;
+                    statement
+                })
+                .collect::<Vec<_>>()
+        });
 
         let mut seen_pack = false;
         let mut document_statements = Vec::with_capacity(top_level.len() + body_statements.len());

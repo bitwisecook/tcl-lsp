@@ -2031,7 +2031,7 @@ fn valid_member_formals(
         .map(|(index, _)| usize::from(*index) + 2)
         .max()
         .unwrap_or(1);
-    if !member
+    !(!member
         .arg_roles
         .iter()
         .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
@@ -2057,11 +2057,7 @@ fn valid_member_formals(
                                 )
                             })
                     })
-        })
-    {
-        return false;
-    }
-    true
+        }))
 }
 
 fn class_definition_block(

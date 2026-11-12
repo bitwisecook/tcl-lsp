@@ -4947,18 +4947,15 @@ impl Analyser {
         // inside a braced *data* word is literal (`set x {[noeval]}`) — so
         // a braced word is scanned only when it is an `Expr` arg.  A braced
         // *body* arg is covered separately by `analyse_body`.
-        let expr_indices: Vec<usize> = arg_tokens_in
-            .first()
-            .map(|head| {
-                self.retained_argument_role_assistance(
-                    head.span.start(),
-                    arg_tokens_in.get(1..).unwrap_or(&[]),
-                )
-                .into_iter()
-                .filter_map(|(ordinal, role)| (role == ArgRole::Expr).then_some(ordinal))
-                .collect()
-            })
-            .unwrap_or_default();
+        let expr_indices: Vec<usize> = arg_tokens_in.first().map_or_default(|head| {
+            self.retained_argument_role_assistance(
+                head.span.start(),
+                arg_tokens_in.get(1..).unwrap_or(&[]),
+            )
+            .into_iter()
+            .filter_map(|(ordinal, role)| (role == ArgRole::Expr).then_some(ordinal))
+            .collect()
+        });
         // A command whose *name* is itself a substitution (`[x] hi`):
         // descend a `Cmd` head too, since every token including the
         // head can hold a nested invocation (the head's *name* is
@@ -5518,7 +5515,7 @@ impl Analyser {
         let base = arg_tok.span.start();
         let frags: Vec<Token> = Lexer::with_source_map(SourceMap::new(word_src), config.nested())
             .tokenise_all()
-            .map(|toks| {
+            .map_or_default(|toks| {
                 toks.into_iter()
                     .filter(|t| t.kind == TokenType::Cmd)
                     .map(|t| Token {
@@ -5528,8 +5525,7 @@ impl Analyser {
                         in_quote: t.in_quote,
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
         if frags.is_empty() {
             vec![arg_tok]
         } else {

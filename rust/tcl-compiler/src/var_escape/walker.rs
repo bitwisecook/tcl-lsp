@@ -313,15 +313,11 @@ fn handle_barrier(
 /// Reconstitute a `Statement::Barrier`-style view of an eval-shape
 /// `Statement::Block` for the escape walk.
 fn synthesise_eval_args(block_tokens: Option<&crate::ir::CommandTokens>) -> Vec<String> {
-    block_tokens
-        .map(|t| t.argv_texts.iter().skip(1).cloned().collect())
-        .unwrap_or_default()
+    block_tokens.map_or_default(|t| t.argv_texts.iter().skip(1).cloned().collect())
 }
 
 fn synthesise_uplevel_args(tokens: Option<&crate::ir::CommandTokens>) -> Vec<String> {
-    tokens
-        .map(|t| t.argv_texts.iter().skip(1).cloned().collect())
-        .unwrap_or_default()
+    tokens.map_or_default(|t| t.argv_texts.iter().skip(1).cloned().collect())
 }
 
 /// True when an [`Statement::Block`] was produced by relaxing

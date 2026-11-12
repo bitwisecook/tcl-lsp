@@ -144,8 +144,7 @@ fn build_pass_context<'a>(
     ctx.cross_event_vars = cu
         .connection_scope
         .as_ref()
-        .map(crate::connection_scope::ConnectionScope::source_names)
-        .unwrap_or_default();
+        .map_or_default(crate::connection_scope::ConnectionScope::source_names);
     ctx
 }
 

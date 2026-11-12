@@ -872,16 +872,12 @@ impl OriginalVariableCleanup {
 
 impl OriginalVariableCleanup {
     pub(super) fn drop_descendant_traces(&self, vm: &mut Vm, id: VarId) {
-        let children = self
-            .state_mut(vm)
-            .ok()
-            .map(
-                |state| match state.var_arena.get(id).map(crate::vars::VarCell::state) {
-                    Some(Local::Array(elements)) => elements.values().copied().collect::<Vec<_>>(),
-                    _ => Vec::new(),
-                },
-            )
-            .unwrap_or_default();
+        let children = self.state_mut(vm).ok().map_or_default(|state| {
+            match state.var_arena.get(id).map(crate::vars::VarCell::state) {
+                Some(Local::Array(elements)) => elements.values().copied().collect::<Vec<_>>(),
+                _ => Vec::new(),
+            }
+        });
         for raw in children {
             if let Some(child) = self
                 .state_mut(vm)
@@ -916,7 +912,7 @@ impl OriginalVariableCleanup {
             .state_mut(vm)
             .ok()
             .and_then(|state| table(state, owner))
-            .map(|table| {
+            .map_or_default(|table| {
                 table
                     .iter()
                     .filter(|(name, _)| {
@@ -926,8 +922,7 @@ impl OriginalVariableCleanup {
                     })
                     .map(|(name, raw)| (name.clone(), *raw))
                     .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+            });
         for (name, raw) in names {
             let binding = super::VarBinding {
                 owner,

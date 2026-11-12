@@ -8777,8 +8777,7 @@ mod oo_helpers_namespace_path {
             .command_invocations
             .iter()
             .find(|inv| inv.name == name)
-            .map(|inv| inv.resolution_candidates.clone())
-            .unwrap_or_default()
+            .map_or_default(|inv| inv.resolution_candidates.clone())
     }
 
     fn resolution_of(src: &str, dialect: &str, name: &str) -> Option<String> {

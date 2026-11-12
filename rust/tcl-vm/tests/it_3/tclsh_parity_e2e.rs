@@ -128,8 +128,7 @@ fn vm_output(src: &str, release: TclVersion, entry: Entry) -> String {
                 let info = pairs
                     .chunks(2)
                     .find(|pair| &*pair[0].to_str() == "-errorinfo")
-                    .map(|pair| pair[1].to_str().to_string())
-                    .unwrap_or_default();
+                    .map_or_default(|pair| pair[1].to_str().to_string());
                 tail = format!("{info}\n");
             }
         }

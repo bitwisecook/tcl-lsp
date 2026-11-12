@@ -795,8 +795,7 @@ fn rel_to(base: &Path, path: &Path) -> String {
 /// The file name of `path` as an owned string.
 fn file_name(path: &Path) -> String {
     path.file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default()
+        .map_or_default(|n| n.to_string_lossy().into_owned())
 }
 
 fn read(path: &Path) -> Result<String> {

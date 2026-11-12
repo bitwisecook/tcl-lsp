@@ -213,8 +213,7 @@ fn scope_to_value(
                     .procs
                     .values()
                     .find(|p| Some(p.body_span) == child.body_span)
-                    .map(|p| p.params.iter().map(|x| x.name.clone()).collect())
-                    .unwrap_or_default();
+                    .map_or_default(|p| p.params.iter().map(|x| x.name.clone()).collect());
                 let proc_vars = collect_var_values(child, &params, line_index, source);
                 if !proc_vars.is_empty() {
                     children.push(json!({

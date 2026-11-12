@@ -29,9 +29,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// Exact cardinality places the final body without reading iterator values.
 fn foreach_count_arg_roles(count: usize) -> Vec<(u8, ArgRole)> {
     if count >= 3 {
-        u8::try_from(count - 1)
-            .map(|last| vec![(last, ArgRole::Body)])
-            .unwrap_or_default()
+        u8::try_from(count - 1).map_or_default(|last| vec![(last, ArgRole::Body)])
     } else {
         Vec::new()
     }

@@ -118,15 +118,12 @@ fn action_title(action: &Value) -> &str {
 
 /// Actions whose `kind` is exactly `source` (`_source_actions`).
 fn source_actions(actions: &Value) -> Vec<Value> {
-    actions
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .filter(|x| x.get("kind").and_then(Value::as_str).unwrap_or("") == "source")
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default()
+    actions.as_array().map_or_default(|a| {
+        a.iter()
+            .filter(|x| x.get("kind").and_then(Value::as_str).unwrap_or("") == "source")
+            .cloned()
+            .collect()
+    })
 }
 
 /// The set of `code` strings on a diagnostics array.
@@ -156,12 +153,11 @@ fn irules_typed(lsp: &mut Lsp, uri: &str) -> Vec<(SemToken, String)> {
     let legend: Vec<String> =
         lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
             .as_array()
-            .map(|a| {
+            .map_or_default(|a| {
                 a.iter()
                     .map(|v| v.as_str().unwrap_or("").to_owned())
                     .collect()
-            })
-            .unwrap_or_default();
+            });
     let toks = decode_semantic_tokens(&lsp.semantic_tokens(uri));
     toks.into_iter()
         .map(|t| {

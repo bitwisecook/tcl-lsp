@@ -2615,8 +2615,7 @@ fn bootstrap_collect_choices(
         registry
             .data_collection_collect_command(operation.protocol.name)
             .filter(|spec| source_action_spec(analysis, registry, spec.name).is_some())
-            .map(|spec| vec![(spec.name, setup)])
-            .unwrap_or_default()
+            .map_or_default(|spec| vec![(spec.name, setup)])
     })
 }
 

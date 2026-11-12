@@ -1068,13 +1068,11 @@ fn returning_proc_candidates(
         let tokens = procedure
             .body
             .retained_source_tokens_for_statement(statement);
-        let candidates = tokens
-            .map(|tokens| {
-                crate::registry_invocation::advisory_return_values_with_metadata_context(
-                    registry, metadata, tokens,
-                )
-            })
-            .unwrap_or_default();
+        let candidates = tokens.map_or_default(|tokens| {
+            crate::registry_invocation::advisory_return_values_with_metadata_context(
+                registry, metadata, tokens,
+            )
+        });
         for value in candidates {
             if let Some(class) = constructor_class(
                 &value.legacy_text(),

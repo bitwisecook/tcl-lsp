@@ -5801,9 +5801,8 @@ impl CommandRegistry {
             // "No transport" is modelled as `None`, not an empty string.
             transport: props.and_then(|p| (!p.transport.is_empty()).then(|| p.transport.join("/"))),
             implied_profiles: {
-                let mut v: Vec<&'static str> = props
-                    .map(|p| p.implied_profiles.to_vec())
-                    .unwrap_or_default();
+                let mut v: Vec<&'static str> =
+                    props.map_or_default(|p| p.implied_profiles.to_vec());
                 v.sort_unstable();
                 v
             },

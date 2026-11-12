@@ -953,18 +953,12 @@ fn forwarding_value_consumed(
         .def_use
         .symbol(&fu.ssa, def_key.0)
         .map(|s| (s, def_key.1));
-    if ctx
-        .propagated_expr_stmts
+    ctx.propagated_expr_stmts
         .contains(&(def.block.clone(), def_idx))
         || ctx
             .propagated_expr_stmts
             .contains(&(use_site.block.clone(), use_idx))
         || def_key_sym.is_some_and(|k| ctx.propagated_branch_uses.contains(&k))
-    {
-        return true;
-    }
-
-    false
 }
 
 /// Whether any statement other than the endpoint use has a wildcard

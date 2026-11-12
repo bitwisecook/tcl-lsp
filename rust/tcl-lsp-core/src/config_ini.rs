@@ -164,9 +164,7 @@ fn parse_path_list(raw: &str) -> Vec<String> {
 /// by effective settings. The strings are not Tcl words or filesystem identity.
 pub(crate) fn library_paths_from_section(content: &str, section: &str) -> Vec<String> {
     let sections = parse_ini(content);
-    section_value(&sections, section, "libraryPaths")
-        .map(parse_path_list)
-        .unwrap_or_default()
+    section_value(&sections, section, "libraryPaths").map_or_default(parse_path_list)
 }
 
 fn parse_bool(value: &str) -> Option<bool> {

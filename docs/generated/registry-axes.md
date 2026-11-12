@@ -21,13 +21,13 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | clause_grammar | the case-list query names the fallthrough arm | `rust/tcl-mcp/src/datagroup.rs:409` | site | a switch case list's fallthrough arm and body marker |
 | clause_grammar | the clause plan names the trap handler | `rust/tcl-compiler/src/lowering/structured.rs:993` | site | try's trap clause |
 | command | the definition-body query identifies a procedure definition | `rust/tcl-codegen/src/codegen/wasm/native_add/retained_publication.rs:80` | site | the WASM publisher admits only a procedure definition |
-| command | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2669` | site | the hardening edit rewrites subst's own option word |
+| command | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2668` | site | the hardening edit rewrites subst's own option word |
 | command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3004` | site | tokenless legacy fold; the tokened path asks the registry |
 | command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3784` | site | tokenless legacy fold; the tokened path asks the registry |
 | command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3815` | site | tokenless legacy fold; the tokened path asks the registry |
 | command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3820` | site | tokenless legacy fold; the tokened path asks the registry |
 | command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3841` | site | tokenless legacy fold; the tokened path asks the registry |
-| definition_body | member metadata carries a typed kind | `rust/tcl-lsp-core/src/method_symbol.rs:1179` | site | an Itcl class-body proc member's recorded kind |
+| definition_body | member metadata carries a typed kind | `rust/tcl-lsp-core/src/method_symbol.rs:1226` | site | an Itcl class-body proc member's recorded kind |
 | definition_body | member metadata carries a typed kind | `rust/tcl-lsp-core/src/original_member_rename.rs:151` | site | a native classmethod row's recorded kind |
 | definition_body | member metadata carries a typed visibility | `rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs:741` | site | TclOO member visibility as the declaration records it |
 | definition_body | member metadata carries a typed visibility | `rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs:746` | site | TclOO member visibility as the declaration records it |
@@ -42,7 +42,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/original_members.rs:1279` | site | class-definition relation keywords |
 | definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/original_members.rs:1283` | site | class-definition relation keywords |
 | definition_body | the snit definition grammar marks callable members | `rust/tcl-compiler/src/command_binding/snit_definition.rs:312` | site | snit member keywords that define a callable |
-| irreducible | never | `rust/tcl-bigip/src/f5_trailer.rs:587` | site | the keys of the data schema's `ip_fields` table, not a Tcl command word: `offset` coincides with `grapheme`'s subcommand by spelling only |
+| irreducible | never | `rust/tcl-bigip/src/f5_trailer.rs:581` | site | the keys of the data schema's `ip_fields` table, not a Tcl command word: `offset` coincides with `grapheme`'s subcommand by spelling only |
 | irreducible | never | `rust/tcl-codegen/src/codegen/native_namespace_upvar_tests.rs:106` | site | a test asserting which registry compiler was selected |
 | irreducible | never | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs:1602` | site | a fixture variable named next, not the next command |
 | irreducible | never | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs:1614` | site | a fixture variable named next, not the next command |
@@ -79,21 +79,21 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-lsp-core/src/minify.rs:416` | site | `section` is this parser's own section tag, set a few lines up from *this format's own* `# Procs` / `# Variables in …` headers (the `Self::format` writer's own vocabulary for its symbol-map file), not a dispatch on `info procs` / `info variables`; the spelling coincides with `info`'s subcommand names only |
 | irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs:170` | site | this renderer accepts the literal proposal template syntax. The actual-document route independently validates each original arm's selected Set/Return operation before calling it; these spellings establish no command identity or effects |
 | irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs:174` | site | same proposal-template boundary |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2019` | site | generic across every object method's option set; only `switch` and `regexp` have `OptionEffectKind::EndsOptions` populated on a "--" row today, so reading `method_sub`'s own row here would stop recognising "--" for virtually every other method (`formatting/keywords.rs`'s `scan_options` has the same gap, for the same reason) |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2090` | site | `oo::object`'s own `SUBCOMMANDS` doc comment spells out why this is `destroy` alone: it is "the [only] exported method" reachable through an instance's public name (`new` and `create` are class-level, not instance methods, despite being registered on the same command); no trait yet distinguishes instance-exported from class-level registry subcommands generically, so asking that query would take a new registry concept, not a mechanical read of an existing one |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2129` | site | `props` (above) is derived entirely from the class's own declared properties, not from any registered `OptionSpec` row — a generated property accessor has no command-level "--" fact in the registry to read at all |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2152` | site | same reason as this loop's other "--" check above |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2958` | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2959` | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2017` | site | generic across every object method's option set; only `switch` and `regexp` have `OptionEffectKind::EndsOptions` populated on a "--" row today, so reading `method_sub`'s own row here would stop recognising "--" for virtually every other method (`formatting/keywords.rs`'s `scan_options` has the same gap, for the same reason) |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2088` | site | `oo::object`'s own `SUBCOMMANDS` doc comment spells out why this is `destroy` alone: it is "the [only] exported method" reachable through an instance's public name (`new` and `create` are class-level, not instance methods, despite being registered on the same command); no trait yet distinguishes instance-exported from class-level registry subcommands generically, so asking that query would take a new registry concept, not a mechanical read of an existing one |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2127` | site | `props` (above) is derived entirely from the class's own declared properties, not from any registered `OptionSpec` row — a generated property accessor has no command-level "--" fact in the registry to read at all |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2150` | site | same reason as this loop's other "--" check above |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2956` | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2957` | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs:250` | site | `set` and `return` are recognised as Tcl's own primitive syntax for this one-command-body shape, not as a pack-authorable command |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs:255` | site | same primitive-syntax reason |
 | irreducible | never | `rust/tcl-syntax/src/execution_conformance.rs:109` | file | a conformance table's empty-cell marker, not a Tcl word |
 | irreducible | never | `rust/tcl-syntax/src/expr/jim_function_tree.rs:584` | file | expression operators, not commands |
 | options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5085` | site | namespace ensemble configuration options |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5119` | site | namespace ensemble configuration options |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5135` | site | namespace ensemble configuration options |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5150` | site | namespace ensemble configuration options |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5163` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5118` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5134` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5149` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5162` | site | namespace ensemble configuration options |
 | options | the getter's option table marks the normalising flag | `rust/tcl-compiler/src/rendered_properties.rs:376` | site | the HTTP getter's normalising flag |
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs:186` | site | the interp create flag run |
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs:189` | site | the interp create flag run |
@@ -101,22 +101,22 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1754` | site | return's -code/-level options in codegen |
 | options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1769` | site | return's -code/-level options in codegen |
 | options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1778` | site | return's -code/-level options in codegen |
-| options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2831` | site | the hardening edit rewrites subst's own option word |
-| options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2837` | site | the hardening edit rewrites subst's own option word |
+| options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2830` | site | the hardening edit rewrites subst's own option word |
+| options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2836` | site | the hardening edit rewrites subst's own option word |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:261` | site | switch's match-mode options |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:267` | site | switch's match-mode options |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:269` | site | switch's match-mode options |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:271` | site | switch's match-mode options |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:273` | site | switch's match-mode options |
 | special_vars | the snit definition grammar declares its implicit variables | `rust/tcl-compiler/src/analyser/oo.rs:104` | site | snit's implicit type variable in a typemethod body |
-| special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs:12470` | site | the auto_path special variable |
+| special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs:12467` | site | the auto_path special variable |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:352` | site | dict's scoping subcommands in codegen |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:369` | site | dict's scoping subcommands in codegen |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:383` | site | dict's scoping subcommands in codegen |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:4464` | site | a namespace eval wrapper's subcommand |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5040` | site | namespace ensemble create and configure |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5042` | site | namespace ensemble create and configure |
-| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5246` | site | a dict merge value shape |
+| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5245` | site | a dict merge value shape |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/lowering/structured.rs:1438` | site | dict's iterating and scoping subcommands |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/lowering/structured.rs:1474` | site | dict's iterating and scoping subcommands |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/lowering/structured.rs:1487` | site | dict's iterating and scoping subcommands |

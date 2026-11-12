@@ -259,8 +259,7 @@ fn serialise_command_ast(
                 Json::Array(
                     cmd.expand_word
                         .as_ref()
-                        .map(|v| v.iter().map(|&b| Json::Bool(b)).collect())
-                        .unwrap_or_default(),
+                        .map_or_default(|v| v.iter().map(|&b| Json::Bool(b)).collect()),
                 ),
             );
             m.insert("range".to_owned(), range_json(cmd.span, line_index, source));
@@ -412,8 +411,8 @@ pub fn run_diff(
 
     let left_paths: Vec<PathBuf> = left.map(Path::to_path_buf).into_iter().collect();
     let right_paths: Vec<PathBuf> = right.map(Path::to_path_buf).into_iter().collect();
-    let left_inline: Vec<String> = left_source.map(|s| vec![s.to_owned()]).unwrap_or_default();
-    let right_inline: Vec<String> = right_source.map(|s| vec![s.to_owned()]).unwrap_or_default();
+    let left_inline: Vec<String> = left_source.map_or_default(|s| vec![s.to_owned()]);
+    let right_inline: Vec<String> = right_source.map_or_default(|s| vec![s.to_owned()]);
     let left_docs = read_input_documents(&left_paths, &left_inline, true)?;
     let right_docs = read_input_documents(&right_paths, &right_inline, true)?;
     let left_src = combine_sources(&left_docs);

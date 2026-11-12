@@ -221,8 +221,7 @@ pub fn decode_semantic_tokens(result: &Value) -> Vec<SemToken> {
     let data: Vec<i64> = result
         .get("data")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_i64).collect())
-        .unwrap_or_default();
+        .map_or_default(|a| a.iter().filter_map(Value::as_i64).collect());
     let mut out = Vec::new();
     let mut line = 0i64;
     let mut char = 0i64;

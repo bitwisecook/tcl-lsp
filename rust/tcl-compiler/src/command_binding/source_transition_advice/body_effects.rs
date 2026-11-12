@@ -1590,8 +1590,7 @@ impl BodyWalk<'_, '_> {
             .filter(|case| {
                 case.matches_source(self.context.origin.source_image(), self.context.config)
             })
-            .map(|case| case.bodies().to_vec())
-            .unwrap_or_default();
+            .map_or_default(|case| case.bodies().to_vec());
         bodies.extend(words.source_script_bodies_for(
             context,
             crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,

@@ -692,9 +692,7 @@ pub(crate) fn pilot_references(
     // `SnatModeSpec` — `source-address-translation`; references the SNAT pool
     // when the mode is `snat`.
     if (module, object_type, property) == ("ltm", "virtual", "source-address-translation") {
-        let refs = snat_pool_path(raw)
-            .map(|p| vec![("ltm snatpool".to_owned(), p)])
-            .unwrap_or_default();
+        let refs = snat_pool_path(raw).map_or_default(|p| vec![("ltm snatpool".to_owned(), p)]);
         return Some(refs);
     }
 

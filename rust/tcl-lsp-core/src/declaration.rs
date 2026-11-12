@@ -439,8 +439,7 @@ fn declaration_commands_in_content(
         content.start(),
         if nested { config.nested() } else { config },
     )
-    .map(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
-    .unwrap_or_default()
+    .map_or_default(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
 }
 
 /// Standalone compatibility grammar controls use their explicit source region.
@@ -475,8 +474,7 @@ fn declaration_region_commands(
         u32::try_from(start).unwrap_or(0),
         if nested { config.nested() } else { config },
     )
-    .map(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
-    .unwrap_or_default()
+    .map_or_default(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
 }
 
 fn original_lambda_body_at(

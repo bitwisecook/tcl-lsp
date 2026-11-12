@@ -640,8 +640,7 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
     let known: Vec<&str> = cfg
         .get("known_folder_uris")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(Value::as_str).collect())
-        .unwrap_or_default();
+        .map_or_default(|a| a.iter().filter_map(Value::as_str).collect());
     assert!(
         known.contains(&uri_a.as_str()) && known.contains(&uri_b.as_str()),
         "known_folder_uris must name both roots: {cfg}"

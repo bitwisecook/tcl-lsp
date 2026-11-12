@@ -204,8 +204,7 @@ fn enrich_capture_file(
         let converted = libpcap_to_pcapng(in_path).ok_or_else(|| {
             let name = in_path
                 .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
+                .map_or_default(|n| n.to_string_lossy().into_owned());
             format!(
                 "input {name} is libpcap and neither editcap nor tshark is available \
                  to convert it to pcapng"
@@ -277,10 +276,7 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
         std::fs::create_dir_all(dir)?;
     }
     let staging = {
-        let mut name = path
-            .file_name()
-            .map(std::ffi::OsString::from)
-            .unwrap_or_default();
+        let mut name = path.file_name().map_or_default(std::ffi::OsString::from);
         name.push(format!(".{}.partial", std::process::id()));
         path.with_file_name(name)
     };

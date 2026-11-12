@@ -59,8 +59,7 @@ fn an_unencoded_workspace_folder_uri_is_accepted_and_normalised() {
     let cfg = lsp.effective_config("");
     let folders: Vec<&str> = cfg["known_folder_uris"]
         .as_array()
-        .map(|a| a.iter().filter_map(Value::as_str).collect())
-        .unwrap_or_default();
+        .map_or_default(|a| a.iter().filter_map(Value::as_str).collect());
     assert!(
         folders.iter().any(|f| f.contains("%20")),
         "the folder URI must be normalised to its encoded form: {folders:?}"

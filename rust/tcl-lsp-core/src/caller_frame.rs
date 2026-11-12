@@ -410,8 +410,7 @@ fn binding_region_commands(
         u32::try_from(start).unwrap_or(0),
         if nested { config.nested() } else { config },
     )
-    .map(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
-    .unwrap_or_default()
+    .map_or_default(tcl_compiler::segmenter::SegmentedScript::into_editor_commands)
 }
 
 /// The bindings one call site contributes — at most one per parameter whose

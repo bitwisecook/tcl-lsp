@@ -566,8 +566,7 @@ pub fn build_interference<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
         // (`S2`) does not propagate into the working `live` set / `add_clique`.
         let mut live: HashSet<String> = live_out
             .get(id)
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default();
+            .map_or_default(|s| s.iter().cloned().collect());
         if let Some(block) = cfg.blocks.get(id) {
             live.extend(terminator_read_names(cfg, *id, block, ssa, registry));
         }

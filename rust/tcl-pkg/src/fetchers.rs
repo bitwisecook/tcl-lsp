@@ -382,8 +382,7 @@ pub fn fetch_git(url: &str, dest: &Path, rev: Option<&str>) -> Result<String, Tc
     let sha = crate::exec::execute(&rev_profile, &SandboxPolicy::default())
         .ok()
         .filter(|o| o.success)
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_default();
+        .map_or_default(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
 
     let git_dir = dest.join(".git");
     if git_dir.is_dir() {

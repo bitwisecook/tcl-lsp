@@ -1457,9 +1457,8 @@ impl<'r> CodegenCtx<'r> {
             instr.source_span = span;
             instr.source_cmd_text = text;
             instr.source_line = line;
-            instr.source_command_namespace = site
-                .map(|site| namespace_path_for_binding(&site.binding))
-                .unwrap_or_default();
+            instr.source_command_namespace =
+                site.map_or_default(|site| namespace_path_for_binding(&site.binding));
             instr.source_command_namespace_context =
                 site.and_then(|site| site.binding.namespace_context.clone());
             instr.source_command_boundary = site.is_some().into();

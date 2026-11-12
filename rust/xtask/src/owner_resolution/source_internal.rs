@@ -660,7 +660,7 @@ impl CrateModules {
     }
 
     fn supports_row_route(row: &Row) -> bool {
-        if !matches!(
+        !(!matches!(
             row.route.as_str(),
             "static" | "type" | "signature-type" | "self"
         ) && ![
@@ -671,11 +671,7 @@ impl CrateModules {
             "parameter-field:",
         ]
         .iter()
-        .any(|prefix| row.route.starts_with(prefix))
-        {
-            return false;
-        }
-        true
+        .any(|prefix| row.route.starts_with(prefix)))
     }
 
     fn owner_is_accessible(

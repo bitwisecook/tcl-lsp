@@ -379,9 +379,10 @@ mod tests {
                 input.lexer_config(),
             )
             .remove(0);
-            let bodies = source_registry_words(source, &analysis, &segment)
-                .map(|words| words.source_script_bodies(input.borrowed_context_registry()))
-                .unwrap_or_default();
+            let bodies =
+                source_registry_words(source, &analysis, &segment).map_or_default(|words| {
+                    words.source_script_bodies(input.borrowed_context_registry())
+                });
             let selections = bodies
                 .into_iter()
                 .filter_map(|body| {

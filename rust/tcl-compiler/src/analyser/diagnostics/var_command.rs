@@ -2829,21 +2829,17 @@ fn collect_factory_body_facts(
                     .and_then(|tokens| tokens.words().get(2))
                     .cloned()
                     .or_else(|| crate::value_shapes::value_word_with_config(value, config))
-                    .map(|value| {
+                    .map_or_default(|value| {
                         vec![crate::registry_invocation::AdvisoryValueAssignment {
                             name: name.clone(),
                             value,
                         }]
-                    })
-                    .unwrap_or_default(),
-                _ => stmt
-                    .tokens()
-                    .map(|tokens| {
-                        crate::registry_invocation::advisory_value_assignments_in_context(
-                            context, tokens,
-                        )
-                    })
-                    .unwrap_or_default(),
+                    }),
+                _ => stmt.tokens().map_or_default(|tokens| {
+                    crate::registry_invocation::advisory_value_assignments_in_context(
+                        context, tokens,
+                    )
+                }),
             };
             for word in stmt.tokens().into_iter().flat_map(|tokens| {
                 original_source_return_operand(module, context.commands(), tokens)

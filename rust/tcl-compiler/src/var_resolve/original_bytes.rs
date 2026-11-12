@@ -323,7 +323,7 @@ fn compiled_policy_matches(
     else {
         return false;
     };
-    if !matches!((compiler.recipe(), policy.recipe()),
+    !(!matches!((compiler.recipe(), policy.recipe()),
         (NativeCompiledVariableRecipe::C(left), NativeNameProtocol::C(right)) if left == right)
         && !matches!(
             (compiler.recipe(), policy.recipe()),
@@ -331,11 +331,7 @@ fn compiled_policy_matches(
                 NativeCompiledVariableRecipe::Jim084,
                 NativeNameProtocol::Jim084
             )
-        )
-    {
-        return false;
-    }
-    true
+        ))
 }
 
 /// Consume a primary issued only from a complete original compiler inventory.

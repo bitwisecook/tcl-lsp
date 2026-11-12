@@ -690,11 +690,7 @@ impl Function {
     /// any `try` exception-edge handler targets sourced at `id`.
     #[must_use]
     pub fn block_successors(&self, id: BlockId) -> Vec<BlockId> {
-        let mut out: Vec<BlockId> = self
-            .blocks
-            .get(&id)
-            .map(Block::successors)
-            .unwrap_or_default();
+        let mut out: Vec<BlockId> = self.blocks.get(&id).map_or_default(Block::successors);
         for (from, to) in self.exception_edges.iter().chain(&self.analysis_edges) {
             if *from == id && !out.contains(to) {
                 out.push(*to);

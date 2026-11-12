@@ -49,8 +49,7 @@ pub fn name_leaf(full_path: &str) -> String {
 pub fn description<S: BuildHasher>(props: &HashMap<String, String, S>) -> String {
     props
         .get("description")
-        .map(|v| unquote(v).to_owned())
-        .unwrap_or_default()
+        .map_or_default(|v| unquote(v).to_owned())
 }
 
 /// `"enabled"` / `"disabled"` for a bare state flag, else `""`.

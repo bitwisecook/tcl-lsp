@@ -2910,14 +2910,11 @@ fn propagate_phi_taints(
     // Using executable_edges (not just executable_blocks) ensures
     // taint does not flow through SCCP-proven dead branches.
     for phi in &ssa_block.phis {
-        let exec_preds = preds
-            .get(&bn)
-            .map(|ps| {
-                ps.iter()
-                    .filter(|p| sccp.executable_edges.contains(&(**p, bn)))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        let exec_preds = preds.get(&bn).map_or_default(|ps| {
+            ps.iter()
+                .filter(|p| sccp.executable_edges.contains(&(**p, bn)))
+                .collect::<Vec<_>>()
+        });
 
         if exec_preds.is_empty() {
             continue;

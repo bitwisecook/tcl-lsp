@@ -327,14 +327,11 @@ fn str_field(v: &Value, key: &str, default: &str) -> String {
 }
 
 fn str_list(v: &Value, key: &str) -> Vec<String> {
-    v.get(key)
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter_map(|x| x.as_str().map(ToString::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
+    v.get(key).and_then(Value::as_array).map_or_default(|a| {
+        a.iter()
+            .filter_map(|x| x.as_str().map(ToString::to_string))
+            .collect()
+    })
 }
 
 /// Produce canonical JSON for a lockfile, including the final newline.

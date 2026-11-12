@@ -136,13 +136,12 @@ fn message_of(message: &Value) -> &str {
 fn action_titles(ask: &Value) -> Vec<&str> {
     ask["params"]["actions"]
         .as_array()
-        .map(|actions| {
+        .map_or_default(|actions| {
             actions
                 .iter()
                 .filter_map(|action| action["title"].as_str())
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 /// The server's applied `tclLsp.notifications.environmentKind`.

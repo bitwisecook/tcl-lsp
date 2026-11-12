@@ -456,7 +456,7 @@ impl Scan<'_> {
         }
         for first in 0..args.len() {
             let words: Option<Vec<&str>> = args[first..].iter().map(Arg::literal).collect();
-            let joined = words.as_deref().map(concat_words).unwrap_or_default();
+            let joined = words.as_deref().map_or_default(concat_words);
             let mut probe = spellings[..first].to_vec();
             probe.push(&joined);
             if !self

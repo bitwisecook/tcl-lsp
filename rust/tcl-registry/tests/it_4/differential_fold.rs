@@ -2085,8 +2085,7 @@ fn template_rebuilt(
     profile: &str,
 ) -> Option<String> {
     let escapes = tcl_dialect::DialectProfile::find(profile)
-        .map(|profile| profile.grammar.escapes)
-        .unwrap_or_default();
+        .map_or_default(|profile| profile.grammar.escapes);
     // The plan's spans count the opening brace; the template's text does not.
     let content = |span: tcl_lexer::Span| (span.start() as usize - 1, span.end() as usize - 1);
     let mut pieces: Vec<(usize, usize, String)> = Vec::new();

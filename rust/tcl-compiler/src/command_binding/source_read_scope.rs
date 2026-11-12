@@ -427,7 +427,7 @@ fn logical_prefix_inputs_match(
             crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
         )
     });
-    if inputs.len() != prefix_len
+    !(inputs.len() != prefix_len
         || inputs
             .iter()
             .zip(captured)
@@ -436,11 +436,7 @@ fn logical_prefix_inputs_match(
                     original != input
                 }
                 _ => true,
-            })
-    {
-        return false;
-    }
-    true
+            }))
 }
 
 /// Conditional original source advice cannot override an actually selected target.

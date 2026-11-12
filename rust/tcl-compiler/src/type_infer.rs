@@ -2365,15 +2365,12 @@ pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
 
             // Phi nodes at non-entry blocks.
             if *bn != cfg.entry {
-                let mut exec_preds: Vec<BlockId> = preds
-                    .get(bn)
-                    .map(|ps| {
-                        ps.iter()
-                            .filter(|p| sccp.executable_edges.contains(&(**p, *bn)))
-                            .copied()
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let mut exec_preds: Vec<BlockId> = preds.get(bn).map_or_default(|ps| {
+                    ps.iter()
+                        .filter(|p| sccp.executable_edges.contains(&(**p, *bn)))
+                        .copied()
+                        .collect()
+                });
                 // `predecessors()` yields a `HashSet`, so the fold order below is
                 // nondeterministic — and `type_join` is *not* order-independent
                 // for a 3+-way shimmer merge (it records only a `(from, to)`

@@ -765,8 +765,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         }) {
             cu.connection_scope
                 .as_ref()
-                .map(|scope| scope.handler_source_names(qname, false))
-                .unwrap_or_default()
+                .map_or_default(|scope| scope.handler_source_names(qname, false))
         } else {
             std::collections::HashSet::new()
         };
@@ -799,9 +798,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         }
         let ir_method = cu.ir_module.methods.get(mqname);
         let execution_namespace = ir_method.map(|m| &m.execution_namespace);
-        ctx.cross_event_vars = ir_method
-            .map(|m| m.instance_vars.clone())
-            .unwrap_or_default();
+        ctx.cross_event_vars = ir_method.map_or_default(|m| m.instance_vars.clone());
         emit_unreachable(ctx, fu);
         let purity = PurityCtx {
             registry: ctx.registry,
@@ -1160,11 +1157,9 @@ fn observed_element_stores(
     fu: &FunctionUnit,
     contexts: &crate::variable_bindings::PointResolveContexts,
 ) -> HashSet<(String, i32)> {
-    ctx.registry
-        .map(|registry| {
-            crate::place_bridge::element_writes_observed_with_contexts(&fu.cfg, contexts, registry)
-        })
-        .unwrap_or_default()
+    ctx.registry.map_or_default(|registry| {
+        crate::place_bridge::element_writes_observed_with_contexts(&fu.cfg, contexts, registry)
+    })
 }
 
 /// Unbounded name reads or variable observers can consume every contents store.

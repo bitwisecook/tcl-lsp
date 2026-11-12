@@ -31,19 +31,16 @@ const FUNCTION: i64 = 12;
 
 /// The `(startLine, endLine)` span set of a folding-range result.
 fn spans(result: &Value) -> BTreeSet<(i64, i64)> {
-    result
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .map(|r| {
-                    (
-                        r.get("startLine").and_then(Value::as_i64).unwrap_or(0),
-                        r.get("endLine").and_then(Value::as_i64).unwrap_or(0),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    result.as_array().map_or_default(|arr| {
+        arr.iter()
+            .map(|r| {
+                (
+                    r.get("startLine").and_then(Value::as_i64).unwrap_or(0),
+                    r.get("endLine").and_then(Value::as_i64).unwrap_or(0),
+                )
+            })
+            .collect()
+    })
 }
 
 /// A folding-range result normalised to an iterable array (`null` → empty).
@@ -152,14 +149,11 @@ fn find_proc() {
     lsp.open_ready(&a, "proc greet_uniquely_aaa {} { return }\n");
     lsp.open_ready(&b, "proc farewell_uniquely_bbb {} { return }\n");
     let result = lsp.workspace_symbols("greet_uniquely_aaa");
-    let matched: Vec<&Value> = result
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter(|s| s.get("name").and_then(Value::as_str) == Some("greet_uniquely_aaa"))
-                .collect()
-        })
-        .unwrap_or_default();
+    let matched: Vec<&Value> = result.as_array().map_or_default(|arr| {
+        arr.iter()
+            .filter(|s| s.get("name").and_then(Value::as_str) == Some("greet_uniquely_aaa"))
+            .collect()
+    });
     assert_eq!(matched.len(), 1);
     assert_eq!(
         matched[0].get("kind").and_then(Value::as_i64),
@@ -177,14 +171,11 @@ fn empty_query_returns_all() {
     lsp.open_ready(&a, "proc foo_empty_q_aaa {} { return }\n");
     lsp.open_ready(&b, "proc bar_empty_q_bbb {} { return }\n");
     let result = lsp.workspace_symbols("");
-    let names: BTreeSet<String> = result
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|s| s.get("name").and_then(Value::as_str).map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default();
+    let names: BTreeSet<String> = result.as_array().map_or_default(|arr| {
+        arr.iter()
+            .filter_map(|s| s.get("name").and_then(Value::as_str).map(str::to_owned))
+            .collect()
+    });
     assert!(
         BTreeSet::from(["foo_empty_q_aaa".to_owned(), "bar_empty_q_bbb".to_owned()])
             .is_subset(&names)

@@ -401,8 +401,7 @@ impl CommandSemantics for KeyedUpdateSemantics {
     /// rewrites.
     fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
         self.layout(input)
-            .map(|(target, _)| vec![target])
-            .unwrap_or_default()
+            .map_or_default(|(target, _)| vec![target])
     }
 
     fn transfer(

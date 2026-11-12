@@ -1703,8 +1703,7 @@ fn push_substitution(
         .as_ref()
         .and_then(|tokens| tokens.word_exprs.get(1..))
         .filter(|words| words.len() == args_with_spans.len())
-        .map(<[WordExpr]>::to_vec)
-        .unwrap_or_default();
+        .map_or_default(<[WordExpr]>::to_vec);
 
     let mut args = Vec::with_capacity(args_with_spans.len());
     let mut arg_spans = Vec::with_capacity(args_with_spans.len());

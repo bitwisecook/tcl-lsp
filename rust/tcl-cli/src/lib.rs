@@ -55,7 +55,6 @@ use crate::cli::{Cli, Command};
 ///
 /// `clap` handles `--help`/`--version`/parse errors by printing and exiting
 /// directly, so this only returns for a successfully parsed command.
-#[must_use]
 pub fn run<I, T>(args: I) -> ExitCode
 where
     I: IntoIterator<Item = T>,
@@ -88,7 +87,6 @@ const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 /// Serve invocations as a reusable test worker (`tcl __tcl-cli-worker …`); see
 /// [`tcl_cli_support::worker`]. `args` is argv after the sentinel.
-#[must_use]
 pub fn serve_worker(args: &[OsString]) -> ExitCode {
     let program = std::env::args_os()
         .next()

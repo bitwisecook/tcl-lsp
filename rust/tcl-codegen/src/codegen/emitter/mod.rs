@@ -431,14 +431,12 @@ fn codegen_procedures(
         {
             continue;
         }
-        let params: Vec<tcl_runtime_api::NameBytes> = ir_proc
-            .map(|p| {
-                p.params
-                    .iter()
-                    .map(tcl_runtime_api::NameBytes::from)
-                    .collect()
-            })
-            .unwrap_or_default();
+        let params: Vec<tcl_runtime_api::NameBytes> = ir_proc.map_or_default(|p| {
+            p.params
+                .iter()
+                .map(tcl_runtime_api::NameBytes::from)
+                .collect()
+        });
         // The proc's definition line drives proc-relative `errorInfo` lines.
         let base_line = ir_proc.map_or(0, |p| {
             module

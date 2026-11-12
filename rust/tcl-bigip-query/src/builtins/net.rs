@@ -671,10 +671,7 @@ fn is_valid_fqdn(text: &str) -> bool {
         }
     }
     // Refuse an all-numeric 4-label value (looks like IPv4).
-    if labels.len() == 4 && labels.iter().all(|l| l.chars().all(|c| c.is_ascii_digit())) {
-        return false;
-    }
-    true
+    !(labels.len() == 4 && labels.iter().all(|l| l.chars().all(|c| c.is_ascii_digit())))
 }
 
 /// `Address` sum type result.
