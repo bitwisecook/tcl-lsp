@@ -6058,30 +6058,27 @@ p\uD800";
 
     #[test]
     fn the_tail_match_still_answers_where_no_import_names_that_namespace() {
-        // FN guard (CRITICAL) — the deliberate same-file leniency other tests
-        // pin: a proc whose defining namespace is not statically visible at
-        // the call still resolves. Nothing imports `::other` here, so the
-        // tightening must not touch it.
+        // Nothing imports `::other` and `::dst` has no path to it: tclsh
+        // 8.4-9.1 and jimsh answer `invalid command name "helper"`, so a
+        // same-file tail match must not answer.
         let src = "namespace eval other {\n    proc helper {} { return H }\n}\nnamespace eval dst {\n    helper\n}\n";
         let analysis = analyse(src);
         let locs = definition(src, 4, 4, &analysis);
-        assert_eq!(
-            locs.len(),
-            1,
-            "an unrelated same-file tail match must keep answering: {locs:?}"
+        assert!(
+            locs.is_empty(),
+            "an unrelated same-file tail match must not answer: {locs:?}"
         );
     }
 
     #[test]
     fn the_tail_match_still_answers_when_a_gated_import_names_another_namespace() {
-        // FN guard — the gate is scoped to the namespace the fallback answer
-        // lives in. A dead import of `::src` says nothing about a tail match
-        // landing in `::other`, so that one must survive.
+        // A dead import of `::src` says nothing about `::other`, and nothing
+        // else makes `::other::helper2` visible from `::dst`: tclsh 8.4-9.1
+        // answer `invalid command name "helper2"`.
         let src = "namespace eval src {\n    proc helper {} { return S }\n}\nnamespace eval other {\n    proc helper2 {} { return O }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    helper2\n}\n";
         let analysis = analyse(src);
         let locs = definition(src, 10, 4, &analysis);
-        assert_eq!(locs.len(), 1, "{locs:?}");
-        assert_eq!(locs[0].start_line, 4);
+        assert!(locs.is_empty(), "{locs:?}");
     }
 
     #[test]
@@ -6100,11 +6097,13 @@ p\uD800";
     fn the_tail_match_refuses_a_call_written_before_its_import() {
         // TN — the call-site ordering reaches the provider through the same
         // door: the call above the import resolves
-        // nowhere, the one below it resolves.
-        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    p\n}\n";
+        // nowhere, the one below it resolves. The early call is caught, as
+        // tclsh 8.4-9.1 otherwise stop at `invalid command name "p"` before
+        // the import runs (with the catch they print `P` for the later call).
+        let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    catch {p}\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
         assert!(
-            definition(src, 5, 4, &analysis).is_empty(),
+            definition(src, 5, 11, &analysis).is_empty(),
             "the call before the import must not resolve",
         );
         assert_eq!(
@@ -7237,18 +7236,16 @@ p\uD800";
 
     #[test]
     fn global_call_with_only_namespaced_procs_falls_back_deterministically() {
-        // No ::helper exists, so no candidate resolves; the lenient tail
-        // fallback fires and must be deterministic — the lexicographically
-        // smallest qualified name (::a::helper), on every repeat, never a
-        // `HashMap`-iteration-order pick.
+        // No ::helper exists, so no candidate resolves. tclsh 8.4-9.1 and
+        // jimsh answer `invalid command name "helper"`, so neither
+        // `::z::helper` nor `::a::helper` is the target, on every repeat.
         let src = "namespace eval z {\n    proc helper {} { return 26 }\n}\nnamespace eval a {\n    proc helper {} { return 1 }\n}\nhelper\n";
         let analysis = analyse(src);
         for attempt in 0..8 {
             let locs = definition(src, 6, 2, &analysis);
-            assert_eq!(locs.len(), 1, "attempt {attempt}: {locs:?}");
-            assert_eq!(
-                locs[0].start_line, 4,
-                "attempt {attempt}: fallback must pick ::a::helper"
+            assert!(
+                locs.is_empty(),
+                "attempt {attempt}: no namespaced tail may answer: {locs:?}"
             );
         }
     }
@@ -7783,10 +7780,13 @@ p\uD800";
         // simple name ("Make") in case, and the target is declared AFTER
         // the ensemble and the call site. A fix matching on literal name
         // equality (rather than the resolved qualified name) would fail
-        // this the same way it would fail the real widget.tcl repro.
-        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nputs [widget make hello]\nproc ::widget::Make {args} { return \"make: $args\" }\n";
+        // this the same way it would fail the real widget.tcl repro. The
+        // call runs only after the target exists: dispatched at top level
+        // before it, tclsh 8.5-9.1 stop at `invalid command name
+        // "::widget::Make"`; deferred into `main`, they print `make: hello`.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc main {} { puts [widget make hello] }\nproc ::widget::Make {args} { return \"make: $args\" }\nmain\n";
         let analysis = analyse(src);
-        let locs = definition(src, 5, 15, &analysis);
+        let locs = definition(src, 5, 30, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 6);
     }

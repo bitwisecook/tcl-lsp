@@ -4023,13 +4023,15 @@ mod tests {
         // `proc ::myns::greet {} {}` renamed to `hello` should
         // rewrite the declaration's name span to
         // `::myns::hello` (keeping the namespace prefix), not
-        // just `hello` (which would clobber the prefix).
-        let src = "proc ::myns::greet {} {}\n";
+        // just `hello` (which would clobber the prefix). Without the
+        // `namespace eval` tclsh 8.4-9.1 refuse the proc: `can't create
+        // procedure "::myns::greet": unknown namespace`.
+        let src = "namespace eval ::myns {}\nproc ::myns::greet {} {}\n";
         let analysis = analyse(src);
         let edits = rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-            0,
+            1,
             14,
             "hello",
             &analysis,
@@ -4049,8 +4051,10 @@ mod tests {
         // and a short call (`greet` inside a `namespace eval`
         // block).  The qualified call gets the qualified
         // replacement; the short call gets the short
-        // replacement.
-        let src = "proc ::myns::greet {} {}\n\
+        // replacement. The namespace must exist before the `proc` (see
+        // `rename_namespaced_proc_keeps_namespace_prefix_at_decl`).
+        let src = "namespace eval ::myns {}\n\
+                   proc ::myns::greet {} {}\n\
                    ::myns::greet\n\
                    namespace eval ::myns {\n\
                        greet\n\
@@ -4059,7 +4063,7 @@ mod tests {
         let edits = rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-            0,
+            1,
             14,
             "hello",
             &analysis,

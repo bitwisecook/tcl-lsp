@@ -1105,9 +1105,9 @@ mod tests {
 
     #[test]
     fn lens_count_matches_references_forward_ref() {
-        // Headline symptom: a call *before* the definition. The
-        // name-only resolved-name tally reported 0 here; the lens must
-        // agree with the resolver, which finds the forward call.
+        // A call *before* the definition. tclsh 8.4-9.1 and jimsh stop at
+        // `invalid command name "foo"`, so the call never reaches the proc:
+        // the lens agrees with the resolver and counts nothing.
         let src = "foo\nproc foo {} {}\n";
         assert_lens_matches_references(src, 1);
         let analysis = analyse(src);
@@ -1122,7 +1122,7 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("foo lens");
-        assert_eq!(foo.command_title, "1 reference", "{lenses:?}");
+        assert_eq!(foo.command_title, "0 references", "{lenses:?}");
     }
 
     #[test]
@@ -1170,12 +1170,11 @@ mod tests {
 
     #[test]
     fn lens_does_not_credit_ambiguous_forward_ref_to_other_namespace() {
-        // A forward `foo` call inside namespace
-        // `a`, with both `::a::foo` and `::b::foo` defined, must be credited
-        // only to `::a::foo`.  A tail-name resolver would attribute the
-        // unresolved call to *both* procs, falsely showing `1 reference`
-        // above `::b::foo`.  The namespace-aware resolver the lens count is
-        // derived from scopes the call to its own namespace.
+        // A forward `foo` call inside namespace `a`, with both `::a::foo`
+        // and `::b::foo` defined. tclsh 8.4-9.1 stop at `invalid command
+        // name "foo"` before `::a::foo` exists, so neither proc is called.
+        // A tail-name resolver would attribute the unresolved call to *both*
+        // procs, falsely showing `1 reference` above each of them.
         let src = concat!(
             "namespace eval a { foo ; proc foo {} {} }\n",
             "namespace eval b { proc foo {} {} }\n",
@@ -1196,7 +1195,7 @@ mod tests {
         };
         assert_eq!(
             by_qname("::a::foo").command_title,
-            "1 reference",
+            "0 references",
             "{lenses:?}"
         );
         assert_eq!(

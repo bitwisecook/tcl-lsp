@@ -5284,15 +5284,13 @@ mod tests {
     #[test]
     fn references_reach_the_call_site_from_the_stale_original_in_a_foreach_rename_reinstall_idiom()
     {
-        // TP — mirroring the same-file precedent set by
+        // TN — mirroring the same-file precedent set by
         // `references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document`:
-        // cursor on a superseded declaration resolves by *name*,
-        // landing on whichever declaration currently wins under that name
-        // — not the stale span the cursor happened to start on. Here the
-        // "shadowing" declaration is the `tk/library/accessibility.tcl`
-        // rename-and-reinstall idiom's own per-element wrapper, reached only
-        // by simulating each literal `foreach`
-        // element rather than by a second textual `proc` statement.
+        // the `tk/library/accessibility.tcl` rename-and-reinstall idiom moves
+        // the original `button` to `::tk::accessible::orig_button` and installs
+        // a wrapper under the old name, so the later `button .b1` runs the
+        // wrapper (tclsh 8.6/9.0 return `wrapped`). The stale original is not
+        // what that call reaches, and its references must not claim it.
         let src = "proc button {args} {return orig_button}\n\
                    proc entry {args} {return orig_entry}\n\
                    namespace eval ::tk::accessible {\n    \
@@ -5314,8 +5312,11 @@ mod tests {
             true,
         );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
-        assert!(lines.contains(&5), "winning wrapper decl missing: {refs:?}");
-        assert!(lines.contains(&8), "call site missing: {refs:?}");
+        assert!(lines.contains(&0), "the declaration itself: {refs:?}");
+        assert!(
+            !lines.contains(&5) && !lines.contains(&8),
+            "neither the wrapper nor its call reaches the original: {refs:?}"
+        );
     }
 
     #[test]
@@ -5856,11 +5857,11 @@ mod tests {
 
     #[test]
     fn references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document() {
-        // TN-shaped guard: `resolve_proc_target_at`'s own fallback resolves
-        // the word text via ordinary namespace lookup when the direct
-        // declaration-span match misses, landing on the current winner
-        // regardless of which occurrence's span the cursor sits on.  Pinned so
-        // the cross-document tier cannot change this same-document answer.
+        // TN-shaped guard: the second `proc` replaces the first before any
+        // call, so the call reaches only the winner (tclsh 8.4-9.1 print
+        // `TWO`). The superseded declaration keeps its own span and gains
+        // neither the winner nor the call. Pinned so the cross-document tier
+        // cannot change this same-document answer.
         let src = "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\nList2array x\n";
         let analysis = analyse(src);
         // Cursor on the SHADOWED (first) declaration (line 0, col 6).
@@ -5873,8 +5874,7 @@ mod tests {
             true,
         );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
-        assert!(lines.contains(&1), "winning decl missing: {refs:?}");
-        assert!(lines.contains(&2), "call site missing: {refs:?}");
+        assert_eq!(lines, vec![0], "only the superseded declaration: {refs:?}");
     }
 
     #[test]
@@ -8055,7 +8055,7 @@ mod tests {
 
     #[test]
     fn find_obj_method_call_sites_finds_calls_in_proc_body() {
-        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { global d; $d bark }\n";
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,

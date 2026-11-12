@@ -546,12 +546,11 @@ fn exact_require_selects_that_release_or_nothing() {
         impl_of("v4"),
     );
 
-    // TN — `-exact` with no version is `package require -exact NAME`, a
-    // syntax error in real Tcl; treated as unconstrained, so it picks the
-    // best release rather than nothing.
+    // TN — `-exact` with no version is `package require -exact NAME`, which
+    // tclsh 8.4-9.1 reject with `wrong # args`, so nothing loads.
     assert_eq!(
         all.resolve_require("widget", None, true, PackagePrefer::default()),
-        impl_of("v3")
+        [] as [std::path::PathBuf; 0],
     );
 }
 
