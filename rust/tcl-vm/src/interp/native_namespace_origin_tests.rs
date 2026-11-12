@@ -38,6 +38,7 @@ fn compare(engine: &str, oracle: &[u8], input: &str, expected_rows: usize) {
         profile,
         Box::new(Output(Rc::clone(&output))),
     );
+    crate::native_fixture::install_distribution(&mut vm);
     let completion = vm.try_eval_source(input).unwrap_or_else(|error| {
         panic!(
             "{engine}: {error:?}; output before refusal:\n{}",

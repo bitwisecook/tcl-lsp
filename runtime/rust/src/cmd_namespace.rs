@@ -3050,12 +3050,14 @@ namespace eval ::caller {
         {
             leak_free_with(
                 || {
-                    Interp::with_native_core(
+                    let mut interp = Interp::with_native_core(
                         crate::interp::default_host(),
                         profile,
                         tcl_registry::special_vars::NativeBootstrapInputs::default(),
                     )
-                    .unwrap()
+                    .unwrap();
+                    crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+                    interp
                 },
                 |interp| {
                     assert_eq!(
@@ -3088,12 +3090,14 @@ namespace eval ::caller {
         )));
         leak_free_with(
             || {
-                Interp::with_native_core(
+                let mut interp = Interp::with_native_core(
                     crate::interp::default_host(),
                     profile,
                     tcl_registry::special_vars::NativeBootstrapInputs::default(),
                 )
-                .unwrap()
+                .unwrap();
+                crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+                interp
             },
             |interp| {
                 let script = br#"namespace eval S {proc p {} {return SOURCE}}; namespace eval D {proc p {} {return DESTINATION}; namespace import -force ::S::*; set imported [namespace import]}; rename S::p {}; set result [list [llength [info commands D::p]] [catch {D::p}] [catch {namespace origin D::p}] [namespace eval D {namespace import ::missing::*}] [namespace eval D {namespace export}]]; proc S::p {} {return REVIVED}; lappend result [D::p] [namespace origin D::p] [catch {namespace path}]; set result"#;

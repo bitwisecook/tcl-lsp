@@ -135,6 +135,7 @@ fn original_command_holder_source_controls_match_all_native_providers() {
         for (index, (control, rows)) in CONTROLS.iter().zip(rows).enumerate() {
             let mut vm =
                 crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
+            crate::native_fixture::install_distribution(&mut vm);
             let context = format!("{engine}/{index}");
             if let Some(prelude) = control.prelude {
                 assert_phase(&mut vm, prelude, rows, "PRELUDE", &context);
@@ -205,9 +206,7 @@ fn original_ensemble_holder_source_controls_match_all_native_providers() {
         for (index, (source, rows)) in sources.iter().zip(rows).enumerate() {
             let mut interp =
                 crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
-            interp.install_scripted_library(
-                tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceEnsemble,
-            );
+            crate::native_fixture::install_distribution(&mut interp);
             let context = format!("{engine}/ensemble/{index}");
             assert_phase(
                 &mut interp,

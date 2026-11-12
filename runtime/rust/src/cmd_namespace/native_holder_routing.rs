@@ -232,10 +232,7 @@ fn original_ensemble_holder_source_controls_match_all_native_providers() {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .unwrap();
-            crate::cmd_proc::install_stock_scripted_library(
-                &mut interp,
-                tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceEnsemble,
-            );
+            crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
             let context = format!("{engine}/ensemble/{index}");
             assert_phase(
                 &mut interp,

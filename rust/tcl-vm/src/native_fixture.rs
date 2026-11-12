@@ -86,6 +86,13 @@ pub(crate) fn interpreter_with_scripted_libraries(
     vm
 }
 
+/// Load every scripted distribution library, as the provider's own shell does.
+pub(crate) fn install_distribution(vm: &mut Vm) {
+    for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
+        vm.install_scripted_library(library);
+    }
+}
+
 /// Select only the shared scripted dictionary library required by distribution
 /// specimens. Native core observers use `core` or `interpreter` independently.
 pub(crate) fn interpreter_with_dictionary_library(

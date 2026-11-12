@@ -21,7 +21,7 @@
 use super::*;
 
 fn actual(engine: &str) -> Interp {
-    Interp::with_native_core(
+    let mut interp = Interp::with_native_core(
         crate::interp::default_host(),
         crate::environment::profile_for_dialect(engine),
         tcl_registry::special_vars::NativeBootstrapInputs {
@@ -29,7 +29,9 @@ fn actual(engine: &str) -> Interp {
             default_library: None,
         },
     )
-    .expect("actual native core issuer")
+    .expect("actual native core issuer");
+    crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+    interp
 }
 
 fn decode(hex: &str) -> Vec<u8> {

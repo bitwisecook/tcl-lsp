@@ -187,6 +187,12 @@ Failures grouped by panic site and message shape (release builds, current `work`
 - The VM command-line runner panics when a script's final result is not valid UTF-8 (`tcl-vm-cli/src/main.rs`).
 - Native byte/cell equivalence for C extensions is bounded by the NUL representation above and the ABI document; F5 behaviour still needs appliance evidence.
 - The runtime/VM naming contract now lives in `docs/design/runtime/naming-owners.md`; the 13 October runtime consumer audit it replaces is removed from this directory.
+- Naming witness triage (item 4 of the shared-naming close-out):
+  - The dead-link rule also covers an element of a deleted array: only the store reports `upvar refers to element in deleted array`. The shared owner applies it; the runtime matches tclsh on every such row at every release.
+  - Thirteen Jim witnesses (nine runtime, four VM) failed with `invalid command name "namespace import"` (and `upvar`, `info`, `delete`, `origin`): the tests built a native-core interpreter, which installs none of Jim's scripted distribution, and compared it with jimsh, which loads it. They now install it explicitly. The VM's Jim `exists` also refused its `-command`/`-proc`/`-alias` selectors, which the helpers call; it now implements them.
+  - VM `namespace origin` on a missing command at 8.5 now carries `TCL LOOKUP COMMAND <name>`; 8.5 tags that miss although its dispatch miss is `NONE`.
+  - Lib suites after this round: runtime release 2133 tests, 107 → 97 failures; VM 1370, 269 → 264; none new in either.
+  - Remaining VM gaps found on the way: Jim import traversal receipts (two Jim origin/query witnesses stop there); the Jim alias-cycle guard is not reached once the scripted `namespace origin` is installed; reading through a link to an element of a deleted array aborts with an empty uncatchable error at 9.0/9.1, and 8.4 `incr` reports the element miss instead of `no such variable`.
 
 ## Resource integrity and next work
 

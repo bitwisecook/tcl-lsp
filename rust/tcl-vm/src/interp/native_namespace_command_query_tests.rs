@@ -38,6 +38,7 @@ fn compare(engine: &str, oracle: &[u8]) {
         profile,
         Box::new(Output(Rc::clone(&output))),
     );
+    crate::native_fixture::install_distribution(&mut vm);
     let completion = vm
         .try_eval_source(include_str!(
             "../../../../experiments/name-handling/namespace-command-query/input-portable.tcl"

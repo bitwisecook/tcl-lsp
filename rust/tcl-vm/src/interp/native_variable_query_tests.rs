@@ -21,6 +21,7 @@
 fn compare_queries(engine: &str, observation: &str) {
     let profile = crate::environment::profile_for_dialect(engine);
     let mut vm = crate::native_fixture::interpreter(profile);
+    crate::native_fixture::install_distribution(&mut vm);
     let completion = vm
         .try_eval_source(include_str!(
             "../../../../experiments/name-handling/variable-namespace-query-bases/result-input.tcl"

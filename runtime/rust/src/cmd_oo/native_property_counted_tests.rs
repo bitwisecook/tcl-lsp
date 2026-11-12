@@ -25,12 +25,14 @@ use crate::{
 use tcl_syntax::value::ValueOps;
 
 fn instance(engine: &str) -> Interp {
-    Interp::with_native_core(
+    let mut interp = Interp::with_native_core(
         crate::interp::default_host(),
         crate::environment::profile_for_dialect(engine),
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
-    .unwrap()
+    .unwrap();
+    crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+    interp
 }
 fn string(bytes: &[u8]) -> Owned {
     Owned::fresh(obj::new_string_bytes(bytes))

@@ -2026,6 +2026,7 @@ mod tests {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .expect("selected original native interpreter constructor");
+            crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
             let code = interp.eval_str(source);
             assert!(
                 !interp.host_refusal_pending(),

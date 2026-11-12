@@ -52,11 +52,12 @@ Variable failures are reported through `report_native_variable_diagnostic_at`
 with the operation, the reason the engine observed, and the stage it reached
 (`NativeVariableFailureSite`). The owner applies the C rules:
 
-- Through an `upvar` link into a deleted namespace, only a store reports
-  `upvar refers to variable in deleted namespace` (`TCL WRITE VARNAME` from
-  8.6). A read or unset finds the dead cell undefined and reports
-  `no such variable` with `TCL READ VARNAME` or `TCL UNSET VARNAME`. 8.4 `incr`
-  reads first; from 8.5 it reaches the store.
+- Through an `upvar` link into a deleted namespace or a deleted array, only a
+  store reports `upvar refers to variable in deleted namespace` or
+  `upvar refers to element in deleted array` (`TCL WRITE VARNAME` from 8.6). A
+  read or unset finds the dead cell undefined and reports `no such variable`
+  with `TCL READ VARNAME` or `TCL UNSET VARNAME`. 8.4 `incr` reads first; from
+  8.5 it reaches the store.
 - An unset that reaches a variable entry with no value (declared, linked, or a
   compiled local already unset) fails at the unset itself: engines pass
   `ValueUnset`, giving `TCL UNSET VARNAME` from 8.6. Only a name with no entry
@@ -66,6 +67,19 @@ with the operation, the reason the engine observed, and the stage it reached
 - `namespace which -variable` answers declared variables, including ones
   without a value, and never elements; `info exists` and `namespace upvar` reach
   elements.
+
+## Jim's scripted distribution
+
+Jim implements part of `namespace` (`import`, `upvar`, `origin`, `info`,
+`ensemble` and others), and several `dict` subcommands, as Tcl procedures that
+jimsh loads as static extensions. The registry carries them as
+`NativeScriptedLibrary` rosters. A native-core interpreter
+(`Interp::with_native_core` in the runtime, `native_fixture::interpreter` in
+the VM) installs none of them; an embedding or test that compares against
+jimsh output installs them explicitly
+(`cmd_proc::install_stock_scripted_wrappers`,
+`native_fixture::install_distribution`). The VM's Jim `exists` implements the
+`-command`, `-proc` and `-alias` selectors the helpers use.
 
 ## NUL in names
 

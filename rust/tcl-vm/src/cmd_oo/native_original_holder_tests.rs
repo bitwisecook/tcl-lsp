@@ -86,6 +86,7 @@ fn original_oo_publication_preserves_constructed_holder_and_collision_results() 
             let (expected_code, expected_result) = original_result(rows);
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::interpreter(profile);
+            crate::native_fixture::install_distribution(&mut vm);
             let completion = vm
                 .eval_source(std::str::from_utf8(source).unwrap())
                 .unwrap();
