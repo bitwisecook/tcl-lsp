@@ -100,6 +100,7 @@
 3	tcl-vm-cli::channel_output	test	tcl-vm-cli	channel_output
 3	tcl-vm-cli::nested_loop_exits	test	tcl-vm-cli	nested_loop_exits
 3	tcl-vm-cli::script_errors	test	tcl-vm-cli	script_errors
+3	tcl-vm-cli::unset_trace_parts	test	tcl-vm-cli	unset_trace_parts
 3	tcl-vm::command_traces_e2e	test	tcl-vm	command_traces_e2e
 3	tcl-vm::cross_interp_alias_e2e	test	tcl-vm	cross_interp_alias_e2e
 3	tcl-vm::it_3	test	tcl-vm	it_3
