@@ -4515,6 +4515,8 @@ impl CompilationUnit {
 
     /// Memoise original procedure lowering and lattices under the driver's
     /// complete actual source input. Legacy script callbacks remain separate.
+    /// With neither an entry nor an input, a dialect-bearing source is the
+    /// fresh document [`Self::build_with`] builds, so both paths agree.
     #[must_use]
     pub fn build_memoized_with_original_body_lowering(
         source: &str,
@@ -4525,6 +4527,11 @@ impl CompilationUnit {
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
     ) -> Self {
+        let fresh = if entry.is_none() && input.is_none() {
+            Self::fresh_document_input(&options)
+        } else {
+            None
+        };
         Self::build_with_retained_entry_and_source_syntax(
             source,
             options,
@@ -4535,7 +4542,12 @@ impl CompilationUnit {
             },
             entry,
             None,
-            (input, Some(source_body_cache), None, None),
+            (
+                input.or(fresh.as_ref()),
+                Some(source_body_cache),
+                None,
+                None,
+            ),
         )
     }
 

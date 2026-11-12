@@ -7678,6 +7678,9 @@ p\uD801 ordinary";
             TclDatabase::with_event_logger(move |key| sink.lock().unwrap().push(key))
         };
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
+        // `AnalyserConfig` is an input: one handle, so the repeat request
+        // names the same query key.
+        let config = cfg(&db);
         let drain = || std::mem::take(&mut *log.lock().unwrap());
         let executions = |events: &[String]| {
             events
@@ -7686,13 +7689,13 @@ p\uD801 ordinary";
                 .count()
         };
 
-        let _ = folding_ranges(&db, file, cfg(&db));
+        let _ = folding_ranges(&db, file, config);
         assert_eq!(
             executions(&drain()),
             1,
             "cold: one execution for the first request"
         );
-        let _ = folding_ranges(&db, file, cfg(&db));
+        let _ = folding_ranges(&db, file, config);
         assert_eq!(
             executions(&drain()),
             0,
@@ -9951,14 +9954,23 @@ p\uD801 ordinary";
                 .iter()
                 .any(|d| d.code.as_str() == "E003" && d.message.contains("onNode"))
         };
+        // `struct::graph` is a tcllib command: C knows it only after the
+        // `package require` (tclsh 8.4 to 9.1: invalid command name
+        // "struct::graph" without it).
         // Named factory + dispatch both inside a proc body.
         assert!(
-            has_e003("proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n"),
+            has_e003(
+                "package require struct::graph\n\
+                 proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n"
+            ),
             "in-proc `struct::graph g; g walk -command onNode` must resolve cross-file arity (E003)"
         );
         // Handle form (`set g [struct::graph]`) inside a proc body.
         assert!(
-            has_e003("proc build {} {\n set g [struct::graph]\n $g walk root -command onNode\n}\n"),
+            has_e003(
+                "package require struct::graph\n\
+                 proc build {} {\n set g [struct::graph]\n $g walk root -command onNode\n}\n"
+            ),
             "in-proc `set g [struct::graph]; $g walk -command onNode` must resolve cross-file arity"
         );
         // Correct arity (3 params) is silent.
@@ -9970,7 +9982,9 @@ p\uD801 ordinary";
         );
         let a_ok = SourceFile::new(
             &db,
-            "proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n".to_owned(),
+            "package require struct::graph\n\
+             proc build {} {\n struct::graph g\n g walk root -command onNode\n}\n"
+                .to_owned(),
             "tcl9.0".to_owned(),
             None,
         );

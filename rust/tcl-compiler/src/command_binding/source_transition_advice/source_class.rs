@@ -840,7 +840,11 @@ impl AdviceInvocationContext<'_> {
         } else {
             graph.publication_key(name, AdvicePublicationPurpose::Define)?
         };
-        if !graph.namespaces.contains(&slot.namespace)
+        // A `TclOO` object creates its missing qualifier namespaces; every
+        // other definer publishes into an existing one.
+        let creates_namespace =
+            family == DefinerFamily::TclOo && matches!(self.policy, AdviceNamingPolicy::Native(_));
+        if (!creates_namespace && !graph.namespaces.contains(&slot.namespace))
             || graph
                 .cells
                 .get(&slot)
@@ -945,6 +949,11 @@ impl AdviceInvocationContext<'_> {
         class: Option<Arc<OriginalSourceClassDeclaration>>,
     ) {
         if let Some(class) = class {
+            let mut namespace = Some(class.slot.namespace.clone());
+            while let Some(path) = namespace {
+                namespace = path.parent();
+                graph.namespaces.insert(path);
+            }
             graph.class_declarations.push(Arc::clone(&class));
             merge_receipt(
                 &mut tape.class_declarations,

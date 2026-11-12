@@ -518,12 +518,14 @@ fn memo_checked(
 
 /// A write no statement of a procedure shows — an arm of a `switch` the flow
 /// graph keeps as one statement, directly or through a callee that sets the
-/// caller's variable, a callback script stored elsewhere in the module, a
-/// command prefix built with `list`, a variable trace's callback — leaves the
-/// procedure's stale value
-/// unfolded on the memoised path exactly as on the whole-module one, and a
-/// callback an edit adds anywhere re-keys every procedure's lattice, so a
-/// warm memo never serves the fold the callback has since made wrong.
+/// caller's variable, a variable trace's callback run in the procedure's
+/// frame — leaves the procedure's stale value unfolded on the memoised path
+/// exactly as on the whole-module one, and an edit that adds such a callback
+/// re-keys the lattice, so a warm memo never serves the fold it made wrong.
+/// An `after` script, with or without a `list`-built prefix, runs at level
+/// `#0`, as does a trace callback that names `::go`: neither reaches the
+/// procedure's local `go`, so the fold stands (tclsh 8.4 to 9.1 print `a`
+/// and `1` from `p` before and after the event fires).
 #[test]
 fn compiler_check_memo_matches_uncached_for_hidden_writes() {
     use tcl_compiler::compiler_checks::DiagCode;
@@ -535,19 +537,30 @@ fn compiler_check_memo_matches_uncached_for_hidden_writes() {
         })
     };
     let control = "proc p {} {\n set go 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n";
+    let local_trace = "proc p {} {\n set go 1\n trace add variable x write { set go 0 ;# }\n set x 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n";
     for src in [
         "proc p {s} {\n set go 1\n switch -glob -- $s { q* { set go 0 } }\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
-        "after 100 { set go 0 }\nproc p {} {\n set go 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
-        "proc p {} {\n set go 1\n trace add variable x write { set ::go 0 ;# }\n set x 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+        local_trace,
         "proc zero {v} {upvar 1 $v x; set x 0}\nproc p {s} {\n set go 1\n switch -glob -- $s { q* { zero go } }\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
-        "after 100 [list set go 0]\nproc p {} {\n set go 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
     ] {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
         let got = memo_checked(&db, file, dialect, src);
         assert!(!folds(&got.optimisations), "{src}: {:?}", got.optimisations);
     }
-    // The control folds; the edit that adds a callback elsewhere stops it.
+    for src in [
+        "after 100 { set go 0 }\nproc p {} {\n set go 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+        "proc p {} {\n set go 1\n trace add variable x write { set ::go 0 ;# }\n set x 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+        "after 100 [list set go 0]\nproc p {} {\n set go 1\n if {$go} { puts a } else { puts b }\n puts $go\n}\n",
+    ] {
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
+        let got = memo_checked(&db, file, dialect, src);
+        assert!(folds(&got.optimisations), "{src}: {:?}", got.optimisations);
+    }
+    // The control folds; an `after` callback added elsewhere writes `::go`
+    // and leaves the fold, and the edit that adds a frame-local trace
+    // callback stops it.
     let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, control.to_owned(), dialect.to_owned(), None);
     let got = memo_checked(&db, file, dialect, control);
@@ -555,6 +568,9 @@ fn compiler_check_memo_matches_uncached_for_hidden_writes() {
     let edited = format!("after 100 {{ set go 0 }}\n{control}");
     file.set_text(&mut db).to(edited.clone());
     let got = memo_checked(&db, file, dialect, &edited);
+    assert!(folds(&got.optimisations), "{:?}", got.optimisations);
+    file.set_text(&mut db).to(local_trace.to_owned());
+    let got = memo_checked(&db, file, dialect, local_trace);
     assert!(!folds(&got.optimisations), "{:?}", got.optimisations);
 }
 
