@@ -9633,6 +9633,7 @@ mod native_duplicate_controls;
 #[cfg(test)]
 mod jim_result_publication_tests {
     use super::*;
+    #[cfg(debug_assertions)]
     use crate::interp::native_operation_currency::NativeOperationScope;
 
     struct ObserverCleanup(usize);

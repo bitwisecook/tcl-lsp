@@ -183,7 +183,7 @@ impl PendingOriginalDictionary {
 }
 
 impl NativeJimScriptState {
-    #[cfg(test)]
+    #[cfg(all(test, debug_assertions))]
     pub(crate) fn new(
         entry: NativeJimScriptEntry,
         vm: &mut crate::Vm,

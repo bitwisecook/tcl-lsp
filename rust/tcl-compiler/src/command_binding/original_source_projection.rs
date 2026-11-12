@@ -36,6 +36,7 @@ struct ProjectionEntry {
 /// The actual immutable source-kind allocation owns image and source channel.
 /// The weak-owner sidecar table retains this derived memo outside source keys.
 /// A bucket key never substitutes for exact complete vector correspondence.
+#[cfg_attr(not(any(test, debug_assertions)), derive(Default))]
 pub(super) struct OriginalSourceProjectionMemo {
     entries: Mutex<ProjectionEntries>,
     /// Clean nested command-body parse verdicts of this origin's whole image,
@@ -51,18 +52,15 @@ pub(super) struct OriginalSourceProjectionMemo {
     rejected: std::sync::atomic::AtomicUsize,
 }
 
+#[cfg(any(test, debug_assertions))]
 impl Default for OriginalSourceProjectionMemo {
     fn default() -> Self {
         Self {
             entries: Mutex::default(),
             nested_cuts: tcl_lexer::NestedBodyCutMemo::default(),
-            #[cfg(any(test, debug_assertions))]
             trace: tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some(),
-            #[cfg(any(test, debug_assertions))]
             requests: std::sync::atomic::AtomicUsize::default(),
-            #[cfg(any(test, debug_assertions))]
             captures: std::sync::atomic::AtomicUsize::default(),
-            #[cfg(any(test, debug_assertions))]
             rejected: std::sync::atomic::AtomicUsize::default(),
         }
     }

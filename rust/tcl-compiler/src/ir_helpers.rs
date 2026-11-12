@@ -3053,7 +3053,7 @@ mod tests {
         assert_eq!(looped.may_bound_names, ["v"]);
         let tested = recovered("[while {1} {incr x}]");
         assert_eq!(heads(&tested.protected_commands), ["incr"]);
-        assert!(tested.may_bound_names.is_empty());
+        assert_eq!(tested.may_bound_names, Vec::<String>::new());
 
         for other in ["[if {1} {incr x}]", "[eval {incr x}]"] {
             let embedded = recovered(other);

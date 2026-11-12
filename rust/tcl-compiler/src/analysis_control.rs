@@ -268,7 +268,7 @@ mod tests {
                 .try_analyse_owned(source, "tcl", None, AnalysisControl::new(|_| false))
                 .unwrap();
             assert!(crate::source_graph::current_analysis(source, &retry).is_some());
-            assert!(!retry.global_scope.children.is_empty());
+            assert_ne!(retry.global_scope.children, []);
         }
     }
 }

@@ -200,11 +200,13 @@ fn original_call_cleanup_keeps_full_first_host_while_retiring_the_owned_frame_an
     assert_eq!(vm.execution_refusal, Some(retained));
 }
 
+#[cfg(debug_assertions)]
 struct ForwardObserver {
     mode: u8,
     child: InterpId,
     calls: Rc<Cell<usize>>,
 }
+#[cfg(debug_assertions)]
 impl NativeCommand for ForwardObserver {
     fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
         self.calls.set(self.calls.get() + 1);

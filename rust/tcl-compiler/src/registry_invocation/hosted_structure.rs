@@ -25,8 +25,9 @@ use super::{
 
 macro_rules! n17_source_trace {
     ($($arg:tt)*) => {
-        #[cfg(debug_assertions)]
-        if tcl_dialect::trace_env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+        if cfg!(debug_assertions)
+            && tcl_dialect::trace_env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1")
+        {
             eprintln!("N17_SOURCE {}", format_args!($($arg)*));
         }
     };

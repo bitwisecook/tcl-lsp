@@ -356,6 +356,7 @@ fn original_command_retirement_follows_actual_rename_without_repeating_delete_tr
         assert!(vm.execution_refusal.is_none());
     }
 }
+#[cfg(debug_assertions)]
 struct EnterChild {
     child: InterpId,
     calls: Rc<Cell<usize>>,
@@ -458,6 +459,7 @@ fn original_delete_namespace_effect_follows_same_generation_cross_namespace_rena
         assert!(vm.name_world.borrow().command_deletion_active.is_empty());
     }
 }
+#[cfg(debug_assertions)]
 impl NativeCommand for EnterChild {
     fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
         self.calls.set(self.calls.get() + 1);

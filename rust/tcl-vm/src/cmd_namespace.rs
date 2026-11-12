@@ -3537,6 +3537,7 @@ mod native_map_prefix_tests;
 #[cfg(test)]
 mod original_jim_import_tests {
     use super::*;
+    #[cfg(debug_assertions)]
     use crate::interp::native_operation_currency::NativeOperationScope;
     use tcl_runtime_api::{AliasPrefixLookup, Aliases, NsId, ROOT_NS};
     use tcl_syntax::value::ValueOps;
@@ -3853,11 +3854,10 @@ mod original_jim_parent_current_holder_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 mod original_c_parent_current_holder_tests {
     use super::*;
 
-    #[cfg(debug_assertions)]
     #[test]
     fn parent_without_operand_uses_the_entered_namespace_incarnation() {
         for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {

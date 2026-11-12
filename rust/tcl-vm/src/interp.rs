@@ -12862,7 +12862,7 @@ impl InterpState {
     }
 
     /// Inspect actual variable operation ownership without issuing a storage role.
-    #[cfg(test)]
+    #[cfg(all(test, debug_assertions))]
     pub(crate) fn has_variable_operation_refs_for_test(&self, id: VarId) -> bool {
         self.var_arena.has_operation_refs(id)
     }

@@ -614,12 +614,11 @@ fn report_bg_error(vm: &mut Vm, message: Value, options: Value, p: NativeEventPr
 #[cfg(test)]
 mod native_original_tests;
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 mod original_numeric_consumer_tests {
     use super::*;
     use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
 
-    #[cfg(debug_assertions)]
     #[test]
     fn original_event_cached_duration_refuses_withdrawn_owner_before_scheduling() {
         // naming.embedding.original-host-publication-and-fact-transport

@@ -18,6 +18,7 @@
 
 //! Software callback conversion controls using actual VM dispatch and owners.
 use super::*;
+#[cfg(debug_assertions)]
 use crate::interp::native_name_consumers::OriginalNameConsumerScope;
 use crate::{Completion, NativeCommand};
 

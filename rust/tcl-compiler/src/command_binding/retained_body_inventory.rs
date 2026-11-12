@@ -36,6 +36,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 type ProjectionKey = (Arc<SourceOriginId>, SourceNamespaceKey);
 type ProjectionEntry = Arc<OnceLock<Option<RetainedSourceBodyInventory>>>;
 
+#[cfg_attr(not(any(test, debug_assertions)), derive(Default))]
 struct BodyProjectionMemo {
     entries: Mutex<HashMap<ProjectionKey, ProjectionEntry>>,
     #[cfg(any(test, debug_assertions))]
@@ -46,15 +47,13 @@ struct BodyProjectionMemo {
     captures: std::sync::atomic::AtomicUsize,
 }
 
+#[cfg(any(test, debug_assertions))]
 impl Default for BodyProjectionMemo {
     fn default() -> Self {
         Self {
             entries: Mutex::default(),
-            #[cfg(any(test, debug_assertions))]
             trace: tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some(),
-            #[cfg(any(test, debug_assertions))]
             requests: std::sync::atomic::AtomicUsize::default(),
-            #[cfg(any(test, debug_assertions))]
             captures: std::sync::atomic::AtomicUsize::default(),
         }
     }

@@ -35,6 +35,7 @@ enum Action {
     Complete,
     Guest,
     Refuse(NativeExecutionError),
+    #[cfg(debug_assertions)]
     ChangeHost,
     NestedBoundary(Option<super::super::InterpId>),
 }
@@ -51,6 +52,7 @@ impl NativeVariableObserver<Vm> for Observer {
             Action::Complete => Ok(()),
             Action::Guest => Err(CmdError::new("actual callback Guest error")),
             Action::Refuse(first) => Err(CmdError::from_execution_refusal(first.clone())),
+            #[cfg(debug_assertions)]
             Action::ChangeHost => {
                 let original = vm.host_rc();
                 vm.set_host(Rc::new(crate::host_native::NativeHost::new()));

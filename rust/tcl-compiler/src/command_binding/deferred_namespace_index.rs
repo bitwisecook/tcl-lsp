@@ -84,6 +84,7 @@ struct TableIndexEntry {
     index: OnceLock<Arc<DeferredNamespaceIndex>>,
 }
 
+#[cfg_attr(not(any(test, debug_assertions)), derive(Default))]
 pub(super) struct DeferredNamespaceIndexCache {
     entries: Mutex<HashMap<usize, Arc<TableIndexEntry>>>,
     #[cfg(any(test, debug_assertions))]
@@ -97,19 +98,15 @@ pub(super) struct DeferredNamespaceIndexCache {
     #[cfg(any(test, debug_assertions))]
     alternatives: std::sync::atomic::AtomicUsize,
 }
+#[cfg(any(test, debug_assertions))]
 impl Default for DeferredNamespaceIndexCache {
     fn default() -> Self {
         Self {
             entries: Mutex::default(),
-            #[cfg(any(test, debug_assertions))]
             trace: tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some(),
-            #[cfg(any(test, debug_assertions))]
             requests: std::sync::atomic::AtomicUsize::default(),
-            #[cfg(any(test, debug_assertions))]
             builds: std::sync::atomic::AtomicUsize::default(),
-            #[cfg(any(test, debug_assertions))]
             rows: std::sync::atomic::AtomicUsize::default(),
-            #[cfg(any(test, debug_assertions))]
             alternatives: std::sync::atomic::AtomicUsize::default(),
         }
     }

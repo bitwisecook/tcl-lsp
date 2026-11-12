@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+#[cfg(debug_assertions)]
 use std::cell::RefCell;
 use tcl_test_support::encoding_names::{EncodingHost, EncodingStages};
 

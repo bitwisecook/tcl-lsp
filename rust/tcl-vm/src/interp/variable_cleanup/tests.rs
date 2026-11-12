@@ -20,11 +20,10 @@
 use super::*;
 use crate::Value;
 use std::cell::Cell;
-use tcl_runtime_api::{
-    Traces,
-    native_variable_trace::{
-        NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-    },
+#[cfg(debug_assertions)]
+use tcl_runtime_api::Traces;
+use tcl_runtime_api::native_variable_trace::{
+    NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
 };
 
 fn native() -> Vm {

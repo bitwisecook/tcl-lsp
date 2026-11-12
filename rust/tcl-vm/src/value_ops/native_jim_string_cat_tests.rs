@@ -22,6 +22,7 @@ use crate::{Value, Vm};
 use tcl_dialect::TclVersion;
 use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
 use tcl_syntax::native_string::{NativeStringProtocol, NativeStringStorageIdentity as Storage};
+#[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 
 fn jim_vm() -> Vm {

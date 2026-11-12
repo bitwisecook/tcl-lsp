@@ -3380,8 +3380,8 @@ proc foo {} {}
             assert!(declared(flag).traits.contains(traits), "{flag}");
             assert!(!declared("").traits.contains(traits), "{flag}");
         }
-        assert!(!declared("-mutator").side_effects.is_empty());
-        assert!(declared("").side_effects.is_empty());
+        assert_ne!(declared("-mutator").side_effects, []);
+        assert_eq!(declared("").side_effects, []);
     }
 
     #[test]

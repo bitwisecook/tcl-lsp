@@ -747,12 +747,9 @@ mod source_value_projection_tests {
         let [proven] = proven.as_slice() else {
             panic!("the proven final index retains that same access");
         };
-        assert!(
-            written
-                .registry_source()
-                .unwrap()
-                .supplemental_literals()
-                .is_empty()
+        assert_eq!(
+            written.registry_source().unwrap().supplemental_literals(),
+            []
         );
         assert_eq!(
             proven.registry_source().unwrap().supplemental_literals(),

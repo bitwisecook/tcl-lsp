@@ -75,7 +75,7 @@ impl<'a> OriginalNumericOps<'a> {
         self.objects
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, debug_assertions))]
     pub(crate) fn with_vm<T>(
         &self,
         operation: impl FnOnce(&mut Vm) -> Result<T, CmdError>,

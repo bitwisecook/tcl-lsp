@@ -7769,7 +7769,10 @@ mod tests {
             assert!(found.is_empty(), "{src}: {found:?}");
         }
         // A loop that rebinds a command leaves the commands after it unknown.
-        assert!(!markers("foreach n {a b} {proc puts args {}}\nputs hi\n").is_empty());
+        assert_ne!(
+            markers("foreach n {a b} {proc puts args {}}\nputs hi\n"),
+            []
+        );
     }
 
     /// The marker for a call whose own head runs code the module cannot see

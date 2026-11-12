@@ -18,12 +18,15 @@
 
 //! Actual Index result construction borrows the already entered original operation.
 use super::*;
+#[cfg(debug_assertions)]
 use std::cell::Cell;
 use tcl_syntax::{scalar_getter::NativeScalarCache, value::ValueOps};
+#[cfg(debug_assertions)]
 struct CountingHost {
     actual: Rc<dyn tcl_platform::Host>,
     queries: Rc<Cell<usize>>,
 }
+#[cfg(debug_assertions)]
 impl tcl_platform::Host for CountingHost {
     fn capabilities(&self) -> tcl_platform::Capabilities {
         self.actual.capabilities()

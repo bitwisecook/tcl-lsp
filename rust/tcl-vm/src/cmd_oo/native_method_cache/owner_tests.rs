@@ -18,7 +18,9 @@
 
 //! VM record/entered-operation controls; no C physical clientData count claim.
 use super::*;
-use crate::cmd_oo::{native_method_key, oo_invoke_value, resolve_object_value};
+#[cfg(debug_assertions)]
+use crate::cmd_oo::native_method_key;
+use crate::cmd_oo::{oo_invoke_value, resolve_object_value};
 use crate::command::{Command, NativeCommand};
 
 fn native(version: &str) -> Vm {
@@ -206,7 +208,9 @@ fn original_vm_cache_world_does_not_adopt_a_fresh_stamp_after_actual_mutation() 
         );
     }
 }
+#[cfg(debug_assertions)]
 struct WithdrawContext;
+#[cfg(debug_assertions)]
 impl NativeCommand for WithdrawContext {
     fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         vm.set_pack_facts(vec![tcl_runtime_api::PackFactStamp {

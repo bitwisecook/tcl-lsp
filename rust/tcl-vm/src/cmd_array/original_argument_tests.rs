@@ -18,8 +18,11 @@
 
 //! Original array worker selection and physical VM callback settlement.
 use super::*;
+#[cfg(debug_assertions)]
 use crate::NativeCommand;
+#[cfg(debug_assertions)]
 use crate::command::Command;
+#[cfg(debug_assertions)]
 use std::{cell::Cell, rc::Rc};
 
 const ORIGINALS: &[(&str, &str)] = &[
@@ -223,10 +226,12 @@ fn original_vm_array_for_keeps_the_actual_table_key_header() {
     assert!(vm.get_var("k").is_none(), "no synthesized key is assigned");
 }
 
+#[cfg(debug_assertions)]
 struct ContextTrace {
     mode: u8,
     calls: Rc<Cell<usize>>,
 }
+#[cfg(debug_assertions)]
 impl NativeCommand for ContextTrace {
     fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         self.calls.set(self.calls.get() + 1);

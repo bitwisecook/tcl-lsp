@@ -19,9 +19,13 @@
 //! Fixed software owner controls; no external package callback chronology claim.
 
 use super::*;
+#[cfg(debug_assertions)]
 use crate::command::NativeCommand;
+#[cfg(debug_assertions)]
 use crate::interp::ok;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
+#[cfg(debug_assertions)]
+use std::cell::RefCell;
 use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,
@@ -34,6 +38,7 @@ use tcl_syntax::scalar_getter::NativeScalarCache;
 fn native(profile: &str) -> Vm {
     crate::native_fixture::interpreter(crate::environment::profile_for_dialect(profile))
 }
+#[cfg(debug_assertions)]
 fn call(vm: &mut Vm, words: &[&str]) -> Completion<Value> {
     let operands = words
         .iter()
@@ -160,12 +165,14 @@ fn original_package_version_string_uses_actual_formatter_and_full_first_failure(
         }
     }
 }
+#[cfg(debug_assertions)]
 struct Withdraw {
     loading: bool,
     explicit: bool,
     hits: Rc<Cell<usize>>,
     first: Rc<RefCell<Option<NativeExecutionError>>>,
 }
+#[cfg(debug_assertions)]
 impl NativeCommand for Withdraw {
     fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
         self.hits.set(self.hits.get() + 1);

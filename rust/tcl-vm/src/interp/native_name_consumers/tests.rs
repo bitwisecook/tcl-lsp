@@ -431,6 +431,7 @@ fn jim_info_current_namespace_getter_stops_at_the_withdrawn_consumer_world() {
     unchanged_result(&vm, &result);
 }
 
+#[cfg(debug_assertions)]
 fn ensemble_configuration_vm(release: &str) -> (Vm, Rc<Formatter>, Rc<Cell<usize>>) {
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(release));
     let formatter = Rc::new(Formatter::default());
@@ -453,6 +454,7 @@ fn ensemble_configuration_vm(release: &str) -> (Vm, Rc<Formatter>, Rc<Cell<usize
     (vm, formatter, queries)
 }
 
+#[cfg(debug_assertions)]
 fn configure_ensemble(
     vm: &mut Vm,
     option: &str,

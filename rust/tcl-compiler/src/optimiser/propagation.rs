@@ -5485,9 +5485,9 @@ mod tests {
         };
         let cat = "puts [string cat a b c]";
         let reverse = "puts [string reverse abc]";
-        assert!(folds("tcl8.4", cat).is_empty());
-        assert!(folds("tcl8.5", cat).is_empty());
-        assert!(folds("tcl8.4", reverse).is_empty());
+        assert_eq!(folds("tcl8.4", cat), Vec::<String>::new());
+        assert_eq!(folds("tcl8.5", cat), Vec::<String>::new());
+        assert_eq!(folds("tcl8.4", reverse), Vec::<String>::new());
         assert_eq!(folds("tcl8.5", reverse), vec!["cba".to_string()]);
         assert_eq!(folds("tcl8.6", cat), vec!["abc".to_string()]);
     }

@@ -1819,7 +1819,7 @@ mod tests {
         );
         assert!(!binding.unobserved_native_dispatch());
         assert!(binding.native_handler_envelope.is_none());
-        assert!(binding.compiled_candidates.is_empty());
+        assert_eq!(binding.compiled_candidates, []);
     }
 
     #[test]
