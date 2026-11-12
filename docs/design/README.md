@@ -386,6 +386,9 @@ exports, and the ladder toward C tcltest parity.
 - [namespace-tree.md](runtime/namespace-tree.md) — the namespace tree (root,
   child links, per-namespace command / variable / path tables) modelled on
   Tcl 9's `Namespace` struct.
+- [naming-owners.md](runtime/naming-owners.md) — which shared naming owner
+  each runtime and VM consumer asks for namespaces, commands and variables, the
+  C variable-failure rules those owners apply, and the NUL storage gap.
 - [proc-call-and-stack-traces.md](runtime/proc-call-and-stack-traces.md) —
   the proc call protocol: argument binding, exception propagation, and
   `-errorinfo` / `-errorcode` stack-trace assembly across the call stack.
