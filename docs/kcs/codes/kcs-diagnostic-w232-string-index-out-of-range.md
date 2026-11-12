@@ -36,10 +36,10 @@ The string can be written in the command. It can also be held in a
 variable whose value the analyser knows there, such as one set from a
 literal. The command can stand on its own line or sit inside another
 command, as in `puts [string index $s 9]`. An index held in a variable
-whose value the analyser knows counts as a literal. Each access is
-reported once. A string written as a command substitution in the call
-itself, as in `string index [string repeat a 3] 9`, is not checked
-(#2438).
+whose value the analyser knows counts as a literal. A string written as
+a command substitution in the call itself, as in
+`string index [string repeat a 3] 9`, is checked when that command's
+value is known. Each access is reported once.
 
 ## Example that triggers it
 

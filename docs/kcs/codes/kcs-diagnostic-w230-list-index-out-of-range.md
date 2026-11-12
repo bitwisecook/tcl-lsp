@@ -34,16 +34,16 @@ whose elements it can count:
 
 The list can be written in the same command. It can also be held in a
 variable whose value the analyser knows at that command: one set from a
-literal list, `[list …]`, or `[split …]`, or built up with `lappend`. So
-`lindex $xs 5` is flagged after `set xs {a b c}`. The command can stand on
-its own line or sit inside another command, as in `puts [lindex $xs 5]`.
-An index held in a variable whose value the analyser knows counts as a
-constant.
+literal list, `[list …]`, `[split …]` or `[lrange …]`, or built up with
+`lappend`. So `lindex $xs 5` is flagged after `set xs {a b c}`. The list can
+also be a command substitution in the call itself, as in
+`lindex [list a b c] 9`. The command can stand on its own line or sit inside
+another command, as in `puts [lindex $xs 5]`. An index held in a variable
+whose value the analyser knows counts as a constant.
 
-A list returned by a command the analyser does not evaluate, such as
-`lrange` or `lreverse`, cannot be counted, so an index into it is not
-checked (#2437). Nor is a list written as a command substitution in the
-call itself, as in `lindex [list a b c] 9` (#2438).
+After a list built by a command with no value route, such as `lrange` or
+`lreverse`, only the first read of the variable is checked; later reads
+are not (#2437).
 
 The second is an `lindex` whose index is a variable, into a list whose length
 the analyser knows — a variable set from a literal list or from `[list …]` —

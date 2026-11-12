@@ -5227,10 +5227,13 @@ pub struct StatementId {
 /// separately authenticated diagnostic contents. Only executable facts carry
 /// a representation projection.
 #[derive(Clone, Copy)]
-struct ProvenReadFacts<'a> {
+pub(crate) struct ProvenReadFacts<'a> {
     values: &'a HashMap<ValueKey, LatticeValue>,
     folded_types: Option<&'a HashMap<ValueKey, FoldedType>>,
     reached: &'a HashSet<crate::cfg::BlockId>,
+    /// The registry whose const-folds prove a whole-word command
+    /// substitution; `None` proves none.
+    folds: Option<&'a CommandRegistry>,
 }
 
 impl<'a> ProvenReadFacts<'a> {
@@ -5239,14 +5242,23 @@ impl<'a> ProvenReadFacts<'a> {
             values: &fu.sccp.values,
             folded_types: Some(&fu.sccp.folded_types),
             reached: &fu.sccp.executable_blocks,
+            folds: None,
         }
     }
 
-    fn diagnostic(facts: crate::sccp::DiagnosticValueFacts<'a>) -> Self {
+    pub(crate) fn diagnostic(facts: crate::sccp::DiagnosticValueFacts<'a>) -> Self {
         Self {
             values: facts.values(),
             folded_types: None,
             reached: facts.executable_blocks(),
+            folds: None,
+        }
+    }
+
+    pub(crate) const fn with_folds(self, registry: &'a CommandRegistry) -> Self {
+        Self {
+            folds: Some(registry),
+            ..self
         }
     }
 }
@@ -5284,7 +5296,7 @@ pub fn proven_word_value(
     )
 }
 
-fn proven_word_value_with_facts(
+pub(crate) fn proven_word_value_with_facts(
     fu: &crate::compilation_unit::FunctionUnit,
     statement: StatementId,
     word: usize,
@@ -5328,7 +5340,15 @@ fn proven_word_value_with_facts(
         };
         written_before(at, start, calls)
     };
-    proven_argument(argument, &at.uses, &written, fu, (config, facts))
+    let point = (statement.block, statement.index);
+    proven_argument(argument, (&at.uses, point), &written, fu, (config, facts)).or_else(|| {
+        let span = *tokens?.argv.get(word)?;
+        let host = call.tokens()?;
+        Some((
+            proven_command_word(host, span, (&at.uses, point), &written, fu, facts)?,
+            None,
+        ))
+    })
 }
 
 /// Where a command substitution runs: in a statement's words, or in a
@@ -5453,7 +5473,7 @@ pub fn proven_return_word_value(
     )
 }
 
-fn proven_return_word_value_with_facts(
+pub(crate) fn proven_return_word_value_with_facts(
     fu: &crate::compilation_unit::FunctionUnit,
     block: crate::cfg::BlockId,
     tokens: &CommandTokens,
@@ -5470,7 +5490,7 @@ fn proven_return_word_value_with_facts(
     let arguments = call_arguments(tokens.argv_texts.get(1..)?, Some(tokens), &config);
     proven_argument(
         arguments.get(word.checked_sub(1)?)?,
-        versions,
+        (versions, (block, usize::MAX)),
         &HashSet::new(),
         fu,
         (config, facts),
@@ -5502,7 +5522,7 @@ pub fn proven_substituted_word_value(
     )
 }
 
-fn proven_substituted_word_value_with_facts(
+pub(crate) fn proven_substituted_word_value_with_facts(
     fu: &crate::compilation_unit::FunctionUnit,
     host: SubstitutionHost,
     calls: &[crate::word_subst::LiftedCall],
@@ -5512,29 +5532,100 @@ fn proven_substituted_word_value_with_facts(
 ) -> Option<(ExactValue, Option<FoldedType>)> {
     let tokens = calls.get(call)?.words.as_ref()?;
     let start = tokens.argv.get(word)?.start();
-    let (versions, written) = match host {
+    let (versions, written, point) = match host {
         SubstitutionHost::Statement(id) => {
             if !facts.reached.contains(&id.block) {
                 return None;
             }
             let at = fu.ssa.blocks.get(&id.block)?.statements.get(id.index)?;
-            (&at.uses, written_before(at, Some(start), calls))
+            (
+                &at.uses,
+                written_before(at, Some(start), calls),
+                (id.block, id.index),
+            )
         }
         SubstitutionHost::Terminator(block) => {
             if !facts.reached.contains(&block) {
                 return None;
             }
-            (&fu.ssa.blocks.get(&block)?.exit_versions, HashSet::new())
+            (
+                &fu.ssa.blocks.get(&block)?.exit_versions,
+                HashSet::new(),
+                (block, usize::MAX),
+            )
         }
     };
     let arguments = call_arguments(tokens.argv_texts.get(1..)?, Some(tokens), &config);
     proven_argument(
         arguments.get(word.checked_sub(1)?)?,
-        versions,
+        (versions, point),
         &written,
         fu,
         (config, facts),
     )
+    .or_else(|| {
+        let SubstitutionHost::Statement(id) = host else {
+            return None;
+        };
+        let statement = fu.cfg.blocks.get(&id.block)?.statements.get(id.index)?;
+        let value = proven_command_word(
+            statement.tokens()?,
+            *tokens.argv.get(word)?,
+            (versions, point),
+            &written,
+            fu,
+            facts,
+        )?;
+        Some((value, None))
+    })
+}
+
+/// The value the whole-word command substitution `span` holds, one of those
+/// the statement `host` performs, folds to through the registry's
+/// const-folds, each variable it reads at `uses` under `facts`: `None` when
+/// `facts` carries no registry, the substitution reads a name the statement
+/// has already written, or any part of it declines.
+fn proven_command_word(
+    host: &CommandTokens,
+    span: tcl_lexer::Span,
+    (uses, point): (&HashMap<Symbol, Version>, (crate::cfg::BlockId, usize)),
+    written: &HashSet<Symbol>,
+    fu: &crate::compilation_unit::FunctionUnit,
+    facts: ProvenReadFacts<'_>,
+) -> Option<ExactValue> {
+    let registry = facts.folds?;
+    let input = fu.source_metadata_input.as_ref()?;
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)?;
+    let calls = crate::word_subst::checked_lifted_calls(host, input.lexer_config().nested())?;
+    // The word's span stops before its `]`; the call's covers it.
+    let mut selected = calls
+        .iter()
+        .filter(|call| call.span.start() == span.start());
+    let call = selected.next()?;
+    selected.next().is_none().then_some(())?;
+    let lookup = |name: &str| {
+        let symbol = read_symbol(fu, point, name)?;
+        if written.contains(&symbol) {
+            return None;
+        }
+        match facts.values.get(&(symbol, *uses.get(&symbol)?))? {
+            LatticeValue::Const(value) => String::from_utf8(const_to_exact(value).bytes).ok(),
+            _ => None,
+        }
+    };
+    let trust = |_: &str| false;
+    crate::const_subst::ConstSubstCtx {
+        registry,
+        resolution_namespace: "::",
+        namespace_context: None,
+        version: input.unit_profile().const_fold_version(),
+        defining_class: None,
+        trusts: &trust,
+        lookup_var: &lookup,
+    }
+    .fold_retained_call_with_metadata_context(call, &calls, metadata)
+    .map(|text| exact_of_bytes(text.into_bytes()))
 }
 
 /// The names the statement `at` writes, when one of the command
@@ -5553,11 +5644,25 @@ fn written_before(
     }
 }
 
+/// The symbol `name` reads at `point` (`usize::MAX` for a terminator): the
+/// binding at that operation when the SSA records one per operation.
+fn read_symbol(
+    fu: &crate::compilation_unit::FunctionUnit,
+    (block, index): (crate::cfg::BlockId, usize),
+    name: &str,
+) -> Option<Symbol> {
+    if fu.ssa.point_contexts.is_some() {
+        fu.ssa.var_symbol_at(block, index, name)
+    } else {
+        fu.ssa.var_symbol(name)
+    }
+}
+
 /// One argument's proven value: a literal is its text, a substituted word
 /// [`proven_substitution`] at `versions`, never reading a name in `written`.
 fn proven_argument(
     argument: &ArgWord<'_>,
-    versions: &HashMap<Symbol, Version>,
+    versions: (&HashMap<Symbol, Version>, (crate::cfg::BlockId, usize)),
     written: &HashSet<Symbol>,
     fu: &crate::compilation_unit::FunctionUnit,
     (config, facts): (LexerConfig, ProvenReadFacts<'_>),
@@ -5577,14 +5682,14 @@ fn proven_argument(
 /// each variable read at the use version `uses` gives it, and nothing else.
 fn proven_substitution(
     text: &str,
-    uses: &HashMap<Symbol, Version>,
+    (uses, point): (&HashMap<Symbol, Version>, (crate::cfg::BlockId, usize)),
     written: &HashSet<Symbol>,
     fu: &crate::compilation_unit::FunctionUnit,
     (config, facts): (LexerConfig, ProvenReadFacts<'_>),
 ) -> Option<(ExactValue, Option<FoldedType>)> {
     use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
     let read = |name: &str| -> Option<(ExactValue, ValueKey)> {
-        let symbol = fu.ssa.var_symbol(name)?;
+        let symbol = read_symbol(fu, point, name)?;
         if written.contains(&symbol) {
             return None;
         }

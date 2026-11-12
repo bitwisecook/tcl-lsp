@@ -45,8 +45,9 @@ use crate::analyser::state::Analyser;
 use crate::analyser::types::Diagnostic;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::value_transfer::{
-    OriginalDiagnosticValues, StatementId, SubstitutionHost, proven_return_word_value,
-    proven_substituted_word_value, proven_word_value, return_command_tokens, substitution_calls,
+    OriginalDiagnosticValues, ProvenReadFacts, StatementId, SubstitutionHost,
+    proven_return_word_value_with_facts, proven_substituted_word_value_with_facts,
+    proven_word_value_with_facts, return_command_tokens, substitution_calls,
 };
 use crate::word_subst::LiftedCall;
 
@@ -366,10 +367,11 @@ impl<'u> WordIndex<'u> {
         &self,
         fu: &FunctionUnit,
         address: WordAddress,
-        _config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
     ) -> Option<(String, Option<Span>)> {
         let config = fu.source_lexer_config();
         let logical = self.logical_values.get(&std::ptr::from_ref(fu));
+        let facts = ProvenReadFacts::diagnostic(fu.diagnostic_value_facts()).with_folds(registry);
         match address {
             WordAddress::Statement(id, word) => {
                 let host = fu
@@ -380,7 +382,7 @@ impl<'u> WordIndex<'u> {
                     .map(|statement| fu.abs_span(statement.span()));
                 let value = logical.map_or_else(
                     || {
-                        proven_word_value(fu, id, word, config)
+                        proven_word_value_with_facts(fu, id, word, config, facts, None)
                             .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
                     },
                     |values| values.word_contents(id, word),
@@ -391,8 +393,15 @@ impl<'u> WordIndex<'u> {
                 let (at, calls, span) = self.hosts.get(host)?;
                 let value = logical.map_or_else(
                     || {
-                        proven_substituted_word_value(fu, *at, calls, (call, word), config)
-                            .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
+                        proven_substituted_word_value_with_facts(
+                            fu,
+                            *at,
+                            calls,
+                            (call, word),
+                            config,
+                            facts,
+                        )
+                        .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
                     },
                     |values| values.substituted_word_contents(*at, calls, (call, word)),
                 )?;
@@ -402,7 +411,7 @@ impl<'u> WordIndex<'u> {
                 let (block, tokens, span) = self.returns.get(at)?;
                 let value = logical.map_or_else(
                     || {
-                        proven_return_word_value(fu, *block, tokens, word, config)
+                        proven_return_word_value_with_facts(fu, *block, tokens, word, config, facts)
                             .and_then(|(value, _)| value.as_str().ok().map(str::to_owned))
                     },
                     |values| values.return_word_contents(*block, tokens, word),
@@ -414,13 +423,15 @@ impl<'u> WordIndex<'u> {
 }
 
 /// Whether the walk could not read `text` and the lattice may prove it: a
-/// variable read, or a word with substitutions and no command substitution
-/// (which the lattice never answers for).
+/// variable read, a word with substitutions and no command substitution, or
+/// a word that is one whole command substitution (which the registry's
+/// const-folds answer).
 fn may_be_proven(text: &str, token: &Token, single: bool, expanded: bool) -> bool {
     !expanded
-        && !text.contains('[')
-        && text.contains('$')
-        && (token.kind == TokenType::Var || !single)
+        && ((single && token.kind == TokenType::Cmd)
+            || (!text.contains('[')
+                && text.contains('$')
+                && (token.kind == TokenType::Var || !single)))
 }
 
 impl ProvenSite {
@@ -444,7 +455,11 @@ impl ProvenSite {
 
     /// The site's words with each word the lattice proves at its statement
     /// substituted, or `None` when it proves none.
-    fn proven(&self, index: &WordIndex<'_>, config: tcl_lexer::LexerConfig) -> Option<ProvenWords> {
+    fn proven(
+        &self,
+        index: &WordIndex<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<ProvenWords> {
         let mut words = ProvenWords {
             args: self.args.clone(),
             proven: Vec::new(),
@@ -482,7 +497,7 @@ impl ProvenSite {
             if word != at + 1 || site.is_some_and(|seen| seen != call) {
                 continue;
             }
-            let Some((value, host)) = index.proven(fu, address, config) else {
+            let Some((value, host)) = index.proven(fu, address, registry) else {
                 continue;
             };
             let text = value;
@@ -539,7 +554,7 @@ impl Analyser {
         let index = WordIndex::build(cu, &wanted, (&self.source, config), &surface);
         let proven: Vec<(&ProvenSite, ProvenWords)> = sites
             .iter()
-            .filter_map(|site| site.proven(&index, config).map(|words| (site, words)))
+            .filter_map(|site| site.proven(&index, registry).map(|words| (site, words)))
             .collect();
         if proven.is_empty() {
             return;

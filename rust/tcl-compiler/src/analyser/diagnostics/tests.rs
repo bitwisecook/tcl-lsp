@@ -2156,6 +2156,34 @@ fn a_nested_index_reads_the_proven_container() {
     }
 }
 
+/// A container written as a command substitution, or built by one into a
+/// variable, is checked over the value the registry's folds prove (#2438,
+/// #2437); an index inside it is not reported.
+#[test]
+fn a_container_built_by_a_command_is_checked() {
+    let rows: [(&str, DiagCode, &[&str]); 8] = [
+        ("lindex [list a b c] 9\n", DiagCode::W230, &["9"]),
+        ("puts [lindex [list a b c] 9]\n", DiagCode::W230, &["9"]),
+        (
+            "string index [string repeat a 3] 9\n",
+            DiagCode::W232,
+            &["9"],
+        ),
+        ("set l [list a b c]\nlindex $l 9\n", DiagCode::W230, &["9"]),
+        (
+            "set l [lrange {a b c d e} 0 2]\nlindex $l 9\n",
+            DiagCode::W230,
+            &["9"],
+        ),
+        ("lindex [list a b c] 2\n", DiagCode::W230, &[]),
+        ("string index [string repeat a 3] 2\n", DiagCode::W232, &[]),
+        ("lindex [list a $argv0] 9\n", DiagCode::W230, &[]),
+    ];
+    for (src, code, anchors) in rows {
+        assert_eq!(index_findings(src, code), anchors, "{code}: {src}");
+    }
+}
+
 /// No finding where the call is not run by the substitution — a braced
 /// word, a script run later — or where an earlier substitution in the same
 /// command writes the variable the word reads: `$i` is 0 there, in range.
