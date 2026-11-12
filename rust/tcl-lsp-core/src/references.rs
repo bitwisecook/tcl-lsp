@@ -3921,6 +3921,51 @@ pub(crate) fn find_obj_method_call_sites(
     )
 }
 
+/// Native profiles: the written selectors whose actual receiver entry
+/// selects `class_q`'s own `method` declaration on the requested side. Self
+/// dispatch stays with the member-body scan, and a receiver with no retained
+/// entry contributes no site.
+fn original_obj_method_call_sites(
+    source: &str,
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    is_classmethod: bool,
+) -> Vec<tcl_lexer::Span> {
+    let Some(registry) = analysis.resolved_registry() else {
+        return Vec::new();
+    };
+    let receiver = if is_classmethod {
+        tcl_compiler::command_binding::SourceMethodReceiver::Class
+    } else {
+        tcl_compiler::command_binding::SourceMethodReceiver::Instance
+    };
+    let mut sites = Vec::new();
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            let self_dispatch = command.texts.first().is_some_and(|head| {
+                registry.method_dispatch_keyword(head)
+                    == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+            });
+            if !self_dispatch
+                && let Some(selected) =
+                    crate::receiver_identity::method_at_command(analysis, source, command)
+                && selected.receiver == receiver
+                && selected.class.qualified_name == class_q
+                && selected.method.name == method
+                && !sites.contains(&selected.selector)
+            {
+                sites.push(selected.selector);
+            }
+            false
+        },
+    );
+    sites.sort_by_key(|span| (span.start(), span.end()));
+    sites
+}
+
 use crate::definition::class_definer_family;
 
 /// Every call site in this document that dispatches `class_q`'s [incr Tcl]
@@ -4049,10 +4094,11 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     is_classmethod: bool,
     extra_cmd_names: &[String],
 ) -> Vec<tcl_lexer::Span> {
-    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none()
-        || !analysis.allows_lexical_declaration_advice()
-    {
+    if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
         return Vec::new();
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return original_obj_method_call_sites(source, analysis, class_q, method, is_classmethod);
     }
     // [incr Tcl] class-scoped `proc`s land in the same `class_methods`
     // bucket as a `classmethod`, but dispatch as a single `::`-qualified
@@ -8164,26 +8210,39 @@ mod tests {
     /// "f": no such variable`).
     #[test]
     fn find_obj_method_call_sites_excludes_var_receivers_across_a_frame_shift() {
+        // A `namespace eval` body reads an unqualified variable from the
+        // global namespace when the namespace has none on 8.6 but not on
+        // 9.0/9.1; `apply` opens a fresh local frame on every release. The
+        // errors are caught so the last line runs: tclsh 8.6 prints `BARK`
+        // twice, 9.0 and 9.1 once. Uncaught, 8.6 stops at `apply` and 9.0/9.1
+        // at `namespace eval`, and the last line never dispatches.
         let src = "oo::class create Dog {\n\
                        method bark {} {}\n\
                    }\n\
                    set f [Dog new]\n\
-                   namespace eval ::zz { $f bark }\n\
-                   apply {{} { $f bark }}\n\
+                   catch {namespace eval ::zz { $f bark }}\n\
+                   catch {apply {{} { $f bark }}}\n\
                    $f bark\n";
-        let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-            &analysis,
-            "::Dog",
-            "bark",
-            false,
-        );
-        assert_eq!(sites.len(), 1, "{sites:?}");
-        let s = sites[0];
-        let line = src[..s.start() as usize].lines().count();
-        assert_eq!(line, 7, "only the same-frame `$f bark` matches: {sites:?}");
+        for (dialect, lines) in [
+            ("tcl8.6", vec![5, 7]),
+            ("tcl9.0", vec![7]),
+            ("tcl9.1", vec![7]),
+        ] {
+            let analysis = Analyser::new().analyse(src, dialect);
+            let sites = find_obj_method_call_sites(
+                src,
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                &analysis,
+                "::Dog",
+                "bark",
+                false,
+            );
+            let found = sites
+                .iter()
+                .map(|site| src[..site.start() as usize].lines().count())
+                .collect::<Vec<_>>();
+            assert_eq!(found, lines, "{dialect}: {sites:?}");
+        }
     }
 
     /// TN — a bare (backslash-escaped) `apply` body element is decoded
