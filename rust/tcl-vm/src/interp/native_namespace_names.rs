@@ -713,7 +713,7 @@ impl tcl_cmd_core::namespace::NamespaceDeleteBackend for Vm {
         }
         self.bump_cmd_epoch();
         self.invalidate_compiled_command_semantics();
-        self.invalidate_guard_domain(super::GuardDomain::CommandEnvironment);
+        self.invalidate_guard_domain(super::GuardDomain::Namespace);
         self.delete_namespace_token(namespace, namespace == ROOT_NS);
         if self.execution_refusal.is_some() {
             return Err(ValueError::CommandProtocolUnavailable(

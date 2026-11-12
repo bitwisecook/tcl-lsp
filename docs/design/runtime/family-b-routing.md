@@ -364,9 +364,12 @@ member's domain.
 The compiler adds these domains to a guarded plan
 (`guard_domains_for_intrinsic` in `rust/tcl-compiler/src/backend_registry.rs`).
 Both runtimes' `prepare_command_guard` reject an insufficient request with
-`GuardError::DomainsInsufficient`. A `VariableTrace` guard requires no live
-variable trace, and adding a trace makes it stale; namespace, command and
-interpreter guards follow their own domain dependencies.
+`GuardError::DomainsInsufficient`. A `VariableTrace` guard requires no
+registered variable trace, and adding one makes it stale. The engine's own
+bounded hooks (C's `env` host hook, `tcl_precision` and the error variables)
+run inside the variable store and do not refuse it. Namespace, command and
+interpreter guards follow their own domain dependencies: namespace birth and
+teardown move `Namespace`, not `CommandEnvironment`.
 
 `StringLength` has four guard-semantics variants: Tcl 8.4/8.5 BMP counting,
 Tcl 8.6 UTF-16 counting, Tcl 9 scalar counting and Jim 0.84 UTF-8 counting.

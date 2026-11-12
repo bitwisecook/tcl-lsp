@@ -5771,7 +5771,9 @@ impl Vm {
     /// A request for a registry intrinsic must cover the domains its family
     /// requires ([`tcl_registry::IntrinsicId::family`]) whatever the caller
     /// asked for: a Family-B member reaches the variable store, so its guard is
-    /// refused while a variable trace exists and stales when one is added.
+    /// refused while a script variable trace exists and stales when one is
+    /// added. The engine's bounded native hooks (`env`, `tcl_precision`, the
+    /// error variables) run in the store itself and do not refuse it.
     pub fn prepare_command_guard(
         &self,
         name: &str,
@@ -5806,7 +5808,8 @@ impl Vm {
         }
         if (domains.contains(GuardDomain::CommandTrace)
             && !(self.cmd_traces.is_empty() && self.exec_traces.is_empty()))
-            || (domains.contains(GuardDomain::VariableTrace) && self.variable_observers_active())
+            || (domains.contains(GuardDomain::VariableTrace)
+                && !self.variable_observers.script_traces.is_empty())
         {
             return Err(GuardError::PrerequisiteUnsatisfied);
         }
@@ -13503,7 +13506,7 @@ impl Vm {
     fn note_namespace_creation_environment(&mut self) {
         self.bump_cmd_epoch();
         self.invalidate_compiled_command_semantics();
-        self.invalidate_guard_domain(GuardDomain::CommandEnvironment);
+        self.invalidate_guard_domain(GuardDomain::Namespace);
     }
 
     /// Insert a newly-created tail into its parent's retained Tcl string-hash table.
@@ -14463,8 +14466,14 @@ impl Vm {
     #[cfg(test)]
     pub(crate) fn command_origin_key(&self, key: &str) -> String {
         match self.ultimate_import_origin(&CommandSidecarKey::visible(key)) {
-            CommandSidecarKey::Visible(origin) => self.command_display_key(&origin).clone(),
-            CommandSidecarKey::Hidden(origin) => origin,
+            CommandSidecarKey::Visible(origin)
+                if self
+                    .command_token_identity(&CommandSidecarKey::visible(&origin))
+                    .is_some() =>
+            {
+                self.command_display_key(&origin)
+            }
+            CommandSidecarKey::Visible(origin) | CommandSidecarKey::Hidden(origin) => origin,
         }
     }
 
@@ -15007,7 +15016,7 @@ impl Vm {
         // would otherwise advance the compilation world.
         self.bump_cmd_epoch();
         self.invalidate_compiled_command_semantics();
-        self.invalidate_guard_domain(GuardDomain::CommandEnvironment);
+        self.invalidate_guard_domain(GuardDomain::Namespace);
         self.delete_namespace_token(id, deleting_root);
         true
     }
@@ -21510,13 +21519,28 @@ impl Vm {
         reason: &str,
         site: tcl_syntax::naming::NativeVariableFailureSite,
     ) -> Completion<Value> {
+        self.variable_access_diagnostic_at(verb, input, reason, site)
+            .0
+    }
+
+    /// The diagnostic completion, and whether the release's diagnostic sets
+    /// an error code of its own (C 8.6 and later).
+    fn variable_access_diagnostic_at(
+        &mut self,
+        verb: &str,
+        input: tcl_syntax::naming::NativeVariableInputForm<'_>,
+        reason: &str,
+        site: tcl_syntax::naming::NativeVariableFailureSite,
+    ) -> (Completion<Value>, bool) {
         use tcl_syntax::naming::{
             NativeVariableDiagnosticOperation as Operation,
             NativeVariableDiagnosticReason as Reason, report_native_variable_diagnostic_at,
         };
         let Some(policy) = self.name_policy_protocol() else {
-            return self
-                .refuse_host_command("native variable diagnostic policy is unavailable".into());
+            return (
+                self.refuse_host_command("native variable diagnostic policy is unavailable".into()),
+                false,
+            );
         };
         let operation = match verb {
             "read" => Operation::Read,
@@ -21538,8 +21562,11 @@ impl Vm {
             "variable already exists" => Reason::AlreadyExists,
             "name refers to an element in an array" => Reason::ArrayElement,
             _ => {
-                return self.refuse_host_command(
-                    "native variable diagnostic reason is unavailable".into(),
+                return (
+                    self.refuse_host_command(
+                        "native variable diagnostic reason is unavailable".into(),
+                    ),
+                    false,
                 );
             }
         };
@@ -21552,11 +21579,15 @@ impl Vm {
         ) {
             Ok(projection) => projection,
             Err(error) => {
-                return self.refuse_host_command(format!(
-                    "native variable diagnostic is unavailable: {error:?}"
-                ));
+                return (
+                    self.refuse_host_command(format!(
+                        "native variable diagnostic is unavailable: {error:?}"
+                    )),
+                    false,
+                );
             }
         };
+        let sets_code = projection.error_code.is_some();
         let mut message = format!("can't {verb} \"").into_bytes();
         message.extend_from_slice(&projection.name);
         message.extend_from_slice(b"\": ");
@@ -21565,7 +21596,7 @@ impl Vm {
             if protocol.diagnostic_resets_interpreter_result() {
                 self.reset_native_global_error_episode();
             }
-            return crate::command::completion_from_cmd_error(
+            let completion = crate::command::completion_from_cmd_error(
                 self,
                 tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
                     message,
@@ -21584,13 +21615,15 @@ impl Vm {
                     primitive_getter: None,
                 }),
             );
+            return (completion, sets_code);
         }
-        if let Some(words) = projection.error_code {
+        let completion = if let Some(words) = projection.error_code {
             let code = Value::list(words.into_iter().map(Value::from_string_bytes).collect());
             err_with_code(message, code.string_bytes())
         } else {
             err(message)
-        }
+        };
+        (completion, sets_code)
     }
 
     /// Write a native combined-name operand while retaining its original
@@ -22919,7 +22952,7 @@ impl Vm {
         name: &[u8],
         key: Option<&[u8]>,
         cell: &VarTraceCell,
-    ) -> Completion<Value> {
+    ) -> (Completion<Value>, bool) {
         use tcl_syntax::naming::{
             NativeVariableFailureSite::ValueRead, NativeVariableInputForm as Input,
         };
@@ -22938,7 +22971,25 @@ impl Vm {
         } else {
             "no such variable"
         };
-        self.variable_access_error_at("read", input, reason, ValueRead)
+        self.variable_access_diagnostic_at("read", input, reason, ValueRead)
+    }
+
+    /// Options a swallowed missing read carries onto the update's successful
+    /// completion. A release whose diagnostic sets no error code leaves the
+    /// interpreter's as it was (tclsh 8.5 `catch {lappend missing x} m o`
+    /// reports no `-errorcode`).
+    fn captured_read_missing_options(
+        &mut self,
+        name: &[u8],
+        key: Option<&[u8]>,
+        cell: &VarTraceCell,
+    ) -> Value {
+        let (completion, sets_code) = self.captured_read_missing(name, key, cell);
+        if sets_code {
+            completion.options
+        } else {
+            Value::empty()
+        }
     }
 
     fn lappend_captured_cell(
@@ -22968,7 +23019,7 @@ impl Vm {
                     .initial_value_at_cell(id, captured.explicit_array)
                     .cloned();
                 let options = if current.is_none() {
-                    self.captured_read_missing(name, key, cell).options
+                    self.captured_read_missing_options(name, key, cell)
                 } else {
                     Value::empty()
                 };
@@ -23465,14 +23516,21 @@ impl Vm {
                 if has_current {
                     (true, Value::empty())
                 } else {
-                    let missing = self.captured_read_missing(name, key, cell);
+                    let (missing, sets_code) = self.captured_read_missing(name, key, cell);
                     if let Some(refusal) = self.refused_completion() {
                         return Err(refusal);
                     }
                     if policy == NativeRmwReadPolicy::RequireContents {
                         return Err(missing);
                     }
-                    (false, missing.options)
+                    (
+                        false,
+                        if sets_code {
+                            missing.options
+                        } else {
+                            Value::empty()
+                        },
+                    )
                 }
             }
             Err(error) if policy == NativeRmwReadPolicy::RequireContents => return Err(error),
@@ -30808,6 +30866,32 @@ mod family_b_tests {
 
     const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 41);
 
+    fn release_profile(name: &str) -> &'static tcl_dialect::DialectProfile {
+        tcl_registry::model::ingress::resolve_environment(name).unit_profile()
+    }
+
+    /// The release's own engine and source compiler.
+    fn release_vm(version: tcl_dialect::TclVersion) -> Vm {
+        crate::native_fixture::interpreter(release_profile(version.dialect_name()))
+    }
+
+    /// Re-select both the actual engine and the logical profile of `name`.
+    fn select_release(vm: &mut Vm, name: &str) {
+        let profile = release_profile(name);
+        assert!(vm.set_native_engine_profile(profile), "{name}");
+        vm.set_dialect_profile(profile);
+        vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    }
+
+    /// Every capture of an empty literal world renews its observation, so
+    /// entries are compared without it.
+    fn without_literal_observation(
+        mut entry: tcl_runtime_api::NativeCompilationEntry,
+    ) -> tcl_runtime_api::NativeCompilationEntry {
+        entry.empty_literal_world = None;
+        entry
+    }
+
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn default_c_error_code_stays_private_until_return_options_are_requested() {
@@ -30858,8 +30942,7 @@ mod family_b_tests {
     #[test]
     fn procedure_publication_keeps_retained_holder_and_release_reparse() {
         for version in tcl_dialect::TclVersion::ALL {
-            let mut vm = Vm::new();
-            vm.set_runtime_version(version);
+            let mut vm = release_vm(version);
             let original = vm.activate_namespace_operand(b"a:").unwrap();
             vm.push_ns_eval_token_frame(original, Vec::new());
             assert!(vm.native_procedure_holder_exists(b"p").unwrap());
@@ -31234,7 +31317,7 @@ mod family_b_tests {
     #[test]
     fn default_native_entry_retains_actual_execution_point_and_assistance_profile() {
         use tcl_dialect::model::DialectPoint;
-        let mut vm = Vm::new();
+        let vm = Vm::new();
         assert!(vm.dialect_profile().is_fallback());
         let entry = vm
             .native_compilation_entry_for_namespace("", false)
@@ -31245,9 +31328,9 @@ mod family_b_tests {
             Some(DialectPoint::for_tcl_version(vm.runtime_version()))
         );
         for version in tcl_dialect::TclVersion::ALL {
-            vm.set_runtime_version(version);
             assert_eq!(
-                vm.native_compilation_entry_for_namespace("", false)
+                release_vm(version)
+                    .native_compilation_entry_for_namespace("", false)
                     .unwrap()
                     .execution_point,
                 Some(DialectPoint::for_tcl_version(version))
@@ -31329,10 +31412,14 @@ mod family_b_tests {
         let provider = AuthoredLogicalNumericSimulation::Tcl84Core;
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
+        // Before an actual engine is selected the provider is refused.
+        let mut unselected = Vm::without_native_engine();
+        unselected.set_dialect_profile(source);
+        assert!(unselected.set_command_surface_profile(host));
+        assert!(!unselected.set_logical_numeric_provider(provider));
         let mut vm = Vm::new();
         vm.set_dialect_profile(source);
         assert!(vm.set_command_surface_profile(host));
-        assert!(!vm.set_logical_numeric_provider(provider));
         assert!(vm.set_native_engine_profile(host));
         assert!(
             vm.native_invocation_dialect()
@@ -31597,10 +31684,14 @@ mod family_b_tests {
         let provider = LogicalExpressionParseProvider::Tcl84CoreSimulation;
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
+        let mut unselected = Vm::without_native_engine();
+        unselected.set_dialect_profile(source);
+        assert!(unselected.set_command_surface_profile(host));
+        assert!(!unselected.set_logical_expression_parse_provider(provider));
+        assert!(unselected.expression_template_policy().is_none());
         let mut vm = Vm::new();
         vm.set_dialect_profile(source);
         assert!(vm.set_command_surface_profile(host));
-        assert!(!vm.set_logical_expression_parse_provider(provider));
         assert!(vm.expression_template_policy().is_none());
         assert!(vm.set_native_engine_profile(host));
         let policy = vm.native_compiler_policy();
@@ -31649,21 +31740,29 @@ mod family_b_tests {
                 }))
             }
         }
-        let mut vm = Vm::new();
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
-        vm.set_dialect_profile(source);
-        assert!(vm.set_command_surface_profile(host));
-        assert!(vm.expression_quote_control().is_none());
-        assert!(!vm.set_logical_quote_provider(
+        // Before an actual engine is selected neither the provider nor a host
+        // activation is available.
+        let mut unselected = Vm::without_native_engine();
+        unselected.set_dialect_profile(source);
+        assert!(unselected.set_command_surface_profile(host));
+        assert!(unselected.expression_quote_control().is_none());
+        assert!(!unselected.set_logical_quote_provider(
             tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
         ));
-        let refusal = vm.try_eval_native_host_source("policy_probe").unwrap_err();
+        let refusal = unselected
+            .try_eval_native_host_source("policy_probe")
+            .unwrap_err();
         assert!(matches!(
             refusal,
             tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
         ));
-        assert!(vm.active_native_profile.is_none());
+        assert!(unselected.active_native_profile.is_none());
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(source);
+        assert!(vm.set_command_surface_profile(host));
+        assert!(vm.expression_quote_control().is_none());
         assert!(vm.set_native_engine_profile(host));
         assert!(vm.set_logical_quote_provider(
             tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
@@ -31671,9 +31770,10 @@ mod family_b_tests {
         vm.set_compiler(Box::new(BytecodeCompileService::for_profile(source)));
         vm.register_native_command("policy_probe", Rc::new(PolicyProbe));
         let user_stamp = vm.native_cache_stamp(ROOT_NS);
-        let user_entry = vm
-            .native_compilation_entry_for_namespace("", false)
-            .unwrap();
+        let user_entry = without_literal_observation(
+            vm.native_compilation_entry_for_namespace("", false)
+                .unwrap(),
+        );
         let generation = vm.profile_generation();
         let completion = vm
             .try_eval_native_host_source("policy_probe")
@@ -31689,8 +31789,10 @@ mod family_b_tests {
         assert_eq!(completion.code, Code::Ok);
         assert_eq!(completion.result.string_bytes().as_ref(), b"USER");
         assert_eq!(
-            vm.native_compilation_entry_for_namespace("", false)
-                .unwrap(),
+            without_literal_observation(
+                vm.native_compilation_entry_for_namespace("", false)
+                    .unwrap()
+            ),
             user_entry
         );
         let child = vm.fork_child_state();
@@ -31731,9 +31833,10 @@ mod family_b_tests {
         assert!(vm.set_logical_source_word_provider(
             tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
         ));
-        let original = vm
-            .native_compilation_entry_for_namespace("", false)
-            .unwrap();
+        let original = without_literal_observation(
+            vm.native_compilation_entry_for_namespace("", false)
+                .unwrap(),
+        );
         assert_eq!(original.profile, user.cache_key());
         assert!(!vm.lexer_config().expand_syntax);
         assert_eq!(
@@ -31762,8 +31865,10 @@ mod family_b_tests {
 
         vm.active_native_profile = None;
         assert_eq!(
-            vm.native_compilation_entry_for_namespace("", false)
-                .unwrap(),
+            without_literal_observation(
+                vm.native_compilation_entry_for_namespace("", false)
+                    .unwrap()
+            ),
             original
         );
         assert_eq!(vm.source_profile().cache_key(), user.cache_key());
@@ -31990,13 +32095,13 @@ mod family_b_tests {
         assert_eq!(payload.frame, 0);
         assert!(vm.get_var("untouched").is_none());
 
-        // The default service procedure capability is independently unsupported;
-        // the definition must neither register a callable nor expose empty Tcl bytes.
-        let error = vm
-            .try_define_procedure("missing", &[], "set untouched CHANGED")
-            .unwrap_err();
-        let VmCompilationError::Host(NativeExecutionError::CompileServiceRefusal(payload)) = error
-        else {
+        // The service's procedure capability is independently unsupported. As
+        // in C, the definition does not compile its body: the typed refusal
+        // comes from the first call, before any of the body runs.
+        vm.try_define_procedure("missing", &[], "set untouched CHANGED")
+            .expect("a procedure definition defers body compilation");
+        let error = vm.try_invoke_command("missing", &[]).unwrap_err();
+        let NativeExecutionError::CompileServiceRefusal(payload) = error else {
             panic!("typed procedure capability refusal expected: {error:?}")
         };
         assert_eq!(payload.source.bytes(), b"set untouched CHANGED");
@@ -32005,7 +32110,6 @@ mod family_b_tests {
             NativeCompilationAdmissionScope::ProcedureBody
         );
         assert_eq!(payload.compilation_namespace, NamespacePath::root());
-        assert!(vm.lookup_command("missing").is_none());
         assert!(vm.get_var("untouched").is_none());
 
         vm.set_compiler(Box::new(RefusingCompiler(CompileError::Message(
@@ -32020,10 +32124,7 @@ mod family_b_tests {
 
     #[test]
     fn jim_math_numeric_results_follow_the_measured_native_protocol() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
-        );
+        let mut vm = crate::native_fixture::interpreter(release_profile("jim"));
         for (source, expected) in [
             ("pow(2,2)", "4"),
             ("pow(2.0,2)", "4.0"),
@@ -32088,10 +32189,7 @@ mod family_b_tests {
 
     #[test]
     fn jim_expression_preparation_uses_native_tree_and_eager_fixed_function_pass() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
-        );
+        let mut vm = crate::native_fixture::interpreter(release_profile("jim"));
         for (source, expected) in [("abs(pow(2),2)", "4"), ("abs(-3)", "3")] {
             let value = Value::string(source);
             // A warm conventional AST must never bypass native reassociation.
@@ -32245,6 +32343,7 @@ mod family_b_tests {
     #[test]
     fn native_entry_preserves_unmaterialised_unknown_handler_prefix() {
         let mut vm = Vm::new();
+        vm.declare_namespace_key("N");
         let namespace = vm.intern_ns("N");
         let number = Value::double(1.0 / 3.0);
         let prefix = vec![Value::string("handler"), number.clone()];
@@ -32288,8 +32387,7 @@ mod family_b_tests {
         use tcl_runtime_api::native_compilation::{
             NativeMathFunctionPrerequisite, NativeMathFunctionResolution,
         };
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        let mut vm = crate::native_fixture::interpreter(release_profile("tcl8.4"));
         let entry = vm
             .native_compilation_entry_for_namespace("", false)
             .unwrap();
@@ -32319,8 +32417,7 @@ mod family_b_tests {
                 tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired
             ))
         ));
-        let mut other = Vm::new();
-        other.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        let other = crate::native_fixture::interpreter(release_profile("tcl8.4"));
         assert!(!other.native_math_table_prerequisite_matches(&asm));
     }
 
@@ -32408,10 +32505,7 @@ mod family_b_tests {
             NativeCommandImplementation, NativeCompilerHookPresence,
         };
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
-                tcl_registry::model::ingress::resolve_environment(name).unit_profile(),
-            );
+            let vm = crate::native_fixture::interpreter(release_profile(name));
             let ensemble = vm
                 .native_invocation_dialect()
                 .ensemble_implementation_namespace(
@@ -32449,13 +32543,13 @@ mod family_b_tests {
         }
         let mut vm = Vm::new();
         vm.register("::tcl::array::get", guarded_builtin);
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        select_release(&mut vm, "tcl8.4");
         assert!(vm.commands.contains_key("tcl::array::get"));
         assert_eq!(vm.stock_native_identity("::tcl::array::get"), None);
         assert!(vm.namespace_exists("::tcl::array"));
         let mut vm = Vm::new();
         vm.declare_namespace_key("tcl::array::user");
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        select_release(&mut vm, "tcl8.4");
         assert!(vm.namespace_exists("::tcl::array::user"));
     }
 
@@ -32463,10 +32557,7 @@ mod family_b_tests {
     fn native_string_and_dict_bootstrap_export_the_actual_private_maps() {
         use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
-                tcl_registry::model::ingress::resolve_environment(name).unit_profile(),
-            );
+            let vm = crate::native_fixture::interpreter(release_profile(name));
             let entry = vm
                 .native_compilation_entry_for_namespace("", false)
                 .unwrap();
@@ -32513,10 +32604,10 @@ mod family_b_tests {
         }
         let mut vm = Vm::new();
         vm.register("::tcl::string::length", guarded_builtin);
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.5").unwrap());
+        select_release(&mut vm, "tcl8.5");
         assert_eq!(vm.stock_native_identity("::tcl::string::length"), None);
         vm.register("append", guarded_builtin);
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        select_release(&mut vm, "tcl8.4");
         assert_eq!(vm.stock_native_identity("append"), None);
         assert!(vm.commands.contains_key("tcl::string::length"));
     }
@@ -32527,10 +32618,7 @@ mod family_b_tests {
             NativeCommandImplementation, NativeCompilerHookPresence,
         };
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
-                tcl_registry::model::ingress::resolve_environment(name).unit_profile(),
-            );
+            let vm = crate::native_fixture::interpreter(release_profile(name));
             let ensemble = vm
                 .native_invocation_dialect()
                 .ensemble_implementation_namespace(
@@ -32567,21 +32655,20 @@ mod family_b_tests {
         }
         let mut vm = Vm::new();
         vm.register("::tcl::namespace::current", guarded_builtin);
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        select_release(&mut vm, "tcl8.4");
         assert!(vm.commands.contains_key("tcl::namespace::current"));
         assert_eq!(vm.stock_native_identity("::tcl::namespace::current"), None);
         assert!(vm.namespace_exists("::tcl::namespace"));
         let mut vm = Vm::new();
         vm.declare_namespace_key("tcl::namespace::user");
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        select_release(&mut vm, "tcl8.4");
         assert!(vm.namespace_exists("::tcl::namespace::user"));
     }
 
     #[test]
     fn native_entry_observer_closure_is_independent_of_values_and_command_closure() {
         use tcl_runtime_api::native_compilation::NativeVariableObserverPresence;
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+        let mut vm = crate::native_fixture::interpreter(release_profile("tcl8.4"));
         let initial = vm
             .native_compilation_entry_for_namespace("", false)
             .unwrap();
@@ -32615,11 +32702,9 @@ mod family_b_tests {
                 .variable_observers,
             NativeVariableObserverPresence::BoundedNativeOnly
         );
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
-        );
         assert_eq!(
-            vm.native_compilation_entry_for_namespace("", false)
+            crate::native_fixture::interpreter(release_profile("jim"))
+                .native_compilation_entry_for_namespace("", false)
                 .unwrap()
                 .variable_observers,
             NativeVariableObserverPresence::Absent
@@ -32952,23 +33037,15 @@ mod family_b_tests {
     }
 
     fn prepare_stale_hidden_proc(vm: &mut Vm) {
-        vm.set_compiler(Box::new(BytecodeCompileService::default()));
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
-        );
+        select_release(vm, "tcl8.5");
         assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(vm, "proc p {} { return replacement }"), "");
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        );
+        select_release(vm, "tcl8.6");
     }
 
     fn prepare_trace_deleted_hidden_proc(vm: &mut Vm) {
-        vm.set_compiler(Box::new(BytecodeCompileService::default()));
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
-        );
+        select_release(vm, "tcl8.5");
         assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
         assert_eq!(
             eval_value(
@@ -32980,14 +33057,14 @@ mod family_b_tests {
         assert_eq!(eval_value(vm, "trace add execution p enter replace"), "");
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(vm, "proc p {} { return initial }"), "");
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        );
+        select_release(vm, "tcl8.6");
     }
 
     #[test]
     fn refreshed_hidden_proc_stays_hidden_and_preserves_visible_replacement() {
-        let mut vm = Vm::new();
+        // Children replay their parent's constructor engine, which the
+        // fixtures leave selected.
+        let mut vm = release_vm(tcl_dialect::TclVersion::V8_6);
         prepare_stale_hidden_proc(&mut vm);
         let hidden = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
         assert_eq!(hidden.code, Code::Ok);
@@ -33011,11 +33088,7 @@ mod family_b_tests {
             "replacement"
         );
 
-        vm.in_interp(child, |child| {
-            child.set_dialect_profile(
-                tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
-            );
-        });
+        vm.in_interp(child, |child| select_release(child, "tcl8.5"));
         let by_id = vm.invoke_hidden_by_id(child, "held", &[]).unwrap();
         assert_eq!(by_id.code, Code::Ok);
         assert_eq!(by_id.result.to_str().as_ref(), "hidden");
@@ -33033,7 +33106,7 @@ mod family_b_tests {
 
     #[test]
     fn trace_deleted_hidden_refresh_never_resurrects_or_overwrites_replacement() {
-        let mut vm = Vm::new();
+        let mut vm = release_vm(tcl_dialect::TclVersion::V8_6);
         prepare_trace_deleted_hidden_proc(&mut vm);
         let root = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
         assert_eq!(root.code, Code::Error);
@@ -33075,10 +33148,7 @@ mod family_b_tests {
     #[test]
     fn relocated_hidden_refresh_persists_at_the_live_visible_key() {
         let mut vm = Vm::new();
-        vm.set_compiler(Box::new(BytecodeCompileService::default()));
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
-        );
+        select_release(&mut vm, "tcl8.5");
         assert_eq!(eval_value(&mut vm, "proc p {} { return hidden }"), "");
         assert_eq!(
             eval_value(
@@ -33093,9 +33163,7 @@ mod family_b_tests {
         );
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(&mut vm, "proc p {} { return replacement }"), "");
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        );
+        select_release(&mut vm, "tcl8.6");
 
         let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
         assert_eq!(result.code, Code::Ok);
@@ -33107,10 +33175,7 @@ mod family_b_tests {
     #[test]
     fn imported_proc_profile_refresh_updates_the_resolved_import_not_its_source_name() {
         let mut vm = Vm::new();
-        vm.set_compiler(Box::new(BytecodeCompileService::default()));
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
-        );
+        select_release(&mut vm, "tcl8.5");
         assert_eq!(
             eval_value(
                 &mut vm,
@@ -33121,9 +33186,7 @@ mod family_b_tests {
             ""
         );
 
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        );
+        select_release(&mut vm, "tcl8.6");
         assert_eq!(eval_value(&mut vm, "::dst::p"), "original");
         assert_eq!(eval_value(&mut vm, "::src::p"), "replacement");
         assert_eq!(eval_value(&mut vm, "::src::q"), "original");
@@ -33572,20 +33635,20 @@ mod family_b_tests {
             .expect("StringLength is implemented");
         assert_eq!(completion.result.as_int().unwrap(), 2);
 
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
-        let completion = vm
+        let mut tcl86 = release_vm(tcl_dialect::TclVersion::V8_6);
+        let completion = tcl86
             .execute_intrinsic(
                 tcl_registry::IntrinsicId::StringLength,
-                std::slice::from_ref(&value),
+                &[Value::string("é🙂")],
             )
             .expect("StringLength is implemented for Tcl 8");
+        assert_eq!(completion.code, Code::Ok, "{completion:?}");
         assert_eq!(completion.result.as_int().unwrap(), 3);
-        let completion = vm
+        let completion = tcl86
             .dispatch("string", &[Value::string("length"), Value::string("é🙂")])
             .unwrap();
         assert_eq!(completion.result.as_int().unwrap(), 3);
 
-        vm.set_runtime_version(tcl_dialect::TclVersion::V9_0);
         let completion = vm
             .dispatch("string", &[Value::string("length"), Value::string("é🙂")])
             .unwrap();
@@ -33652,7 +33715,9 @@ mod family_b_tests {
     #[test]
     fn identities_come_from_the_pinned_generation_never_an_overlay() {
         use tcl_registry::{CommandSpec, IntrinsicId, SemanticOperationId};
-        let mut vm = Vm::new();
+        // Tcl 8.4's `string` is a builtin the sweep attests; later releases
+        // install an ensemble, whose stock attestation is checked live.
+        let mut vm = release_vm(tcl_dialect::TclVersion::V8_4);
         // A generation an overlay installed under this VM's own profile,
         // holding a spec that declares an intrinsic, and a builtin of that name
         // in the VM.
@@ -33669,7 +33734,7 @@ mod family_b_tests {
                 });
             },
         );
-        vm.register("overlay_length", guarded_builtin);
+        vm.register_stock_builtin("overlay_length", guarded_builtin);
 
         vm.attach_identities();
         assert!(
@@ -33694,8 +33759,8 @@ mod family_b_tests {
     #[test]
     fn the_sweep_attests_only_the_builtin_it_registered() {
         use tcl_registry::IntrinsicId;
-        let mut vm = Vm::new();
-        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        // Tcl 8.4's `string` is a builtin the sweep attests.
+        let mut vm = release_vm(tcl_dialect::TclVersion::V8_4);
         let length = GuardIdentity::registry_intrinsic_with_semantics(
             IntrinsicId::StringLength.stable_id(),
             IntrinsicId::StringLength.guard_semantics_key(vm.runtime_version()),
@@ -33771,20 +33836,20 @@ mod family_b_tests {
     fn a_spelled_builtin_names_a_spec_the_registry_has() {
         let vm = Vm::new();
         let registry = crate::environment::store_for_profile(vm.dialect_profile());
-        let spelled: Vec<&String> = vm
-            .builtin_identities
-            .values()
-            .filter(|identity| identity.starts_with("::"))
-            .collect();
-        assert!(spelled.len() >= 15, "{}", spelled.len());
-        for identity in spelled {
-            assert!(
-                registry
-                    .get_exact(identity)
-                    .is_some_and(|spec| spec.name == identity.as_str()),
-                "{identity}"
+        // Identities are stored unrooted, and a qualified spec may be spelled
+        // from the root: the spec the surface gate reaches names the identity.
+        let mut qualified = 0;
+        for identity in vm.builtin_identities.values() {
+            let Some(spec) = registry.get(identity) else {
+                continue;
+            };
+            assert_eq!(
+                tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name),
+                identity.as_str()
             );
+            qualified += usize::from(identity.contains("::"));
         }
+        assert!(qualified >= 15, "{qualified}");
     }
 
     /// The backing report says what the command table holds: handlers and the
@@ -33816,11 +33881,17 @@ mod family_b_tests {
     #[test]
     fn a_pin_to_a_release_without_the_command_leaves_it_unattested() {
         let mut vm = Vm::new();
-        // `lassign` is a command Tcl 8.4 does not have.
-        vm.register_guarded_builtin("lassign", guarded_builtin, GUARDED_IDENTITY);
-        let domains = GuardDomains::one(GuardDomain::CommandEnvironment);
+        // `lassign` is a command Tcl 8.4 does not have. This is the shipped
+        // command: a host handler at the name has no stock release floor.
+        let intrinsic = tcl_registry::IntrinsicId::ListAssign;
+        let identity = GuardIdentity::registry_intrinsic_with_semantics(
+            intrinsic.stable_id(),
+            intrinsic.guard_semantics_key(vm.runtime_version()),
+        );
+        let domains =
+            GuardDomains::one(GuardDomain::CommandEnvironment).with(GuardDomain::VariableTrace);
         let token = vm
-            .prepare_command_guard("lassign", GUARDED_IDENTITY, domains)
+            .prepare_command_guard("lassign", identity, domains)
             .expect("attested in the default release");
         assert!(vm.check_command_guard(token, "lassign"));
 
@@ -33829,7 +33900,7 @@ mod family_b_tests {
         );
         assert!(!vm.check_command_guard(token, "lassign"));
         assert_eq!(
-            vm.prepare_command_guard("lassign", GUARDED_IDENTITY, domains),
+            vm.prepare_command_guard("lassign", identity, domains),
             Err(GuardError::IdentityUnavailable)
         );
 
@@ -33837,7 +33908,7 @@ mod family_b_tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(
-            vm.prepare_command_guard("lassign", GUARDED_IDENTITY, domains)
+            vm.prepare_command_guard("lassign", identity, domains)
                 .is_ok()
         );
     }
@@ -33877,7 +33948,11 @@ mod family_b_tests {
         let original = vm
             .prepare_command_guard("string", identity, domains)
             .unwrap();
+        // An unrelated command birth leaves the guard alone; a namespace birth
+        // moves the structural domain every stock guard depends on.
         vm.register("unrelated", guarded_builtin);
+        assert!(vm.check_command_guard(original, "string"));
+        vm.declare_namespace_key("unrelated");
         assert!(!vm.check_command_guard(original, "string"));
         let fresh = vm
             .prepare_command_guard("string", identity, domains)
@@ -33918,14 +33993,14 @@ mod family_b_tests {
         let mut changed = config.clone();
         changed.prefixes = !changed.prefixes;
         ensemble.configure(changed);
-        vm.bump_cmd_epoch();
+        vm.note_ensemble_configuration_changed(&ensemble);
         assert!(!vm.check_command_guard(original, "string"));
         assert_eq!(
             vm.prepare_command_guard("string", identity, domains),
             Err(GuardError::IdentityUnavailable)
         );
         ensemble.configure(config);
-        vm.bump_cmd_epoch();
+        vm.note_ensemble_configuration_changed(&ensemble);
         assert!(!vm.check_command_guard(original, "string"));
         let restored = vm
             .prepare_command_guard("string", identity, domains)
@@ -34138,9 +34213,10 @@ mod family_b_tests {
 
         assert!(vm.exists(GLOBAL_FRAME, "same"));
         assert!(vm.exists(local, "same"));
+        // C's string-hash order: tclsh 8.4-9.1 report `global-b global-a`.
         assert_eq!(
             vm.array_keys(GLOBAL_FRAME, "same"),
-            Some(vec!["global-a".to_owned(), "global-b".to_owned()])
+            Some(vec!["global-b".to_owned(), "global-a".to_owned()])
         );
         assert_eq!(vm.array_keys(local, "same"), Some(vec!["local".to_owned()]));
         vm.pop_call_frame();
@@ -34332,8 +34408,7 @@ mod family_b_tests {
     #[test]
     fn native_variable_updates_retain_exact_keys_and_failed_read_options() {
         for version in &tcl_dialect::TclVersion::ALL {
-            let mut vm = Vm::new();
-            vm.set_runtime_version(*version);
+            let mut vm = release_vm(*version);
             vm.set_var_bytes(b"k\0z", Value::int(7)).unwrap();
             let increment = vm
                 .increment_captured_bytes(b"k\0z", None, &Value::int(2))
@@ -34349,7 +34424,11 @@ mod family_b_tests {
             if *version >= tcl_dialect::TclVersion::V8_6 {
                 assert_eq!(code.unwrap().string_bytes().as_ref(), b"TCL READ VARNAME");
             } else {
-                assert!(code.is_none());
+                assert!(
+                    code.is_none(),
+                    "{version:?}: {:?}",
+                    code.map(|code| code.to_str().to_string())
+                );
             }
             vm.set_array_elem_bytes(b"a", b"key\0tail", Value::int(3))
                 .unwrap();
@@ -34402,8 +34481,7 @@ mod family_b_tests {
     #[test]
     fn native_variable_bytes_preserve_full_keys_and_nul_qualification() {
         for version in &tcl_dialect::TclVersion::ALL {
-            let mut vm = Vm::new();
-            vm.set_runtime_version(*version);
+            let mut vm = release_vm(*version);
             vm.set_var_bytes(b"k\0z", Value::string("FULL")).unwrap();
             vm.set_var_bytes(b"N\0z::k", Value::string("LATE")).unwrap();
             assert_eq!(
@@ -34437,8 +34515,7 @@ mod family_b_tests {
     #[test]
     fn native_combined_and_separate_array_inputs_select_distinct_receivers() {
         for version in &tcl_dialect::TclVersion::ALL {
-            let mut vm = Vm::new();
-            vm.set_runtime_version(*version);
+            let mut vm = release_vm(*version);
             vm.set_var_bytes(b"a\0z(k)", Value::string("COMBINED"))
                 .unwrap();
             vm.set_array_elem_bytes_from(0, b"a\0z", b"k", Value::string("SEPARATE"), false)
@@ -34479,8 +34556,7 @@ mod family_b_tests {
     #[test]
     fn native_variable_links_keep_byte_names_and_retired_cell_identity() {
         for version in &tcl_dialect::TclVersion::ALL {
-            let mut vm = Vm::new();
-            vm.set_runtime_version(*version);
+            let mut vm = release_vm(*version);
             vm.set_var_bytes(b"x", Value::string("OLD")).unwrap();
             vm.push_call_frame(Some("P".into()), Vec::new());
             vm.link_upvar_bytes(0, b"x", b"a\0z")
@@ -34517,8 +34593,7 @@ mod family_b_tests {
     #[test]
     fn native_trace_registration_projects_its_own_name_and_keeps_prefix_value() {
         for version in &tcl_dialect::TclVersion::ALL {
-            let mut vm = Vm::new();
-            vm.set_runtime_version(*version);
+            let mut vm = release_vm(*version);
             let prefix = Value::from_string_bytes(b"capture\xff".as_slice());
             vm.ensure_trace_variable_bytes(b"k\0z").unwrap();
             vm.add_var_trace_bytes(b"k\0z", vec!["read".into()], &prefix, false);

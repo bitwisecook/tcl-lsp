@@ -156,7 +156,7 @@ impl Vm {
                     let options = if present {
                         Value::empty()
                     } else {
-                        vm.captured_read_missing(name, key, &captured.cell).options
+                        vm.captured_read_missing_options(name, key, &captured.cell)
                     };
                     (present, options)
                 }
