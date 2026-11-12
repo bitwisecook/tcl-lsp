@@ -245,6 +245,7 @@ fn fresh_namespace_tree(
             || state.unknown_lookup_namespaces.contains(namespace)
             || state.unknown_namespace_paths.contains(namespace)
             || state.namespace_unknown_handlers.contains(namespace)
+            || state.ensemble_owner_namespaces.contains(namespace)
             || matches!(
                 namespace,
                 SourceNamespaceKey::Allocated {

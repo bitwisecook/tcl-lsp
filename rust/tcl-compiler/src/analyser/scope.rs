@@ -6564,6 +6564,32 @@ mod original_positioned_reference_tests {
         }
     }
 
+    /// Deleting a namespace deletes every ensemble it created, wherever
+    /// `-command` put it (tclsh 8.5-9.1: `info commands ::top` and
+    /// `info commands ::e` are empty after `namespace delete`).
+    #[test]
+    fn deleting_an_ensemble_namespace_withdraws_its_command() {
+        let resolves = |source: &str, head: &str| {
+            let offset = u32::try_from(source.rfind(head).unwrap()).unwrap();
+            Analyser::new()
+                .analyse(source, "tcl8.6")
+                .command_invocations
+                .iter()
+                .any(|invocation| {
+                    invocation.range.start() == offset
+                        && invocation.resolved_command_reference.is_some()
+                })
+        };
+        for (owner, create, head) in [("::c", "-command ::top", "top"), ("::e", "", "e")] {
+            let created =
+                format!("namespace eval {owner} {{namespace ensemble create {create}}}\n");
+            let kept = format!("{created}{head}\n");
+            assert!(resolves(&kept, head), "{kept}");
+            let deleted = format!("{created}namespace delete {owner}\n{head}\n");
+            assert!(!resolves(&deleted, head), "{deleted}");
+        }
+    }
+
     /// The same evidence: `-command` names the one created command, relative
     /// to the current namespace or as written. A computed operand or an
     /// abbreviated option cannot name it, so later references stay withdrawn.

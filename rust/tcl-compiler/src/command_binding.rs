@@ -15218,6 +15218,7 @@ struct NonBindingObservationStamp {
     unknown_lookup_namespaces: Arc<SourceNamespaceSet>,
     unknown_namespace_paths: Arc<SourceNamespaceSet>,
     namespace_unknown_handlers: Arc<SourceNamespaceSet>,
+    ensemble_owner_namespaces: Arc<SourceNamespaceSet>,
     unknown_export_namespaces: Arc<SourceNamespaceSet>,
     packages: Arc<BTreeMap<String, BTreeSet<PackageProvision>>>,
     revoked_loaders: Arc<BTreeSet<String>>,
@@ -15344,6 +15345,7 @@ pub struct ModuleCommandBindings {
     unknown_lookup_namespaces: Arc<SourceNamespaceSet>,
     unknown_namespace_paths: Arc<SourceNamespaceSet>,
     namespace_unknown_handlers: Arc<SourceNamespaceSet>,
+    ensemble_owner_namespaces: Arc<SourceNamespaceSet>,
     unknown_export_namespaces: Arc<SourceNamespaceSet>,
     packages: Arc<BTreeMap<String, BTreeSet<PackageProvision>>>,
     revoked_loaders: Arc<BTreeSet<String>>,
@@ -15445,6 +15447,7 @@ impl PartialEq for ModuleCommandBindings {
             && self.unknown_lookup_namespaces == other.unknown_lookup_namespaces
             && self.unknown_namespace_paths == other.unknown_namespace_paths
             && self.namespace_unknown_handlers == other.namespace_unknown_handlers
+            && self.ensemble_owner_namespaces == other.ensemble_owner_namespaces
             && self.unknown_export_namespaces == other.unknown_export_namespaces
             && self.packages == other.packages
             && self.revoked_loaders == other.revoked_loaders
@@ -16442,6 +16445,7 @@ impl ModuleCommandBindings {
             && self.unknown_lookup_namespaces == other.unknown_lookup_namespaces
             && self.unknown_namespace_paths == other.unknown_namespace_paths
             && self.namespace_unknown_handlers == other.namespace_unknown_handlers
+            && self.ensemble_owner_namespaces == other.ensemble_owner_namespaces
             && self.unknown_export_namespaces == other.unknown_export_namespaces
             && self.packages == other.packages
             && self.revoked_loaders == other.revoked_loaders
@@ -16482,6 +16486,7 @@ impl ModuleCommandBindings {
             unknown_lookup_namespaces: Arc::clone(&self.unknown_lookup_namespaces),
             unknown_namespace_paths: Arc::clone(&self.unknown_namespace_paths),
             namespace_unknown_handlers: Arc::clone(&self.namespace_unknown_handlers),
+            ensemble_owner_namespaces: Arc::clone(&self.ensemble_owner_namespaces),
             unknown_export_namespaces: Arc::clone(&self.unknown_export_namespaces),
             packages: Arc::clone(&self.packages),
             revoked_loaders: Arc::clone(&self.revoked_loaders),
@@ -16530,6 +16535,7 @@ impl std::hash::Hash for ModuleCommandBindings {
         self.unknown_lookup_namespaces.hash(state);
         self.unknown_namespace_paths.hash(state);
         self.namespace_unknown_handlers.hash(state);
+        self.ensemble_owner_namespaces.hash(state);
         self.unknown_export_namespaces.hash(state);
         self.packages.hash(state);
         self.revoked_loaders.hash(state);
@@ -16803,6 +16809,7 @@ impl ModuleCommandBindings {
             && self.unknown_lookup_namespaces == other.unknown_lookup_namespaces
             && self.unknown_namespace_paths == other.unknown_namespace_paths
             && self.namespace_unknown_handlers == other.namespace_unknown_handlers
+            && self.ensemble_owner_namespaces == other.ensemble_owner_namespaces
             && self.unknown_export_namespaces == other.unknown_export_namespaces
             && self.packages == other.packages
             && self.revoked_loaders == other.revoked_loaders
@@ -18902,6 +18909,10 @@ impl ModuleCommandBindings {
             (
                 &mut self.namespace_unknown_handlers,
                 &other.namespace_unknown_handlers,
+            ),
+            (
+                &mut self.ensemble_owner_namespaces,
+                &other.ensemble_owner_namespaces,
             ),
             (
                 &mut self.unknown_export_namespaces,
@@ -22132,6 +22143,7 @@ fn apply_ensemble_transition(
     if let Some(created) = created
         && install_created_ensemble(state, created, current, offset, original_operands).is_some()
     {
+        Arc::make_mut(&mut state.ensemble_owner_namespaces).insert(current.clone());
         return;
     }
     if *operation == Some(tcl_registry::state_transition::EnsembleManagementOperation::Configure) {
@@ -22187,6 +22199,16 @@ fn apply_namespace_deletion(
     // A retained retired activation must not delete a replacement object at
     // the same component path. The deletion target is its actual incarnation.
     if !matches!(name, SourceNamespaceKey::Authored(_)) && !state.namespaces.contains(&name) {
+        return;
+    }
+    // Deleting a namespace deletes every ensemble it created, wherever its
+    // `-command` placed it; this lattice does not keep those slots.
+    if state
+        .ensemble_owner_namespaces
+        .iter()
+        .any(|owner| owner == &name || owner.is_descendant_of(&name))
+    {
+        state.mark_opaque_resolution();
         return;
     }
     crate::variable_bindings::delete_namespace_cells_in_identity(

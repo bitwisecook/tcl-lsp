@@ -313,6 +313,7 @@ impl ModuleCommandBindings {
         self.namespace_exports = Arc::default();
         self.namespace_paths = Arc::default();
         self.namespace_unknown_handlers = Arc::default();
+        self.ensemble_owner_namespaces = Arc::default();
         self.namespaces = Arc::default();
     }
 
