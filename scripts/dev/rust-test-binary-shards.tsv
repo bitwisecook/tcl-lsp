@@ -33,7 +33,6 @@
 2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 2	tcl-lexer::it_2	test	tcl-lexer	it_2
 2	tcl-lsp-core	lib	tcl-lsp-core	tcl_lsp_core
-2	tcl-lsp-core::it_5	test	tcl-lsp-core	it_5
 2	tcl-lsp-db::compiler_check_corpus	test	tcl-lsp-db	compiler_check_corpus
 2	tcl-lsp-db::it_2	test	tcl-lsp-db	it_2
 2	tcl-pkg	lib	tcl-pkg	tcl_pkg
@@ -140,6 +139,7 @@
 4	tcl-irules::walker	test	tcl-irules	walker
 4	tcl-lexer::it_4	test	tcl-lexer	it_4
 4	tcl-lsp-core::it_4	test	tcl-lsp-core	it_4
+4	tcl-lsp-core::it_5	test	tcl-lsp-core	it_5
 4	tcl-lsp-db	lib	tcl-lsp-db	tcl_lsp_db
 4	tcl-lsp-db::class_factory_fixpoint	test	tcl-lsp-db	class_factory_fixpoint
 4	tcl-lsp-db::file_decls_corpus	test	tcl-lsp-db	file_decls_corpus
