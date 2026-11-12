@@ -3295,7 +3295,7 @@ fn register_encoding(vm: &mut Vm) {
     {
         Some(namespace) => {
             let subs = crate::environment::release_subcommands(
-                vm.runtime_version().dialect_profile_name(),
+                vm.actual_native_execution_profile().name,
                 "encoding",
                 ENCODING_SUBS,
             );
@@ -3422,7 +3422,7 @@ fn cmd_encoding_in_scope(
     };
     // `dirs` arrives in 8.5, so the table follows the emulated release.
     let subs = crate::environment::release_subcommands(
-        vm.runtime_version().dialect_profile_name(),
+        vm.actual_native_execution_profile().name,
         "encoding",
         ENCODING_SUBS,
     );

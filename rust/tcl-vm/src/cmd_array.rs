@@ -178,7 +178,7 @@ fn cmd_array_entered(
     // `for` and `default` are Tcl 9,
     // so under an earlier pin it must neither run nor claim the prefix `f`.
     let subs = crate::environment::release_subcommands(
-        vm.command_surface_profile().name,
+        vm.actual_native_execution_profile().name,
         "array",
         ARRAY_SUBS,
     );

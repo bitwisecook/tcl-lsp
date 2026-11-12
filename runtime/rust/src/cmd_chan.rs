@@ -261,7 +261,7 @@ fn chan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `isbinary` is Tcl 9 and `pipe`/`pop`/`push` 8.6, so the table follows the
     // emulated release rather than pinning 9.0's for every pin.
     let names = crate::environment::release_subcommands(
-        interp.runtime_version().dialect_profile_name(),
+        interp.native_ensemble_profile_name(),
         "chan",
         SUBS,
     );

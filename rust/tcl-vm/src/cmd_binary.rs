@@ -319,7 +319,7 @@ fn cmd_binary_in_original_using(
     // `encode`/`decode` (TIP 317) arrive in 8.6: under an earlier pin `binary
     // d` must not resolve to `decode`.
     let subs = crate::environment::release_subcommands(
-        vm.runtime_version().dialect_profile_name(),
+        vm.actual_native_execution_profile().name,
         "binary",
         BINARY_SUBS,
     );

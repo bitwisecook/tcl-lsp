@@ -164,7 +164,7 @@ fn encoding_in_scope(
         Err(error) => return interp.report_cmd_error(error),
     };
     let subs = crate::environment::release_subcommands(
-        interp.runtime_version().dialect_profile_name(),
+        interp.native_ensemble_profile_name(),
         "encoding",
         ENCODING_SUBS,
     );

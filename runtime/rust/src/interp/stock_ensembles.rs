@@ -175,7 +175,11 @@ impl Interp {
     }
 
     pub(crate) fn native_ensemble_profile_name(&self) -> &'static str {
-        if self.dialect_profile().is_fallback() {
+        // A profile outside the catalogue (`tk`) gates at the release its
+        // core runs, not at the permissive fallback its name resolves to.
+        if self.dialect_profile().is_fallback()
+            || tcl_dialect::DialectProfile::find(self.dialect_profile().name).is_none()
+        {
             self.runtime_version().dialect_profile_name()
         } else {
             self.dialect_profile().name

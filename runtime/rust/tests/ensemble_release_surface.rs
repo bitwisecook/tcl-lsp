@@ -378,3 +378,24 @@ fn representation_reports_the_value_as_each_release_does() {
         );
     }
 }
+
+/// `tk` runs on its 8.6 core, so every subcommand gate reading the pinned
+/// environment answers at 8.6: Tcl 9's `string insert`, `dict getdef` and
+/// `array for` are not there (#2315).
+#[test]
+fn a_tk_pin_gates_subcommands_at_its_86_point() {
+    let mut interp = at(TclVersion::V8_6);
+    interp.set_dialect_profile(tcl_dialect::DialectProfile::tk());
+    for script in [
+        "string insert abc 1 X",
+        "dict getdef {a 1} a",
+        "array for {k v} x {}",
+    ] {
+        assert_eq!(
+            interp.eval_str(script.as_bytes()),
+            Code::Error,
+            "{script} under a tk pin"
+        );
+    }
+    assert_eq!(interp.eval_str(b"string cat a b"), Code::Ok);
+}

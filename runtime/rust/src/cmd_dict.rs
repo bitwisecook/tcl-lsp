@@ -190,7 +190,7 @@ fn dict_cmd_entered(
     // emulated release's: under an 8.6 pin they must neither resolve nor make
     // `dict g` — a word that has nothing to do with them — ambiguous.
     let subs = crate::environment::release_subcommands(
-        interp.runtime_version().dialect_profile_name(),
+        interp.native_ensemble_profile_name(),
         "dict",
         DICT_SUBS,
     );

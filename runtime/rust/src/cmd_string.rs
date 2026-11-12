@@ -282,7 +282,7 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `insert` arrives in Tcl 9, so under an earlier pin it must not resolve
     // and must not make `string in` ambiguous with `index`.
     let subs = crate::environment::release_subcommands(
-        release.dialect_profile_name(),
+        interp.native_ensemble_profile_name(),
         "string",
         &string_subcommands(),
     );

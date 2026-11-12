@@ -369,7 +369,7 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let subs = crate::environment::release_subcommands(
-        vm.runtime_version().dialect_profile_name(),
+        vm.actual_native_execution_profile().name,
         "file",
         FILE_SUBS,
     );

@@ -288,7 +288,7 @@ fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // must not resolve, and — the reason this matters for words that have
         // nothing to do with them — must not make `dict g` ambiguous either.
         let subs = crate::environment::release_subcommands(
-            vm.command_surface_profile().name,
+            vm.actual_native_execution_profile().name,
             "dict",
             DICT_SUBS,
         );

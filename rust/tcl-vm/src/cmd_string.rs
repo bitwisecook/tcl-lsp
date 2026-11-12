@@ -131,7 +131,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // is the emulated release's: on 8.6 `string in` is `index`, on 9.0 it is
     // ambiguous with `insert`.
     let subs = crate::environment::release_subcommands(
-        release.dialect_profile_name(),
+        vm.actual_native_execution_profile().name,
         "string",
         tcl_cmd_core::string::SUBCOMMANDS,
     );
