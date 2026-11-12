@@ -1185,7 +1185,7 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 
 | Axis | Site | Waiver | Reason |
 |---|---|---|---|
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1416` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1417` | site | the W230–W232 index positions await an index-argument role on the registry |
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:728` | site | host path algebra when the |
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:732` | site | as above, for normalize. |
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:736` | site | as above, for join. |

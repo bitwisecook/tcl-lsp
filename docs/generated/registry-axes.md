@@ -41,7 +41,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/oo.rs:1722` | site | class-definition relation keywords |
 | definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/original_members.rs:1279` | site | class-definition relation keywords |
 | definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/original_members.rs:1283` | site | class-definition relation keywords |
-| definition_body | the snit definition grammar marks callable members | `rust/tcl-compiler/src/command_binding/snit_definition.rs:309` | site | snit member keywords that define a callable |
+| definition_body | the snit definition grammar marks callable members | `rust/tcl-compiler/src/command_binding/snit_definition.rs:312` | site | snit member keywords that define a callable |
 | irreducible | never | `rust/tcl-bigip/src/f5_trailer.rs:587` | site | the keys of the data schema's `ip_fields` table, not a Tcl command word: `offset` coincides with `grapheme`'s subcommand by spelling only |
 | irreducible | never | `rust/tcl-codegen/src/codegen/native_namespace_upvar_tests.rs:106` | site | a test asserting which registry compiler was selected |
 | irreducible | never | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs:1602` | site | a fixture variable named next, not the next command |
@@ -98,9 +98,9 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs:186` | site | the interp create flag run |
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs:189` | site | the interp create flag run |
 | options | the option table marks the force flag | `rust/tcl-syntax/src/naming/native.rs:136` | site | the native name policy's force flag |
-| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1749` | site | return's -code/-level options in codegen |
-| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1764` | site | return's -code/-level options in codegen |
-| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1773` | site | return's -code/-level options in codegen |
+| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1754` | site | return's -code/-level options in codegen |
+| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1769` | site | return's -code/-level options in codegen |
+| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1778` | site | return's -code/-level options in codegen |
 | options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2831` | site | the hardening edit rewrites subst's own option word |
 | options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2837` | site | the hardening edit rewrites subst's own option word |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:261` | site | switch's match-mode options |
