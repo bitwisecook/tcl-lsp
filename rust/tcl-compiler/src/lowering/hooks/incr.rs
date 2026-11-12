@@ -92,7 +92,9 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     fn reg() -> CommandRegistry {
-        CommandRegistry::build_default()
+        CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     #[test]

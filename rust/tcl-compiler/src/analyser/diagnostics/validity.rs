@@ -927,9 +927,7 @@ impl Analyser {
                 let suffix = dialect_availability_suffix_for_rows(&descriptor.providers().rows);
                 (
                     DiagCode::W002,
-                    format!(
-                        "Registry command '{reporting_name}' is disabled in the active dialect profile{suffix}"
-                    ),
+                    format!("'{reporting_name}' is disabled in the active dialect profile{suffix}"),
                 )
             }
         };
@@ -1044,6 +1042,13 @@ impl Analyser {
                     fixes,
                 )
             }
+        };
+        // A disabled selector disables the command head through that selector.
+        let span = match original.words().head_source().and_then(|head| head.word()) {
+            Some(head) if code == DiagCode::W002 => {
+                tcl_lexer::Span::new(head.span().start(), span.end())
+            }
+            _ => span,
         };
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(code, span, message, Severity::Warning)

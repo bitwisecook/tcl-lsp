@@ -1702,7 +1702,9 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     fn reg() -> CommandRegistry {
-        CommandRegistry::build_default()
+        CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     #[test]
@@ -2695,7 +2697,12 @@ mod control_receiver_data_tests {
     use crate::ir::Statement;
 
     fn body(source: &str) -> crate::ir::Module {
-        crate::lowering::lower_to_ir(source, &tcl_registry::CommandRegistry::build_default())
+        crate::lowering::lower_to_ir(
+            source,
+            &tcl_registry::CommandRegistry::build_default().project_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
+        )
     }
 
     #[test]
