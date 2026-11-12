@@ -66,7 +66,6 @@
 3	tcl-codegen	lib	tcl-codegen	tcl_codegen
 3	tcl-codegen::it_3	test	tcl-codegen	it_3
 3	tcl-compiler::command_resolution_conformance	test	tcl-compiler	command_resolution_conformance
-3	tcl-compiler::it_2	test	tcl-compiler	it_2
 3	tcl-compiler::it_3	test	tcl-compiler	it_3
 3	tcl-compiler::native_arithmetic_conformance	test	tcl-compiler	native_arithmetic_conformance
 3	tcl-cshim	lib	tcl-cshim	tcl_cshim
@@ -127,6 +126,7 @@
 4	tcl-cli::cli	test	tcl-cli	cli
 4	tcl-codegen::codegen_depth	test	tcl-codegen	codegen_depth
 4	tcl-codegen::wasm_tiers	test	tcl-codegen	wasm_tiers
+4	tcl-compiler::it_2	test	tcl-compiler	it_2
 4	tcl-compiler::it_4	test	tcl-compiler	it_4
 4	tcl-compiler::per_item_corpus	test	tcl-compiler	per_item_corpus
 4	tcl-compiler::resolution_rewrite_oracles	test	tcl-compiler	resolution_rewrite_oracles
