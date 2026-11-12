@@ -30,6 +30,11 @@ use std::sync::OnceLock;
 fn snapshot() -> &'static HashMap<OsString, OsString> {
     static SNAPSHOT: OnceLock<HashMap<OsString, OsString>> = OnceLock::new();
     SNAPSHOT.get_or_init(|| {
+        // `vars_os` panics where the platform has no environment
+        // (`wasm32-unknown-unknown`); there, as with `var_os`, nothing is set.
+        if cfg!(all(target_family = "wasm", target_os = "unknown")) {
+            return HashMap::new();
+        }
         std::env::vars_os()
             .filter(|(name, _)| name.as_encoded_bytes().starts_with(b"TCL"))
             .collect()
