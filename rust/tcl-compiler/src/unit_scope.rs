@@ -4342,7 +4342,7 @@ mod tests {
     fn evidence(src: &str) -> CallSiteEvidence {
         evidence_for_dialect(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
     }
 
