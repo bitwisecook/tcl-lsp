@@ -274,7 +274,7 @@ CARGO_ARGS_FILE="$tmp_dir/shard-two-light.args" \
     "$BINARY_SHARD" run 2/2 --no-fail-fast
 grep -Fxq -- '--profile' "$tmp_dir/shard-two-light.args"
 grep -Fxq -- ci-light "$tmp_dir/shard-two-light.args"
-grep -Fxq -- '((package(=integration) & binary(=integration)) | (package(=integration) & binary(=smoke))) & not ((binary_id(=integration::smoke) & test(=integration_case)) | (binary_id(=core) & test(=gone_case)))' \
+grep -Fxq -- '((package(=integration) & binary(=integration)) | (package(=integration) & binary(=smoke))) & not ((binary_id(=integration::smoke) & (test(=integration_case))))' \
     "$tmp_dir/shard-two-light.args"
 if CARGO_ARGS_FILE="$tmp_dir/unused.args" TCL_LSP_RUST_TEST_BINARY_SHARDS="$tmp_dir/manifest.tsv" \
     TCL_LSP_RUST_TEST_TIER=medium PATH="$tmp_dir/bin:$PATH" "$BINARY_SHARD" list 1/2 2>/dev/null; then

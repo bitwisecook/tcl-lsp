@@ -68,6 +68,7 @@ declared_count=
 declare -a exclusions=()
 declare -a targets=(--lib --bins)
 declare -A seen_test_targets=()
+declare -A shard_binaries=()
 filter=
 rows=0
 line_number=0
@@ -117,6 +118,7 @@ while IFS=$'\t' read -r field1 field2 field3 field4 field5 extra || [ -n "${fiel
             ;;
     esac
     [ "$shard" = "$index" ] || continue
+    shard_binaries[$binary_id]=1
 
     if { [ "$package" = tcl-lsp-core ] && [ "$kind" = lib ]; } \
         || { [ "$package" = tcl-lsp-db ] && [ "$target" = compiler_check_corpus ]; }; then
@@ -158,7 +160,10 @@ case "$tier" in
             echo "rust-test-binary-shard: cannot read $heavy_list" >&2
             exit 2
         fi
-        heavy=
+        # Only this shard's binaries are filtered, each binary's tests in one
+        # clause: one -E argument must stay under Linux's 128 KiB limit.
+        declare -A heavy_whole=() heavy_tests=()
+        declare -a heavy_order=()
         heavy_line=0
         while IFS=$'\t' read -r heavy_binary heavy_test heavy_extra || [ -n "${heavy_binary:-}" ]; do
             heavy_line=$((heavy_line + 1))
@@ -171,15 +176,32 @@ case "$tier" in
                 echo "rust-test-binary-shard: malformed heavy row at $heavy_list:$heavy_line" >&2
                 exit 2
             fi
+            [ -n "${shard_binaries[$heavy_binary]:-}" ] || continue
+            if [ -z "${heavy_whole[$heavy_binary]:-}${heavy_tests[$heavy_binary]:-}" ]; then
+                heavy_order+=("$heavy_binary")
+            fi
             if [ "$heavy_test" = '*' ]; then
+                heavy_whole[$heavy_binary]=1
+            else
+                tests=${heavy_tests[$heavy_binary]:-}
+                heavy_tests[$heavy_binary]="${tests:+$tests | }test(=$heavy_test)"
+            fi
+        done < "$heavy_list"
+        heavy=
+        for heavy_binary in "${heavy_order[@]}"; do
+            if [ -n "${heavy_whole[$heavy_binary]:-}" ]; then
                 clause="binary_id(=$heavy_binary)"
             else
-                clause="(binary_id(=$heavy_binary) & test(=$heavy_test))"
+                clause="(binary_id(=$heavy_binary) & (${heavy_tests[$heavy_binary]}))"
             fi
             heavy=${heavy:+$heavy | }$clause
-        done < "$heavy_list"
+        done
         if [ -n "$heavy" ]; then
             filter="($filter) & not ($heavy)"
+        fi
+        if [ "${#filter}" -gt 120000 ]; then
+            echo "rust-test-binary-shard: the light filter for $partition is ${#filter} bytes; Linux refuses one argument over 128 KiB" >&2
+            exit 2
         fi
         profile=(--profile ci-light)
         ;;
