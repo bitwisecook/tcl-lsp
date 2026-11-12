@@ -18947,3 +18947,11 @@ fn a_procedure_after_a_top_level_loop_keeps_its_loop_verdicts() {
         3
     );
 }
+
+#[test]
+fn w143_withdraws_for_a_private_namespace_command_the_document_defines() {
+    let own =
+        "namespace eval ::tcl::dict { proc mine {d} { return $d } }\n::tcl::dict::mine {a 1}\n";
+    assert!(!has_code(own, "tcl8.6", "W143"));
+    assert!(has_code("::tcl::dict::mine {a 1}\n", "tcl8.6", "W143"));
+}

@@ -2373,7 +2373,13 @@ impl Analyser {
                 )
                 .is_some()
             };
+            // No registered command owns an unregistered private-namespace
+            // name, so an occupied slot there is the document's own command.
+            let own_command = candidate.subject.selected_source_words().is_none()
+                && self.head_identities.diagnostic_slot_presence_at(offset)
+                    == crate::command_binding::SourceCommandSlotPresence::Present;
             if declared
+                || own_command
                 || crate::registry_invocation::source_structure::source_class_instance_words_at(
                     &self.source,
                     &self.result,
