@@ -1872,16 +1872,14 @@ mod unused_proc_parameters {
     }
 
     #[test]
-    fn dict_for_braced_data_word_use_divergence() {
-        // `{$unused}` is a braced literal (braces inhibit substitution), so it
-        // would not count as a use. The deep-body scan over the opaque
-        // ::tcl::dict::for barrier does NOT flag `unused` here (it does not
-        // exclude the braced data word), so no W214 fires.
+    fn dict_for_braced_data_word_is_not_a_use() {
+        // tclsh: braces inhibit substitution, so `{$unused}` never reads
+        // `unused`; once `dict for` is proved the builtin its body is scanned
+        // as written and the parameter is reported.
         let src = "proc foo {used unused} {\n    set d [dict create]\n    dict for {k v} $d {\n        set msg {$unused}\n        puts $used\n    }\n}\n";
-        assert!(
-            w214(src).is_empty(),
-            "Rust does not flag `unused` in this shape"
-        );
+        let w = w214(src);
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(w[0].contains("unused"), "{w:?}");
     }
 
     // NOTE — trace-callback W214 (see `trace_callbacks` module): the analyser +

@@ -391,8 +391,15 @@ mod tests {
             assert_eq!(keys.len(), 2, "{engine}");
             assert_eq!(result.procs.len(), 2, "{engine}");
             for key in keys {
+                // Jim's command table compares keys without every leading
+                // colon, so `namespace which`'s `:::::p` names the `::p` slot.
+                let key = if engine == "jim" {
+                    format!("::{}", key.trim_start_matches(':'))
+                } else {
+                    key.to_owned()
+                };
                 assert!(
-                    result.procs.contains_key(key),
+                    result.procs.contains_key(&key),
                     "{engine}: {key}, {:?}",
                     result.procs
                 );

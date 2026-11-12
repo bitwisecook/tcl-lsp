@@ -177,6 +177,11 @@ fn visit_one(
                 }
             }
         }
+        Statement::UpFrame {
+            frame_shift,
+            absolute,
+            ..
+        } if *absolute || *frame_shift != 0 => return,
         _ => {}
     }
     for child in stmt.child_scripts() {
