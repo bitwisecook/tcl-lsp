@@ -1899,7 +1899,10 @@ mod tests {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         // Conditional source startup names are independent of Native cell identity.
-        let registry = std::sync::Arc::new(CommandRegistry::build_default());
+        let registry = std::sync::Arc::new(
+            CommandRegistry::build_default()
+                .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()),
+        );
         let context = tcl_registry::model::ingress::static_context_for("tcl9.0")
             .with_command_store(std::sync::Arc::clone(&registry));
         for (source, expected) in [
@@ -1937,7 +1940,8 @@ mod tests {
     fn original_alias_scans_refuse_unavailable_and_foreign_metadata() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let mut registry = CommandRegistry::build_default();
+        let mut registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         registry.insert(tcl_registry::CommandSpec {
             name: "gated-global",
             surface: registry.get("dict").unwrap().surface,

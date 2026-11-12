@@ -12981,7 +12981,8 @@ mod tests {
     fn rendered_props_colour_slash_value_path_prefixed() {
         use crate::compilation_unit::CompilationUnit;
 
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for("set path /etc/hosts", &registry, false);
         let fu = cu.function("::top").unwrap();
         let entry = fu
@@ -13070,7 +13071,8 @@ mod tests {
     fn file_join_transform_reaches_the_live_cfg_taint_lattice() {
         use crate::compilation_unit::CompilationUnit;
 
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let colour_for = |source: &str, name: &str| {
             let cu = CompilationUnit::build_for(source, &registry, false);
             let fu = cu.function("::top").expect("top-level CFG built");
@@ -14348,7 +14350,8 @@ mod tests {
     #[test]
     fn t100_fires_through_interp_alias_indirection() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let source = "interp alias {} myEval {} eval\n\
                        set x [gets stdin]\n\
                        myEval $x\n";
@@ -14369,7 +14372,8 @@ mod tests {
     #[test]
     fn t100_fires_through_rename_indirection() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let source = "rename eval myEval\n\
                        set x [gets stdin]\n\
                        myEval $x\n";
@@ -14794,7 +14798,8 @@ mod tests {
     #[test]
     fn t100_still_fires_for_a_tainted_operand_in_an_unparsed_expr() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let source = "proc f {} {\n  set x [gets stdin]\n  expr {$x + 1}\n}\n";
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
@@ -15805,7 +15810,8 @@ mod tests {
         fn forces_existing_entries_for_a_traced_name() {
             let cu = crate::compilation_unit::CompilationUnit::build_for(
                 "proc p {} { trace add variable t write cb\nset t 1\nputs $t }",
-                &CommandRegistry::build_default(),
+                &CommandRegistry::build_default()
+                    .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()),
                 false,
             );
             assert!(cu.ir_module.traced_variables.contains("t"));
@@ -15835,7 +15841,8 @@ mod tests {
 
         #[test]
         fn leaves_untraced_names_unchanged() {
-            let registry = CommandRegistry::build_default();
+            let registry = CommandRegistry::build_default()
+                .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
             let cu = crate::compilation_unit::CompilationUnit::build_for(
                 "proc p {} { set t 1\nputs $t }",
                 &registry,

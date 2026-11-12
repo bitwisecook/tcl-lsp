@@ -4252,7 +4252,8 @@ mod tests {
         // ::answer returns 42 unconditionally and is pure — a
         // call to ::answer can be folded.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for(
             "proc ::answer {} { return 42 }\n::answer",
             &registry,
@@ -4948,7 +4949,8 @@ mod tests {
         // argv span covering `[::answer]` and the constant return
         // as replacement.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let source = "proc ::answer {} { return 42 }\nputs [::answer]";
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
@@ -4974,7 +4976,8 @@ mod tests {
         // string folds in a cmd-sub position, list-quoted as one word
         // (a bare `a b c` is not a safe single word).
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let source = "proc ::greet {} { return \"a b c\" }\nputs [::greet]";
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
@@ -5004,7 +5007,8 @@ mod tests {
         // [::answer]`). With the AssignValue arm wired, the set value
         // folds identically.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let source = "proc ::answer {} { return 42 }\nproc ::f {} { set y [::answer]\nputs $y }";
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
@@ -5047,7 +5051,8 @@ mod tests {
         // folding it as a statement would leave an invalid `42`
         // command. Diagnostic must stay hint-only.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for(
             "proc ::answer {} { return 42 }\n::answer",
             &registry,
@@ -5077,7 +5082,8 @@ mod tests {
         // rewrite fires only for the CMD-subst form; the bare-call form
         // stays hint-only.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for(
             "proc ::not_const {x} { return $x }\nputs [::not_const 1]",
             &registry,
@@ -5103,7 +5109,8 @@ mod tests {
         // multi-word call argument (`{a b}` — one clean literal argument in
         // real Tcl) folds too.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for(
             "proc ::passthrough {x} { return $x }\nputs [::passthrough {a b}]",
             &registry,
@@ -5131,7 +5138,8 @@ mod tests {
         // no braces needed), so `return $args` folds to `2`. Confirmed
         // against tclsh 8.6: `puts [::foo 1 2]` prints `2`.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for(
             "proc ::foo {a args} { return $args }\nputs [::foo 1 2]",
             &registry,
@@ -5183,7 +5191,8 @@ mod tests {
         // on implicit return never folded at all (`[double 21]` stayed
         // unrewritten even though tclsh evaluates it to `42`).
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let src = "proc double {n} { expr {$n * 2} }\nset x [double 21]\n";
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
@@ -5206,7 +5215,8 @@ mod tests {
         // this is exactly like `return $pi`) also folds via the CMD-subst
         // path.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let src = "proc pi {} { set p 3 }\nputs [pi]\n";
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
@@ -5292,7 +5302,8 @@ mod tests {
         // supplying more than one trailing argument (`[f 5 x y z]` for
         // `proc f {a args}`) never even reached the fold attempt.
         use tcl_registry::CommandRegistry;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let src = "proc f {a args} { expr {$a * 2} }\nputs [f 5 x y z]\n";
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);

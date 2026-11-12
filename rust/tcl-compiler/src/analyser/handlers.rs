@@ -20005,7 +20005,7 @@ proc runs {body} {\n\
     my_eval $body\n\
 }\n";
         let mut a = crate::analyser::Analyser::new();
-        let r = a.analyse(source, "tcl");
+        let r = a.analyse(source, "tcl8.6");
         let proc = r.all_procs.get("::runs").expect("::runs registered");
         let body_traits = proc
             .param_traits

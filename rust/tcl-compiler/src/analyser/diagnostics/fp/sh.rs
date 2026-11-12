@@ -1587,7 +1587,8 @@ fn fp_sh_23_three_way_same_type_merge_silent() {
 fn fp_sh_23_bignum_folds_are_exact() {
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default()
+        .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
     let cu = CompilationUnit::build_for(
         "set big [expr {2**64}]\nset next [expr {$big + 1}]",
         &registry,

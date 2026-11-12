@@ -14800,7 +14800,7 @@ fn const_cmd_head_resolves_in_the_dispatch_namespace_m7() {
     let mut a = Analyser::new();
     let src = "namespace eval ns { proc target {} {} }\n\
                namespace eval ns { set cmd target; $cmd }\n";
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.command_invocations
             .iter()
@@ -14877,7 +14877,7 @@ fn const_cmd_head_resolves_through_a_pure_copy_chain_m7() {
     // literal, keeping the dispatch alive.
     let mut a = Analyser::new();
     let src = "proc target {} {}\nset x target\nset cmd $x\n$cmd\n";
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     let dispatch = u32::try_from(src.find("$cmd").unwrap()).unwrap();
     assert!(
         r.command_invocations.iter().any(|i| i.indirect
@@ -15171,7 +15171,7 @@ fn expanded_head_list_prefix_keeps_the_exact_writable_component_945() {
 fn dispatch_table_value_becomes_a_reference_when_consumed_m7() {
     let mut a = Analyser::new();
     let src = "proc do_add {a b} {}\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     let lit = u32::try_from(src.find("add do_add").unwrap() + 4).unwrap();
     assert!(
         r.command_invocations.iter().any(|i| i.name == "do_add"
@@ -15257,7 +15257,7 @@ fn dict_set_table_value_becomes_a_reference_when_consumed_m7() {
     let mut a = Analyser::new();
     let src =
         "proc handle_get {} {}\ndict set handlers GET handle_get\n{*}[dict get $handlers GET]\n";
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     let lit = u32::try_from(src.find(" handle_get\n").unwrap() + 1).unwrap();
     assert!(
         r.command_invocations.iter().any(|i| i.name == "handle_get"

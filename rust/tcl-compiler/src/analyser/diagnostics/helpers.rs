@@ -3293,7 +3293,8 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn dict_literal_fallback_requires_the_original_reaching_value() {
-        let registry = tcl_registry::CommandRegistry::build_default();
+        let registry = tcl_registry::CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         for (source, expected) in [
             (
                 "proc f {} {set d {present 1}; dict update d present local {puts $local}}",

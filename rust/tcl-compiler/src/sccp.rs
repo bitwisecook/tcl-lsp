@@ -6229,7 +6229,8 @@ mod tests {
         // unset alias}}; caller` returns 0. The literal UpFrame body therefore
         // carries a real caller-frame mutation, not merely a control-flow
         // wrapper, and is a separate vector from the nested local-frame test.
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {} { uplevel 1 { upvar 0 caller_value alias; unset alias } }",
             &registry,

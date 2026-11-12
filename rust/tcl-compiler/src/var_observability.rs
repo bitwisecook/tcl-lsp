@@ -573,7 +573,8 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         // One original Logical body and command store, two availability inputs.
         // These source hazards certify no Native link, frame or trace table.
-        let mut registry = CommandRegistry::build_default();
+        let mut registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         registry.insert(tcl_registry::CommandSpec {
             name: "gated-global",
             surface: registry.get("dict").unwrap().surface,

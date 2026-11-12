@@ -2164,7 +2164,8 @@ mod span_absolute_tests {
     #[test]
     fn proc_body_statement_spans_are_absolute() {
         let src = "proc ::f {} { set x 1; return $x }";
-        let r = CommandRegistry::build_default();
+        let r = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for(src, &r, false);
         let proc = fixture_id_if_present(&cu.ir_module.procedures, "::f")
             .and_then(|id| cu.ir_module.procedures.get(&id))

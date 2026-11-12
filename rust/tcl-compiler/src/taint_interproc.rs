@@ -2576,7 +2576,8 @@ mod tests {
         // its live parameter. Receiver typing is independent of those seeds,
         // so it must be solved once for the whole summary, not once per
         // propagation run (the old cost was 1 + TaintBasis::ALL.len()).
-        let reg = CommandRegistry::build_default();
+        let reg = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for("proc id {v} { return $v }\n", &reg, false)
             .with_interprocedural(&reg, None);
         let interproc = cu.interproc.as_ref();
@@ -2860,7 +2861,8 @@ mod original_return_taint_word_purpose_tests {
 
     #[test]
     fn return_dependencies_keep_literal_names_index_children_and_unknown_versions() {
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let unit = CompilationUnit::build_for(
             "set array(key) VALUE; set index key; set {$literal} VALUE; set {} EMPTY; return [list $array($index) ${$literal} ${}]",
             &registry,

@@ -484,11 +484,11 @@ mod tests {
         );
         let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
         let results = [
-            Analyser::new().analyse(source, "tcl"),
+            Analyser::new().analyse(source, "tcl8.6"),
             Analyser::new()
-                .analyse_chunked(source, vec![commands.clone()], "tcl")
+                .analyse_chunked(source, vec![commands.clone()], "tcl8.6")
                 .0,
-            Analyser::new().analyse_commands(source, &commands, "tcl", true),
+            Analyser::new().analyse_commands(source, &commands, "tcl8.6", true),
         ];
         for analysis in results {
             let receipt =

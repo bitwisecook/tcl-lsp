@@ -2241,7 +2241,7 @@ mod tests {
     #[test]
     fn retained_source_script_assignments_share_the_original_constructor_seed() {
         let source = "oo::class create C {method m {} {}}\nproc build {} {set object [C new]; set inert {[C new]}}\n";
-        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let input = analysis.resolved_input.as_ref().unwrap();
         let registry = analysis.resolved_registry().unwrap();
         let unit = CompilationUnit::build_with_analysis_input(
