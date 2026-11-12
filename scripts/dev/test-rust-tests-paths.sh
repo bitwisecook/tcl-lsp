@@ -59,6 +59,7 @@ expect_relevant scripts/dev/rust-tests-package-paths.txt
 expect_relevant scripts/dev/rust-tests-path.sh
 expect_relevant scripts/dev/rust-test-binary-shard.sh
 expect_relevant scripts/dev/rust-test-binary-shards.tsv
+expect_relevant scripts/dev/rust-heavy-tests.tsv
 expect_relevant scripts/dev/select-rust-tests-runner.sh
 expect_relevant scripts/dev/persistent-cargo-target.sh
 expect_relevant scripts/dev/test-already-green.sh

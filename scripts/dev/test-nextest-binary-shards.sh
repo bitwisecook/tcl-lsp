@@ -170,6 +170,16 @@ wrong_one["rust-suites"]["integration::smoke"] = suite(
 )
 root.joinpath("selected-wrong-shard.json").write_text(json.dumps(wrong_one), encoding="utf-8")
 root.joinpath("empty.json").write_text(json.dumps({"test-count": 0, "rust-suites": {}}), encoding="utf-8")
+
+# Light tier: the heavy-listed integration case is left out of shard two.
+root.joinpath("heavy.tsv").write_text(
+    "# heavy tests\nintegration::smoke\tintegration_case\ncore\tgone_case\n", encoding="utf-8"
+)
+light_two = copy.deepcopy(two)
+light_two["rust-suites"]["integration::smoke"]["testcases"]["integration_case"]["filter-match"]["status"] = "mismatch"
+root.joinpath("light-two.json").write_text(json.dumps(light_two), encoding="utf-8")
+root.joinpath("heavy-whole.tsv").write_text("integration::smoke\t*\n", encoding="utf-8")
+root.joinpath("heavy-malformed.tsv").write_text("integration::smoke\n", encoding="utf-8")
 PY
 
 run() {
@@ -197,6 +207,22 @@ expect_failure "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/malfor
 expect_failure "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/malformed-status.json" "$tmp_dir/two.json"
 expect_failure "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/empty.json" "$tmp_dir/two.json"
 expect_failure --metadata-only "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/one.json"
+
+# Light tier: a heavy test must be left out, everything else stays exact-once,
+# and a stale heavy row only warns.
+light_out=$(run --heavy-list "$tmp_dir/heavy.tsv" "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/one.json" "$tmp_dir/light-two.json")
+case "$light_out" in
+    *'light: heavy-excluded=1'*'heavy test list entry matches no assigned test'*core*gone_case* | \
+        *'heavy test list entry matches no assigned test'*core*gone_case*'light: heavy-excluded=1'*) ;;
+    *)
+        echo "light-tier proof must count the excluded heavy test and warn on stale rows: $light_out" >&2
+        exit 1
+        ;;
+esac
+run --heavy-list "$tmp_dir/heavy-whole.tsv" "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/one.json" "$tmp_dir/light-two.json" >/dev/null
+expect_failure --heavy-list "$tmp_dir/heavy.tsv" "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/one.json" "$tmp_dir/two.json"
+expect_failure "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/one.json" "$tmp_dir/light-two.json"
+expect_failure --heavy-list "$tmp_dir/heavy-malformed.tsv" "$tmp_dir/metadata.json" "$tmp_dir/manifest.tsv" "$tmp_dir/one.json" "$tmp_dir/light-two.json"
 expect_failure --metadata-only "$tmp_dir/metadata-no-common.json" "$tmp_dir/manifest.tsv"
 
 (cd "$REPO_ROOT" && cargo metadata --no-deps --locked --format-version 1) > "$tmp_dir/workspace-metadata.json"
@@ -232,6 +258,33 @@ grep -Fxq -- '(package(=integration) & binary(=integration)) | (package(=integra
     "$tmp_dir/shard-two.args"
 if grep -Fq -- '--partition' "$tmp_dir/shard-one.args" "$tmp_dir/shard-two.args"; then
     echo "binary-aware runner must not add a hash partition" >&2
+    exit 1
+fi
+if grep -Fxq -- '--profile' "$tmp_dir/shard-one.args"; then
+    echo "the heavy tier (the default) must not select the ci-light profile" >&2
+    exit 1
+fi
+
+# Light tier: the same selection minus the heavy rows, under ci-light.
+CARGO_ARGS_FILE="$tmp_dir/shard-two-light.args" \
+    TCL_LSP_RUST_TEST_BINARY_SHARDS="$tmp_dir/manifest.tsv" \
+    TCL_LSP_RUST_HEAVY_TESTS="$tmp_dir/heavy.tsv" \
+    TCL_LSP_RUST_TEST_TIER=light \
+    PATH="$tmp_dir/bin:$PATH" \
+    "$BINARY_SHARD" run 2/2 --no-fail-fast
+grep -Fxq -- '--profile' "$tmp_dir/shard-two-light.args"
+grep -Fxq -- ci-light "$tmp_dir/shard-two-light.args"
+grep -Fxq -- '((package(=integration) & binary(=integration)) | (package(=integration) & binary(=smoke))) & not ((binary_id(=integration::smoke) & test(=integration_case)) | (binary_id(=core) & test(=gone_case)))' \
+    "$tmp_dir/shard-two-light.args"
+if CARGO_ARGS_FILE="$tmp_dir/unused.args" TCL_LSP_RUST_TEST_BINARY_SHARDS="$tmp_dir/manifest.tsv" \
+    TCL_LSP_RUST_TEST_TIER=medium PATH="$tmp_dir/bin:$PATH" "$BINARY_SHARD" list 1/2 2>/dev/null; then
+    echo "an unknown test tier must be refused" >&2
+    exit 1
+fi
+if CARGO_ARGS_FILE="$tmp_dir/unused.args" TCL_LSP_RUST_TEST_BINARY_SHARDS="$tmp_dir/manifest.tsv" \
+    TCL_LSP_RUST_HEAVY_TESTS="$tmp_dir/heavy-malformed.tsv" TCL_LSP_RUST_TEST_TIER=light \
+    PATH="$tmp_dir/bin:$PATH" "$BINARY_SHARD" list 1/2 2>/dev/null; then
+    echo "a malformed heavy row must be refused" >&2
     exit 1
 fi
 

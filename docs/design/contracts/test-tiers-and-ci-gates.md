@@ -9,7 +9,8 @@ behind it.
 | Tier | Runs | What |
 |---|---|---|
 | **smoke** — `make smoke`, `make smoke-p P=<crate>` | locally after every compile; inside `make prep-pr` | the fail-closed smoke-named function/module and effective Cargo-target subset owned by `scripts/dev/smoke-targets.tsv`, one sanity check per crate, seconds warm. Reuses the dev-profile default-features build (never `--all-features`), so it never forces a recompile. |
-| **deep** — CI jobs `rust-tests-shard` and `rust-tests-doctest` plus their stable `rust-tests` aggregate, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat`, `web-frontends` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck plus native-engine build and binding tests for `rust/bigip-report-gen/python`, and an `npm ci` of the two npm roots that are not `editors/vscode`. Skips only what demonstrably did not change (below). |
+| **light** — CI, the default for every PR and every push to `rust` | each push and pull request | `rust-check`, `cargo-deny`, `python`, `web-frontends`, the browser/WASI server builds and their smoke scripts, and the five `rust-tests-shard` legs without the tests in `scripts/dev/rust-heavy-tests.tsv` (opt-level 1, the `ci-light` nextest profile, every test ended at 30 s). Each shard's test step fits inside three minutes. The heavy-only suites take their unchanged no-op paths, so every required aggregate still reports. |
+| **heavy** — CI with `workflow_dispatch` `test_tier=heavy`, and every release tag | on request; always for `v*` tags | everything the light tier runs plus the heavy-listed shard tests, `rust-tests-doctest`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `spectcl-compat` and `wasm-real-link`: the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, and the real-toolchain WASM link. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
 The native `lsp-e2e` surface is produced once as a nextest 0.9.148 archive,
@@ -101,6 +102,12 @@ modules and relative `include_*!` paths are written relative to
    root + live kernel), marked
    `#[ignore = "<reason>; run explicitly with --ignored"]`. These form the
    exhaustive tier and are not debt.
+2a. **The light tier is a time box, not a quarantine.** A root test leaves
+   the light tier only by being listed in `scripts/dev/rust-heavy-tests.tsv`
+   for its run time (above about one second at opt-level 1 on hosted CI) or
+   its resources. A failing test is fixed, never listed. The heavy tier and
+   every release tag still run the listed tests, and the `rust-tests`
+   aggregate proves that each unlisted assigned test ran exactly once.
 3. **No shipped xfails.** Shipped tests have no expected-failure markers;
    failures require a root-cause fix. Do not confuse an xfail with rule 2. The one
    standing exception is the eglot semantic-token repaint failure in

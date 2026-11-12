@@ -24,6 +24,10 @@ it records the binary target assigned to each shard. Library and binary
 targets are built and listed on every shard to retain workspace-wide feature
 unification, while an integration-test target is built on its assigned shard
 only. Tests from every target are selected only on their assigned shard.
+
+With ``--heavy-list`` the listings come from the light CI tier: every listed
+heavy test must be left unselected, and every other assigned test is still
+selected exactly once.
 """
 
 from __future__ import annotations
@@ -294,11 +298,30 @@ def _suite_target(
     return target, testcases
 
 
+def _heavy_tests(path: Path) -> frozenset[tuple[str, str]]:
+    """Rows of ``binary_id<TAB>test``; a test of ``*`` names the whole binary."""
+    rows: set[tuple[str, str]] = set()
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 2 or not fields[0] or not fields[1]:
+            raise VerificationError(f"{path}:{number}: malformed heavy row")
+        rows.add((fields[0], fields[1]))
+    return frozenset(rows)
+
+
+def _is_heavy(heavy: frozenset[tuple[str, str]], binary_id: str, test: str) -> bool:
+    return (binary_id, "*") in heavy or (binary_id, test) in heavy
+
+
 def _verify_listing(
     path: Path,
     shard: int,
     manifest: Manifest,
     targets: dict[str, Target],
+    heavy: frozenset[tuple[str, str]] | None = None,
+    heavy_seen: set[tuple[str, str]] | None = None,
 ) -> set[tuple[str, str]]:
     document = _read_json(path)
     if not isinstance(document, dict):
@@ -351,6 +374,17 @@ def _verify_listing(
                     raise VerificationError(
                         f"{path}: ignored testcase selected: {target.binary_id}:{test_name}"
                     )
+            elif expected_here and heavy is not None and _is_heavy(
+                heavy, target.binary_id, test_name
+            ):
+                if heavy_seen is not None:
+                    heavy_seen.add((target.binary_id, test_name))
+                    heavy_seen.add((target.binary_id, "*"))
+                if status == "matches":
+                    raise VerificationError(
+                        f"{path}: heavy testcase selected in the light tier: "
+                        f"{target.binary_id}:{test_name}"
+                    )
             elif expected_here:
                 if status != "matches":
                     raise VerificationError(
@@ -383,6 +417,7 @@ def verify(
     listing_paths: list[Path],
     partition_count: int | None = None,
     metadata_only: bool = False,
+    heavy_list: Path | None = None,
 ) -> None:
     manifest = _manifest(manifest_path)
     if partition_count is not None:
@@ -424,9 +459,13 @@ def verify(
             f"expected exactly {manifest.partitions} listings, got {len(listing_paths)}"
         )
 
+    heavy = _heavy_tests(heavy_list) if heavy_list is not None else None
+    heavy_seen: set[tuple[str, str]] = set()
     selected_by_shard: list[set[tuple[str, str]]] = []
     for shard, path in enumerate(listing_paths, 1):
-        selected_by_shard.append(_verify_listing(path, shard, manifest, targets))
+        selected_by_shard.append(
+            _verify_listing(path, shard, manifest, targets, heavy, heavy_seen)
+        )
     union: set[tuple[str, str]] = set()
     for shard, selected in enumerate(selected_by_shard, 1):
         overlap = union & selected
@@ -439,7 +478,17 @@ def verify(
         f"{shard}/{manifest.partitions}={len(selected)}"
         for shard, selected in enumerate(selected_by_shard, 1)
     )
-    print(f"nextest binary shard proof: selected={len(union)} {counts}")
+    tier = ""
+    if heavy is not None:
+        excluded = len({row for row in heavy_seen if row[1] != "*"})
+        tier = f" light: heavy-excluded={excluded}"
+        # A renamed or deleted heavy test is harmless but leaves the list stale.
+        for binary_id, test in sorted(heavy - heavy_seen):
+            print(
+                f"::warning::heavy test list entry matches no assigned test: "
+                f"{binary_id}\t{test}"
+            )
+    print(f"nextest binary shard proof: selected={len(union)} {counts}{tier}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -459,6 +508,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="check only that the manifest exactly covers locked Cargo metadata",
     )
+    parser.add_argument(
+        "--heavy-list",
+        type=Path,
+        help="light-tier listings: these heavy tests must be left unselected",
+    )
     args = parser.parse_args(argv)
     try:
         verify(
@@ -467,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
             args.listings,
             args.partition_count,
             args.metadata_only,
+            args.heavy_list,
         )
     except VerificationError as exc:
         print(f"nextest binary shard proof failed: {exc}", file=sys.stderr)

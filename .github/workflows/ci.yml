@@ -33,6 +33,14 @@ on:
         required: true
         default: false
         type: boolean
+      test_tier:
+        description: Test tier — light (the default push/PR pass) or heavy (every suite)
+        required: true
+        default: light
+        type: choice
+        options:
+          - light
+          - heavy
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof && !startsWith(github.ref, 'refs/tags/v') && 'native-release-proof' || 'ordinary' }}-${{ github.ref }}
@@ -171,6 +179,7 @@ jobs:
       rust_tests_changed: ${{ steps.paths.outputs.rust_tests_changed }}
       lsp_e2e_changed: ${{ steps.paths.outputs.lsp_e2e_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
+      test_tier: ${{ steps.tier.outputs.test_tier }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -206,6 +215,23 @@ jobs:
             bash scripts/dev/already-green.sh
           fi
 
+      # Light runs on every push and pull request: checks plus the root Rust
+      # shards without their heavy-listed tests. Heavy runs every suite; it is
+      # requested by manual dispatch and always runs for release tags.
+      - name: Select the test tier
+        id: tier
+        env:
+          INPUT_TEST_TIER: ${{ inputs.test_tier }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] ||
+            [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$INPUT_TEST_TIER" == heavy ]]; then
+            tier=heavy
+          else
+            tier=light
+          fi
+          echo "test_tier=$tier" >> "$GITHUB_OUTPUT"
+          echo "test tier: $tier"
+
       - name: Classify changed paths
         id: paths
         env:
@@ -213,6 +239,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
+          TEST_TIER: ${{ steps.tier.outputs.test_tier }}
         run: |
           ok=true
           files=""
@@ -369,6 +396,14 @@ jobs:
             rust_tests_changed=true
             lsp_e2e_changed=true
             docs_only=false
+          fi
+          # The light tier leaves the long suites to the heavy tier: their jobs
+          # and aggregates take the same no-op path as an unaffected closure.
+          if [ "$TEST_TIER" = light ]; then
+            ext_changed=false
+            spectcl_compat_changed=false
+            runtime_rust_changed=false
+            lsp_e2e_changed=false
           fi
           {
             echo "python_changed=$python_changed"
@@ -1324,6 +1359,8 @@ jobs:
       # opt-level 1 with identical results, for about 8 more minutes of
       # compile on a cold target. Local `cargo test` keeps the dev default.
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      # Light leaves out scripts/dev/rust-heavy-tests.tsv (see the channel tier).
+      TCL_LSP_RUST_TEST_TIER: ${{ needs.channel.outputs.test_tier }}
       RUNNER_MODE: ${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || 'hosted' }}
     concurrency:
       group: rust-tests-${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || format('hosted-{0}-{1}', github.run_id, matrix.shard) }}
@@ -1629,9 +1666,10 @@ jobs:
 
       # The whole workspace includes crates intentionally omitted from the
       # direct nextest selection. Doctests are a separate semantic surface,
-      # not a cache-warming duplicate of a nextest shard.
+      # not a cache-warming duplicate of a nextest shard. They compile one
+      # crate per example, so they run in the heavy tier (tags are heavy).
       - name: cargo test --doc
-        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.test_tier == 'heavy'
         run: cargo test --workspace --all-features --doc --no-fail-fast
 
   # Stable required status context. Locked Cargo metadata must agree with the
@@ -1686,8 +1724,15 @@ jobs:
 
       - name: Verify complete five-way binary selection
         if: needs.channel.result == 'success' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          TEST_TIER: ${{ needs.channel.outputs.test_tier }}
         run: |
-          python3 scripts/dev/verify-nextest-binary-shards.py --partition-count 5 \
+          # The light tier proves exact-once selection of everything not listed heavy.
+          light=()
+          if [ "$TEST_TIER" = light ]; then
+            light=(--heavy-list scripts/dev/rust-heavy-tests.tsv)
+          fi
+          python3 scripts/dev/verify-nextest-binary-shards.py --partition-count 5 "${light[@]}" \
             "$RUNNER_TEMP/rust-tests-listings/rust-tests-metadata.json" \
             scripts/dev/rust-test-binary-shards.tsv \
             "$RUNNER_TEMP/rust-tests-listings/rust-tests-1-5.json" \
@@ -1788,6 +1833,8 @@ jobs:
   # The heavy VM-simulation suites, split out to run concurrently with
   # `rust-tests-shard` (see that job's header). Doctests are covered there.
   rust-tests-heavy:
+    # Heavy tier only (manual dispatch and release tags).
+    if: ${{ needs.channel.outputs.test_tier == 'heavy' }}
     # Deliberately hosted.  The self-hosted box has a single runner, so jobs
     # sent there execute serially; measured, moving this job as well pushed the
     # critical path from 239s to 253s. See `rust-tests-shard` for the full reasoning.
@@ -2002,7 +2049,9 @@ jobs:
   # here too, because this is the only job with wasi-sdk; `rust-check` runs the
   # half of that gate that needs no compiler.
   wasm-real-link:
-    # Deliberately hosted -- see `rust-tests-heavy`.
+    # Deliberately hosted -- see `rust-tests-heavy`. Heavy tier only: its
+    # suites run single-threaded for several minutes.
+    if: ${{ needs.channel.outputs.test_tier == 'heavy' }}
     needs: [channel]
     runs-on: ubuntu-26.04
     steps:

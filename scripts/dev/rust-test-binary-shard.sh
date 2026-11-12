@@ -144,6 +144,51 @@ if [ "$rows" -eq 0 ]; then
     exit 2
 fi
 
+# The light CI tier leaves out every test listed as heavy and runs under the
+# time-boxed ci-light profile; the heavy tier (and every local use) runs the
+# complete assignment. Listing and running both pass through here, so the
+# recorded selection is exactly the executed one.
+tier=${TCL_LSP_RUST_TEST_TIER:-heavy}
+declare -a profile=()
+case "$tier" in
+    heavy) ;;
+    light)
+        heavy_list=${TCL_LSP_RUST_HEAVY_TESTS:-$script_dir/rust-heavy-tests.tsv}
+        if [ ! -r "$heavy_list" ]; then
+            echo "rust-test-binary-shard: cannot read $heavy_list" >&2
+            exit 2
+        fi
+        heavy=
+        heavy_line=0
+        while IFS=$'\t' read -r heavy_binary heavy_test heavy_extra || [ -n "${heavy_binary:-}" ]; do
+            heavy_line=$((heavy_line + 1))
+            case "${heavy_binary:-}" in
+                '' | \#*) continue ;;
+            esac
+            if [ -z "${heavy_test:-}" ] || [ -n "${heavy_extra:-}" ] \
+                || [[ ! $heavy_binary =~ ^[A-Za-z0-9_:/.-]+$ ]] \
+                || [[ ! $heavy_test =~ ^([A-Za-z0-9_:]+|\*)$ ]]; then
+                echo "rust-test-binary-shard: malformed heavy row at $heavy_list:$heavy_line" >&2
+                exit 2
+            fi
+            if [ "$heavy_test" = '*' ]; then
+                clause="binary_id(=$heavy_binary)"
+            else
+                clause="(binary_id(=$heavy_binary) & test(=$heavy_test))"
+            fi
+            heavy=${heavy:+$heavy | }$clause
+        done < "$heavy_list"
+        if [ -n "$heavy" ]; then
+            filter="($filter) & not ($heavy)"
+        fi
+        profile=(--profile ci-light)
+        ;;
+    *)
+        echo "rust-test-binary-shard: TCL_LSP_RUST_TEST_TIER must be light or heavy" >&2
+        exit 2
+        ;;
+esac
+
 # Core and the DB compiler-check differential consume fixed upstream Tcllib
 # fixtures. Listing/build-only jobs do not; execution uses Make's bootstrap.
 if [ "$operation" = run ] && [ "${needs_fixed_tcllib:-0}" = 1 ]; then
@@ -151,6 +196,7 @@ if [ "$operation" = run ] && [ "${needs_fixed_tcllib:-0}" = 1 ]; then
 fi
 
 exec cargo nextest "$operation" \
+    "${profile[@]}" \
     --workspace \
     "${exclusions[@]}" \
     --all-features \

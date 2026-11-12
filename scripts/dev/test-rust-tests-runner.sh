@@ -399,7 +399,7 @@ END {
     need(values[doctest_job ".if"] == values[shard_job ".if"], "doctests must retain the shard matrix unchanged/exact-green job skips")
     need(values[doctest_job ".runs-on"] == "ubuntu-26.04", "doctests must run concurrently on hosted capacity")
     need(values[doctest_job ".needs"] == "[channel]", "doctests must be independently concurrent with shards")
-    need(values[doctest_job ".steps." doctest ".if"] == changed " && needs.channel.outputs.docs_only != '\''true'\'' && needs.channel.outputs.already_green != '\''true'\''", "doctests must retain exact changed-path and exact-green skip semantics")
+    need(values[doctest_job ".steps." doctest ".if"] == changed " && needs.channel.outputs.docs_only != '\''true'\'' && needs.channel.outputs.already_green != '\''true'\'' && needs.channel.outputs.test_tier == '\''heavy'\''", "doctests must retain exact changed-path and exact-green skip semantics and run only in the heavy tier")
     contains(doctest_job ".steps." doctest ".run", "cargo test --workspace --all-features --doc --no-fail-fast", "doctests must retain whole-workspace coverage")
     report = step(shard_job, "name", "Report final Tank Cargo target")
     need(report >= 0 && values[shard_job ".steps." report ".if"] == "always() && " changed " && env.RUNNER_MODE == '\''tank'\''" && values[shard_job ".steps." report ".continue-on-error"] == "true", "final target telemetry must be Tank-only, always-run, and non-fatal")
