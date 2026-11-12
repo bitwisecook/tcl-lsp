@@ -1122,14 +1122,26 @@ fn finalize_function(
         &labels,
         ctx.instructions.len(),
     );
-    for region in ctx.inline_loop_regions.iter().rev() {
-        let (Some(&start), Some(&end), Some(&break_offset)) = (
-            ctx.label_positions.get(&region.start),
-            ctx.label_positions.get(&region.end),
-            labels.get(&region.break_target),
-        ) else {
-            panic!("native inline loop labels must be placed before layout");
-        };
+    // Regions nest, but are recorded both before their bodies are emitted
+    // (planned native loops) and after (`dict for`/`dict map`), so install
+    // the widest first: each inner loop then replaces its enclosing loop's
+    // targets for its own instructions.
+    let mut regions: Vec<_> = ctx
+        .inline_loop_regions
+        .iter()
+        .map(|region| {
+            let (Some(&start), Some(&end), Some(&break_offset)) = (
+                ctx.label_positions.get(&region.start),
+                ctx.label_positions.get(&region.end),
+                labels.get(&region.break_target),
+            ) else {
+                panic!("native inline loop labels must be placed before layout");
+            };
+            (start, end, break_offset, region)
+        })
+        .collect();
+    regions.sort_by_key(|&(start, end, ..)| std::cmp::Reverse(end.saturating_sub(start)));
+    for (start, end, break_offset, region) in regions {
         let targets = (
             Some(i32::try_from(break_offset).expect("native loop offset fits i32")),
             region.continue_target.as_ref().map(|target| {
@@ -1142,8 +1154,6 @@ fn finalize_function(
             }),
         );
         for index in start..end {
-            // The outer region is installed first; recursively emitted inner
-            // loops then replace its targets for their own instructions.
             loop_targets.insert(index, targets);
         }
     }
