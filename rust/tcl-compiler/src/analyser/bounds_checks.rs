@@ -396,10 +396,32 @@ pub(crate) struct LoopCounter {
     pub var: String,
     /// The comparison, with the counter on its left.
     op: String,
-    /// The literal the counter is compared with.
-    bound: i64,
+    /// What the counter is compared with.
+    bound: LoopOperand,
     /// What every pass adds to the counter.
-    step: i64,
+    step: LoopOperand,
+}
+
+/// A loop bound or step: an integer the text writes, or a variable whose
+/// value the solver may prove where the loop starts (#2452).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LoopOperand {
+    Literal(i64),
+    Variable(String),
+}
+
+impl LoopOperand {
+    /// The integer, a variable's only where nothing in the loop may write it.
+    fn value(
+        &self,
+        writes: &impl Fn(&str) -> LoopWrites,
+        start: &impl Fn(&str) -> Option<i64>,
+    ) -> Option<i64> {
+        match self {
+            Self::Literal(value) => Some(*value),
+            Self::Variable(name) => writes(name).none().then(|| start(name)).flatten(),
+        }
+    }
 }
 
 impl LoopCounter {
@@ -407,8 +429,8 @@ impl LoopCounter {
     /// when it may: the condition holds on entry and the step is zero, moves
     /// the counter away from its bound, or steps over the one value `!=`
     /// stops at.
-    fn never_terminates(&self, start: i64) -> Option<String> {
-        let (op, bound, step) = (self.op.as_str(), self.bound, self.step);
+    fn never_terminates(&self, start: i64, bound: i64, step: i64) -> Option<String> {
+        let op = self.op.as_str();
         if !cond_true_at(op, start, bound) {
             return None;
         }
@@ -525,7 +547,10 @@ impl LoopTerminationCandidate {
         }
         if let Some(counter) = &self.counter
             && writes(&counter.var).step_alone()
-            && let Some(reason) = start(&counter.var).and_then(|at| counter.never_terminates(at))
+            && let Some(bound) = counter.bound.value(&writes, &start)
+            && let Some(step) = counter.step.value(&writes, &start)
+            && let Some(reason) =
+                start(&counter.var).and_then(|at| counter.never_terminates(at, bound, step))
         {
             self.lexical = LexicalVerdict::Infinite(Some(reason));
             return;
@@ -775,26 +800,131 @@ fn loop_counter(
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Option<LoopCounter> {
-    let (var, op, bound) =
-        parse_simple_for_cond_configured(words.condition, grammar, lexer_config)?;
     if body_may_exit(words.body, registry, lexer_config) {
         return None;
     }
-    let step = match words.next {
-        Some(next) => command_increment(
+    let step_of = |var: &str| match words.next {
+        Some(next) => command_step(
             &sole_command(next, lexer_config)?,
-            &var,
+            var,
             registry,
             lexer_config,
-        )?,
-        None => body_increment(words.body, &var, registry, lexer_config)?,
+        ),
+        None => body_step(words.body, var, registry, lexer_config),
     };
-    Some(LoopCounter {
-        var,
-        op,
-        bound,
-        step,
-    })
+    if let Some((var, op, bound)) =
+        parse_simple_for_cond_configured(words.condition, grammar, lexer_config)
+    {
+        let step = step_of(&var)?;
+        return Some(LoopCounter {
+            var,
+            op,
+            bound: LoopOperand::Literal(bound),
+            step,
+        });
+    }
+    // `$i OP $n`: the counter is the side the step moves.
+    let (left, op, right) = parse_variable_for_cond(words.condition, grammar, lexer_config)?;
+    for (var, op, bound) in [
+        (left.clone(), op.clone(), right.clone()),
+        (right, flip_comparison(&op).to_string(), left),
+    ] {
+        if let Some(step) = step_of(&var) {
+            return Some(LoopCounter {
+                var,
+                op,
+                bound: LoopOperand::Variable(bound),
+                step,
+            });
+        }
+    }
+    None
+}
+
+/// `$a OP $b` over two distinct plain scalars, with the comparison as written.
+fn parse_variable_for_cond(
+    cond: &str,
+    grammar: &tcl_dialect::LexerGrammar,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, String, String)> {
+    let all = configured_bounds_expression_tokens(strip_braces(cond), grammar, config)?;
+    let tokens: Vec<&ExprToken> = all
+        .iter()
+        .filter(|t| !t.kind.is_skipped() && t.kind != ExprTokenType::Eof)
+        .collect();
+    let [left, op, right] = tokens.as_slice() else {
+        return None;
+    };
+    if op.kind != ExprTokenType::Operator || !SIMPLE_CMP_OPS.contains(&op.text.as_str()) {
+        return None;
+    }
+    let left = tokens_as_scalar_var(&[*left], config)?;
+    let right = tokens_as_scalar_var(&[*right], config)?;
+    (left != right).then(|| (left, op.text.clone(), right))
+}
+
+/// The one step of `var` at `body`'s top level ([`command_step`]).
+fn body_step(
+    body: &str,
+    var: &str,
+    registry: BoundsMetadataContext<'_>,
+    lexer_config: tcl_lexer::LexerConfig,
+) -> Option<LoopOperand> {
+    let mut steps = segment_commands_with_offset_and_config(body, 0, lexer_config.nested())
+        .into_iter()
+        .filter_map(|cmd| command_step(&cmd, var, registry, lexer_config));
+    let step = steps.next()?;
+    steps.next().is_none().then_some(step)
+}
+
+/// What `cmd` adds to `var`: a literal amount ([`command_increment`]), or a
+/// `$name` word the route adds as it stands — run with that word read as
+/// two different integers, it stores each.
+fn command_step(
+    cmd: &SegmentedCommand,
+    var: &str,
+    registry: BoundsMetadataContext<'_>,
+    lexer_config: tcl_lexer::LexerConfig,
+) -> Option<LoopOperand> {
+    if let Some(step) = command_increment(cmd, var, registry, lexer_config) {
+        return Some(LoopOperand::Literal(step));
+    }
+    let head = registry.spec(cmd.name())?.descriptor_key().label();
+    let (operation, target) =
+        crate::value_transfer::resolved_cell_update(registry.commands(), head, cmd.args())?;
+    if operation != tcl_registry::native_lowering::CellUpdate::Increment
+        || cmd.args().get(target.0).map(String::as_str) != Some(var)
+    {
+        return None;
+    }
+    let mut amount = None;
+    for (index, text) in cmd.args().iter().enumerate() {
+        let token = cmd.arg_tokens().get(index)?;
+        if token.kind != TokenType::Var {
+            continue;
+        }
+        if amount.is_some() || cmd.arg_single_token().get(index) != Some(&true) {
+            return None;
+        }
+        let name = tcl_syntax::naming::whole_variable_reference_literal_name(text, lexer_config)?;
+        amount = Some((
+            index,
+            strict_scalar_name(&format!("${name}"), lexer_config)?,
+        ));
+    }
+    let (index, name) = amount?;
+    if name == var {
+        return None;
+    }
+    for probe in ["1", "7"] {
+        let mut texts: Vec<String> = cmd.args().to_vec();
+        texts[index] = probe.to_owned();
+        let stored = literal_store_texts(head, &texts, var, "0", registry)?;
+        if stored != probe {
+            return None;
+        }
+    }
+    Some(LoopOperand::Variable(name))
 }
 
 /// The one integer increment of `var` at `body`'s top level, which runs on
@@ -844,9 +974,6 @@ fn literal_store(
     registry: BoundsMetadataContext<'_>,
     lexer_config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
-    use tcl_registry::value_transfer::{
-        Budget, CompletionOutcome, EvalAnswer, ExactValue, LiteralInputs, OperandId, StoreOutcome,
-    };
     let head = registry.spec(cmd.name())?.descriptor_key().label();
     let cooked: Vec<std::borrow::Cow<'_, str>> = cmd
         .args()
@@ -860,7 +987,22 @@ fn literal_store(
             crate::value_transfer::literal_token_value(text, token.kind, &lexer_config)
         })
         .collect::<Option<_>>()?;
-    let texts: Vec<&str> = cooked.iter().map(AsRef::as_ref).collect();
+    let texts: Vec<String> = cooked.iter().map(|text| text.as_ref().to_owned()).collect();
+    literal_store_texts(head, &texts, var, prior, registry)
+}
+
+/// [`literal_store`] over words already read as Tcl substitutes them.
+fn literal_store_texts(
+    head: &str,
+    texts: &[String],
+    var: &str,
+    prior: &str,
+    registry: BoundsMetadataContext<'_>,
+) -> Option<String> {
+    use tcl_registry::value_transfer::{
+        Budget, CompletionOutcome, EvalAnswer, ExactValue, LiteralInputs, OperandId, StoreOutcome,
+    };
+    let texts: Vec<&str> = texts.iter().map(String::as_str).collect();
     let (resolved, roles) =
         crate::value_transfer::resolved_literal_semantics(registry.commands(), head, &texts)?;
     let semantics = resolved.semantics()?;
@@ -2248,6 +2390,30 @@ mod tests {
     /// write a `[…]` word makes, a binder, and a call to a command the file
     /// does not define, each of which the unit holding the loop knows may
     /// write the counter.
+    /// A bound or step held in a variable is read as the integer the solver
+    /// proves it holds where the loop starts, when nothing in the loop may
+    /// write it (#2452).
+    #[test]
+    fn w241_reads_a_proven_bound_and_step() {
+        for src in [
+            "proc q {} { set i 0; set n 10; while {$i < $n} {incr i -1} }\n",
+            "proc r {} { set i 0; set s -1; while {$i < 10} {incr i $s} }\n",
+            "proc t {} { set i 0; set n 10; while {$n > $i} {incr i -1} }\n",
+            "proc u {} {\n set n 10\n set s -2\n for {set i 0} {$i < $n} {incr i $s} {}\n}\n",
+        ] {
+            assert_verdicts(src, &["W241"]);
+        }
+        for src in [
+            "proc q {} { set i 0; set n 10; while {$i < $n} {incr i} }\n",
+            "proc q {n} { set i 0; while {$i < $n} {incr i -1} }\n",
+            "proc q {} { set i 0; set n 10; while {$i < $n} {incr i -1; incr n -2} }\n",
+            "proc r {s} { set i 0; while {$i < 10} {incr i $s} }\n",
+            "proc r {} { set i 0; set s -1; while {$i < 10} {incr i $s; set s 1} }\n",
+        ] {
+            assert_verdicts(src, &[]);
+        }
+    }
+
     #[test]
     fn w240_seeds_from_the_iteration_plan() {
         for src in [
