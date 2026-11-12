@@ -2727,6 +2727,15 @@ impl SourceCommandBindings {
     ) -> bool {
         let tokens = command.tokens.as_ref();
         let site = &command.site;
+        // A body the walker entered already holds the observation of its own
+        // execution point; a parent's earlier snapshot never replaces it.
+        if self.declaration_layouts.get(site).is_some_and(|rows| {
+            original_declaration_layouts(rows).is_some_and(|mut rows| {
+                rows.any(|row| parents.iter().all(|parent| parent.entry != row.entry))
+            })
+        }) {
+            return true;
+        }
         let observations: Vec<_> = parents
             .iter()
             .map(|parent| DeclarationLayoutObservation {

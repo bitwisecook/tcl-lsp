@@ -6009,11 +6009,11 @@ mod tests {
 
     #[test]
     fn references_include_unbraced_uplevel_body_bareword_call() {
-        // TP — same root cause, the finding's other confirmed shape:
-        // `uplevel 1 mymod::qux` (unbraced). `handle_uplevel_command`
-        // itself only handles a braced body and otherwise falls through
-        // to the same generic `ArgRole::Body` dispatch this fix covers.
-        let src = "proc qux {} { return 1 }\nproc caller {} { uplevel 1 qux }\n";
+        // TP — `uplevel 1 qux` (unbraced) runs in the caller's frame and
+        // namespace: called from the global level it reaches `::qux`
+        // (tclsh 8.4–9.1 print `1`); from `::ns` with its own `qux` the same
+        // body prints `NS`, so an uncalled `caller` proves no target.
+        let src = "proc qux {} { return 1 }\nproc caller {} { uplevel 1 qux }\ncaller\n";
         let analysis = analyse(src);
         let refs = references(
             src,
