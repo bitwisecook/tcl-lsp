@@ -6312,11 +6312,7 @@ mod tests {
         profiles.push(tcl_registry::model::ingress::resolve_environment("jim").unit_profile());
         for profile in profiles {
             for (source, tcl, jim) in cases {
-                let mut vm = crate::Vm::new();
-                vm.set_dialect_profile(profile);
-                vm.set_compiler(Box::new(
-                    tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-                ));
+                let mut vm = crate::native_fixture::interpreter(profile);
                 let result = vm.eval_source(source).unwrap();
                 assert_eq!(
                     result.code,

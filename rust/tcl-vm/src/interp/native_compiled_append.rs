@@ -49,12 +49,7 @@ impl Vm {
                 .cell
                 .id
                 .expect("selected single-element append cell");
-            let selected = match vm.initial_value_at_cell(id, captured.explicit_array) {
-                Ok(selected) => selected,
-                Err(error) => {
-                    return Err(crate::command::completion_from_cmd_error(vm, error.into()));
-                }
-            };
+            let selected = vm.initial_value_at_cell(id, captured.explicit_array);
             let value = selected.map_or_else(
                 || Value::new_native_string_bytes(&b""[..]),
                 |value| {
@@ -157,10 +152,7 @@ impl Vm {
                 Ok(()) => {
                     let present = vm
                         .initial_value_at_cell(id, captured.explicit_array)
-                        .map(|value| value.is_some())
-                        .map_err(|error| {
-                            crate::command::completion_from_cmd_error(vm, error.into())
-                        })?;
+                        .is_some();
                     let options = if present {
                         Value::empty()
                     } else {
@@ -191,12 +183,9 @@ impl Vm {
                     )
                 })?;
             let next = if present {
-                let original = match vm.initial_value_at_cell(id, captured.explicit_array) {
-                    Ok(original) => original.expect("selected receiver before further callbacks"),
-                    Err(error) => {
-                        return Err(crate::command::completion_from_cmd_error(vm, error.into()));
-                    }
-                };
+                let original = vm
+                    .initial_value_at_cell(id, captured.explicit_array)
+                    .expect("selected receiver before further callbacks");
                 if members.is_empty() && empty.skip_existing_store {
                     let value = match original.native_object_list_elements(protocol) {
                         Ok(_) => original.clone(),

@@ -192,7 +192,7 @@ Failures grouped by panic site and message shape (release builds, current `work`
   - Thirteen Jim witnesses (nine runtime, four VM) failed with `invalid command name "namespace import"` (and `upvar`, `info`, `delete`, `origin`): the tests built a native-core interpreter, which installs none of Jim's scripted distribution, and compared it with jimsh, which loads it. They now install it explicitly. The VM's Jim `exists` also refused its `-command`/`-proc`/`-alias` selectors, which the helpers call; it now implements them.
   - VM `namespace origin` on a missing command at 8.5 now carries `TCL LOOKUP COMMAND <name>`; 8.5 tags that miss although its dispatch miss is `NONE`.
   - Lib suites after this round: runtime release 2133 tests, 107 → 97 failures; VM 1370, 269 → 264; none new in either.
-  - Remaining VM gaps found on the way: Jim import traversal receipts (two Jim origin/query witnesses stop there); the Jim alias-cycle guard is not reached once the scripted `namespace origin` is installed; reading through a link to an element of a deleted array aborts with an empty uncatchable error at 9.0/9.1, and 8.4 `incr` reports the element miss instead of `no such variable`.
+  - Remaining VM gaps found on the way: Jim import traversal receipts (two Jim origin/query witnesses stop there); the Jim alias-cycle guard is not reached once the scripted `namespace origin` is installed (jimsh never finishes that query either, so its witness now drives the native origin query); and 8.4 `incr` reports the element miss instead of `no such variable`. A read through a link to an element of a deleted array now reports `no such variable` at 9.0/9.1, as C does: deleting the array clears its default before freeing the table.
 
 ## Eighteenth pass: NUL storage
 
@@ -202,6 +202,13 @@ Failures grouped by panic site and message shape (release builds, current `work`
 - Known difference: Tcl 9 sorts a NUL first in `lsort -ascii`; both engines compare stored bytes, which is the 8.x order.
 - The two NUL rows recorded as divergences in `runtime/rust/tests/pkga_extension.rs` now match C Tcl's results; that test's remaining failures (a missing `PKGA FAIL` error code and twelve unreleased objects) predate this work.
 - Suites against the same tree without the change: runtime release 2133 tests, 97 failures; VM 1370, 264; `tcl-codegen` 696, 107; `tcl-registry` 2025, 13; `tcl-cmd-core` all pass; `tcl-syntax` the same four failures. None new.
+
+## Nineteenth pass: VM witnesses on their real engines
+
+- Most of the remaining `NativePreflightRequired` and package witnesses built a Tcl 9.0 core and then re-pinned the profile, so the compiler's prerequisites, the package protocol and the pre-provided packages all stayed 9.0. They now build the selected engine (`native_fixture::interpreter`, plus the scripted distribution for Jim). The package protocol follows the actual engine, so after a 9.0 engine is re-pinned to 8.6, `package require p 1.2` still accepts `1.2+platform`, as tclsh9.0 does.
+- `oo` bootstrap no longer provides `tcl::oo` 1.3.1 on every release; the core's own package rows provide it, so 8.6 has `TclOO` 1.1.0 alone, as tclsh8.6 does. `::oo::version` and `::oo::patchlevel` are still 1.3 / 1.3.1 on 8.6, where C has 1.1.0 for both.
+- A compiled procedure's bytecode is retained on its body object, not on `ProcDef::body`; the dictionary epilogue witness reads it there.
+- VM lib: 1370 tests, 251 → 222 failures, none new. Still open in this group: two Jim `namespace import` witnesses (traversal receipt), `array exists` on a name with a NUL (its worker compiler sees no UTF-8 literal and leaves the entry unresolved), and the sixteen `array default` usage rows (no nested ensemble worker in the compilation entry).
 
 ## Resource integrity and next work
 

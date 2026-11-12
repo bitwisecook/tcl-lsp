@@ -2357,11 +2357,7 @@ mod tests {
         expected: &str,
     ) {
         for dynamic in [false, true] {
-            let mut vm = Vm::new();
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::default(),
-            ));
-            vm.set_dialect_profile(profile);
+            let mut vm = crate::native_fixture::interpreter(profile);
             let script = if dynamic {
                 format!("set native_expression {{{expression}}}; expr $native_expression")
             } else {
@@ -2640,11 +2636,7 @@ mod tests {
             native_case(profile, "1e3", "1000.0");
             native_case(profile, "\"18446744073709551616\"", "18446744073709551616");
             if policy == tcl_dialect::NativeArithmetic::Tcl84Wide {
-                let mut vm = Vm::new();
-                vm.set_compiler(Box::new(
-                    tcl_codegen::compile_service::BytecodeCompileService::default(),
-                ));
-                vm.set_dialect_profile(profile);
+                let mut vm = crate::native_fixture::interpreter(profile);
                 let result = vm.eval_source("expr {18446744073709551616 + 0}").unwrap();
                 assert_eq!(result.code, Code::Error);
                 assert_eq!(

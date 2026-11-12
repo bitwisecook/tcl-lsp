@@ -1316,7 +1316,6 @@ mod tests {
             assert!(
                 vm.initial_value_at_cell(cell.id.unwrap(), cell.array)
                     .unwrap()
-                    .unwrap()
                     .is_same_object(&value)
             );
             scope.check_native(&mut vm).unwrap();

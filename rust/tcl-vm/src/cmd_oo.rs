@@ -1124,11 +1124,10 @@ fn bootstrap(vm: &mut Vm) {
     vm.oo.method_reports =
         NativeTclooMethodReportProtocol::select(vm.actual_native_invocation_dialect())
             .map(FoundationMethodReports::new);
-    // TclOO is compiled into the VM, so — like C Tcl's core at startup — provide
-    // the `tcl::oo` package and seed the `::oo` version variables. Without the
-    // package the `package require tcl::oo` at the top of every `oo*` test file
-    // (and any real TclOO script) aborts with `can't find package tcl::oo`.
-    vm.provide_package("tcl::oo", "1.3.1");
+    // TclOO is compiled into the VM, so — like C Tcl's core at startup — seed
+    // the `::oo` version variables. The `TclOO` / `tcl::oo` package entries are
+    // release data, provided with the core's own (`provide_core_packages`):
+    // 8.6 provides `TclOO` 1.1.0 alone, 9.x both names at 1.3.1.
     vm.declare_namespace("::oo");
     let _ = vm.set_var("::oo::version", Value::string("1.3"));
     let _ = vm.set_var("::oo::patchlevel", Value::string("1.3.1"));

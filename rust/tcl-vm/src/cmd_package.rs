@@ -1619,6 +1619,20 @@ mod tests {
         vm
     }
 
+    fn release(version: TclVersion) -> Vm {
+        crate::native_fixture::interpreter(crate::environment::profile_for_dialect(
+            version.dialect_name(),
+        ))
+    }
+
+    fn jim() -> Vm {
+        let mut vm = crate::native_fixture::interpreter(
+            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        crate::native_fixture::install_distribution(&mut vm);
+        vm
+    }
+
     fn package(vm: &mut Vm, words: &[&str]) -> tcl_runtime_api::Completion<Value> {
         let args: Vec<Value> = words.iter().map(|word| Value::string(*word)).collect();
         // `package require` defers its discovery scripts to the explicit
@@ -1825,13 +1839,7 @@ mod tests {
 
     #[test]
     fn import_redefinition_rename_reexport_and_retirement_follow_dialect() {
-        let jim: &'static tcl_dialect::DialectProfile =
-            Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-                "jim",
-                &[],
-                "Jim",
-                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-            )));
+        let jim = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
         let script = r"namespace eval S {proc p {} {return ONE}; namespace export *}; namespace eval D {namespace import ::S::*; namespace export *}; namespace eval E {namespace import ::D::*}; namespace eval S {proc p {} {return TWO}}; set result [list [D::p] [E::p] [namespace origin E::p]]; rename S::p S::moved; lappend result [catch {D::p} value] [catch {namespace origin E::p} value]; proc S::p {} {return THREE}; lappend result [D::p] [E::p]; rename S::moved {}; lappend result [llength [info commands D::p]] [llength [info commands E::p]]; set result";
         for profile in TclVersion::ALL
             .into_iter()
@@ -1841,8 +1849,10 @@ mod tests {
             })
             .chain(std::iter::once(jim))
         {
-            let mut vm = vm();
-            vm.set_dialect_profile(profile);
+            let mut vm = crate::native_fixture::interpreter(profile);
+            if std::ptr::eq(profile, jim) {
+                crate::native_fixture::install_distribution(&mut vm);
+            }
             let result = vm.eval_source(script).expect("source");
             assert_eq!(
                 result.code,
@@ -1864,14 +1874,7 @@ mod tests {
 
     #[test]
     fn jim_import_ignores_exports_overwrites_and_retains_missing_source_alias() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source(r"namespace eval S {proc p {} {return SOURCE}}; namespace eval D {proc p {} {return DESTINATION}; namespace import -force ::S::*; set imported [namespace import]}; rename S::p {}; set result [list [llength [info commands D::p]] [catch {D::p}] [catch {namespace origin D::p}] [namespace eval D {namespace import ::missing::*}] [namespace eval D {namespace export}]]; proc S::p {} {return REVIVED}; lappend result [D::p] [namespace origin D::p] [catch {namespace path}]; set result").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "1 1 1 {} {} REVIVED ::S::p 1");
@@ -1879,14 +1882,7 @@ mod tests {
 
     #[test]
     fn jim_interpreter_handle_factory_alias_frame_and_deletion() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source(r"set ::x GLOBAL; namespace eval ::N {proc observe {} {set x LOCAL; set child [interp]; $child alias readX set x; $child alias where namespace current; set result [list [$child eval {readX}] [$child eval {where}]]; $child delete; return $result}}; ::N::observe").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "LOCAL ::N");
@@ -1894,14 +1890,7 @@ mod tests {
 
     #[test]
     fn jim_interpreter_handle_isolation() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source(r"namespace eval ::N {proc probe {} {return PARENT}}; package provide Isolated 2.0; set child [interp]; $child eval {namespace eval ::N {proc probe {} {return CHILD}}}; set result [list [::N::probe] [$child eval {::N::probe}] [$child eval {catch {package require Isolated}}]]; $child delete; set result").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "PARENT CHILD 1");
@@ -1916,8 +1905,7 @@ mod tests {
             (TclVersion::V9_0, "0"),
             (TclVersion::V9_1, "0"),
         ] {
-            let mut vm = vm();
-            vm.set_runtime_version(version);
+            let mut vm = release(version);
             let result = vm
                 .eval_source(
                     "proc probe {} {upvar 1 local}; proc caller {} {set 1 3; catch probe}; caller",
@@ -1931,24 +1919,15 @@ mod tests {
     #[test]
     fn upvar_qualified_scalar_and_element_use_selected_frame() {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let mut vm = vm();
-            let expected = if dialect == "jim" {
-                let profile =
-                    Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-                        "jim",
-                        &[],
-                        "Jim",
-                        tcl_dialect::model::DialectPoint::canonical(
-                            tcl_dialect::model::Release::JIM_0_84,
-                        ),
-                    )));
-                vm.set_dialect_profile(profile);
-                "11 12 4 5"
+            let (mut vm, expected) = if dialect == "jim" {
+                (jim(), "11 12 4 5")
             } else {
-                vm.set_dialect_profile(
-                    tcl_dialect::DialectProfile::find(dialect).expect("profile"),
-                );
-                "11 12 11 12"
+                (
+                    crate::native_fixture::interpreter(
+                        tcl_dialect::DialectProfile::find(dialect).expect("profile"),
+                    ),
+                    "11 12 11 12",
+                )
             };
             let result = vm.eval_source(r"namespace eval N {namespace eval R {variable x 4; variable a; set a(k) 5}; proc outer {} {inner::scalar; inner::array; list $R::x $R::a(k) $::N::R::x $::N::R::a(k)}; namespace eval inner {namespace eval R {variable x 99; variable a; set a(k) 98}; proc scalar {} {upvar 1 R::x alias; set alias 11}; proc array {} {upvar 1 R::a(k) alias; set alias 12}}}; N::outer").expect("source");
             assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
@@ -1973,8 +1952,7 @@ mod tests {
             (TclVersion::V8_6, "11 0"),
             (TclVersion::V9_0, "9 1"),
         ] {
-            let mut vm = vm();
-            vm.set_runtime_version(version);
+            let mut vm = release(version);
             let result = vm.eval_source("namespace eval R {variable x 9}; namespace eval N {namespace eval R {}; proc p {} {set R::x 11}}; N::p; list $::R::x [info exists ::N::R::x]").expect("source");
             assert_eq!(result.code, Code::Ok);
             assert_eq!(&*result.result.to_str(), expected, "{version:?}");
@@ -1983,14 +1961,7 @@ mod tests {
 
     #[test]
     fn jim_namespace_delete_retires_flat_variable_cells() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source("namespace eval N {variable v 4; namespace eval C {variable x 3}}; namespace delete N; list [info exists ::N::v] [info exists ::N::C::x]").expect("source");
         assert_eq!(result.code, Code::Ok);
         assert_eq!(&*result.result.to_str(), "0 0");
@@ -1998,14 +1969,7 @@ mod tests {
 
     #[test]
     fn jim_activation_variables() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source(r"namespace eval N {set ephemeral 5; variable v 7; list $ephemeral $v [info locals] [info vars]}; list [info exists ::N::ephemeral] [set ::N::v]").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "0 7");
@@ -2013,14 +1977,7 @@ mod tests {
 
     #[test]
     fn jim_relative_qualified_proc_variable() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source(r"namespace eval N {variable R::x 9; proc p {} {set R::x 10; list $R::x $::N::R::x}}; N::p").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "10 9");
@@ -2028,14 +1985,7 @@ mod tests {
 
     #[test]
     fn jim_flat_absolute_variable_names() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source(r"set ::Missing::x 3; set ::N:::x 4; set ::N::x 5; list $::::Missing::x $::N:::x $::N::x").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "3 4 5");
@@ -2043,14 +1993,7 @@ mod tests {
 
     #[test]
     fn jim_namespace_root_is_local_activation() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm
             .eval_source(r"namespace eval :: {set ephemeralRoot 11}; info exists ::ephemeralRoot")
             .expect("source");
@@ -2060,14 +2003,7 @@ mod tests {
 
     #[test]
     fn jim_upvar_targets_selected_activation() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source(r"proc inner {} {upvar 1 R::x link; set link 12}; proc outer {} {set R::x 3; inner; set R::x}; outer").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "12");
@@ -2075,14 +2011,7 @@ mod tests {
 
     #[test]
     fn jim_variable_declaration_preserves_colon_runs() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let result = vm.eval_source(r"namespace eval N {variable R:::v 6; incr v}; list [set ::N::R:::v] [info exists ::N::R::v]").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "7 0");
@@ -2090,12 +2019,6 @@ mod tests {
 
     #[test]
     fn jim_direct_packages_use_global_source_and_preserve_partial_effects() {
-        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-            "jim",
-            &[],
-            "Jim",
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-        )));
         let directory =
             std::env::temp_dir().join(format!("2286-jim-package-vm-{}", std::process::id()));
         std::fs::create_dir_all(&directory).expect("package directory");
@@ -2115,8 +2038,7 @@ mod tests {
         ] {
             std::fs::write(directory.join(format!("{name}.tcl")), source).expect("package source");
         }
-        let mut vm = vm();
-        vm.set_dialect_profile(profile);
+        let mut vm = jim();
         let setup = format!(
             "set ::auto_path [list {}]",
             tcl_syntax::list::list_element(&directory.to_string_lossy())
@@ -2162,8 +2084,7 @@ mod tests {
 
     #[test]
     fn legacy_package_arity_and_unknown_callback_follow_core_protocol() {
-        let mut vm = vm();
-        vm.set_runtime_version(TclVersion::V8_4);
+        let mut vm = release(TclVersion::V8_4);
         assert!(!package(&mut vm, &["require", "p", "1", "2"]).code.is_ok());
         assert!(
             !package(&mut vm, &["vsatisfies", "1", "1", "2"])
@@ -2205,8 +2126,7 @@ mod tests {
     #[test]
     fn core_provides_follow_the_pinned_release() {
         for version in TclVersion::ALL {
-            let mut vm = vm();
-            vm.set_runtime_version(version);
+            let vm = release(version);
             for core in version.core_provided_packages() {
                 assert_eq!(
                     vm.package_version(core.name),
@@ -2233,8 +2153,7 @@ mod tests {
     #[test]
     fn package_require_tcl_85_matches_tclsh_per_release() {
         for version in TclVersion::ALL {
-            let mut vm = vm();
-            vm.set_runtime_version(version);
+            let vm = release(version);
             let provided = vm
                 .package_version("Tcl")
                 .expect("Tcl is provided")
@@ -2281,8 +2200,7 @@ mod tests {
 
     #[test]
     fn package_commands_apply_the_pinned_plus_suffix_policy() {
-        let mut tcl8 = vm();
-        tcl8.set_runtime_version(TclVersion::V8_6);
+        let mut tcl8 = release(TclVersion::V8_6);
         let rejected = package(&mut tcl8, &["provide", "p", "1.2+platform"]);
         assert_eq!(rejected.code, Code::Error);
         assert_eq!(
@@ -2297,8 +2215,7 @@ mod tests {
             [] as [std::string::String; 0]
         );
 
-        let mut tcl9 = vm();
-        tcl9.set_runtime_version(TclVersion::V9_0);
+        let mut tcl9 = release(TclVersion::V9_0);
         let provided = package(&mut tcl9, &["provide", "p", "1.2+platform"]);
         assert_eq!(provided.code, Code::Ok);
         assert_eq!(tcl9.package_version("p"), Some("1.2+platform"));
@@ -2309,8 +2226,7 @@ mod tests {
         assert_eq!(registered.code, Code::Ok);
         assert_eq!(tcl9.package_ifneeded_versions("q"), vec!["1.2+platform"]);
 
-        let mut exact_provider = vm();
-        exact_provider.set_runtime_version(TclVersion::V9_0);
+        let mut exact_provider = release(TclVersion::V9_0);
         assert_eq!(
             package(&mut exact_provider, &["ifneeded", "q", "1.2+platform", ""]).code,
             Code::Ok
@@ -2329,8 +2245,7 @@ mod tests {
         .expect("exact Tcl 9 provider selection");
         assert_eq!(exact_loader.version, "1.2+platform");
 
-        let mut exact = vm();
-        exact.set_runtime_version(TclVersion::V9_0);
+        let mut exact = release(TclVersion::V9_0);
         assert_eq!(package(&mut exact, &["provide", "p", "1.3"]).code, Code::Ok);
         let mismatch = package(&mut exact, &["require", "-exact", "p", "1.2+x"]);
         assert_eq!(mismatch.code, Code::Error);
@@ -2342,9 +2257,9 @@ mod tests {
         assert_eq!(match_result.code, Code::Ok);
         assert_eq!(&*match_result.result.to_str(), "1.3");
 
-        // A profile change does not rewrite package state. Lookup and
-        // provider selection must nevertheless apply the new release's
-        // grammar, so a Tcl 9-only provider is not selected by an 8.6 pin.
+        // A profile change does not rewrite package state. Selection for an
+        // 8.6 release does not pick a Tcl 9-only provider, while the command
+        // itself keeps the actual 9.0 engine's protocol, as tclsh9.0 answers.
         tcl9.set_runtime_version(TclVersion::V8_6);
         assert!(
             selected_loader(
@@ -2356,8 +2271,9 @@ mod tests {
             )
             .is_none()
         );
-        let conflict = package(&mut tcl9, &["require", "p", "1.2"]);
-        assert_eq!(conflict.code, Code::Error);
+        let required = package(&mut tcl9, &["require", "p", "1.2"]);
+        assert_eq!(required.code, Code::Ok);
+        assert_eq!(&*required.result.to_str(), "1.2+platform");
         assert_eq!(tcl9.package_version("p"), Some("1.2+platform"));
     }
     #[test]

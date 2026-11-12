@@ -55,10 +55,10 @@ impl NativeAppendVariable for CellAppend<'_> {
             return append_continuation(&VmAppendObjects, pending, source)
                 .map_err(|error| crate::command::completion_from_cmd_error(self.vm, error.into()));
         }
-        let value = self
+        let receiver = self
             .vm
-            .initial_value_at_cell(id, self.captured.explicit_array)
-            .and_then(|receiver| append_object(&VmAppendObjects, self.protocol, receiver, source))
+            .initial_value_at_cell(id, self.captured.explicit_array);
+        let value = append_object(&VmAppendObjects, self.protocol, receiver, source)
             .map_err(|error| crate::command::completion_from_cmd_error(self.vm, error.into()))?;
         self.pending = Some(value);
         Ok(())

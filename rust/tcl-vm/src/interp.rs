@@ -16211,12 +16211,8 @@ impl Vm {
     ) -> Result<Result<Option<u8>, Completion<Value>>, tcl_runtime_api::NativeExecutionError> {
         let original = self
             .initial_value_at_cell(id, cell.array)
-            .map(|value| value.map(Value::native_lifetime_lease));
+            .map(Value::native_lifetime_lease);
         scope.check_native(self)?;
-        let original = match original {
-            Ok(original) => original,
-            Err(error) => return Ok(Err(self.variable_trace_command_error(error.into())?)),
-        };
         let reached = if authored {
             original.as_ref().map_or(Ok(None), |lease| {
                 let value = lease.value();
@@ -17303,10 +17299,9 @@ impl Vm {
             vm.variable_trace_guest_or_unwind(|vm| {
                 vm.fire_var_traces_from_cell_bytes(name, "read", None, None, Some(cell.clone()))
             })?;
-            match vm.initial_value_at_cell(cell.id.expect("selected native read"), explicit_array) {
-                Ok(value) => Ok(value.cloned()),
-                Err(error) => Err(crate::command::completion_from_cmd_error(vm, error.into())),
-            }
+            Ok(vm
+                .initial_value_at_cell(cell.id.expect("selected native read"), explicit_array)
+                .cloned())
         })
     }
 
@@ -17384,16 +17379,8 @@ impl Vm {
         let current = if self.dictionary_variable_containers() {
             self.read_variable_contents(resolved)
         } else if let Some(id) = resolved.id {
-            match self.initial_value_at_cell(id, resolved.elem.as_ref().and(resolved.base_id)) {
-                Ok(current) => current,
-                Err(error) => {
-                    return Err(crate::command::completion_from_cmd_error(
-                        self,
-                        error.into(),
-                    ));
-                }
-            }
-            .cloned()
+            self.initial_value_at_cell(id, resolved.elem.as_ref().and(resolved.base_id))
+                .cloned()
         } else if let Some((base, element)) = resolved.base_id.zip(resolved.elem.as_ref()) {
             self.read_resolved_elem(base, element)
         } else {
@@ -22546,16 +22533,10 @@ impl Vm {
 
     /// Borrow the initial native read without manufacturing an object owner.
     /// Post-write command results use `read_resolved_cell` instead.
-    fn initial_value_at_cell(
-        &self,
-        id: VarId,
-        explicit_array: Option<VarId>,
-    ) -> Result<Option<&Value>, tcl_syntax::value::ValueError> {
-        let Some(cell) = self.var_arena.get(id) else {
-            return Ok(None);
-        };
+    fn initial_value_at_cell(&self, id: VarId, explicit_array: Option<VarId>) -> Option<&Value> {
+        let cell = self.var_arena.get(id)?;
         if let Local::Scalar(value) = cell.state() {
-            return Ok(Some(value));
+            return Some(value);
         }
         if !matches!(cell.state(), Local::Undefined)
             || !self
@@ -22566,20 +22547,18 @@ impl Vm {
                         .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
                 })
         {
-            return Ok(None);
+            return None;
         }
         if let Some(array) = explicit_array {
-            return Ok(self.var_arena.array_default(array));
+            return self.var_arena.array_default(array);
         }
-        let Some((array, _)) = self.var_arena.element_parent(id) else {
-            return Ok(None);
-        };
+        let (array, _) = self.var_arena.element_parent(id)?;
+        // C clears a deleted array's default before freeing its table, so a
+        // link to one of its elements reads an undefined cell with no default.
         if !self.var_arena.element_is_attached(id) {
-            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "native stale array-default table provenance",
-            ));
+            return None;
         }
-        Ok(self.var_arena.array_default(array))
+        self.var_arena.array_default(array)
     }
 
     /// [`read_resolved_cell`](Self::read_resolved_cell) for element `key` of an
@@ -23001,16 +22980,9 @@ impl Vm {
         let id = cell.id.expect("captured update cell");
         let (current, read_options) = match trace {
             Ok(()) => {
-                let current = match self.initial_value_at_cell(id, captured.explicit_array) {
-                    Ok(current) => current,
-                    Err(error) => {
-                        return Err(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                }
-                .cloned();
+                let current = self
+                    .initial_value_at_cell(id, captured.explicit_array)
+                    .cloned();
                 let options = if current.is_none() {
                     self.captured_read_missing(name, key, cell).options
                 } else {
@@ -23500,19 +23472,12 @@ impl Vm {
             );
         let (has_current, read_options) = match trace {
             Ok(()) => {
-                let has_current = match self.initial_value_at_cell(
-                    cell.id.expect("captured increment cell"),
-                    captured.explicit_array,
-                ) {
-                    Ok(current) => current,
-                    Err(error) => {
-                        return Err(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                }
-                .is_some();
+                let has_current = self
+                    .initial_value_at_cell(
+                        cell.id.expect("captured increment cell"),
+                        captured.explicit_array,
+                    )
+                    .is_some();
                 if has_current {
                     (true, Value::empty())
                 } else {
@@ -23553,18 +23518,11 @@ impl Vm {
         self.retain_variable_read_error_code(&read_options)?;
         let next = if modern {
             let current = if has_current {
-                match self.initial_value_at_cell(
+                self.initial_value_at_cell(
                     cell.id.expect("captured increment cell"),
                     captured.explicit_array,
-                ) {
-                    Ok(current) => current.map(Value::native_lifetime_lease),
-                    Err(error) => {
-                        return Err(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                }
+                )
+                .map(Value::native_lifetime_lease)
             } else {
                 None
             };
@@ -23582,18 +23540,11 @@ impl Vm {
             reached.map_err(|error| crate::command::completion_from_cmd_error(self, error))?
         } else if let Some(PreparedIncrementAmount::Native(prepared)) = prepared_amount {
             let current = if has_current {
-                match self.initial_value_at_cell(
+                self.initial_value_at_cell(
                     cell.id.expect("captured increment cell"),
                     captured.explicit_array,
-                ) {
-                    Ok(current) => current.map(Value::native_lifetime_lease),
-                    Err(error) => {
-                        return Err(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                }
+                )
+                .map(Value::native_lifetime_lease)
             } else {
                 None
             };
@@ -34217,9 +34168,7 @@ mod family_b_tests {
     fn native_double_strings_observe_precision_only_until_first_materialisation() {
         let source = "set tcl_precision 12; set x 1.0; set d [expr {$x/3}]; set tcl_precision 4; set first [list $d]; set tcl_precision 12; set second [list $d]; set e [expr {$x/3}]; expr {$e+0}; set tcl_precision 4; set third [list $e]; list $first $second $third";
         for profile in variable_link_profiles() {
-            let mut vm = Vm::new();
-            vm.set_compiler(Box::new(BytecodeCompileService::default()));
-            vm.set_dialect_profile(profile);
+            let mut vm = crate::native_fixture::interpreter(profile);
             let wanted = match profile.double_string_policy().unwrap() {
                 tcl_dialect::DoubleStringPolicy::Tcl84Precision
                 | tcl_dialect::DoubleStringPolicy::TclPrecision => "0.3333 0.3333 0.3333",
@@ -34265,9 +34214,7 @@ mod family_b_tests {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             for (source, precision_wanted, shortest_wanted) in cases {
-                let mut vm = Vm::new();
-                vm.set_compiler(Box::new(BytecodeCompileService::default()));
-                vm.set_dialect_profile(profile);
+                let mut vm = crate::native_fixture::interpreter(profile);
                 let wanted = match profile.double_string_policy().unwrap() {
                     tcl_dialect::DoubleStringPolicy::Shortest => shortest_wanted,
                     _ => precision_wanted,
@@ -34314,9 +34261,7 @@ mod family_b_tests {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             for (source, wanted) in cases {
-                let mut vm = Vm::new();
-                vm.set_compiler(Box::new(BytecodeCompileService::default()));
-                vm.set_dialect_profile(profile);
+                let mut vm = crate::native_fixture::interpreter(profile);
                 let result = vm.eval_source(source).unwrap();
                 assert_eq!(
                     result.code,
@@ -34355,9 +34300,7 @@ mod family_b_tests {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             for (source, wanted) in cases {
-                let mut vm = Vm::new();
-                vm.set_compiler(Box::new(BytecodeCompileService::default()));
-                vm.set_dialect_profile(profile);
+                let mut vm = crate::native_fixture::interpreter(profile);
                 let result = vm.eval_source(source).unwrap();
                 assert_eq!(
                     result.code,
@@ -34386,9 +34329,7 @@ mod family_b_tests {
         ] {
             let profile =
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
-            let mut vm = Vm::new();
-            vm.set_compiler(Box::new(BytecodeCompileService::default()));
-            vm.set_dialect_profile(profile);
+            let mut vm = crate::native_fixture::interpreter(profile);
             let result = vm.eval_source(source).unwrap();
             assert_eq!(
                 result.code,
@@ -34642,6 +34583,14 @@ mod family_b_tests {
         assert!(vm.get_var("::missing").is_none());
     }
 
+    /// The selected engine with the scripted distribution its shell loads, so
+    /// Jim's `namespace` helpers are present as they are under jimsh.
+    fn variable_link_vm(profile: &'static tcl_dialect::DialectProfile) -> Vm {
+        let mut vm = crate::native_fixture::interpreter(profile);
+        crate::native_fixture::install_distribution(&mut vm);
+        vm
+    }
+
     fn variable_link_profiles() -> Vec<&'static tcl_dialect::DialectProfile> {
         let mut profiles: Vec<_> = tcl_dialect::TclVersion::ALL
             .iter()
@@ -34701,9 +34650,7 @@ mod family_b_tests {
         ];
         for profile in variable_link_profiles() {
             for (source, cell_want, name_want) in cases {
-                let mut vm = Vm::new();
-                vm.set_compiler(Box::new(BytecodeCompileService::default()));
-                vm.set_dialect_profile(profile);
+                let mut vm = variable_link_vm(profile);
                 let wanted = match profile.variable_link_binding().unwrap() {
                     tcl_dialect::VariableLinkBinding::StableCell => cell_want,
                     tcl_dialect::VariableLinkBinding::SelectedFrameName => name_want,
@@ -34759,9 +34706,7 @@ mod family_b_tests {
         ];
         for profile in variable_link_profiles() {
             for (source, cell_want, name_want) in cases {
-                let mut vm = Vm::new();
-                vm.set_compiler(Box::new(BytecodeCompileService::default()));
-                vm.set_dialect_profile(profile);
+                let mut vm = variable_link_vm(profile);
                 let result = vm
                     .eval_source(&format!(
                         "proc probe {{}} {{{source}}}; list [catch probe result] $result"

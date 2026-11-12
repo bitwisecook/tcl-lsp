@@ -1288,7 +1288,7 @@ mod tests {
         case: &str,
         receipt_start: std::time::Instant,
     ) -> Vm {
-        let mut vm = Vm::new();
+        let vm = crate::native_fixture::interpreter(profile);
         tcl_test_support::oracle_phase_progress(
             "dictionary-epilogues35",
             engine,
@@ -1296,17 +1296,6 @@ mod tests {
             "vm-new-complete",
             receipt_start,
         );
-        vm.set_dialect_profile(profile);
-        tcl_test_support::oracle_phase_progress(
-            "dictionary-epilogues35",
-            engine,
-            case,
-            "profile-complete",
-            receipt_start,
-        );
-        vm.set_compiler(Box::new(
-            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
         vm
     }
 
@@ -1642,9 +1631,7 @@ mod tests {
         );
         let procedure = vm.proc_def_bytes(b"p").unwrap();
         assert!(
-            procedure
-                .body
-                .as_ref()
+            vm.current_native_procedure_body(&procedure)
                 .expect("actual compiled procedure activation")
                 .asm
                 .instructions

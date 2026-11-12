@@ -245,15 +245,10 @@ impl Vm {
                 vm.publish_swallowed_trace_error();
                 return Ok(());
             }
-            let current = match vm.initial_value_at_cell(
+            let current = vm.initial_value_at_cell(
                 captured.cell.id.expect("captured dictionary receiver"),
                 captured.explicit_array,
-            ) {
-                Ok(current) => current,
-                Err(error) => {
-                    return Err(crate::command::completion_from_cmd_error(vm, error.into()));
-                }
-            };
+            );
             let Some(current) = current else {
                 return Ok(());
             };
@@ -268,15 +263,10 @@ impl Vm {
                     vm.refuse_host_command("dictionary update slot/key count mismatch".into())
                 );
             }
-            let current = match vm.initial_value_at_cell(
+            let current = vm.initial_value_at_cell(
                 captured.cell.id.expect("captured dictionary receiver"),
                 captured.explicit_array,
-            ) {
-                Ok(current) => current,
-                Err(error) => {
-                    return Err(crate::command::completion_from_cmd_error(vm, error.into()));
-                }
-            };
+            );
             let mut prepared = objects
                 .prepare(current)
                 .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
@@ -353,12 +343,7 @@ impl Vm {
                 return Ok(());
             }
             let current = if let Some(id) = selected.as_ref().and_then(|cell| cell.id) {
-                match vm.initial_value_at_cell(id, explicit_array) {
-                    Ok(current) => current,
-                    Err(error) => {
-                        return Err(crate::command::completion_from_cmd_error(vm, error.into()));
-                    }
-                }
+                vm.initial_value_at_cell(id, explicit_array)
             } else {
                 None
             };
@@ -416,15 +401,7 @@ impl Vm {
                             .and_then(|resolved| resolved.id)
                     });
                     let current = if let Some(id) = id {
-                        match self.initial_value_at_cell(id, explicit_array) {
-                            Ok(current) => current,
-                            Err(error) => {
-                                return Err(crate::command::completion_from_cmd_error(
-                                    self,
-                                    error.into(),
-                                ));
-                            }
-                        }
+                        self.initial_value_at_cell(id, explicit_array)
                     } else {
                         None
                     };

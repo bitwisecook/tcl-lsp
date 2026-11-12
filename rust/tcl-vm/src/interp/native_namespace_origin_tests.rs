@@ -92,6 +92,9 @@ origins!(original_namespace_origin_c90, "tcl9.0", "9.0.4");
 origins!(original_namespace_origin_c91, "tcl9.1", "9.1.0");
 origins!(original_namespace_origin_jim, "jim", "jim");
 
+/// Jim's scripted `namespace origin` never returns on an alias cycle (the
+/// recorded `alias-cycle/jim` run times out), so the guard sits on the native
+/// origin query, which refuses instead of supplying a guest result.
 #[test]
 fn unbounded_original_jim_alias_cycle_refuses_without_a_guest_error_claim() {
     let profile = crate::environment::profile_for_dialect("jim");
@@ -101,15 +104,15 @@ fn unbounded_original_jim_alias_cycle_refuses_without_a_guest_error_claim() {
         .unwrap();
     assert!(setup.code.is_ok());
     let query = vm
-        .try_eval_source("namespace origin ::__no_cycle_a")
+        .native_namespace_command_name(&super::Value::string("::__no_cycle_a"), true)
         .unwrap_err();
     assert_eq!(
-        query,
-        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+        query.native_execution_refusal(),
+        Some(&tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                 "unbounded Jim namespace origin alias cycle",
             ),
-        )
+        ))
     );
 }
 
