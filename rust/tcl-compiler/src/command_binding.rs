@@ -23026,7 +23026,10 @@ impl ModuleCommandMutations {
     /// `rename otherProc thisName` or `interp alias {} thisName {} other`.
     #[must_use]
     pub fn trusts_proc_binding(&self, proc_name: &str) -> bool {
-        !self.dynamic && self.observed_proc_binding(proc_name)
+        // A rebinding whose subject the scan could not name may be this one.
+        !self.dynamic
+            && self.rebinding_subjects == RebindingSubjects::AllNameable
+            && self.observed_proc_binding(proc_name)
     }
 
     /// Whether the module may rebind any builtin: a shadowing `proc`, a
