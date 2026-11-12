@@ -2875,8 +2875,8 @@ fn native_variable_failure_code(
     Ok(error_code)
 }
 
-/// C checks a link into a deleted namespace only when storing; a read or
-/// unset finds the dead cell undefined.
+/// C checks a link into a deleted namespace or array only when storing; a
+/// read or unset finds the dead cell undefined.
 fn retired_namespace_failure(
     protocol: NativeNameProtocol,
     operation: NativeVariableDiagnosticOperation,
@@ -2884,10 +2884,10 @@ fn retired_namespace_failure(
     site: NativeVariableFailureSite,
 ) -> (NativeVariableDiagnosticReason, NativeVariableFailureSite) {
     use NativeVariableDiagnosticOperation::{Read, Unset};
-    use NativeVariableDiagnosticReason::{NoSuchVariable, RetiredNamespace};
+    use NativeVariableDiagnosticReason::{DetachedElement, NoSuchVariable, RetiredNamespace};
     use NativeVariableFailureSite::{IndexedNameLookup, ValueRead, ValueUnset};
     if !matches!(protocol, NativeNameProtocol::C(_))
-        || reason != RetiredNamespace
+        || !matches!(reason, RetiredNamespace | DetachedElement)
         || site == IndexedNameLookup
     {
         return (reason, site);
@@ -4064,9 +4064,12 @@ mod tests {
     #[test]
     fn retired_namespace_read_and_unset_report_no_such_variable() {
         use NativeVariableDiagnosticOperation::{Read, Unset};
-        use NativeVariableDiagnosticReason::{NoSuchVariable, RetiredNamespace};
+        use NativeVariableDiagnosticReason::{DetachedElement, NoSuchVariable, RetiredNamespace};
         use NativeVariableFailureSite::{NameLookup, ValueRead, ValueUnset};
-        for version in VERSIONS {
+        for (version, retired) in VERSIONS
+            .into_iter()
+            .flat_map(|version| [(version, RetiredNamespace), (version, DetachedElement)])
+        {
             let protocol = NativeNameProtocol::C(version);
             for (operation, site, verb) in [
                 (Read, ValueRead, b"READ".as_slice()),
@@ -4077,7 +4080,7 @@ mod tests {
                 let projection = report_native_variable_diagnostic_at(
                     protocol,
                     operation,
-                    RetiredNamespace,
+                    retired,
                     site,
                     NativeVariableInputForm::Combined(b"y"),
                 )

@@ -7,7 +7,7 @@ How do original C Tcl releases treat five naming questions the runtime consumer 
 1. A Tcl-level NUL inside a namespace, command or variable name: is the name kept whole or cut at the NUL?
 2. `namespace which -variable` and `info exists` on declared-only variables, array elements and missing names, against `namespace upvar` on an element.
 3. Names that outlive a deleted namespace recreated under the same name: imports, `namespace origin`, ensembles and `upvar` links.
-4. Which variable operations report a link into a deleted namespace as `upvar refers to variable in deleted namespace`, and which as `no such variable`.
+4. Which variable operations report a link into a deleted namespace or array as `upvar refers to variable in deleted namespace` or `... element in deleted array`, and which as `no such variable`.
 5. Which error code an unset reports when the name is missing, when it reaches a variable entry without a value, and when an array element is missing.
 
 Each case runs at global level inside `catch`; NUL bytes in results are shown as `<NUL>`. The observations bind only these scripts on these releases.
@@ -108,6 +108,21 @@ show unset-linked {unset_code {proc ul {} {upvar #0 gone g; unset g}; ul}}
 show unset-local {unset_code {proc uu {} {set l 1; unset l; unset l}; uu}}
 show unset-element {unset_code {array set arr {}; unset arr(k)}}
 show read-element {unset_code {array set arr {}; set arr(k)}}
+proc dead_element {op} {
+    set a(k) OLD
+    upvar 0 a(k) y
+    unset a
+    set a(k) NEW
+    set ::errorCode NONE
+    switch -- $op {
+        read {set code [catch {set y} r]}
+        write {set code [catch {set y 3} r]}
+        unset {set code [catch {unset y} r]}
+        incr {set code [catch {incr y} r]}
+    }
+    list $code $r $::errorCode $a(k)
+}
+foreach op {read write unset incr} {show re-element-$op [list dead_element $op]}
 ```
 
 ## Results
@@ -151,6 +166,10 @@ unset-linked: 0 {1 {can't unset "g": no such variable} NONE}
 unset-local: 0 {1 {can't unset "l": no such variable} NONE}
 unset-element: 0 {1 {can't unset "arr(k)": no such element in array} NONE}
 read-element: 0 {1 {can't read "arr(k)": no such element in array} NONE}
+re-element-read: 0 {1 {can't read "y": no such variable} NONE NEW}
+re-element-write: 0 {1 {can't set "y": upvar refers to element in deleted array} NONE NEW}
+re-element-unset: 0 {1 {can't unset "y": no such variable} NONE NEW}
+re-element-incr: 0 {1 {can't read "y": no such variable} NONE NEW}
 ```
 
 - Standard error: empty.
@@ -194,6 +213,10 @@ unset-linked: 0 {1 {can't unset "g": no such variable} NONE}
 unset-local: 0 {1 {can't unset "l": no such variable} NONE}
 unset-element: 0 {1 {can't unset "arr(k)": no such element in array} {TCL LOOKUP ELEMENT k}}
 read-element: 0 {1 {can't read "arr(k)": no such element in array} NONE}
+re-element-read: 0 {1 {can't read "y": no such variable} NONE NEW}
+re-element-write: 0 {1 {can't set "y": upvar refers to element in deleted array} NONE NEW}
+re-element-unset: 0 {1 {can't unset "y": no such variable} NONE NEW}
+re-element-incr: 0 {1 {can't set "y": upvar refers to element in deleted array} NONE NEW}
 ```
 
 - Standard error: empty.
@@ -237,6 +260,10 @@ unset-linked: 0 {1 {can't unset "g": no such variable} {TCL UNSET VARNAME}}
 unset-local: 0 {1 {can't unset "l": no such variable} {TCL UNSET VARNAME}}
 unset-element: 0 {1 {can't unset "arr(k)": no such element in array} {TCL LOOKUP ELEMENT k}}
 read-element: 0 {1 {can't read "arr(k)": no such element in array} {TCL READ VARNAME}}
+re-element-read: 0 {1 {can't read "y": no such variable} {TCL READ VARNAME} NEW}
+re-element-write: 0 {1 {can't set "y": upvar refers to element in deleted array} {TCL WRITE VARNAME} NEW}
+re-element-unset: 0 {1 {can't unset "y": no such variable} {TCL UNSET VARNAME} NEW}
+re-element-incr: 0 {1 {can't set "y": upvar refers to element in deleted array} {TCL WRITE VARNAME} NEW}
 ```
 
 - Standard error: empty.
@@ -280,6 +307,10 @@ unset-linked: 0 {1 {can't unset "g": no such variable} {TCL UNSET VARNAME}}
 unset-local: 0 {1 {can't unset "l": no such variable} {TCL UNSET VARNAME}}
 unset-element: 0 {1 {can't unset "arr(k)": no such element in array} {TCL LOOKUP ELEMENT k}}
 read-element: 0 {1 {can't read "arr(k)": no such element in array} {TCL READ VARNAME}}
+re-element-read: 0 {1 {can't read "y": no such variable} {TCL READ VARNAME} NEW}
+re-element-write: 0 {1 {can't set "y": upvar refers to element in deleted array} {TCL WRITE VARNAME} NEW}
+re-element-unset: 0 {1 {can't unset "y": no such variable} {TCL UNSET VARNAME} NEW}
+re-element-incr: 0 {1 {can't set "y": upvar refers to element in deleted array} {TCL WRITE VARNAME} NEW}
 ```
 
 - Standard error: empty.
@@ -323,6 +354,10 @@ unset-linked: 0 {1 {can't unset "g": no such variable} {TCL UNSET VARNAME}}
 unset-local: 0 {1 {can't unset "l": no such variable} {TCL UNSET VARNAME}}
 unset-element: 0 {1 {can't unset "arr(k)": no such element in array} {TCL LOOKUP ELEMENT k}}
 read-element: 0 {1 {can't read "arr(k)": no such element in array} {TCL READ VARNAME}}
+re-element-read: 0 {1 {can't read "y": no such variable} {TCL READ VARNAME} NEW}
+re-element-write: 0 {1 {can't set "y": upvar refers to element in deleted array} {TCL WRITE VARNAME} NEW}
+re-element-unset: 0 {1 {can't unset "y": no such variable} {TCL UNSET VARNAME} NEW}
+re-element-incr: 0 {1 {can't set "y": upvar refers to element in deleted array} {TCL WRITE VARNAME} NEW}
 ```
 
 - Standard error: empty.
