@@ -63,21 +63,7 @@ pub(crate) fn original_authored_control_invocation(
         owner.with_schema(registry, |schema| {
             use tcl_registry::hooks::LoweringHookId;
             let hook = schema.facts().lowering_hook?;
-            if !matches!(
-                hook,
-                LoweringHookId::If
-                    | LoweringHookId::While
-                    | LoweringHookId::For
-                    | LoweringHookId::Foreach
-                    | LoweringHookId::Lmap
-                    | LoweringHookId::Catch
-                    | LoweringHookId::Try
-                    | LoweringHookId::Switch
-            ) || schema.facts().arity_accepts_frozen_arguments() != Some(true)
-                || schema.semantics.frame_effect.is_some()
-                || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
-                || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
-            {
+            if schema.facts().arity_accepts_frozen_arguments() != Some(true) {
                 return None;
             }
             let (roles, complete) = schema.authored_source_argument_roles();
@@ -88,6 +74,23 @@ pub(crate) fn original_authored_control_invocation(
                 .into_iter()
                 .map(|(arg, role)| (schema.facts().argument_offset + usize::from(arg), role))
                 .collect::<Vec<_>>();
+            if !super::static_body_evaluator_is_supported(schema, hook, &roles)
+                && (!matches!(
+                    hook,
+                    LoweringHookId::If
+                        | LoweringHookId::While
+                        | LoweringHookId::For
+                        | LoweringHookId::Foreach
+                        | LoweringHookId::Lmap
+                        | LoweringHookId::Catch
+                        | LoweringHookId::Try
+                        | LoweringHookId::Switch
+                ) || schema.semantics.frame_effect.is_some()
+                    || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+                    || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current)
+            {
+                return None;
+            }
             for &(argument, role) in &roles {
                 if role == tcl_registry::ArgRole::Body
                     && schema.authored_source_script_timing_at(argument)?

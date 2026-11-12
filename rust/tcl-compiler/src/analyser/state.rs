@@ -4558,9 +4558,13 @@ mod tests {
 
     #[test]
     fn apply_body_proc_honours_explicit_lambda_namespace() {
-        // A lambda pinning a namespace (element 2) runs its body there.
+        // A lambda pinning a namespace (element 2) runs its body there. The
+        // namespace exists first (tclsh 8.6/9.0: `namespace "::bar" not found`).
         let mut a = Analyser::new();
-        let r = a.analyse("apply {{} { proc helper {} { return 1 } } ::bar}", "tcl8.6");
+        let r = a.analyse(
+            "namespace eval ::bar {}\napply {{} { proc helper {} { return 1 } } ::bar}",
+            "tcl8.6",
+        );
         assert!(
             r.all_procs.contains_key("::bar::helper"),
             "explicit lambda namespace must be honoured: {:?}",
@@ -4630,7 +4634,10 @@ mod tests {
     /// namespace, from inside a qualified-name proc as much as anywhere.
     #[test]
     fn apply_without_a_namespace_element_stays_global_inside_a_qualified_proc() {
-        let src = "proc ::caller::p {} {\n\
+        // `::caller` exists first (tclsh 8.6/9.0: `can't create procedure
+        // "::caller::p": unknown namespace`).
+        let src = "namespace eval ::caller {}\n\
+                   proc ::caller::p {} {\n\
                        apply {{} { proc helper {} { return 1 } }}\n\
                    }\n";
         let mut a = Analyser::new();

@@ -1212,7 +1212,8 @@ mod tests {
     fn module_construction() {
         let top = Function::new("::top", "entry_1");
         let proc = Function::new("::greet", "entry_2");
-        let registry = tcl_registry::CommandRegistry::build_default();
+        let registry = tcl_registry::CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let original = crate::lowering::lower_to_ir("proc greet {} {}", &registry);
         let id =
             crate::interprocedural::test_body_identity::fixture_id(&original.procedures, "::greet");

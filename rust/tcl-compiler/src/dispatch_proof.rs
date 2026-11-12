@@ -1141,22 +1141,56 @@ pub(crate) fn analyse_original_dispatch_stability(
     registry: &tcl_registry::CommandRegistry,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> DispatchProofAnalysis {
+    analyse_source_dispatch_stability(function, entry, registry, metadata, false)
+}
+
+/// The same fixpoint for value reuse over a supplied source. A source runs in
+/// a fresh interpreter of its release, whose builtins carry no traces, aliases
+/// or imports (tclsh 8.4-9.1), so its authored simulation entry also supplies
+/// ledger subjects. Execution entries keep their own Native owner.
+pub(crate) fn analyse_reuse_dispatch_stability(
+    function: &ExecutableFunction,
+    entry: DispatchEntryAssumption,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> DispatchProofAnalysis {
+    analyse_source_dispatch_stability(function, entry, registry, metadata, true)
+}
+
+fn analyse_source_dispatch_stability(
+    function: &ExecutableFunction,
+    entry: DispatchEntryAssumption,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    authored_simulation: bool,
+) -> DispatchProofAnalysis {
     let grammar = metadata
         .filter(|metadata| metadata.matches_registry(registry))
         .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input)
         .map(crate::analyser::ResolvedAnalysisInput::lexer_config);
     analyse_dispatch_stability_using(function, entry, grammar, &|invoke, facts| {
-        original_ledger_subject(invoke, facts, registry, metadata)
+        source_ledger_subject(invoke, facts, registry, metadata, authored_simulation)
     })
 }
 
-/// The authentic original call slot supplies this ledger key; a selected
-/// descriptor label is checked as data and cannot recreate that slot.
+#[cfg(test)]
 fn original_ledger_subject(
     invoke: &crate::executable_ir::GenericInvoke,
     facts: &tcl_registry::InvocationFacts,
     registry: &tcl_registry::CommandRegistry,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<String> {
+    source_ledger_subject(invoke, facts, registry, metadata, false)
+}
+
+/// The authentic original call slot supplies this ledger key; a selected
+/// descriptor label is checked as data and cannot recreate that slot.
+fn source_ledger_subject(
+    invoke: &crate::executable_ir::GenericInvoke,
+    facts: &tcl_registry::InvocationFacts,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    authored_simulation: bool,
 ) -> Option<String> {
     let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
     let binding = invoke.source_binding.as_ref()?;
@@ -1166,11 +1200,15 @@ fn original_ledger_subject(
     }
     tokens.source_binding = Some(binding.clone());
     let purpose = binding.original_invocation_source_purpose(&tokens, metadata, registry)?;
-    if !matches!(
-        purpose,
+    let admitted = match purpose {
         crate::command_binding::OriginalInvocationSourcePurpose::Logical
-            | crate::command_binding::OriginalInvocationSourcePurpose::Standalone
-    ) {
+        | crate::command_binding::OriginalInvocationSourcePurpose::Standalone => true,
+        crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation => {
+            authored_simulation
+        }
+        crate::command_binding::OriginalInvocationSourcePurpose::Execution => false,
+    };
+    if !admitted {
         return None;
     }
     let selected = crate::registry_invocation::resolved_handler_invocation_with_metadata_context(

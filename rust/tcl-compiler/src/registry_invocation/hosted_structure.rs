@@ -555,10 +555,11 @@ impl SourceStructuredInvocation {
     pub(crate) fn error_context(&self) -> Option<tcl_registry::InlineBodyErrorContext> {
         match self {
             Self::Logical(selected) => selected.error_context(),
-            Self::Hosted(_)
-            | Self::NativeSource(_)
-            | Self::LogicalSource(_)
-            | Self::Authored(_) => None,
+            Self::Authored(selected) => selected.lowering_hook().and_then(|hook| {
+                tcl_registry::SemanticOperationId::StructuredLowering(hook)
+                    .inline_body_error_context()
+            }),
+            Self::Hosted(_) | Self::NativeSource(_) | Self::LogicalSource(_) => None,
         }
     }
 }

@@ -2235,13 +2235,23 @@ mod interp_eval_injection {
 
     #[test]
     fn braced_and_list_clean() {
-        assert!(!fires("interp eval $child {set x 1}", D, "W312"));
+        // The words are bound first: tclsh errors on reading an unset variable.
         assert!(!fires(
-            "interp eval $child [list set $varname $value]",
+            "set child [gets stdin]\ninterp eval $child {set x 1}",
             D,
             "W312"
         ));
-        assert!(!fires("interp aliases $child", D, "W312"));
+        assert!(!fires(
+            "set child [gets stdin]\nset varname [gets stdin]\nset value [gets stdin]\n\
+             interp eval $child [list set $varname $value]",
+            D,
+            "W312"
+        ));
+        assert!(!fires(
+            "set child [gets stdin]\ninterp aliases $child",
+            D,
+            "W312"
+        ));
     }
 
     #[test]
@@ -2558,7 +2568,9 @@ mod read_before_set_correct {
     #[test]
     fn proc_written_global_suppresses_top_level_read() {
         // A proc declaring+setting a global makes a later top-level read safe
-        // (the proc may have run via an earlier `source`).
+        // only when the proc may have run (via an earlier `source`). With no
+        // call in between, tclsh 8.4-9.1 raise `can't read "package_name": no
+        // such variable` (and likewise for `counter`), so W210 is warranted.
         assert_eq!(
             w210_named(
                 "proc set_name {v} {global package_name; set package_name $v}\nsource foo.tcl\nset out $package_name\n",
@@ -2571,14 +2583,14 @@ mod read_before_set_correct {
                 "proc set_name {v} {set ::package_name $v}\nset out $package_name\n",
                 "package_name"
             ),
-            0
+            1
         );
         assert_eq!(
             w210_named(
                 "proc bump {} {global counter; incr counter}\nputs $counter\n",
                 "counter"
             ),
-            0
+            1
         );
     }
 
@@ -2947,7 +2959,8 @@ mod integration {
 
     #[test]
     fn security_critical_patterns_all_fire() {
-        let src = "\nset script \"doThing $userArg\"\neval $script\nsource $untrusted_path\nsubst $user_template\nopen \"|$user_cmd\"\n";
+        // The inputs are bound first: tclsh errors on reading an unset variable.
+        let src = "set userArg [gets stdin]\nset untrusted_path [gets stdin]\nset user_template [gets stdin]\nset user_cmd [gets stdin]\n\nset script \"doThing $userArg\"\neval $script\nsource $untrusted_path\nsubst $user_template\nopen \"|$user_cmd\"\n";
         let cs: std::collections::HashSet<_> = codes(src, D).into_iter().collect();
         for code in ["W101", "W300", "W102", "W103"] {
             assert!(cs.contains(code), "missing {code} in {cs:?}");
@@ -3182,7 +3195,8 @@ mod private_tcl_namespace {
     // still flagged, with the fix.
     #[test]
     fn genuine_chan_ensemble_backing_still_fires() {
-        let ds = of_code("::tcl::chan::truncate $c 0", D, "W143");
+        // `$c` is bound first: tclsh errors on reading an unset variable.
+        let ds = of_code("set c [gets stdin]\n::tcl::chan::truncate $c 0", D, "W143");
         assert_eq!(ds.len(), 1);
         assert_eq!(ds[0].2, vec!["chan truncate".to_string()]);
     }

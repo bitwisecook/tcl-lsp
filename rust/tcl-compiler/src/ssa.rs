@@ -12565,7 +12565,8 @@ mod tests {
     /// tclsh-proof: tclsh8.6.14 — `puts {$y}` prints `$y` with `y` undefined.
     #[test]
     fn uses_of_classified_braced_data_word_is_quoted() {
-        let reg = default_registry();
+        let reg = default_registry()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let stmt = call_with_words("puts", &["{$y}"]);
         assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Quoted));
     }
@@ -12740,7 +12741,8 @@ mod tests {
     /// {$b} } } }; f abc` prints `$b` with `b` undefined.
     #[test]
     fn uses_of_classified_opaque_switch_arm_braced_data_word_is_quoted() {
-        let reg = default_registry();
+        let reg = default_registry()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let mut body = crate::ir::Script::new();
         body.statements.push(call_with_words("puts", &["{$y}"]));
         let stmt = opaque_switch("$z", "a*", body);
@@ -13830,7 +13832,8 @@ mod tests {
     /// The classified uses of every `Call` in a one-statement proc, lowered
     /// from source so the statement carries the real word snapshot.
     fn classified_call_uses(body: &str) -> Vec<(String, UseClass)> {
-        let reg = CommandRegistry::build_default();
+        let reg = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let src = format!("proc f {{tainted}} {{\n {body}\n}}");
         let cu = crate::compilation_unit::CompilationUnit::build_for(&src, &reg, false);
         let fu = cu.function("::f").expect("proc lowered");
@@ -13956,7 +13959,8 @@ mod tests {
     /// The classified uses of every `AssignValue` in a one-statement proc —
     /// the assignment twin of [`classified_call_uses`].
     fn classified_assign_uses(body: &str) -> Vec<(String, UseClass)> {
-        let reg = CommandRegistry::build_default();
+        let reg = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let src = format!("proc f {{tainted}} {{\n {body}\n}}");
         let cu = crate::compilation_unit::CompilationUnit::build_for(&src, &reg, false);
         let fu = cu.function("::f").expect("proc lowered");

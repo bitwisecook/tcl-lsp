@@ -2557,10 +2557,11 @@ fn e003_arity_is_dialect_aware_via_expand_syntax() {
     // End-to-end proof that the
     // document dialect reaches the analyser's segmenter (and thus the
     // lexer's `expand_syntax` flag).  `{*}` is the expansion operator
-    // on 8.5+ but a literal brace word on 8.4, so for
+    // on 8.5+ but a plain braced word on 8.4, so for
     // `regsub a b c d {*}$rest`:
-    //   * tcl8.4 — `{*}$rest` is a 5th literal positional word; 5 > max
-    //     4 → E003 fires.
+    //   * tcl8.4 — `{*}` closes a braced word that `$rest` follows, so the
+    //     script does not parse (tclsh8.4: `extra characters after
+    //     close-brace`) → E204.
     //   * tcl9.0 — `{*}$rest` expands, contributing an unbounded count;
     //     the 4 non-expanded words are ≤ max 4 → E003 is suppressed.
     // Before the dialect → `LexerConfig` wiring the analyser always
@@ -2576,8 +2577,8 @@ fn e003_arity_is_dialect_aware_via_expand_syntax() {
     };
     let on_84 = codes("tcl8.4");
     assert!(
-        on_84.iter().any(|c| c == "E003"),
-        "8.4 treats `{{*}}` as a literal word → 5 positional args → E003: {on_84:?}",
+        on_84.iter().any(|c| c == "E204"),
+        "8.4 reads `{{*}}` as a braced word followed by `$rest` → E204: {on_84:?}",
     );
     let on_90 = codes("tcl9.0");
     assert!(
@@ -3399,8 +3400,12 @@ fn e003_shadow_is_namespace_scoped() {
     // A namespaced proc named `close` must
     // NOT suppress arity checks on a *global* `close` call (which
     // resolves to the builtin, max 2), but must suppress a `close`
-    // call inside its own namespace (which resolves to the proc).
-    let src = "proc ::ns::close {a b c d} {}\n\
+    // call inside its own namespace (which resolves to the proc). The
+    // namespace exists first (tclsh: `can't create procedure "::ns::close":
+    // unknown namespace`), and the proc takes the three words the namespaced
+    // call passes, so that call is valid.
+    let src = "namespace eval ::ns {}\n\
+                   proc ::ns::close {a b c} {}\n\
                    close x y z\n\
                    namespace eval ::ns { close x y z }\n";
     let mut a = Analyser::new();
@@ -3762,10 +3767,11 @@ fn switch_unpaired_pattern_fires_e005() {
     // `switch ?options? string pattern body ?pattern body ...?` — a flat
     // (non-braced) form's total count (subject + patterns/bodies) is
     // always odd; an even count (here 4: subject + 3 more words) leaves
-    // an unpaired trailing pattern with no body (tclsh 8.6.14: `switch $s
-    // a b c` fails "wrong # args").
+    // an unpaired trailing pattern with no body (tclsh 8.4-9.0: `switch --
+    // q a b c` fails "extra switch pattern with no body"). Without `--` a
+    // subject such as `-exact` is an option and the words pair up.
     assert_eq!(
-        arity_shape_codes("switch $s a b c\n"),
+        arity_shape_codes("proc p {s} {switch -- $s a b c}\n"),
         vec!["E005".to_owned()]
     );
 }
@@ -7386,6 +7392,19 @@ fn codes_for(src: &str) -> Vec<String> {
         .collect()
 }
 
+/// [`codes_for`] under one release rather than the lenient span, which
+/// includes 8.4 (no TclOO) and so proves nothing about a method body.
+fn codes_for_in(src: &str, dialect: &str) -> Vec<String> {
+    let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+    a.emit_document_cfg_ssa_diagnostics_for_test(src);
+    a.result
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
 // TclOO/snit method-body CFG/SSA diagnostics
 
 #[test]
@@ -7462,7 +7481,7 @@ fn method_body_ordinary_unused_local_still_flags_w211() {
     // method body: a genuinely unused *local* (not a param, not an instance
     // var) still flags W211, exactly as it would inside a plain proc.
     let src = "oo::class create P {\n    method Foo {} {\n        ::set unused 1\n        ::return ok\n    }\n}\n";
-    let codes = codes_for(src);
+    let codes = codes_for_in(src, "tcl8.6");
     assert!(
         codes.contains(&"W211".to_string()),
         "a genuinely unused local inside a method must still flag W211: {codes:?}"
@@ -7478,7 +7497,7 @@ fn objdefine_method_body_unbound_read_now_flags_w210() {
     // An `oo::objdefine $obj { method … }` body must produce a method unit,
     // or a genuinely unbound read inside it draws no diagnostics at all.
     let src = "oo::class create C {}\nset k [C new]\noo::objdefine $k {\n    method probe {} { ::return $neverBound }\n}\n";
-    let codes = codes_for(src);
+    let codes = codes_for_in(src, "tcl8.6");
     assert!(
         codes.contains(&"W210".to_string()),
         "an unbound read inside an objdefine method must flag W210: {codes:?}"
@@ -7580,7 +7599,7 @@ fn method_body_unbound_read_inside_switch_arm_still_flags_w210() {
     // not just a shallow top-level scan: the unbound read is nested inside
     // a `switch` arm.
     let src = "oo::class create P {\n    method Foo {n} {\n        ::switch $n {\n            1 { ::return $missing }\n        }\n        ::return 0\n    }\n}\n";
-    let codes = codes_for(src);
+    let codes = codes_for_in(src, "tcl8.6");
     assert!(
         codes.contains(&"W210".to_string()),
         "an unbound read nested inside a switch arm must still flag W210: {codes:?}"
@@ -7608,7 +7627,10 @@ fn info_exists_guard_narrows_read_in_then_arm() {
 fn info_exists_read_outside_guard_still_flags_w210() {
     // The narrowing is scoped to the guarded arm: a read after the
     // `if` (not dominated by the guard) still flags W210.
-    let codes = codes_for("proc f {} { if {[info exists u]} { puts hi }\nputs $u }");
+    let codes = codes_for_in(
+        "proc f {} { if {[info exists u]} { puts hi }\nputs $u }",
+        "tcl8.6",
+    );
     assert!(
         codes.contains(&"W210".to_string()),
         "read outside the guarded arm must still flag W210; got {codes:?}",
@@ -10874,8 +10896,11 @@ fn w123_fp_ordinary_call_shaped_like_mathfunc_resolves_under_86() {
 fn w123_tp_custom_mathfunc_body_bareword_call_fires_under_84() {
     // The more realistic trigger: a custom math function's own body calling
     // a built-in bareword (not through `expr`'s function-call syntax) —
-    // still invalid under an 8.4-based dialect for the same reason.
-    let src = "proc ::tcl::mathfunc::myfunc {x} { return [sin $x] }\n";
+    // still invalid under an 8.4-based dialect for the same reason. 8.4 has
+    // no `::tcl::mathfunc` namespace until the script makes one (tclsh8.4:
+    // `can't create procedure ...: unknown namespace`).
+    let src = "namespace eval ::tcl::mathfunc {}\n\
+               proc ::tcl::mathfunc::myfunc {x} { return [sin $x] }\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.4");
     assert!(
@@ -18281,7 +18306,9 @@ fn a_concatenated_script_writes_through_the_documents_registry() {
             .count()
     };
     assert_eq!(w210("tcl8.6"), 0, "8.6: lassign writes a");
-    assert_eq!(w210("tcl8.4"), 1, "8.4: lassign is no command");
+    // 8.4 has no `lassign`: the `eval` fails first (tclsh8.4: `invalid
+    // command name "lassign"`), so the read of `a` is never reached.
+    assert_eq!(w210("tcl8.4"), 0, "8.4: lassign is no command");
 }
 
 /// An existence read and an unbind are uses of their place: a

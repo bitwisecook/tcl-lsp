@@ -1309,9 +1309,10 @@ fn o110_whitespace_noise_suppressed() {
     // Genuine structural changes that DO still fire O110.
     // Additive identity `$x + 0` ⇒ `$x` (INT-proven).
     assert!(opt_fires(&int_x("set v [expr {$x + 0}]"), TCL, "O110"));
-    // Boolean simplify `($action && 1) ? ...` ⇒ `$action ? ...`.
+    // Boolean simplify `($action && 1) ? ...` ⇒ `$action ? ...`. `$action` is
+    // bound first: tclsh errors on reading an unset variable.
     assert!(opt_fires(
-        "set v [expr {($action && 1) ? \"on\" : \"off\"}]",
+        "set action [gets stdin]\nset v [expr {($action && 1) ? \"on\" : \"off\"}]",
         TCL,
         "O110"
     ));
@@ -2072,13 +2073,18 @@ fn legacy_gvn_cse_detection() {
         Vec::<String>::new()
     );
 
-    // Three identical ⇒ two redundancy warnings.
-    let three = "set a [string length $x]\nset b [string length $x]\nset c [string length $x]";
+    // Three identical ⇒ two redundancy warnings. `$x` is bound first: tclsh
+    // errors on reading an unset variable.
+    let three = "set x [gets stdin]\nset a [string length $x]\nset b [string length $x]\n\
+                 set c [string length $x]";
     assert!(legacy_gvn_codes(three).len() >= 2);
 
     // A mutation between the calls invalidates the redundancy.
     assert_eq!(
-        legacy_gvn_codes("set a [string length $x]\nset x different\nset b [string length $x]"),
+        legacy_gvn_codes(
+            "set x [gets stdin]\nset a [string length $x]\nset x different\n\
+             set b [string length $x]"
+        ),
         Vec::<String>::new()
     );
 

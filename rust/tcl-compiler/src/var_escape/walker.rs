@@ -202,10 +202,11 @@ fn handle_eval(args: &[String], state: &mut EscapeState, registry: &tcl_registry
     }
     // Recurse into the literal body and escape every name it
     // touches.
-    let sub_module = crate::lowering::lower_to_ir_with_config(
+    let sub_module = crate::lowering::lower_to_ir_with_dialect(
         &body,
         registry,
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        registry.profile(),
     );
     escape_every_name_touched(&sub_module.top_level, state, registry);
 }

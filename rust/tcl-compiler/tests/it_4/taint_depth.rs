@@ -386,14 +386,25 @@ mod source_breadth {
     #[test]
     fn encoding_convertfrom_is_source() {
         // tclsh: `encoding convertfrom utf-8 $bytes` decodes attacker bytes to a
-        // string — a content value. Core Tcl, subcommand-shaped source.
-        assert!(source_taints("encoding convertfrom utf-8 $bytes"));
+        // string — a content value. Core Tcl, subcommand-shaped source. `$bytes`
+        // is bound first: tclsh errors on reading an unset variable.
+        assert!(has(
+            "set bytes abc\nset x [encoding convertfrom utf-8 $bytes]\neval $x",
+            D,
+            "T100",
+            "x"
+        ));
     }
 
     #[test]
     fn chan_read_subcommand_is_source() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `chan read $fd` is the modern spelling of `read $fd`.
-        assert!(source_taints("chan read $fd"));
+        assert!(
+            channel_of_code("set x [chan read $fd]\neval $x", D, "T100")
+                .iter()
+                .any(|w| w.variable == "x")
+        );
     }
 
     #[test]
@@ -404,8 +415,13 @@ mod source_breadth {
         // its `TAINT_SOURCE` *command trait*, not by arity, so it conservatively
         // taints the result of BOTH forms — over-tainting the count form is the
         // safe (no-false-negative) direction. This pins that conservative,
-        // arity-agnostic source classification.
-        assert!(has("set n [gets $fd line]\neval $n", D, "T100", "n"));
+        // arity-agnostic source classification. Dialect build with a defined
+        // channel: tclsh errors on an undefined `$fd`.
+        assert!(
+            channel_of_code("set n [gets $fd line]\neval $n", D, "T100")
+                .iter()
+                .any(|w| w.variable == "n")
+        );
     }
 }
 
@@ -440,7 +456,8 @@ mod t100_sink_family {
     fn expr_braced_operand_message_mentions_coercion() {
         // A braced `expr` operand is the numeric-coercion T100 (not code-exec):
         // the message names the coercion risk, distinguishing it from eval/exec.
-        let ws = of_code("set data [read $fd]\nset v [expr {$data * 2}]", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set data [read $fd]\nset v [expr {$data * 2}]", D, "T100");
         assert_eq!(ws.len(), 1);
         assert!(ws[0].message.contains("expr"));
         assert!(ws[0].message.to_lowercase().contains("coercion"));
@@ -449,8 +466,9 @@ mod t100_sink_family {
     #[test]
     fn two_distinct_tainted_vars_in_eval_each_warn() {
         // Dedup is per-variable, not per-statement: `eval "$a $b"` flags both.
+        // The channels are bound first: tclsh errors on reading an unset variable.
         let ws = of_code(
-            "set a [read $f1]\nset b [read $f2]\neval \"$a $b\"",
+            "set f1 stdin\nset f2 stdin\nset a [read $f1]\nset b [read $f2]\neval \"$a $b\"",
             D,
             "T100",
         );
@@ -462,7 +480,12 @@ mod t100_sink_family {
 
     #[test]
     fn same_var_twice_in_eval_dedups_to_one() {
-        let ws = of_code("set a [read $f1]\neval \"$a and $a\"", D, "T100");
+        // The channel is bound first: tclsh errors on reading an unset variable.
+        let ws = of_code(
+            "set f1 stdin\nset a [read $f1]\neval \"$a and $a\"",
+            D,
+            "T100",
+        );
         assert_eq!(ws.iter().filter(|w| w.variable == "a").count(), 1);
     }
 }
@@ -504,7 +527,8 @@ mod exec_shell_atom {
     #[test]
     fn generic_taint_still_fires_exec_t100() {
         // A bare `read` value has no SHELL_ATOM → exec T100 fires.
-        let ws = of_code("set x [read $fd]\nexec sh -c $x", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nexec sh -c $x", D, "T100");
         assert!(ws.iter().any(|w| w.variable == "x"));
     }
 
@@ -530,9 +554,10 @@ mod puts_position_filter {
     #[test]
     fn puts_two_arg_channel_then_content_flags_content() {
         // `puts $chan $msg` — slot 0 ($chan) is the destination, slot 1 ($msg)
-        // is content. Only $msg trips T101.
+        // is content. Only $msg trips T101. The channels are bound first: tclsh
+        // errors on reading an unset variable.
         let ws = of_code(
-            "set ch [read $f1]\nset msg [read $f2]\nputs $ch $msg",
+            "set f1 stdin\nset f2 stdin\nset ch [read $f1]\nset msg [read $f2]\nputs $ch $msg",
             D,
             "T101",
         );
@@ -542,7 +567,8 @@ mod puts_position_filter {
 
     #[test]
     fn puts_literal_channel_tainted_content_flags() {
-        let ws = of_code("set msg [read $fd]\nputs stderr $msg", D, "T101");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set msg [read $fd]\nputs stderr $msg", D, "T101");
         assert!(ws.iter().any(|w| w.variable == "msg"));
     }
 
@@ -556,7 +582,8 @@ mod puts_position_filter {
     #[test]
     fn puts_single_arg_tainted_is_content() {
         // One-arg `puts $x` — $x is the content (default channel stdout).
-        let ws = of_code("set x [read $fd]\nputs $x", D, "T101");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nputs $x", D, "T101");
         assert_eq!(ws.len(), 1);
         assert_eq!(ws[0].variable, "x");
     }
@@ -818,8 +845,14 @@ mod t104_network_sinks {
 
     #[test]
     fn http_geturl_url_slot_warns() {
-        // tcllib `http::geturl` — slot 0 (the URL) is the SSRF vector.
-        let ws = of_code("set u [read $fd]\nhttp::geturl $u", D, "T104");
+        // tcllib `http::geturl` — slot 0 (the URL) is the SSRF vector. tclsh has
+        // no `http::geturl` until `package require http`, and errors on an
+        // undefined `$fd`.
+        let ws = of_code(
+            "package require http\nset fd stdin\nset u [read $fd]\nhttp::geturl $u",
+            D,
+            "T104",
+        );
         assert!(ws.iter().any(|w| w.variable == "u"));
     }
 
@@ -885,7 +918,8 @@ mod t105_cross_interp {
         // requires a *literal* `[list <known-cmd>]` at the call site, invisible
         // through a propagated variable. `$l` is plain tainted (the `list`
         // command stamps no LIST_CANONICAL colour) → T105 fires.
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set x [read $fd]\nset l [list $x]\ninterp eval child $l",
             D,
             "T105",
@@ -1021,7 +1055,7 @@ mod irule3001_depth {
         // f5-dialect: HTML::encode stamps HTML_ESCAPED → IRULE3001 cleared.
         assert_eq!(
             of_code(
-                "set raw [HTTP::query]\nset safe [HTML::encode $raw]\nHTTP::respond 200 content $safe",
+                "when HTTP_REQUEST {\nset raw [HTTP::query]\nset safe [HTML::encode $raw]\nHTTP::respond 200 content $safe\n}",
                 IR,
                 "IRULE3001",
             ),
@@ -1084,7 +1118,7 @@ mod irule3002_depth {
         // value position.
         assert_eq!(
             of_code(
-                "set a [IP::client_addr]\nHTTP::header insert X-Real-IP $a",
+                "when HTTP_REQUEST {\nset a [IP::client_addr]\nHTTP::header insert X-Real-IP $a\n}",
                 IR,
                 "IRULE3002",
             ),
@@ -1097,7 +1131,7 @@ mod irule3002_depth {
         // f5-dialect.
         assert_eq!(
             of_code(
-                "set p [TCP::client_port]\nHTTP::header insert X-Port $p",
+                "when HTTP_REQUEST {\nset p [TCP::client_port]\nHTTP::header insert X-Port $p\n}",
                 IR,
                 "IRULE3002",
             ),
@@ -1110,7 +1144,7 @@ mod irule3002_depth {
         // f5-dialect.
         assert_eq!(
             of_code(
-                "set s [SSL::sni]\nHTTP::header insert X-SNI $s",
+                "when HTTP_REQUEST {\nset s [SSL::sni]\nHTTP::header insert X-SNI $s\n}",
                 IR,
                 "IRULE3002",
             ),
@@ -1127,7 +1161,7 @@ mod irule3002_depth {
         // the command-transform (not bare-colour) suppression path.
         assert_eq!(
             of_code(
-                "set raw [HTTP::header Host]\nset e [HTML::encode $raw]\nHTTP::header insert X-H $e",
+                "when HTTP_REQUEST {\nset raw [HTTP::header Host]\nset e [HTML::encode $raw]\nHTTP::header insert X-H $e\n}",
                 IR,
                 "IRULE3002",
             ),
@@ -1192,7 +1226,7 @@ mod irule3003_depth {
         // f5-dialect: URI::escape augments CRLF_FREE → IRULE3003 cleared.
         assert_eq!(
             of_code(
-                "set raw [HTTP::query]\nset e [URI::escape $raw]\nlog local0. $e",
+                "when HTTP_REQUEST {\nset raw [HTTP::query]\nset e [URI::escape $raw]\nlog local0. $e\n}",
                 IR,
                 "IRULE3003",
             ),
@@ -1205,7 +1239,7 @@ mod irule3003_depth {
         // f5-dialect: html_escape's transform includes CRLF_FREE.
         assert_eq!(
             of_code(
-                "set raw [HTTP::query]\nset e [html_escape $raw]\nlog local0. $e",
+                "when HTTP_REQUEST {\nset raw [HTTP::query]\nset e [html_escape $raw]\nlog local0. $e\n}",
                 IR,
                 "IRULE3003",
             ),
@@ -1243,7 +1277,11 @@ mod irule3004_depth {
         // f5-dialect: HTTP::uri starts with `/` (PATH_PREFIXED ⊂ REDIRECT_SAFE)
         // → same-origin, no open redirect.
         assert_eq!(
-            of_code("set u [HTTP::uri]\nHTTP::redirect $u", IR, "IRULE3004"),
+            of_code(
+                "when HTTP_REQUEST {\nset u [HTTP::uri]\nHTTP::redirect $u\n}",
+                IR,
+                "IRULE3004"
+            ),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
@@ -1417,7 +1455,8 @@ mod w313_destructive_file {
         // Range precision: the warning anchors at the dynamic path argument
         // (`$p`), not the whole `file delete …` command — mirroring T102's
         // per-argument targeting.
-        let src = "set p [read $fd]\nfile delete $p";
+        // The channel is bound first: tclsh errors on reading an unset variable.
+        let src = "set fd stdin\nset p [read $fd]\nfile delete $p";
         let ws = of_code(src, D, "W313");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         let expected = src.rfind("$p").unwrap();
@@ -1433,7 +1472,9 @@ mod w313_destructive_file {
     fn span_covers_first_offending_path_argument_of_rename() {
         // `file rename $a $b` warns once, anchored at the first offending
         // path argument (`$a`), not the statement.
-        let src = "set a [read $f1]\nset b [read $f2]\nfile rename $a $b";
+        // The channels are bound first: tclsh errors on reading an unset variable.
+        let src =
+            "set f1 stdin\nset f2 stdin\nset a [read $f1]\nset b [read $f2]\nfile rename $a $b";
         let ws = of_code(src, D, "W313");
         assert_eq!(ws.len(), 1);
         let expected = src.rfind("$a").unwrap();
@@ -1449,7 +1490,8 @@ mod w313_destructive_file {
     fn span_skips_force_flag_to_the_path_argument() {
         // With `-force` present the anchor is still the *path* argument, not
         // the switch word.
-        let src = "set p [read $fd]\nfile delete -force $p";
+        // The channel is bound first: tclsh errors on reading an unset variable.
+        let src = "set fd stdin\nset p [read $fd]\nfile delete -force $p";
         let ws = of_code(src, D, "W313");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         let expected = src.rfind("$p").unwrap();
@@ -1465,9 +1507,10 @@ mod w313_destructive_file {
     fn first_path_variable_is_deterministic() {
         // `file rename $a $b` — one W313 per statement on the FIRST offending
         // path variable in source order (the `arg_var_names_ordered` determinism
-        // guard). `$a` precedes `$b`.
+        // guard). `$a` precedes `$b`. The channels are bound first: tclsh errors
+        // on reading an unset variable.
         let ws = of_code(
-            "set a [read $f1]\nset b [read $f2]\nfile rename $a $b",
+            "set f1 stdin\nset f2 stdin\nset a [read $f1]\nset b [read $f2]\nfile rename $a $b",
             D,
             "W313",
         );
@@ -1551,7 +1594,8 @@ mod transform_propagation {
     #[test]
     fn path_joined_does_not_suppress_t100() {
         // `[file join]` makes a path portable, not eval-safe → T100 still fires.
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset p [file join /base $raw]\neval $p",
             D,
             "T100",
@@ -1653,7 +1697,8 @@ mod sanitiser_breadth {
     fn string_toupper_does_not_sanitise() {
         // tclsh: `string toupper "abc-def"` → `ABC-DEF` (content string, same
         // shape) — NOT a fixed-numeric return, so taint flows through to eval.
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set x [read $fd]\nset u [string toupper $x]\neval $u",
             D,
             "T100",
@@ -1676,17 +1721,21 @@ mod sanitiser_breadth {
         //
         // `emit_sink_warnings` applies the embedded-sanitiser carve-out
         // (mirroring the expr/word_taint path), so a sanitiser-consumed `$x`
-        // does not false-fire T101.
-        assert!(!has(
-            "set x [read $fd]\nputs [string length $x]",
-            D,
-            "T101",
-            "x"
-        ));
+        // does not false-fire T101. Dialect build with a defined channel: tclsh
+        // errors on an undefined `$fd`.
+        assert!(
+            !channel_of_code("set x [read $fd]\nputs [string length $x]", D, "T101")
+                .iter()
+                .any(|w| w.variable == "x")
+        );
         // Control: a bare tainted value in the same sink still fires — the
         // carve-out is targeted (only vars fully consumed by a sanitiser), not
         // a blanket suppression.
-        assert!(has("set x [read $fd]\nputs $x", D, "T101", "x"));
+        assert!(
+            channel_of_code("set x [read $fd]\nputs $x", D, "T101")
+                .iter()
+                .any(|w| w.variable == "x")
+        );
     }
 }
 
@@ -1747,8 +1796,13 @@ mod interproc_depth {
     fn passthrough_carries_taint_into_eval() {
         // A bare `return $x` passthrough carries the argument's TAINTED bit to the
         // caller, so the returned value is a T100 code-execution risk at `eval`.
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let src = "proc wrap {x} { return $x }\nset raw [read $fd]\nset w [wrap $raw]\neval $w";
-        assert!(has(src, D, "T100", "w"));
+        assert!(
+            channel_of_code(src, D, "T100")
+                .iter()
+                .any(|w| w.variable == "w")
+        );
     }
 
     #[test]

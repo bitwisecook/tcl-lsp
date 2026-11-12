@@ -795,6 +795,46 @@ impl OriginalSourceCommandWorld {
         Some(())
     }
 
+    /// The C geometry of an authored namespace the flow walk ensured outside
+    /// an original source transfer (`namespace eval ::a {…}` in the IR walk),
+    /// so a lookup in it reads its slots instead of an unknown scope. A label
+    /// whose path does not spell it back again stays unmodelled.
+    pub(super) fn ensure_authored_namespace(state: &mut ModuleCommandBindings, label: &str) {
+        let key = SourceNamespaceKey::authored(label);
+        let world = &state.original_command_world;
+        let Some(policy) = world
+            .current_policy(state)
+            .filter(|policy| world.policy == Some(*policy))
+        else {
+            return;
+        };
+        if !matches!(policy.recipe(), NativeNameProtocol::C(_))
+            || world.namespaces.has_key(&key)
+            || !label.is_ascii()
+            || label.as_bytes().contains(&0)
+            || state.unknown_lookup_namespaces.contains(&key)
+            || state.unknown_namespace_paths.contains(&key)
+        {
+            return;
+        }
+        let Ok(path) = policy.recipe().namespace_address_path(
+            tcl_syntax::naming::NativeNameContext::root(),
+            label.as_bytes(),
+        ) else {
+            return;
+        };
+        if tcl_syntax::naming::checked_namespace_path_key(&path).as_deref() != Some(label) {
+            return;
+        }
+        Arc::make_mut(&mut state.original_command_world)
+            .namespaces
+            .push(NamespaceGeometry {
+                key,
+                scope: SignatureNamespaceScope::C(path),
+                allocation: None,
+            });
+    }
+
     /// Original source creation lineage, independent of namespace existence,
     /// command cleanup, variable allocation or successful deletion.
     pub(super) fn source_namespace_creation(

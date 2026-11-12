@@ -586,7 +586,13 @@ impl<'a> ModuleProcedures<'a> {
         expression: &crate::expr_ast::ExprNode,
         base: Option<u32>,
     ) -> Option<OriginalSummaryExpression> {
-        self.source.as_ref()?.expression(parent, expression, base)
+        if let Some(source) = &self.source {
+            source.expression(parent, expression, base)
+        } else {
+            self.native_source
+                .as_ref()?
+                .expression(parent, expression, base)
+        }
     }
 
     pub(crate) fn original_expression_substitution(
@@ -596,9 +602,13 @@ impl<'a> ModuleProcedures<'a> {
         start: u32,
         end: u32,
     ) -> Option<OriginalSummaryScript> {
-        self.source
-            .as_ref()?
-            .expression_substitution(expression, script, start, end)
+        if let Some(source) = &self.source {
+            source.expression_substitution(expression, script, start, end)
+        } else {
+            self.native_source
+                .as_ref()?
+                .expression_substitution(expression, script, start, end)
+        }
     }
 
     pub(crate) fn original_substitution(

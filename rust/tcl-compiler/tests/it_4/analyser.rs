@@ -1454,7 +1454,8 @@ mod control_flow {
 
     #[test]
     fn dict_for_body_analysed() {
-        assert!(vars("dict for {k v} $d { set seen 1 }").contains("seen"));
+        // `$d` is bound first: tclsh errors on reading an unset variable.
+        assert!(vars("set d [gets stdin]\ndict for {k v} $d { set seen 1 }").contains("seen"));
     }
 
     #[test]
@@ -1503,25 +1504,36 @@ mod regex_patterns {
             .collect()
     }
 
+    // The subject variables are bound first: tclsh errors on reading an unset
+    // variable, so the command under test would never run.
     #[test]
     fn regexp_simple_records_pattern_and_command() {
-        let p = pats("regexp {^[a-z]+$} $str");
+        let p = pats("set str [gets stdin]\nregexp {^[a-z]+$} $str");
         assert_eq!(p, [("^[a-z]+$".to_string(), "regexp".to_string())]);
     }
 
     #[test]
     fn regexp_with_options_and_terminator_and_start() {
-        assert_eq!(pats("regexp -nocase -expanded {\\d+} $str")[0].0, "\\d+");
-        assert_eq!(pats("regexp -nocase -- {^test} $str")[0].0, "^test");
-        assert_eq!(pats("regexp -start 5 {pattern} $str")[0].0, "pattern");
+        assert_eq!(
+            pats("set str [gets stdin]\nregexp -nocase -expanded {\\d+} $str")[0].0,
+            "\\d+"
+        );
+        assert_eq!(
+            pats("set str [gets stdin]\nregexp -nocase -- {^test} $str")[0].0,
+            "^test"
+        );
+        assert_eq!(
+            pats("set str [gets stdin]\nregexp -start 5 {pattern} $str")[0].0,
+            "pattern"
+        );
     }
 
     #[test]
     fn regsub_simple_and_with_options() {
-        let p = pats("regsub {\\d+} $str replacement result");
+        let p = pats("set str [gets stdin]\nregsub {\\d+} $str replacement result");
         assert_eq!(p, [("\\d+".to_string(), "regsub".to_string())]);
         assert_eq!(
-            pats("regsub -all -nocase {foo} $str bar result")[0].0,
+            pats("set str [gets stdin]\nregsub -all -nocase {foo} $str bar result")[0].0,
             "foo"
         );
     }
@@ -1572,7 +1584,8 @@ mod regex_patterns {
 
     #[test]
     fn multiple_regex_commands_in_one_file() {
-        let p = pats("regexp {^a} $x\nregsub {^b} $y c result");
+        let p =
+            pats("set x [gets stdin]\nset y [gets stdin]\nregexp {^a} $x\nregsub {^b} $y c result");
         assert_eq!(p.len(), 2);
         let cmds: std::collections::HashSet<_> = p.iter().map(|(_, c)| c.clone()).collect();
         assert_eq!(
@@ -2691,11 +2704,11 @@ mod unresolved_command {
             w123("proc mycommand {x} { puts $x }\nmycommand hello"),
             [] as [std::string::String; 0]
         );
-        // Forward-defined proc still suppresses.
-        assert_eq!(
-            w123("mycommand hello\nproc mycommand {x} { puts $x }"),
-            [] as [std::string::String; 0]
-        );
+        // A call written before the proc is defined runs first: tclsh 8.4-9.1
+        // raise `invalid command name "mycommand"`, so W123 is warranted.
+        let forward = w123("mycommand hello\nproc mycommand {x} { puts $x }");
+        assert_eq!(forward.len(), 1, "{forward:?}");
+        assert!(forward[0].contains("mycommand"));
     }
 
     #[test]

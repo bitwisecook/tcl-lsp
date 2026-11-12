@@ -99,7 +99,8 @@ fn highlighted_literal_matches_tcl9_variable_value() {
 
     // Each literal is assigned to a variable that flows into a `regexp`
     // pattern.  The literal (delimiters stripped) must equal the runtime value
-    // tclsh binds to the variable.
+    // tclsh binds to the variable. The subject is bound: tclsh errors on an
+    // undefined `$s` before the match.
     let literals = [
         "{a+b}",
         "\".*abc\"",
@@ -109,7 +110,7 @@ fn highlighted_literal_matches_tcl9_variable_value() {
     ];
 
     for lit in literals {
-        let feature_src = format!("set r {lit}\nregexp $r $s\n");
+        let feature_src = format!("set s subject\nset r {lit}\nregexp $r $s\n");
         let got = highlighted_literals(&feature_src);
         assert_eq!(got.len(), 1, "expected exactly one regex source for {lit}");
         let our_inner = inner(&got[0]);
@@ -136,7 +137,8 @@ fn highlighted_literal_inside_namespace_eval_matches_tcl9() {
         return;
     };
     for lit in ["{a+b}", "\".*abc\"", "{[0-9]+}"] {
-        let feature_src = format!("namespace eval ::ns {{\n  set r {lit}\n  regexp $r $s\n}}\n");
+        let feature_src =
+            format!("namespace eval ::ns {{\n  set s subject\n  set r {lit}\n  regexp $r $s\n}}\n");
         let got = highlighted_literals(&feature_src);
         assert_eq!(
             got.len(),

@@ -483,7 +483,9 @@ proc tester {} {
 #[test]
 fn fp_rbs_04_unrelated_tail_still_fires() {
     // TP control: a read of a tail name NOT declared as qualified alias must still fire W210.
+    // `::ns` exists, or `proc` fails with `unknown namespace`.
     let src = "\
+namespace eval ::ns {}
 proc ::ns::get {name key} {
     variable ${name}::graphAttr
     # 'undeclared' has no alias decl and no set — must still fire W210.

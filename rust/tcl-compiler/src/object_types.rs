@@ -2418,7 +2418,7 @@ mod tests {
 
     #[test]
     fn source_positioned_receiver_proofs_do_not_reuse_an_older_object_value() {
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry();
         let source =
             "oo::class create Pin {}\nset x [Pin new]\n$x retained\nset x 0\nset y $x\n$y stale\n";
         let cu = CompilationUnit::build_for(source, &registry, false);
@@ -2831,7 +2831,7 @@ mod tests {
         // `set p [Pin new]; connect $p` — the object flows into `connect`'s
         // parameter `dev`, so `$dev method …` in the body resolves (the
         // param-receiver case the mro_eval experiment measured as 60% of ⊤).
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry();
         let src = "oo::class create Pin { method cfg {args} {} }\n\
                    proc connect {dev} { $dev cfg }\n\
                    set p [Pin new]\n\
@@ -2849,7 +2849,7 @@ mod tests {
     fn interproc_param_flows_through_call_chain() {
         // `a $p` → `b $x` → `$y cfg`: the class flows two hops through the
         // fixpoint, so the innermost param `y` is a ::Pin handle.
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry();
         let src = "oo::class create Pin { method cfg {args} {} }\n\
                    proc a {x} { b $x }\n\
                    proc b {y} { $y cfg }\n\
@@ -2868,7 +2868,7 @@ mod tests {
     fn aliasing_copies_handle_class() {
         // `set a [Pin new]; set b $a` — the plain var-ref assignment aliases
         // `a`'s class onto `b`, so `$b method …` resolves (VTA assignment edge).
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry();
         let src = "oo::class create Pin { method cfg {args} {} }\n\
                    set a [Pin new]\n\
                    set b $a\n\
@@ -2910,7 +2910,7 @@ mod tests {
         // Case B — an object passed *into* a constructor: `Wrap new $p` binds
         // the constructor's parameter `inner` to ::Pin, so `$inner method …`
         // inside the constructor body resolves (VTA constructor-param edge).
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry();
         let src = "oo::class create Pin { method cfg {args} {} }\n\
                    oo::class create Wrap {\n\
                      variable held\n\
@@ -2939,7 +2939,7 @@ mod tests {
         // The full Case-B shape: an object flows in through the constructor,
         // is stored in an instance variable, and is dispatched on from an
         // unrelated method.  ctor-param + aliasing edges together resolve it.
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry();
         let src = "oo::class create Motor { method spin {args} {} }\n\
                    oo::class create Car {\n\
                      variable engine\n\
@@ -3057,8 +3057,15 @@ mod tests {
 
     /// Build a unit and its full fact set in one step (the tests below want
     /// both).
+    /// The shipped catalogue projected for Tcl 8.6, the release these
+    /// fixtures analyse.
+    fn release_registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap())
+    }
+
     fn facts_for(src: &str) -> (CommandRegistry, ObjectHandleFacts) {
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry();
         let cu = CompilationUnit::build_for(src, &registry, false);
         let facts = object_handle_facts(&cu, &registry);
         (registry, facts)
@@ -3099,7 +3106,7 @@ mod tests {
     #[test]
     fn colliding_method_reports_have_distinct_scoped_object_candidates() {
         let source = "namespace eval A {}\noo::class create A::B {method c {} {set handle [Pin new]}}\noo::class create A {method B::c {} {set handle 0}}\n";
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry();
         let unit = CompilationUnit::build_for(source, &registry, false);
         let facts = object_handle_facts(&unit, &registry);
         let scopes = facts

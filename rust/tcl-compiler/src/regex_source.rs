@@ -162,10 +162,13 @@ fn collect_in_function(
             };
             // A literal assignment records its value-word span, keyed by the
             // SSA version it defines.
-            if let Some(vspan) = literal_value_word_span(stmt, module, registry) {
+            if let Some(vspan) = literal_value_word_span(stmt, module, registry)
+                .map(|span| fu.abs_span(span))
+                .or_else(|| constant_value_word_span(stmt, fu, module))
+            {
                 for (sym, ver) in &ssa_stmt.defs {
                     let key = (*sym, *ver);
-                    scan.const_def_span.entry(key).or_insert(fu.abs_span(vspan));
+                    scan.const_def_span.entry(key).or_insert(vspan);
                     // `AssignValue` also covers a quoted or bare literal
                     // (`set re "x+"`, `set re x+`) when the word has no
                     // substitution.  Admit only that statically literal
@@ -340,6 +343,35 @@ fn literal_value_word_span(
     (tcl_syntax::word_rules::original_static_word_unicode_value(original).as_deref()
         == Some(content))
     .then_some(original.span())
+}
+
+/// The whole written value word of a constant the `set` lowering took
+/// verbatim from the source (`set re {a+b}`). Its retained content span is
+/// widened over the word's own braces or quotes; a folded or synthesised
+/// constant has no content span and is no source literal.
+fn constant_value_word_span(
+    stmt: &Statement,
+    fu: &FunctionUnit,
+    module: &crate::ir::Module,
+) -> Option<Span> {
+    let Statement::AssignConst {
+        value_span: Some(content),
+        ..
+    } = stmt
+    else {
+        return None;
+    };
+    let content = fu.abs_span(*content);
+    let bytes = module.source.bytes();
+    let start = content.start() as usize;
+    let end = content.end() as usize;
+    let opener = start.checked_sub(1).and_then(|index| bytes.get(index));
+    Some(match (opener, bytes.get(end)) {
+        (Some(b'{'), Some(b'}')) | (Some(b'"'), Some(b'"')) => {
+            Span::new(content.start() - 1, content.end() + 1)
+        }
+        _ => content,
+    })
 }
 
 /// Keep supplied missing ownership terminal. Only a positively tagged
@@ -986,8 +1018,10 @@ mod tests {
         // `namespace` runtime barrier, and codegen never reads `body_units`, so
         // the presence of a body unit must not perturb compiled output. Assert
         // the body unit is recorded (coverage) but lives outside procedures.
-        let registry = CommandRegistry::build_default();
-        let src = "namespace eval ::ns { set re \".*x\"\n regexp $re $s }\n";
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let src = "namespace eval ::ns { set s subject; set re \".*x\"\n regexp $re $s }\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         assert_eq!(cu.body_units.len(), 1, "one namespace-eval body unit");
         assert!(
@@ -1074,7 +1108,8 @@ mod tests {
     #[test]
     fn regsub_command_tracks_all_literal_word_forms() {
         for (value, expected) in [("{x+}", "{x+}"), ("\"x+\"", "\"x+\""), ("x+", "x+")] {
-            let src = format!("set re {value}\nregsub -command $re $s callback out\n");
+            let src =
+                format!("set s subject\nset re {value}\nregsub -command $re $s callback out\n");
             assert_eq!(
                 spans_text(&src),
                 vec![expected.to_owned()],

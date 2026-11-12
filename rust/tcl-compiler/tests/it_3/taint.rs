@@ -444,16 +444,18 @@ mod tcl_taint_sources {
 
     #[test]
     fn read_taints() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `read $fd` returns channel contents — attacker-influenced I/O.
-        let ws = of_code("set data [read $fd]\neval $data", D, "T100");
+        let ws = channel_of_code("set data [read $fd]\neval $data", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].variable, "data");
     }
 
     #[test]
     fn gets_taints() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `gets $fd` (no varName) returns the line read from the channel.
-        let ws = of_code("set line [gets $fd]\neval $line", D, "T100");
+        let ws = channel_of_code("set line [gets $fd]\neval $line", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].variable, "line");
     }
@@ -790,13 +792,15 @@ set x [gets stdin]
 
     #[test]
     fn chan_read_taints() {
-        let ws = of_code("set data [chan read $fd]\neval $data", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set data [chan read $fd]\neval $data", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
     fn chan_gets_taints() {
-        let ws = of_code("set data [chan gets $fd]\neval $data", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set data [chan gets $fd]\neval $data", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
@@ -1662,13 +1666,15 @@ mod taint_propagation {
 
     #[test]
     fn variable_copy_propagates() {
-        let ws = of_code("set x [read $fd]\nset y $x\neval $y", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nset y $x\neval $y", D, "T100");
         assert!(ws.iter().any(|w| w.variable == "y"));
     }
 
     #[test]
     fn string_interpolation_propagates() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set x [read $fd]\nset y \"prefix${x}suffix\"\neval $y",
             D,
             "T100",
@@ -1678,7 +1684,8 @@ mod taint_propagation {
 
     #[test]
     fn command_subst_concat_propagates() {
-        let ws = of_code("set x [read $fd]/suffix\neval $x", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]/suffix\neval $x", D, "T100");
         assert!(ws.iter().any(|w| w.variable == "x"));
     }
 
@@ -1705,9 +1712,10 @@ mod taint_propagation {
 
     #[test]
     fn taint_through_if_branch() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let source =
             "set x [read $fd]\nif {1} {\n    set y $x\n} else {\n    set y \"safe\"\n}\neval $y\n";
-        let ws = of_code(source, D, "T100");
+        let ws = channel_of_code(source, D, "T100");
         assert!(ws.iter().any(|w| w.variable == "y"));
     }
 }
@@ -1791,33 +1799,38 @@ mod dangerous_sinks {
 
     #[test]
     fn eval_sink() {
-        let ws = of_code("set x [read $fd]\neval $x", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\neval $x", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].sink_command, "eval");
     }
 
     #[test]
     fn expr_sink() {
-        let ws = of_code("set x [read $fd]\nexpr $x", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nexpr $x", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
     fn exec_sink() {
-        let ws = of_code("set x [read $fd]\nexec $x", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nexec $x", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].sink_command, "exec");
     }
 
     #[test]
     fn uplevel_sink() {
-        let ws = of_code("set x [read $fd]\nuplevel $x", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nuplevel $x", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
     fn subst_sink() {
-        let ws = of_code("set x [read $fd]\nsubst $x", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nsubst $x", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
@@ -1858,7 +1871,8 @@ mod warning_messages {
 
     #[test]
     fn taint_warning_message() {
-        let ws = of_code("set x [read $fd]\neval $x", D, "T100");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\neval $x", D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws[0].message.contains("eval"));
         assert!(ws[0].message.contains("$x") || ws[0].message.contains('x'));
@@ -1893,7 +1907,8 @@ mod output_sinks {
 
     #[test]
     fn puts_tainted_data() {
-        let ws = of_code("set x [read $fd]\nputs $x", D, "T101");
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code("set x [read $fd]\nputs $x", D, "T101");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].variable, "x");
         assert!(ws[0].sink_command.contains("puts"));
@@ -1989,12 +2004,13 @@ mod output_sinks {
 
     #[test]
     fn puts_nonewline_alone_is_content_not_channel() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `puts -nonewline $x` has only ONE positional arg after the flag,
         // so per Tcl semantics `$x` is the content written to stdout, not a
         // channel — the `-nonewline`-shifted `ArgRole::Channel` position
         // (declared dynamically since the channel slot moves with the
         // optional flag) must not exempt it.
-        let ws = of_code("set x [read $fd]\nputs -nonewline $x", D, "T101");
+        let ws = channel_of_code("set x [read $fd]\nputs -nonewline $x", D, "T101");
         assert_eq!(ws.len(), 1);
         assert_eq!(ws[0].variable, "x");
     }
@@ -2024,9 +2040,11 @@ mod output_sinks {
         // Qualify the core heads because an instance method executes in its
         // runtime-selected object namespace: a relative `puts` may denote an
         // object-local command, for which deep analysis correctly abstains.
+        // The channel is the method's formal: tclsh errors on an undefined
+        // method-local `$fd`.
         let ws = of_code(
             "oo::class create Foo {\n\
-             method bar {} {\n\
+             method bar {fd} {\n\
              ::set x [::read $fd]\n\
              ::puts $x\n\
              }\n\
@@ -2786,8 +2804,9 @@ mod list_canonical {
 
     #[test]
     fn list_command_propagates_taint_to_eval_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `eval [list $raw]` runs $raw as the command word → T100.
-        let ws = of_code(
+        let ws = channel_of_code(
             "set raw [read $fd]\nset lst [list $raw]\neval $lst",
             D,
             "T100",
@@ -2798,9 +2817,10 @@ mod list_canonical {
 
     #[test]
     fn lsort_eval_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: lsort returns a canonical list but its first element is still
         // user-controlled — no command-word safety.
-        let ws = of_code(
+        let ws = channel_of_code(
             "set raw [read $fd]\nset sorted [lsort $raw]\neval $sorted",
             D,
             "T100",
@@ -2811,7 +2831,8 @@ mod list_canonical {
 
     #[test]
     fn lrange_eval_fires() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset sub [lrange $raw 0 2]\neval $sub",
             D,
             "T100",
@@ -2822,7 +2843,8 @@ mod list_canonical {
 
     #[test]
     fn split_eval_fires() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset parts [split $raw :]\neval $parts",
             D,
             "T100",
@@ -2833,7 +2855,8 @@ mod list_canonical {
 
     #[test]
     fn list_command_propagates_taint_to_puts() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset lst [list $raw]\nputs $lst",
             D,
             "T101",
@@ -2843,8 +2866,10 @@ mod list_canonical {
 
     #[test]
     fn concat_of_canonical_lists_eval_fires() {
-        let ws = of_code(
-            "set raw [read $fd]\nset a [list $raw]\nset raw2 [read $fd2]\nset b [list $raw2]\nset c [concat $a $b]\neval $c",
+        // Dialect build with both channels defined: tclsh errors on an undefined
+        // `$fd` or `$fd2`.
+        let ws = dialect_of_code(
+            "set fd stdin\nset fd2 stdin\nset raw [read $fd]\nset a [list $raw]\nset raw2 [read $fd2]\nset b [list $raw2]\nset c [concat $a $b]\neval $c",
             D,
             "T100",
         );
@@ -2854,7 +2879,8 @@ mod list_canonical {
 
     #[test]
     fn interpolation_preserves_taint_from_list() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset lst [list $raw]\nset broken \"prefix $lst\"\neval $broken",
             D,
             "T100",
@@ -2864,9 +2890,10 @@ mod list_canonical {
 
     #[test]
     fn list_canonical_copy_eval_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // Suppression requires a literal `[list <known-cmd> …]` at the eval site,
         // which is invisible when eval reads a propagated variable → T100 fires.
-        let ws = of_code(
+        let ws = channel_of_code(
             "set raw [read $fd]\nset lst [list $raw]\nset copy $lst\neval $copy",
             D,
             "T100",
@@ -2877,7 +2904,8 @@ mod list_canonical {
 
     #[test]
     fn list_canonical_copy_still_tainted() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset lst [list $raw]\nset copy $lst\nputs $copy",
             D,
             "T101",
@@ -2897,7 +2925,8 @@ mod regex_literal {
 
     #[test]
     fn quoting_regsub_produces_colour() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             &format!("set raw [read $fd]\nset safe [{QUOTE}]\neval $safe"),
             D,
             "T100",
@@ -2907,7 +2936,8 @@ mod regex_literal {
 
     #[test]
     fn interpolation_invalidates_regex_literal() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             &format!(
                 "set raw [read $fd]\nset safe [{QUOTE}]\nset pat \"prefix${{safe}}suffix\"\neval $pat"
             ),
@@ -2919,7 +2949,8 @@ mod regex_literal {
 
     #[test]
     fn regex_literal_propagates_through_copy() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             &format!("set raw [read $fd]\nset safe [{QUOTE}]\nset copy $safe\neval $copy"),
             D,
             "T100",
@@ -2935,7 +2966,8 @@ mod path_normalised {
 
     #[test]
     fn file_normalize_produces_colour() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset norm [file normalize $raw]\neval $norm",
             D,
             "T100",
@@ -2945,7 +2977,8 @@ mod path_normalised {
 
     #[test]
     fn interpolation_invalidates_path_normalised() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset norm [file normalize $raw]\nset broken \"${norm}/extra\"\neval $broken",
             D,
             "T100",
@@ -2955,7 +2988,8 @@ mod path_normalised {
 
     #[test]
     fn path_normalised_propagates_through_copy() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set raw [read $fd]\nset norm [file normalize $raw]\nset copy $norm\neval $copy",
             D,
             "T100",
@@ -3342,18 +3376,20 @@ mod interprocedural_colours {
 
     #[test]
     fn helper_list_wrapper_eval_still_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: even via a helper, `eval [list $x]` runs $x as the command word.
         let source = "proc wrap_list {x} { return [list $x] }\nset raw [read $fd]\nset lst [wrap_list $raw]\neval $lst\n";
-        let ws = of_code(source, D, "T100");
+        let ws = channel_of_code(source, D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
 
     #[test]
     fn helper_list_wrapper_still_tainted() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let source = "proc wrap_list {x} { return [list $x] }\nset raw [read $fd]\nset lst [wrap_list $raw]\nputs $lst\n";
         assert_ne!(
-            of_code(source, D, "T101"),
+            channel_of_code(source, D, "T101"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
@@ -3381,6 +3417,7 @@ mod interpolation_colour_invalidation {
 
     #[test]
     fn list_canonical_stripped() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `[list [read $fd]]` is tainted (LIST_CANONICAL), the
         // interpolation `"pre $x suf"` strips that colour, and the now-generic
         // tainted `$y` fires T100 at eval.
@@ -3389,20 +3426,21 @@ mod interpolation_colour_invalidation {
         // nesting, so the `read` source nested inside `[list [read $fd]]` is
         // recovered, `$x`/`$y` are tainted, and T100 fires at `eval $y`.
         assert_ne!(
-            of_code(source, D, "T100"),
+            channel_of_code(source, D, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
     #[test]
     fn path_normalised_stripped() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // `[file normalize [read $fd]]` is tainted; interpolation
         // strips PATH_NORMALISED and T100 fires at eval.
         let source = "set x [file normalize [read $fd]]\nset y \"pre $x\"\neval $y";
         // FIXED: the `read` source nested inside `[file normalize [read $fd]]`
         // is now recovered (nesting-aware arg split), so T100 fires at eval.
         assert_ne!(
-            of_code(source, D, "T100"),
+            channel_of_code(source, D, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
@@ -3473,9 +3511,11 @@ mod transform_colour_edge_cases {
 
     #[test]
     fn concat_of_mixed_canonicality() {
-        let source = "set raw [read $fd]\nset a [list $raw]\nset b [read $fd2]\nset c [concat $a $b]\neval $c";
+        // Dialect build with both channels defined: tclsh errors on an undefined
+        // `$fd` or `$fd2`.
+        let source = "set fd stdin\nset fd2 stdin\nset raw [read $fd]\nset a [list $raw]\nset b [read $fd2]\nset c [concat $a $b]\neval $c";
         assert_ne!(
-            of_code(source, D, "T100"),
+            dialect_of_code(source, D, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
@@ -3612,36 +3652,40 @@ mod t100_sink_suppression {
 
     #[test]
     fn exec_with_generic_taint_not_suppressed() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let source = "set raw [read $fd]\nexec echo $raw";
         assert_ne!(
-            of_code(source, D, "T100"),
+            channel_of_code(source, D, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
     #[test]
     fn eval_with_list_canonical_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `eval [list $raw]` runs $raw as the command word.
         let source = "set raw [read $fd]\nset safe [list $raw]\neval $safe";
-        let ws = of_code(source, D, "T100");
+        let ws = channel_of_code(source, D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws.iter().any(|w| w.sink_command == "eval"));
     }
 
     #[test]
     fn eval_with_generic_taint_not_suppressed() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let source = "set raw [read $fd]\neval $raw";
         assert_ne!(
-            of_code(source, D, "T100"),
+            channel_of_code(source, D, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
     #[test]
     fn uplevel_with_list_canonical_fires() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: same hazard as eval — uplevel runs the substituted $raw.
         let source = "set raw [read $fd]\nset safe [list $raw]\nuplevel $safe";
-        let ws = of_code(source, D, "T100");
+        let ws = channel_of_code(source, D, "T100");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws.iter().any(|w| w.sink_command == "uplevel"));
     }
@@ -3669,9 +3713,10 @@ mod t100_sink_suppression {
 
     #[test]
     fn uplevel_with_generic_taint_not_suppressed() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let source = "set raw [read $fd]\nuplevel $raw";
         assert_ne!(
-            of_code(source, D, "T100"),
+            channel_of_code(source, D, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
@@ -3689,9 +3734,10 @@ mod t100_sink_suppression {
 
     #[test]
     fn expr_not_suppressed_by_list_canonical() {
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let source = "set raw [read $fd]\nset safe [list $raw]\nexpr $safe";
         assert_ne!(
-            of_code(source, D, "T100"),
+            channel_of_code(source, D, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
@@ -4060,7 +4106,14 @@ mod t104_network_sinks {
 
     #[test]
     fn http_geturl_tainted_url() {
-        let ws = of_code("set url [read $fd]\nhttp::geturl $url", D, "T104");
+        // Dialect build with a defined channel and the package loaded: tclsh
+        // errors on an undefined `$fd` and on `http::geturl` before
+        // `package require http`.
+        let ws = channel_of_code(
+            "package require http\nset url [read $fd]\nhttp::geturl $url",
+            D,
+            "T104",
+        );
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws.iter().any(|w| w.sink_command == "http::geturl"));
     }
@@ -4075,7 +4128,8 @@ mod t104_network_sinks {
 
     #[test]
     fn socket_propagation_through_copy() {
-        let ws = of_code(
+        // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
+        let ws = channel_of_code(
             "set host [read $fd]\nset h2 $host\nsocket $h2 443",
             D,
             "T104",
@@ -4137,8 +4191,9 @@ mod t105_interp_eval_sinks {
     fn list_does_not_suppress_t105() {
         // tclsh: same hazard as eval — the child re-parses $safe and the first
         // list element becomes the command word.
-        let source = "set x [read $fd]\nset safe [list $x]\ninterp eval $child $safe";
-        let ws = of_code(source, D, "T105");
+        // Tcl requires a defined child and channel before the nested evaluation.
+        let source = "set child [interp create]\nset x [read $fd]\nset safe [list $x]\ninterp eval $child $safe";
+        let ws = channel_of_code(source, D, "T105");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws.iter().any(|w| w.sink_command == "interp eval"));
     }

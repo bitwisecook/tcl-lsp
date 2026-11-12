@@ -61,7 +61,8 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     fn ssa_of(src: &str) -> SsaFunction {
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let m = lower_to_ir(src, &registry);
         let context = prepare_cfg_context_with_registry(&m, &registry);
         let cfg = build_cfg_function_with_upvars_and_config(

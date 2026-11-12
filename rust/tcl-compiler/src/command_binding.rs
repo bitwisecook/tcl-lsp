@@ -17147,7 +17147,9 @@ impl ModuleCommandBindings {
             initial.source_order_user_call_effects = Some(self.source_order_call_boundary());
         }
         if top_level_root {
-            initial.bindings = Arc::new(SourceCommandTable::default());
+            // The document starts from its entry's command rows: none for an
+            // authored module, the interpreter's own for a native entry.
+            initial.bindings = Arc::clone(&self.original_entry_bindings);
             initial.root_boundary_bindings = Arc::new(SourceCommandTable::default());
             initial.logical_alias_prefixes = Arc::new(BTreeMap::new());
             initial.opaque_domain = false;
@@ -17843,6 +17845,9 @@ impl ModuleCommandBindings {
                     }
                 })
                 .filter_map(|key| self.callable_spelling_for_key(key))
+                // The rename, alias and delete subjects, whichever slot
+                // their key took.
+                .chain(self.proc_rebound_names.iter().cloned())
                 .chain(self.namespace_resolution.rebound_names.iter().cloned())
                 .collect(),
             dynamic: self.opaque_binding_mutation
@@ -21911,6 +21916,9 @@ fn apply_namespace_ensure(
         {
             loop {
                 Arc::make_mut(&mut state.namespaces).insert(ancestor.clone());
+                source_command_world::OriginalSourceCommandWorld::ensure_authored_namespace(
+                    state, &ancestor,
+                );
                 if ancestor == "::" {
                     break;
                 }

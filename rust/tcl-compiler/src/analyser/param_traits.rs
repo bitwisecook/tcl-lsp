@@ -2057,6 +2057,18 @@ mod tests {
         body: &str,
         deep: bool,
     ) -> HashMap<String, HashSet<ProcArgTrait>> {
+        with_receipt(params, body, |env| {
+            if deep {
+                infer_param_traits_deep(params, body, env)
+            } else {
+                infer_param_traits(params, body, env)
+            }
+        })
+    }
+
+    /// Run `scan` over the receipt [`infer`] retains for `body` declared with
+    /// exactly `params` as its formals.
+    fn with_receipt<R>(params: &[&str], body: &str, scan: impl FnOnce(TraitScanEnv<'_>) -> R) -> R {
         let registry = CommandRegistry::build_default();
         let formals = tcl_syntax::list::join_list(params);
         let source = tcl_syntax::list::join_list(["proc", "__trait_probe", &formals, body]);
@@ -2072,18 +2084,13 @@ mod tests {
             .executed_script_for_word(command.argv.last().unwrap().span)
             .unwrap();
         assert_eq!(script.text.try_text().unwrap(), body);
-        let env = TraitScanEnv {
+        scan(TraitScanEnv {
             surface: DocumentCommandSurface::new(&registry, None),
             config: LexerConfig::default(),
             identities: &identities,
             executed_source: Some(script),
             original_logical_body: None,
-        };
-        if deep {
-            infer_param_traits_deep(params, body, env)
-        } else {
-            infer_param_traits(params, body, env)
-        }
+        })
     }
 
     fn assert_logical_parameter_shape_refusals(
@@ -2716,12 +2723,7 @@ mod tests {
     /// flow into an `eval`, and the trait must propagate back to it.
     #[test]
     fn eval_param_forwarded_into_apply_lambda_records_eval_trait() {
-        let registry = CommandRegistry::build_default();
-        let traits = infer_param_traits_deep(
-            &["body"],
-            "apply {x {eval $x}} $body",
-            env_for(&registry, LexerConfig::default()),
-        );
+        let traits = infer_owned(&["body"], "apply {x {eval $x}} $body", true);
         assert_trait(&traits, "body", ProcArgTrait::Eval);
     }
 
@@ -2733,11 +2735,7 @@ mod tests {
         // `eval $p` (→ `p` is Eval) on 9.0 but `eval` of the single
         // composite word `{*}$p` (no clean `$p`, no trait) on 8.4.
         let registry = CommandRegistry::build_default();
-        let on = infer_param_traits(
-            &["p"],
-            "eval {*}$p",
-            env_for(&registry, LexerConfig::default()),
-        );
+        let on = infer(&["p"], "eval {*}$p");
         assert!(
             on.get("p").is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
             "9.0 expands `{{*}}` → eval $p → Eval: {on:?}",
@@ -2834,7 +2832,6 @@ mod tests {
     /// own frame, `#0` the global one, `2` the caller's caller.
     #[test]
     fn caller_frame_upvar_params_accepts_only_the_caller_frame_level() {
-        let registry = CommandRegistry::build_default();
         let params = ["n"];
         for (body, expected) in [
             ("upvar 1 $n a; set a 1", true),
@@ -2854,11 +2851,9 @@ mod tests {
             // variable.
             ("upvar 1 caller $n", false),
         ] {
-            let got = caller_frame_upvar_params(
-                &params,
-                body,
-                env_for(&registry, LexerConfig::default()),
-            );
+            let got = with_receipt(&params, body, |env| {
+                caller_frame_upvar_params(&params, body, env)
+            });
             assert_eq!(
                 got.contains("n"),
                 expected,
@@ -2873,23 +2868,15 @@ mod tests {
     /// `np; puts $name` prints `W1` in the caller.
     #[test]
     fn caller_frame_literal_targets_records_written_and_read_only() {
-        let registry = CommandRegistry::build_default();
-        let got = caller_frame_literal_targets(
-            "upvar name name\nset name W1",
-            env_for(&registry, LexerConfig::default()),
-        );
+        let targets =
+            |body: &str| with_receipt(&[], body, |env| caller_frame_literal_targets(body, env));
+        let got = targets("upvar name name\nset name W1");
         assert_eq!(got.get("name"), Some(&true), "written through the alias");
         // A body that only reads through the alias creates nothing.
-        let got = caller_frame_literal_targets(
-            "upvar name name\nreturn [string length $name]",
-            env_for(&registry, LexerConfig::default()),
-        );
+        let got = targets("upvar name name\nreturn [string length $name]");
         assert_eq!(got.get("name"), Some(&false), "read-only alias");
         // Distinct local alias spelling still records the CALLER name.
-        let got = caller_frame_literal_targets(
-            "upvar 1 other mine\nset mine 1",
-            env_for(&registry, LexerConfig::default()),
-        );
+        let got = targets("upvar 1 other mine\nset mine 1");
         assert_eq!(got.get("other"), Some(&true));
         assert!(!got.contains_key("mine"));
     }
@@ -3422,7 +3409,7 @@ mod tests {
     fn regsub_records_dynamic_name_local() {
         // `regsub`'s output var is CALLEE-LOCAL — DynamicNameLocal
         // (+ VarRead), not VarWrite.
-        let traits = infer(&["out"], "regsub -all foo $line bar $out");
+        let traits = infer(&["line", "out"], "regsub -all foo $line bar $out");
         assert_trait(&traits, "out", ProcArgTrait::DynamicNameLocal);
         assert_trait(&traits, "out", ProcArgTrait::VarRead);
         assert!(
@@ -3450,7 +3437,7 @@ mod tests {
     fn regexp_start_switch_value_is_skipped() {
         // `-start` consumes its value word (spec-declared), so the capture
         // var still resolves after the pattern + string positionals.
-        let traits = infer(&["m"], "regexp -start 2 {x+} $s $m");
+        let traits = infer(&["s", "m"], "regexp -start 2 {x+} $s $m");
         assert_trait(&traits, "m", ProcArgTrait::DynamicNameLocal);
     }
 
@@ -3459,7 +3446,7 @@ mod tests {
         // Tcl 9 `regsub -command exp string cmdPrefix varName` — `-command`
         // is a spec-declared flag (one a hardcoded switch list misses), so
         // the output var must still resolve at exp + 3.
-        let traits = infer(&["out"], "regsub -command {x+} $s myCb $out");
+        let traits = infer(&["s", "out"], "regsub -command {x+} $s myCb $out");
         assert_trait(&traits, "out", ProcArgTrait::DynamicNameLocal);
         assert_trait(&traits, "out", ProcArgTrait::VarRead);
     }
@@ -3507,8 +3494,7 @@ mod tests {
 
     /// Deep-pass helper that mirrors [`infer`] for ergonomics.
     fn infer_deep(params: &[&str], body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
-        let registry = CommandRegistry::build_default();
-        infer_param_traits_deep(params, body, env_for(&registry, LexerConfig::default()))
+        infer_owned(params, body, true)
     }
 
     #[test]
@@ -3860,7 +3846,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let (identities, body_span) = realm_for_body(prelude, body);
         infer_param_traits(
-            &["body"],
+            &["body", "v"],
             body,
             TraitScanEnv {
                 surface: DocumentCommandSurface::new(&registry, None),
@@ -3936,7 +3922,7 @@ mod tests {
         let params_under = |prelude: &str, body: &str| {
             let (identities, span) = realm_for_body(prelude, body);
             caller_frame_upvar_params(
-                &["v"],
+                &["body", "v"],
                 body,
                 TraitScanEnv {
                     surface: DocumentCommandSurface::new(&registry, None),

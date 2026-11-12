@@ -633,7 +633,7 @@ impl GvnSemanticFacts {
         // the world-state graph itself was buildable; a world-state decline
         // fails every site closed exactly as before.
         let proofs = availability.world_state_ssa().is_some().then(|| {
-            crate::dispatch_proof::analyse_original_dispatch_stability(
+            crate::dispatch_proof::analyse_reuse_dispatch_stability(
                 executable,
                 function.semantic_facts.dispatch_entry_assumption(),
                 registry,
@@ -1980,9 +1980,17 @@ mod tests {
     use super::*;
     use crate::semantic_analysis::ExecutableAnalysisAvailability;
 
+    /// The catalogue a document under `environment` is analysed against: the
+    /// shipped registry projected for that release's analyser profile.
+    fn release_registry(environment: &str) -> CommandRegistry {
+        CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment(environment).analyser_profile(),
+        )
+    }
+
     #[test]
     fn function_level_gvn_proves_llength_dispatch_and_reports_o105() {
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry("tcl8.6");
         let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "llength {a b}\nllength {a b}",
             &registry,
@@ -2074,7 +2082,7 @@ mod tests {
 
     #[test]
     fn function_level_gvn_proves_exact_mapped_closed_pure_call() {
-        let mut registry = CommandRegistry::build_default();
+        let mut registry = release_registry("tcl8.6");
         registry.insert(tcl_registry::CommandSpec {
             name: "test::pure_cse",
             traits: Traits::PURE | Traits::CSE_CANDIDATE,
@@ -2106,7 +2114,7 @@ mod tests {
 
     #[test]
     fn function_level_gvn_proves_other_stable_commands() {
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry("tcl9.0");
         for source in [
             "format %s x\nformat %s x",
             "lindex {a b} 0\nlindex {a b} 0",
@@ -2192,7 +2200,7 @@ mod tests {
 
     #[test]
     fn live_execution_trace_keeps_o105_suppressed() {
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry("tcl9.0");
         // The handler is deliberately never defined here. `proc` declares a
         // script-kind callback barrier that clobbers every domain on its own,
         // so defining `observe` would suppress the report for a reason that
@@ -3625,7 +3633,7 @@ mod tests {
     /// does not scan embedded source strings when no exact semantic node exists.
     fn legacy_redundancies(src: &str) -> Vec<String> {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = release_registry("tcl8.6");
         let cu =
             CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut out = Vec::new();
@@ -3704,11 +3712,11 @@ mod tests {
     /// executable semantic sidecar must exist; a decline there would make an
     /// empty result meaningless.
     fn stable_call_findings(registry: &CommandRegistry, source: &str) -> Vec<RedundantComputation> {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let registry = &registry.project_for_profile(profile);
         let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
-            source,
-            registry,
-            false,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            source, registry, false, profile,
         );
         assert!(
             cu.top_level
@@ -3719,11 +3727,7 @@ mod tests {
             "executable semantic source must be retained for {source}: {:?}",
             cu.top_level.semantic_facts.executable(),
         );
-        let findings = find_redundancies_for_function(
-            registry,
-            &cu.top_level,
-            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()),
-        );
+        let findings = find_redundancies_for_function(registry, &cu.top_level, Some(profile));
         if !findings.is_empty() {
             assert!(
                 cu.top_level
@@ -3948,21 +3952,19 @@ mod tests {
     }
 
     #[test]
-    fn aliasing_an_unrelated_name_abstains_on_the_declared_policy_write() {
+    fn aliasing_an_unrelated_name_keeps_reuse() {
         let registry = CommandRegistry::build_default();
-        // Sound-conservative abstention rather than the per-subject report the
-        // `Alias` transition alone would allow: `interp alias` additionally
-        // declares an ordinary read-write of the whole current interpreter's
-        // policy, and InterpreterPolicy is one of the candidate's irreducible
-        // BASE dependencies.  Per-subject binding precision is proven instead
-        // by `renaming_an_unrelated_command_keeps_reuse_per_subject`.
+        // tclsh 8.4-9.1: after `interp alias {} shortcut {} list`, `llength`
+        // is still `::llength`, untraced, and answers 2 for `{a b}`. The
+        // `Alias` transition names only `shortcut`, so the candidate keeps
+        // its per-subject binding proof.
         assert_eq!(
             stable_call_reports(
                 &registry,
                 "interp alias {} shortcut {} list\nllength {a b}\nllength {a b}",
             ),
-            0,
-            "the wildcard interpreter-policy write fails the candidate's policy proof"
+            1,
+            "an alias installed under another name cannot rebind the candidate"
         );
         assert_eq!(
             stable_call_reports(&registry, PLAIN_REPEATED_LLENGTH),

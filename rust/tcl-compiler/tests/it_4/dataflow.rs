@@ -219,8 +219,11 @@ fn def_use_total_counts() {
 #[test]
 fn def_use_if_merge_creates_phi_chain() {
     // An if/else both assigning `a`, read after the merge, creates a phi def of
-    // `a` that itself has ≥1 use (from `set b [expr {$a + 0}]`).
-    let cu = build_cu("if {$cond} {set a 1} else {set a 2}\nset b [expr {$a + 0}]");
+    // `a` that itself has ≥1 use (from `set b [expr {$a + 0}]`). `$cond` is
+    // bound first: tclsh errors on reading an unset variable.
+    let cu = build_cu(
+        "set cond [gets stdin]\nif {$cond} {set a 1} else {set a 2}\nset b [expr {$a + 0}]",
+    );
     let fu = top_fu(&cu);
     let phi_defs: Vec<_> = fu
         .def_use

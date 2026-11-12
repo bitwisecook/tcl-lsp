@@ -171,8 +171,8 @@ fn switch_creates_dispatch_branches() {
     // exact/expanded vs. glob/regexp/fallthrough/opaque split is a CFG-builder
     // decision). `--` ends the options, so no release reads the subject as one;
     // see `switch_subject_a_release_may_read_as_an_option_stays_opaque` for the
-    // bare form.
-    let module = cfg("switch -- $x {a {set y 1} b {set y 2}}");
+    // bare form. `$x` is bound first: tclsh errors on reading an unset variable.
+    let module = cfg("set x [gets stdin]\nswitch -- $x {a {set y 1} b {set y 2}}");
     let func = top(&module);
     let branch_count = terminators(func)
         .iter()
@@ -213,8 +213,9 @@ fn switch_subject_a_release_may_read_as_an_option_stays_opaque() {
 fn switch_fallthrough_stays_opaque() {
     // An exact switch with a fall-through arm (`b - default`) cannot be expressed
     // as structured control flow, so it is kept OPAQUE — a single
-    // `Statement::Switch` in the block. STRUCTURAL.
-    let module = cfg("switch $x {a {set y 1} b - default {set y 0}}");
+    // `Statement::Switch` in the block. STRUCTURAL. `$x` is bound first: tclsh
+    // errors on reading an unset variable.
+    let module = cfg("set x [gets stdin]\nswitch $x {a {set y 1} b - default {set y 0}}");
     let func = top(&module);
     let switch_count = func
         .blocks

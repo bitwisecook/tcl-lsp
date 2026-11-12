@@ -20,7 +20,7 @@
 
 use super::{
     CommandRegistry, CommandTokens, InvocationMetadataContext, LexerConfig, Module,
-    OriginalSummaryScript, Statement,
+    OriginalSummaryExpression, OriginalSummaryScript, Statement,
 };
 use crate::command_binding::OriginalInvocationSourcePurpose;
 use crate::ir::WordExpr;
@@ -408,6 +408,82 @@ impl<'a> NativeSummaryContext<'a> {
             selected = Some(tokens.clone());
         }
         n17_native_option("statement.selected", selected)
+    }
+
+    /// The original producer of a parsed expression, as the source context
+    /// selects it: the one written operand whose expression advice matches.
+    pub(in crate::interprocedural::transfer) fn expression(
+        &self,
+        parent: &CommandTokens,
+        expression: &crate::expr_ast::ExprNode,
+        base: Option<u32>,
+    ) -> Option<OriginalSummaryExpression> {
+        n17_native_option("expression.parent-metadata", self.metadata(parent))?;
+        let mut pending = vec![parent.clone()];
+        let mut selected: Option<OriginalSummaryExpression> = None;
+        while let Some(tokens) = pending.pop() {
+            n17_native_option("expression.metadata", self.metadata(&tokens))?;
+            for written in 1..tokens.words().len() {
+                let Some(advice) =
+                    crate::registry_invocation::original_expression_operand_advice_for_word(
+                        self.registry,
+                        &tokens,
+                        written,
+                    )
+                else {
+                    continue;
+                };
+                if advice.expression != *expression
+                    || base.is_some_and(|base| base != advice.expression_base)
+                {
+                    continue;
+                }
+                let next = OriginalSummaryExpression {
+                    parent: tokens.clone(),
+                    base: advice.expression_base,
+                };
+                if selected.as_ref().is_some_and(|previous| {
+                    previous.base != next.base || previous.parent != next.parent
+                }) {
+                    return None;
+                }
+                selected = Some(next);
+            }
+            if base.is_some() {
+                pending.extend(self.children(&tokens)?);
+            }
+        }
+        n17_native_option("expression.selected", selected)
+    }
+
+    pub(in crate::interprocedural::transfer) fn expression_substitution(
+        &self,
+        expression: &OriginalSummaryExpression,
+        script: &str,
+        start: u32,
+        end: u32,
+    ) -> Option<OriginalSummaryScript> {
+        let site = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+            expression.base.checked_add(start)?,
+            expression.base.checked_add(end)?.checked_add(1)?,
+        ));
+        self.substitution(&expression.parent, &site, script)
+    }
+
+    fn children(&self, tokens: &CommandTokens) -> Option<Vec<CommandTokens>> {
+        crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            tokens,
+            self.config.nested(),
+            self.registry,
+            self.metadata(tokens)?,
+        )?
+        .into_iter()
+        .map(|call| {
+            let child = call.tokens?;
+            self.metadata(&child)?;
+            Some(child)
+        })
+        .collect()
     }
 
     pub(in crate::interprocedural::transfer) fn substitution(

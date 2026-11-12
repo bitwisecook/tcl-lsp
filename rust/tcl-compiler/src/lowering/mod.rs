@@ -3208,6 +3208,36 @@ impl<'r> Lowerer<'r> {
         }
     }
 
+    /// A proved builtin whose lowering commits to its argv shape keeps the
+    /// opaque runtime barrier when a `{*}` word leaves no structured
+    /// selection: the expanded argv decides what the command runs.
+    fn expanded_structured_barrier(
+        &self,
+        seg: &SegmentedCommand,
+        tokens: &CommandTokens,
+    ) -> Option<Box<Statement>> {
+        if self.target.is_trace_visible()
+            || !seg
+                .expand_word
+                .as_ref()
+                .is_some_and(|expanded| expanded.iter().any(|&e| e))
+        {
+            return None;
+        }
+        let target = tokens
+            .source_binding
+            .as_ref()?
+            .proved_execution_target()
+            .filter(|target| target.registry_backed && target.prepended.is_empty())?;
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let hook = self
+            .registry
+            .resolve_call(&target.command, &args, self.registry.own_surface_query())?
+            .lowering_hook?;
+        Self::hook_commits_to_argv_shape(hook)
+            .then(|| Box::new(self.structured_expand_barrier(seg.name(), seg.args(), seg)))
+    }
+
     /// `{*}` expansion on a structured command lowers to a barrier so
     /// downstream analyses can't reason about the expanded form.
     fn structured_expand_barrier(
@@ -4065,7 +4095,9 @@ impl<'r> Lowerer<'r> {
             }
         } else {
             let Some(logical) = self.logical_structured_invocation(&tokens) else {
-                return CommandLoweringStep::Default;
+                return self
+                    .expanded_structured_barrier(seg, &tokens)
+                    .map_or(CommandLoweringStep::Default, CommandLoweringStep::lowered);
             };
             logical.descriptor_key().label().to_owned()
         };
@@ -8581,12 +8613,12 @@ mod tests {
         // structure can't be reasoned about); on 8.4 `{*}` is a literal
         // word, so the `if` lowers normally (no barrier).
         let reg = reg();
-        let src = "if {*}$cond { puts hi }";
+        let src = "set cond [gets stdin]\nif {*}$cond { puts hi }";
         let m90 = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
         let m84 = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::for_dialect("tcl8.4"));
         let is_barrier = |m: &Module| {
             matches!(
-                m.top_level.statements.first(),
+                m.top_level.statements.last(),
                 Some(Statement::Barrier { .. })
             )
         };
@@ -8630,10 +8662,13 @@ mod tests {
             "uplevel {*}$rest",
             "apply {*}$rest",
         ] {
-            let m = lower_to_ir(src, &reg);
+            // The expanded words hold run-time data: an unset variable would
+            // raise before the command ran.
+            let src = format!("set spec [gets stdin]\nset cond $spec\nset rest $spec\n{src}");
+            let m = lower_to_ir(&src, &reg);
             assert!(
                 matches!(
-                    m.top_level.statements.first(),
+                    m.top_level.statements.last(),
                     Some(Statement::Barrier { .. })
                 ),
                 "`{src}` must barrier on `{{*}}` expansion: {:?}",
@@ -8673,8 +8708,8 @@ mod tests {
     /// `--show ir` view quotes.
     #[test]
     fn expansion_barrier_reason_names_the_command() {
-        let m = lower_to_ir("lmap i {*}$spec {puts $i}", &reg());
-        let Some(Statement::Barrier { reason, .. }) = m.top_level.statements.first() else {
+        let m = lower_to_ir("set spec [gets stdin]\nlmap i {*}$spec {puts $i}", &reg());
+        let Some(Statement::Barrier { reason, .. }) = m.top_level.statements.last() else {
             panic!("expected a barrier: {:?}", m.top_level.statements);
         };
         assert_eq!(reason, "lmap with argument expansion");
@@ -10114,9 +10149,15 @@ mod tests {
 
     #[test]
     fn uplevel_static_body_no_level() {
-        let m = lower_to_ir("uplevel {set x 1}", &reg());
-        assert_eq!(m.top_level.statements.len(), 1);
-        match &m.top_level.statements[0] {
+        // A bare `uplevel {body}` means level 1, which raises `bad level "1"`
+        // at the global level in every C release, so the form is lowered
+        // where it runs: inside a procedure.
+        let m = lower_to_ir("proc f {} {uplevel {set x 1}}", &reg());
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
+        assert_eq!(proc.body.statements.len(), 1);
+        match &proc.body.statements[0] {
             Statement::UpFrame {
                 frame_shift, body, ..
             } => {
@@ -10129,8 +10170,12 @@ mod tests {
 
     #[test]
     fn uplevel_static_body_with_level_one() {
-        let m = lower_to_ir("uplevel 1 {set x 1}", &reg());
-        match &m.top_level.statements[0] {
+        // `uplevel 1` raises `bad level "1"` at the global level.
+        let m = lower_to_ir("proc f {} {uplevel 1 {set x 1}}", &reg());
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
+        match &proc.body.statements[0] {
             Statement::UpFrame {
                 frame_shift,
                 absolute,
@@ -10526,7 +10571,10 @@ mod tests {
         // the literal `$body` text as a static loop body would
         // produce incorrect IR / data-flow; the lowering must fall
         // through to the runtime command via Barrier.
-        let m = lower_to_ir("foreachLine line /etc/hosts $body", &reg());
+        let m = lower_to_ir(
+            "set body [gets stdin]\nforeachLine line /etc/hosts $body",
+            &reg(),
+        );
         let last = m.top_level.statements.last().expect("top-level statement");
         match last {
             Statement::Barrier {
@@ -11878,9 +11926,13 @@ mod tests {
     #[test]
     fn registry_dispatch_uplevel_static_body_lowers_to_upframe() {
         // `uplevel 1 {body}` with a literal body should lower
-        // to a UpFrame via the registry-driven path.
-        let m = lower_to_ir("uplevel 1 { set z 3 }", &reg());
-        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        // to a UpFrame via the registry-driven path. It runs inside a
+        // procedure: at the global level C raises `bad level "1"`.
+        let m = lower_to_ir("proc f {} {uplevel 1 { set z 3 }}", &reg());
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
+        let stmt = proc.body.statements.first().expect("at least one stmt");
         assert!(
             matches!(stmt, Statement::UpFrame { .. }),
             "expected UpFrame via registry hook, got {stmt:?}",

@@ -510,8 +510,11 @@ mod tests {
     use tcl_registry::side_effects::{SideEffect, SideEffectTarget};
     use tcl_registry::{ArgRole, Arity, CommandSpec, RepresentationEffect, Traits};
 
+    /// The shipped catalogue projected for Tcl 8.6, the release these
+    /// fixtures analyse.
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap())
     }
 
     fn warnings_for_fn_with_registry(

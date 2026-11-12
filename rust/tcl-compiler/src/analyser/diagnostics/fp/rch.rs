@@ -173,7 +173,9 @@ fn fp_rch_03_on_ok_reads_body_var() {
 fn fp_rch_03_on_ok_unset_var_still_fires() {
     // FP-RCH-03 TP control: a `$vneversetbeforetry` read in `on ok` IS
     // read-before-set — SSA inheritance must not blanket-suppress it.
+    // `getData` exists, or the body stops at `invalid command name`.
     let src = "\
+proc getData {} { return 1 }
 proc f {} {
     try {
         set vdata [getData]

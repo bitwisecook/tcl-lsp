@@ -311,7 +311,7 @@ impl OriginalOptimiserAssembly {
 
 /// Original final worker inputs and exact final rewrite members. This receipt
 /// comes only from a complete sealed raw collection or complete body assembly.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct OriginalOptimiserRewriteBatch {
     image: tcl_lexer::SourceImage,
     input: crate::analyser::ResolvedAnalysisInput,
@@ -320,6 +320,17 @@ pub struct OriginalOptimiserRewriteBatch {
     realm: Arc<crate::realm::CommandBindingRealm>,
     origin: OriginalOptimiserSourceOrigin,
     dialect: Dialect,
+}
+// The retained inputs (source image, analysis input, registry snapshot and
+// realm) print as gigabytes; a failing assertion that shows an `Optimisation`
+// needs only the members it issued.
+impl std::fmt::Debug for OriginalOptimiserRewriteBatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OriginalOptimiserRewriteBatch")
+            .field("members", &self.members)
+            .field("dialect", &self.dialect.map(|profile| profile.name))
+            .finish_non_exhaustive()
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OptimisationPayload {

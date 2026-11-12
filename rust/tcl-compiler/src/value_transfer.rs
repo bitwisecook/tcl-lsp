@@ -3472,12 +3472,7 @@ impl<'a> LatticeDriver<'a> {
             return None;
         };
         let inner = std::str::from_utf8(script).ok()?;
-        let original = self.module.and_then(|module| {
-            let parent =
-                module.original_statement_tokens(self.body_id?.procedure_id(), statement)?;
-            let (_, site) = parent.words().last()?.sole_command_substitution()?;
-            module.original_substitution(&parent, site, inner)
-        });
+        let original = self.original_value_script(statement, inner);
         let run = self.run_script(
             inner,
             lattice,
@@ -3508,6 +3503,20 @@ impl<'a> LatticeDriver<'a> {
             writes: run.writes,
             folded,
         })
+    }
+
+    /// The retained script of `statement`'s value word when that word is the
+    /// one command substitution `inner`. A supplied module runs a nested
+    /// command only through its original tokens.
+    fn original_value_script(
+        &self,
+        statement: &Statement,
+        inner: &str,
+    ) -> Option<crate::interprocedural::OriginalSummaryScript> {
+        let module = self.module?;
+        let parent = module.original_statement_tokens(self.body_id?.procedure_id(), statement)?;
+        let (_, site) = parent.words().last()?.sole_command_substitution()?;
+        module.original_substitution(&parent, site, inner)
     }
 
     /// The call's definitions after one member's `writes`: a place the
@@ -3928,7 +3937,7 @@ impl<'a> LatticeDriver<'a> {
                 if arg.starts_with('[')
                     && arg.ends_with(']')
                     && let Some((LatticeValue::Const(ConstValue::String(s)), _)) =
-                        self.fold_cmd_subst_routes(arg, uses, values, ssa)
+                        self.fold_cmd_subst_routes(arg, None, uses, values, ssa)
                 {
                     return Some(split_list_values(&s, rules));
                 }
@@ -4098,6 +4107,7 @@ impl<'a> LatticeDriver<'a> {
     pub(crate) fn fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
+        statement: &Statement,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
@@ -4111,7 +4121,13 @@ impl<'a> LatticeDriver<'a> {
         ) {
             return None;
         }
-        if let Some(folded) = self.fold_cmd_subst_routes(value, uses, values, ssa) {
+        let original = value
+            .strip_prefix('[')
+            .and_then(|script| script.strip_suffix(']'))
+            .and_then(|inner| self.original_value_script(statement, inner));
+        if let Some(folded) =
+            self.fold_cmd_subst_routes(value, original.as_ref(), uses, values, ssa)
+        {
             return Some(folded);
         }
         // Registry const-fold fallback: the fold's `$var` words resolve at
@@ -4149,6 +4165,7 @@ impl<'a> LatticeDriver<'a> {
     fn fold_cmd_subst_routes<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         value: &str,
+        original: Option<&crate::interprocedural::OriginalSummaryScript>,
         uses: &HashMap<Symbol, Version, S1>,
         values: &HashMap<ValueKey, LatticeValue, S2>,
         ssa: &SsaFunction,
@@ -4158,7 +4175,7 @@ impl<'a> LatticeDriver<'a> {
             inner,
             (uses, values, ssa),
             (Vec::new(), NestedPolicy::EffectFreeOnly),
-            None,
+            original,
         )?;
         // Binding validity comes first: after `rename list mylist` or a
         // shadowing `proc format …` anywhere in the unit, `[list a 1]` is a

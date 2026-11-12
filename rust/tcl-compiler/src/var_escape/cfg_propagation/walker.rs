@@ -189,10 +189,11 @@ fn handle_eval(
     for ref_ in scanner.scan_word(&body, registry) {
         state.escape(&ref_, defs);
     }
-    let sub_module = crate::lowering::lower_to_ir_with_config(
+    let sub_module = crate::lowering::lower_to_ir_with_dialect(
         &body,
         registry,
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        registry.profile(),
     );
     escape_every_name_touched_tree(&sub_module.top_level, state, defs, registry);
 }
@@ -225,10 +226,11 @@ fn handle_catch(
     for ref_ in scanner.scan_word(body, registry) {
         state.escape(&ref_, defs);
     }
-    let sub_module = crate::lowering::lower_to_ir_with_config(
+    let sub_module = crate::lowering::lower_to_ir_with_dialect(
         body,
         registry,
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        registry.profile(),
     );
     escape_every_name_touched_tree(&sub_module.top_level, state, defs, registry);
 }
@@ -863,7 +865,8 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     fn analyse(src: &str) -> CfgEscapeResult {
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let m = lower_to_ir(src, &registry);
         let context = prepare_cfg_context_with_registry(&m, &registry);
         let cfg = build_cfg_function_with_upvars_and_config(

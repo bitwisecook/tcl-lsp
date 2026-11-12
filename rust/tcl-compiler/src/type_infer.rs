@@ -1736,10 +1736,14 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
             DefTyping::Uniform(literal_type(value, ctx.numbers))
         }
 
+        // The fused `set` keeps its original words beside the statement, not on it.
         Statement::AssignExpr {
             expr, expr_base, ..
         } => DefTyping::Uniform(lowered_expression_result_type(
-            ctx, ctx.tokens, expr, *expr_base,
+            ctx,
+            ctx.tokens.or_else(|| ctx.source.source_tokens()),
+            expr,
+            *expr_base,
         )),
 
         Statement::AssignValue { value, tokens, .. } => DefTyping::Uniform(value_word_type(

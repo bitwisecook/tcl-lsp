@@ -1167,8 +1167,11 @@ mod tests {
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
 
+    /// The shipped catalogue projected for Tcl 8.6, the release these
+    /// fixtures analyse.
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap())
     }
 
     /// Real callback coercion can leave equal bytes in the same SSA version

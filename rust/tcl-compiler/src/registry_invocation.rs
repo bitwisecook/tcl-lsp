@@ -538,9 +538,6 @@ impl LogicalStructuredInvocation {
     }
 
     pub(crate) fn error_context(&self) -> Option<tcl_registry::InlineBodyErrorContext> {
-        if self.is_authored_simulation() {
-            return None;
-        }
         self.invocation.facts.operation.inline_body_error_context()
     }
 }
@@ -591,11 +588,19 @@ fn original_structured_source_selection(
     Some(selected)
 }
 
-/// A word a simulated lookup reads without evaluating anything: a literal, or
-/// one whole scalar variable reference.
+/// A word a simulated lookup reads without evaluating anything: a literal
+/// (bare, braced, or quoted or escaped text without substitutions), or one
+/// whole scalar variable reference.
 fn simulation_static_word(word: &WordExpr, config: tcl_lexer::LexerConfig) -> bool {
     match word {
         WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
+        WordExpr::Template {
+            parts,
+            rejected: None,
+            ..
+        } => parts
+            .iter()
+            .all(|part| matches!(part, WordPart::Text { .. })),
         WordExpr::Variable { .. } => {
             word.sole_variable_substitution()
                 .is_some_and(|(spelling, _)| {
@@ -713,23 +718,26 @@ fn authored_simulation_schema_is_supported(
             }))
         .then_some(());
     }
-    if !(bodiless
-        || matches!(
-            hook,
-            Some(
-                LoweringHookId::If
-                    | LoweringHookId::Switch
-                    | LoweringHookId::While
-                    | LoweringHookId::For
-                    | LoweringHookId::Foreach
-                    | LoweringHookId::Lmap
-                    | LoweringHookId::Catch
-                    | LoweringHookId::Try
-            )
-        ))
-        || schema.semantics.frame_effect.is_some()
-        || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
-        || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+    let static_body_evaluator =
+        hook.is_some_and(|hook| static_body_evaluator_is_supported(schema, hook, roles));
+    if !static_body_evaluator
+        && (!(bodiless
+            || matches!(
+                hook,
+                Some(
+                    LoweringHookId::If
+                        | LoweringHookId::Switch
+                        | LoweringHookId::While
+                        | LoweringHookId::For
+                        | LoweringHookId::Foreach
+                        | LoweringHookId::Lmap
+                        | LoweringHookId::Catch
+                        | LoweringHookId::Try
+                )
+            ))
+            || schema.semantics.frame_effect.is_some()
+            || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+            || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current)
     {
         return None;
     }
@@ -742,6 +750,35 @@ fn authored_simulation_schema_is_supported(
         }
     }
     Some(())
+}
+
+/// A selected builtin that runs its body word exactly as written: `eval` in
+/// the current frame, `uplevel` in the frame its level word names, and the
+/// loops `dict for`/`dict map`, `array for` and `foreachLine`. The lowerer
+/// still declines a body or level word it cannot read statically.
+fn static_body_evaluator_is_supported(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    hook: tcl_registry::hooks::LoweringHookId,
+    roles: &[(usize, tcl_registry::ArgRole)],
+) -> bool {
+    use tcl_registry::frame_effect::FrameArgLayout;
+    use tcl_registry::hooks::LoweringHookId;
+    let semantics = &schema.semantics;
+    let layout = semantics.frame_effect.map(|effect| effect.layout);
+    let plain = semantics.body_kind == tcl_registry::BodyKind::Plain;
+    let loop_body = roles
+        .iter()
+        .any(|&(_, role)| role == tcl_registry::ArgRole::LoopVarList);
+    semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+        && match hook {
+            LoweringHookId::Eval => plain && layout == Some(FrameArgLayout::ScriptInCurrentFrame),
+            LoweringHookId::Uplevel => layout == Some(FrameArgLayout::ScriptInSelectedFrame),
+            LoweringHookId::Dict | LoweringHookId::ArrayFor => {
+                plain && layout.is_none() && loop_body
+            }
+            LoweringHookId::ForeachLine => plain && layout.is_none(),
+            _ => false,
+        }
 }
 
 #[cfg(debug_assertions)]

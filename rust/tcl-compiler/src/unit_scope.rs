@@ -4133,7 +4133,8 @@ mod tests {
     /// `3 10 3`.
     #[test]
     fn a_nested_substitution_counts_as_a_caller() {
-        let reg = registry();
+        let reg =
+            registry().project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let src = "proc bump {name} {\n  upvar 1 $name v\n  incr v\n}\nset n 1\nset m 10\nbump n\nset z [bump m]\n";
         let cu = crate::compilation_unit::CompilationUnit::build_for(src, &reg, false);
         assert!(
@@ -4158,7 +4159,8 @@ mod tests {
     /// treated as opaque.
     #[test]
     fn agreeing_callers_still_seed_through_a_substitution() {
-        let reg = registry();
+        let reg =
+            registry().project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let src =
             "proc bump {name} {\n  upvar 1 $name v\n  incr v\n}\nset n 1\nbump n\nset z [bump n]\n";
         let cu = crate::compilation_unit::CompilationUnit::build_for(src, &reg, false);

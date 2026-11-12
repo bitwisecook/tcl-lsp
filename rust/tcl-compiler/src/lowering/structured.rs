@@ -1869,15 +1869,18 @@ mod tests {
     /// bare `-` body is told apart from a quoted or braced one.
     #[test]
     fn a_switch_records_how_each_word_was_delimited() {
-        let m = lower_to_ir("switch -glob -- $x a \"-\" b - c {-} d {puts d}", &reg());
+        let m = lower_to_ir(
+            "set x a\nswitch -glob -- $x a \"-\" b - c {-} d {puts d}",
+            &reg(),
+        );
         let Statement::Switch {
             raw_args,
             raw_arg_braced,
             raw_arg_quoted,
             ..
-        } = &m.top_level.statements[0]
+        } = &m.top_level.statements[1]
         else {
-            panic!("expected a Switch, got {:?}", m.top_level.statements[0]);
+            panic!("expected a Switch, got {:?}", m.top_level.statements[1]);
         };
         assert_eq!(raw_args.len(), 11, "{raw_args:?}");
         let flagged = |flags: &[bool]| -> Vec<usize> {
@@ -2199,7 +2202,7 @@ mod tests {
 
     #[test]
     fn dict_for() {
-        let m = lower_to_ir("dict for {k v} $d {puts $k}", &reg());
+        let m = lower_to_ir("dict for {k v} {a 1} {puts $k}", &reg());
         assert!(matches!(
             &m.top_level.statements[0],
             Statement::Foreach {
@@ -2318,9 +2321,9 @@ mod tests {
 
     #[test]
     fn dict_for_dollar_var_body_falls_through_to_barrier() {
-        let m = lower_to_ir("dict for {k v} $d $body", &reg());
+        let m = lower_to_ir("set body [gets stdin]\ndict for {k v} {a 1} $body", &reg());
         assert!(matches!(
-            &m.top_level.statements[0],
+            &m.top_level.statements[1],
             Statement::Barrier { reason, .. } if reason == "dict for with dynamic body"
         ));
     }
@@ -2367,7 +2370,7 @@ mod tests {
     #[test]
     fn dict_for_grouped_var_element_binds_one_name() {
         assert_eq!(
-            foreach_vars("dict for {{k 1} v} $d {puts hi}"),
+            foreach_vars("dict for {{k 1} v} {a 1} {puts hi}"),
             vec!["k 1", "v"],
         );
     }
@@ -2382,7 +2385,7 @@ mod tests {
                 "foreach with malformed variable list",
             ),
             (
-                "dict for {k \"v} $d {puts hi}",
+                "dict for {k \"v} {a 1} {puts hi}",
                 "dict for with malformed variable list",
             ),
             (

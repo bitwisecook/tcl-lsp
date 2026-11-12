@@ -259,8 +259,15 @@ mod tests {
     use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
 
+    /// The shipped catalogue projected for Tcl 8.6, the release these
+    /// fixtures analyse.
+    fn release_registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap())
+    }
+
     fn summaries(src: &str) -> (Module, HashMap<BodyFrameId, ProcEscapeSummary>) {
-        let module = lower_to_ir(src, &CommandRegistry::build_default());
+        let module = lower_to_ir(src, &release_registry());
         let values = analyse_var_escape(&module, true);
         (module, values)
     }
@@ -350,7 +357,7 @@ mod tests {
         // pass, so a genuinely pure leaf is flagged without the fixpoint.
         let module = lower_to_ir(
             "proc ::add {a b} { return [expr {$a + $b}] }",
-            &CommandRegistry::build_default(),
+            &release_registry(),
         );
         let raw = analyse_var_escape(&module, false);
         assert!(

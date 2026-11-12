@@ -4940,6 +4940,7 @@ fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
             let (value, folded) = fold_assign_value(
                 value,
                 *value_needs_backsubst,
+                &stmt_ssa.statement,
                 &stmt_ssa.uses,
                 values,
                 ssa,
@@ -5260,6 +5261,7 @@ where
 fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
     needs_backsubst: bool,
+    statement: &Statement,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
@@ -5289,7 +5291,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         return (resolved, folded);
     }
     // Command substitution.
-    if let Some(folded) = driver.fold_cmd_subst(value, uses, values, ssa) {
+    if let Some(folded) = driver.fold_cmd_subst(value, statement, uses, values, ssa) {
         return folded;
     }
     (LatticeValue::Overdefined, None)
@@ -6481,7 +6483,8 @@ mod tests {
     /// module resolves leaves the local's existence decided.
     #[test]
     fn an_unseen_call_leaves_no_name_with_a_settled_existence() {
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         for (source, function) in [
             (
                 "set x 1\nfoo\nif {[info exists x]} { puts a } else { puts b }\n",

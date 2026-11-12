@@ -4997,6 +4997,12 @@ mod tests {
         SemanticContext::for_environment("tcl8.6")
     }
 
+    /// The catalogue projected for the release [`test_context`] selects.
+    fn test_registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap())
+    }
+
     fn find_invoke(function: &ExecutableFunction) -> &GenericInvoke {
         function
             .blocks
@@ -5142,7 +5148,7 @@ mod tests {
 
     #[test]
     fn alias_prefix_facts_do_not_rewrite_runtime_argument_evaluation() {
-        let registry = CommandRegistry::build_default();
+        let registry = test_registry();
         let module = crate::lowering::lower_to_ir(
             "interp alias {} prefixed {} list inserted\nprefixed $value",
             &registry,
@@ -5211,7 +5217,7 @@ mod tests {
     }
 
     fn build(source: &str, id: usize) -> ExecutableFunction {
-        let registry = CommandRegistry::build_default();
+        let registry = test_registry();
         let module = crate::lowering::lower_to_ir(source, &registry);
         let function = build_linear_executable_ir(
             &registry,
@@ -5435,7 +5441,10 @@ mod tests {
 
     #[test]
     fn foreach_becomes_a_list_cursor_loop_that_binds_its_variables() {
-        let function = build("foreach {a b} $pairs {puts $a}", 205);
+        let function = build(
+            "set pairs [gets stdin]\nforeach {a b} $pairs {puts $a}",
+            205,
+        );
         let cursor = instructions(&function)
             .into_iter()
             .find_map(|instruction| match instruction {
@@ -5551,7 +5560,10 @@ mod tests {
 
     #[test]
     fn switch_becomes_a_decision_tree_with_shared_fallthrough_bodies() {
-        let function = build("switch $mode {a - b {puts ab} c {puts c}}", 209);
+        let function = build(
+            "set mode [gets stdin]\nswitch $mode {a - b {puts ab} c {puts c}}",
+            209,
+        );
         let patterns: Vec<_> = instructions(&function)
             .into_iter()
             .filter_map(|instruction| match instruction {
@@ -5618,11 +5630,23 @@ mod tests {
 
     #[test]
     fn expression_assignment_reads_exactly_its_operand_variables() {
-        let function = build("set total [expr {$a + $b}]", 212);
+        // A fresh tclsh has no `a` or `b`; reading them would raise first.
+        let function = build(
+            "set a [gets stdin]\nset b [gets stdin]\nset total [expr {$a + $b}]",
+            212,
+        );
         let operation = instructions(&function)
             .into_iter()
             .find_map(|instruction| match instruction {
-                ExecutableInstruction::ExecuteLowered(operation) => Some(operation),
+                ExecutableInstruction::ExecuteLowered(operation)
+                    if operation.footprint.writes
+                        == [CellReference::Named {
+                            name: "total".to_owned(),
+                            element: false,
+                        }] =>
+                {
+                    Some(operation)
+                }
                 _ => None,
             })
             .expect("lowered expression assignment");
@@ -5989,7 +6013,7 @@ mod tests {
 
     #[test]
     fn a_retained_footprint_that_disagrees_with_its_statement_is_rejected() {
-        let registry = CommandRegistry::build_default();
+        let registry = test_registry();
         let module = crate::lowering::lower_to_ir("set counter 0", &registry);
         let function_id = ExecutableFunctionId::new(215);
         let mut function = build_linear_executable_ir(
@@ -6034,7 +6058,7 @@ mod tests {
     #[test]
     fn unknown_foreach_conversion_preserves_generic_later_dispatch() {
         let function = build(
-            "set total 0\nforeach item $items {incr total $item}\nreturn $total",
+            "set items [gets stdin]\nset total 0\nforeach item $items {incr total $item}\nreturn $total",
             217,
         );
         assert!(instructions(&function).iter().any(|instruction| matches!(
@@ -6161,7 +6185,7 @@ mod tests {
 
     #[test]
     fn ordinary_lowered_operations_form_one_executable_sequence() {
-        let registry = CommandRegistry::build_default();
+        let registry = test_registry();
         let module = crate::lowering::lower_to_ir(
             "set counter 0\nincr counter\nexpr {$counter + 1}",
             &registry,
@@ -6196,7 +6220,7 @@ mod tests {
 
     #[test]
     fn braced_array_element_assignment_keeps_exact_target_payload() {
-        let registry = CommandRegistry::build_default();
+        let registry = test_registry();
         let module = crate::lowering::lower_to_ir("set {totals($key)} 41", &registry);
         let function = build_linear_executable_ir(
             &registry,
@@ -6275,7 +6299,7 @@ mod tests {
 
     #[test]
     fn corpus_counter_keeps_facts_around_closed_foreach_region() {
-        let registry = CommandRegistry::build_default();
+        let registry = test_registry();
         let module = crate::lowering::lower_to_ir(
             "set total 0\nforeach item {1 2} {incr total}\nreturn $total",
             &registry,

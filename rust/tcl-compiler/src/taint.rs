@@ -15550,13 +15550,15 @@ mod tests {
         use crate::compilation_unit::CompilationUnit;
 
         fn taint_warnings_for(source: &str) -> Vec<TaintWarning> {
-            let context = tcl_registry::model::ingress::resolve_environment("tcl8.6")
-                .default_context_registry();
-            let profile = tcl_dialect::DialectProfile::plain_tcl();
+            // These fixtures mean C Tcl 8.6: its own profile, not the lenient
+            // all-release `tcl` profile, beside its 8.6 command context.
+            let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+            let context = environment.default_context_registry();
+            let profile = environment.analyser_profile();
             let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
             let input = crate::analyser::ResolvedAnalysisInput::new(
                 profile,
-                profile,
+                environment.unit_profile(),
                 std::sync::Arc::clone(&context),
                 config,
             );

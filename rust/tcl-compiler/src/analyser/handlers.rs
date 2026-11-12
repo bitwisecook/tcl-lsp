@@ -17170,9 +17170,14 @@ mod tests {
             r.all_procs.keys().collect::<Vec<_>>(),
         );
 
-        // (B) A qualified-name proc with no enclosing `namespace eval`.
+        // (B) A qualified-name proc with no enclosing `namespace eval`. Each
+        // qualifier exists first: tclsh 8.6/9.0 refuse `proc ::x::mk` with
+        // `unknown namespace` otherwise.
         let mut a = Analyser::new();
-        let r = a.analyse("proc ::x::mk {} { proc helper {} {} }\n", "tcl8.6");
+        let r = a.analyse(
+            "namespace eval ::x {}\nproc ::x::mk {} { proc helper {} {} }\n",
+            "tcl8.6",
+        );
         assert!(
             r.all_procs.contains_key("::x::helper"),
             "(B) qualified encloser: {:?}",
@@ -17183,7 +17188,7 @@ mod tests {
         // `namespace eval` it sits in.
         let mut a = Analyser::new();
         let r = a.analyse(
-            "namespace eval ::x { proc ::y::mk {} { proc helper {} {} } }\n",
+            "namespace eval ::y {}\nnamespace eval ::x { proc ::y::mk {} { proc helper {} {} } }\n",
             "tcl8.6",
         );
         assert!(
@@ -17194,7 +17199,10 @@ mod tests {
 
         // (D) The same rule for a class, not a proc.
         let mut a = Analyser::new();
-        let r = a.analyse("proc ::x::mk {} { oo::class create Helper {} }\n", "tcl8.6");
+        let r = a.analyse(
+            "namespace eval ::x {}\nproc ::x::mk {} { oo::class create Helper {} }\n",
+            "tcl8.6",
+        );
         assert!(
             r.all_classes.contains_key("::x::Helper"),
             "(D) class create: {:?}",
@@ -17231,6 +17239,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(
             "namespace eval ::src { proc thing {} {} namespace export thing }\n\
+             namespace eval ::dst {}\n\
              proc ::dst::setup {} { namespace import ::src::thing }\n",
             "tcl8.6",
         );

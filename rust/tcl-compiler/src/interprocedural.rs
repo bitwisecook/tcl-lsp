@@ -6686,7 +6686,8 @@ mod tests {
     /// so every spelling of the global frame and of this one counts.
     #[test]
     fn standalone_empty_alias_declaration_and_mutation_have_distinct_write_effects() {
-        let registry = tcl_registry::CommandRegistry::build_default();
+        let registry = tcl_registry::CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let known = HashSet::new();
         let params = HashSet::new();
         let module = crate::ir::Module::default();
@@ -6745,7 +6746,8 @@ mod tests {
 
     #[test]
     fn nominal_global_alias_coverage_keeps_empty_data_separate_from_unknown_names() {
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let coverage =
             global_alias_names("global", &[String::new(), "array(key)".into()], &registry).unwrap();
         assert!(coverage.names.contains("") && coverage.names.contains("array"));

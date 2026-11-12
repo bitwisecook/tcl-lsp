@@ -631,16 +631,20 @@ fn fp_sty_12_vwait_incr_append_lappend_indirect_no_w216() {
 #[test]
 fn fp_sty_12_value_position_still_fires_w216() {
     // TP control: in a *value* position `${arr}(x)` is a broken read for
-    // `$arr(x)` (Tcl errors `variable is array`), so W216 still fires.
+    // `$arr(x)` (Tcl errors `variable is array`), so W216 still fires. The
+    // array exists first: reading a name nothing set fails before the word
+    // is formed (tclsh 8.4-9.1: `can't read "arr": no such variable`).
+    let puts = "array set arr {x 1}\nputs ${arr}(x)\n";
     assert!(
-        fires("puts ${arr}(x)\n", D, "W216"),
+        fires(puts, D, "W216"),
         "FP-STY-12 TP: value-position ${{arr}}(x) in puts must fire W216; emitted: {:?}",
-        codes("puts ${arr}(x)\n", D)
+        codes(puts, D)
     );
+    let set = "array set arr {x 1}\nset y ${arr}(x)\n";
     assert!(
-        fires("set y ${arr}(x)\n", D, "W216"),
+        fires(set, D, "W216"),
         "FP-STY-12 TP: value-position ${{arr}}(x) in set must fire W216; emitted: {:?}",
-        codes("set y ${arr}(x)\n", D)
+        codes(set, D)
     );
 }
 
