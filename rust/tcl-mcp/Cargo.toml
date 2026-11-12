@@ -54,7 +54,7 @@ f5-xc = { path = "../f5-xc" }
 f5-cli = { path = "../f5-cli" }
 serde_json = { version = "1", features = ["preserve_order"] }
 regex = "1"
-rmcp = { version = "3", features = ["server", "transport-io"] }
+rmcp = { version = "3.9", features = ["server", "transport-io"] }
 # Async runtime for the MCP stdio transport. Floor is the plain `1` the rest of
 # the workspace uses (tcl-lsp-server, f5-cli) — no API or advisory here needs a
 # tighter requirement, and the lockfile carries the exact version.

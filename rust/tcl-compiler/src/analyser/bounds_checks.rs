@@ -918,7 +918,7 @@ fn command_step(
     }
     for probe in ["1", "7"] {
         let mut texts: Vec<String> = cmd.args().to_vec();
-        texts[index] = probe.to_owned();
+        probe.clone_into(&mut texts[index]);
         let stored = literal_store_texts(head, &texts, var, "0", registry)?;
         if stored != probe {
             return None;
@@ -929,6 +929,7 @@ fn command_step(
 
 /// The one integer increment of `var` at `body`'s top level, which runs on
 /// every pass that reaches its end.
+#[cfg(test)]
 fn body_increment(
     body: &str,
     var: &str,

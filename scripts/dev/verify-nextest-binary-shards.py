@@ -374,8 +374,10 @@ def _verify_listing(
                     raise VerificationError(
                         f"{path}: ignored testcase selected: {target.binary_id}:{test_name}"
                     )
-            elif expected_here and heavy is not None and _is_heavy(
-                heavy, target.binary_id, test_name
+            elif (
+                expected_here
+                and heavy is not None
+                and _is_heavy(heavy, target.binary_id, test_name)
             ):
                 if heavy_seen is not None:
                     heavy_seen.add((target.binary_id, test_name))
