@@ -542,13 +542,20 @@ fn cmd_jim_exists(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     {
         return vm.refuse_host_command("Jim exists primitive is unavailable".into());
     }
-    let [name] = args else {
-        return if args.len() == 2 {
-            vm.refuse_host_command("Jim exists selector object protocol is unavailable".into())
-        } else {
-            native_wrong_args(vm, "?-command|-proc|-alias|-channel|-var? name")
-        };
+    let (kind, name) = match args {
+        [name] => (
+            tcl_registry::commands::tcl::NativeJimExistsKind::Variable,
+            name,
+        ),
+        [option, name] => match jim_exists_kind(vm, option) {
+            Ok(kind) => (kind, name),
+            Err(completion) => return completion,
+        },
+        _ => return native_wrong_args(vm, "?-command|-proc|-alias|-channel|-var? name"),
     };
+    if kind != tcl_registry::commands::tcl::NativeJimExistsKind::Variable {
+        return jim_command_exists(vm, kind, name);
+    }
     let name = match vm.native_name_operand_bytes_checked(name) {
         Ok(name) => name,
         Err(error) => return completion_from_cmd_error(vm, error),
@@ -557,6 +564,70 @@ fn cmd_jim_exists(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Some(refusal) = vm.refused_completion() {
         return refusal;
     }
+    ok(Value::bool(exists))
+}
+
+/// Jim's `exists` selector, through its original enum lookup.
+fn jim_exists_kind(
+    vm: &mut Vm,
+    option: &Value,
+) -> Result<tcl_registry::commands::tcl::NativeJimExistsKind, Completion<Value>> {
+    let Some(protocol) = vm.native_invocation_dialect().native_jim_exists_protocol() else {
+        return Err(vm.refuse_host_command("Jim exists selector protocol is unavailable".into()));
+    };
+    match vm.native_jim_enum_from_original_checked(
+        option,
+        &protocol.table(),
+        tcl_registry::native_jim_enum::NativeJimEnumFlags::options(false),
+        None,
+    ) {
+        Ok(Ok(ordinal)) => Ok(protocol
+            .selected(ordinal)
+            .expect("original exists enum ordinal")),
+        Ok(Err(message)) => Err(completion_from_cmd_error(
+            vm,
+            CmdError::with_error_code_bytes(message.unwrap_or_default(), b"NONE"),
+        )),
+        Err(error) => Err(completion_from_cmd_error(vm, error.into())),
+    }
+}
+
+/// Jim's command-record flags: any command, a procedure, or an alias.
+fn jim_command_exists(
+    vm: &mut Vm,
+    kind: tcl_registry::commands::tcl::NativeJimExistsKind,
+    name: &Value,
+) -> Completion<Value> {
+    use tcl_registry::commands::tcl::NativeJimExistsKind as Kind;
+    let name = match vm.native_name_operand_bytes_checked(name) {
+        Ok(name) => name,
+        Err(error) => return completion_from_cmd_error(vm, error),
+    };
+    let command = match vm.lookup_command_bytes_checked(vm.current_ns_id(), &name) {
+        Ok(found) => found.map(|(_, command)| command),
+        Err(_) => {
+            return vm.refuse_host_command("Jim exists command lookup is unavailable".into());
+        }
+    };
+    if let Some(refusal) = vm.refused_completion() {
+        return refusal;
+    }
+    let Some(command) = command else {
+        return ok(Value::bool(false));
+    };
+    let alias = matches!(
+        command,
+        Command::Alias { .. } | Command::CallerAlias(_) | Command::CrossAlias { .. }
+    );
+    let exists = match kind {
+        Kind::Command => true,
+        Kind::Procedure => matches!(command, Command::Proc(_)),
+        Kind::Alias => alias,
+        Kind::Channel if alias || matches!(command, Command::Proc(_)) => false,
+        Kind::Channel | Kind::Variable => {
+            return vm.refuse_host_command("Jim channel command flag is unavailable".into());
+        }
+    };
     ok(Value::bool(exists))
 }
 

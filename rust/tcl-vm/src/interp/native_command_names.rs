@@ -625,10 +625,8 @@ impl Vm {
             message.push(b'"');
             let mut code = b"TCL LOOKUP COMMAND ".to_vec();
             tcl_syntax::list::append_list_element(&mut code, name, false);
-            let error = if dialect
-                .tcl_version
-                .is_some_and(|version| !version.has_lookup_error_code("COMMAND"))
-            {
+            // `namespace origin` tags its miss from 8.5, before dispatch misses are.
+            let error = if dialect.tcl_version == Some(tcl_dialect::TclVersion::V8_4) {
                 tcl_cmd_core::CmdError::new_bytes(message)
             } else {
                 tcl_cmd_core::CmdError::with_error_code_bytes(message, code)
