@@ -95,4 +95,5 @@ cut (`proc "p\x00q"` registers `p`), and equal strings built by different
 producers can compare unequal in the VM. See
 [c-extension-abi.md](c-extension-abi.md) for the runtime's current one-byte
 representation. Closing this needs one representation per issuer in the value
-layer, not a naming change.
+layer, not a naming change. That change is deferred until the LSP naming
+migration is finished.
