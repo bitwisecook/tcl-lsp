@@ -203,6 +203,9 @@ pub fn method_rename_hazard(
             None,
         ));
     }
+    if original_member_coverage_proved(source, analysis, target) {
+        return renamed_member_would_abort(source, analysis, target, line_index);
+    }
     for class in target
         .family
         .iter()
@@ -247,6 +250,84 @@ pub fn method_rename_hazard(
         .or_else(|| computed_method_selector(source, analysis, target, line_index))
         .or_else(|| dispatch_hazard(source, dialect, analysis, target, line_index))
         .or_else(|| ambiguous_object_command(source, analysis, target, line_index))
+}
+
+/// Whether the original member rename planner's complete walk of the current
+/// source closes every dispatch, receiver, link and family obligation of this
+/// member, for a family equal to the caller's declaring family. The walk is
+/// name-independent; destination hazards stay with their own arms.
+fn original_member_coverage_proved(
+    source: &str,
+    analysis: &AnalysisResult,
+    target: MethodRenameTarget<'_>,
+) -> bool {
+    if analysis.allows_lexical_declaration_advice() {
+        return false;
+    }
+    let side = if target.is_classmethod {
+        MemberSide::ClassObject
+    } else {
+        MemberSide::Instance
+    };
+    let declared = target
+        .family
+        .iter()
+        .flat_map(|name| {
+            analysis
+                .original_class_declarations()
+                .filter(move |record| record.metadata().qualified_name == *name)
+        })
+        .flat_map(|record| {
+            record
+                .metadata()
+                .original_members
+                .declarations()
+                .filter(|row| {
+                    row.side() == side
+                        && row.original_name_input().bytes() == target.method.as_bytes()
+                })
+                .map(move |row| (record, row))
+        })
+        .collect::<Vec<_>>();
+    let Some(&(record, row)) = declared.first() else {
+        return false;
+    };
+    let Some(identity) = crate::original_declaration::OriginalDeclarationIdentity::for_method(
+        "", source, analysis, record, row,
+    ) else {
+        return false;
+    };
+    let document = crate::original_declaration::OriginalDeclarationDocument {
+        uri: "",
+        source,
+        analysis,
+    };
+    if crate::original_member_rename::original_member_rename_edits(
+        &[document],
+        &identity,
+        target.method,
+    )
+    .is_err()
+    {
+        return false;
+    }
+    let mut planned =
+        crate::original_member_rename::original_member_family_spans(document, &identity);
+    if planned.is_empty() {
+        planned.push(identity.span());
+    }
+    let mut wanted = declared
+        .iter()
+        .map(|(_, row)| {
+            row.declaration()
+                .static_occurrence()
+                .map(|occurrence| occurrence.name_input().span())
+        })
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default();
+    planned.sort_by_key(|span| (span.start(), span.end()));
+    wanted.sort_by_key(|span| (span.start(), span.end()));
+    planned == wanted
 }
 
 /// Definition metadata syntax locates a possible hazard, never an edit.
