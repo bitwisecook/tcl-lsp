@@ -5589,15 +5589,10 @@ p\uD800";
         for _ in 0..DEPTH {
             source.push_str("}\n");
         }
-        // The analyser runs on the server's 64 MiB worker stack; the scans
-        // under test keep the default test stack.
+        // The analyser runs on the server's worker stack; the scans under
+        // test keep the default test stack.
         let analysed = source.clone();
-        let analysis = std::thread::Builder::new()
-            .stack_size(64 * 1024 * 1024)
-            .spawn(move || analyse(&analysed))
-            .expect("spawn analysis thread")
-            .join()
-            .expect("analysis completes");
+        let analysis = crate::on_worker_stack(move || analyse(&analysed));
         let _ = variable_scope_extent(&analysis, "x", 0);
         let mut scopes = vec![&analysis.global_scope];
         while let Some(scope) = scopes.pop() {

@@ -1670,10 +1670,12 @@ mod tests {
         for _ in 0..DEPTH {
             source.push_str("}\n");
         }
-        let graph = symbol_graph(
-            &source,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        );
+        let graph = crate::on_worker_stack(move || {
+            symbol_graph(
+                &source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            )
+        });
         assert!(graph.get("scopes").is_some());
     }
 }

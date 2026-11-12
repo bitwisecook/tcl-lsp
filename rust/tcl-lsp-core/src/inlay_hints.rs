@@ -1545,7 +1545,8 @@ mod tests {
         for _ in 0..DEPTH {
             src.push_str("}\n");
         }
-        let analysis = analyse(&src);
+        let analysed = src.clone();
+        let analysis = crate::on_worker_stack(move || analyse(&analysed));
         let reg = registry();
         let _ = inlay_hints(
             &src,

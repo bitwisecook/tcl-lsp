@@ -1060,7 +1060,8 @@ mod tests {
         for _ in 0..DEPTH {
             source.push_str("}\n");
         }
-        let analysis = Analyser::new().analyse(&source, "tcl8.6").clone();
+        let analysis =
+            crate::on_worker_stack(move || Analyser::new().analyse(&source, "tcl8.6").clone());
         let _ = walk_scopes(&analysis.global_scope);
     }
 

@@ -33,6 +33,18 @@
 // Long linear fail-closed guard chains and scenario tests; splitting them is
 // tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
 
+/// Run `work` on a thread with the language server's 64 MiB worker stack, as
+/// production analysis runs; a test thread has only the ~2 MiB default.
+#[cfg(test)]
+pub(crate) fn on_worker_stack<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+    std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn(work)
+        .expect("spawn worker-stack thread")
+        .join()
+        .expect("worker-stack thread completes")
+}
+
 #[cfg(test)]
 const _: fn() = || {
     fn assert_send_sync<T: Send + Sync>() {}
