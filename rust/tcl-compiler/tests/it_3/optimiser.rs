@@ -3765,3 +3765,26 @@ fn closed_native_consumer_refuses_callbacks_rebinding_and_value_escape() {
         );
     }
 }
+
+/// A `sharedvar` names the connection's shared cell, which another event
+/// reads: its writes are never unused or dead stores (#2413).
+#[test]
+fn sharedvar_writes_are_kept() {
+    const IR: &str = "f5-irules";
+    for src in [
+        "when CLIENT_ACCEPTED {\n    sharedvar mode\n    set mode 1\n}\n\
+         when SERVER_CONNECTED {\n    sharedvar mode\n    if {$mode == 1} { log local0. \"one\" }\n    set mode 2\n}\n",
+        "when SERVER_CONNECTED {\n    sharedvar mode\n    if {$mode == 1} { log local0. \"one\" }\n    set mode 2\n}\n\
+         when CLIENT_ACCEPTED {\n    sharedvar mode\n    set mode 1\n}\n",
+    ] {
+        for code in ["O126", "O109"] {
+            assert!(!opt_fires(src, IR, code), "{code} must not fire: {src}");
+        }
+        assert!(optimised(src, IR).contains("set mode 1"), "{src}");
+        assert!(optimised(src, IR).contains("set mode 2"), "{src}");
+        let codes = analyser_codes(src, IR);
+        for code in ["W211", "W220"] {
+            assert!(!codes.iter().any(|c| c == code), "{code}: {codes:?}");
+        }
+    }
+}
