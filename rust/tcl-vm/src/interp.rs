@@ -21898,9 +21898,11 @@ impl Vm {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn retire_unset_storage(
         &mut self,
         name: &[u8],
+        reported_name1: Option<&[u8]>,
         resolved: &ResolvedVar,
         old_state: variable_cleanup::DetachedVariableState,
         traced_cell: Option<VarTraceCell>,
@@ -21931,7 +21933,7 @@ impl Vm {
         };
         let mut retired_bindings = Vec::new();
         if let Some(cell) = traced_cell {
-            let _ = original.fire_taken(self, name, None, cell, true);
+            let _ = original.fire_taken(self, name, reported_name1, cell, true);
         }
 
         // An array's old element table is detached from the parent before its
@@ -21994,7 +21996,17 @@ impl Vm {
         name: impl AsRef<[u8]>,
         resolved: &ResolvedVar,
     ) -> Result<bool, Completion<Value>> {
-        let name = name.as_ref();
+        self.unset_resolved_reporting(name.as_ref(), None, resolved)
+    }
+
+    /// [`Self::unset_resolved_checked`], reporting `reported_name1` to unset
+    /// traces where the caller held the name as two parts (C's `part1`).
+    fn unset_resolved_reporting(
+        &mut self,
+        name: &[u8],
+        reported_name1: Option<&[u8]>,
+        resolved: &ResolvedVar,
+    ) -> Result<bool, Completion<Value>> {
         let original = variable_cleanup::OriginalVariableCleanup::enter(self);
         original
             .check(self)
@@ -22058,6 +22070,7 @@ impl Vm {
 
         let (terminal_old, publication_result) = self.retire_unset_storage(
             name,
+            reported_name1,
             resolved,
             old_state,
             traced_cell,
@@ -22181,7 +22194,7 @@ impl Vm {
             );
         }
         let resolved = self.resolve_var_from_bytes(name, self.current_level());
-        self.unset_selected_original_variable(name, resolved.as_ref(), complain)
+        self.unset_selected_original_variable(name, None, resolved.as_ref(), complain)
     }
 
     /// Unset the already selected original-object receiver without replaying
@@ -22189,6 +22202,7 @@ impl Vm {
     fn unset_selected_original_variable(
         &mut self,
         name: &[u8],
+        reported_name1: Option<&[u8]>,
         resolved: Option<&ResolvedVar>,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
@@ -22249,7 +22263,7 @@ impl Vm {
             }
         } else {
             match resolved.as_ref() {
-                Some(resolved) => self.unset_resolved_checked(name, resolved)?,
+                Some(resolved) => self.unset_resolved_reporting(name, reported_name1, resolved)?,
                 None => false,
             }
         };

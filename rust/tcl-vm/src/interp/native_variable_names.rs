@@ -1502,7 +1502,7 @@ impl Vm {
                     root_bytes
                 };
                 let result =
-                    self.unset_selected_original_variable(&bytes, Some(&resolved), complain);
+                    self.unset_selected_original_variable(&bytes, None, Some(&resolved), complain);
                 if result.is_err() {
                     original_names
                         .read(self, original)
@@ -1530,6 +1530,20 @@ impl Vm {
         element: &Value,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
+        self.unset_original_c_variable_parts_reporting(original, element, complain, true)
+    }
+
+    /// Unset `original(element)` held as two parts. A compiled command
+    /// reports `original` to unset traces as name1, as C's `unsetArrayStk`
+    /// does; a directly evaluated one (`reports_parts` false) reports the
+    /// joined spelling its generic `unset` hands the lookup.
+    pub(crate) fn unset_original_c_variable_parts_reporting(
+        &mut self,
+        original: &Value,
+        element: &Value,
+        complain: bool,
+        reports_parts: bool,
+    ) -> Result<(), Completion<Value>> {
         let original_names =
             crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
@@ -1551,7 +1565,12 @@ impl Vm {
                     spelling.push(b'(');
                     spelling.extend_from_slice(&element_bytes);
                     spelling.push(b')');
-                    self.unset_selected_original_variable(&spelling, Some(&resolved), complain)
+                    self.unset_selected_original_variable(
+                        &spelling,
+                        reports_parts.then_some(&root_bytes[..]),
+                        Some(&resolved),
+                        complain,
+                    )
                 }
                 Err(OriginalVariablePreparationError::Confined(error)) => Err(error),
                 Err(OriginalVariablePreparationError::Lookup(error))
