@@ -128,8 +128,12 @@ impl Analyser {
                     };
                     values.template_plans()
                 } else {
-                    // Native execution keeps its independently settled result.
-                    unit.sccp.template_plans.iter().collect()
+                    // Diagnostic knowledge: the semantic producer when the
+                    // unit owns one, else the executable result.
+                    unit.diagnostic_value_facts()
+                        .template_plans()
+                        .iter()
+                        .collect()
                 };
             for record in records {
                 let Some(segment) = original_template_segment(unit, record) else {
