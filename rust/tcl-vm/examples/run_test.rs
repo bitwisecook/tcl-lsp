@@ -88,19 +88,7 @@ fn run() -> i32 {
         Ok(v) if !v.is_empty() => "::tcltest::configure -verbose {body start}\n",
         _ => "",
     };
-    let match_config = arguments
-        .match_filter
-        .as_ref()
-        .map_or_else(String::new, |pattern| {
-            format!(
-                "::tcltest::configure -match {}\n",
-                tcl_syntax::list::list_element(pattern)
-            )
-        });
-    let src = format!(
-        "package require tcltest\nnamespace import -force ::tcltest::*\n{verbose}{match_config}{overlay}source {}\n",
-        tcl_syntax::list::list_element(&arguments.testfile)
-    );
+    let src = arguments.driver_script(verbose, &overlay);
     let profile = DialectProfile::find(arguments.version.dialect_profile_name())
         .expect("selected Tcl release profile exists");
     let Some(mut vm) = native_vm(profile, Box::new(Stdout)) else {
@@ -184,6 +172,41 @@ struct Arguments {
 }
 
 impl Arguments {
+    /// The script the VM runs: `argv0`, `argv` and `argc` seeded as `tclsh
+    /// file.test -match P` seeds them, so a test file that hands `$argv` on
+    /// (`tcltest::loadIntoChildInterpreter $child {*}$argv`) forwards the
+    /// focused filter to its children, then tcltest configured and the file
+    /// sourced.
+    fn driver_script(&self, verbose: &str, overlay: &str) -> String {
+        let argv: Vec<&str> = self
+            .match_filter
+            .as_deref()
+            .map_or_else(Vec::new, |pattern| vec!["-match", pattern]);
+        let match_config = self
+            .match_filter
+            .as_ref()
+            .map_or_else(String::new, |pattern| {
+                format!(
+                    "::tcltest::configure -match {}\n",
+                    tcl_syntax::list::list_element(pattern)
+                )
+            });
+        format!(
+            "set ::argv0 {file}\nset ::argv {argv}\nset ::argc {argc}\n\
+             package require tcltest\nnamespace import -force ::tcltest::*\n\
+             {verbose}{match_config}{overlay}source {file}\n",
+            file = tcl_syntax::list::list_element(&self.testfile),
+            argv = tcl_syntax::list::list_element(
+                &argv
+                    .iter()
+                    .map(|word| tcl_syntax::list::list_element(word))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ),
+            argc = argv.len(),
+        )
+    }
+
     fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
         let testfile = args.next().ok_or_else(|| "missing test file".to_owned())?;
         let mut match_filter = None;
@@ -258,6 +281,35 @@ mod tests {
             arguments.match_filter.as_deref(),
             Some("namespace-56.2 trace-34.1")
         );
+    }
+
+    /// The focused filter reaches the script's `argv` as `tclsh` puts it
+    /// there, beside the parent's own tcltest configuration (#2277).
+    #[test]
+    fn the_focused_filter_is_the_scripts_argv() {
+        let arguments = parse(&["path with spaces.test", "--match", "package-1.*"]).unwrap();
+        let profile = DialectProfile::find(arguments.version.dialect_profile_name()).unwrap();
+        let mut vm = native_vm(profile, Box::new(std::io::sink())).unwrap();
+        vm.set_compiler(Box::new(Svc::for_profile(profile)));
+        let script = arguments.driver_script("", "");
+        let prelude: String = script.lines().take(3).collect::<Vec<_>>().join("\n");
+        let completion = vm.try_eval_source_bytes(prelude.as_bytes()).unwrap();
+        assert!(completion.code.is_ok());
+        let mut text = |name: &str| {
+            let value = vm.get_var(name).unwrap();
+            String::from_utf8(
+                tcl_syntax::value::ValueOps::native_string_bytes(&mut vm, &value)
+                    .unwrap()
+                    .to_vec(),
+            )
+            .unwrap()
+        };
+        assert_eq!(text("argv"), "-match package-1.*");
+        assert_eq!(text("argc"), "2");
+        assert_eq!(text("argv0"), "path with spaces.test");
+        assert!(script.contains("::tcltest::configure -match package-1.*\n"));
+        let unfocused = parse(&["file.test"]).unwrap().driver_script("", "");
+        assert!(unfocused.starts_with("set ::argv0 file.test\nset ::argv {}\nset ::argc 0\n"));
     }
 
     #[test]
