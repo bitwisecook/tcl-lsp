@@ -251,7 +251,7 @@ fn build_tree<Text: ExprText>(
 ) -> NativeFunctionTree<Text> {
     let mut builder = Builder {
         source,
-        variable_config: tcl_lexer::LexerConfig::default().with_grammar(context.lexer_grammar),
+        variable_config: tcl_lexer::LexerConfig::from_grammar(context.lexer_grammar),
         tokens,
         functions,
         position: 0,

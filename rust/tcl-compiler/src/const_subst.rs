@@ -146,6 +146,8 @@ pub struct FoldedInvocation {
 #[doc(hidden)]
 #[must_use]
 pub fn folded_literal_reads_apart(value: &str, release: TclVersion) -> bool {
+    // dialect-drift-ok: a C Tcl release's folded result, which that release
+    // reads under C's strict list grammar
     tcl_syntax::list::split_list(value).is_ok_and(|words| {
         words
             .iter()

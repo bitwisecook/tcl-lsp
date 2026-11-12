@@ -632,6 +632,7 @@ fn variable_trigger(source: &str, line: u32, character: u32) -> Option<(char, St
         &image,
         tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
         cursor,
+        // dialect-drift-ok: a #[cfg(test)] helper
         tcl_lexer::LexerConfig::default(),
     )
     .ok()??;

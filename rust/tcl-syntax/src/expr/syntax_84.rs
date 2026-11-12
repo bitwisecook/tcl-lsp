@@ -509,6 +509,7 @@ fn check_number(text: &str) -> Result<(), (String, Option<&'static str>)> {
 /// 8.4's word grammar, which the lexer's scans read `${…}`, array indices
 /// and nested scripts by.
 fn lexer_config() -> tcl_lexer::LexerConfig {
+    // dialect-drift-ok: the 8.4 expression syntax reads 8.4's own word grammar
     tcl_lexer::LexerConfig::for_dialect(tcl_dialect::TclVersion::V8_4.dialect_name())
 }
 

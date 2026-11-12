@@ -283,7 +283,10 @@ fn deferred_definition_methods(
                     else {
                         return false;
                     };
-                    let Ok(names) = tcl_syntax::list::split_list(text) else {
+                    let Ok(names) =
+                        tcl_syntax::word_rules::WordValueRules::from_config(&context.config)
+                            .split_list(text)
+                    else {
                         return false;
                     };
                     let Some(first) = names.first() else {

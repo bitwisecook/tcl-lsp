@@ -3757,6 +3757,7 @@ pub fn when_event_name(qualified_name: &str) -> &str {
 #[must_use]
 pub fn native_call_for_test(bytes: &[u8]) -> Statement {
     let image = tcl_lexer::SourceImage::native(bytes);
+    // dialect-drift-ok: a test-support fixture constructor
     let config = tcl_lexer::LexerConfig::default();
     let tokens = tcl_lexer::Lexer::with_source_image(&image, config)
         .tokenise_all()

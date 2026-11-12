@@ -1371,6 +1371,8 @@ pub fn resolve_opt_in(spec: &str, len: usize, syntax: tcl_dialect::IndexSyntax) 
         let grammar = tcl_dialect::LexerGrammar {
             numbers: syntax.numbers,
             expr_comments: tcl_dialect::ExprCommentStyle::None,
+            // dialect-drift-ok: Jim's native index-expression grammar, whose
+            // numbers come from the selected IndexSyntax, not document text
             ..tcl_dialect::LexerGrammar::default()
         };
         let tree = tcl_syntax::expr::parser::parse_expr_with_grammar(expression, &grammar);

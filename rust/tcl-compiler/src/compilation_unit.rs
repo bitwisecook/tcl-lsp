@@ -2191,6 +2191,8 @@ impl FunctionUnit {
             original_lattice_worker: None,
             original_lattice_callback_admission: None,
             source_metadata_input: None,
+            // dialect-drift-ok: a complexity-guarded unit has no source analysis;
+            // every pass skips it, so this config never lexes document text
             source_config: tcl_lexer::LexerConfig::default(),
             name: name.into(),
             body_id: None,
@@ -4197,6 +4199,7 @@ impl CompilationUnit {
             ir_module: crate::ir::Module {
                 retained_source_bindings: None,
                 source_metadata_input: None,
+                // dialect-drift-ok: a #[cfg(test)] fixture constructor
                 lexer_config: tcl_lexer::LexerConfig::default(),
                 source_entry: crate::command_binding::SourceAnalysisEntry::default(),
                 future_call_sites: Vec::new(),

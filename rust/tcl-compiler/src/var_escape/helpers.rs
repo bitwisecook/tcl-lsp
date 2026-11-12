@@ -445,7 +445,8 @@ fn scan_value_for_info_hazards(value: &str) -> (bool, Vec<String>) {
     let Some(calls) = original_substitution_invocations(tokens, registry) else {
         return (true, Vec::new());
     };
-    let mut state = crate::var_escape::state::EscapeState::new(std::iter::empty::<String>());
+    let mut state = crate::var_escape::state::EscapeState::new(std::iter::empty::<String>())
+        .with_config(tcl_lexer::LexerConfig::for_profile(registry.profile()));
     for invocation in calls.into_iter().filter_map(|call| call.invocation) {
         if invocation.facts().canonical_command == "info" {
             crate::var_escape::handlers::handle_source_introspection(&invocation, &mut state);

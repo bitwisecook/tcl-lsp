@@ -20,7 +20,6 @@ declare -A OUTSIDE_GATE=(
     [xtask-gen-equivalence-packs]="advisory SpecTcl renderings, not in xtask-check"
     [xtask-audit-option-dialects]="on-demand regeneration from built tclsh trees"
     [xtask-registry-oracle]="needs a local BIG-IP extract"
-    [xtask-dialect-drift]="52 re-read sites still give a document a second grammar (#2253)"
 )
 
 database="$(make -pRrq -f "$makefile" : 2>/dev/null || true)"

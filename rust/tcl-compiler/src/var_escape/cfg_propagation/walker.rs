@@ -821,7 +821,8 @@ pub fn analyse_cfg_function_with_registry<I: IntoIterator<Item = String>>(
     registry: &tcl_registry::CommandRegistry,
 ) -> CfgEscapeResult {
     let known = collect_known_names_from_cfg(params, ssa);
-    let mut state = CfgState::new(known);
+    let mut state =
+        CfgState::new(known).with_config(tcl_lexer::LexerConfig::for_profile(registry.profile()));
 
     for block_id in block_order(cfg) {
         let Some(block) = ssa.blocks.get(&block_id) else {

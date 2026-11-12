@@ -1046,6 +1046,7 @@ pub(crate) fn extract_single_expr_arg(
     aliases: &CommandAliasMap,
     registry: &CommandRegistry,
 ) -> Option<(String, String, String, Option<u32>)> {
+    // dialect-drift-ok: a #[cfg(test)] convenience over the config-aware form
     extract_single_expr_arg_with_config(text, aliases, "::", registry, None, LexerConfig::default())
 }
 

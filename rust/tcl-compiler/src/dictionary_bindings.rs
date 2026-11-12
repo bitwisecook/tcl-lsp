@@ -146,17 +146,13 @@ pub enum DictionaryScopeFinish {
 type Pairs = Vec<(String, String)>;
 
 fn parse_dictionary(value: &str, dialect: tcl_registry::InvocationDialect) -> Option<Pairs> {
-    let items: Vec<String> = match dialect.lexer_grammar.list_parse {
-        tcl_dialect::ListParse::Strict => tcl_syntax::list::split_list(value)
+    let items: Vec<String> =
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar)
+            .split_list(value)
             .ok()?
             .into_iter()
             .map(std::borrow::Cow::into_owned)
-            .collect(),
-        tcl_dialect::ListParse::Lenient => tcl_syntax::list::split_list_jim(value)
-            .into_iter()
-            .map(std::borrow::Cow::into_owned)
-            .collect(),
-    };
+            .collect();
     if !items.len().is_multiple_of(2) {
         return None;
     }

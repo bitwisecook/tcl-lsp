@@ -206,7 +206,7 @@ pub(super) fn jim_preparation_for_tree(
         )
     };
     let terms = if action == JimExpressionCacheAction::Prepared {
-        let config = tcl_lexer::LexerConfig::default().with_grammar(context.lexer_grammar);
+        let config = tcl_lexer::LexerConfig::from_grammar(context.lexer_grammar);
         tcl_lexer::expression_terms(source, tokens, config)?
     } else {
         Vec::new()

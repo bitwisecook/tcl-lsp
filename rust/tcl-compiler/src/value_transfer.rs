@@ -1379,10 +1379,17 @@ impl<'a> LatticeDriver<'a> {
             // Availability-only or withdrawn ownership supplies no source
             // grammar/profile from a nominal registry label.
             self.context.profile = None;
+            // dialect-drift-ok: withdrawn ownership claims no source grammar;
+            // the neutral one is the explicit absence of a document's
             self.context.grammar = tcl_dialect::LexerGrammar::default();
         }
         self.typed_assignment &= self.metadata_context.is_some();
         self
+    }
+
+    /// The grammar the run reads its document's text under.
+    pub(crate) const fn grammar(&self) -> &tcl_dialect::LexerGrammar {
+        &self.context.grammar
     }
 
     /// Say which function the run analyses and what it reads of the module

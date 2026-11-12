@@ -334,6 +334,7 @@ pub(super) struct SelectedSurveyRegistration<'t> {
 /// index does not mention the package" from "this index mentions it but can
 /// never register it".
 pub fn scan(content: &str, registry: &CommandRegistry, visit: &mut dyn FnMut(Reached<'_>)) {
+    // dialect-drift-ok: the standalone entry (tests); a caller with the loader's grammar uses `scan_with_config`
     scan_with_config(content, registry, LexerConfig::default(), visit);
 }
 

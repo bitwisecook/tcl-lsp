@@ -5658,6 +5658,9 @@ fn native_simple_text_component(text: &str) -> bool {
         tcl_lexer::SourceImage::native(text.as_bytes()),
         tcl_lexer::Span::new(0, length),
         SubstFlags::default(),
+        // dialect-drift-ok: `text` is a Text part already split under the
+        // document's grammar (no substitution); only its backslash runs are
+        // asked about, which every grammar decodes alike
         tcl_lexer::LexerConfig::default(),
     ) else {
         return false;

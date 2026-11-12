@@ -86,6 +86,7 @@ impl<'a> ShimmerContext<'a> {
     pub(crate) fn expression_parser(self) -> tcl_syntax::expr::parser::ExprParseContext {
         let mut parser = self.profile.map_or_else(
             || tcl_syntax::expr::parser::ExprParseContext {
+                // dialect-drift-ok: only the base; `self.config` is overlaid on it below
                 lexer_grammar: tcl_dialect::LexerGrammar::default(),
                 expr_grammar_base: None,
                 f5_word_grammar: None,

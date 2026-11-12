@@ -1324,7 +1324,7 @@ pub(super) fn any_command_recursive(
         if pred(&cmd) {
             return true;
         }
-        for inner in script_words(&cmd, registry) {
+        for inner in script_words(&cmd, registry, lexer_config) {
             if any_command_recursive(&inner, registry, lexer_config, pred) {
                 return true;
             }
@@ -1340,6 +1340,7 @@ pub(super) fn any_command_recursive(
 fn script_words<'c>(
     cmd: &'c SegmentedCommand,
     registry: BoundsMetadataContext<'_>,
+    lexer_config: tcl_lexer::LexerConfig,
 ) -> Vec<std::borrow::Cow<'c, str>> {
     let args = cmd.args();
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -1367,7 +1368,7 @@ fn script_words<'c>(
             clause_flags: spec.clause_flags,
             clause_value_flags: spec.clause_value_flags,
         };
-        match tcl_syntax::list::split_list(word) {
+        match tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config).split_list(word) {
             Ok(elements) => {
                 for clause in tcl_syntax::case_list::split_case_list(word, &shape) {
                     if let Some(body) = clause.body_index.and_then(|body| elements.get(body)) {

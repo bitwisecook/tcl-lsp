@@ -625,6 +625,9 @@ pub fn braced_body_source_region<'t>(
     } else {
         std::borrow::Cow::Borrowed(region)
     };
+    // dialect-drift-ok: the region is kept when it reads as `text` verbatim or
+    // under C's continuation fold; a grammar that keeps continuations (Jim)
+    // matches verbatim, and any other difference keeps `text`
     if folded == text || tcl_syntax::backslash::collapse_brace_continuations_str(&folded) == text {
         region
     } else {

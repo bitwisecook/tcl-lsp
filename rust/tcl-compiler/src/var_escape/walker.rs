@@ -774,7 +774,8 @@ pub fn analyse_script_with_registry<I: IntoIterator<Item = String>>(
     registry: &tcl_registry::CommandRegistry,
 ) -> ProcEscapeSummary {
     let inventory = collect_known_name_inventory_with_registry(params, body, registry);
-    let mut state = EscapeState::new(inventory.names);
+    let mut state = EscapeState::new(inventory.names)
+        .with_config(tcl_lexer::LexerConfig::for_profile(registry.profile()));
     if inventory.unknown_residual {
         state.mark_pessimistic();
     }

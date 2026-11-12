@@ -265,6 +265,8 @@ impl BytecodeCompileService {
                 registry: Box::new(registry),
                 profile_views: Mutex::new(FxHashMap::default()),
             },
+            // dialect-drift-ok: the profile-less constructor; a caller that has
+            // a document's dialect builds the service with `for_profile`
             config: LexerConfig::default(),
             profile: None,
         }

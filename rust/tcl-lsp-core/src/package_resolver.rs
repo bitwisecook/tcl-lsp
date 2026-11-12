@@ -298,6 +298,7 @@ fn collect_source_targets(
     out: &mut Vec<PathBuf>,
     depth: u32,
 ) {
+    // dialect-drift-ok: a package file on disk (pkgIndex.tcl, tclIndex or a file they source) carries no document dialect; every loader reads it under C Tcl's default grammar
     let config = tcl_lexer::LexerConfig::default();
     let Ok(length) = u32::try_from(text.len()) else {
         return;
@@ -378,6 +379,7 @@ pub fn parse_pkg_index(
     reachability::scan_selected_registrations(
         content,
         registry,
+        // dialect-drift-ok: a package file on disk (pkgIndex.tcl, tclIndex or a file they source) carries no document dialect; every loader reads it under C Tcl's default grammar
         tcl_lexer::LexerConfig::default(),
         &mut |selected| {
             let registration = selected.registration;
@@ -393,6 +395,7 @@ pub fn parse_pkg_index(
                     text,
                     words,
                     registry,
+                    // dialect-drift-ok: a package file on disk (pkgIndex.tcl, tclIndex or a file they source) carries no document dialect; every loader reads it under C Tcl's default grammar
                     tcl_lexer::LexerConfig::default(),
                 )
             else {
@@ -474,6 +477,7 @@ pub fn parse_tcl_index(
                 continue;
             }
             let Ok(parts) = tcl_syntax::word_rules::WordValueRules::from_config(
+                // dialect-drift-ok: a package file on disk (pkgIndex.tcl, tclIndex or a file they source) carries no document dialect; every loader reads it under C Tcl's default grammar
                 &tcl_lexer::LexerConfig::default(),
             )
             .split_list(line) else {
@@ -487,6 +491,7 @@ pub fn parse_tcl_index(
         return entries;
     }
 
+    // dialect-drift-ok: a package file on disk (pkgIndex.tcl, tclIndex or a file they source) carries no document dialect; every loader reads it under C Tcl's default grammar
     let config = tcl_lexer::LexerConfig::default();
     let Ok(length) = u32::try_from(content.len()) else {
         return entries;
@@ -561,6 +566,7 @@ fn push_auto_entry(
 /// lookup, installation or successful loading authority.
 #[must_use]
 pub fn package_requires_in(content: &str) -> Vec<String> {
+    // dialect-drift-ok: a package file on disk (pkgIndex.tcl, tclIndex or a file they source) carries no document dialect; every loader reads it under C Tcl's default grammar
     let config = tcl_lexer::LexerConfig::default();
     let Ok(length) = u32::try_from(content.len()) else {
         return Vec::new();

@@ -56,6 +56,7 @@ fn cfg_replay_retains_actual_entry_without_later_world_mutations() {
                 UnitBuildOptions {
                     registry: assistance.commands(),
                     defer_top_level: false,
+                    // dialect-drift-ok: this file is a #[cfg(test)] module (see command_binding.rs)
                     config: tcl_lexer::LexerConfig::default(),
                     dialect: assistance.commands().profile(),
                     external_call_sites: None,
@@ -407,6 +408,7 @@ fn original_snapshot_equality_retains_source_frame_alias_epoch_and_native_contex
 fn original_snapshot_source(source: &str) -> SourceCommandBindings {
     SourceCommandBindings::analyse_with_options(
         source,
+        // dialect-drift-ok: this file is a #[cfg(test)] module (see command_binding.rs)
         tcl_lexer::LexerConfig::default(),
         &tcl_registry::CommandRegistry::build_default(),
         super::SourceAnalysisOptions {

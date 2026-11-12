@@ -3409,6 +3409,7 @@ fn all_argument_candidates(
 fn arg_var_names(arg: &str, braced_var: tcl_dialect::BracedVarStyle) -> HashSet<String> {
     let config = tcl_lexer::LexerConfig {
         braced_var,
+        // dialect-drift-ok: a #[cfg(test)] helper
         ..tcl_lexer::LexerConfig::default()
     };
     arg_var_names_with_config(arg, config)

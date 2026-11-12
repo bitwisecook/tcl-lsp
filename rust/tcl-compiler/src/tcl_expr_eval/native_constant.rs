@@ -112,6 +112,7 @@ impl FoldOps<'_> {
         };
         let desc = if desc == OperandDesc::NonNumericString
             && version >= tcl_dialect::TclVersion::V9_0
+            // dialect-drift-ok: a C Tcl 9.0+ operand, read as that release reads it
             && tcl_syntax::list::split_list(&bytes).is_ok_and(|items| items.len() > 1)
         {
             OperandDesc::List

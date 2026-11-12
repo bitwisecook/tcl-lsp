@@ -230,6 +230,8 @@ impl VarReferenceScanner {
     /// Create a new scanner with the given options and default cache size.
     #[must_use]
     pub fn new(options: VarScanOptions) -> Self {
+        // dialect-drift-ok: the standalone constructor; a document's scan uses
+        // `for_registry` / `with_config`
         Self::with_config(options, LexerConfig::default())
     }
 
@@ -253,6 +255,7 @@ impl VarReferenceScanner {
     /// Create a new scanner with a custom cache size.
     #[must_use]
     pub fn with_cache_size(options: VarScanOptions, cache_size: usize) -> Self {
+        // dialect-drift-ok: the standalone constructor, as `new`
         Self::with_config_and_cache_size(options, LexerConfig::default(), cache_size)
     }
 

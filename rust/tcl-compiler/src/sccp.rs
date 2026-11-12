@@ -5070,9 +5070,9 @@ pub(crate) fn evaluate_branch_under<S: std::hash::BuildHasher>(
 ) -> Option<bool> {
     // A substituted condition word reads as the word written as the
     // expression, which agrees with C whenever its value is a number.
-    let written = condition
-        .substituted_word_source()
-        .map(|word| tcl_syntax::expr::parse_expr(&word, None));
+    let written = condition.substituted_word_source().map(|word| {
+        tcl_syntax::expr::parser::parse_expr_with_grammar(&word, fold.driver.grammar())
+    });
     let condition = written.as_ref().unwrap_or(condition);
     let mut uses: HashMap<Symbol, crate::ssa::Version> = ssa_block
         .exit_versions

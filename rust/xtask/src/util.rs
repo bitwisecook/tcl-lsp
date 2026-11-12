@@ -83,8 +83,13 @@ pub fn test_module_start(lines: &[&str]) -> Option<usize> {
             .iter()
             .map(|l| l.trim_start())
             .find(|l| !l.is_empty() && !l.starts_with("#["))?;
-        let item = next.strip_prefix("pub ").unwrap_or(next);
-        let item = item.strip_prefix("(crate) ").unwrap_or(item);
+        // Any visibility: `pub`, `pub(crate)`, `pub(super)`, `pub(in path)`.
+        let item = next.strip_prefix("pub").map_or(next, |rest| {
+            rest.strip_prefix('(')
+                .and_then(|scoped| scoped.split_once(')'))
+                .map_or(rest, |(_, after)| after)
+                .trim_start()
+        });
         (item.starts_with("mod ")).then_some(i)
     })
 }

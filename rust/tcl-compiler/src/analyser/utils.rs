@@ -1462,6 +1462,8 @@ pub fn scan_source_for_stubs(
     Vec<super::types::StubExprDef>,
 ) {
     let (commands, expressions, _) =
+        // dialect-drift-ok: sidecar stub declarations (and tests); a document's
+        // stubs are scanned by `scan_source_for_stubs_with_outside` under its config
         scan_source_for_stubs_with_outside(source, tcl_lexer::LexerConfig::default());
     (commands, expressions)
 }

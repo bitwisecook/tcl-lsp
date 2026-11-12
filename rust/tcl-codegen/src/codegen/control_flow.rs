@@ -457,7 +457,9 @@ impl CodegenCtx<'_> {
                 .is_some_and(|selector| {
                     selector.known()
                         && (clause.kind != TryClauseKind::Trap
-                            || tcl_syntax::list::split_list(selector.text)
+                            || self
+                                .word_rules
+                                .split_list(selector.text)
                                 .is_ok_and(|codes| !codes.is_empty()))
                 });
             let variables = clause
@@ -465,7 +467,7 @@ impl CodegenCtx<'_> {
                 .and_then(word)
                 .is_some_and(|list| {
                     list.known()
-                        && tcl_syntax::list::split_list(list.text).is_ok_and(|names| {
+                        && self.word_rules.split_list(list.text).is_ok_and(|names| {
                             names.len() <= 2
                                 && names.iter().all(|name| is_release_local_scalar_name(name))
                         })
@@ -489,7 +491,7 @@ impl CodegenCtx<'_> {
             .iter()
             .filter_map(|clause| clause.variable_list_index)
             .filter_map(|index| arg_refs.get(index))
-            .filter_map(|list| tcl_syntax::list::split_list(list).ok())
+            .filter_map(|list| self.word_rules.split_list(list).ok())
             .flatten()
             .map(|name| name.to_string())
             .collect();
@@ -676,7 +678,10 @@ impl CodegenCtx<'_> {
             return None;
         }
 
-        let names = tcl_syntax::list::split_list(&args[variable_list_index].0).ok()?;
+        let names = self
+            .word_rules
+            .split_list(&args[variable_list_index].0)
+            .ok()?;
         let result_var = names.first().map(ToString::to_string);
         let options_var = names.get(1).map(ToString::to_string);
         // Empty receivers have engine-specific output semantics and stay generic.

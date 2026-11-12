@@ -4537,6 +4537,7 @@ impl CfgCommandClasses {
                 crate::environment_ingress::authoring_invocation_dialect(
                     registry,
                     None,
+                    // dialect-drift-ok: a #[cfg(test)] field of a standalone (no document) context
                     tcl_lexer::LexerConfig::default(),
                 ),
             ),

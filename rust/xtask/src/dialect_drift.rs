@@ -66,7 +66,7 @@
 //! keeps the default grammar and says why: `// dialect-drift-ok: <reason>`
 //! on the line or in the comment block directly above it. Test modules
 //! (`#[cfg(test)]` and everything after it, `tests/` directories,
-//! `tests.rs` files) are exempt: a test may pin the default grammar on
+//! `tests.rs` and `*_tests.rs` files) are exempt: a test may pin the default grammar on
 //! purpose.
 
 use std::fmt::Write as _;
@@ -223,6 +223,7 @@ fn is_exempt_path(rel: &str) -> bool {
     SANCTIONED_PREFIXES.iter().any(|p| rel.starts_with(p))
         || rel.contains("/tests/")
         || rel.ends_with("/tests.rs")
+        || rel.ends_with("_tests.rs")
         || rel.contains("/examples/")
         || rel.contains("/benches/")
 }
@@ -508,6 +509,16 @@ mod tests {
     }
 
     #[test]
+    fn a_scoped_public_test_module_is_a_test_tail() {
+        for visibility in ["pub ", "pub(crate) ", "pub(super) ", "pub(in crate::a) "] {
+            let src = format!(
+                "fn f() {{}}\n#[cfg(test)]\n{visibility}mod tests {{\n    fn g() {{ Lexer::new(\"x\"); }}\n}}\n"
+            );
+            assert_eq!(scan(REL, &src).len(), 0, "{visibility}");
+        }
+    }
+
+    #[test]
     fn a_cfg_test_on_a_single_item_does_not_end_the_scan() {
         let src = "#[cfg(test)]\nuse foo::bar;\nfn f(s: &str) { Lexer::new(s); }\n#[cfg(test)]\nmod tests {}\n";
         assert_eq!(scan(REL, src).len(), 1);
@@ -648,6 +659,10 @@ mod tests {
     fn sanctioned_and_test_paths_are_exempt() {
         assert!(is_exempt_path("rust/tcl-lexer/src/lexer.rs"));
         assert!(is_exempt_path("rust/tcl-compiler/tests/foo.rs"));
+        assert!(is_exempt_path(
+            "rust/tcl-compiler/src/a/native_context_tests.rs"
+        ));
+        assert!(!is_exempt_path("rust/tcl-compiler/src/a/contests.rs"));
         assert!(is_exempt_path(
             "rust/tcl-compiler/src/analyser/diagnostics/tests.rs"
         ));

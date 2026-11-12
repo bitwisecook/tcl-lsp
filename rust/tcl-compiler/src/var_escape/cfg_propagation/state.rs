@@ -114,9 +114,18 @@ pub struct CfgState {
     pub barriers: Vec<crate::var_escape::types::Barrier>,
     /// Per-name escape reasons.
     pub tag_reasons: HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
+    /// The grammar the walked document reads `$name` spellings under.
+    config: tcl_lexer::LexerConfig,
 }
 
 impl CfgState {
+    /// The same state, reading alias spellings under the document's grammar.
+    #[must_use]
+    pub fn with_config(mut self, config: tcl_lexer::LexerConfig) -> Self {
+        self.config = config;
+        self
+    }
+
     /// Create a state seeded with the given known-name set.
     #[must_use]
     pub fn new<I: IntoIterator<Item = String>>(known_names: I) -> Self {
@@ -351,14 +360,12 @@ impl CfgState {
     /// Dynamic-name uncertainty remains independent of this hint.
     #[must_use]
     pub fn resolve_literal(&self, token: &str) -> Option<String> {
-        tcl_syntax::naming::unattributed_variable_alias_hint(
-            token,
-            tcl_lexer::LexerConfig::default(),
-            |reference| match self.literal_assigns.get(reference)? {
+        tcl_syntax::naming::unattributed_variable_alias_hint(token, self.config, |reference| {
+            match self.literal_assigns.get(reference)? {
                 LiteralBinding::Set(value) => Some(value.as_str()),
                 LiteralBinding::Invalidated => None,
-            },
-        )
+            }
+        })
         .map(str::to_owned)
     }
 

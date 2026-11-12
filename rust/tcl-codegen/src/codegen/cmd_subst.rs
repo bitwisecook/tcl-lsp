@@ -297,6 +297,7 @@ pub fn unroll_nested_set(value: &str) -> Option<Vec<String>> {
 /// Standalone default-grammar query for one whole command substitution.
 #[must_use]
 pub fn is_pure_cmd_subst(value: &str) -> bool {
+    // dialect-drift-ok: standalone default-grammar helper for callers with no document (tests, tools); document paths use the _with_config form
     is_pure_cmd_subst_with_config(value, tcl_lexer::LexerConfig::default())
 }
 
@@ -307,6 +308,7 @@ pub(super) fn is_pure_cmd_subst_with_config(value: &str, config: tcl_lexer::Lexe
 /// Standalone default-grammar query for a script command terminator.
 #[must_use]
 pub fn has_command_separator(text: &str) -> bool {
+    // dialect-drift-ok: standalone default-grammar helper for callers with no document (tests, tools); document paths use the _with_config form
     has_command_separator_with_config(text, tcl_lexer::LexerConfig::default())
 }
 
@@ -347,6 +349,7 @@ pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> boo
 /// Default Tcl lexical projection for standalone callers.
 #[must_use]
 pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
+    // dialect-drift-ok: standalone default-grammar helper for callers with no document (tests, tools); document paths use the _with_config form
     parse_cmd_parts_with_config(text.trim(), tcl_lexer::LexerConfig::default()).unwrap_or_default()
 }
 
@@ -418,6 +421,7 @@ pub(super) fn lone_spelled_expression(args: &[(String, bool)]) -> bool {
 /// Default Tcl lexical projection preserving expansion markers.
 #[must_use]
 pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
+    // dialect-drift-ok: standalone default-grammar helper for callers with no document (tests, tools); document paths use the _with_config form
     parse_cmd_parts_expand_with_config(text.trim(), tcl_lexer::LexerConfig::default())
         .unwrap_or_default()
 }

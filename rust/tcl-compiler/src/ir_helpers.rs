@@ -1954,7 +1954,11 @@ fn record_loop_binders(
         } else {
             word.literal().filter(|_| !word.raw.contains('\\'))
         }
-        .and_then(|list| tcl_syntax::list::split_list(list).ok());
+        .and_then(|list| {
+            tcl_syntax::word_rules::WordValueRules::from_config(&context.config)
+                .split_list(list)
+                .ok()
+        });
         let Some(names) = names else {
             out.opaque = true;
             continue;

@@ -325,6 +325,8 @@ pub(super) fn static_formals(
     // parser must agree at both levels; this is no Native parameter recipe.
     let parameters = tcl_syntax::formal_params::parse_formal_parameters(text).ok()?;
     matching_list_elements(text, syntax)?;
+    // dialect-drift-ok: `matching_list_elements` has proved the strict and
+    // the selected splits of `text` agree element for element
     for specifier in tcl_syntax::list::split_list(text).ok()? {
         matching_list_elements(&specifier, syntax)?;
     }
