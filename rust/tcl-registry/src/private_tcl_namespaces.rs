@@ -234,6 +234,8 @@ pub fn required_package_namespace_advice_covers(package: &str, command: &str) ->
         return false;
     }
     let command = tcl_syntax::naming::canonical_written_command(command);
+    // A rooted spelling names the same global-relative path.
+    let command = command.strip_prefix("::").unwrap_or(&command);
     command == package
         || command
             .strip_prefix(package)

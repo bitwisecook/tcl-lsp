@@ -1067,6 +1067,26 @@ impl ValueOps for ConstOps<'_> {
             .filter(|model| *model != tcl_dialect::StringCharacterModel::Jim084Utf8)
     }
 
+    /// The named C release's container index policy. A target naming no
+    /// release hands the cores only indices every C release reads alike
+    /// ([`ConstOps::index`] reads them first; a regex `-start` is proved
+    /// release-stable), so 9.0's policy, which its numerals and regex core
+    /// already default to, reads each as every release does. Jim abstains.
+    fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
+        match self.target.release {
+            Some(release) => Some(tcl_dialect::IndexSyntax::for_version(release)),
+            None if self
+                .target
+                .profile
+                .and_then(DialectProfile::index_syntax)
+                .is_some() =>
+            {
+                None
+            }
+            None => Some(tcl_dialect::IndexSyntax::for_version(TclVersion::V9_0)),
+        }
+    }
+
     /// No host is named at compile time: a reading the host's `long`
     /// decides declines.
     fn reads_a_wide_long(&mut self) -> bool {

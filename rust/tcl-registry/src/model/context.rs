@@ -1966,8 +1966,12 @@ mod tests {
 
     #[test]
     fn selected_surface_still_refuses_missing_package_without_wider_fallback() {
+        // A hosted library (`Tk`) is assumed present in an open world, so the
+        // missing package is one a vendor surface owns.
         let mut registry = CommandRegistry::build_default();
-        for (surface, required_package) in [(None, None), (Some(SpecSurface::TCL86), Some("Tk"))] {
+        for (surface, required_package) in
+            [(None, None), (Some(SpecSurface::TCL86), Some("expect"))]
+        {
             registry.insert(CommandSpec {
                 name: "post-surface-package-control",
                 surface,
@@ -1984,7 +1988,7 @@ mod tests {
             let winner = registry
                 .get_for_surface(name, Some(older.authoring_query()))
                 .unwrap();
-            assert_eq!(winner.required_package, Some("Tk"));
+            assert_eq!(winner.required_package, Some("expect"));
             assert!(!older.spec_available(winner));
             assert!(older.resolve_spec(&registry, name).is_none());
             assert_eq!(

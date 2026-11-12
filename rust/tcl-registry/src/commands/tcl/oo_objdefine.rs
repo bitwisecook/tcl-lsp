@@ -236,16 +236,32 @@ mod source_target_role_tests {
     fn object_target_name_preserves_both_definition_body_shapes() {
         let descriptor = spec();
         assert_eq!(descriptor.arg_roles, &[(0, ArgRole::Name)]);
-        let bodies = descriptor
-            .arg_role_resolver
+        let layout = descriptor
+            .arg_role_layout_resolver
             .expect("shared definition body owner");
+        let bodies = |args: &[&str]| {
+            layout(
+                crate::InvocationArguments::literals(args),
+                crate::resolved_invocation::InvocationOptions {
+                    availability: crate::resolved_invocation::InvocationAvailability::default(),
+                    parent_surface: None,
+                    form_surface: None,
+                    prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+                    positional_prefix_words: 0,
+                    reserved_trailing_words: 0,
+                    case_list: None,
+                    base: &[],
+                    form: &[],
+                },
+            )
+        };
         assert_eq!(
             bodies(&["object target", "method greet {} {puts hello}"]),
-            vec![(1, ArgRole::Body)]
+            Some(vec![(1, ArgRole::Body)])
         );
         assert_eq!(
             bodies(&["object target", "method", "greet", "{}", "puts hello"]),
-            vec![(4, ArgRole::Body)]
+            Some(vec![(4, ArgRole::Body)])
         );
         assert!(
             crate::source_navigation::static_tcl_source_display(

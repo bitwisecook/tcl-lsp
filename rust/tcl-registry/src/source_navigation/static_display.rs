@@ -157,8 +157,11 @@ mod tests {
     fn static_display_extends_real_regex_option_rows_without_reordering_existing_union() {
         let mut registry = CommandRegistry::build_default();
         let before = static_tcl_source_display(&registry).expect("authored source display");
+        // The union follows the regex commands' order, and `regsub` (the
+        // last) brings its own `-command` row (Tcl 9.0), so a row is added to
+        // `regsub` for the extension to land after the whole existing union.
         registry.insert(CommandSpec {
-            name: "regexp",
+            name: "regsub",
             pattern_type: Some(PatternType::Regex),
             options: &[crate::hover::OptionSpec {
                 name: "-sourcefuture",

@@ -361,14 +361,15 @@ mod tests {
                         WorldStateDomain::CompletionState
                     ]
                 );
-                let missing_grammar =
+                // The lenient profile names no grammar, but every release
+                // reads these words alike: no error state is written (tclsh
+                // 8.4 to 9.1 leave `::errorCode` and `::errorInfo` as set).
+                let unanimous =
                     InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
-                assert!(
-                    selected
-                        .authored_source_effects_and_state_transitions(missing_grammar)
-                        .0
-                        .requires_world_barrier()
-                );
+                let (effects, transitions) =
+                    selected.authored_source_effects_and_state_transitions(unanimous);
+                assert!(!effects.requires_world_barrier());
+                assert_eq!(transitions.facts().len(), 0);
             }
             for arguments in [
                 vec![Literal("-code"), Literal("error"), Dynamic],

@@ -13164,8 +13164,10 @@ mod logical_source_alias_projection_tests {
         ) -> crate::world_effect::EffectFootprint {
             crate::world_effect::EffectFootprint::conservative_unknown_invocation()
         }
-        let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let context = crate::model::ingress::context_for_profile(profile);
+        // The lenient profile spans 8.4, which has no `dict`.
+        let ingress = crate::model::ingress::resolve_environment("tcl8.6");
+        let context = ingress.default_context_registry();
+        let profile = ingress.unit_profile();
         let arguments = [
             crate::InvocationWord::Literal("with"),
             crate::InvocationWord::Literal("$dict"),

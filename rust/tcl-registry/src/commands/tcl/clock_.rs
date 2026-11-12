@@ -133,6 +133,58 @@ macro_rules! clock_reading_compiler {
     };
 }
 
+const FORMAT_FORMAT_OPTION: OptionSpec = OptionSpec {
+    name: "-format",
+    // The value is the `clock` field string, not a generic value: the
+    // `ArgRole::FormatString` role is what lets the LSP find it without
+    // naming `clock`; the *family* comes from the
+    // subcommand's `format_string_type`.
+    value: OptionValue::Takes(OptionArg {
+        role: ArgRole::FormatString,
+        hint: "format",
+        ..OptionArg::DEFAULT
+    }),
+    detail: "strftime-style output format string (default \"%a %b %d %H:%M:%S %Z %Y\").",
+    surface: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+    effect: None,
+};
+
+const FORMAT_GMT_OPTION: OptionSpec = OptionSpec {
+    name: "-gmt",
+    value: OptionValue::boolean(),
+    detail: "Format in UTC instead of the local time zone; superseded by -timezone :UTC but still accepted.",
+    surface: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+    effect: None,
+};
+
+const FORMAT_LOCALE_OPTION: OptionSpec = OptionSpec {
+    name: "-locale",
+    value: OptionValue::value("locale"),
+    detail: "Locale for month / day-of-week names and the other locale-dependent format groups (%a, %c, ...).",
+    surface: Some(SpecSurface::TCL85_PLUS),
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+    effect: None,
+};
+
+const FORMAT_TIMEZONE_OPTION: OptionSpec = OptionSpec {
+    name: "-timezone",
+    value: OptionValue::value("tz"),
+    detail: "Time zone to format the value in.",
+    surface: Some(SpecSurface::TCL85_PLUS),
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+    effect: None,
+};
+
 /// Options accepted by `clock format`.
 ///
 /// Tcl 8.4's `clock format` only ever took `-format`/`-gmt`
@@ -141,53 +193,25 @@ macro_rules! clock_reading_compiler {
 /// (TIP 173). `clock format` never takes `-base` or `-validate` —
 /// those are `clock scan`-only.
 static FORMAT_OPTIONS: &[OptionSpec] = &[
+    FORMAT_FORMAT_OPTION,
+    FORMAT_GMT_OPTION,
+    FORMAT_LOCALE_OPTION,
+    FORMAT_TIMEZONE_OPTION,
+];
+
+/// `::tcl::clock::ParseFormatArgs` takes all four wherever it exists
+/// (tclsh 8.5 and 8.6: `must be -format, -gmt, -locale, or -timezone`), so
+/// no option narrows the worker's own surface.
+static PARSE_FORMAT_ARGS_OPTIONS: &[OptionSpec] = &[
+    FORMAT_FORMAT_OPTION,
+    FORMAT_GMT_OPTION,
     OptionSpec {
-        name: "-format",
-        // The value is the `clock` field string, not a generic value: the
-        // `ArgRole::FormatString` role is what lets the LSP find it without
-        // naming `clock`; the *family* comes from the
-        // subcommand's `format_string_type`.
-        value: OptionValue::Takes(OptionArg {
-            role: ArgRole::FormatString,
-            hint: "format",
-            ..OptionArg::DEFAULT
-        }),
-        detail: "strftime-style output format string (default \"%a %b %d %H:%M:%S %Z %Y\").",
         surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
+        ..FORMAT_LOCALE_OPTION
     },
     OptionSpec {
-        name: "-gmt",
-        value: OptionValue::boolean(),
-        detail: "Format in UTC instead of the local time zone; superseded by -timezone :UTC but still accepted.",
         surface: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-locale",
-        value: OptionValue::value("locale"),
-        detail: "Locale for month / day-of-week names and the other locale-dependent format groups (%a, %c, ...).",
-        surface: Some(SpecSurface::TCL85_PLUS),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
-    },
-    OptionSpec {
-        name: "-timezone",
-        value: OptionValue::value("tz"),
-        detail: "Time zone to format the value in.",
-        surface: Some(SpecSurface::TCL85_PLUS),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-        effect: None,
+        ..FORMAT_TIMEZONE_OPTION
     },
 ];
 
@@ -668,7 +692,7 @@ pub fn parse_format_args_spec() -> CommandSpec {
         runtime_backing: RuntimeBacking::shipped("tcl::clock::ParseFormatArgs"),
         surface: Some(SpecSurface::TCL86),
         arity: Arity::at_least(1),
-        options: FORMAT_OPTIONS,
+        options: PARSE_FORMAT_ARGS_OPTIONS,
         option_prefix_words: 1,
         return_type: Some(TclType::List),
         ..CommandSpec::DEFAULT

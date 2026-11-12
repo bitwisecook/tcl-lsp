@@ -241,8 +241,16 @@ mod tests {
         assert_eq!(
             context
                 .namespace_package_ownership()
+                .package_for_namespace("msgcat"),
+            Some("msgcat")
+        );
+        // `::http::cookiejar` is the `cookiejar` package's class (Tcl 9.0
+        // `library/cookiejar`), so the `http` namespace has no one owner.
+        assert_eq!(
+            context
+                .namespace_package_ownership()
                 .package_for_namespace("http"),
-            Some("http")
+            None
         );
         assert_eq!(store.specs("fixture-tools::fetch").len(), 1);
     }

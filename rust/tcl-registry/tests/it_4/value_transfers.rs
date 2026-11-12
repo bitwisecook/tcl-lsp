@@ -7978,9 +7978,11 @@ fn return_reads_its_options_as_the_release_does() {
                 "{dialect:?}: {words:?}"
             );
         }
+        // An `-options` value that is no dictionary is rejected at level 0
+        // (tclsh 8.6 to 9.1: `expected dict but got "{-code 1}"`).
         assert_eq!(
-            run(&[w("-options"), w("{-code 1}"), w("m")]),
-            EvalAnswer::Declined(DeclineReason::Unsupported)
+            raised(&run(&[w("-options"), w("{-code 1}"), w("m")])),
+            Some((0, None, None))
         );
         // `-code return` is `ok` one level further out: `catch {return -code
         // return x} m o` leaves `o` holding `-code 0 -level 2`.

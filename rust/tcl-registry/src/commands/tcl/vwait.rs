@@ -196,10 +196,24 @@ fn vwait_layout_roles(
     arguments: crate::InvocationArguments<'_>,
     _options: crate::resolved_invocation::InvocationOptions<'_, '_>,
 ) -> Option<Vec<(u8, ArgRole)>> {
-    arguments
-        .dialect()?
-        .native_vwait_protocol()?
-        .source_roles(arguments)
+    let roles_under = |dialect: crate::InvocationDialect| {
+        dialect.native_vwait_protocol()?.source_roles(arguments)
+    };
+    if let Some(dialect) = arguments.dialect() {
+        return roles_under(dialect);
+    }
+    // No engine named: the roles every C release and Jim give (a lone
+    // `vwait done` names its variable in each), else none.
+    let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+        tcl_dialect::model::Release::JIM_0_84,
+    ));
+    let mut answers = tcl_dialect::TclVersion::ALL
+        .iter()
+        .map(|&version| crate::InvocationDialect::for_version(version))
+        .chain([jim])
+        .map(roles_under);
+    let first = answers.next()?;
+    answers.all(|answer| answer == first).then_some(first)?
 }
 
 pub fn spec() -> CommandSpec {

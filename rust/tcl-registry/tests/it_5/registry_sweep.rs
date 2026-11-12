@@ -1401,22 +1401,52 @@ fn is_core_command(spec: &tcl_registry::CommandSpec) -> bool {
             .is_none_or(|rows| tcl_dialect::model::surface_admits_from(rows, Family::Tcl, "9.0"))
 }
 
-/// A command outside the core set claims nothing it does not have: the WASM
-/// command-parity gate asks the runtime about core commands only, so nothing
-/// else would hold a declaration elsewhere to anything. (A core command's
-/// declaration is the gate's to check against what each runtime reports.)
+/// A command outside the core set claims nothing it does not have. The WASM
+/// command-parity gate asks the runtime about core commands only, so a row
+/// outside that set declares no backing, or the one its command's core row
+/// declares (one name is one command, as the gate holds it), or else the
+/// shipped builtin of its own name: the builtin the runtime registers in the
+/// release or Jim mode the row describes (Jim's `exists`, C 8.6's
+/// `::tcl::clock::getenv`). The iRules test harness reads the backing of
+/// `catch`'s Tcl 8.4/iRules row to keep the real `catch` unmocked.
 ///
 /// registry-metadata: `runtime_backing` is registry data.
 #[test]
-fn a_spec_outside_the_core_set_declares_no_backing() {
-    let declared: Vec<_> = tcl_registry::commands::tcl::tcl_command_specs()
+fn a_spec_outside_the_core_set_declares_only_its_own_builtin() {
+    use tcl_registry::RuntimeBacking;
+
+    let specs = tcl_registry::commands::tcl::tcl_command_specs();
+    let core: std::collections::BTreeMap<&str, RuntimeBacking> = specs
+        .iter()
+        .filter(|spec| is_core_command(spec))
+        .map(|spec| (spec.name, spec.runtime_backing))
+        .collect();
+    let mut outside = 0usize;
+    let declared: Vec<_> = specs
         .iter()
         .filter(|spec| !is_core_command(spec) && !spec.runtime_backing.is_none())
-        .map(|spec| format!("{} {:?}", spec.name, spec.surface))
+        .inspect(|_| outside += 1)
+        .filter(|spec| {
+            core.get(spec.name).map_or_else(
+                || spec.runtime_backing != RuntimeBacking::shipped(spec.name),
+                |backing| *backing != spec.runtime_backing,
+            )
+        })
+        .map(|spec| {
+            format!(
+                "{} {:?} {:?}",
+                spec.name, spec.surface, spec.runtime_backing
+            )
+        })
         .collect();
     assert!(
         declared.is_empty(),
-        "commands outside the core set must keep their backing `None`: {declared:#?}"
+        "commands outside the core set must keep their backing `None` or their own builtin's: \
+         {declared:#?}"
+    );
+    assert!(
+        outside > 0,
+        "the release and Jim rows of core commands are checked"
     );
 }
 

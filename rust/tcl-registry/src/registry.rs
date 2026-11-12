@@ -7943,11 +7943,15 @@ impl CommandRegistry {
         wanted: &[ArgRole],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<Vec<(usize, ArgRole)>> {
-        let args = args.with_profile(self.profile());
+        // A caller's own engine selects its query. Otherwise the registry's
+        // query selects, with the packages its profile loaded: the engine
+        // projection of that profile carries none, so it would refuse a
+        // package's own statements (`iapp::conf`, a `SpecTcl` block).
         let query = args
             .dialect()
             .and_then(crate::InvocationDialect::authoring_query)
             .or(dialect);
+        let args = args.with_profile(self.profile());
         let words = InvocationWords::from_arguments(InvocationWord::Literal(name), args);
         let resolved = self
             .resolve_structured_invocation(words, query)
