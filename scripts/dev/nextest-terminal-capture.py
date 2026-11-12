@@ -21,6 +21,7 @@
 
 import argparse
 import base64
+import codecs
 import hashlib
 import json
 import logging
@@ -42,6 +43,9 @@ LOGGER = logging.getLogger(__name__)
 MAX_LIST = 16 * 1024 * 1024
 MAX_EVENT = 64 * 1024
 MAX_NAME = 4096
+# Plain text and complete JSON escapes inside the streamed output string; the
+# closing quote, partial escapes and raw control bytes fall to the byte path.
+OUTPUT_RUN = re.compile(rb'(?:[^"\\\x00-\x1f]+|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})+')
 MAX_DIAGNOSTIC = 2 * 1024 * 1024
 MAX_TERMINAL = 64 * 1024 * 1024
 CONSOLE_CAP = 20_000_000
@@ -106,16 +110,39 @@ class EventStream:
         self.output_hash = hashlib.sha256()
         self.output_sample = bytearray()
         self.output_seen = False
-        self.utf8_pending = 0
-        self.utf8_low = 128
-        self.utf8_high = 191
+        self.utf8 = codecs.getincrementaldecoder("utf-8")("strict")
 
     def _reset(self):
         self.__init__()
 
+    def _output(self, data):
+        try:
+            self.utf8.decode(data)
+        except UnicodeDecodeError as exc:
+            raise CaptureError("invalid UTF-8 in output string") from exc
+        self.output_len += len(data)
+        self.output_hash.update(data)
+        if len(self.output_sample) < 128:
+            self.output_sample.extend(data[: 128 - len(self.output_sample)])
+
     def feed(self, block):
         events = []
-        for ch in block:
+        index = 0
+        size = len(block)
+        while index < size:
+            if (
+                self.in_string
+                and self.skip_output
+                and not self.escaped
+                and not self.unicode_left
+            ):
+                run = OUTPUT_RUN.match(block, index)
+                if run:
+                    self._output(block[index : run.end()])
+                    index = run.end()
+                    continue
+            ch = block[index]
+            index += 1
             if ch == 10 and not self.in_string:
                 if self.line:
                     try:
@@ -142,28 +169,6 @@ class EventStream:
                 continue
             if self.in_string:
                 if self.skip_output:
-                    if self.utf8_pending:
-                        if not self.utf8_low <= ch <= self.utf8_high:
-                            raise CaptureError("invalid UTF-8 continuation in output")
-                        self.utf8_pending -= 1
-                        self.utf8_low, self.utf8_high = 128, 191
-                    elif ch >= 128:
-                        if 194 <= ch <= 223:
-                            self.utf8_pending = 1
-                        elif ch == 224:
-                            self.utf8_pending, self.utf8_low = 2, 160
-                        elif 225 <= ch <= 236 or 238 <= ch <= 239:
-                            self.utf8_pending = 2
-                        elif ch == 237:
-                            self.utf8_pending, self.utf8_high = 2, 159
-                        elif ch == 240:
-                            self.utf8_pending, self.utf8_low = 3, 144
-                        elif 241 <= ch <= 243:
-                            self.utf8_pending = 3
-                        elif ch == 244:
-                            self.utf8_pending, self.utf8_high = 3, 143
-                        else:
-                            raise CaptureError("invalid UTF-8 leading byte in output")
                     if self.unicode_left:
                         if ch not in b"0123456789abcdefABCDEF":
                             raise CaptureError("invalid unicode escape in output")
@@ -176,10 +181,7 @@ class EventStream:
                     elif ch < 32:
                         raise CaptureError("raw control byte in output string")
                     if ch != 34 or self.escaped:
-                        self.output_len += 1
-                        self.output_hash.update(bytes((ch,)))
-                        if len(self.output_sample) < 128:
-                            self.output_sample.append(ch)
+                        self._output(bytes((ch,)))
                 else:
                     self.line.append(ch)
                     if len(self.current) < MAX_NAME:
@@ -191,8 +193,12 @@ class EventStream:
                 elif ch == 34:
                     self.in_string = False
                     if self.skip_output:
-                        if self.utf8_pending:
-                            raise CaptureError("truncated UTF-8 in output string")
+                        try:
+                            self.utf8.decode(b"", final=True)
+                        except UnicodeDecodeError as exc:
+                            raise CaptureError(
+                                "truncated UTF-8 in output string"
+                            ) from exc
                         self.line.extend(b'"<streamed>"')
                         self.skip_output = False
                     else:

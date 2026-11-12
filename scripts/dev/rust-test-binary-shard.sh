@@ -192,7 +192,8 @@ esac
 # Core and the DB compiler-check differential consume fixed upstream Tcllib
 # fixtures. Listing/build-only jobs do not; execution uses Make's bootstrap.
 if [ "$operation" = run ] && [ "${needs_fixed_tcllib:-0}" = 1 ]; then
-    bash "$script_dir/ensure-test-deps.sh" --tcllib-only
+    # stdout is the reporter stream; keep the bootstrap log off it.
+    bash "$script_dir/ensure-test-deps.sh" --tcllib-only >&2
 fi
 
 exec cargo nextest "$operation" \
