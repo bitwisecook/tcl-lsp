@@ -868,7 +868,9 @@ impl crate::var_resolve::ResolveContext {
             .iter()
             .all(|index| self.contents_already_native_numeric_at(index, registry))
         {
-            self.invalidate_shared_representations();
+            // Converting an index replaces its intrep, never its bytes: a
+            // stock literal it may share stays a stock-class object.
+            self.coerce_representations_for_values(None);
             return false;
         }
         let ordinary = self

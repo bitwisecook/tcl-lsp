@@ -1610,6 +1610,14 @@ fn pair_slice_empty(first: i64, last: i64, length: i64) -> bool {
     both_below || both_above || clamped_first > clamped_last
 }
 
+/// Whether `lrange`, `string range` or `string replace` over `first..=last`
+/// touches nothing: Tcl raises a negative `first` to 0 and lowers a `last`
+/// past the end to the last element, then takes nothing when `first` lies
+/// beyond `last`.
+fn range_slice_empty(first: i64, last: i64, length: i64) -> bool {
+    first.max(0) > last.min(length - 1)
+}
+
 /// Human-readable description of a resolved out-of-range string index.
 fn describe_index_string(resolved: i64, length: i64) -> String {
     if resolved < 0 {
@@ -2478,6 +2486,21 @@ mod tests {
             idx_codes("lrange {a b c} 0 1\n"),
             [] as [std::string::String; 0]
         );
+        // A first index past the end empties the slice whatever `last` is
+        // (#2387); `lreplace` there appends (8.6+) or fails (8.4/8.5).
+        assert_eq!(idx_codes("lrange {a b c} 5 end\n"), vec!["W230"]);
+        assert_eq!(
+            idx_codes("set l {a b c}\nset r [lrange $l 3 end]\n"),
+            vec!["W230"]
+        );
+        assert_eq!(
+            idx_codes("lreplace {a b c} 5 end X\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            idx_codes("lrange {a b c} 2 end\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// The length W231 checks against is the list's value after every cell
@@ -2552,6 +2575,12 @@ mod tests {
             idx_codes("string range abc 0 1\n"),
             [] as [std::string::String; 0]
         );
+        assert_eq!(idx_codes("string range abc 5 end\n"), vec!["W232"]);
+        assert_eq!(idx_codes("string replace abc 3 end X\n"), vec!["W232"]);
+        assert_eq!(
+            idx_codes("string range abc 2 end\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -2561,6 +2590,17 @@ mod tests {
         assert!(super::pair_slice_empty(2, 0, 3)); // clamped first>last
         assert!(super::pair_slice_empty(0, 0, 0)); // empty container
         assert!(!super::pair_slice_empty(0, 1, 3)); // valid
+    }
+
+    #[test]
+    fn range_slice_empty_logic() {
+        assert!(super::range_slice_empty(5, 2, 3)); // `5 end` past the end
+        assert!(super::range_slice_empty(3, 2, 3));
+        assert!(super::range_slice_empty(-3, -1, 3));
+        assert!(super::range_slice_empty(2, 0, 3));
+        assert!(super::range_slice_empty(0, 0, 0));
+        assert!(!super::range_slice_empty(-5, 0, 3));
+        assert!(!super::range_slice_empty(2, 9, 3));
     }
 
     #[test]

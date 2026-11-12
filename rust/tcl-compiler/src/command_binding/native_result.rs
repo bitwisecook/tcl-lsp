@@ -485,7 +485,7 @@ fn coerce_indexed_native_representations(
             .iter()
             .map(|&index| arguments.literal_at(index).map(str::to_owned))
             .collect::<Option<Vec<_>>>();
-        variables.invalidate_representations_for_values(values.as_deref());
+        variables.coerce_representations_for_values(values.as_deref());
     }
     for coercion in coercions {
         let values = arguments

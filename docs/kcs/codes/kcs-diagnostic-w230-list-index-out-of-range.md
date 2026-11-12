@@ -68,6 +68,7 @@ the second shape reports it.
 set first [lindex {a b c} -1]    ;# want end, got ""
 set tail  [lindex {a b c} end-5] ;# list only has 3 elements -> ""
 set slice [lrange {a b c} 10 20]
+set rest  [lrange {a b c} 5 end]   ;# first past the end -> ""
 ```
 
 The analyser reports **`W230`** with the resolved offset and the list

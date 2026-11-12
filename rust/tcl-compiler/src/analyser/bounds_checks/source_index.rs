@@ -22,7 +22,8 @@ use tcl_core_types::DiagCode;
 use tcl_registry::{SourceIndexBounds as Kind, SourceIndexBoundsInvocation};
 
 use super::{
-    absolute_index, describe_index, describe_index_string, pair_slice_empty, resolve_index,
+    absolute_index, describe_index, describe_index_string, pair_slice_empty, range_slice_empty,
+    resolve_index,
 };
 use crate::analyser::diagnostic_registry::{
     OriginalDiagnosticInvocation, RegistrySourceDiagnosticKind,
@@ -157,7 +158,12 @@ fn list_pair(
     ) else {
         return Vec::new();
     };
-    if !pair_slice_empty(lo, hi, length) {
+    let empty = if selected.operation == Kind::ListRange {
+        range_slice_empty(lo, hi, length)
+    } else {
+        pair_slice_empty(lo, hi, length)
+    };
+    if !empty {
         return Vec::new();
     }
     let verb = if selected.operation == Kind::ListRange {
@@ -275,7 +281,7 @@ fn string_pair(
     ) else {
         return Vec::new();
     };
-    if !pair_slice_empty(lo, hi, length) {
+    if !range_slice_empty(lo, hi, length) {
         return Vec::new();
     }
     report(

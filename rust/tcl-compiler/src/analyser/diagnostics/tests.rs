@@ -2184,6 +2184,19 @@ fn a_container_built_by_a_command_is_checked() {
     }
 }
 
+/// Converting a variable index keeps the stock objects it may share, so a
+/// second read through the same index is checked as the first is (#2387).
+#[test]
+fn a_repeated_index_read_is_checked_each_time() {
+    for src in [
+        "set i 5\nlindex {a b c} $i\nlindex {a b c} $i\n",
+        "set l {a b c}\nset i 5\nset r [lindex $l $i]\nset s [lindex $l $i]\n",
+        "set i 5\nputs \"<[lindex {a b c} $i]>\"\nputs \"<[lindex {a b c} $i]>\"\n",
+    ] {
+        assert_eq!(index_findings(src, DiagCode::W230).len(), 2, "{src}");
+    }
+}
+
 /// No finding where the call is not run by the substitution — a braced
 /// word, a script run later — or where an earlier substitution in the same
 /// command writes the variable the word reads: `$i` is 0 there, in range.
