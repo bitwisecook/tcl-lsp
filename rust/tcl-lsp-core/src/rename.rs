@@ -504,7 +504,7 @@ pub fn rename_in_program(
     // the same binding — e.g. a call a later `namespace import -force`
     // retargets. Any such edit refuses the whole rename.
     if !edits.is_empty() {
-        let references = crate::references::references_in_program(
+        let mut references = crate::references::references_in_program(
             source,
             dialect,
             line,
@@ -513,6 +513,20 @@ pub fn rename_in_program(
             true,
             resolution.program,
         );
+        // A member family is renamed as one: each declaration contributes
+        // the occurrences find-references reports for it.
+        for span in member_family_spans(source, analysis, &line_index, (line, character)) {
+            let start = span_to_range(source, &line_index, span);
+            references.extend(crate::references::references_in_program(
+                source,
+                dialect,
+                start.start_line,
+                start.start_character,
+                analysis,
+                true,
+                resolution.program,
+            ));
+        }
         let offset = |line: u32, character: u32| {
             crate::definition::byte_offset_at(&line_index, source, line, character)
         };
@@ -538,6 +552,36 @@ pub fn rename_in_program(
         }
     }
     Ok(edits)
+}
+
+/// The other declarations of the instance member family selected at the
+/// cursor, which an original member rename edits together.
+fn member_family_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+    (line, character): (u32, u32),
+) -> Vec<tcl_lexer::Span> {
+    if analysis.allows_lexical_declaration_advice() {
+        return Vec::new();
+    }
+    let cursor = crate::definition::byte_offset_at(line_index, source, line, character);
+    let std::ops::ControlFlow::Break(Some(identity)) =
+        crate::original_declaration::select_at_offset("", source, analysis, cursor)
+    else {
+        return Vec::new();
+    };
+    crate::original_member_rename::original_member_family_spans(
+        crate::original_declaration::OriginalDeclarationDocument {
+            uri: "",
+            source,
+            analysis,
+        },
+        &identity,
+    )
+    .into_iter()
+    .filter(|span| *span != identity.span())
+    .collect()
 }
 
 const FORCE_IMPORT_CONDITIONAL: &str = "force-import-shadow-conditional: a sibling document's \
@@ -2530,8 +2574,11 @@ mod tests {
     fn original_primary_member_rename_does_not_enter_string_override_families() {
         // Implementation contract: naming.editor.original-command-rename-plans
         // docs/design/analysis/name-resolution-proofs/original-command-rename-plans.md
-        let source =
-            "oo::class create C {method ping {} {return}}\noo::class create D {superclass C}\n";
+        // The family is the resolved relation component, never equal names:
+        // `D` inherits `ping` without declaring it and unrelated `E` declares
+        // its own. tclsh 8.6/9.0/9.1 print `destroy ping/e` before and
+        // `changed destroy/e` after renaming only `C`'s declaration.
+        let source = "oo::class create C {method ping {} {return}}\noo::class create D {superclass C}\noo::class create E {method ping {} {return e}}\n";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         let row = analysis.original_class_declarations().next().unwrap();
         assert_eq!(
@@ -2545,9 +2592,9 @@ mod tests {
         let offset = u32::try_from(source.find("ping").unwrap()).unwrap();
         let position = LineIndex::new(source).position_at_utf16(offset, source);
         assert!(
-            prepare_rename(source, position.line, position.character.get(), &analysis).is_none()
+            prepare_rename(source, position.line, position.character.get(), &analysis).is_some()
         );
-        let refusal = rename_with_diagnosis(
+        let edits = rename_with_diagnosis(
             source,
             crate::profile_for_dialect("tcl8.6"),
             position.line,
@@ -2556,8 +2603,12 @@ mod tests {
             &analysis,
             None,
         )
-        .unwrap_err();
-        assert!(refusal.reason.contains("typed override family"));
+        .unwrap();
+        assert_eq!(edits.len(), 1, "{edits:?}");
+        assert_eq!(
+            (edits[0].range.start_line, edits[0].range.start_character),
+            (position.line, position.character.get())
+        );
     }
 
     #[test]

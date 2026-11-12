@@ -775,6 +775,9 @@ fn select_at_offset(
     {
         return ControlFlow::Break(None);
     }
+    if let Some(selected) = declared_self_query(source, analysis, offset) {
+        return selected;
+    }
     let mut selected = ControlFlow::Continue(());
     crate::executable_regions::visit_analysis_executable_commands(
         source,
@@ -792,6 +795,50 @@ fn select_at_offset(
         },
     );
     selected
+}
+
+/// A `my NAME` selector written in an original method body that no actual
+/// receiver entered. The compiler's source catalogue joins it to the
+/// declaration the body class's own order selects; differing receiver
+/// alternatives leave it unselected.
+fn declared_self_query(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<ControlFlow<Option<OriginalMethodQuery>>> {
+    let references = tcl_compiler::analyser::class_hierarchy::original_metadata::
+        original_source_self_method_references(source, analysis)?;
+    let rows = references
+        .iter()
+        .filter(|reference| {
+            reference.selector_span().start() <= offset && offset <= reference.selector_span().end()
+        })
+        .collect::<Vec<_>>();
+    let first = rows.first()?;
+    if rows.iter().any(|row| {
+        row.declaring_class() != first.declaring_class() || row.method() != first.method()
+    }) {
+        return Some(ControlFlow::Break(None));
+    }
+    let Some(class) = sole(
+        analysis
+            .original_class_declarations()
+            .filter(|class| *class == first.declaring_class()),
+    ) else {
+        return Some(ControlFlow::Break(None));
+    };
+    let Some(currency) = consumer_currency(analysis) else {
+        return Some(ControlFlow::Break(None));
+    };
+    Some(ControlFlow::Break(Some(declaration_query(
+        class,
+        first.method(),
+        first.selector_input().clone(),
+        first.selector_span(),
+        false,
+        false,
+        currency,
+    ))))
 }
 
 fn select_own_declaration(

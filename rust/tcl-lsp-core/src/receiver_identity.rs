@@ -1183,10 +1183,21 @@ mod tests {
         let deferred = "oo::class create C {method ping {} {return C}; method run {} {my ping}}";
         let analysis = analyse(deferred);
         let cursor = u32::try_from(deferred.find("my ping").unwrap() + 3).unwrap();
+        // No actual receiver entered `run`, so there is no receiver entry. The
+        // declaration its own class order selects still answers navigation:
+        // tclsh 8.6/9.0/9.1 run `C::ping` for `[[C new] run]`.
         assert!(method_at_cursor(&analysis, deferred, cursor).is_none());
+        let declared = deferred.find("ping").unwrap();
         assert_eq!(
             crate::definition::definition(deferred, 0, cursor, &analysis),
-            [] as [crate::definition::LspRange; 0]
+            vec![crate::definition::span_to_range(
+                deferred,
+                &tcl_lexer::LineIndex::new(deferred),
+                tcl_lexer::Span::new(
+                    u32::try_from(declared).unwrap(),
+                    u32::try_from(declared + 4).unwrap()
+                ),
+            )]
         );
     }
 

@@ -173,8 +173,21 @@ fn original_method_body_region(
     else {
         return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
     };
-    let body = declaration
-        .body_word()
+    script_body_region(
+        declaration.body_word(),
+        words,
+        declaration.original_name_input().policy().string_protocol(),
+    )
+}
+
+/// The original script extent of a whole body word of the walked command,
+/// only where its formed value is exactly that source text.
+fn script_body_region(
+    body: Option<&tcl_lexer::NativeWord>,
+    words: &[tcl_lexer::NativeWord],
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<Span, OriginalMemberRenameRefusal> {
+    let body = body
         .filter(|body| !body.group().expand && words.contains(body))
         .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
     let content = body
@@ -182,7 +195,7 @@ fn original_method_body_region(
         .map_err(|_| OriginalMemberRenameRefusal::IncompleteCoverage)?;
     let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
         std::slice::from_ref(body),
-        declaration.original_name_input().policy().string_protocol(),
+        protocol,
     )
     .map_err(|_| OriginalMemberRenameRefusal::IncompleteCoverage)?;
     let value = captured
@@ -193,28 +206,224 @@ fn original_method_body_region(
         .bytes()
         .get(content.as_range())
         .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
-    let literal = tcl_syntax::backslash::native_source_literal_bytes(
-        raw,
-        body.image().channel(),
-        declaration.original_name_input().policy().string_protocol(),
-    )
-    .map_err(|_| OriginalMemberRenameRefusal::IncompleteCoverage)?;
+    let literal =
+        tcl_syntax::backslash::native_source_literal_bytes(raw, body.image().channel(), protocol)
+            .map_err(|_| OriginalMemberRenameRefusal::IncompleteCoverage)?;
     if literal.as_ref() != value {
         return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
     }
     Ok(content)
 }
 
+type ClassRecord = tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+    tcl_compiler::analyser::ClassDef,
+>;
+
+/// One closed source relation component of the owner document and every
+/// same-named instance declaration it carries. tclsh 8.6–9.1: `my speak`
+/// written in a base body runs a subclass override on a subclass instance, so
+/// the member keeps its behaviour only when the whole family is renamed.
+struct MemberFamily<'b> {
+    owner: usize,
+    records: Vec<&'b ClassRecord>,
+    parents: Vec<Vec<usize>>,
+    component: Vec<usize>,
+    orders: Vec<Option<Vec<usize>>>,
+    members: Vec<(usize, &'b OriginalSourceMethodMetadata)>,
+}
+
+impl MemberFamily<'_> {
+    fn index_of(&self, class: &tcl_compiler::analyser::ClassDef) -> Option<usize> {
+        let mut found = self
+            .records
+            .iter()
+            .enumerate()
+            .filter(|(_, record)| std::ptr::eq(record.metadata(), class));
+        let (index, _) = found.next()?;
+        found.next().is_none().then_some(index)
+    }
+
+    fn in_component(&self, index: usize) -> bool {
+        self.component.contains(&index)
+    }
+
+    fn declares(&self, index: usize) -> bool {
+        self.members.iter().any(|(owner, _)| *owner == index)
+    }
+
+    fn contains(&self, method: &OriginalSourceMethodMetadata) -> bool {
+        self.members
+            .iter()
+            .any(|(_, member)| same_method(member, method))
+    }
+
+    /// Every component receiver whose order reaches `body` finds a family
+    /// declaration on it, so `my NAME` written in that body selects the family
+    /// on every receiver and never falls through to `unknown`.
+    fn self_dispatch_closed(&self, body: usize) -> bool {
+        self.component
+            .iter()
+            .filter_map(|&index| self.orders[index].as_ref())
+            .filter(|order| order.contains(&body))
+            .all(|order| order.iter().any(|class| self.declares(*class)))
+    }
+
+    /// The first instance declaration of `selector` along the order of
+    /// `body`, the row `my selector` on a `body` instance runs.
+    fn first_declaration(
+        &self,
+        body: usize,
+        selector: &SignatureSourceNameInput,
+    ) -> Result<Option<&OriginalSourceMethodMetadata>, OriginalMemberRenameRefusal> {
+        let order = self.orders[body]
+            .as_ref()
+            .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?;
+        for &index in order {
+            let mut rows = self.records[index]
+                .metadata()
+                .original_members
+                .declarations()
+                .filter(|row| {
+                    row.side() == MemberSide::Instance
+                        && row.original_name_input().policy() == selector.policy()
+                        && row.original_name_input().bytes() == selector.bytes()
+                });
+            if let Some(row) = rows.next() {
+                if rows.next().is_some() {
+                    return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+                }
+                return Ok(Some(row));
+            }
+        }
+        Ok(None)
+    }
+
+    fn roots(&self) -> impl Iterator<Item = usize> + '_ {
+        self.component
+            .iter()
+            .copied()
+            .filter(|index| self.parents[*index].is_empty())
+    }
+}
+
+/// The relation component of `class` with its same-named instance family.
+/// Every source class's relations must resolve to source records, so a
+/// receiver outside the component cannot reach it.
+fn member_family<'b>(
+    analysis: &'b tcl_compiler::analyser::AnalysisResult,
+    class: &ClassRecord,
+    method: &OriginalSourceMethodMetadata,
+) -> Result<MemberFamily<'b>, OriginalMemberRenameRefusal> {
+    use tcl_compiler::analyser::class_hierarchy::original_metadata::{
+        original_direct_metadata_relations_for_records,
+        original_instance_metadata_order_for_inventory,
+    };
+    use tcl_compiler::analyser::types::OriginalSourceClassRelationKind;
+    let records = analysis.original_class_declarations().collect::<Vec<_>>();
+    let occupied = analysis
+        .original_procedure_declarations()
+        .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
+        .collect::<Vec<_>>();
+    let mut roots = records
+        .iter()
+        .enumerate()
+        .filter(|(_, record)| record.declaration_site() == class.declaration_site());
+    let (root, record) = roots
+        .next()
+        .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?;
+    if roots.next().is_some() || **record != *class {
+        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+    }
+    let mut parents = Vec::with_capacity(records.len());
+    let mut edges = vec![Vec::new(); records.len()];
+    for index in 0..records.len() {
+        let supers = original_direct_metadata_relations_for_records(
+            &records,
+            index,
+            OriginalSourceClassRelationKind::Superclass,
+            &occupied,
+        )
+        .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?;
+        let mixins = original_direct_metadata_relations_for_records(
+            &records,
+            index,
+            OriginalSourceClassRelationKind::Mixin,
+            &occupied,
+        )
+        .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?;
+        for &target in supers.iter().chain(&mixins) {
+            edges[index].push(target);
+            edges
+                .get_mut(target)
+                .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?
+                .push(index);
+        }
+        parents.push(supers);
+    }
+    let mut component = vec![root];
+    let mut pending = vec![root];
+    while let Some(index) = pending.pop() {
+        for &next in &edges[index] {
+            if !component.contains(&next) {
+                component.push(next);
+                pending.push(next);
+            }
+        }
+    }
+    component.sort_unstable();
+    let orders = (0..records.len())
+        .map(|index| original_instance_metadata_order_for_inventory(&records, index, &occupied))
+        .collect::<Vec<_>>();
+    let mut members = Vec::new();
+    let name = method.original_name_input();
+    for &index in &component {
+        if orders[index].is_none() {
+            return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+        }
+        let mut declared = records[index]
+            .metadata()
+            .original_members
+            .declarations()
+            .filter(|row| {
+                row.side() == MemberSide::Instance
+                    && row.original_name_input().policy() == name.policy()
+                    && row.original_name_input().bytes() == name.bytes()
+            });
+        if let Some(row) = declared.next() {
+            if declared.next().is_some() {
+                return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+            }
+            members.push((index, row));
+        }
+    }
+    let family = MemberFamily {
+        owner: root,
+        records,
+        parents,
+        component,
+        orders,
+        members,
+    };
+    if method.side() == MemberSide::Instance && !family.contains(method) {
+        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+    }
+    Ok(family)
+}
+
+/// A pending script region: its extent, nesting depth and, for an original
+/// instance method body, the record declaring it.
+type PendingRegion = (usize, usize, u32, Option<usize>);
+
 struct MemberRenameScan<'a, 'b> {
     document: OriginalDeclarationDocument<'a>,
-    class: &'b tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
-        tcl_compiler::analyser::ClassDef,
-    >,
+    family: &'b MemberFamily<'b>,
+    definitions: &'b [Option<tcl_compiler::command_binding::SourceCommandDefinition>],
+    syntax: &'b crate::source_structure::SourceSyntaxStructure,
     method: &'b OriginalSourceMethodMetadata,
-    roster: &'b OriginalClassInstanceMethodRoster,
     wanted: &'b [u8],
     walk: &'b crate::refactor::FrameWalk<'a>,
     classmethod: bool,
+    census: bool,
 }
 
 impl MemberRenameScan<'_, '_> {
@@ -226,7 +435,7 @@ impl MemberRenameScan<'_, '_> {
     ) -> Result<(), OriginalMemberRenameRefusal> {
         let Self {
             document,
-            class,
+            family,
             method,
             wanted,
             ..
@@ -235,10 +444,17 @@ impl MemberRenameScan<'_, '_> {
             == tcl_compiler::command_binding::SourceMethodReceiver::Instance
             || (self.classmethod
                 && selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class);
+        let (Some(class), Some(receiver_class)) = (
+            family.index_of(selected.class),
+            family.index_of(selected.receiver_class),
+        ) else {
+            return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+        };
+        let related = family.in_component(class);
         if selected.own_entry.is_some()
             || !receiver_admitted
-            || selected.class != class.metadata()
-            || selected.receiver_class != class.metadata()
+            || related != family.in_component(receiver_class)
+            || (self.classmethod && (class != family.owner || receiver_class != family.owner))
         {
             return Err(OriginalMemberRenameRefusal::IncompleteFamily);
         }
@@ -266,29 +482,271 @@ impl MemberRenameScan<'_, '_> {
         {
             return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
         }
-        if same_member(selected.metadata, method, self.classmethod) {
+        let selects = if self.classmethod {
+            same_member(selected.metadata, method, true)
+        } else {
+            related && family.contains(selected.metadata)
+        };
+        if selects {
             requests.push((input.clone(), wanted.into()));
         }
         Ok(())
     }
 
+    /// `my NAME …` written directly in an original instance method body that
+    /// no actual receiver entered. The compiler's declared self candidates
+    /// must agree with the body's own record, and the selector, like every
+    /// literal argument, must be static. A family selector is renamed only
+    /// when every receiver that can run the body reaches the family.
+    fn declared_self_dispatch(
+        &self,
+        binding: &tcl_compiler::command_binding::SourceInvocationBinding,
+        (tokens, words): (&tcl_compiler::ir::CommandTokens, &[tcl_lexer::NativeWord]),
+        owner: Option<usize>,
+        requests: &mut Vec<(SignatureSourceNameInput, NameBytes)>,
+    ) -> Result<bool, OriginalMemberRenameRefusal> {
+        let Self {
+            document,
+            family,
+            method,
+            wanted,
+            ..
+        } = *self;
+        let registry = document
+            .analysis
+            .resolved_registry()
+            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
+        let old = method.original_name_input();
+        let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            words,
+            old.policy().string_protocol(),
+        )
+        .map_err(|_| OriginalMemberRenameRefusal::IncompleteCoverage)?;
+        let Some(head) = captured
+            .literal(0)
+            .and_then(|head| std::str::from_utf8(head).ok())
+        else {
+            return Ok(false);
+        };
+        if head.contains("::")
+            || registry.method_dispatch_keyword(head)
+                != Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+            || words.len() < 2
+        {
+            return Ok(false);
+        }
+        let (Some(body), false) = (owner, self.classmethod) else {
+            return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+        };
+        if words.get(1).is_some_and(|word| word.group().expand) {
+            return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+        }
+        let Some(selector) = captured.literal(1) else {
+            return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+        };
+        if selector == wanted && wanted != old.bytes() {
+            return Err(OriginalMemberRenameRefusal::Collision);
+        }
+        for word in words.iter().skip(2) {
+            if mentions_member(document.source, word, old.bytes(), wanted)? {
+                return Err(OriginalMemberRenameRefusal::UneditableLinks);
+            }
+        }
+        let input = binding
+            .original_written_name_input(tokens, 1)
+            .filter(|input| input.bytes() == selector)
+            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
+        // The walked declaration body owns the receiver frame. The compiler's
+        // declared candidates, where it retains them, must select the row the
+        // body's own order selects.
+        let first = family.first_declaration(body, &input)?;
+        let declared = binding.declared_self_method_candidates(registry);
+        if !declared.is_empty()
+            && !first.is_some_and(|row| {
+                declared.iter().all(|entry| {
+                    entry.receiver()
+                        == tcl_compiler::command_binding::SourceMethodReceiver::Instance
+                        && entry.declaration() == row.declaration().site()
+                        && entry.name_source().span == row.metadata().name_span
+                })
+            })
+        {
+            return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+        }
+        if selector != old.bytes() || !family.in_component(body) {
+            return Ok(true);
+        }
+        if !family.self_dispatch_closed(body) {
+            return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+        }
+        if input.original_word_key().is_none()
+            || !crate::original_name_edit::original_input_matches_source(
+                document.source,
+                document.analysis,
+                &input,
+                words[1].span(),
+            )
+        {
+            return Err(OriginalMemberRenameRefusal::UneditableInput);
+        }
+        requests.push((input, wanted.into()));
+        Ok(true)
+    }
+
+    /// `next`/`nextto` in an instance method body continues the current
+    /// method's own chain and never spells a member name, so a closed family
+    /// rename leaves each step of it on the renamed family (tclsh 8.6–9.1).
+    fn next_chain(
+        &self,
+        command: &tcl_compiler::segmenter::SegmentedCommand,
+        words: &[tcl_lexer::NativeWord],
+    ) -> Result<bool, OriginalMemberRenameRefusal> {
+        let Self {
+            document,
+            method,
+            wanted,
+            census,
+            ..
+        } = *self;
+        // A reference census keeps method-chain helpers open, as the source
+        // census does; only an edit plan relies on the chain staying closed.
+        if census {
+            return Ok(false);
+        }
+        let Some(context) = document
+            .analysis
+            .resolved_input
+            .as_ref()
+            .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry)
+        else {
+            return Ok(false);
+        };
+        let next = crate::original_invocation::source_registry_words(
+            document.source,
+            document.analysis,
+            command,
+        )
+        .and_then(|selected| {
+            selected.with_source_schema(&context, |schema| {
+                schema
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::TCLOO_NEXT_CHAIN)
+                    && schema
+                        .authored_source_descriptors()
+                        .command
+                        .implementation_namespace
+                        .is_none()
+            })
+        })
+        .unwrap_or(false);
+        if !next {
+            return Ok(false);
+        }
+        for word in words.iter().skip(1) {
+            if word.group().expand
+                || word.executable_parts().all_parts().any(|part| {
+                    !matches!(
+                        part.part,
+                        tcl_lexer::ExecutablePart::Text(_)
+                            | tcl_lexer::ExecutablePart::Variable { .. }
+                    )
+                })
+                || mentions_member(
+                    document.source,
+                    word,
+                    method.original_name_input().bytes(),
+                    wanted,
+                )?
+            {
+                return Err(OriginalMemberRenameRefusal::UneditableLinks);
+            }
+        }
+        Ok(true)
+    }
+
+    /// The script region of a member declaration at this command, with the
+    /// record whose instances it runs on when it is an instance body.
+    fn member_body(
+        &self,
+        command_offset: u32,
+        words: &[tcl_lexer::NativeWord],
+    ) -> Result<Option<(Span, Option<usize>)>, OriginalMemberRenameRefusal> {
+        let Self { family, method, .. } = *self;
+        // The independently retained definition worker supplies source
+        // body geometry. It does not supply an ordinary runtime call.
+        if let Some((class, declaration)) = family
+            .records
+            .iter()
+            .enumerate()
+            .flat_map(|(index, record)| {
+                record
+                    .metadata()
+                    .original_members
+                    .declarations()
+                    .map(move |row| (index, row))
+            })
+            .find(|(_, row)| row.declaration().site().offset == command_offset)
+        {
+            if declaration.declaration().static_occurrence().is_none()
+                || !words.contains(declaration.declaration().original_word())
+            {
+                return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+            }
+            // The selected whole body word and shared delimiter/value
+            // owners provide source geometry; report spans supply no script.
+            let body = original_method_body_region(declaration, words)?;
+            let receiver = (declaration.side() == MemberSide::Instance
+                && !declaration.native_class_delegate())
+            .then_some(class);
+            return Ok(Some((body, receiver)));
+        }
+        // A constructor or destructor body runs with the new or dying object
+        // as its receiver, an instance of its class or a descendant.
+        if let Some((class, special)) = family
+            .records
+            .iter()
+            .enumerate()
+            .flat_map(|(index, record)| {
+                record
+                    .metadata()
+                    .original_special_members
+                    .declarations()
+                    .map(move |row| (index, row))
+            })
+            .find(|(_, row)| row.site().offset == command_offset)
+        {
+            if !words.contains(special.keyword_word()) {
+                return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+            }
+            let body = script_body_region(
+                Some(special.body_word()),
+                words,
+                method.original_name_input().policy().string_protocol(),
+            )?;
+            let receiver = (special.side() == MemberSide::Instance).then_some(class);
+            return Ok(Some((body, receiver)));
+        }
+        Ok(None)
+    }
+
     fn command(
         &self,
         command: &tcl_compiler::segmenter::SegmentedCommand,
-        region: (usize, usize, u32),
-        pending: &mut Vec<(usize, usize, u32)>,
+        region: PendingRegion,
+        pending: &mut Vec<PendingRegion>,
         requests: &mut Vec<(SignatureSourceNameInput, NameBytes)>,
     ) -> Result<(), OriginalMemberRenameRefusal> {
         let Self {
             document,
-            class,
-            method: _,
-            roster,
-            wanted: _,
+            definitions,
+            syntax,
+            method,
+            wanted,
             walk,
-            classmethod: _,
+            ..
         } = *self;
-        let (_, _, depth) = region;
+        let (_, _, depth, owner) = region;
         let words = walk
             .native_words(document.source, command)
             .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
@@ -298,23 +756,13 @@ impl MemberRenameScan<'_, '_> {
             .span()
             .start();
         let tokens = walk.tokens(document.source, command);
-        // The independently retained definition worker supplies source
-        // body geometry. It does not supply an ordinary runtime call.
-        if let Some(declaration) = class
-            .metadata()
-            .original_members
-            .declarations()
-            .find(|row| row.declaration().site().offset == command_offset)
-        {
-            if declaration.declaration().static_occurrence().is_none()
-                || !words.contains(declaration.declaration().original_word())
-            {
-                return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
-            }
-            // The selected whole body word and shared delimiter/value
-            // owners provide source geometry; report spans supply no script.
-            let body = original_method_body_region(declaration, &words)?;
-            pending.push((body.start() as usize, body.end() as usize, depth + 1));
+        if let Some(body) = self.member_body(command_offset, &words)? {
+            pending.push((
+                body.0.start() as usize,
+                body.0.end() as usize,
+                depth + 1,
+                body.1,
+            ));
             return Ok(());
         }
         let binding = tokens
@@ -327,6 +775,15 @@ impl MemberRenameScan<'_, '_> {
             self.record_selected_request(&selected, &words, requests)?;
             return Ok(());
         }
+        if self.declared_self_dispatch(binding, (&tokens, &words), owner, requests)? {
+            return Ok(());
+        }
+        if owner.is_some() && self.next_chain(command, &words)? {
+            return Ok(());
+        }
+        if crate::original_declaration::class_relation_member(syntax, command) {
+            return Ok(());
+        }
         if let Some(shape) = binding.original_default_manufacture_shape(
             &tokens,
             document
@@ -334,7 +791,11 @@ impl MemberRenameScan<'_, '_> {
                 .resolved_registry()
                 .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?,
         ) {
-            if shape.class_definition() != roster.class_definition() {
+            if !definitions
+                .iter()
+                .flatten()
+                .any(|definition| definition == shape.class_definition())
+            {
                 return Err(OriginalMemberRenameRefusal::IncompleteFamily);
             }
             return Ok(());
@@ -343,73 +804,291 @@ impl MemberRenameScan<'_, '_> {
             .structure(document.source, command)
             .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
         registry_coverage(&selected)?;
-        for (a, b) in walk
-            .same_frame_regions(document.source, command)
-            .into_iter()
-            .chain(walk.frame_shifted_regions(document.source, command))
-        {
-            pending.push((a, b, depth + 1));
-        }
+        let same_frame = walk.same_frame_regions(document.source, command);
+        let shifted = walk.frame_shifted_regions(document.source, command);
         if !walk.complete() {
             return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
         }
+        // Literal text naming either member outside a script this walk
+        // classifies could be a captured selector dispatched later.
+        let old = method.original_name_input().bytes();
+        for word in words.iter().skip(1) {
+            for name in [old, wanted] {
+                let mentions =
+                    crate::original_declaration::word_member_mentions(document.source, word, name)
+                        .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
+                if mentions.iter().any(|mention| {
+                    !same_frame.iter().chain(&shifted).any(|&(start, end)| {
+                        start <= mention.start() as usize && mention.end() as usize <= end
+                    })
+                }) {
+                    return Err(OriginalMemberRenameRefusal::UneditableLinks);
+                }
+            }
+        }
+        pending.extend(
+            same_frame
+                .into_iter()
+                .map(|(start, end)| (start, end, depth + 1, owner)),
+        );
+        pending.extend(
+            shifted
+                .into_iter()
+                .map(|(start, end)| (start, end, depth + 1, None)),
+        );
         Ok(())
     }
 }
 
 fn requests(
     document: OriginalDeclarationDocument<'_>,
-    class: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
-        tcl_compiler::analyser::ClassDef,
-    >,
+    family: &MemberFamily<'_>,
     method: &OriginalSourceMethodMetadata,
-    roster: &OriginalClassInstanceMethodRoster,
     wanted: &[u8],
-    classmethod: bool,
+    (classmethod, census): (bool, bool),
 ) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalMemberRenameRefusal> {
     let walk = crate::refactor::FrameWalk::new(document.source, document.analysis)
         .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
-    let mut requests = vec![(
-        method.declaration().original_name_input().clone(),
-        wanted.into(),
-    )];
-    let mut pending = vec![(0_usize, document.source.len(), 0_u32)];
+    let definitions = family
+        .records
+        .iter()
+        .map(|record| class_definition(document, record))
+        .collect::<Vec<_>>();
+    let mut requests = if classmethod {
+        vec![(
+            method.declaration().original_name_input().clone(),
+            wanted.into(),
+        )]
+    } else {
+        family
+            .members
+            .iter()
+            .map(|(_, member)| {
+                (
+                    member.declaration().original_name_input().clone(),
+                    NameBytes::from(wanted),
+                )
+            })
+            .collect()
+    };
+    let syntax =
+        crate::source_structure::SourceSyntaxStructure::capture(document.source, document.analysis)
+            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
+    let mut pending: Vec<PendingRegion> = vec![(0, document.source.len(), 0, None)];
     let mut visited = HashSet::new();
     let scan = MemberRenameScan {
         document,
-        class,
+        family,
+        definitions: &definitions,
+        syntax: &syntax,
         method,
-        roster,
         wanted,
         walk: &walk,
         classmethod,
+        census,
     };
-    while let Some((start, end, depth)) = pending.pop() {
+    while let Some(region) = pending.pop() {
+        let (start, end, depth, owner) = region;
         if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth)
             || start > end
             || end > document.source.len()
         {
             return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
         }
-        if !visited.insert((start, end)) {
+        if !visited.insert((start, end, owner)) {
             continue;
         }
-        let region = document
+        let text = document
             .source
             .get(start..end)
             .ok_or(OriginalMemberRenameRefusal::StaleSource)?;
         let offset = u32::try_from(start).map_err(|_| OriginalMemberRenameRefusal::StaleSource)?;
         for command in if depth == 0 {
-            walk.segment_document(region)
+            walk.segment_document(text)
         } else {
-            walk.segment_nested(region, offset)
+            walk.segment_nested(text, offset)
         } {
-            scan.command(&command, (start, end, depth), &mut pending, &mut requests)?;
+            scan.command(&command, region, &mut pending, &mut requests)?;
         }
     }
     Ok(requests)
 }
 
+/// Edits proved by the complete single-document member census instead of the
+/// executable walk: every command of every reachable region is classified,
+/// and every self dispatch corresponds one-to-one to the compiler's typed
+/// member tape. A family selector is renamed only when every receiver that
+/// can run its body reaches the family.
+fn census_requests(
+    document: OriginalDeclarationDocument<'_>,
+    family: &MemberFamily<'_>,
+    method: &OriginalSourceMethodMetadata,
+    wanted: &[u8],
+) -> Option<Vec<(SignatureSourceNameInput, NameBytes)>> {
+    use tcl_compiler::analyser::class_hierarchy::original_metadata::{
+        original_source_self_method_references, original_source_self_property_references,
+    };
+    let methods = original_source_self_method_references(document.source, document.analysis)?;
+    let properties = original_source_self_property_references(document.source, document.analysis)?;
+    let old = method.original_name_input();
+    if !crate::original_declaration::complete_member_name_census(
+        old.bytes(),
+        document.source,
+        document.analysis,
+        &methods,
+        &properties,
+    ) {
+        return None;
+    }
+    let mut requests = family
+        .members
+        .iter()
+        .map(|(_, member)| {
+            (
+                member.declaration().original_name_input().clone(),
+                NameBytes::from(wanted),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut spans = methods
+        .iter()
+        .filter(|reference| {
+            reference.selector_input().policy() == old.policy()
+                && reference.selector_input().bytes() == old.bytes()
+        })
+        .map(tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfMethodReference::selector_span)
+        .collect::<Vec<_>>();
+    spans.sort_by_key(|span| (span.start(), span.end()));
+    spans.dedup();
+    for span in spans {
+        let rows = methods
+            .iter()
+            .filter(|reference| reference.selector_span() == span)
+            .collect::<Vec<_>>();
+        let first = rows.first()?;
+        let mut bodies = family
+            .records
+            .iter()
+            .enumerate()
+            .filter(|(_, record)| ***record == *first.body_class());
+        let (body, _) = bodies.next()?;
+        if bodies.next().is_some()
+            || rows.iter().any(|row| {
+                row.body_class() != first.body_class()
+                    || row.selector_input() != first.selector_input()
+            })
+        {
+            return None;
+        }
+        let in_family = rows
+            .iter()
+            .filter(|row| family.contains(row.method()))
+            .count();
+        if !family.in_component(body) {
+            if in_family > 0 {
+                return None;
+            }
+            continue;
+        }
+        if in_family != rows.len() || !family.self_dispatch_closed(body) {
+            return None;
+        }
+        first.selector_input().original_word_key()?;
+        requests.push((first.selector_input().clone(), NameBytes::from(wanted)));
+    }
+    Some(requests)
+}
+
+/// Original declaration name extents of the instance family a member rename
+/// edits together, for consumers that join the family's reference sets.
+pub(crate) fn original_member_family_spans(
+    document: OriginalDeclarationDocument<'_>,
+    identity: &OriginalDeclarationIdentity,
+) -> Vec<Span> {
+    let (Some(class), Some(method)) = (
+        identity.class_metadata(document.analysis),
+        identity.method_metadata(document.analysis),
+    ) else {
+        return Vec::new();
+    };
+    if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance) {
+        return Vec::new();
+    }
+    member_family(document.analysis, class, method).map_or_else(
+        |_| Vec::new(),
+        |family| {
+            family
+                .members
+                .iter()
+                .filter_map(|(_, member)| {
+                    member
+                        .declaration()
+                        .static_occurrence()
+                        .map(|occurrence| occurrence.name_input().span())
+                })
+                .collect()
+        },
+    )
+}
+
+/// The complete single-document selector occurrences of an instance member
+/// whose family is the member alone, proved by the walk that plans its
+/// rename. A member with overrides or an unproved walk has no census here.
+pub(crate) fn original_member_occurrence_census(
+    document: OriginalDeclarationDocument<'_>,
+    identity: &OriginalDeclarationIdentity,
+) -> Option<Vec<Span>> {
+    if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance) {
+        return None;
+    }
+    let class = identity.class_metadata(document.analysis)?;
+    let method = identity.method_metadata(document.analysis)?;
+    let family = member_family(document.analysis, class, method).ok()?;
+    if family.members.len() != 1 {
+        return None;
+    }
+    let declaration = method.declaration().original_name_input();
+    let [(_, requests)] = original_member_rename_plan(
+        &[document],
+        identity,
+        method.original_name_input().bytes(),
+        true,
+    )
+    .ok()?
+    .try_into()
+    .ok()?;
+    let mut spans = requests
+        .iter()
+        .filter(|(input, _)| input != declaration)
+        .map(|(input, _)| {
+            crate::original_name_edit::original_static_name_value_span(
+                input,
+                0..input.bytes().len(),
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    spans.sort_by_key(|span| (span.start(), span.end()));
+    spans.dedup();
+    Some(spans)
+}
+
+/// Whether literal text of `word` may name the old or the proposed member.
+fn mentions_member(
+    source: &str,
+    word: &tcl_lexer::NativeWord,
+    old: &[u8],
+    wanted: &[u8],
+) -> Result<bool, OriginalMemberRenameRefusal> {
+    for name in [old, wanted] {
+        if !crate::original_declaration::word_member_mentions(source, word, name)
+            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?
+            .is_empty()
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
 /// Plan a bounded instance-table rename in one complete current source owner
 /// and the consumers that dispatch to it through a class loaded from that
 /// owner. The current ordinary class roster includes builtin collisions. Inherited
@@ -444,9 +1123,8 @@ pub fn original_member_rename_edits(
 fn incomplete_member_family(
     document: OriginalDeclarationDocument<'_>,
     identity: &OriginalDeclarationIdentity,
-    class: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
-        tcl_compiler::analyser::ClassDef,
-    >,
+    class: &ClassRecord,
+    family: &MemberFamily<'_>,
 ) -> bool {
     identity.class_metadata(document.analysis) != Some(class)
         || document
@@ -464,30 +1142,18 @@ fn incomplete_member_family(
             .original_object_configurations()
             .next()
             .is_some()
-        || class
-            .metadata()
-            .original_relations
-            .effects()
-            .next()
-            .is_some()
-        || class.metadata().original_members.effects().next().is_some()
-        || class
-            .metadata()
-            .original_properties
-            .declarations()
-            .next()
-            .is_some()
-        || class
-            .metadata()
-            .original_special_members
-            .declarations()
-            .next()
-            .is_some()
-        || class.metadata().original_members.declarations().any(|row| {
-            (row.side() != MemberSide::Instance || row.native_class_delegate())
-                && !native_classmethod_row(row)
-                || row.forward_prefix().is_some()
-                || row.declaration().static_occurrence().is_none()
+        || family.component.iter().any(|&index| {
+            let class = family.records[index].metadata();
+            // Resolved source relations are the component's own edges.
+            (family.component.len() == 1 && class.original_relations.effects().next().is_some())
+                || class.original_members.effects().next().is_some()
+                || class.original_properties.declarations().next().is_some()
+                || class.original_members.declarations().any(|row| {
+                    (row.side() != MemberSide::Instance || row.native_class_delegate())
+                        && !native_classmethod_row(row)
+                        || row.forward_prefix().is_some()
+                        || row.declaration().static_occurrence().is_none()
+                })
         })
 }
 
@@ -539,10 +1205,13 @@ fn validate_member_roster(
 /// the edit rather than leaving a call that no longer names the member.
 fn consumer_requests(
     document: OriginalDeclarationDocument<'_>,
-    method: &OriginalSourceMethodMetadata,
+    members: &[&OriginalSourceMethodMetadata],
     (wanted, class_name): (&[u8], &str),
     classmethod: bool,
 ) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalMemberRenameRefusal> {
+    let Some(method) = members.first() else {
+        return Ok(Vec::new());
+    };
     let site = method.declaration().site();
     let old = method.original_name_input().bytes();
     let mut requests = Vec::new();
@@ -605,10 +1274,11 @@ fn consumer_requests(
                 return false;
             }
             touched = true;
-            if foreign.declaration != *site
-                || foreign.name_span != method.metadata().name_span
-                || (foreign.side != method.side() && !classmethod)
-            {
+            if !members.iter().any(|member| {
+                foreign.declaration == *member.declaration().site()
+                    && foreign.name_span == member.metadata().name_span
+                    && (foreign.side == member.side() || classmethod)
+            }) {
                 return false;
             }
             if foreign.selector_input.original_word_key().is_none()
@@ -681,13 +1351,24 @@ fn inherits_from(
     })
 }
 
+/// The current completed command world's class definition for `class`.
+fn class_definition(
+    document: OriginalDeclarationDocument<'_>,
+    class: &ClassRecord,
+) -> Option<tcl_compiler::command_binding::SourceCommandDefinition> {
+    let world = document.analysis.original_completed_command_world()?;
+    world
+        .declaration_at(class.name().slot(), class.name().policy())
+        .filter(|row| row.declaration_site() == class.declaration_site())?
+        .definition()
+        .cloned()
+}
+
 /// The current completed command world's member roster for `class`.
 fn class_member_roster(
     document: OriginalDeclarationDocument<'_>,
     identity: &OriginalDeclarationIdentity,
-    class: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
-        tcl_compiler::analyser::ClassDef,
-    >,
+    class: &ClassRecord,
 ) -> Result<OriginalClassInstanceMethodRoster, OriginalMemberRenameRefusal> {
     let world = document
         .analysis
@@ -698,23 +1379,172 @@ fn class_member_roster(
     {
         return Err(OriginalMemberRenameRefusal::StaleSource);
     }
-    let publication = world
-        .declaration_at(class.name().slot(), class.name().policy())
-        .filter(|row| row.declaration_site() == class.declaration_site())
-        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
-    let definition = publication
-        .definition()
-        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
+    let definition =
+        class_definition(document, class).ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
     world
-        .class_instance_method_roster(definition)
+        .class_instance_method_roster(&definition)
         .ok_or(OriginalMemberRenameRefusal::UnknownRoster)
 }
+
+/// Every family declaration must be a static, uniquely named source word.
+fn editable_member(
+    method: &OriginalSourceMethodMetadata,
+    classmethod: bool,
+) -> Result<(), OriginalMemberRenameRefusal> {
+    if method.declaration().static_occurrence().is_none()
+        || (method.native_class_delegate() && !classmethod)
+        || method.forward_prefix().is_some()
+        || method.original_name_input() != method.declaration().original_name_input()
+    {
+        return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+    }
+    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
+        method.declaration().original_name_input()
+    else {
+        return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+    };
+    Ok(())
+}
+
+/// The family's rosters: every root class of the component carries the
+/// builtin names its descendants inherit, and every family declaration keeps
+/// its default visibility under the proposed name. A source declaration of
+/// the proposed name anywhere in the component is a collision.
+fn validate_family_rosters(
+    document: OriginalDeclarationDocument<'_>,
+    identity: &OriginalDeclarationIdentity,
+    family: &MemberFamily<'_>,
+    method: &OriginalSourceMethodMetadata,
+    wanted: &[u8],
+) -> Result<(), OriginalMemberRenameRefusal> {
+    let input = method.declaration().original_name_input();
+    let mut roots = 0_usize;
+    for root in family.roots() {
+        roots += 1;
+        let roster = class_member_roster(document, identity, family.records[root])?;
+        if let Some((_, member)) = family.members.iter().find(|(owner, _)| *owner == root) {
+            validate_member_roster(
+                member,
+                &roster,
+                member.declaration().original_name_input(),
+                (wanted, false),
+            )?;
+            continue;
+        }
+        if roster.policy() != input.policy()
+            || input
+                .policy()
+                .recipe()
+                .oo_method_input(wanted)
+                .ok()
+                .is_none_or(|name| name.selected() != wanted)
+        {
+            return Err(OriginalMemberRenameRefusal::InvalidName);
+        }
+        if roster.default_exported(input.bytes()) != method.exported()
+            || roster.default_exported(wanted) != method.exported()
+        {
+            return Err(OriginalMemberRenameRefusal::ChangesVisibility);
+        }
+        if wanted != input.bytes() && roster.contains(wanted) {
+            return Err(OriginalMemberRenameRefusal::Collision);
+        }
+    }
+    if roots == 0 {
+        return Err(OriginalMemberRenameRefusal::UnknownRoster);
+    }
+    for (_, member) in &family.members {
+        editable_member(member, false)?;
+        if member.exported() != method.exported() {
+            return Err(OriginalMemberRenameRefusal::ChangesVisibility);
+        }
+    }
+    if wanted != input.bytes()
+        && family.component.iter().any(|&index| {
+            family.records[index]
+                .metadata()
+                .original_members
+                .declarations()
+                .any(|row| {
+                    row.side() == MemberSide::Instance
+                        && row.original_name_input().policy() == input.policy()
+                        && row.original_name_input().bytes() == wanted
+                })
+        })
+    {
+        return Err(OriginalMemberRenameRefusal::Collision);
+    }
+    Ok(())
+}
+
+/// Whether another document may extend the component: a class related to,
+/// or redefining, one of its classes by name, or any class configuration.
+fn consumer_extends_family(
+    consumer: OriginalDeclarationDocument<'_>,
+    family: &MemberFamily<'_>,
+) -> Option<OriginalMemberRenameRefusal> {
+    let tails = family
+        .component
+        .iter()
+        .map(|&index| {
+            tcl_syntax::naming::key_tail(&family.records[index].metadata().qualified_name)
+        })
+        .collect::<Vec<_>>();
+    for other in consumer.analysis.original_class_declarations() {
+        if family
+            .component
+            .iter()
+            .any(|&index| other.name().slot() == family.records[index].name().slot())
+        {
+            return Some(OriginalMemberRenameRefusal::AmbiguousOwner);
+        }
+        if other
+            .metadata()
+            .superclasses
+            .iter()
+            .chain(&other.metadata().mixins)
+            .any(|name| tails.contains(&tcl_syntax::naming::key_tail(name)))
+        {
+            return Some(OriginalMemberRenameRefusal::IncompleteFamily);
+        }
+    }
+    (consumer
+        .analysis
+        .original_class_configurations()
+        .next()
+        .is_some()
+        || consumer
+            .analysis
+            .original_object_configurations()
+            .next()
+            .is_some())
+    .then_some(OriginalMemberRenameRefusal::IncompleteFamily)
+}
+
+type DocumentRequests<'a> = (
+    OriginalDeclarationDocument<'a>,
+    Vec<(SignatureSourceNameInput, NameBytes)>,
+);
 
 fn original_member_rename_units(
     documents: &[OriginalDeclarationDocument<'_>],
     identity: &OriginalDeclarationIdentity,
     wanted: &[u8],
 ) -> Result<Vec<WorkspaceTextEdit>, OriginalMemberRenameRefusal> {
+    let mut edits = Vec::new();
+    for (document, requests) in original_member_rename_plan(documents, identity, wanted, false)? {
+        edits.extend(document_edits(document, &requests)?);
+    }
+    Ok(edits)
+}
+
+/// Every document's original naming inputs a member rename replaces.
+fn original_member_rename_plan<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    identity: &OriginalDeclarationIdentity,
+    wanted: &[u8],
+    census: bool,
+) -> Result<Vec<DocumentRequests<'a>>, OriginalMemberRenameRefusal> {
     let mut owners = documents
         .iter()
         .filter(|document| document.uri == identity.uri());
@@ -733,23 +1563,21 @@ fn original_member_rename_units(
     if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance) && !classmethod {
         return Err(OriginalMemberRenameRefusal::IncompleteFamily);
     }
-    let mut classes = document.analysis.original_class_declarations();
-    let class = classes
-        .next()
+    let class = identity
+        .class_metadata(document.analysis)
         .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?;
-    if classes.next().is_some() || incomplete_member_family(*document, identity, class) {
-        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
-    }
     let method = identity
         .method_metadata(document.analysis)
         .ok_or(OriginalMemberRenameRefusal::StaleSource)?;
-    if method.declaration().static_occurrence().is_none()
-        || (method.native_class_delegate() && !classmethod)
-        || method.forward_prefix().is_some()
-        || method.original_name_input() != method.declaration().original_name_input()
+    let family = member_family(document.analysis, class, method)?;
+    // A classmethod keeps the single-class scope: its delegate chain is not
+    // part of the instance relation component.
+    if (classmethod && family.records.len() != 1)
+        || incomplete_member_family(*document, identity, class, &family)
     {
-        return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
     }
+    editable_member(method, classmethod)?;
     if class
         .metadata()
         .original_members
@@ -775,44 +1603,47 @@ fn original_member_rename_units(
     if methods.next().is_some() {
         return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
     }
-    let roster = class_member_roster(*document, identity, class)?;
     let input = method.declaration().original_name_input();
-    let (SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)) =
-        input
-    else {
-        return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
-    };
-
-    validate_member_roster(method, &roster, input, (wanted, classmethod))?;
     if classmethod {
+        let roster = class_member_roster(*document, identity, class)?;
+        validate_member_roster(method, &roster, input, (wanted, classmethod))?;
         if wanted != input.bytes() && roster.class_object_contains(wanted) {
             return Err(OriginalMemberRenameRefusal::Collision);
         }
         if inherits_from(documents, class) {
             return Err(OriginalMemberRenameRefusal::IncompleteFamily);
         }
+    } else {
+        validate_family_rosters(*document, identity, &family, method, wanted)?;
     }
-    let requests = requests(*document, class, method, &roster, wanted, classmethod)?;
-    let mut edits = document_edits(*document, &requests)?;
+    let requests = match requests(*document, &family, method, wanted, (classmethod, census)) {
+        Err(
+            refusal @ (OriginalMemberRenameRefusal::IncompleteCoverage
+            | OriginalMemberRenameRefusal::UneditableLinks),
+        ) if !classmethod => census_requests(*document, &family, method, wanted).ok_or(refusal)?,
+        selected => selected?,
+    };
+    let mut plan = vec![(*document, requests)];
+    let members = if classmethod {
+        vec![method]
+    } else {
+        family.members.iter().map(|(_, member)| *member).collect()
+    };
     for consumer in documents.iter().filter(|other| other.uri != document.uri) {
-        if consumer
-            .analysis
-            .original_class_declarations()
-            .any(|other| other.name().slot() == class.name().slot())
-        {
-            return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
+        if let Some(refusal) = consumer_extends_family(*consumer, &family) {
+            return Err(refusal);
         }
         let requests = consumer_requests(
             *consumer,
-            method,
+            &members,
             (wanted, &class.metadata().qualified_name),
             classmethod,
         )?;
         if !requests.is_empty() {
-            edits.extend(document_edits(*consumer, &requests)?);
+            plan.push((*consumer, requests));
         }
     }
-    Ok(edits)
+    Ok(plan)
 }
 
 /// Workspace adapter for the same bounded current source-family protocol.
@@ -1052,7 +1883,7 @@ mod tests {
         );
         assert_eq!(
             original_member_rename_edits(&[doc, doc], &target, "changed"),
-            Err(OriginalMemberRenameRefusal::IncompleteFamily)
+            Err(OriginalMemberRenameRefusal::AmbiguousOwner)
         );
         let displaced = format!("# displaced\n{source}");
         assert_eq!(
@@ -1063,7 +1894,9 @@ mod tests {
             "oo::class create C {method pick {} {}; method pick {} {return body}}",
             "oo::class create C {method pick {} {return body}; foreach name {other} {method $name {} {}}}",
             "oo::class create C {method pick {} {return body}}; C create object; after idle {object pick}",
-            "oo::class create C {method pick {} {return body}}; oo::class create D {superclass C}",
+            // `B`'s own instances reach no `pick`, so its `my pick` selects
+            // the family only on `D` receivers.
+            "oo::class create C {method pick {} {return body}}; oo::class create B {method run {} {my pick}}; oo::class create D {superclass B C}",
         ] {
             let analysis = Analyser::new().analyse(source, "tcl8.6");
             let target = identity(source, &analysis);

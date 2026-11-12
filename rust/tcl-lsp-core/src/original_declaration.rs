@@ -1169,14 +1169,23 @@ fn complete_member_source_census(
     methods: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfMethodReference],
     properties: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfPropertyReference],
 ) -> bool {
-    let Some(name) = identity
-        .input
-        .as_ref()
-        .map(SignatureSourceNameInput::bytes)
-        .filter(|name| !name.is_empty() && name.is_ascii())
-    else {
+    identity.input.as_ref().is_some_and(|input| {
+        complete_member_name_census(input.bytes(), source, analysis, methods, properties)
+    })
+}
+
+/// [`complete_member_source_census`] for one member name, independently of
+/// the declaration that spells it.
+pub(crate) fn complete_member_name_census(
+    name: &[u8],
+    source: &str,
+    analysis: &AnalysisResult,
+    methods: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfMethodReference],
+    properties: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfPropertyReference],
+) -> bool {
+    if name.is_empty() || !name.is_ascii() {
         return false;
-    };
+    }
     let Some(input) = analysis.resolved_input.as_ref() else {
         return false;
     };
@@ -1363,36 +1372,51 @@ impl MemberCensus<'_> {
             let Some(word) = operand.as_ref().and_then(|operand| operand.word.as_ref()) else {
                 return false;
             };
-            for part in word.executable_parts().all_parts() {
-                let tcl_lexer::ExecutablePart::Text(text) = &part.part else {
-                    continue;
-                };
-                if let tcl_lexer::ExecutableText::Decoded(bytes) = text {
-                    if census_tokens(bytes).any(|(_, token)| census_names_member(token, self.name))
-                    {
-                        self.mentions.push((part.span, word.span()));
-                    }
-                    continue;
-                }
-                let Some(raw) = self.source.get(part.span.as_range()) else {
-                    return false;
-                };
-                for (offset, token) in census_tokens(raw.as_bytes()) {
-                    if !census_names_member(token, self.name) {
-                        continue;
-                    }
-                    let mention = u32::try_from(offset)
-                        .ok()
-                        .and_then(|offset| part.span.start().checked_add(offset))
-                        .zip(u32::try_from(token.len()).ok())
-                        .and_then(|(start, len)| Some(Span::new(start, start.checked_add(len)?)))
-                        .unwrap_or(part.span);
-                    self.mentions.push((mention, word.span()));
-                }
-            }
+            let Some(mentions) = word_member_mentions(self.source, word, self.name) else {
+                return false;
+            };
+            self.mentions
+                .extend(mentions.into_iter().map(|mention| (mention, word.span())));
         }
         true
     }
+}
+
+/// Literal text of one original word that may name the member, by the
+/// census's conservative token scan. Substituted values are not scanned;
+/// command substitutions are separate commands. `None` when a raw part has no
+/// source text.
+pub(crate) fn word_member_mentions(
+    source: &str,
+    word: &tcl_lexer::NativeWord,
+    name: &[u8],
+) -> Option<Vec<Span>> {
+    let mut mentions = Vec::new();
+    for part in word.executable_parts().all_parts() {
+        let tcl_lexer::ExecutablePart::Text(text) = &part.part else {
+            continue;
+        };
+        if let tcl_lexer::ExecutableText::Decoded(bytes) = text {
+            if census_tokens(bytes).any(|(_, token)| census_names_member(token, name)) {
+                mentions.push(part.span);
+            }
+            continue;
+        }
+        let raw = source.get(part.span.as_range())?;
+        for (offset, token) in census_tokens(raw.as_bytes()) {
+            if !census_names_member(token, name) {
+                continue;
+            }
+            let mention = u32::try_from(offset)
+                .ok()
+                .and_then(|offset| part.span.start().checked_add(offset))
+                .zip(u32::try_from(token.len()).ok())
+                .and_then(|(start, len)| Some(Span::new(start, start.checked_add(len)?)))
+                .unwrap_or(part.span);
+            mentions.push(mention);
+        }
+    }
+    Some(mentions)
 }
 
 /// The selected member vector is exactly the walked command: equal extents
@@ -1458,6 +1482,49 @@ fn census_admits_member(
             .argument_words_for_role(words, role)
             .is_some_and(|words| words.is_empty())
     })
+}
+
+/// Whether `command` is exactly one selected superclass or mixin relation
+/// member naming classes only. It runs no script and dispatches no member.
+pub(crate) fn class_relation_member(
+    syntax: &crate::source_structure::SourceSyntaxStructure,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+) -> bool {
+    use tcl_registry::ArgRole;
+    use tcl_registry::definer::{MemberEffect, MemberRefKind, RelationSlot};
+    let Some(head) = command.argv.first() else {
+        return false;
+    };
+    let Ok(Some(member)) = syntax.definition_member_at(head.span.start()) else {
+        return false;
+    };
+    let region = member.region();
+    let words = member.original_words();
+    census_member_matches(&member, command)
+        && region.checked_member_row(words).is_some_and(|row| {
+            matches!(
+                row.effect,
+                MemberEffect::Relation {
+                    slot: RelationSlot::Superclass | RelationSlot::Mixin
+                }
+            )
+        })
+        && region.checked_references(words).is_some_and(|references| {
+            references
+                .iter()
+                .all(|reference| reference.kind() == MemberRefKind::Class)
+        })
+        && [
+            ArgRole::CommandPrefix,
+            ArgRole::CommandName,
+            ArgRole::OpaqueScript,
+        ]
+        .into_iter()
+        .all(|role| {
+            region
+                .argument_words_for_role(words, role)
+                .is_some_and(|words| words.is_empty())
+        })
 }
 
 /// Tokens of literal text split at whitespace and Tcl word, script, list and
@@ -1574,6 +1641,25 @@ pub fn readonly_reference_report(
             }));
         }
         None => report.coverage = ReadonlyReferenceCoverage::Unavailable,
+    }
+    if report.coverage != ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+        && let Some(occurrences) = crate::original_member_rename::original_member_occurrence_census(
+            OriginalDeclarationDocument {
+                uri: identity.uri(),
+                source,
+                analysis,
+            },
+            identity,
+        )
+    {
+        // The rename planner's complete walk found exactly these selectors.
+        let mut reported = report.spans.clone();
+        reported.retain(|span| *span != identity.span());
+        reported.sort_by_key(|span| (span.start(), span.end()));
+        reported.dedup();
+        if reported == occurrences {
+            report.coverage = ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus;
+        }
     }
     Some(report)
 }
