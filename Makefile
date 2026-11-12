@@ -954,7 +954,11 @@ check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat 
 check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell setup and Rust oracle discovery
 	@echo "==> Checking C Tcl reference toolchain ownership"
 	@bash scripts/dev/test-reference-tcl-toolchains.sh
-	@cargo test -p tcl-test-support -- --skip $(C84_NATIVE_FORMATTER_TEST)
+	@cargo test -p tcl-test-support -- --skip $(C84_NATIVE_FORMATTER_TEST) --skip $(NATIVE_ORACLE_CONFORMANCE_TEST)
+
+# Needs at least one reference tclsh; the root Rust shards install the pinned
+# Tcl 9.0 interpreter and run it there. The drift gate installs none.
+NATIVE_ORACLE_CONFORMANCE_TEST := actual_native_variable_container_observations
 
 # Needs the pinned C 8.4 archive built by `make TCL_LSP_TCL_RELEASES=8.4
 # ensure-tcl-deps`; CI runs it in runtime-rust-tests, which builds that tree.

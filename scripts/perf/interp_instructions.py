@@ -145,7 +145,7 @@ def table(rows: list[Row], tolerance: float) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("measure")
     run.add_argument("--engine", action="append", required=True, metavar="NAME=PATH")
