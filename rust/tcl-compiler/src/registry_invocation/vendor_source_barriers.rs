@@ -214,15 +214,50 @@ pub(super) fn capture_in_script_body(
     Some(receipt)
 }
 
+type RegionPlanKey = (
+    tcl_lexer::SourceImage,
+    tcl_lexer::Span,
+    tcl_lexer::LexerConfig,
+);
+type RegionPlan = Option<std::rc::Rc<tcl_lexer::NativeScriptWordsPlan>>;
+
+const REGION_PLAN_CAPACITY: usize = 4096;
+
+thread_local! {
+    static REGION_PLANS: std::cell::RefCell<std::collections::HashMap<RegionPlanKey, RegionPlan>> =
+        std::cell::RefCell::default();
+}
+
+/// Every head in a script asks for the same ancestor regions, so each
+/// region's word plan is lexed once rather than once per nested head.
+fn region_plan(
+    image: &tcl_lexer::SourceImage,
+    region: tcl_lexer::Span,
+    config: tcl_lexer::LexerConfig,
+) -> RegionPlan {
+    let key = (image.clone(), region, config);
+    if let Some(plan) = REGION_PLANS.with_borrow(|plans| plans.get(&key).cloned()) {
+        return plan;
+    }
+    let plan = tcl_lexer::native_script_words_in(image.clone(), region, config)
+        .ok()
+        .map(std::rc::Rc::new);
+    REGION_PLANS.with_borrow_mut(|plans| {
+        if plans.len() >= REGION_PLAN_CAPACITY {
+            plans.clear();
+        }
+        plans.insert(key, plan.clone());
+    });
+    plan
+}
+
 fn capture_region(
     context: &ContextRegistry,
     head: &VendorSourceNameInput,
     selected_prefixes: &[Vec<NameBytes>],
     region: tcl_lexer::Span,
 ) -> Option<VendorSourceCatalogueBarriers> {
-    let image = head.source_image();
-    let config = head.lexer_config();
-    let plan = tcl_lexer::native_script_words_in(image.clone(), region, config).ok()?;
+    let plan = region_plan(head.source_image(), region, head.lexer_config())?;
     if plan.fatal_tail.is_some() {
         return None;
     }
@@ -237,7 +272,7 @@ fn capture_region(
         regions: vec![region],
     };
     let mut barriers = BTreeSet::new();
-    for command in plan.commands {
+    for command in &plan.commands {
         let Some(first) = command.words.first() else {
             continue;
         };
