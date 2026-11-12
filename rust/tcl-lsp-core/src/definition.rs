@@ -325,25 +325,15 @@ fn word_definition(
     // workspace must never win.
     if let Some((head, sub, false)) =
         original_instance_method_at_cursor(source, analysis, line, character)
-    {
-        // The cursor offset here is `decl_byte_offset`, already computed above.
-        let namespace = namespace_context_at(
-            &analysis.global_scope,
+        && let Some(proc_def) = ensemble_called_procedure(
+            analysis,
+            source,
+            (&head, &sub),
             decl_byte_offset,
-            &analysis.namespace_overrides,
-        );
-        if let Some(target) = ensemble_subcommand_target(analysis, &namespace, &head, &sub)
-            && let Some(proc_def) = resolve_called_proc(
-                analysis,
-                source,
-                "::",
-                target,
-                decl_byte_offset,
-                view.with_registry(crate::registry_for_analysis(analysis)),
-            )
-        {
-            return vec![span_to_range(source, line_index, proc_def.name_span)];
-        }
+            view.with_registry(crate::registry_for_analysis(analysis)),
+        )
+    {
+        return vec![span_to_range(source, line_index, proc_def.name_span)];
     }
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
@@ -1736,6 +1726,38 @@ fn logical_called_procedure_at<'a>(
             cursor_off,
         )?;
     call.declaration(analysis)
+}
+
+/// The procedure `head sub` at `cursor_off` dispatches to: the dispatch's own
+/// target receipt at the ensemble invocation, else the static ensemble table's
+/// target resolved like a call.
+pub(crate) fn ensemble_called_procedure<'a>(
+    analysis: &'a AnalysisResult,
+    source: &str,
+    (head, sub): (&str, &str),
+    cursor_off: u32,
+    view: CallResolution<'_>,
+) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    let receipt = analysis
+        .command_invocations
+        .iter()
+        .find(|inv| {
+            inv.ensemble_dispatch.is_some()
+                && inv.range.start() <= cursor_off
+                && cursor_off < inv.range.end()
+        })
+        .and_then(|inv| inv.resolved_command_reference.as_ref()?.definition())
+        .and_then(|definition| analysis.proc_for_definition(definition, source));
+    if receipt.is_some() {
+        return receipt;
+    }
+    let namespace = namespace_context_at(
+        &analysis.global_scope,
+        cursor_off,
+        &analysis.namespace_overrides,
+    );
+    let target = ensemble_subcommand_target(analysis, &namespace, head, sub)?;
+    resolve_called_proc(analysis, source, "::", target, cursor_off, view)
 }
 
 /// The command invocation the analyser recorded whose **head token** covers

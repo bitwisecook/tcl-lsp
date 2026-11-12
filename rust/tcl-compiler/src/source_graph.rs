@@ -97,6 +97,17 @@ pub fn invocation_targets_declaration_in<T>(
     {
         return false;
     }
+    // An ensemble dispatch has no written target word; its receipt is the
+    // target lookup at the ensemble invocation.
+    if invocation.ensemble_dispatch.is_some() {
+        return invocation
+            .resolved_command_reference
+            .as_ref()
+            .is_some_and(|reference| {
+                reference.original_name_policy() == Some(declaration.name().policy())
+                    && reference_matches_declaration(reference, declaration, follow_links)
+            });
+    }
     let (Some(input), Some(lookup)) =
         (&invocation.original_name_input, &invocation.original_lookup)
     else {

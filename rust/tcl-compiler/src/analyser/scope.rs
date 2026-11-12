@@ -1624,10 +1624,7 @@ impl Analyser {
     pub(super) fn retain_positioned_command_definitions(&mut self) {
         let lexical_advice = self.result.allows_lexical_declaration_advice();
         for invocation in &mut self.result.command_invocations {
-            if invocation.is_mathfunc_call
-                || invocation.ensemble_dispatch.is_some()
-                || invocation.callback_arity.is_some()
-            {
+            if invocation.is_mathfunc_call || invocation.callback_arity.is_some() {
                 continue;
             }
             let Some(offset) = invocation.lookup.offset(invocation.range) else {
@@ -1635,6 +1632,13 @@ impl Analyser {
             };
             let point = self.head_identities.invocation_at_source("", offset);
             let reference = match invocation.lookup {
+                // The ensemble looks up its selected target, after argv.
+                crate::signature_scan::types::SignatureCommandLookup::EnsembleDispatch {
+                    ..
+                } => invocation
+                    .resolved_qualified_name
+                    .as_deref()
+                    .and_then(|target| point.command_reference(target)),
                 // A unanimously consumed name is looked up by this consuming
                 // command's handler, so the receipt is issued at its site.
                 crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. } => {
@@ -1699,6 +1703,9 @@ impl Analyser {
                         ..
                     } => key.and_then(|key| binding.original_consumed_command_lookup(key)),
                     crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
+                        ..
+                    }
+                    | crate::signature_scan::types::SignatureCommandLookup::EnsembleDispatch {
                         ..
                     }
                     | crate::signature_scan::types::SignatureCommandLookup::DeferredReference => {
@@ -6517,6 +6524,80 @@ info exists ::N::v\uD800";
 #[cfg(test)]
 mod original_positioned_reference_tests {
     use crate::analyser::Analyser;
+
+    /// tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print `foo: bar` for this script:
+    /// the create installs `::e` and nothing else, so every later command
+    /// still resolves, and the ensemble looks up `::e::Foo` when `e foo` runs.
+    #[test]
+    fn literal_ensemble_creation_keeps_later_references_and_dispatches_to_its_target() {
+        let source = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\n";
+        let at = |analysis: &crate::analyser::AnalysisResult, word: &str| {
+            let offset = u32::try_from(source.rfind(word).unwrap()).unwrap();
+            analysis
+                .command_invocations
+                .iter()
+                .find(|invocation| invocation.range.start() == offset)
+                .unwrap()
+                .resolved_command_reference
+                .clone()
+        };
+        for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            assert!(at(&analysis, "proc").is_some(), "{profile}");
+            let ensemble = at(&analysis, "e foo").expect("the created ensemble command");
+            assert!(ensemble.definition().is_none(), "{profile}");
+            let dispatch = at(&analysis, "foo bar").expect("the dispatch target receipt");
+            let definition = dispatch.definition().expect("the target procedure");
+            assert_eq!(
+                analysis
+                    .proc_for_definition(definition, source)
+                    .unwrap()
+                    .qualified_name,
+                "::e::Foo",
+                "{profile}"
+            );
+        }
+        // Tcl 8.4 has no `namespace ensemble`; the lenient profile spans it.
+        for profile in ["tcl8.4", "tcl"] {
+            let analysis = Analyser::new().analyse(source, profile);
+            assert!(at(&analysis, "e foo").is_none(), "{profile}");
+        }
+    }
+
+    /// The same evidence: `-command` names the one created command, relative
+    /// to the current namespace or as written. A computed operand or an
+    /// abbreviated option cannot name it, so later references stay withdrawn.
+    #[test]
+    fn ensemble_creation_command_operand_selects_the_slot_or_withdraws() {
+        let resolves = |source: &str, offset: usize| {
+            let offset = u32::try_from(offset).unwrap();
+            Analyser::new()
+                .analyse(source, "tcl8.6")
+                .command_invocations
+                .iter()
+                .any(|invocation| {
+                    invocation.range.start() == offset
+                        && invocation.resolved_command_reference.is_some()
+                })
+        };
+        let call = |source: &str| source.find("\np\n").unwrap() + 1;
+        for (create, head) in [
+            ("-command x -map {a ::b}", "::e::x"),
+            ("-command ::top", "top"),
+        ] {
+            let source = format!(
+                "namespace eval ::e {{namespace ensemble create {create}}}\nproc p {{}} {{}}\np\n{head}\n"
+            );
+            assert!(resolves(&source, call(&source)), "{source}");
+            assert!(resolves(&source, source.rfind(head).unwrap()), "{source}");
+        }
+        for create in ["-command [lindex $::argv 0]", "-com x"] {
+            let source = format!(
+                "namespace eval ::e {{namespace ensemble create {create}}}\nproc p {{}} {{}}\np\n"
+            );
+            assert!(!resolves(&source, call(&source)), "{source}");
+        }
+    }
 
     #[test]
     fn opaque_head_reference_uses_original_slot_and_allocation_after_ui_maps_are_cleared() {

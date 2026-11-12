@@ -860,6 +860,19 @@ fn select_invocation(
     else {
         return ControlFlow::Continue(());
     };
+    if invocation.ensemble_dispatch.is_some() {
+        let Some(reference) = &invocation.resolved_command_reference else {
+            return ControlFlow::Break(None);
+        };
+        let mut matched = analysis
+            .original_procedure_declarations()
+            .filter(|row| reference_matches_declaration(reference, row, true))
+            .filter_map(|row| {
+                OriginalDeclarationIdentity::for_procedure(uri, source, analysis, row)
+            });
+        let first = matched.next();
+        return ControlFlow::Break(first.filter(|_| matched.next().is_none()));
+    }
     let (Some(input), Some(lookup)) =
         (&invocation.original_name_input, &invocation.original_lookup)
     else {

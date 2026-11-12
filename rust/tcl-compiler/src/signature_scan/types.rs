@@ -833,6 +833,12 @@ pub enum SignatureCommandLookup {
         /// Original command point retained for temporal navigation.
         invocation_offset: u32,
     },
+    /// An ensemble subcommand word: the ensemble invocation at this head
+    /// looks up the selected target, not the written word, after its argv.
+    EnsembleDispatch {
+        /// Exact source offset of the ensemble invocation's head.
+        invocation_offset: u32,
+    },
     /// The name is declared for a later or independently selected invocation.
     DeferredReference,
 }
@@ -844,7 +850,8 @@ impl SignatureCommandLookup {
         match self {
             Self::InvocationHead => Some(range.start()),
             Self::ConsumedName { invocation_offset }
-            | Self::PossibleConsumedName { invocation_offset } => Some(invocation_offset),
+            | Self::PossibleConsumedName { invocation_offset }
+            | Self::EnsembleDispatch { invocation_offset } => Some(invocation_offset),
             Self::DeferredReference => None,
         }
     }
@@ -863,6 +870,11 @@ impl SignatureCommandLookup {
                 .checked_add(delta)
                 .map_or(Self::DeferredReference, |invocation_offset| {
                     Self::PossibleConsumedName { invocation_offset }
+                }),
+            Self::EnsembleDispatch { invocation_offset } => invocation_offset
+                .checked_add(delta)
+                .map_or(Self::DeferredReference, |invocation_offset| {
+                    Self::EnsembleDispatch { invocation_offset }
                 }),
             other => other,
         }

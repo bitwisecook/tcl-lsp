@@ -778,23 +778,27 @@ fn select_at_offset(
     if let Some(selected) = declared_self_query(source, analysis, offset) {
         return selected;
     }
-    let mut selected = ControlFlow::Continue(());
+    // A cursor inside a `[...]` selector word belongs to the innermost
+    // command whose selector holds it, never to the enclosing command.
+    let mut innermost: Option<SegmentedCommand> = None;
     crate::executable_regions::visit_analysis_executable_commands(
         source,
         analysis,
         &mut |command, _, _| {
-            if command
-                .argv
-                .get(1)
-                .is_some_and(|word| word.span.as_range().contains(&(offset as usize)))
-            {
-                selected = command_query(source, analysis, command);
-                return selected.is_break();
+            if command.argv.get(1).is_some_and(|word| {
+                word.span.as_range().contains(&(offset as usize))
+                    && innermost
+                        .as_ref()
+                        .is_none_or(|outer| word.span.len() < outer.argv[1].span.len())
+            }) {
+                innermost = Some(command.clone());
             }
             false
         },
     );
-    selected
+    innermost.map_or(ControlFlow::Continue(()), |command| {
+        command_query(source, analysis, &command)
+    })
 }
 
 /// A `my NAME` selector written in an original method body that no actual

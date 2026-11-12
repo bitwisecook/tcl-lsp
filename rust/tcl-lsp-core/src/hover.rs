@@ -517,19 +517,37 @@ fn ensemble_subcommand_hover(
     }
     let line_index = tcl_lexer::LineIndex::new(source);
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let namespace = crate::definition::namespace_context_at(
-        &analysis.global_scope,
+    let proc_def = crate::definition::ensemble_called_procedure(
+        analysis,
+        source,
+        (&head, &sub),
         cursor_offset,
-        &analysis.namespace_overrides,
-    );
-    let target = crate::definition::ensemble_subcommand_target(analysis, &namespace, &head, &sub)?;
-    let proc_def =
-        crate::definition::resolve_called_proc(analysis, source, "::", target, cursor_offset, ctx)?;
+        ctx,
+    )?;
     let text = format!(
         "**Ensemble subcommand** of `{head}`\n\n{}",
         proc_hover_text(proc_def)
     );
     Some(Hover::markdown(text))
+}
+
+/// Original-mode hover: a statically dispatched ensemble subcommand, else the
+/// registry operand at the cursor.
+fn original_hover(
+    source: &str,
+    (line, character): (u32, u32),
+    analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
+) -> Option<Hover> {
+    ensemble_subcommand_hover(source, line, character, analysis, ctx).or_else(|| {
+        let cursor_offset = crate::definition::byte_offset_at(
+            &tcl_lexer::LineIndex::new(source),
+            source,
+            line,
+            character,
+        );
+        original_registry::hover(source, analysis, cursor_offset)
+    })
 }
 
 /// Conditional Logical function documentation from the genuine checked
@@ -1554,7 +1572,7 @@ fn hover_impl(
     if !analysis.allows_lexical_declaration_advice() {
         // Registry operands may have their own genuine expansion/list-child
         // geometry. A standalone static-word label is not their prerequisite.
-        return original_registry::hover(source, analysis, cursor_offset).or_else(|| {
+        return original_hover(source, (line, character), analysis, ctx).or_else(|| {
             word.as_deref()
                 .and_then(ip_address_hover_text)
                 .map(Hover::markdown)

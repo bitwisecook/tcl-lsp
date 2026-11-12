@@ -4011,6 +4011,7 @@ impl Analyser {
         &mut self,
         written: String,
         span: Span,
+        head: Option<u32>,
         entry: &super::types::EnsembleSubcommandTarget,
         argc: Option<usize>,
     ) {
@@ -4020,7 +4021,14 @@ impl Analyser {
                 original_callback_prefix: None,
                 original_lookup: None,
                 original_name_input: None,
-                lookup: crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
+                lookup: head.map_or(
+                    crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
+                    |invocation_offset| {
+                        crate::signature_scan::types::SignatureCommandLookup::EnsembleDispatch {
+                            invocation_offset,
+                        }
+                    },
+                ),
                 name: written,
                 range: span,
                 resolved_qualified_name: Some(entry.target.clone()),
@@ -4847,7 +4855,8 @@ impl Analyser {
         } else {
             Some(args.len() - 1)
         };
-        self.record_or_defer_ensemble_subcommand(resolved_cmd, sub, tok.span, sub_argc);
+        let head = arg_tokens_in.first().map(|head| head.span.start());
+        self.record_or_defer_ensemble_subcommand(resolved_cmd, sub, tok.span, head, sub_argc);
     }
 
     /// Record the existence-probed subcommand reference for
@@ -4873,6 +4882,7 @@ impl Analyser {
         resolved_cmd: &str,
         sub: &str,
         span: Span,
+        head: Option<u32>,
         argc: Option<usize>,
     ) {
         if let Some(entry) = self
@@ -4880,7 +4890,7 @@ impl Analyser {
             .resolve_ensemble_subcommand(resolved_cmd, sub)
             .cloned()
         {
-            self.push_ensemble_dispatch_reference(sub.to_owned(), span, &entry, argc);
+            self.push_ensemble_dispatch_reference(sub.to_owned(), span, head, &entry, argc);
             return;
         }
         // Nothing deferred yet means nothing can *become* visible before
@@ -4893,6 +4903,7 @@ impl Analyser {
                 ensemble: resolved_cmd.to_owned(),
                 sub: sub.to_owned(),
                 span,
+                head,
                 argc,
             });
     }
@@ -4924,7 +4935,9 @@ impl Analyser {
             if declared_at >= cand.span.start() {
                 continue;
             }
-            self.push_ensemble_dispatch_reference(cand.sub, cand.span, &entry, cand.argc);
+            self.push_ensemble_dispatch_reference(
+                cand.sub, cand.span, cand.head, &entry, cand.argc,
+            );
         }
     }
 
@@ -5697,7 +5710,10 @@ impl Analyser {
             // subcommand word" — the same convention that function uses.
             if let Some((sub, sub_span)) = sub_candidate {
                 let sub_argc = argc.map(|a| a.saturating_sub(1));
-                self.record_or_defer_ensemble_subcommand(&resolved, &sub, sub_span, sub_argc);
+                // A callback prefix dispatches later, from no point this
+                // walk can name.
+                let head = callback.is_none().then_some(range.start());
+                self.record_or_defer_ensemble_subcommand(&resolved, &sub, sub_span, head, sub_argc);
             }
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {

@@ -110,6 +110,9 @@ pub(super) struct PendingEnsembleSubcommand {
     pub sub: String,
     /// The subcommand word's span — the reference this records.
     pub span: Span,
+    /// The ensemble invocation's head offset, where dispatch looks up the
+    /// target; `None` for a callback prefix that dispatches later.
+    pub head: Option<u32>,
     /// Arguments *after* the consumed subcommand word (`None` when any is
     /// `{*}`-expanded), the same convention the immediate path uses.
     pub argc: Option<usize>,

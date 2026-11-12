@@ -130,6 +130,20 @@ compiler rewrites `dict for`/`dict map` to the canonical
 `::tcl::dict::for` / `::tcl::dict::map` (an interpreter barrier) — that
 rewrite *is* the ensemble alias; generalise it rather than special-casing each.
 
+A `namespace ensemble create` whose every option and value is literal, known
+and valid for the selected release (8.5+; `-parameters` from 8.6) installs
+exactly one command — at `-command`, or at the current namespace's own name —
+and resolves no other name differently
+([evidence](../../../evidence/tcl/ensemble-create-publishes-one-command.md)).
+The registry names that slot (`NamespaceTransition::Ensemble::created`); the
+binding lattice installs a `Command` binding there and keeps every other
+reference. Any other ensemble operation, an abbreviated option or a computed
+word stays fail-closed, and `configure` leaves the command table as it was.
+Calling the ensemble is not modelled, so the world after the call is unknown.
+Each statically dispatched subcommand word carries the target lookup made at
+the ensemble invocation (`SignatureCommandLookup::EnsembleDispatch`), which
+navigation reads instead of a written target word.
+
 ## AOT compiler implications — the binding lattice
 
 `canonical_command` is a **lowering-time snapshot** of `resolve` (alias /
