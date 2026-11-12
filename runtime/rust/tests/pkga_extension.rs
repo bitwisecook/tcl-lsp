@@ -40,27 +40,10 @@ unsafe extern "C" {
 include!("../../../rust/tcl-cshim/tests/vectors/pkga.rs");
 
 /// Where the runtime's answer is not C Tcl's, what it is instead and why: the
-/// script, its code, result and `-errorcode` here, and the reason. C Tcl keeps
-/// a NUL in a value as the two bytes `C0 80`, so C code reading the value as a C
-/// string sees all of it; the runtime keeps it as one byte, so `strncpy` and
-/// `Tcl_AppendResult` over `Tcl_GetString` stop there. When the runtime's string
-/// representation changes, each row moves back to [`CASES`].
-const DIVERGENCES: &[(&str, i64, &str, &str, &str)] = &[
-    (
-        "pkga_calc join a\\u0000b c",
-        0,
-        "a+c",
-        "",
-        "`Tcl_AppendResult` reads `a\\0b` as the C string `a`",
-    ),
-    (
-        "pkga_calc fail x\\u0000y",
-        1,
-        "x",
-        "PKGA FAIL x",
-        "`strncpy` copies `x\\0y` up to its NUL, and the code is built from the copy",
-    ),
-];
+/// script, its code, result and `-errorcode` here, and the reason. Both engines
+/// now keep a NUL as C does, as the two bytes `C0 80`, so the NUL rows that
+/// were recorded here match C Tcl again.
+const DIVERGENCES: &[(&str, i64, &str, &str, &str)] = &[];
 
 /// Run the entry point on `interp`, answering its code.
 fn init(interp: &mut Interp) -> c_int {
@@ -80,13 +63,18 @@ fn loaded() -> Interp {
     interp
 }
 
-/// Evaluate `script`, answering its code and result.
+/// Evaluate `script`, answering its code and result as text, the way the
+/// reference probe read it: a stored `C0 80` is a NUL.
 fn run(interp: &mut Interp, script: &str) -> (Code, String) {
     let code = interp.eval_str(script.as_bytes());
-    (
-        code,
-        String::from_utf8_lossy(&interp.result_bytes()).into_owned(),
-    )
+    let bytes = interp.result_bytes();
+    let text = tcl_syntax::raw_string::RawString::from_bytes(bytes.as_slice())
+        .unicode()
+        .map_or_else(
+            |_| String::from_utf8_lossy(&bytes).into_owned(),
+            |text| text.to_string(),
+        );
+    (code, text)
 }
 
 /// Run `script` under `catch`, answering `(code, result, errorCode)` the way the

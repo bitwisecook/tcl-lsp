@@ -338,9 +338,9 @@ the compiles are skipped, unless `TCL_REQUIRE_WASM_LINK` is set, as it is in the
 CI job that installs the toolchain. The runtime's own test,
 `runtime/rust/tests/pkga_extension.rs`, compiles `pkga.c` for the host against
 the WASM leg, loads it through the runtime's exports and holds it to the
-conformance vectors; two of them differ, because the runtime keeps a NUL inside
-a value as one byte where C Tcl keeps it as `C0 80`, so C code that reads such a
-value as a C string stops at it.
+conformance vectors. The runtime keeps a NUL inside a value as `C0 80`, as C Tcl
+does, so C code that reads such a value as a C string sees all of it; see
+[naming-owners.md](naming-owners.md#nul-in-names-and-values).
 
 Source of truth for "what the API surface must cover": the 25-extension survey.
 **~85–90% of real extensions are public-`tcl.h`-only.**

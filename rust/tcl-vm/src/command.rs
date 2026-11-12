@@ -2043,7 +2043,15 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // numeric operation, which an unchecked read cannot reach.
     let text_of = |vm: &mut Vm, value: &Value| {
         tcl_syntax::value::ValueOps::native_string_bytes(vm, value)
-            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .map(|bytes| {
+                // A Tcl NUL is stored as `C0 80` and leaves the channel as a NUL.
+                tcl_syntax::raw_string::RawString::from_bytes(bytes.as_ref())
+                    .unicode()
+                    .map_or_else(
+                        |_| String::from_utf8_lossy(&bytes).into_owned(),
+                        |text| text.to_string(),
+                    )
+            })
             .map_err(|error| completion_from_cmd_error(vm, error.into()))
     };
     let (channel, text) = match rest {
@@ -3552,7 +3560,7 @@ fn encoding_convert(
                 Err(error) => return completion_from_cmd_error(vm, error.into()),
             };
             let converted = encoding::convert_from(&bytes, name, version, parsed.profile);
-            (Value::string(converted.value), converted.failure)
+            (vm.new_host_text(&converted.value), converted.failure)
         }
         encoding::Direction::To => {
             let converted = encoding::convert_to(data, name, version, parsed.profile);

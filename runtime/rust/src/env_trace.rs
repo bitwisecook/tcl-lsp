@@ -81,14 +81,18 @@ pub(crate) fn detach_destroyed_env_trace(
     }
 }
 
-/// A Tcl string as the host environment takes it: the host sees a C string,
-/// so a value stops at its first NUL, as `environ` does in C.
+/// A Tcl string as the host environment takes it: the host sees a C string
+/// in the external encoding, where a stored `C0 80` is a NUL, so a value stops
+/// at its first NUL, as `environ` does in C.
 fn host_text(bytes: &[u8]) -> String {
-    let end = bytes
-        .iter()
-        .position(|&byte| byte == 0)
-        .unwrap_or(bytes.len());
-    String::from_utf8_lossy(&bytes[..end]).into_owned()
+    let text = tcl_syntax::raw_string::RawString::from_bytes(bytes)
+        .unicode()
+        .map_or_else(
+            |_| String::from_utf8_lossy(bytes).into_owned(),
+            |text| text.to_string(),
+        );
+    let end = text.find('\0').unwrap_or(text.len());
+    text[..end].to_owned()
 }
 
 impl Interp {

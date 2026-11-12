@@ -910,7 +910,10 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let loc = interp.arg_location(last);
     match interp.do_subst_located(&src, flags, loc) {
         Ok(bytes) => {
-            interp.set_result_bytes(&bytes);
+            match interp.native_invocation_dialect().native_string_protocol() {
+                Some(protocol) => interp.set_result_bytes(&protocol.host_decoded_bytes(&bytes)),
+                None => interp.set_result_bytes(&bytes),
+            }
             Code::Ok
         }
         Err(code) => code, // the failing sub already set the result

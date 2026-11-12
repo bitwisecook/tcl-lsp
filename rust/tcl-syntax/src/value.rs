@@ -835,6 +835,11 @@ pub trait ValueOps {
     fn new_string(&mut self, s: String) -> Self::Value {
         self.new_str(&s)
     }
+    /// A character-level text result (case mapping, reversal, splitting and
+    /// the like), in the engine's native spelling of a NUL character.
+    fn new_text(&mut self, s: String) -> Self::Value {
+        self.new_string(s)
+    }
     /// The empty string value.
     fn empty(&mut self) -> Self::Value {
         self.new_str("")

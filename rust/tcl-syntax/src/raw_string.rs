@@ -175,6 +175,32 @@ impl From<std::str::Utf8Error> for UnicodeAccessError {
     }
 }
 
+/// Host text of native string bytes. C stores a NUL character as the
+/// modified-UTF-8 pair `C0 80`, which no valid UTF-8 sequence contains.
+fn host_unicode(bytes: &[u8]) -> Result<Rc<str>, UnicodeAccessError> {
+    let error = match std::str::from_utf8(bytes) {
+        Ok(text) => return Ok(Rc::from(text)),
+        Err(error) => UnicodeAccessError::from(error),
+    };
+    if !bytes.windows(2).any(|pair| pair == [0xc0, 0x80]) {
+        return Err(error);
+    }
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut rest = bytes;
+    while let Some((&byte, tail)) = rest.split_first() {
+        if byte == 0xc0 && tail.first() == Some(&0x80) {
+            decoded.push(0);
+            rest = &tail[1..];
+        } else {
+            decoded.push(byte);
+            rest = tail;
+        }
+    }
+    std::str::from_utf8(&decoded)
+        .map(Rc::from)
+        .map_err(|_| error)
+}
+
 /// An eager host backend cannot retain the requested native value size.
 /// This capacity limit is independent of the guest interpreter's lazy values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -889,11 +915,7 @@ impl RawString {
     pub fn unicode(&self) -> Result<Rc<str>, UnicodeAccessError> {
         self.0
             .unicode
-            .get_or_init(|| {
-                std::str::from_utf8(&self.0.bytes)
-                    .map(Rc::from)
-                    .map_err(UnicodeAccessError::from)
-            })
+            .get_or_init(|| host_unicode(&self.0.bytes))
             .clone()
     }
     /// Construct a new string while preserving every original and appended byte.
@@ -1072,6 +1094,26 @@ impl RawString {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unicode_reads_c_modified_utf8_nul_and_still_rejects_other_bytes() {
+        assert_eq!(
+            &*RawString::from_bytes(b"a\xc0\x80b".as_slice())
+                .unicode()
+                .unwrap(),
+            "a\0b"
+        );
+        assert_eq!(
+            &*RawString::from_bytes(b"a\0b".as_slice()).unicode().unwrap(),
+            "a\0b"
+        );
+        assert!(
+            RawString::from_bytes(b"a\xc0\x80\xffb".as_slice())
+                .unicode()
+                .is_err()
+        );
+        assert!(RawString::from_bytes(b"\xc0".as_slice()).unicode().is_err());
+    }
 
     #[test]
     fn native_ordering_uses_the_selected_release_units_and_original_jim_counts() {

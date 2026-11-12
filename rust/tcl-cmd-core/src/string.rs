@@ -220,7 +220,7 @@ pub fn index<O: NativeIndexOps>(
             return Ok(ops.empty());
         }
         match usize::try_from(i).ok().and_then(|i| chars.get(i)) {
-            Some(c) => Ok(ops.new_string(c.to_string())),
+            Some(c) => Ok(ops.new_text(c.to_string())),
             None => Ok(ops.empty()),
         }
     })
@@ -322,7 +322,7 @@ pub fn range<O: NativeIndexOps>(
         }
         let hi = usize::try_from(hi).unwrap_or(usize::MAX).min(len - 1);
         let out: String = chars[lo..=hi].iter().collect();
-        Ok(index::IndexResult::Created(ops.new_string(out)))
+        Ok(index::IndexResult::Created(ops.new_text(out)))
     })
 }
 
@@ -333,7 +333,7 @@ pub fn reverse<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdEr
         return Ok(ops.new_bytes(&raw.bytes()));
     }
     let out: String = ops.try_as_str(s)?.chars().rev().collect();
-    Ok(ops.new_string(out))
+    Ok(ops.new_text(out))
 }
 
 /// `string repeat str count` — `count` (clamped at 0) copies, with the result
@@ -656,7 +656,7 @@ pub fn case_convert<O: NativeIndexOps>(
                 CaseMode::Title => simple_title_rest(c),
             });
         }
-        Ok(ops.new_string(out))
+        Ok(ops.new_text(out))
     })
 }
 
@@ -989,7 +989,7 @@ pub fn replace<O: NativeIndexOps>(
             out.push_str(&ops.index_unicode(&args[3])?);
         }
         out.extend(chars[hi_excl..].iter());
-        Ok(index::IndexResult::Created(ops.new_string(out)))
+        Ok(index::IndexResult::Created(ops.new_text(out)))
     })
 }
 
@@ -1150,7 +1150,7 @@ pub fn insert<O: NativeIndexOps>(
         let mut out: String = chars[..at].iter().collect();
         out.push_str(&ops.index_unicode(ins)?);
         out.extend(chars[at..].iter());
-        Ok(ops.new_string(out))
+        Ok(ops.new_text(out))
     })
 }
 
@@ -1241,7 +1241,7 @@ pub fn trim<O: ValueOps>(
         (false, true) => string.trim_end_matches(pred),
         (false, false) => string.as_str(),
     };
-    Ok(ops.new_string(trimmed.to_string()))
+    Ok(ops.new_text(trimmed.to_string()))
 }
 
 /// `string first needleString haystackString ?startIndex?` — the character index
@@ -1506,7 +1506,7 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
         out.push(src[i]);
         i += 1;
     }
-    Ok(ops.new_string(out))
+    Ok(ops.new_text(out))
 }
 
 /// Arity-check (`string ?chars?`) wrapper shared by the three `trim` arms.

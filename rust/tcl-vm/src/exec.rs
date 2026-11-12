@@ -7011,7 +7011,8 @@ impl Vm {
                 else {
                     return Tick::Return(self.exceed_limit_inner(crate::LimitKind::ValueSize));
                 };
-                f.stack.push(Value::string(out));
+                let mapped = self.new_host_text(&out);
+                f.stack.push(mapped);
             }
             Op::STR_REPEAT => {
                 let count = pop(f);

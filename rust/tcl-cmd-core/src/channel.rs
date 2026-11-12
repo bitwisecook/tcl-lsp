@@ -817,8 +817,9 @@ pub fn encode_output(text: &str, newline: bool, config: ChannelConfig) -> Encode
 /// interprets each byte as its corresponding U+00XX character.
 #[must_use]
 pub fn encode_output_bytes(bytes: &[u8], newline: bool, config: ChannelConfig) -> EncodedOutput {
-    if let Ok(text) = core::str::from_utf8(bytes) {
-        return encode_output(text, newline, config);
+    // A Tcl NUL is stored as `C0 80` and leaves the channel as a NUL.
+    if let Ok(text) = tcl_syntax::raw_string::RawString::from_bytes(bytes).unicode() {
+        return encode_output(&text, newline, config);
     }
     if !matches!(
         config.encoding,

@@ -64,6 +64,31 @@ pub enum NativeStringStorageIdentity {
 }
 
 impl NativeStringProtocol {
+    /// Native string bytes for host text. C stores a NUL character as the
+    /// modified-UTF-8 pair `C0 80`; Jim keeps the counted host bytes.
+    #[must_use]
+    pub fn host_text_bytes(self, text: &str) -> Cow<'_, [u8]> {
+        self.host_decoded_bytes(text.as_bytes())
+    }
+
+    /// [`Self::host_text_bytes`] for bytes a host decoder produced, where a
+    /// zero byte is a decoded NUL character.
+    #[must_use]
+    pub fn host_decoded_bytes(self, decoded: &[u8]) -> Cow<'_, [u8]> {
+        if matches!(self, Self::Jim084) || !decoded.contains(&0) {
+            return Cow::Borrowed(decoded);
+        }
+        let mut bytes = Vec::with_capacity(decoded.len() + 1);
+        for &byte in decoded {
+            if byte == 0 {
+                bytes.extend_from_slice(&[0xc0, 0x80]);
+            } else {
+                bytes.push(byte);
+            }
+        }
+        Cow::Owned(bytes)
+    }
+
     /// Public C `Tcl_Eval` mirrors its result through the legacy `CString`
     /// result on C8. A subsequent object-result getter imports that extent.
     /// This pure reporting projection does not alter counted object results
@@ -262,6 +287,30 @@ pub fn materialize_native_string(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn host_text_bytes_spell_nul_as_c_modified_utf8_and_keep_jim_bytes() {
+        for version in tcl_dialect::TclVersion::ALL {
+            assert_eq!(
+                NativeStringProtocol::C(version)
+                    .host_text_bytes("a\0b")
+                    .as_ref(),
+                b"a\xc0\x80b"
+            );
+            assert_eq!(
+                NativeStringProtocol::C(version)
+                    .host_text_bytes("ab")
+                    .as_ref(),
+                b"ab"
+            );
+        }
+        assert_eq!(
+            NativeStringProtocol::Jim084
+                .host_text_bytes("a\0b")
+                .as_ref(),
+            b"a\0b"
+        );
+    }
+
     use super::*;
 
     #[test]

@@ -347,7 +347,8 @@ fn encoding_convert(
     }
     match result {
         Output::Text(text) => {
-            interp.set_result_bytes(text.as_bytes());
+            let value = interp.new_host_text(&text);
+            interp.set_result(value);
             Code::Ok
         }
         Output::Bytes(bytes) => interp.set_result_byte_array(&bytes),

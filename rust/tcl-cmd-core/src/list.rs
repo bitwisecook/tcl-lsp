@@ -770,7 +770,7 @@ pub fn split<O: ValueOps>(
     };
     let mut values = Vec::with_capacity(pieces.len());
     for p in pieces {
-        values.push(ops.new_string(p));
+        values.push(ops.new_text(p));
     }
     Ok(ops.new_list(values))
 }

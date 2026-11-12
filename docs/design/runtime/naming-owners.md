@@ -81,19 +81,35 @@ jimsh output installs them explicitly
 `native_fixture::install_distribution`). The VM's Jim `exists` implements the
 `-command`, `-proc` and `-alias` selectors the helpers use.
 
-## NUL in names
+## NUL in names and values
 
 In every C release a Tcl NUL character is part of a namespace, command or
-variable name, never its end. C stores it as `C0 80`, so the `CString` extents
-the owners apply (`c_string_extent`) only cut at a raw `00` byte from a C
-caller.
+variable name, never its end. C stores it as the modified-UTF-8 pair `C0 80`;
+a raw `00` byte only reaches a value from a C caller or as a raw byte written
+in the source, and C keeps that byte as it is. The `CString` extents the naming
+owners apply (`c_string_extent`) therefore cut only at a raw `00`.
 
-Both engines currently store a Tcl NUL as a raw `00` on some paths and as
-`C0 80` on others; only the runtime's 8.6 profile takes the native escaped-text
-path for source literals. Where a raw byte reaches a naming owner the name is
-cut (`proc "p\x00q"` registers `p`), and equal strings built by different
-producers can compare unequal in the VM. See
-[c-extension-abi.md](c-extension-abi.md) for the runtime's current one-byte
-representation. Closing this needs one representation per issuer in the value
-layer, not a naming change. That change is deferred until the LSP naming
-migration is finished.
+Both engines follow the same rule for C releases; Jim keeps its counted bytes:
+
+- `NativeStringProtocol::host_text_bytes` and `host_decoded_bytes`
+  (`tcl_syntax::native_string`) spell a host NUL as `C0 80`, and
+  `RawString::unicode` reads `C0 80` back as a NUL. Every other invalid
+  sequence is still refused.
+- Source escapes (`\x00`, `\u0000`, `\0`) decode to `C0 80`: the runtime takes
+  the native escaped-text path in every C release, the VM's code generator
+  decodes through `native_source_string_bytes_in`, and `subst` follows the same
+  rule. A folded `format` result is encoded where the registry folds it.
+- Results built from host text are encoded: in the runtime every
+  `ValueOps::new_str`/`new_string`; in the VM `ValueOps::new_text`, which the
+  shared character-level string and `split` results use, plus `format`,
+  compiled `string map` and `encoding convertfrom`. Other VM values built from
+  host text keep a raw `00` raw, as C does for bytes it never decodes.
+- Channel output decodes `C0 80` to a NUL byte (`encode_output_bytes` and the
+  VM's `puts`), and the runtime's `env` writes decode it and stop at the first
+  NUL, as C's external encoding and `environ` do.
+
+Known differences: Tcl 9 orders a NUL before every other character in
+`lsort -ascii` and `string compare`, while both engines compare the stored
+bytes, which is 8.x order; and the VM stores a compiled variable name decoded
+from an escaped NUL (`set "v\x00w" 1`) as a raw `00`, so `info exists` with the
+same literal misses it; and the VM's `dict get` with a NUL key aborts.

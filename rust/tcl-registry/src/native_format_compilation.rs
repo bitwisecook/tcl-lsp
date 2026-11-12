@@ -121,8 +121,13 @@ fn static_result(
     };
     let arguments = literals.iter().map(Vec::as_slice).collect::<Vec<_>>();
     match crate::value_transfer::builtins::compile_time_format(version, &arguments) {
+        // The fold renders host text; C stores its NUL as `C0 80`.
         Some(crate::value_transfer::builtins::CompileTimeFormat::Folded(folded)) => {
-            StaticFormat::Folded(folded)
+            StaticFormat::Folded(
+                tcl_syntax::native_string::NativeStringProtocol::C(version)
+                    .host_decoded_bytes(&folded)
+                    .into_owned(),
+            )
         }
         Some(crate::value_transfer::builtins::CompileTimeFormat::Failed {
             message,

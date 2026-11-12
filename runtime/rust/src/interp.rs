@@ -14550,12 +14550,11 @@ impl Interp {
             self.cmd_frames.borrow_mut().push(f);
         }
         let mut last = Code::Ok;
-        let commands = if self
-            .native_invocation_dialect()
-            .native_source_string_protocol()
-            == Some(tcl_syntax::native_string::NativeStringProtocol::C(
-                tcl_dialect::TclVersion::V8_6,
-            )) {
+        let commands = if matches!(
+            self.native_invocation_dialect()
+                .native_source_string_protocol(),
+            Some(tcl_syntax::native_string::NativeStringProtocol::C(_))
+        ) {
             parse::parse_script_with_original_text(src, self.lexer_config())
         } else {
             parse::parse_script_with_config(src, self.lexer_config())
@@ -20275,12 +20274,11 @@ impl Interp {
     /// returns `Err(code)` with the interp result already set.
     fn substitute_word(&mut self, src: &[u8], word: &parse::Word<'_>) -> Result<*mut TclObj, Code> {
         let native_text = !word.original_text.is_empty()
-            || self
-                .native_invocation_dialect()
-                .native_source_string_protocol()
-                == Some(tcl_syntax::native_string::NativeStringProtocol::C(
-                    tcl_dialect::TclVersion::V8_6,
-                ));
+            || matches!(
+                self.native_invocation_dialect()
+                    .native_source_string_protocol(),
+                Some(tcl_syntax::native_string::NativeStringProtocol::C(_))
+            );
         match &word.body {
             WordBody::Literal(bytes) => {
                 let obj = new_string(bytes);
@@ -20349,7 +20347,7 @@ impl Interp {
                                 None
                             };
                             if let Some(original) = original {
-                                buf.extend_from_slice(&self.original_c86_word_text(original)?);
+                                buf.extend_from_slice(&self.original_c_word_text(original)?);
                             } else {
                                 buf.extend_from_slice(b);
                             }
@@ -20387,27 +20385,31 @@ impl Interp {
         }
     }
 
-    fn original_c86_word_text(
+    fn original_c_word_text(
         &mut self,
         original: &parse::OriginalEscapedText,
     ) -> Result<Vec<u8>, Code> {
         use tcl_syntax::{
             native_string::NativeStringProtocol, raw_string::NativeValueAccessRefusal,
         };
-        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
         if let Err(first) = self.check_entered_native_operation() {
             self.refuse_native_execution(first);
             return Err(Code::Error);
         }
-        if self
+        let protocol = self
             .native_invocation_dialect()
-            .native_source_string_protocol()
-            != Some(protocol)
-            || self.source_string_protocol() != Some(protocol)
-        {
+            .native_source_string_protocol();
+        let Some(protocol @ NativeStringProtocol::C(_)) = protocol else {
             return Err(self.refuse_native_access(
                 NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "original C86 word source producer",
+                    "original C word source producer",
+                ),
+            ));
+        };
+        if self.source_string_protocol() != Some(protocol) {
+            return Err(self.refuse_native_access(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original C word source producer",
                 ),
             ));
         }
@@ -26455,7 +26457,7 @@ mod c86_original_source_text_tests {
             let _operation =
                 native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
             assert_eq!(
-                interpreter.original_c86_word_text(&original),
+                interpreter.original_c_word_text(&original),
                 Err(Code::Error)
             );
             assert!(interpreter.native_execution_refusal().is_some());

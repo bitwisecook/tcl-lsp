@@ -458,6 +458,20 @@ impl Vm {
     }
 }
 
+impl Vm {
+    /// A string value for host text, in the selected native spelling of NUL.
+    pub(crate) fn new_host_text(&self, text: &str) -> Value {
+        match self.native_invocation_dialect().native_string_protocol() {
+            Some(protocol @ tcl_syntax::native_string::NativeStringProtocol::C(_))
+                if text.contains('\0') =>
+            {
+                Value::new_native_string_bytes(protocol.host_text_bytes(text).into_owned())
+            }
+            _ => Value::string(text),
+        }
+    }
+}
+
 impl ValueOps for Vm {
     type Value = Value;
 
@@ -773,6 +787,13 @@ impl ValueOps for Vm {
     }
 
     fn new_string(&mut self, s: String) -> Value {
+        Value::string(s)
+    }
+
+    fn new_text(&mut self, s: String) -> Value {
+        if s.contains('\0') {
+            return self.new_host_text(&s);
+        }
         Value::string(s)
     }
 

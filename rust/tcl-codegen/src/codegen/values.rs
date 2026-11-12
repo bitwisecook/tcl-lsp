@@ -403,6 +403,16 @@ impl CodegenCtx<'_> {
         );
     }
 
+    /// Host-rendered literal text in the selected native spelling: C stores
+    /// a NUL character as `C0 80`. A raw NUL written in the source stays raw,
+    /// so this applies only to text a host fold produced.
+    fn native_literal_bytes<'v>(&self, value: &'v [u8]) -> std::borrow::Cow<'v, [u8]> {
+        match self.source_string_protocol {
+            Some(protocol) => protocol.host_decoded_bytes(value),
+            None => std::borrow::Cow::Borrowed(value),
+        }
+    }
+
     /// Push a *verbatim* literal — a braced / constant word that the VM must
     /// push exactly as-is, suppressing runtime word substitution. Apart from the
     /// brace-word `\<newline>` continuation collapse below, the literal bytes
@@ -473,7 +483,19 @@ impl CodegenCtx<'_> {
 
     /// Decode an authored literal fragment with the actual native escape policy.
     pub fn push_decoded_literal(&mut self, source: &str) {
-        let bytes = tcl_lexer::backslash_subst_bytes_in(source.as_bytes(), self.escapes);
+        let bytes = match self.source_string_protocol {
+            Some(protocol @ tcl_syntax::native_string::NativeStringProtocol::C(_)) => {
+                tcl_syntax::backslash::native_source_string_bytes_in(
+                    source.as_bytes(),
+                    self.escapes,
+                    protocol,
+                )
+                .unwrap_or_else(|_| {
+                    tcl_lexer::backslash_subst_bytes_in(source.as_bytes(), self.escapes)
+                })
+            }
+            _ => tcl_lexer::backslash_subst_bytes_in(source.as_bytes(), self.escapes),
+        };
         self.push_lit_bytes_exact(&bytes);
     }
 
@@ -497,7 +519,9 @@ impl CodegenCtx<'_> {
 
     /// Push a literal using a fresh slot (no deduplication).
     pub fn push_lit_no_dedup(&mut self, value: &str) {
-        let idx = self.literals.register(value);
+        let idx = self
+            .literals
+            .register_bytes(&self.native_literal_bytes(value.as_bytes()));
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         self.emit_comment(
             op,
@@ -514,7 +538,9 @@ impl CodegenCtx<'_> {
     /// The literal bytes and disassembly comment match [`push_lit_no_dedup`], so
     /// the only difference is the out-of-band flag.
     pub fn push_lit_no_dedup_verbatim(&mut self, value: &str) {
-        let idx = self.literals.register(value);
+        let idx = self
+            .literals
+            .register_bytes(&self.native_literal_bytes(value.as_bytes()));
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         let pos = self.emit_comment(
             op,

@@ -96,6 +96,16 @@ fn str_to_bytes(s: &str) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
+impl Interp {
+    /// A string object for host text, in the selected native spelling of NUL.
+    pub(crate) fn new_host_text(&self, text: &str) -> *mut TclObj {
+        match self.native_invocation_dialect().native_string_protocol() {
+            Some(protocol) => obj::new_string_bytes(&protocol.host_text_bytes(text)),
+            None => obj::new_string_bytes(&str_to_bytes(text)),
+        }
+    }
+}
+
 /// Opaque original-object transport for the shared append and regsub contracts.
 /// Object acquisition and pointer access remain internal to Runtime adapters.
 pub struct RuntimeAppendValue {
@@ -1669,11 +1679,11 @@ impl ValueOps for Interp {
     }
 
     fn new_str(&mut self, s: &str) -> *mut TclObj {
-        obj::new_string_bytes(&str_to_bytes(s))
+        self.new_host_text(s)
     }
 
     fn new_string(&mut self, s: String) -> *mut TclObj {
-        obj::new_string_bytes(&str_to_bytes(&s))
+        self.new_host_text(&s)
     }
 
     fn new_int(&mut self, n: i64) -> *mut TclObj {

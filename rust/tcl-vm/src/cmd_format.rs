@@ -103,7 +103,11 @@ fn scanned_value(v: &Scanned, dialect: tcl_registry::InvocationDialect) -> Value
 fn cmd_format(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     match tcl_cmd_core::format::format_cmd_for_release(vm, args, release) {
-        Ok(v) => ok(v),
+        // `%c` of zero renders a host NUL character.
+        Ok(v) => match v.try_to_str() {
+            Ok(text) if text.contains('\0') => ok(vm.new_host_text(&text)),
+            _ => ok(v),
+        },
         Err(e) => vm.cmd_error(e),
     }
 }
