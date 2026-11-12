@@ -874,6 +874,11 @@ fn scalar_number_impl<E: From<tcl_syntax::raw_string::NativeValueAccessRefusal>>
     let Some(text) = core::str::from_utf8(policy.input_bytes(&original)).ok() else {
         return Ok(None);
     };
+    if dialect.numbers == tcl_dialect::NumberSyntax::Tcl84
+        && tcl_syntax::number::is_out_of_range_double(text, dialect.numbers)
+    {
+        return Ok(None);
+    }
     let mut flags = ParseFlags::for_syntax(dialect.numbers);
     flags.integer_only = integer_only;
     let Some(parsed) = tcl_syntax::number::parse_whole_with(text.trim(), flags) else {

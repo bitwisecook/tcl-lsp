@@ -243,6 +243,13 @@ fn parse_string_rep_with_syntax(
     let bytes = obj::bytes_of(obj);
     let s = core::str::from_utf8(&bytes).ok()?;
     use tcl_syntax::number::Number;
+    // 8.4's `Tcl_GetDoubleFromObj` refuses a string `strtod` reads only with
+    // `ERANGE`.
+    if syntax == tcl_dialect::NumberSyntax::Tcl84
+        && tcl_syntax::number::is_out_of_range_double(s, syntax)
+    {
+        return None;
+    }
     match tcl_syntax::number::parse_whole_with(
         s,
         tcl_syntax::number::ParseFlags::for_syntax(syntax),

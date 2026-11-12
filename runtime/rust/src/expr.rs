@@ -437,6 +437,19 @@ fn operand_desc(
     if obj::obj_type_ptr(o) == &obj::TCL_DOUBLE_TYPE && obj::double_of(o).is_nan() {
         return OperandDesc::NonNumericFloatingPointValue;
     }
+    let range_error = core::str::from_utf8(bytes)
+        .ok()
+        .filter(|_| dialect.numbers == tcl_dialect::NumberSyntax::Tcl84)
+        .filter(|text| tcl_syntax::number::is_out_of_range_double(text, dialect.numbers))
+        .and_then(|text| {
+            tcl_syntax::number::parse_whole_with(
+                text,
+                tcl_syntax::number::ParseFlags::for_syntax(dialect.numbers),
+            )
+        });
+    if let Some(tcl_syntax::number::Number::Double(value)) = range_error {
+        return OperandDesc::for_c84_range_error(value);
+    }
     if dialect
         .native_string_materialization(Some(
             tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
