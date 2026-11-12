@@ -1794,6 +1794,9 @@ pub struct InterpState {
     /// tier gate).  See `bump_cmd_epoch`.
     /// Runtime-issued speculative guard tokens and mutation-domain snapshots.
     guards: std::cell::RefCell<VmCommandGuards>,
+    /// The `::unknown` binding last seen at a guard door
+    /// ([`Vm::synchronise_unknown_binding_guards`]).
+    guard_unknown_binding: std::cell::RefCell<Option<Option<CommandTokenIdentity>>>,
     /// What is known of command tokens by generation: their guard
     /// attestations and which of them an embedder registered.
     guarded_commands: GuardedCommands,
@@ -4061,6 +4064,7 @@ impl InterpState {
             firing_cmd_traces: Vec::new(),
             pending_exec_leave: None,
             guards: std::cell::RefCell::new(VmCommandGuards::new(environment.guards)),
+            guard_unknown_binding: std::cell::RefCell::new(None),
             guarded_commands: GuardedCommands::default(),
             active_traces: Vec::new(),
             ns_script_frames: Vec::new(),
@@ -5793,6 +5797,7 @@ impl Vm {
         if domains.is_empty() {
             return Err(GuardError::EmptyDomains);
         }
+        self.synchronise_unknown_binding_guards();
         let key = self
             .resolve_command_fqn(self.current_ns(), name)
             .ok_or(GuardError::IdentityUnavailable)?;
@@ -5835,9 +5840,26 @@ impl Vm {
             .prepare(expected, observed, domains, owner)
     }
 
+    /// Move `UnknownHandling` when the `::unknown` binding differs from the
+    /// one the last guard door saw: a definition, rename or deletion of the
+    /// default handler changes what an unresolved name runs.
+    fn synchronise_unknown_binding_guards(&self) {
+        let unknown = self.command_token_identity(&CommandSidecarKey::visible("unknown"));
+        if self
+            .guard_unknown_binding
+            .replace(Some(unknown.clone()))
+            .is_some_and(|seen| seen != unknown)
+        {
+            self.guards
+                .borrow_mut()
+                .invalidate(GuardDomain::UnknownHandling);
+        }
+    }
+
     /// Re-check a command guard against current live identity and epochs.
     #[must_use]
     pub fn check_command_guard(&self, token: GuardToken, name: &str) -> bool {
+        self.synchronise_unknown_binding_guards();
         let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
             return false;
         };
@@ -11428,6 +11450,7 @@ impl Vm {
     }
 
     fn ns_unknown_set_at(&mut self, cur: NsId, root: Value, length: usize) {
+        self.invalidate_namespace_structure_guards();
         let retired = {
             let world_handle = Rc::clone(&self.name_world);
             let mut world = world_handle.borrow_mut();
@@ -12884,6 +12907,16 @@ impl InterpState {
         guards.invalidate(GuardDomain::UnknownHandling);
     }
 
+    /// Namespace creation and deletion, exports, imports and unknown
+    /// handlers change what a name reaches without touching the command
+    /// lookup policy: they move `Namespace` and `UnknownHandling`, as the
+    /// runtime's lookup-environment revision does.
+    pub(crate) fn invalidate_namespace_structure_guards(&self) {
+        let mut guards = self.guards.borrow_mut();
+        guards.invalidate(GuardDomain::Namespace);
+        guards.invalidate(GuardDomain::UnknownHandling);
+    }
+
     /// Resolve `name` from namespace `cxt` to its command's canonical key
     /// (the `commands` map key — a qualified name without the leading `::`),
     /// via the shared C-Tcl resolution rule
@@ -13516,7 +13549,7 @@ impl Vm {
     fn note_namespace_creation_environment(&mut self) {
         self.bump_cmd_epoch();
         self.invalidate_compiled_command_semantics();
-        self.invalidate_guard_domain(GuardDomain::Namespace);
+        self.invalidate_namespace_structure_guards();
     }
 
     /// Insert a newly-created tail into its parent's retained Tcl string-hash table.
@@ -13651,6 +13684,7 @@ impl Vm {
     /// set in insertion order — `namespace export a; namespace export a`
     /// still reports `a`.
     pub(crate) fn add_exports(&mut self, patterns: &[NameBytes]) {
+        self.invalidate_namespace_structure_guards();
         let ns = self.current_ns_id();
         let world_handle = Rc::clone(&self.name_world);
         let mut world = world_handle.borrow_mut();
@@ -13686,6 +13720,7 @@ impl Vm {
     /// Drop the current namespace's export patterns — the state change
     /// `namespace export -clear` makes (`Tcl_Export`'s `resetListFirst`).
     pub(crate) fn clear_exports(&mut self) {
+        self.invalidate_namespace_structure_guards();
         let ns = self.current_ns_id();
         if !self.exports_get().is_empty() {
             self.advance_native_ensemble_export_epoch(ns);
@@ -14088,6 +14123,9 @@ impl Vm {
                 )? {
                     imported.push(tail);
                 }
+            }
+            if !imported.is_empty() {
+                self.invalidate_namespace_structure_guards();
             }
             Ok(imported)
         })();
@@ -14820,6 +14858,7 @@ impl Vm {
         &mut self,
         original: impl AsRef<[u8]>,
     ) -> Result<(), Completion<Value>> {
+        self.invalidate_namespace_structure_guards();
         let parts = self
             .namespace_pattern_parts(
                 original.as_ref(),
@@ -15026,7 +15065,7 @@ impl Vm {
         // would otherwise advance the compilation world.
         self.bump_cmd_epoch();
         self.invalidate_compiled_command_semantics();
-        self.invalidate_guard_domain(GuardDomain::Namespace);
+        self.invalidate_namespace_structure_guards();
         self.delete_namespace_token(id, deleting_root);
         true
     }
@@ -33466,6 +33505,62 @@ mod family_b_tests {
             vm.prepare_command_guard("guarded", GUARDED_IDENTITY, domains),
             Err(GuardError::IdentityUnavailable)
         );
+    }
+
+    /// Each lookup event moves the domain that covers it, as in the runtime
+    /// (#2292): namespace membership moves `Namespace`, and the unknown
+    /// handler or the command it names moves `UnknownHandling`.
+    #[test]
+    fn lookup_events_move_the_namespace_and_unknown_handling_domains() {
+        let setup = "namespace eval src {proc p {} {}; namespace export p}";
+        let rows: [(GuardDomain, &str, &str); 10] = [
+            (GuardDomain::Namespace, "", "namespace eval created {}"),
+            (GuardDomain::Namespace, "", "namespace delete src"),
+            (GuardDomain::Namespace, "", "namespace export guarded"),
+            (GuardDomain::Namespace, "", "namespace path ::src"),
+            (GuardDomain::Namespace, "", "namespace import src::p"),
+            (
+                GuardDomain::Namespace,
+                "namespace import src::p",
+                "namespace forget src::p",
+            ),
+            (
+                GuardDomain::UnknownHandling,
+                "",
+                "namespace unknown handler",
+            ),
+            (
+                GuardDomain::UnknownHandling,
+                "",
+                "proc unknown args {return 0}",
+            ),
+            (
+                GuardDomain::UnknownHandling,
+                "proc unknown args {}",
+                "rename unknown {}",
+            ),
+            (
+                GuardDomain::UnknownHandling,
+                "proc unknown args {}",
+                "rename unknown moved",
+            ),
+        ];
+        for (domain, prepare, event) in rows {
+            let mut vm = Vm::new();
+            vm.set_compiler(Box::new(BytecodeCompileService::default()));
+            vm.register_guarded_builtin("guarded", guarded_builtin, GUARDED_IDENTITY);
+            eval_value(&mut vm, setup);
+            eval_value(&mut vm, prepare);
+            let token = vm
+                .prepare_command_guard("guarded", GUARDED_IDENTITY, GuardDomains::one(domain))
+                .unwrap();
+            assert!(vm.check_command_guard(token, "guarded"));
+            eval_value(&mut vm, event);
+            assert!(
+                !vm.check_command_guard(token, "guarded"),
+                "{domain:?} kept across {event}"
+            );
+        }
     }
 
     thread_local! {

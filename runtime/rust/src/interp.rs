@@ -1459,6 +1459,9 @@ pub struct InterpState {
     guards: RefCell<OwnedGuardManager<u64, Option<crate::namespace::CommandGuardLookup>>>,
     guard_lookup_environment_revision: Cell<Option<u64>>,
     guard_command_lookup_policy_revision: Cell<Option<u64>>,
+    /// The `::unknown` binding last seen at a guard door, so a definition,
+    /// rename or deletion of it moves `UnknownHandling`.
+    guard_unknown_binding: Cell<Option<Option<u64>>>,
     guarded_definitions: RefCell<Vec<guarded_definition::DefinitionRequest>>,
     guarded_commands:
         RefCell<std::collections::BTreeMap<u64, std::collections::BTreeSet<GuardIdentity>>>,
@@ -2140,6 +2143,7 @@ impl Interp {
             guards: RefCell::new(OwnedGuardManager::new(guards)),
             guard_lookup_environment_revision: Cell::new(Some(0)),
             guard_command_lookup_policy_revision: Cell::new(Some(0)),
+            guard_unknown_binding: Cell::new(None),
             guarded_definitions: RefCell::new(Vec::new()),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
@@ -3901,6 +3905,16 @@ impl Interp {
         let previous = self.guard_lookup_environment_revision.replace(revision);
         let previous_policy = self.guard_command_lookup_policy_revision.replace(policy);
         remember_guard_sync(previous, revision, previous_policy, policy);
+        let unknown = self
+            .resolve_dispatchable_with_generation(self.current_ns.get(), b"::unknown")
+            .and_then(|(_, generation)| generation);
+        if self
+            .guard_unknown_binding
+            .replace(Some(unknown))
+            .is_some_and(|seen| seen != unknown)
+        {
+            self.invalidate_guard_domain(GuardDomain::UnknownHandling);
+        }
         if revision.is_none() || policy.is_none() {
             let mut guards = self.guards.borrow_mut();
             for domain in [
@@ -23477,6 +23491,59 @@ mod tests {
                 b"0"
             );
         });
+    }
+
+    /// Each lookup event moves the domain that covers it, whatever else it
+    /// leaves alone (#2292): namespace membership moves `Namespace`, and the
+    /// unknown handler or the command it names moves `UnknownHandling`.
+    #[test]
+    fn lookup_events_move_the_namespace_and_unknown_handling_domains() {
+        let setup = b"namespace eval src {proc p {} {}; namespace export p}";
+        let rows: [(GuardDomain, &[u8], &[u8]); 10] = [
+            (GuardDomain::Namespace, b"", b"namespace eval created {}"),
+            (GuardDomain::Namespace, b"", b"namespace delete src"),
+            (GuardDomain::Namespace, b"", b"namespace export guarded"),
+            (GuardDomain::Namespace, b"", b"namespace path ::src"),
+            (GuardDomain::Namespace, b"", b"namespace import src::p"),
+            (
+                GuardDomain::Namespace,
+                b"namespace import src::p",
+                b"namespace forget src::p",
+            ),
+            (GuardDomain::UnknownHandling, b"", b"namespace unknown handler"),
+            (
+                GuardDomain::UnknownHandling,
+                b"",
+                b"proc unknown args {return 0}",
+            ),
+            (
+                GuardDomain::UnknownHandling,
+                b"proc unknown args {}",
+                b"rename unknown {}",
+            ),
+            (
+                GuardDomain::UnknownHandling,
+                b"proc unknown args {}",
+                b"rename unknown moved",
+            ),
+        ];
+        for (domain, prepare, event) in rows {
+            leak_free(|i| {
+                i.register_guarded_builtin(b"guarded", guarded_builtin, GUARDED_IDENTITY);
+                ok(i, setup);
+                ok(i, prepare);
+                let token = i
+                    .prepare_command_guard(b"guarded", GUARDED_IDENTITY, GuardDomains::one(domain))
+                    .unwrap();
+                assert!(i.check_command_guard(token, b"guarded"));
+                ok(i, event);
+                assert!(
+                    !i.check_command_guard(token, b"guarded"),
+                    "{domain:?} kept across {}",
+                    String::from_utf8_lossy(event)
+                );
+            });
+        }
     }
 
     #[test]

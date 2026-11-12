@@ -115,7 +115,7 @@ impl Interp {
         })
     }
 
-    pub(super) fn invalidate_namespace_structure_guards(&self) {
+    pub(crate) fn invalidate_namespace_structure_guards(&self) {
         let mut guards = self.guards.borrow_mut();
         guards.invalidate(GuardDomain::Namespace);
         guards.invalidate(GuardDomain::UnknownHandling);

@@ -844,6 +844,9 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
     {
         return interp.dispatch_stock_jim_namespace_helper(argv, helper);
     }
+    if argv.len() > 2 {
+        interp.invalidate_namespace_structure_guards();
+    }
     let dest = interp.current_ns();
     // The introspection form is `objc == 1` — literally no words after
     // `import` — and C tests it *before* looking at `-force`. So a bare
@@ -987,6 +990,7 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
     use tcl_syntax::naming::{NativeNameContext, NativeNamespacePatternSource};
     use tcl_syntax::value::ValueError;
 
+    interp.invalidate_namespace_structure_guards();
     let dest = interp.current_ns();
     for index in 2..argv.len() {
         let original = match arguments.bytes(index) {

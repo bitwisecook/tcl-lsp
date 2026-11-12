@@ -71,15 +71,14 @@ pub enum GuardDomain {
     /// The VM moves it on `namespace path`, on making an interpreter safe,
     /// on `interp marktrusted` and on deleting a child interpreter.
     CommandEnvironment = 0,
-    /// Namespace lookup paths and structure, including namespace birth and
-    /// teardown. This domain can change independently of
-    /// [`Self::CommandEnvironment`].
+    /// Namespace lookup paths and structure. Both runtimes move it on
+    /// `namespace path`, namespace creation and deletion, `namespace export`,
+    /// `namespace import`, `namespace forget` and `namespace unknown`. This
+    /// domain can change independently of [`Self::CommandEnvironment`].
     Namespace = 1,
-    /// Namespace and interpreter unknown-command handling. WASM namespace
-    /// structure and lookup-policy changes invalidate this domain;
-    /// `namespace unknown` also reaches it in WASM, but not in the VM.
-    /// Binding, renaming or deleting the `unknown` command alone changes
-    /// neither runtime's epoch for this domain.
+    /// Namespace and interpreter unknown-command handling. Both runtimes move
+    /// it with [`Self::Namespace`], and when the `::unknown` command is
+    /// defined, renamed or deleted (seen at the next guard check).
     UnknownHandling = 2,
     /// Variable trace registration. Variable-store intrinsics request this
     /// domain: a guard over it is issued only while no variable trace exists
