@@ -28,10 +28,12 @@
 2	tcl-bigip-io	lib	tcl-bigip-io	tcl_bigip_io
 2	tcl-bigip-query	lib	tcl-bigip-query	tcl_bigip_query
 2	tcl-bigip::integration	test	tcl-bigip	integration
+2	tcl-compiler::it_2	test	tcl-compiler	it_2
 2	tcl-engine-tclvm::doors	test	tcl-engine-tclvm	doors
 2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 2	tcl-lexer::it_2	test	tcl-lexer	it_2
 2	tcl-lsp-core	lib	tcl-lsp-core	tcl_lsp_core
+2	tcl-lsp-core::it_5	test	tcl-lsp-core	it_5
 2	tcl-lsp-db::compiler_check_corpus	test	tcl-lsp-db	compiler_check_corpus
 2	tcl-lsp-db::it_2	test	tcl-lsp-db	it_2
 2	tcl-pkg	lib	tcl-pkg	tcl_pkg
@@ -180,14 +182,12 @@
 5	tcl-codegen::it_5	test	tcl-codegen	it_5
 5	tcl-codegen::wasm_real_link	test	tcl-codegen	wasm_real_link
 5	tcl-compiler::differential_incremental	test	tcl-compiler	differential_incremental
-5	tcl-compiler::it_2	test	tcl-compiler	it_2
 5	tcl-compiler::it_5	test	tcl-compiler	it_5
 5	tcl-cshim::it_5	test	tcl-cshim	it_5
 5	tcl-dialect::model_version_set	test	tcl-dialect	model_version_set
 5	tcl-dialect::package_version_oracle	test	tcl-dialect	package_version_oracle
 5	tcl-lexer	lib	tcl-lexer	tcl_lexer
 5	tcl-lexer::bug_repro	test	tcl-lexer	bug_repro
-5	tcl-lsp-core::it_5	test	tcl-lsp-core	it_5
 5	tcl-lsp-db::it_5	test	tcl-lsp-db	it_5
 5	tcl-mcp::bin/tcl-mcp	bin	tcl-mcp	tcl-mcp
 5	tcl-platform	lib	tcl-platform	tcl_platform
