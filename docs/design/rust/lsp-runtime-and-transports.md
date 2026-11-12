@@ -509,5 +509,10 @@ An ordinary definition can continue through its physical source owner when every
 settled scope requiring that URI is complete and has no conditional obligation.
 The selected projection must retain the current revision and contain no partial
 definition group. An incomplete unrelated root does not block that query.
-Interpreted sources retain their dedicated route, and reference inventories keep
-their aggregate completeness requirement.
+Interpreted sources retain their dedicated route, and positive reference
+inventories keep their aggregate completeness requirement. When only an
+unrelated root is incomplete and the cursor's own scope passes the definition
+rule above, references add the ordinary route's results from documents no
+settled scope sources: source views survey no independent root, and definition
+already answers those documents through the ordinary route. A document a
+settled scope sources keeps the views' answer.

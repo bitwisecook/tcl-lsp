@@ -151,7 +151,7 @@ impl Vm {
             .map_err(|error| self.refuse_host_command(format!("{error:?}")))?;
         let mut result = tcl_syntax::naming::rooted_member_key_bytes(
             &tcl_runtime_api::Namespaces::name_bytes(self, owner),
-            &member,
+            member,
         );
         if let Some((_, key)) = parent {
             result.push(b'(');

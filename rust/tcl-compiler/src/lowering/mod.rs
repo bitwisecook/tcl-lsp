@@ -5775,6 +5775,14 @@ impl<'r> Lowerer<'r> {
         .any(|role| !command.arg_indices_for_role(role, args.len()).is_empty())
     }
 
+    fn tokens_realm(&self, tokens: &CommandTokens) -> tcl_dialect::model::InvocationRealm {
+        tokens
+            .source_binding
+            .as_ref()
+            .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
+            .unwrap_or(self.invocation_realm)
+    }
+
     fn lower_default_with_tokens(
         &mut self,
         seg: &SegmentedCommand,
@@ -5794,58 +5802,19 @@ impl<'r> Lowerer<'r> {
             // to the barrier a registry body command lowers to, whatever the
             // frame effect it states (#2533).
             if self.declares_executable_word(cmd_name, args) {
-                return Statement::Barrier {
-                    span: seg.span,
-                    reason: "unsupported body command".into(),
-                    command: cmd_name.into(),
-                    canonical_command: None,
-                    args: args.to_vec(),
-                    tokens: Some(tokens),
-                };
+                return body_barrier(seg, None, tokens);
             }
             return source_body_syntax::generic_call(seg.span, cmd_name, args, Some(tokens));
         };
         let Some(role_cmd) = self.retained_metadata_descriptor_label(&tokens) else {
-            return Statement::Call {
-                span: seg.span,
-                command: cmd_name.into(),
-                canonical_command: None,
-                args: args.to_vec(),
-                defs: vec![],
-                reads: vec![],
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(tokens),
-                foreach_groups: None,
-            };
+            return untyped_call(seg, None, tokens);
         };
         let prepend_n = target.prepended.len();
-        let Some(prefix): Option<Vec<String>> = target
-            .prepended
-            .iter()
-            .map(|word| match word {
-                crate::registry_invocation::EffectiveInvocationWord::Literal(value) => {
-                    Some(value.clone())
-                }
-                _ => None,
-            })
-            .collect()
-        else {
+        let Some(prefix) = literal_words(&target.prepended) else {
             // A retained alias operand still contributes one argv slot when
             // its value is unknown. Presentation text must never license
             // specialised lowering or move the remaining operand positions.
-            return Statement::Call {
-                span: seg.span,
-                command: cmd_name.into(),
-                canonical_command: Some(role_cmd),
-                args: args.to_vec(),
-                defs: vec![],
-                reads: vec![],
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(tokens),
-                foreach_groups: None,
-            };
+            return untyped_call(seg, Some(role_cmd), tokens);
         };
         let role_args: Vec<String> = prefix.into_iter().chain(args.iter().cloned()).collect();
         let canonical = (role_cmd != cmd_name).then(|| role_cmd.clone());
@@ -5858,47 +5827,14 @@ impl<'r> Lowerer<'r> {
                 &tokens,
             )
         });
-        let facts = invocation.as_ref().map(|invocation| &invocation.facts);
-        let realm = tokens
-            .source_binding
-            .as_ref()
-            .and_then(crate::command_binding::SourceInvocationBinding::invocation_realm)
-            .unwrap_or(self.invocation_realm);
-        let role_indices = |role| {
-            facts.as_ref().map_or_else(Vec::new, |facts| {
-                facts
-                    .arg_roles
-                    .iter()
-                    .filter_map(|&(index, found)| {
-                        (found == role).then_some(facts.argument_offset + usize::from(index))
-                    })
-                    .collect()
-            })
-        };
-        let mut executable_indices = role_indices(ArgRole::Body);
-        for role in [ArgRole::LambdaLiteral, ArgRole::CommandPrefix] {
-            executable_indices.extend(role_indices(role));
-        }
-        executable_indices.sort_unstable();
-        executable_indices.dedup();
-        // Incomplete dynamic option/argument resolution cannot establish a
-        // strong definition. The shared place owner retains the uncertainty.
-        let var_indices = if facts.as_ref().is_none_or(|facts| {
-            !facts.arg_roles_complete
-                || facts.frame_effect.is_some_and(|effect| {
-                    effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
-                })
-        }) {
-            Vec::new()
-        } else {
-            role_indices(ArgRole::VarWrite)
-        };
-        let var_read_indices = role_indices(ArgRole::VarRead);
-        let reads_before_write = facts.as_ref().is_some_and(|facts| {
-            facts
-                .traits
-                .contains(tcl_registry::Traits::READS_BEFORE_WRITE)
-        });
+        let facts = invocation.as_ref().map(|invocation| &*invocation.facts);
+        let realm = self.tokens_realm(&tokens);
+        let RoleIndices {
+            executable: executable_indices,
+            var_writes: var_indices,
+            var_reads: var_read_indices,
+            reads_before_write,
+        } = RoleIndices::of(facts);
 
         // A stored callback is data for this invocation, not executable code
         // that can complete or mutate the caller before the command returns.
@@ -5916,14 +5852,7 @@ impl<'r> Lowerer<'r> {
                 .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
         });
         if has_same_invocation_executable && tokens.evaluated_body().is_none() {
-            return Statement::Barrier {
-                span: seg.span,
-                reason: "unsupported body command".into(),
-                command: cmd_name.into(),
-                canonical_command: canonical.clone(),
-                args: args.to_vec(),
-                tokens: Some(tokens.clone()),
-            };
+            return body_barrier(seg, canonical, tokens);
         }
 
         if !var_indices.is_empty() || !var_read_indices.is_empty() {
@@ -5979,18 +5908,7 @@ impl<'r> Lowerer<'r> {
             };
         }
 
-        Statement::Call {
-            span: seg.span,
-            command: cmd_name.into(),
-            canonical_command: canonical,
-            args: args.to_vec(),
-            defs: vec![],
-            reads: vec![],
-            reads_own_defs: false,
-            safe_on_uninit: false,
-            tokens: Some(tokens.clone()),
-            foreach_groups: None,
-        }
+        untyped_call(seg, canonical, tokens)
     }
 
     // TclOO method-body lowering (method purity for O126)
@@ -8071,6 +7989,111 @@ fn walk_for_trace(
             }
         }
     });
+}
+
+fn untyped_call(
+    seg: &SegmentedCommand,
+    canonical_command: Option<String>,
+    tokens: CommandTokens,
+) -> Statement {
+    Statement::Call {
+        span: seg.span,
+        command: seg.name().into(),
+        canonical_command,
+        args: seg.args().to_vec(),
+        defs: vec![],
+        reads: vec![],
+        reads_own_defs: false,
+        safe_on_uninit: false,
+        tokens: Some(tokens),
+        foreach_groups: None,
+    }
+}
+
+fn body_barrier(
+    seg: &SegmentedCommand,
+    canonical_command: Option<String>,
+    tokens: CommandTokens,
+) -> Statement {
+    Statement::Barrier {
+        span: seg.span,
+        reason: "unsupported body command".into(),
+        command: seg.name().into(),
+        canonical_command,
+        args: seg.args().to_vec(),
+        tokens: Some(tokens),
+    }
+}
+
+fn literal_words(
+    words: &[crate::registry_invocation::EffectiveInvocationWord],
+) -> Option<Vec<String>> {
+    words
+        .iter()
+        .map(|word| match word {
+            crate::registry_invocation::EffectiveInvocationWord::Literal(value) => {
+                Some(value.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+struct RoleIndices {
+    executable: Vec<usize>,
+    var_writes: Vec<usize>,
+    var_reads: Vec<usize>,
+    reads_before_write: bool,
+}
+
+impl RoleIndices {
+    fn of(facts: Option<&tcl_registry::resolved_invocation::InvocationFacts>) -> Self {
+        let Some(facts) = facts else {
+            return Self {
+                executable: Vec::new(),
+                var_writes: Vec::new(),
+                var_reads: Vec::new(),
+                reads_before_write: false,
+            };
+        };
+        let indices = |role| -> Vec<usize> {
+            facts
+                .arg_roles
+                .iter()
+                .filter_map(|&(index, found)| {
+                    (found == role).then_some(facts.argument_offset + usize::from(index))
+                })
+                .collect()
+        };
+        let mut executable: Vec<usize> = [
+            ArgRole::Body,
+            ArgRole::LambdaLiteral,
+            ArgRole::CommandPrefix,
+        ]
+        .into_iter()
+        .flat_map(indices)
+        .collect();
+        executable.sort_unstable();
+        executable.dedup();
+        // Incomplete dynamic option/argument resolution cannot establish a
+        // strong definition. The shared place owner retains the uncertainty.
+        let var_writes = if !facts.arg_roles_complete
+            || facts.frame_effect.is_some_and(|effect| {
+                effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
+            }) {
+            Vec::new()
+        } else {
+            indices(ArgRole::VarWrite)
+        };
+        Self {
+            executable,
+            var_writes,
+            var_reads: indices(ArgRole::VarRead),
+            reads_before_write: facts
+                .traits
+                .contains(tcl_registry::Traits::READS_BEFORE_WRITE),
+        }
+    }
 }
 
 #[cfg(test)]

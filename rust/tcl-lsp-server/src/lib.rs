@@ -21846,6 +21846,95 @@ impl Backend {
     /// The **one** path behind both `textDocument/references` and the code
     /// lens's click target.  They must not re-derive it separately: the lens
     /// listing fewer sites than the peek on the same symbol is a defect.
+    async fn ordinary_references(
+        &self,
+        uri: &Uri,
+        pos: Position,
+        include_decl: bool,
+    ) -> jsonrpc::Result<Option<Vec<Location>>> {
+        let uri = uri.clone();
+        let source_epoch = self.diag_inputs_epoch();
+        let source_generation = self.live_publication_uri_generation(&uri);
+        let Some(doc) = self.read_document(&uri).await? else {
+            return Ok(None);
+        };
+        // BIG-IP `.conf`/`.scf`: a reference is every identifier-bounded
+        // occurrence of the TMSH path token at the cursor (tcl-bigip::refs),
+        // a textual search the Tcl symbol analyser can't perform on a
+        // non-Tcl config. Same-document only — cross-file references await a
+        // workspace config index.
+        if Self::is_bigip_dialect(&doc.dialect) {
+            let text = doc.text.clone();
+            let bigip_ranges = crate::rt::spawn_blocking(move || {
+                tcl_bigip::refs::references_at(&text, pos.line, pos.character, include_decl)
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("bigip references worker panicked: {err}").into(),
+                data: None,
+            })?;
+            if bigip_ranges.is_empty() {
+                return Ok(None);
+            }
+            let locations = bigip_ranges
+                .into_iter()
+                .map(|r| Location {
+                    uri: uri.clone(),
+                    range: lift_bigip_range(r),
+                })
+                .collect();
+            return Ok(Some(locations));
+        }
+        // The iRulesLX method relation, in both directions: from
+        // a Tcl call site, and from the `addMethod` registration in the
+        // extension's own JavaScript. Answered here, in full — the sites are
+        // literal words in two languages, which the Tcl symbol analyser has no
+        // way to relate.
+        if let Some(locations) = self.ilx_references(&uri, &doc, pos, include_decl).await? {
+            return Ok((!locations.is_empty()).then_some(locations));
+        }
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await?;
+        if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) && Self::original_namespace_symbol(&doc.text, &analysis, pos).is_some()
+        {
+            let locations = Box::pin(self.logical_namespace_locations_for_snapshot(
+                (uri.clone(), doc.clone(), source_generation),
+                &analysis,
+                pos,
+                source_epoch,
+                LogicalNamespaceLocationsPurpose::References {
+                    include_declaration: include_decl,
+                },
+            ))
+            .await?;
+            return Ok((!locations.is_empty()).then_some(locations));
+        }
+        let logical_namespace_variable = analysis.resolved_input.as_ref().is_some_and(|input| input.has_logical_source_name_context()
+            && matches!(tcl_lsp_core::variable_symbol::select(&doc.text, &analysis, pos.line, pos.character), std::ops::ControlFlow::Break(Some(occurrence)) if occurrence.symbol().is_namespace() && occurrence.matches_logical_source_view(&tcl_lexer::SourceImage::document(&doc.text), input)));
+        let locations = if logical_namespace_variable {
+            self.logical_variable_locations_for_snapshot(
+                (uri.clone(), doc.clone(), source_generation),
+                &analysis,
+                pos,
+                source_epoch,
+                LogicalVariableLocationsPurpose::References {
+                    include_declaration: include_decl,
+                },
+            )
+            .await?
+        } else {
+            Box::pin(self.reference_locations(&uri, &doc, &analysis, pos, include_decl)).await?
+        };
+        if locations.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(locations))
+    }
+
     async fn reference_locations(
         &self,
         uri: &Uri,
@@ -36039,92 +36128,28 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
         let include_decl = params.context.include_declaration;
+        let mut settled = None;
         if let std::ops::ControlFlow::Break(locations) = self
             .original_source_view_navigation_route(&uri, pos, Some(include_decl))
             .await?
         {
-            return Ok(locations);
+            let Some(sourced) = self.original_source_reference_supplement(&uri).await? else {
+                return Ok(locations);
+            };
+            settled = Some((locations.unwrap_or_default(), sourced));
         }
-        let source_epoch = self.diag_inputs_epoch();
-        let source_generation = self.live_publication_uri_generation(&uri);
-        let Some(doc) = self.read_document(&uri).await? else {
-            return Ok(None);
+        let ordinary = self.ordinary_references(&uri, pos, include_decl).await?;
+        let Some((mut locations, sourced)) = settled else {
+            return Ok(ordinary);
         };
-        // BIG-IP `.conf`/`.scf`: a reference is every identifier-bounded
-        // occurrence of the TMSH path token at the cursor (tcl-bigip::refs),
-        // a textual search the Tcl symbol analyser can't perform on a
-        // non-Tcl config. Same-document only — cross-file references await a
-        // workspace config index.
-        if Self::is_bigip_dialect(&doc.dialect) {
-            let text = doc.text.clone();
-            let bigip_ranges = crate::rt::spawn_blocking(move || {
-                tcl_bigip::refs::references_at(&text, pos.line, pos.character, include_decl)
-            })
-            .await
-            .map_err(|err| jsonrpc::Error {
-                code: jsonrpc::ErrorCode::InternalError,
-                message: format!("bigip references worker panicked: {err}").into(),
-                data: None,
-            })?;
-            if bigip_ranges.is_empty() {
-                return Ok(None);
-            }
-            let locations = bigip_ranges
+        locations.extend(
+            ordinary
                 .into_iter()
-                .map(|r| Location {
-                    uri: uri.clone(),
-                    range: lift_bigip_range(r),
-                })
-                .collect();
-            return Ok(Some(locations));
-        }
-        // The iRulesLX method relation, in both directions: from
-        // a Tcl call site, and from the `addMethod` registration in the
-        // extension's own JavaScript. Answered here, in full — the sites are
-        // literal words in two languages, which the Tcl symbol analyser has no
-        // way to relate.
-        if let Some(locations) = self.ilx_references(&uri, &doc, pos, include_decl).await? {
-            return Ok((!locations.is_empty()).then_some(locations));
-        }
-        let analysis = self
-            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await?;
-        if analysis.resolved_input.as_ref().is_some_and(
-            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
-        ) && Self::original_namespace_symbol(&doc.text, &analysis, pos).is_some()
-        {
-            let locations = Box::pin(self.logical_namespace_locations_for_snapshot(
-                (uri.clone(), doc.clone(), source_generation),
-                &analysis,
-                pos,
-                source_epoch,
-                LogicalNamespaceLocationsPurpose::References {
-                    include_declaration: include_decl,
-                },
-            ))
-            .await?;
-            return Ok((!locations.is_empty()).then_some(locations));
-        }
-        let logical_namespace_variable = analysis.resolved_input.as_ref().is_some_and(|input| input.has_logical_source_name_context()
-            && matches!(tcl_lsp_core::variable_symbol::select(&doc.text, &analysis, pos.line, pos.character), std::ops::ControlFlow::Break(Some(occurrence)) if occurrence.symbol().is_namespace() && occurrence.matches_logical_source_view(&tcl_lexer::SourceImage::document(&doc.text), input)));
-        let locations = if logical_namespace_variable {
-            self.logical_variable_locations_for_snapshot(
-                (uri.clone(), doc.clone(), source_generation),
-                &analysis,
-                pos,
-                source_epoch,
-                LogicalVariableLocationsPurpose::References {
-                    include_declaration: include_decl,
-                },
-            )
-            .await?
-        } else {
-            Box::pin(self.reference_locations(&uri, &doc, &analysis, pos, include_decl)).await?
-        };
-        if locations.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(locations))
+                .flatten()
+                .filter(|location| !sourced.contains(&location.uri)),
+        );
+        dedup_locations(&mut locations);
+        Ok((!locations.is_empty()).then_some(locations))
     }
 
     async fn document_highlight(

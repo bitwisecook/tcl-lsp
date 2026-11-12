@@ -1725,6 +1725,22 @@ impl OriginalSourceViewSettlement {
             .any(|scope| scope.recapture.is_some() && scope.required.contains(uri))
     }
 
+    /// Documents a settled scope interprets as a sourced child. Their callers
+    /// belong to that scope's views, never to the ordinary route.
+    fn settled_sourced_documents(&self) -> HashSet<Uri> {
+        self.scopes
+            .iter()
+            .filter(|scope| scope.complete && !scope.conditional_obligations)
+            .flat_map(|scope| {
+                scope
+                    .required
+                    .iter()
+                    .filter(move |uri| **uri != scope.root_uri)
+            })
+            .cloned()
+            .collect()
+    }
+
     fn aggregate_complete(&self) -> bool {
         self.scopes
             .iter()
@@ -3801,6 +3817,30 @@ impl Backend {
             .original_source_view_navigation_attempt(uri, position, references)
             .await?
             .unwrap_or(std::ops::ControlFlow::Break(None)))
+    }
+
+    /// Positive source-view references cannot survey an independent root while
+    /// another root is incomplete. When the cursor's own scope is complete, the
+    /// ordinary route answers the documents no settled scope sources, as it does
+    /// for definition; those it does source stay with the views.
+    pub(crate) async fn original_source_reference_supplement(
+        &self,
+        uri: &Uri,
+    ) -> DocumentSourceResult<Option<HashSet<Uri>>> {
+        let Some(settlement) = self.refresh_original_source_view_graph_for_uri(uri).await? else {
+            return Ok(None);
+        };
+        if settlement.aggregate_complete() {
+            return Ok(None);
+        }
+        let Some(projection) = settlement.definition_projection(uri) else {
+            return Ok(None);
+        };
+        if !settlement.ordinary_definition_scope_is_complete(uri, &projection) {
+            return Ok(None);
+        }
+        let sourced = settlement.settled_sourced_documents();
+        Ok((!sourced.contains(uri)).then_some(sourced))
     }
 
     /// One navigation attempt; `None` when the settled scope could not be read
