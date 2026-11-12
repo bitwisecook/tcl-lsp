@@ -540,9 +540,8 @@ mod authored_compound_root_tests {
 
     #[test]
     fn modern_source_root_keeps_authored_c86_and_native_preparation_distinct() {
-        let config = tcl_lexer::LexerConfig::from_grammar(
-            tcl_dialect::DialectProfile::find("tcl").unwrap().grammar,
-        );
+        let config =
+            tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
         let image = tcl_lexer::SourceImage::document("upvar ::N::array($index) local");
         let word = tcl_lexer::native_script_words_in(
             image.clone(),

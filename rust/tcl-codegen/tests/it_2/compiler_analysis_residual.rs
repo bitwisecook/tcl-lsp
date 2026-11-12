@@ -92,6 +92,14 @@ use tcl_registry::model::ingress::static_context_for;
 const D: &str = "tcl8.6";
 
 fn reg() -> CommandRegistry {
+    CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    )
+}
+
+/// A profile-less registry: the authored-simulation mode, which issues no
+/// native entry for a source declaration.
+fn authored_reg() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
@@ -160,19 +168,22 @@ fn top_calls_to(module: &Module, command: &str) -> usize {
 /// Collect every def-place and read-place across a proc's CFG (mirrors the
 /// `place_bridge` unit-test helper, exposed here over the public API).
 fn places_of(src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
-    let r = reg();
-    let cu = CompilationUnit::build_for(src, &r, false);
+    places_of_with(&reg(), src, qname)
+}
+
+fn places_of_with(r: &CommandRegistry, src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
+    let cu = CompilationUnit::build_for(src, r, false);
     let fu = cu.fixture_function(qname).expect("proc not found");
     let ctx = build_resolve_context(&fu.cfg, &fu.name);
     let mut defs = Vec::new();
     let mut reads = Vec::new();
     for block in fu.cfg.blocks.values() {
         for stmt in &block.statements {
-            defs.extend(def_places(stmt, &ctx, &r));
-            reads.extend(read_places(stmt, &ctx, &r));
+            defs.extend(def_places(stmt, &ctx, r));
+            reads.extend(read_places(stmt, &ctx, r));
         }
         if let Some(term) = &block.terminator {
-            reads.extend(terminator_read_places(term, &ctx, &r));
+            reads.extend(terminator_read_places(term, &ctx, r));
         }
     }
     (defs, reads)
@@ -729,7 +740,11 @@ fn place_braced_literal_data_word_is_not_a_read() {
     // `puts {$a(k)}` is a BRACED literal data word — Tcl performs no
     // substitution, so it must NOT register a read of a(k).  A real dead store
     // to a(k) would otherwise be wrongly suppressed.
-    let (_defs, reads) = places_of("proc f {} { set a(k) 1; puts {$a(k)} }", "::f");
+    let (_defs, reads) = places_of_with(
+        &authored_reg(),
+        "proc f {} { set a(k) 1; puts {$a(k)} }",
+        "::f",
+    );
     let ak = place::array_elem("a", Index::literal("k"), LOCAL_NS, false);
     assert!(
         !reads.iter().any(|r| overlap(r, &ak)),

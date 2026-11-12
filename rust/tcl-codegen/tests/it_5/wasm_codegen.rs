@@ -33,7 +33,9 @@ use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
 /// Lower Tcl source and run the greenfield WASM backend over its top level.
 fn compile_wasm(source: &str) -> WasmModule {
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let unit = CompilationUnit::build_for(source, &registry, false);
     compile_wasm_unit(
         &unit,
@@ -47,7 +49,9 @@ fn compile_wasm(source: &str) -> WasmModule {
 
 /// As [`compile_wasm`], but relocate the constant pool to `data_base`.
 fn compile_wasm_based(source: &str, data_base: i64) -> WasmModule {
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let unit = CompilationUnit::build_for(source, &registry, false);
     compile_wasm_unit(
         &unit,
@@ -60,11 +64,24 @@ fn compile_wasm_based(source: &str, data_base: i64) -> WasmModule {
 }
 
 fn compile_wasm_analysed(source: &str) -> WasmModule {
-    let registry = CommandRegistry::build_default();
-    let unit = CompilationUnit::build_for(source, &registry, false);
+    compile_wasm_analysed_with(
+        &CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        ),
+        source,
+    )
+}
+
+/// The authored-simulation (profile-less) form of [`compile_wasm_analysed`].
+fn compile_wasm_analysed_authored(source: &str) -> WasmModule {
+    compile_wasm_analysed_with(&CommandRegistry::build_default(), source)
+}
+
+fn compile_wasm_analysed_with(registry: &CommandRegistry, source: &str) -> WasmModule {
+    let unit = CompilationUnit::build_for(source, registry, false);
     compile_wasm_unit(
         &unit,
-        &registry,
+        registry,
         WasmCompileOptions::hosted().with_semantic_optimisations(
             SemanticOptimisationConfig::new()
                 .with_enabled(SemanticOptimisationPassId::LegacyAnalysisSpecialisation),
@@ -82,7 +99,9 @@ fn an_emitted_module_carries_its_identity_manifest() {
     use tcl_runtime_api::ArtefactIdentityManifest;
 
     for (dialect, release) in [("tcl8.4", "8.4"), ("tcl8.6", "8.6"), ("tcl9.0", "9.0")] {
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let unit = CompilationUnit::build_for_dialect("set x 1\n", &registry, false, dialect);
         let mut module = compile_wasm_unit(
             &unit,
@@ -111,7 +130,9 @@ fn an_emitted_module_carries_its_identity_manifest() {
 
 #[test]
 fn default_compilation_keeps_legacy_analysis_specialisations_disabled() {
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let unit = CompilationUnit::build_for("set x 1\n", &registry, false);
     let mut module =
         compile_wasm_unit(&unit, &registry, WasmCompileOptions::hosted()).into_module();
@@ -123,7 +144,9 @@ fn default_compilation_keeps_legacy_analysis_specialisations_disabled() {
 
 #[test]
 fn analysis_specialisation_requires_its_explicit_pass() {
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let unit = CompilationUnit::build_for("set x 1\n", &registry, false);
     let mut module = compile_wasm_unit(
         &unit,
@@ -216,7 +239,7 @@ fn analysed_direct_call_declines_when_binding_lattice_is_opaque() {
 rename add old_add
 puts [add 2 4]
 ";
-    let mut module = compile_wasm_analysed(source);
+    let mut module = compile_wasm_analysed_authored(source);
     let wat = module.to_wat();
 
     assert_eq!(
@@ -575,7 +598,7 @@ fn analysed_puts_preserves_braced_command_text_as_literal() {
 /// owned word per argv slot, one `tcl_invoke_argv`, and no source-span eval.
 #[test]
 fn analysed_leaf_command_compiles_to_a_prebuilt_argv() {
-    let mut module = compile_wasm_analysed("string tolower ABC\n");
+    let mut module = compile_wasm_analysed_authored("string tolower ABC\n");
     let wat = module.to_wat();
 
     assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
@@ -607,7 +630,7 @@ fn analysed_leaf_command_compiles_to_a_prebuilt_argv() {
 #[test]
 fn analysed_leaf_command_releases_every_word_it_creates() {
     for (source, words) in [("list a\n", 2), ("list a b\n", 3), ("list a b c d\n", 5)] {
-        let mut module = compile_wasm_analysed(source);
+        let mut module = compile_wasm_analysed_authored(source);
         let wat = module.to_wat();
         assert_eq!(
             import_calls(&wat, "tcl_obj_release"),
@@ -1093,7 +1116,9 @@ fn wasmtime_validates_emitted_modules() {
 
 /// Compile under the native tier, standalone-free, for shape assertions.
 fn compile_native(source: &str) -> WasmModule {
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
     compile_wasm_unit(
         &unit,
@@ -1817,7 +1842,9 @@ fn decode_sleb(bytes: &[u8]) -> Option<i64> {
 /// the runtime's whole triple and is therefore fine.)
 #[test]
 fn a_body_whose_answer_cannot_be_produced_keeps_its_source_body() {
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let source = "\
 proc grow {s} { append s ! }
 proc branch {x} { if {$x} { set y yes } }

@@ -698,7 +698,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
         // Source edit refusal inventory, not a native namespace or runtime call.
         use std::sync::Arc;
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {

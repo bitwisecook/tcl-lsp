@@ -1230,7 +1230,7 @@ mod tests {
         // Genuine Logical selected source operations grant no Native handler,
         // successful mutation, event worker, storage identity or definite exit.
         use std::sync::Arc;
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let current = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.6")

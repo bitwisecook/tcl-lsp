@@ -516,11 +516,20 @@ pub fn run_script(tclsh: &Path, script: &[u8]) -> Result<ScriptOutcome, OracleEr
     run_script_with_library(tclsh, script, None)
 }
 
+/// A reference interpreter process with a fixed UTF-8 locale. A C release
+/// reads scripts and channels in the system encoding the locale selects, so
+/// the caller's environment must not decide what a UTF-8 fixture means.
+fn oracle_command(interpreter: &Path) -> Command {
+    let mut command = Command::new(interpreter);
+    command.env("LC_ALL", "C.UTF-8").env("LANG", "C.UTF-8");
+    command
+}
+
 /// Execute a source file using the interpreter's file-evaluation mode.
 /// Unlike interactive stdin, a top-level uncaught error yields a failing
 /// process status. Use this for original-versus-rewritten execution checks.
 pub fn run_script_file(tclsh: &Path, source: &Path) -> Result<ScriptOutcome, OracleError> {
-    let output = Command::new(tclsh)
+    let output = oracle_command(tclsh)
         .arg(source)
         .stdin(Stdio::null())
         .output()
@@ -593,7 +602,7 @@ pub fn run_script_fixture(
         format!("set ::oracle_fixture_root $::env(TCL_LSP_ORACLE_FIXTURE_ROOT)\n{source}\n"),
     )
     .map_err(|source| io_error("writing oracle fixture entry", source))?;
-    let output = Command::new(interpreter)
+    let output = oracle_command(interpreter)
         .arg(&script_path)
         .env("TCL_LSP_ORACLE_FIXTURE_ROOT", &temporary.0)
         .stdin(Stdio::null())
@@ -628,7 +637,7 @@ fn run_script_with_libraries(
     library_dir: Option<&Path>,
     script_library: Option<&Path>,
 ) -> Result<ScriptOutcome, OracleError> {
-    let mut command = Command::new(tclsh);
+    let mut command = oracle_command(tclsh);
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -16233,7 +16233,9 @@ mod tests {
         // boundary, which is a typed answer this trait cannot give, so it
         // sits here and the walk over-abstains on it. Tracked separately.
         "tcltest::test",
-        // tcllib: iterators and definition scripts.
+        // tcllib: iterators and definition scripts. `clay::define` measured
+        // with tcllib 2.0 clay on tclsh 8.6.18 and 9.0.4.
+        "clay::define",
         "control::do",
         "fileutil::foreachLine",
         "lfilter",

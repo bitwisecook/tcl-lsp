@@ -101,6 +101,14 @@ use tcl_registry::CommandRegistry;
 // Shared harness
 
 fn reg() -> CommandRegistry {
+    CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    )
+}
+
+/// A profile-less registry: the authored-simulation mode, which issues no
+/// native entry for a source declaration.
+fn authored_reg() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
@@ -797,11 +805,18 @@ fn inline_module_with_no_procs_at_all_is_unchanged() {
 /// Collect the call-by-name reads a caller proc contributes, via the public
 /// `ProcIndex` + `collect_call_by_name_reads` seam.
 fn call_by_name_reads(source: &str, caller_qname: &str) -> HashSet<String> {
-    let r = reg();
-    let cu = CompilationUnit::build_for(source, &r, false);
+    call_by_name_reads_with(&reg(), source, caller_qname)
+}
+
+fn call_by_name_reads_with(
+    r: &CommandRegistry,
+    source: &str,
+    caller_qname: &str,
+) -> HashSet<String> {
+    let cu = CompilationUnit::build_for(source, r, false);
     let ia = build_interprocedural_analysis(
         &cu.ir_module,
-        &r,
+        r,
         None,
         ObjectTypeMap::none(),
         tcl_compiler::realm::CommandBindingRealm::none(),
@@ -820,7 +835,8 @@ fn call_by_name_direct_call_collects_var_name() {
     // tclsh (8.6, 9.0): `proc setvar {n v} { upvar 1 $n x; set x $v }; set y 0;
     // setvar y 42; puts $y` → 42 — `y` IS used (written via the alias), so
     // flagging it dead would be wrong.
-    let reads = call_by_name_reads(
+    let reads = call_by_name_reads_with(
+        &authored_reg(),
         "proc setvar {n v} { upvar 1 $n x\nset x $v }\nproc caller {} { set y 0\nsetvar y 42 }\n",
         "::caller",
     );
@@ -894,7 +910,8 @@ fn call_by_name_extra_args_beyond_params_are_ignored() {
     // them can't land on any param, so it is never collected even if it looks
     // like a name.  Here `setvar` takes `{n v}`; the third arg `extra` has no
     // param slot.
-    let reads = call_by_name_reads(
+    let reads = call_by_name_reads_with(
+        &authored_reg(),
         "proc setvar {n v} { upvar 1 $n x\nset x $v }\nproc caller {} { set y 0\nsetvar y 1 extra }\n",
         "::caller",
     );

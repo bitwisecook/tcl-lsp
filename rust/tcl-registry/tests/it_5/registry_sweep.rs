@@ -1409,16 +1409,15 @@ fn is_core_command(spec: &tcl_registry::CommandSpec) -> bool {
 /// registry-metadata: `runtime_backing` is registry data.
 #[test]
 fn a_spec_outside_the_core_set_declares_no_backing() {
-    for spec in &tcl_registry::commands::tcl::tcl_command_specs() {
-        if !is_core_command(spec) {
-            assert!(
-                spec.runtime_backing.is_none(),
-                "{} is not a core command, so its backing must stay `None`, got {:?}",
-                spec.name,
-                spec.runtime_backing
-            );
-        }
-    }
+    let declared: Vec<_> = tcl_registry::commands::tcl::tcl_command_specs()
+        .iter()
+        .filter(|spec| !is_core_command(spec) && !spec.runtime_backing.is_none())
+        .map(|spec| format!("{} {:?}", spec.name, spec.surface))
+        .collect();
+    assert!(
+        declared.is_empty(),
+        "commands outside the core set must keep their backing `None`: {declared:#?}"
+    );
 }
 
 /// Shipped identities name registered commands. A method-context spelling

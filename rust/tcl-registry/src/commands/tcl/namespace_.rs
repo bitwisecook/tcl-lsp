@@ -1564,7 +1564,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Exactly one trailing `name`; the two leading flags are declared in
         // `WHICH_OPTIONS`, so the arity check skips them before counting.
         // Verified against tclsh 9.0: 0 args and >1 positional both error.
-        arity: Arity::exact(1),
+        arity: Arity::exact(1).with_positionals(),
         detail: "Looks up name as either a command or variable.",
         synopsis: "namespace which ?-command? ?-variable? name",
         options: WHICH_OPTIONS,

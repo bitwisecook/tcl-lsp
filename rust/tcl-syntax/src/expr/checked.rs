@@ -1255,9 +1255,11 @@ mod tests {
     #[test]
     fn legacy_bare_dollar_is_a_literal_without_variable_lookup() {
         let legacy = context(TclVersion::V8_4);
-        assert!(
-            matches!(parse_expr_bytes_checked_with_context(b"$", &legacy), CheckedExprParse::Parsed(ExprNode::String { text, .. }) if text == b"$")
-        );
+        // tclsh 8.4: `expr {$}` is `$`. The lone word compiles as a literal.
+        assert!(matches!(
+            parse_expr_bytes_checked_with_context(b"$", &legacy),
+            CheckedExprParse::Parsed(ExprNode::CompiledWord { text, braced: true }) if text == b"$"
+        ));
         for version in [
             TclVersion::V8_5,
             TclVersion::V8_6,

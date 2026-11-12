@@ -66,7 +66,9 @@ use tcl_registry::CommandRegistry;
 /// Compile `source` through the Rust pipeline and return the rendered
 /// disassembly string.
 fn rust_disasm(source: &str) -> String {
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let ir = lower_to_ir(source, &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");

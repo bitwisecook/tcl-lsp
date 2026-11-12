@@ -95,7 +95,9 @@ use tcl_registry::model::ingress::static_context_for;
 // Shared helpers.
 
 fn registry() -> CommandRegistry {
-    CommandRegistry::build_default()
+    CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    )
 }
 
 /// The registry projected to Tcl 8.6, whose compiler has the `string is`,

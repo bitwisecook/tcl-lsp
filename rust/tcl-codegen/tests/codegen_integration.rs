@@ -82,7 +82,9 @@ fn proc_with(name: &str, params: &[&str], statements: Vec<Statement>) -> CfgFunc
 #[test]
 fn empty_toplevel_has_done_or_return_imm() {
     let cfg = toplevel_with(vec![]);
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let asm = codegen_function(&cfg, &[], false, &registry);
     assert_eq!(asm.name, "::top");
     let last = asm.instructions.last().unwrap().op;
@@ -98,7 +100,9 @@ fn set_const_toplevel() {
         value: "42".into(),
         value_span: None,
     }]);
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(ops.contains(&Op::PUSH1));
@@ -123,7 +127,9 @@ fn multiple_statements_numbered() {
             value_span: None,
         },
     ]);
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let asm = codegen_function(&cfg, &[], false, &registry);
     // Second statement should get a startCommand (or generic peephole path)
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
@@ -147,7 +153,9 @@ fn call_generates_invoke() {
         tokens: None,
         foreach_groups: None,
     }]);
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(ops.contains(&Op::INVOKE_STK1));
@@ -158,7 +166,9 @@ fn call_generates_invoke() {
 #[test]
 fn empty_proc_pushes_empty_and_dones() {
     let cfg = proc_with("::foo", &[], vec![]);
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let asm = codegen_function(&cfg, &[], true, &registry);
     // The peephole pass collapses the trailing pop into done, so we
     // should end with DONE.
@@ -178,7 +188,9 @@ fn proc_return_param_loads_and_dones() {
         tokens: None,
         braced: false,
     });
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let asm = codegen_function(&cfg, &["x"], true, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert!(ops.contains(&Op::LOAD_SCALAR1));
@@ -252,7 +264,9 @@ fn if_else_diamond_emits_conditional_jump() {
         braced: false,
     });
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
 
     let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
@@ -303,7 +317,9 @@ fn if_const_true_dead_branch_eliminated() {
         braced: false,
     });
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
 
     let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
@@ -382,7 +398,9 @@ fn unseen_call_marker_after_if_arm_call_keeps_the_arm_value() {
         braced: false,
     });
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
     assert_eq!(
@@ -486,7 +504,9 @@ fn switch_dispatch_emits_jump_table() {
         braced: false,
     });
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
 
     let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
@@ -504,7 +524,9 @@ fn switch_glob_as_proc_tail_keeps_result_on_stack() {
     use tcl_compiler::cfg_builder::build_cfg_codegen;
     use tcl_compiler::lowering::lower_to_ir;
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let ir = lower_to_ir("proc f {x} { switch -glob -- $x a* {set r 1} }", &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
@@ -536,7 +558,9 @@ fn foreach_synthetic_ops_carry_no_source_span() {
     use tcl_compiler::cfg_builder::build_cfg_codegen;
     use tcl_compiler::lowering::lower_to_ir;
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let ir = lower_to_ir("foreach x {1 2 3} { set y $x }", &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
@@ -571,7 +595,9 @@ fn simple_foreach_command_completion_targets_the_paired_opcodes() {
     use tcl_compiler::cfg_builder::build_cfg_codegen;
     use tcl_compiler::lowering::lower_to_ir_for_bytecode;
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     // Native foreach compilation requires the procedure's local table.
     let ir = lower_to_ir_for_bytecode("proc p {} {foreach x {1 2} { $completion }}", &registry);
     let cfg = build_cfg_codegen(&ir, false);
@@ -644,7 +670,9 @@ fn switch_glob_emits_generic_invoke_not_jump_table() {
             patterns_braced: true,
         }])
     };
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
 
     // Glob: generic `switch` invoke, never a jump table (glob patterns
     // are not exact string equality).
@@ -742,7 +770,9 @@ fn foreach_emits_native_opcodes() {
         braced: false,
     });
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
 
     let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
@@ -869,7 +899,9 @@ fn complex_foreach_body_emits_step_at_end() {
         braced: false,
     });
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
 
     let asm = codegen_function(&cfg, &[], false, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
@@ -963,7 +995,9 @@ fn while_in_proc_emits_start_cmd() {
         braced: false,
     });
 
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
 
     let asm = codegen_function(&cfg, &[], true, &registry);
     let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
@@ -981,7 +1015,9 @@ fn codegen_module_with_no_procs() {
         top_level: toplevel_with(vec![]),
         procedures: HashMap::new(),
     };
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let ir_mod = tcl_compiler::lowering::lower_to_ir_for_bytecode("", &registry);
     let asm = codegen_module(&cfg_mod, &ir_mod, &registry).expect("original source namespace");
     assert_eq!(asm.top_level.name, "::top");

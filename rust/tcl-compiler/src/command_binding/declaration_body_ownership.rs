@@ -128,7 +128,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let input = ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
         let bindings = SourceCommandBindings::analyse_with_options(

@@ -2669,7 +2669,7 @@ mod exact_cell_diagnostic_tests {
         crate::analyser::AnalysisResult,
         crate::analyser::ResolvedAnalysisInput,
     ) {
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();

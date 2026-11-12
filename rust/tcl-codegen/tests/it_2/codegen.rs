@@ -1467,7 +1467,9 @@ fn lassign_ops_with_the_hook_stamped_from_9_0(
     use tcl_registry::lifecycle::Lifecycle;
     use tcl_registry::stamp_window::StampWindow;
 
-    let mut authored = CommandRegistry::build_default();
+    let mut authored = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let mut lassign = authored.get("lassign").expect("lassign ships").clone();
     lassign.codegen_hook = None;
     lassign.codegen_hook_windows = Box::leak(Box::new([StampWindow {

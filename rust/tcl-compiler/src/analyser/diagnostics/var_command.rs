@@ -3281,7 +3281,7 @@ mod factory_metadata_context_tests {
         registry: &tcl_registry::CommandRegistry,
     ) {
         let original_profile = cu.ir_module.dialect_profile;
-        cu.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::find("tcl").unwrap());
+        cu.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::plain_tcl());
         assert!(
             analyser
                 .compute_factory_object_ranges(cu, registry)

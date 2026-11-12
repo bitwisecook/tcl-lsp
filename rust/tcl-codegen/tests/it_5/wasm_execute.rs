@@ -145,7 +145,9 @@ fn host_stub() -> WasmModule {
 
 /// Lower + emit the user module for `src`.
 fn compile_user(src: &str) -> WasmModule {
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let unit = CompilationUnit::build_for(src, &registry, false);
     compile_wasm(
         &unit,

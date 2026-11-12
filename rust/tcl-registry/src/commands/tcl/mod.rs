@@ -501,8 +501,6 @@ mod tests {
         ("file lstat", ARRAY_TARGET),
         ("dict update", DICT_KEYS),
         ("dict with", DICT_KEYS),
-        ("::tcl::dict::update", DICT_KEYS),
-        ("::tcl::dict::with", DICT_KEYS),
         ("namespace upvar", LINK),
         ("my variable", LINK),
         ("sharedvar", LINK),

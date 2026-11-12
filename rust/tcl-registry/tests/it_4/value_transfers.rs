@@ -3908,7 +3908,7 @@ const PINNED_ROUTE_STAMPS: &[(&str, &str, &str)] = &[
     ("struct::list reverse", "none:unauthored", "-"),
     ("struct::list shift", "none:unauthored", "-"),
     ("struct::list shuffle", "none:declared", "-"),
-    ("struct::list split", "none:unauthored", "-"),
+    ("struct::list split", "none:callback", "-"),
     ("struct::list swap", "none:unauthored", "-"),
     ("struct::set", "none:unauthored", "-"),
     ("struct::set add", "none:unauthored", "-"),

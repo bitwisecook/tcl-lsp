@@ -949,23 +949,13 @@ fn expr_f5_irules_dialect_promotes_word_operators() {
 }
 
 #[test]
-fn expr_unterminated_brace_falls_back_to_a_one_char_string() {
-    // tclsh: `info complete "expr {1 + 2"` -> 0 (incomplete). The expr
-    // lexer's braced() scanner, finding no matching `}`, rewinds and emits
-    // a one-char STRING `{`, then continues tokenising the body.
+fn expr_unterminated_brace_is_one_missing_brace_string() {
+    // tclsh 8.4-9.0: evaluating the expression `{1 + 2` fails with
+    // `missing close-brace`; TclParseBraces finds no closer, so nothing after
+    // the `{` is parsed as expression syntax. The lexer reports the `{` and
+    // consumes the rest.
     let pairs = expr_pairs("{1 + 2");
-    assert_eq!(pairs[0], (ExprTokenType::String, "{".to_string()));
-    // The remainder still tokenises as numbers and an operator.
-    assert!(
-        pairs
-            .iter()
-            .any(|(k, t)| *k == ExprTokenType::Number && t == "1")
-    );
-    assert!(
-        pairs
-            .iter()
-            .any(|(k, t)| *k == ExprTokenType::Operator && t == "+")
-    );
+    assert_eq!(pairs, vec![(ExprTokenType::String, "{".to_string())]);
 
     // A *balanced* brace is one STRING covering the whole `{...}`.
     let balanced = expr_pairs("{1 + 2}");

@@ -94,8 +94,10 @@ pub fn spec() -> CommandSpec {
         // version|vendor masks, so it stays reachable — and, for Tk in
         // particular, essential — in every one of them.
         surface: Some(SpecSurface::ALL_TCL),
-        // BYTE_COMPILED only — this codebase's "recognised core builtin"
-        // convention, not literal bytecode emission (see traits.rs). Not
+        // BYTE_COMPILED is this codebase's "recognised core builtin"
+        // convention, not literal bytecode emission (see traits.rs).
+        // CREATES_DYNAMIC_BARRIER: like `vwait`, it evaluates every due
+        // `after` script at global level, which may write any global. Not
         // SAFE_INTERP_HIDDEN: Tcl's safe-interpreter hidden-command table
         // covers only cd/encoding/exec/exit/fconfigure/file/glob/load/open/
         // pwd/socket/source/unload — `update` touches no filesystem,
@@ -103,9 +105,8 @@ pub fn spec() -> CommandSpec {
         // safe interpreter. Not FRAMELESS_RUNTIME either: the VM's
         // `cmd_update` (`tcl-vm/src/cmd_event.rs`) evaluates any due
         // `after`-scheduled scripts via `Vm::eval_source` — a genuine eval
-        // fallback — matching `vwait`'s and `after`'s identical
-        // BYTE_COMPILED-only trait baseline (`vwait.rs`, `after_.rs`).
-        traits: Traits::BYTE_COMPILED,
+        // fallback.
+        traits: Traits::BYTE_COMPILED.union(Traits::CREATES_DYNAMIC_BARRIER),
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,

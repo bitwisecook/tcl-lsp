@@ -894,6 +894,16 @@ impl FrameEffectSpec {
             FrameLevelWord::None | FrameLevelWord::ArityParity => self
                 .level_word_len_for_argument_count(args.len())
                 .expect("only leading probes need a literal argument"),
+            // A substituted first word is a level exactly when the count
+            // leaves whole pairs; any other reading is `wrong # args` in
+            // every release.
+            FrameLevelWord::Upvar
+                if args
+                    .first()
+                    .is_some_and(|w| FrameLevel::parse(w) == Some(FrameLevel::Dynamic)) =>
+            {
+                usize::from(args.len() % 2 == 1)
+            }
             FrameLevelWord::Upvar => {
                 let arguments = crate::InvocationArguments::literals(args);
                 let contextual = version.map_or(arguments, |version| {

@@ -1657,7 +1657,7 @@ mod tests {
             &logical,
             site.span,
             "target",
-            tcl_dialect::DialectProfile::find("tcl").unwrap()
+            tcl_dialect::DialectProfile::plain_tcl()
         ));
     }
 

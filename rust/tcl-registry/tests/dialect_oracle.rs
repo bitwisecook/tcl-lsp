@@ -319,7 +319,11 @@ fn registry_option_dialect_gating_matches_tclsh_8_6_and_9_0() {
     };
     let opt86 = enumerate_options(&t86, OPT_TRIGGERS);
     let opt90 = enumerate_options(&t90, OPT_TRIGGERS);
-    let reg = CommandRegistry::build_default();
+    // Each release reads its own projected row: the unprojected registry also
+    // holds other families' rows (Jim's `regexp`) under the same name.
+    let base = CommandRegistry::build_default();
+    let reg86 = base.project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+    let reg90 = base.project_for_profile(tcl_dialect::DialectProfile::find("tcl9.0").unwrap());
 
     let mut mismatches: Vec<String> = Vec::new();
     let mut audited = 0usize;
@@ -330,13 +334,20 @@ fn registry_option_dialect_gating_matches_tclsh_8_6_and_9_0() {
         let o90 = opt90
             .get(cmd)
             .unwrap_or_else(|| panic!("Tcl 9.0 did not enumerate {cmd} options"));
-        let Some(spec) = reg.get(cmd) else { continue };
+        let (Some(spec86), Some(spec90)) = (reg86.get(cmd), reg90.get(cmd)) else {
+            continue;
+        };
         // The registry's declared options (no dialect filter). Only these are
         // audited; an option tclsh has that the registry does not declare is a
         // completeness gap, out of scope for a gating differential.
-        let declared: Vec<&'static str> = spec.switch_names(None);
-        let in86 = spec.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
-        let in90 = spec.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
+        let mut declared: Vec<&'static str> = spec86.switch_names(None);
+        for opt in spec90.switch_names(None) {
+            if !declared.contains(&opt) {
+                declared.push(opt);
+            }
+        }
+        let in86 = spec86.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+        let in90 = spec90.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
         for opt in &declared {
             // `--` is the end-of-options marker: version-invariant and listed
             // inconsistently by tclsh across commands, so it is not a gating

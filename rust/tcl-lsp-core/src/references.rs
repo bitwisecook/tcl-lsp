@@ -8393,7 +8393,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
         // Conditional source reference geometry, not a live receiver or method entry.
         use std::sync::Arc;
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.insert(tcl_registry::CommandSpec {

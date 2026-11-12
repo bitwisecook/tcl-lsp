@@ -110,12 +110,24 @@ use tcl_registry::CommandRegistry;
 // Shared helpers
 
 fn reg() -> CommandRegistry {
+    CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    )
+}
+
+/// A profile-less registry: the authored-simulation mode, which issues no
+/// native entry for a source declaration.
+fn authored_reg() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
 /// `source → Module`, lowering source to its IR module.
 fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &reg(), false).ir_module
+}
+
+fn authored_module_for(source: &str) -> Module {
+    CompilationUnit::build_for(source, &authored_reg(), false).ir_module
 }
 
 /// Build a proc body of `n` distinct `set vN N` assignments.
@@ -1302,7 +1314,7 @@ fn readonly_source_profitability_does_not_grant_executable_inlining() {
             "::edge",
         ),
     ] {
-        let module = module_for(&source);
+        let module = authored_module_for(&source);
         assert!(module.source_entry.native_entry.is_none());
         let (id, procedure) =
             original_body_for_analysis(&module, label).expect("actual readonly source body");

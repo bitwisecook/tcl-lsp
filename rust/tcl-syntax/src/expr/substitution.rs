@@ -1434,8 +1434,12 @@ impl OriginalSourceExpression {
         if source != text {
             return None;
         }
+        // The node must be exactly one variable reference; the native token
+        // span of a braced name ends on its closer, so compare where it starts.
         if matches!(node, ExprNode::Var { .. })
-            && node.variable_source_span(0, self.config) != Some(span)
+            && node
+                .variable_source_span(0, self.config)
+                .is_none_or(|variable| variable.start() != span.start())
         {
             return None;
         }

@@ -703,7 +703,9 @@ fn the_expected_divergence_ledger_is_well_formed() {
 fn a_failed_native_add_names_every_rejected_premise() {
     const PROGRAM: &str =
         "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";
-    let registry = CommandRegistry::build_default();
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let unit = CompilationUnit::build_for_dialect(PROGRAM, &registry, false, "tcl9.0");
 
     let mut requested = SemanticOptimisationConfig::new();
