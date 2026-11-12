@@ -2816,6 +2816,52 @@ fn w152_reports_a_directional_option_requirement() {
     );
 }
 
+/// A declared option relation is checked over a proven option word as over
+/// a written one, for a core command and a pack's command alike (#2453).
+#[test]
+fn option_relations_read_a_proven_option_word() {
+    let codes = |src: &str, dialect: &str| -> Vec<(DiagCode, String)> {
+        let mut a = Analyser::new();
+        let mut found: Vec<_> = a
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code, DiagCode::W147 | DiagCode::W152))
+            .map(|d| (d.code, d.message.clone()))
+            .collect();
+        found.sort();
+        found
+    };
+    for (written, proven, dialect) in [
+        (
+            "glob -directory root -path prefix *.tcl\n",
+            "set o -path\nglob -directory root $o prefix *.tcl\n",
+            "tcl9.0",
+        ),
+        (
+            "package require bibtex\n::bibtex::parse -command handle -recordcommand rec\n",
+            "package require bibtex\nset o [string range -recordcommandxx 0 13]\n\
+             ::bibtex::parse -command handle $o rec\n",
+            "tcl8.6",
+        ),
+    ] {
+        let want = codes(written, dialect);
+        assert!(!want.is_empty(), "{written}");
+        let got = codes(proven, dialect);
+        assert!(
+            want.iter()
+                .filter(|(code, _)| *code == DiagCode::W147)
+                .all(|w| got.contains(w)),
+            "{proven}: {got:?} vs {want:?}"
+        );
+    }
+    let unknown = codes(
+        "proc p {o} {\n glob -directory root $o prefix *.tcl\n}\n",
+        "tcl9.0",
+    );
+    assert_eq!(unknown, Vec::new());
+}
+
 /// **E-R14 real case 2** — `http::geturl`'s conditional pairs
 /// (`http.n`: `-queryprogress` is made "in a POST request, i.e. a call with
 /// `-query` or `-querychannel`").

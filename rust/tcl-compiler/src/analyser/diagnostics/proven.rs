@@ -65,6 +65,10 @@ const PROVEN_CODES: [DiagCode; 10] = [
     DiagCode::W303,
 ];
 
+/// The option-relation codes, reported over the range of words a relation
+/// spans: the pass keeps one whose range holds a proven word (#2453).
+const RELATION_CODES: [DiagCode; 2] = [DiagCode::W147, DiagCode::W152];
+
 /// A dispatch site's words as the walk reads them, borrowed.
 #[derive(Clone, Copy)]
 pub(in crate::analyser) struct CallWords<'a> {
@@ -605,15 +609,22 @@ impl Analyser {
             self.emit_w001_unknown_subcommand(Some(&original));
         }
         self.emit_w004_dialect_invalid_option(Some(&original), cmd_name);
-        self.emit_proven_source_option_relationships(&original, cmd_name);
+        // Named as the document spells the head, as the walk names it.
+        let written_name = self
+            .source
+            .get(site.cmd_tok.span.as_range())
+            .map_or_else(|| cmd_name.to_owned(), str::to_owned);
+        self.emit_proven_source_option_relationships(&original, &written_name);
         let original_proven_spans = original
             .supplemental_literals()
             .iter()
             .filter_map(|(ordinal, _)| original.word(*ordinal).map(tcl_lexer::NativeWord::span))
             .collect::<Vec<_>>();
         let at_proven = |code: DiagCode, span: Span| {
-            PROVEN_CODES.contains(&code)
-                && (words.proven.contains(&span) || original_proven_spans.contains(&span))
+            let mut proven = words.proven.iter().chain(&original_proven_spans);
+            (PROVEN_CODES.contains(&code) && proven.clone().any(|at| *at == span))
+                || (RELATION_CODES.contains(&code)
+                    && proven.any(|at| span.start() <= at.start() && at.end() <= span.end()))
         };
         let found = self.result.diagnostics.split_off(marks.0);
         self.result.diagnostics.extend(
