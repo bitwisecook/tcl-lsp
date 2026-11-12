@@ -975,7 +975,7 @@ mod tests {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         use crate::command_binding::OriginalInvocationSourcePurpose;
-        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let profile = tcl_registry::model::ingress::resolve_environment("jimtcl").unit_profile();
         let context =
             tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
         let registry = context.commands();
@@ -1043,7 +1043,7 @@ mod tests {
         assert!(original_execution_trace_keys(registry, metadata, tokens, &subject).is_none());
         let foreign_context =
             tcl_registry::model::ingress::resolve_environment("tcl").default_context_registry();
-        let foreign_profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let foreign_profile = tcl_dialect::DialectProfile::plain_tcl();
         let foreign_input = crate::analyser::ResolvedAnalysisInput::new(
             foreign_profile,
             foreign_profile,

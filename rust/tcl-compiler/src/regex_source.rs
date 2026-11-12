@@ -678,7 +678,7 @@ mod tests {
     #[test]
     fn single_literal_flows_to_regexp() {
         // The `.*abc` literal at the `set` is the regex source.
-        let got = spans_text("set my_re \".*abc\"\nregexp $my_re $s\n");
+        let got = spans_text("set s subject\nset my_re \".*abc\"\nregexp $my_re $s\n");
         assert_eq!(got, vec!["\".*abc\"".to_owned()]);
     }
 
@@ -796,7 +796,8 @@ mod tests {
         // `regexp` pair lives inside a proc body rather than at top level —
         // the per-function CFG/SSA path must resolve it the same way.
         let got = spans_text(
-            "proc ::bench::regex_check {} {\n    set my_re \".*abc\"\n    regexp $my_re $s\n}\n",
+            "namespace eval ::bench {}\n\
+             proc ::bench::regex_check {s} {\n    set my_re \".*abc\"\n    regexp $my_re $s\n}\n",
         );
         assert_eq!(got, vec!["\".*abc\"".to_owned()]);
     }
@@ -826,7 +827,7 @@ mod tests {
             );
         }
         s.push_str(
-            "proc ::bench::regex_check {} {\n    set my_re \".*abc\"\n    regexp $my_re $s\n}\n",
+            "proc ::bench::regex_check {s} {\n    set my_re \".*abc\"\n    regexp $my_re $s\n}\n",
         );
         let got = spans_text(&s);
         assert_eq!(got, vec!["\".*abc\"".to_owned()]);
@@ -834,20 +835,20 @@ mod tests {
 
     #[test]
     fn braced_literal_flows_to_regexp() {
-        let got = spans_text("set re {a+b}\nregexp $re $s\n");
+        let got = spans_text("set s subject\nset re {a+b}\nregexp $re $s\n");
         assert_eq!(got, vec!["{a+b}".to_owned()]);
     }
 
     #[test]
     fn regsub_pattern_variable_tracked() {
-        let got = spans_text("set re {x+}\nregsub -all $re $s Y out\n");
+        let got = spans_text("set s subject\nset re {x+}\nregsub -all $re $s Y out\n");
         assert_eq!(got, vec!["{x+}".to_owned()]);
     }
 
     #[test]
     fn reassignment_resolves_to_reaching_def() {
         // The use reaches the SECOND assignment only.
-        let got = spans_text("set re \"a\"\nset re \"b\"\nregexp $re $s\n");
+        let got = spans_text("set s subject\nset re \"a\"\nset re \"b\"\nregexp $re $s\n");
         assert_eq!(got, vec!["\"b\"".to_owned()]);
     }
 
@@ -909,7 +910,7 @@ mod tests {
         // A `namespace eval` body runs in its own frame, lowered to a synthetic
         // body unit (`CompilationUnit::body_units`), so the `set`/`regexp` flow
         // tracks inside it the same as in a proc.
-        let src = "namespace eval ::ns {\n  set re \".*x\"\n  regexp $re $s\n}\n";
+        let src = "namespace eval ::ns {\n  set s subject\n  set re \".*x\"\n  regexp $re $s\n}\n";
         let got = spans_text(src);
         assert_eq!(got, vec!["\".*x\"".to_owned()]);
     }
@@ -1018,7 +1019,7 @@ mod tests {
         // ARE pattern syntax, `set`, and variable resolution are identical
         // across Tcl 8.4–9.0, so the tracked source literal is the same under
         // every dialect.
-        let src = "set re {a+b[0-9]*}\nregexp $re $s\n";
+        let src = "set s subject\nset re {a+b[0-9]*}\nregexp $re $s\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
             assert_eq!(
                 spans_text_dialect(
@@ -1035,7 +1036,7 @@ mod tests {
     fn wrong_dialect_option_does_not_misplace_pattern() {
         // The physical-read query must use the selected release's actual
         // option grammar; C8.6 rejects -command before selecting a pattern.
-        let src = "set re {x+}\nregsub -command $re $s Y out\n";
+        let src = "set s subject\nset re {x+}\nregsub -command $re $s Y out\n";
         assert_eq!(
             spans_text_dialect(
                 src,
@@ -1084,20 +1085,21 @@ mod tests {
 
     #[test]
     fn bare_literal_span_stops_at_command_separator() {
-        let got = spans_text("set re x+; regsub -command $re $s callback out\n");
+        let got = spans_text("set s subject; set re x+; regsub -command $re $s callback out\n");
         assert_eq!(got, vec!["x+".to_owned()]);
         assert_eq!(delimited_word_span(r"x\;y; puts", 0), Span::new(0, 4));
     }
 
     #[test]
     fn regsub_command_tracks_global_qualified_spelling() {
-        let got = spans_text("set re {x+}\n::regsub -command $re $s callback out\n");
+        let got = spans_text("set s subject\nset re {x+}\n::regsub -command $re $s callback out\n");
         assert_eq!(got, vec!["{x+}".to_owned()]);
     }
 
     #[test]
     fn regsub_command_tracks_static_command_alias() {
         let src = "interp alias {} myregsub {} regsub\n\
+                   set s subject\n\
                    set re {x+}\n\
                    myregsub -command $re $s callback out\n";
         assert_eq!(spans_text(src), vec!["{x+}".to_owned()]);

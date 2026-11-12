@@ -14285,32 +14285,24 @@ mod tests {
         a.process_command(&owned, &toks, &single, &expanded, &[]);
     }
 
+    /// Analyse `source` as Tcl 8.6 and keep the walk's state: the handlers
+    /// read each word from the analysed source, which a bare token list lacks.
+    fn analysed(source: &str) -> Analyser {
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+        analyser
+    }
+
     #[test]
     fn handle_set_defines_variable() {
-        let mut a = Analyser::new();
-        dispatch_tokens(
-            &mut a,
-            &[
-                ("set", esc_tok(span(0, 3)), true),
-                ("x", esc_tok(span(4, 5)), true),
-                ("1", esc_tok(span(6, 7)), true),
-            ],
-        );
+        let a = analysed("set x 1\n");
         assert!(a.result.global_scope.variables.contains_key("x"));
         assert!(a.result.global_scope.variables["x"].warn_if_unused);
     }
 
     #[test]
     fn handle_set_tracks_single_token_literal_value() {
-        let mut a = Analyser::new();
-        dispatch_tokens(
-            &mut a,
-            &[
-                ("set", esc_tok(span(0, 3)), true),
-                ("x", esc_tok(span(4, 5)), true),
-                ("hello", esc_tok(span(6, 11)), true),
-            ],
-        );
+        let a = analysed("set x hello\n");
         assert_eq!(
             a.const_strings
                 .get(&Vec::new())
@@ -14322,15 +14314,7 @@ mod tests {
 
     #[test]
     fn handle_set_tracks_braced_string_value() {
-        let mut a = Analyser::new();
-        dispatch_tokens(
-            &mut a,
-            &[
-                ("set", esc_tok(span(0, 3)), true),
-                ("x", esc_tok(span(4, 5)), true),
-                ("hello world", str_tok(span(6, 19)), true),
-            ],
-        );
+        let a = analysed("set x {hello world}\n");
         assert_eq!(
             a.const_strings
                 .get(&Vec::new())
@@ -14342,19 +14326,8 @@ mod tests {
 
     #[test]
     fn handle_set_clears_const_string_for_interpolated_value() {
-        let mut a = Analyser::new();
-        // Pre-seed a constant tracking entry.
-        a.set_const_string("x", "old".to_string(), span(0, 0), &[]);
-        // Re-assign with a multi-token (interpolation) value — the value
-        // word is not one token, so the const string is cleared.
-        dispatch_tokens(
-            &mut a,
-            &[
-                ("set", esc_tok(span(0, 3)), true),
-                ("x", esc_tok(span(4, 5)), true),
-                ("$other", esc_tok(span(6, 12)), false),
-            ],
-        );
+        // Re-assigning a value no literal spells clears the constant.
+        let a = analysed("set x old\nset x [gets stdin]\n");
         assert_eq!(
             a.const_strings
                 .get(&Vec::new())
@@ -14400,15 +14373,7 @@ mod tests {
     /// "a\\d"` holds `a\d` — tclsh 8.4.20 to 9.1b0 print `a\d`.
     #[test]
     fn a_literal_value_word_is_recorded_as_tcl_reads_it() {
-        let mut a = Analyser::new();
-        dispatch_tokens(
-            &mut a,
-            &[
-                ("set", esc_tok(span(0, 3)), true),
-                ("p", esc_tok(span(4, 5)), true),
-                ("a\\\\d", esc_tok(span(6, 12)), true),
-            ],
-        );
+        let a = analysed("set p \"a\\\\d\"\n");
         assert_eq!(
             a.const_strings
                 .get(&Vec::new())
@@ -14458,8 +14423,7 @@ mod tests {
 
     #[test]
     fn handle_global_defines_each_name() {
-        let mut a = Analyser::new();
-        dispatch_words(&mut a, &["global", "x", "y", "z"]);
+        let a = analysed("global x y z\n");
         for name in ["x", "y", "z"] {
             assert!(a.result.global_scope.variables.contains_key(name));
             assert!(!a.result.global_scope.variables[name].warn_if_unused);
@@ -14484,9 +14448,8 @@ mod tests {
 
     #[test]
     fn handle_variable_defines_only_names_skipping_values() {
-        let mut a = Analyser::new();
         // `variable x 1 y 2 z` — names at 0, 2, 4; values at 1, 3.
-        dispatch_words(&mut a, &["variable", "x", "1", "y", "2", "z"]);
+        let a = analysed("variable x 1 y 2 z\n");
         for name in ["x", "y", "z"] {
             assert!(a.result.global_scope.variables.contains_key(name));
         }
@@ -14497,8 +14460,7 @@ mod tests {
 
     #[test]
     fn handle_variable_single_name_no_value() {
-        let mut a = Analyser::new();
-        dispatch_words(&mut a, &["variable", "x"]);
+        let a = analysed("variable x\n");
         assert!(a.result.global_scope.variables.contains_key("x"));
         // At the top level the current namespace is the global one.
         assert_eq!(
@@ -18155,7 +18117,7 @@ mod tests {
     fn handle_catch_with_options_var_defines_both() {
         let mut a = Analyser::new();
         a.registry = Some(std::sync::Arc::clone(
-            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+            tcl_registry::model::ingress::static_context_for("tcl8.6").commands(),
         ));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string(), "opts".to_string()],
@@ -19126,8 +19088,7 @@ mod tests {
 
     #[test]
     fn incr_binds_its_target_by_role() {
-        let mut a = Analyser::new();
-        dispatch_words(&mut a, &["incr", "counter"]);
+        let a = analysed("incr counter\n");
         assert!(a.result.global_scope.variables.contains_key("counter"));
         // A read-modify-write target is read before it is written, so the
         // binding is a side effect, never a "set but unused" write.
@@ -19136,8 +19097,7 @@ mod tests {
 
     #[test]
     fn handle_incr_with_amount() {
-        let mut a = Analyser::new();
-        dispatch_words(&mut a, &["incr", "counter", "5"]);
+        let a = analysed("incr counter 5\n");
         assert!(a.result.global_scope.variables.contains_key("counter"));
         assert!(!a.result.global_scope.variables.contains_key("5"));
     }
@@ -19168,9 +19128,7 @@ mod tests {
 
     #[test]
     fn dict_for_and_dict_update_bind_their_loop_variables_by_role() {
-        let mut a = Analyser::new();
-        dispatch_words(&mut a, &["dict", "for", "k v", "$d", ""]);
-        dispatch_words(&mut a, &["dict", "update", "d", "key", "w", ""]);
+        let a = analysed("set d {}\ndict for {k v} $d {}\ndict update d key w {}\n");
         for name in ["k", "v", "w"] {
             assert!(
                 a.result.global_scope.variables.contains_key(name),
@@ -19755,19 +19713,18 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w123_still_fires_outside_explicit_dispatch_targets() {
-        // ``proc unknown`` with ONLY explicit dispatch targets
-        // (no exec / auto_load / chain / pattern / case-fold)
-        // is *not* dynamic — W123 should still fire for
-        // commands not in the explicit target set.
+    fn analyse_w123_quiet_outside_explicit_dispatch_targets() {
+        // A global ``proc unknown`` receives every unresolved word, so
+        // ``bogus_command`` runs it and returns normally (tclsh 8.4.20, 8.6
+        // and 9.0: `catch` gives 0): nothing is proved unresolved.
         let mut a = crate::analyser::Analyser::new();
         let r = a.analyse(
             "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } } }\nbogus_command arg",
-            "tcl",
+            "tcl8.6",
         );
         assert!(
-            r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
-            "W123 expected for ``bogus_command`` outside explicit dispatch targets; got {:?}",
+            !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+            "the global unknown handler runs ``bogus_command``; got {:?}",
             r.diagnostics,
         );
     }
@@ -19792,13 +19749,12 @@ mod tests {
     }
 
     #[test]
-    fn analyse_w123_still_fires_for_empty_unknown_stub() {
-        // An empty ``unknown`` stub resolves nothing — W123
-        // should still emit.
+    fn analyse_w123_quiet_for_empty_unknown_stub() {
+        // An empty global ``unknown`` still receives the call, which then
+        // returns an empty result (tclsh 8.4.20, 8.6 and 9.0).
         let mut a = crate::analyser::Analyser::new();
-        let r = a.analyse("proc unknown {cmd args} {}\nbogus_command arg", "tcl");
-        // ``bogus_command`` should be flagged.
-        assert!(r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
+        let r = a.analyse("proc unknown {cmd args} {}\nbogus_command arg", "tcl8.6");
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
     }
 
     // deep_param_traits plumbing

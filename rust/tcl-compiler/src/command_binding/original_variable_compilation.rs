@@ -976,7 +976,7 @@ mod logical_substitution_tests {
             "f5-irules",
             "f5-tmsh",
         ] {
-            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let native = crate::analyser::ResolvedAnalysisInput::new(
                 profile,
                 profile,

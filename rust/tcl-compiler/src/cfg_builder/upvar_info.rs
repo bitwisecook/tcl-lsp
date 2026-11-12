@@ -2293,10 +2293,23 @@ mod tests {
     }
 
     fn module_proc_info(src: &str, qname: &str) -> UpvarInfo {
-        let context =
-            crate::environment_ingress::resolve_environment("tcl9.0").default_context_registry();
+        module_proc_info_in(src, qname, false)
+    }
+
+    /// Under the lenient `tcl` profile: a Logical source with no native naming.
+    fn logical_proc_info(src: &str, qname: &str) -> UpvarInfo {
+        module_proc_info_in(src, qname, true)
+    }
+
+    fn module_proc_info_in(src: &str, qname: &str, logical: bool) -> UpvarInfo {
+        let environment = crate::environment_ingress::resolve_environment("tcl9.0");
+        let context = environment.default_context_registry();
         let registry = context.commands();
-        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let profile = if logical {
+            tcl_dialect::DialectProfile::plain_tcl()
+        } else {
+            environment.unit_profile()
+        };
         let input = crate::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
@@ -2461,7 +2474,7 @@ mod tests {
     fn logical_frame_aliases_keep_real_formals_and_literal_dollar_names() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let formal = module_proc_info("proc helper {source} {upvar 1 $source local}", "::helper");
+        let formal = logical_proc_info("proc helper {source} {upvar 1 $source local}", "::helper");
         assert_eq!(
             formal.param_targets.get("local"),
             Some(&"source".to_owned())
@@ -2469,7 +2482,7 @@ mod tests {
         assert!(!formal.has_unresolvable_caller_target);
         assert!(!formal.caller_frame_opaque_writes);
 
-        let literal = module_proc_info(
+        let literal = logical_proc_info(
             "proc helper {} {upvar 1 {$scalar(open} {$alias}; set {$alias} VALUE}",
             "::helper",
         );
@@ -2714,7 +2727,7 @@ mod tests {
         // `uplevel 1 {set litVar hello}` — the lowering inlines the literal
         // body as `Statement::UpFrame`; its writes land in the caller. The
         // caller can shadow unqualified `set`, so the summary also widens.
-        let info = module_proc_info(
+        let info = logical_proc_info(
             "proc ::setter {} {uplevel 1 {set litVar hello}}; ::setter",
             "::setter",
         );
@@ -2913,6 +2926,7 @@ mod tests {
     fn relative_constructed_bodies_do_not_borrow_callee_namespace() {
         let setter = module_proc_info(
             "interp alias {} ::caller::set {} set shadow\n\
+             namespace eval ::callee {}\n\
              proc ::callee::setter {} { uplevel 1 [list set fixed 1] }",
             "::callee::setter",
         );
@@ -2923,6 +2937,7 @@ mod tests {
         let forwarded = module_proc_info(
             "proc ::worker {name} { upvar 1 $name local; set local 1 }\n\
              interp alias {} ::caller::worker {} set shadow\n\
+             namespace eval ::callee {}\n\
              proc ::callee::forward {} { uplevel 1 [list worker target] }",
             "::callee::forward",
         );

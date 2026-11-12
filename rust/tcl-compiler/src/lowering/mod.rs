@@ -7463,14 +7463,17 @@ mod body_cache_eligible_tests {
     // `expr` — so the module IRs differ. The db therefore must not install the
     // cache for such a file.
     fn assert_scope_withdraws_cache(source: &str, expected_target: &str) {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let config = tcl_lexer::LexerConfig::default();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         let cache_calls = std::cell::Cell::new(0);
         let cache = |body: &str, namespace: &str| {
             cache_calls.set(cache_calls.get() + 1);
-            super::lower_proc_body_isolated(body, namespace, &registry, config, None)
+            super::lower_proc_body_isolated(body, namespace, &registry, config, Some(profile))
         };
-        let cached = super::lower_to_ir_with_body_cache(source, &registry, config, None, &cache);
+        let cached =
+            super::lower_to_ir_with_body_cache(source, &registry, config, Some(profile), &cache);
         let fresh = super::lower_to_ir_with_config(source, &registry, config);
         assert_eq!(
             cache_calls.get(),
@@ -8695,10 +8698,10 @@ mod tests {
 
     #[test]
     fn set_with_variable_value() {
-        let m = lower_to_ir("set y $x", &reg());
-        assert_eq!(m.top_level.statements.len(), 1);
+        let m = lower_to_ir("set x [gets stdin]\nset y $x", &reg());
+        assert_eq!(m.top_level.statements.len(), 2);
         assert!(matches!(
-            &m.top_level.statements[0],
+            &m.top_level.statements[1],
             Statement::AssignValue { name, .. } if name == "y"
         ));
     }

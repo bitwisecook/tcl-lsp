@@ -4476,7 +4476,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(
             "namespace eval foo { apply {{} { proc helper {} { return 1 } }} }",
-            "tcl",
+            "tcl8.6",
         );
         assert!(
             r.all_procs.contains_key("::helper"),
@@ -4540,16 +4540,17 @@ mod tests {
         );
     }
 
-    /// A `$`-spelled dynamic tail (`proc _$n {...}`) keeps the lexical
-    /// namespace too — the fallback is the trailing segment, whose holder is
-    /// the enclosing namespace.
+    /// A `$`-spelled dynamic name (`proc _$n {...}`) gives its body no proven
+    /// namespace: a value with `::` names a child namespace, and the body runs
+    /// there. tclsh 8.4.20, 8.6 and 9.0 with `suffix` `x` then `a::b` define
+    /// `::pki::helper` and `::pki::_a::helper`, so no single home is reported.
     #[test]
-    fn a_dollar_named_procs_body_homes_to_the_lexical_namespace() {
+    fn a_dollar_named_procs_body_has_no_proven_home() {
         let src = "namespace eval ::pki { proc _$suffix {} { proc helper {} {} } }\n";
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl");
         assert!(
-            r.all_procs.contains_key("::pki::helper"),
+            !r.all_procs.keys().any(|name| name.ends_with("::helper")),
             "{:?}",
             r.all_procs.keys().collect::<Vec<_>>()
         );
@@ -4559,7 +4560,7 @@ mod tests {
     fn apply_body_proc_honours_explicit_lambda_namespace() {
         // A lambda pinning a namespace (element 2) runs its body there.
         let mut a = Analyser::new();
-        let r = a.analyse("apply {{} { proc helper {} { return 1 } } ::bar}", "tcl");
+        let r = a.analyse("apply {{} { proc helper {} { return 1 } } ::bar}", "tcl8.6");
         assert!(
             r.all_procs.contains_key("::bar::helper"),
             "explicit lambda namespace must be honoured: {:?}",
@@ -4589,7 +4590,7 @@ mod tests {
                        apply {{} { proc helper {} { return 1 } } sub}\n\
                    }\n";
         let mut a = Analyser::new();
-        let r = a.analyse(src, "tcl");
+        let r = a.analyse(src, "tcl8.6");
         assert!(
             r.all_procs.contains_key("::sub::helper"),
             "relative lambda ns must resolve against ::, not the caller: {:?}",
@@ -4617,7 +4618,7 @@ mod tests {
                        apply {{} { proc helper {} { return 1 } } ::caller::sub}\n\
                    }\n";
         let mut a = Analyser::new();
-        let r = a.analyse(src, "tcl");
+        let r = a.analyse(src, "tcl8.6");
         assert!(
             r.all_procs.contains_key("::caller::sub::helper"),
             "absolute lambda ns must be honoured verbatim: {:?}",
@@ -4633,7 +4634,7 @@ mod tests {
                        apply {{} { proc helper {} { return 1 } }}\n\
                    }\n";
         let mut a = Analyser::new();
-        let r = a.analyse(src, "tcl");
+        let r = a.analyse(src, "tcl8.6");
         assert!(
             r.all_procs.contains_key("::helper"),
             "an absent lambda ns means global: {:?}",
@@ -4652,7 +4653,7 @@ mod tests {
         // walk can never reach.
         let mut a = Analyser::new();
         let src = "apply {{} { cleanup done } ::real}";
-        let r = a.analyse(src, "tcl");
+        let r = a.analyse(src, "tcl8.6");
         assert_eq!(
             r.namespace_overrides.len(),
             1,
@@ -4679,7 +4680,7 @@ mod tests {
         // deliberately still records it (uniform code path) — confirm the
         // recorded namespace is exactly `"::"`, not skipped or wrong.
         let mut a = Analyser::new();
-        let r = a.analyse("apply {{} { cleanup done }}", "tcl");
+        let r = a.analyse("apply {{} { cleanup done }}", "tcl8.6");
         assert_eq!(
             r.namespace_overrides.len(),
             1,
@@ -4720,7 +4721,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create Dog { method bark {} {} }\nset d [Dog new]\n",
-            "tcl",
+            "tcl8.6",
         );
         assert_eq!(
             r.instance_classes.get("d").map(String::as_str),
@@ -4737,7 +4738,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create Dog { method bark {} {} }\n::set d [Dog new]\n",
-            "tcl",
+            "tcl8.6",
         );
         assert_eq!(
             r.instance_classes.get("d").map(String::as_str),
@@ -4751,7 +4752,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create Dog { method bark {} {} }\nDog create rex\n",
-            "tcl",
+            "tcl8.6",
         );
         assert_eq!(
             r.instance_classes.get("rex").map(String::as_str),
@@ -4763,7 +4764,10 @@ mod tests {
     fn analyse_records_instance_class_set_create() {
         // `set d [Dog create rex]` maps `d` -> `::Dog`.
         let mut a = Analyser::new();
-        let r = a.analyse("oo::class create Dog {}\nset d [Dog create rex]\n", "tcl");
+        let r = a.analyse(
+            "oo::class create Dog {}\nset d [Dog create rex]\n",
+            "tcl8.6",
+        );
         assert_eq!(
             r.instance_classes.get("d").map(String::as_str),
             Some("::Dog")
@@ -4782,7 +4786,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create Dog { method bark {} {} }\nset class Dog\nset obj [$class create rex]\n",
-            "tcl",
+            "tcl8.6",
         );
         assert_eq!(
             r.instance_classes.get("obj").map(String::as_str),
@@ -4798,7 +4802,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create Dog { method bark {} {} }\nset class Dog\nset obj [$class new]\n",
-            "tcl",
+            "tcl8.6",
         );
         assert_eq!(
             r.instance_classes.get("obj").map(String::as_str),
@@ -5058,7 +5062,7 @@ mod tests {
         let has_w307 = a
             .analyse(
                 "proc f {} { array set state {-command puts}; $state(-command) hi }\n",
-                "tcl",
+                "tcl8.6",
             )
             .diagnostics
             .iter()
@@ -5072,7 +5076,7 @@ mod tests {
         let has_w307 = b
             .analyse(
                 "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n",
-                "tcl",
+                "tcl8.6",
             )
             .diagnostics
             .iter()
@@ -5087,7 +5091,7 @@ mod tests {
     /// unset-no-complain, W214 unused-param) emitted for `src`.
     fn rbs_codes(src: &str) -> Vec<String> {
         Analyser::new()
-            .analyse(src, "tcl")
+            .analyse(src, "tcl8.6")
             .diagnostics
             .iter()
             .filter(|d| matches!(d.code.as_str(), "W210" | "W213" | "W214"))
@@ -5105,7 +5109,7 @@ mod tests {
         assert!(
             a.analyse(
                 "proc f {} {\n    set a(k) 1\n    set a(k) 2\n    return $a(k)\n}",
-                "tcl"
+                "tcl8.6"
             )
             .diagnostics
             .iter()
@@ -5117,7 +5121,7 @@ mod tests {
         assert!(
             !b.analyse(
                 "proc f {} {\n    set a(k) 1\n    set a(j) 2\n    return $a(k)\n}",
-                "tcl"
+                "tcl8.6"
             )
             .diagnostics
             .iter()
@@ -5129,7 +5133,7 @@ mod tests {
         assert!(
             !c.analyse(
                 "proc f {} {\n    set a(k) 1\n    puts $a(k)\n    set a(k) 2\n    return $a(k)\n}",
-                "tcl",
+                "tcl8.6",
             )
             .diagnostics
             .iter()
@@ -5213,7 +5217,7 @@ mod tests {
         assert!(
             !a.analyse(
                 "proc foo {v} {\n  upvar 1 $v local\n  set local 5\n}\n",
-                "tcl"
+                "tcl8.6"
             )
             .diagnostics
             .iter()
@@ -5252,7 +5256,7 @@ mod tests {
         assert!(
             a.analyse(
                 "proc g {x} {\n  namespace eval ::ns { puts \"hello $x\" }\n}\n",
-                "tcl"
+                "tcl8.6"
             )
             .diagnostics
             .iter()
@@ -5261,7 +5265,7 @@ mod tests {
         );
         let mut b = Analyser::new();
         assert!(
-            !b.analyse("proc f {x} {\n  eval { puts $x }\n}\n", "tcl")
+            !b.analyse("proc f {x} {\n  eval { puts $x }\n}\n", "tcl8.6")
                 .diagnostics
                 .iter()
                 .any(|d| d.code == DiagCode::W214),
@@ -5278,7 +5282,7 @@ mod tests {
         let fires = a
             .analyse(
                 "oo::class create C { method m {} { [format notACommand] run } }",
-                "tcl",
+                "tcl8.6",
             )
             .diagnostics
             .iter()
@@ -5292,7 +5296,7 @@ mod tests {
             .analyse(
                 "oo::class create D { method run {} { return ok } }\n\
                  oo::class create C { method m {} { [D new] run } }\n",
-                "tcl",
+                "tcl8.6",
             )
             .diagnostics
             .iter()
@@ -5402,7 +5406,7 @@ mod tests {
         let has_w307 = a
             .analyse(
                 "proc f {d} { dict with d { $cmd hi } }\nf {cmd puts}\n",
-                "tcl",
+                "tcl8.6",
             )
             .diagnostics
             .iter()
@@ -5416,7 +5420,7 @@ mod tests {
         let has_w307 = b
             .analyse(
                 "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n",
-                "tcl",
+                "tcl8.6",
             )
             .diagnostics
             .iter()
@@ -5436,7 +5440,7 @@ mod tests {
         let r = a.analyse(
             "oo::class create C { method run {} { return ok } }\n\
              proc f {} { set x [C new]; $x run }\n",
-            "tcl",
+            "tcl8.6",
         );
         assert!(
             !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
@@ -5608,8 +5612,10 @@ mod tests {
         // captures cumulative state.
         use crate::segmenter::segment_commands;
         let source = "set x 1\nproc foo {} {}";
-        let chunk1 = segment_commands("set x 1");
-        let chunk2 = segment_commands("proc foo {} {}");
+        // Chunks carry the document's own offsets.
+        let mut commands = segment_commands(source).into_iter();
+        let chunk1 = vec![commands.next().unwrap()];
+        let chunk2: Vec<_> = commands.collect();
         let mut a = Analyser::new();
         let (r, snapshots) = a.analyse_chunked(source, vec![chunk1, chunk2], "tcl");
         assert_eq!(snapshots.len(), 2);
@@ -5939,8 +5945,11 @@ mod tests {
         assert!(regsub_pats.iter().all(|p| p.pattern == "a+"));
     }
 
+    /// A braced switch body substitutes nothing: `$p` there is the literal
+    /// pattern `$p`, never `p`'s value. tclsh 8.4.20, 8.6 and 9.0 send `foo`
+    /// to `default`.
     #[test]
-    fn analyse_switch_regexp_resolves_var_pattern_to_const_string() {
+    fn analyse_switch_regexp_braced_pattern_is_not_the_variable_value() {
         let mut a = Analyser::new();
         let r = a.analyse(
             "set p {^foo}\nswitch -regexp -- $val { $p { puts foo } ^bar { puts bar } }\n",
@@ -5952,7 +5961,7 @@ mod tests {
             .filter(|p| p.command == "switch")
             .collect();
         let pats: Vec<&str> = switch_pats.iter().map(|p| p.pattern.as_str()).collect();
-        assert!(pats.contains(&"^foo"), "got {pats:?}");
+        assert!(!pats.contains(&"^foo"), "got {pats:?}");
         assert!(pats.contains(&"^bar"), "got {pats:?}");
     }
 
@@ -6333,7 +6342,7 @@ mod tests {
         let r = a.analyse(
             "proc ::fill {vn} { upvar 1 $vn v\nset v 1 }\n\
              proc ::f {} { set tag init\nset tag x\nfill tag }\n",
-            "tcl",
+            "tcl8.6",
         );
         assert!(
             r.diagnostics.iter().all(|d| {
@@ -6347,7 +6356,7 @@ mod tests {
         // Negative control: a genuinely unused local is still flagged
         // (the suppression didn't disable W211 wholesale).
         let mut a2 = Analyser::new();
-        let r2 = a2.analyse("proc ::g {} { set unused 1\nputs hi }\n", "tcl");
+        let r2 = a2.analyse("proc ::g {} { set unused 1\nputs hi }\n", "tcl8.6");
         assert!(
             r2.diagnostics
                 .iter()

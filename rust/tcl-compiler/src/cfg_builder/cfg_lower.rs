@@ -2968,8 +2968,11 @@ mod tests {
         use tcl_registry::model::ingress::{resolve_environment, static_context_for};
         let registry = static_context_for(dialect).commands();
         let profile = resolve_environment(dialect).analyser_profile();
+        // A fresh interpreter has no `x`; an unread `$x` subject would only
+        // ever raise, so give it a value the source does not state.
+        let source = format!("set x [gets stdin]\n{source}");
         let module = crate::lowering::lower_to_ir_with_dialect(
-            source,
+            &source,
             registry,
             LexerConfig::for_profile(registry.profile()),
             Some(profile),
@@ -3134,7 +3137,8 @@ mod tests {
     #[test]
     fn a_registry_with_no_profile_reads_no_release_for_the_option_scan() {
         let registry = CommandRegistry::build_default();
-        let module = crate::lowering::lower_to_ir("switch $x {a {puts A}}", &registry);
+        let module =
+            crate::lowering::lower_to_ir("set x [gets stdin]\nswitch $x {a {puts A}}", &registry);
         let func =
             build_cfg_function_for_registry("::test", &module.top_level, false, &registry, false);
         assert!(matches!(

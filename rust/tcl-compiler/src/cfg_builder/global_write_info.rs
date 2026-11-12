@@ -1767,9 +1767,18 @@ mod tests {
     }
 
     fn module_with_registry(src: &str, registry: &CommandRegistry) -> Module {
-        let context = tcl_registry::model::ingress::static_context_for("tcl")
+        module_in(src, registry, "tcl8.6")
+    }
+
+    /// The lenient `tcl` environment: a Logical source with no native naming.
+    fn logical_module(src: &str) -> Module {
+        module_in(src, &CommandRegistry::build_default(), "tcl")
+    }
+
+    fn module_in(src: &str, registry: &CommandRegistry, environment: &str) -> Module {
+        let context = tcl_registry::model::ingress::static_context_for(environment)
             .with_command_store(registry.snapshot().shared_registry());
-        let profile = tcl_registry::model::ingress::static_context_for("tcl")
+        let profile = tcl_registry::model::ingress::static_context_for(environment)
             .commands()
             .profile()
             .unwrap();
@@ -1857,7 +1866,7 @@ mod tests {
 
     #[test]
     fn original_immediate_body_inventory_keeps_protected_children_and_refusals() {
-        let module = module("catch {set ::hits VALUE}");
+        let module = logical_module("catch {set ::hits VALUE}");
         let registry = module.resolved_registry();
         let parent = module
             .top_level
@@ -1904,7 +1913,7 @@ mod tests {
 
     #[test]
     fn logical_source_child_effects_keep_readonly_ownership_and_refuse_stale_modules() {
-        let module = module("catch {set ::hits VALUE}");
+        let module = logical_module("catch {set ::hits VALUE}");
         let registry = module.resolved_registry();
         let input = module.source_metadata_input.as_ref().unwrap();
         let parent = module
@@ -2301,7 +2310,7 @@ mod tests {
 
     #[test]
     fn variable_namespace_write_recorded() {
-        let m = module("proc ::ns::p {} { variable v; set v 1 }");
+        let m = module("namespace eval ::ns {}\nproc ::ns::p {} { variable v; set v 1 }");
         let info = detect_global_write_procs(&m);
         assert!(
             info.get(&summary_id(&m, "::ns::p"))
@@ -2334,7 +2343,9 @@ mod tests {
 
     #[test]
     fn namespace_upvar_rename_resolves_to_outer_name() {
-        let m = module("proc ::ns::p {} { namespace upvar ::ns nsvar localvar\nset localvar 1 }");
+        let m = module(
+            "namespace eval ::ns {}\nproc ::ns::p {} { namespace upvar ::ns nsvar localvar\nset localvar 1 }",
+        );
         let info = detect_global_write_procs(&m);
         assert!(
             info.get(&summary_id(&m, "::ns::p"))
@@ -2552,7 +2563,8 @@ mod tests {
     fn late_namespaced_alias_resolves_inside_namespace_eval_block() {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry(
-            "proc ::n::p {} { eval { g x local; set local 1 } }\n\
+            "namespace eval ::n {}\n\
+             proc ::n::p {} { eval { g x local; set local 1 } }\n\
              interp alias {} ::n::g {} upvar #0",
             &registry,
         );
@@ -2582,7 +2594,8 @@ mod tests {
     fn alias_created_in_namespaced_proc_is_global_in_source_interpreter() {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry(
-            "proc ::n::install {} { interp alias {} g {} upvar #0 }\n\
+            "namespace eval ::n {}\n\
+             proc ::n::install {} { interp alias {} g {} upvar #0 }\n\
              proc ::p {} { g x local; set local 1 }",
             &registry,
         );
@@ -2645,6 +2658,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry(
             "proc ::mutate {} { global x; set x 99 }\n\
+             namespace eval ::z {}\n\
              proc ::z::mutate {} {}\n\
              interp alias {} call_mutate {} mutate\n\
              proc ::outer {} { call_mutate }",
@@ -2755,6 +2769,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry(
             "interp alias {} g {} upvar #0\n\
+             namespace eval ::n {}\n\
              proc ::n::upvar args {}\n\
              proc ::n::p {} { g x local; set local 1 }",
             &registry,
@@ -2787,6 +2802,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry(
             "interp alias {} g {} upvar #0\n\
+             namespace eval ::n {}\n\
              proc ::n::install {replace} {\n\
                  if {$replace} { interp alias {} ::n::g {} puts }\n\
              }\n\
@@ -2919,7 +2935,7 @@ mod tests {
             ("proc p {} {set y [incr x]}", true),
             ("proc p {} {set y {[incr x]}}", false),
         ] {
-            let module = module_with_registry(source, &registry);
+            let module = module_in(source, &registry, "tcl");
             let bindings = ModuleCommandBindings::analyse(&module, &registry);
             let semantics =
                 GlobalWriteSemantics::from_module(&module, &registry, &bindings).unwrap();

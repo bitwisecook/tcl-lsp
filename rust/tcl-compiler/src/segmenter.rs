@@ -603,7 +603,10 @@ pub fn contiguous_prefix<'t>(source: &str, base: usize, text: &'t str) -> &'t st
 /// parser runs, so the word value is shorter than its region while every span
 /// stays an original offset. Segmenting the region itself keeps those spans
 /// exact: CR is a word separator before the pair's LF and a lone CR ends a
-/// command exactly as the LF it reads as. Any other difference keeps `text`.
+/// command exactly as the LF it reads as. A braced word's backslash-newline
+/// continuations fold the same way (tclsh 8.4 to 9.0 read `{a\<LF>   b}` as
+/// `a b`), and the region's continuation separates words as its space does.
+/// Any other difference keeps `text`.
 #[must_use]
 pub fn braced_body_source_region<'t>(
     source: &'t str,
@@ -614,11 +617,19 @@ pub fn braced_body_source_region<'t>(
     let Some(region) = source.get(base..close) else {
         return text;
     };
-    if region.len() == text.len() || !region.contains('\r') {
+    if region.len() == text.len() {
         return text;
     }
-    let folded = region.replace("\r\n", "\n").replace('\r', "\n");
-    if folded == text { region } else { text }
+    let folded = if region.contains('\r') {
+        std::borrow::Cow::Owned(region.replace("\r\n", "\n").replace('\r', "\n"))
+    } else {
+        std::borrow::Cow::Borrowed(region)
+    };
+    if folded == text || tcl_syntax::backslash::collapse_brace_continuations_str(&folded) == text {
+        region
+    } else {
+        text
+    }
 }
 
 /// The part of a body word's `text` whose spans a walk may rebase by `base`,

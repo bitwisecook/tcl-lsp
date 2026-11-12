@@ -399,7 +399,7 @@ mod tests {
         ordinal: usize,
         child: usize,
     ) -> SignatureSourceNameInput {
-        let profile = tcl_dialect::DialectProfile::find("jim").unwrap();
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let image = SourceImage::document(source);
         let plan = tcl_lexer::native_script_words_in(

@@ -8038,10 +8038,11 @@ mod tests {
     #[test]
     fn w125_fires_for_orphaned_else() {
         // A misplaced newline split the `if` — `else` lands as a standalone
-        // command with no parent.
+        // command with no parent. `x` is set first: reading an unset `x`
+        // fails the `if` and `else` is never reached (tclsh 8.6, 9.0).
         assert!(has_code(
-            "if {$x} {\n  puts hi\n}\nelse {\n  puts bye\n}",
-            "tcl",
+            "set x 1\nif {$x} {\n  puts hi\n}\nelse {\n  puts bye\n}",
+            "tcl8.6",
             "W125"
         ));
     }

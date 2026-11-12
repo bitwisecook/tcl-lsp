@@ -17832,6 +17832,16 @@ impl ModuleCommandBindings {
             rebound: self
                 .rebound_names
                 .iter()
+                // An authored slot is spelt for `names` (a document's own
+                // `proc expr`), but it is also every fresh `proc`, which this
+                // set excludes.
+                .filter(|key| match key {
+                    SourceCommandKey::Authored(_) => true,
+                    SourceCommandKey::Slot { namespace, .. } => {
+                        self.baseline.native_entry.is_some()
+                            && namespace.exact_native_path().is_some()
+                    }
+                })
                 .filter_map(|key| self.callable_spelling_for_key(key))
                 .chain(self.namespace_resolution.rebound_names.iter().cloned())
                 .collect(),
@@ -23321,7 +23331,8 @@ mod tests {
     use crate::compilation_unit::CompilationUnit;
 
     fn analyse(src: &str) -> (CompilationUnit, CommandRegistry) {
-        let reg = CommandRegistry::build_default();
+        let reg = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = CompilationUnit::build_for(src, &reg, false);
         (cu, reg)
     }
@@ -24480,7 +24491,8 @@ mod tests {
     /// frame statically nameable must not be reused once one is not.
     #[test]
     fn the_frame_fact_survives_a_snapshot_round_trip() {
-        let reg = CommandRegistry::build_default();
+        let reg = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let src = "oo::class create ::A {\n    method m {} { puts hi }\n}\n";
         let cu = CompilationUnit::build_for(src, &reg, false);
         let m = scan_module_command_mutations(&cu.ir_module, &reg);

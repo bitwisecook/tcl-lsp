@@ -1055,7 +1055,7 @@ mod tests {
             let analysis = Analyser::new().analyse("", dialect_name);
             let input = analysis.resolved_input.as_ref().unwrap();
             let dialect = tcl_registry::InvocationDialect::of_profile(
-                tcl_dialect::DialectProfile::find(dialect_name).unwrap(),
+                tcl_registry::model::ingress::resolve_environment(dialect_name).unit_profile(),
             );
             let policy =
                 super::super::AdviceNamingPolicy::Native(dialect.authored_name_policy().unwrap());

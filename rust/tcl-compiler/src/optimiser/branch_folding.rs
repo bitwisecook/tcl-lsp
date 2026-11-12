@@ -691,7 +691,9 @@ mod tests {
     }
 
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     fn literal(text: &str) -> ExprNode {
@@ -1454,8 +1456,11 @@ mod tests {
         // branch condition `$x < $y` is not a SCCP constant
         // branch (because $y is Unknown), so substituting $x → 5
         // is the only rewrite. Expect an O100.
-        let cu =
-            CompilationUnit::build_for("set x 5\nif {$x < $y} { set z 1 }", &registry(), false);
+        let cu = CompilationUnit::build_for(
+            "set y [gets stdin]\nset x 5\nif {$x < $y} { set z 1 }",
+            &registry(),
+            false,
+        );
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         run(&mut ctx, &cu);
         let got = ctx

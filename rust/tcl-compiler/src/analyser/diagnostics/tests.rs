@@ -2479,13 +2479,14 @@ fn e003_switch_options_are_dialect_filtered() {
         "unexpected E003 under tcl9.0: {:?}",
         r9.diagnostics
     );
-    // Under 8.6 `-command` is unknown → counted positional →
-    // 5 > max 4 → E003 (dialect-leak guard).
+    // Under 8.6 `-command` is no option (tclsh 8.6: `bad option
+    // "-command"`), reported as an option the dialect lacks (dialect-leak
+    // guard).
     let mut a2 = Analyser::new();
     let r8 = a2.analyse("regsub -command a b c d", "tcl8.6");
     assert!(
-        r8.diagnostics.iter().any(|d| d.code == DiagCode::E003),
-        "expected E003 under tcl8.6, got {:?}",
+        r8.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "expected W004 under tcl8.6, got {:?}",
         r8.diagnostics
     );
 }
@@ -2507,8 +2508,8 @@ fn e003_source_nopkg_is_tcl9_only() {
     let mut tcl86 = Analyser::new();
     let r86 = tcl86.analyse("source -nopkg missing.tcl", "tcl8.6");
     assert!(
-        r86.diagnostics.iter().any(|d| d.code == DiagCode::E003),
-        "expected E003 under tcl8.6: {:?}",
+        r86.diagnostics.iter().any(|d| d.code == DiagCode::W004),
+        "expected W004 under tcl8.6: {:?}",
         r86.diagnostics
     );
 }
@@ -2600,12 +2601,14 @@ fn e003_fires_on_subcommand_over_arity() {
 #[test]
 fn e003_fires_on_file_link_over_arity() {
     // `file link ?-linktype? linkName ?target?` — `link` accepts at
-    // most two positional args, so three literal targets is E003.
+    // most two positional args after its one option. A dynamic first word
+    // may be `-symbolic` (tclsh 8.6: `file link -symbolic a b` is valid), so
+    // only the literal form is a provable wrong-#args.
     let mut a = Analyser::new();
-    let result = a.analyse("file link $a $b $c", "tcl8.6");
+    let result = a.analyse("file link -symbolic a b c", "tcl8.6");
     assert!(
         result.diagnostics.iter().any(|d| d.code == DiagCode::E003),
-        "expected E003 for `file link $a $b $c`, got {:?}",
+        "expected E003 for `file link -symbolic a b c`, got {:?}",
         result.diagnostics
     );
 }
@@ -3484,13 +3487,25 @@ fn e003_static_rename_onto_builtin_name_suppresses_arity() {
     // 3-parameter signature, not the registry `close` builtin (max 2), so
     // a 3-argument call must not fire E003.  Order-gated the same way as a
     // proc: the rename statement must lexically precede a top-level call.
-    let src = "proc myimpl {a b c} { return $a }\nrename myimpl close\nclose 1 2 3\n";
+    // tclsh 8.4-9.0: `rename myimpl close` fails while `close` exists, so
+    // the builtin is deleted first.
+    let src =
+        "proc myimpl {a b c} { return $a }\nrename close {}\nrename myimpl close\nclose 1 2 3\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.6");
     assert!(
         !r.diagnostics.iter().any(|d| d.code == DiagCode::E003),
         "no E003 expected — close was renamed onto myimpl's 3-arg signature, got {:?}",
         r.diagnostics
+    );
+    let refused = "proc myimpl {a b c} { return $a }\nrename myimpl close\nclose 1 2 3\n";
+    assert!(
+        Analyser::new()
+            .analyse(refused, "tcl8.6")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::E003),
+        "a rename onto an existing command fails, so the builtin keeps its arity"
     );
 }
 
@@ -4403,8 +4418,8 @@ fn same_file_deleted_alias_call_is_unknown_command() {
     let src = "interp alias {} bar {} puts\ninterp alias {} bar {}\nbar 1\n";
     let r = a.analyse(src, "tcl8.6");
     assert!(
-        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
-        "a call through a deleted alias must be flagged unknown; got {:?}",
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W128),
+        "a call through a deleted alias must be flagged; got {:?}",
         r.diagnostics,
     );
 }
@@ -5775,7 +5790,7 @@ fn emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads() {
         "proc f {} { set i 0\nforeach j {1 2 3} { lappend r [incr i $j] }\nreturn $r }",
     ] {
         let mut a = Analyser::new();
-        let res = a.analyse(src, "tcl");
+        let res = a.analyse(src, "tcl8.6");
         assert!(
             !res.diagnostics.iter().any(|d| d.code == DiagCode::W220),
             "W220 must not fire for a substitution-hidden read; got {:?} for {src:?}",
@@ -5785,7 +5800,7 @@ fn emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads() {
     // Control: a normal later read does not hide anything, so an earlier
     // overwritten store is still a dead store.
     let mut a = Analyser::new();
-    let res = a.analyse("proc f {} { set x 1\nset x 2\nputs $x }", "tcl");
+    let res = a.analyse("proc f {} { set x 1\nset x 2\nputs $x }", "tcl8.6");
     assert!(
         res.diagnostics.iter().any(|d| d.code == DiagCode::W220),
         "W220 must still fire for a genuine overwrite; got {:?}",
@@ -6839,6 +6854,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
         "proc foo {} { append buf x\nputs $buf }",
     ] {
         let mut a = Analyser::new();
+        a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         a.emit_document_cfg_ssa_diagnostics_for_test(src);
         assert!(
             !a.result
@@ -6852,6 +6868,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
     // `unset` (without -nocomplain) is destructive, not auto-creating —
     // its missing-variable case must still raise W213.
     let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { unset gone }");
     assert!(
         a.result
@@ -6890,6 +6907,7 @@ fn emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef() {
     // runtime.  W213 fires (instead of W210) at the unset
     // statement.
     let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { unset xs }");
     let w213s: Vec<_> = a
         .result
@@ -6931,6 +6949,7 @@ fn emit_cfg_ssa_diagnostics_w210_read_after_unset() {
     // (the killed real version is undef at its use, like a version-0
     // origin).
     let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test(
         "proc f {} {\n    set a 1\n    unset a\n    puts $a\n}",
     );
@@ -6953,6 +6972,7 @@ fn try_handler_edge_merges_pretry_when_body_falls_through() {
     // the on-error edge only from the explicit-throw block (after `set y 2`
     // failed to run) would wrongly suppress it.
     let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test(
             "proc f {c} {\n try {\n  if {$c} { error e }\n  set y 2\n } on error {} {\n  puts $y\n }\n}\n",
         );
@@ -7295,11 +7315,23 @@ fn w210_startup_read_trace_respects_global_alias_and_unset_lifecycle() {
 
 #[test]
 fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
-    // A helper proc ``init`` writes ``::counter`` via ``set``,
-    // so the top-level read should not flag W210 — the proc
-    // may run before the read.
+    // A helper proc ``init`` writes ``::counter`` via ``set``, so a
+    // top-level read after ``init`` runs does not flag W210. Without the
+    // call tclsh 8.6 fails with `can't read "counter"`.
     let mut a = Analyser::new();
     a.emit_document_cfg_ssa_diagnostics_for_test("proc init {} { set ::counter 0 }\nputs $counter");
+    assert!(
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
+        "the uncalled writer leaves ::counter unset; got {:?}",
+        a.result.diagnostics,
+    );
+    let mut a = Analyser::new();
+    a.emit_document_cfg_ssa_diagnostics_for_test(
+        "proc init {} { set ::counter 0 }\ninit\nputs $counter",
+    );
     assert!(
         !a.result
             .diagnostics
@@ -7317,7 +7349,7 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
     // to the global.  Top-level read should not flag W210.
     let mut a = Analyser::new();
     a.emit_document_cfg_ssa_diagnostics_for_test(
-        "proc init {} { global counter; set counter 0 }\nputs $counter",
+        "proc init {} { global counter; set counter 0 }\ninit\nputs $counter",
     );
     assert!(
         !a.result
@@ -7600,6 +7632,7 @@ fn i230_message_quotes_bare_var_as_source_spells_it() {
     // the segmenter's re-braced `${n}` reconstruction.
     let src = "set n 1\nif $n { puts a } else { puts b }\n";
     let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test(src);
     let i230: Vec<_> = a
         .result
@@ -7630,6 +7663,7 @@ fn i230_message_keeps_braced_var_spelling() {
     // A source-braced `${n}` stays `${n}` — fidelity cuts both ways.
     let src = "set n 1\nif ${n} { puts a } else { puts b }\n";
     let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test(src);
     let i230: Vec<_> = a
         .result
@@ -8635,7 +8669,7 @@ fn analyse_w307_suppressed_for_known_class_constructor_chain() {
     let mut a = Analyser::new();
     let r = a.analyse(
         "oo::class create Dog { method bark {} { return woof } }\n[Dog new] bark",
-        "tcl",
+        "tcl8.6",
     );
     assert!(
         !r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
@@ -8657,7 +8691,7 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
     let mut a = Analyser::new();
     let r = a.analyse(
         "oo::class create Dog { method bark {} { return woof } }\n[Dog new] fly",
-        "tcl",
+        "tcl8.6",
     );
     assert!(
         r.diagnostics
@@ -8731,7 +8765,7 @@ fn w308_fp_issue_1013_reestablished_class_set_var_constructor_still_flags() {
     // the unknown method must still be flagged.
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -8747,7 +8781,7 @@ fn w308_tn_issue_1013_live_class_set_var_constructor_still_flags() {
     // shape must be entirely unaffected by the gate.
     let src = "oo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set x [Dog new]\n    $x fly\n}\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -8770,7 +8804,7 @@ fn w308_tp_copy_propagated_handle_with_a_trailing_rename_still_flags() {
     // `unknown method "fly": must be bark or destroy`.
     let src = "oo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set y [Dog new]\n    set x $y\n    $x fly\n}\nfoo\nrename Dog {}\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -8808,11 +8842,12 @@ fn w123_tp_a_class_renamed_away_still_flags_its_old_name() {
     // fails with `invalid command name "Dog"`.
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nDog new\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
+    // W128 owns a call to a name this file renamed away.
     assert!(
-        codes.contains("W123"),
-        "the vacated name must still be unknown; got {codes:?}",
+        codes.contains("W128"),
+        "the vacated name must still be unbound; got {codes:?}",
     );
 }
 
@@ -8828,7 +8863,7 @@ fn w123_tp_a_rename_in_a_dead_branch_is_not_an_unconditional_deletion() {
     // `$d fly` fails with `unknown method "fly": must be bark or destroy`.
     let src = "oo::class create Dog {\n    method bark {} { return woof }\n}\nif {0} { rename Dog {} }\nset d [Dog new]\n$d fly\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     let codes: HashSet<String> = r.diagnostics.iter().map(|d| d.code.to_string()).collect();
     assert!(
         !codes.contains("W123"),
@@ -8860,7 +8895,7 @@ fn w308_tp_a_renamed_class_name_still_types_its_constructor_1049() {
     // `$d bark` returns `woof`.
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nset d [Cat new]\n$d fly\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -8882,7 +8917,7 @@ fn w308_tn_a_renamed_class_still_accepts_its_real_methods_1049() {
     // Oracle (tclsh8.6.14 / tclsh9.0.4): `$d bark` → `woof`.
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nset d [Cat new]\n$d bark\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert_eq!(
         r.diagnostics.len(),
         0,
@@ -8928,7 +8963,7 @@ fn w308_tp_a_chain_of_renames_still_reaches_the_class_1049() {
     // `$d fly` fails `unknown method "fly"`.
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nrename Cat Kitten\nset d [Kitten new]\n$d fly\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -8947,7 +8982,7 @@ fn w308_tp_an_interp_alias_of_a_class_types_its_constructor_1049() {
     // alias {} Cat {} Dog; set d [Cat new]` returns an `::oo::Obj*` handle.
     let src = "oo::class create Dog { method bark {} { return woof } }\ninterp alias {} Cat {} Dog\nset d [Cat new]\n$d fly\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -8988,7 +9023,7 @@ fn w308_tp_an_alias_to_a_renamed_class_name_reaches_the_class_1049() {
     // `woof`, `$d fly` fails `unknown method "fly": must be bark or destroy`.
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\ninterp alias {} Pup {} Cat\nset d [Pup new]\n$d fly\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -9013,7 +9048,7 @@ fn w308_tp_a_chain_of_aliases_reaches_the_class_1049() {
     // "fly": must be bark or destroy`.
     let src = "oo::class create Dog { method bark {} { return woof } }\ninterp alias {} Cat {} Dog\ninterp alias {} Pup {} Cat\nset d [Pup new]\n$d fly\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -9050,7 +9085,7 @@ fn w308_tp_a_renamed_class_types_a_direct_constructor_dispatch_1049() {
     let src =
         "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\n[Cat new] fly\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -9064,7 +9099,7 @@ fn w308_tp_a_renamed_class_types_a_direct_constructor_dispatch_1049() {
 fn w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method() {
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog {}\noo::class create Dog { method bark {} { return woof } }\n[Dog new] fly";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         r.diagnostics
             .iter()
@@ -9078,7 +9113,7 @@ fn w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method
 /// case asserts the exact set of expected diagnostic codes.
 fn w30x_codes(src: &str) -> Vec<String> {
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     let mut codes: Vec<String> = r
         .diagnostics
         .iter()
@@ -9722,7 +9757,7 @@ fn apply_lambda_arity_still_checked_when_apply_is_not_shadowed() {
     // Regression guard: the shadowing fix above must not silence the
     // ordinary, non-shadowed case.
     let src = "apply {{a b} {return [expr {$a+$b}]}} 1\n";
-    assert_eq!(e00x_codes_for(src), vec!["E002".to_owned()]);
+    assert_eq!(e00x_codes_for_in(src, "tcl8.6"), vec!["E002".to_owned()]);
 }
 
 #[test]
@@ -9871,15 +9906,15 @@ fn apply_lambda_arity_fires_and_stays_silent() {
     // naming.diagnostic.registry-source-ownership
     // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
     assert_eq!(
-        e00x_codes_for("apply {{a b} {return [expr {$a+$b}]}} 1\n"),
+        e00x_codes_for_in("apply {{a b} {return [expr {$a+$b}]}} 1\n", "tcl8.6"),
         vec!["E002".to_owned()]
     );
     assert_eq!(
-        e00x_codes_for("apply {{a b} {return [expr {$a+$b}]}} 1 2\n"),
+        e00x_codes_for_in("apply {{a b} {return [expr {$a+$b}]}} 1 2\n", "tcl8.6"),
         Vec::<String>::new()
     );
     assert_eq!(
-        e00x_codes_for("apply {{a b} {return [expr {$a+$b}]}} 1 2 3\n"),
+        e00x_codes_for_in("apply {{a b} {return [expr {$a+$b}]}} 1 2 3\n", "tcl8.6"),
         vec!["E003".to_owned()]
     );
 }
@@ -9927,7 +9962,7 @@ fn tp_e001_bare_tcloo_object_dispatch_requires_method() {
     let src = "oo::class create Dog { method bark {} { return woof } }\n\
                set o [Dog new]\n$o\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     let e001: Vec<_> = r
         .diagnostics
         .iter()
@@ -9953,7 +9988,7 @@ fn tp_e001_bare_tcloo_object_dispatch_named_constructor() {
     let src = "oo::class create Dog { method bark {} { return woof } }\n\
                set rex [Dog create rex]\n$rex\n";
     assert!(
-        has_code(src, "tcl", "E001"),
+        has_code(src, "tcl8.6", "E001"),
         "bare dispatch on a named-constructor instance should require a method"
     );
 }
@@ -10027,7 +10062,7 @@ fn tp_e001_bare_command_substitution_head() {
     // "::oo::Obj… method ?arg ...?"` (`-errorcode {TCL WRONGARGS}`).
     let src = "oo::class create Dog { method bark {} { return woof } }\n[Dog new]\n";
     assert!(
-        has_code(src, "tcl", "E001"),
+        has_code(src, "tcl8.6", "E001"),
         "a bare `[Dog new]` command-substitution head must fire E001"
     );
 }
@@ -10042,13 +10077,13 @@ fn tp_e001_bare_cmd_head_named_constructor_and_alias() {
     // (the indirection resolver types it) — both bare uses fail identically.
     let named = "oo::class create Dog { method bark {} { return woof } }\n[Dog create rex]\n";
     assert!(
-        has_code(named, "tcl", "E001"),
+        has_code(named, "tcl8.6", "E001"),
         "bare `[Dog create rex]` head must fire E001"
     );
     let renamed = "oo::class create Dog { method bark {} { return woof } }\n\
                    rename Dog Cat\n[Cat new]\n";
     assert!(
-        has_code(renamed, "tcl", "E001"),
+        has_code(renamed, "tcl8.6", "E001"),
         "bare `[Cat new]` after `rename Dog Cat` must fire E001"
     );
 }
@@ -10076,7 +10111,7 @@ fn tn_e001_cmd_head_with_method_word_stays_silent() {
     // E001; a valid method draws nothing at all.
     let src = "oo::class create Dog { method bark {} { return woof } }\n[Dog new] bark\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         !r.diagnostics
             .iter()
@@ -10246,7 +10281,7 @@ fn tp_e001_bare_dispatch_on_method_return_captured_handle() {
                set b [$a make]\n\
                $b\n";
     assert!(
-        has_code(src, "tcl", "E001"),
+        has_code(src, "tcl8.6", "E001"),
         "a bare dispatch on the method-return-typed handle must fire E001"
     );
 }
@@ -10911,7 +10946,7 @@ fn analyse_w123_emits_did_you_mean_suggestion() {
     // ``puta`` is one edit away from ``puts`` — the
     // emitter should attach a suggestion and a CodeFix.
     let mut a = Analyser::new();
-    let r = a.analyse("puta hi", "tcl");
+    let r = a.analyse("puta hi", "tcl8.6");
     let w123 = r
         .diagnostics
         .iter()
@@ -10968,10 +11003,9 @@ foo
 ";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
-    // Empty unknown means W123 still fires — but the
-    // dispatch_targets membership doesn't apply (set is
-    // empty).  Just sanity-check the test runs.
-    assert!(r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
+    // tclsh 8.6: the script's own `unknown` receives `foo` and returns
+    // empty, so the call is no unresolved command.
+    assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
 }
 
 #[test]
@@ -11180,7 +11214,7 @@ fn w210_codes_in_dialect(src: &str, dialect: &str) -> Vec<String> {
 
 fn w233_codes(src: &str) -> usize {
     let mut a = Analyser::new();
-    a.analyse(src, "tcl")
+    a.analyse(src, "tcl8.6")
         .diagnostics
         .iter()
         .filter(|d| d.code == DiagCode::W233)
@@ -11234,7 +11268,10 @@ fn w233_silent_on_float_division() {
 fn w210_phi_undef_if_arm_only_def_return() {
     // `v` is defined only when `$x > 0`; the unconditional `return $v`
     // reads it on the no-set path too.
-    let got = w210_codes("proc f {x} { if {$x > 0} { set v 1 }\n return $v }");
+    let got = w210_codes_in_dialect(
+        "proc f {x} { if {$x > 0} { set v 1 }\n return $v }",
+        "tcl8.6",
+    );
     assert!(
         got.iter().any(|m| m.contains("'v'")),
         "phi-from-undef merge read must fire W210; got {got:?}"
@@ -11318,20 +11355,23 @@ fn w210_interproc_dict_with_caller_literal() {
 fn w210_provably_no_match_regexp_scan() {
     // Provably-no-match output reads fire.
     assert!(
-        w210_codes("proc f {} { scan abc %d n\n puts $n }")
+        w210_codes_in_dialect("proc f {} { scan abc %d n\n puts $n }", "tcl8.6")
             .iter()
             .any(|m| m.contains("'n'"))
     );
     assert!(
-        w210_codes("proc f {} { regexp {x} y -> v\n puts $v }")
+        w210_codes_in_dialect("proc f {} { regexp {x} y -> v\n puts $v }", "tcl8.6")
             .iter()
             .any(|m| m.contains("'v'"))
     );
     // Embedded in a negated condition fires on the no-match arm.
     assert!(
-        w210_codes("proc f {} { if {![regexp {x} y -> v]} { puts $v } }")
-            .iter()
-            .any(|m| m.contains("'v'"))
+        w210_codes_in_dialect(
+            "proc f {} { if {![regexp {x} y -> v]} { puts $v } }",
+            "tcl8.6"
+        )
+        .iter()
+        .any(|m| m.contains("'v'"))
     );
 }
 
@@ -11340,12 +11380,15 @@ fn w210_regexp_expanded_whitespace_pattern_silent() {
     // `-expanded` ignores whitespace, so `{a b}` matches `ab` and writes
     // v — the no-match proof must bail (no false W210).
     assert_eq!(
-        w210_codes("proc f {} { regexp -expanded {a b} ab v\n puts $v }"),
+        w210_codes_in_dialect(
+            "proc f {} { regexp -expanded {a b} ab v\n puts $v }",
+            "tcl8.6"
+        ),
         [] as [std::string::String; 0]
     );
     // A whitespace-free literal under -expanded is still safe → fires.
     assert!(
-        w210_codes("proc f {} { regexp -expanded {x} X v\n puts $v }")
+        w210_codes_in_dialect("proc f {} { regexp -expanded {x} X v\n puts $v }", "tcl8.6")
             .iter()
             .any(|m| m.contains("'v'"))
     );
@@ -11431,12 +11474,12 @@ fn w210_reads_a_no_match_preserve_outcome() {
 fn w210_incr_on_uninit_is_silent() {
     // `incr z` initialises z to 0 (Tcl 8.5+) — not read-before-set.
     assert_eq!(
-        w210_codes("proc f {} { incr z\n return $z }"),
+        w210_codes_in_dialect("proc f {} { incr z\n return $z }", "tcl8.6"),
         [] as [std::string::String; 0]
     );
     // A genuine bare read of an unset local still fires.
     assert!(
-        w210_codes("proc f {} { puts $z }")
+        w210_codes_in_dialect("proc f {} { puts $z }", "tcl8.6")
             .iter()
             .any(|m| m.contains("'z'"))
     );
@@ -11444,7 +11487,7 @@ fn w210_incr_on_uninit_is_silent() {
 
 #[test]
 fn w210_phi_undef_use_after_unset_return() {
-    let got = w210_codes("proc f {} { set v 1\n unset v\n return $v }");
+    let got = w210_codes_in_dialect("proc f {} { set v 1\n unset v\n return $v }", "tcl8.6");
     assert!(
         got.iter().any(|m| m.contains("'v'")),
         "use-after-unset return must fire W210; got {got:?}"
@@ -11522,20 +11565,27 @@ fn w210_no_fire_when_both_merge_arms_define() {
 #[test]
 fn w210_empty_dict_with_return_fires_but_known_key_silent() {
     // FP-DS-08: empty dict unpacks nothing — `return $missing` fires.
-    let empty = w210_codes("proc f {} { set d {}\n dict with d {}\n return $missing }");
+    let empty = w210_codes_in_dialect(
+        "proc f {} { set d {}\n dict with d {}\n return $missing }",
+        "tcl8.6",
+    );
     assert!(
         empty.iter().any(|m| m.contains("'missing'")),
         "empty dict-with return must fire W210; got {empty:?}"
     );
     // Known-key dict unpacks `missing` — silent.
-    let known = w210_codes("proc f {} { set d {missing ok}\n dict with d {}\n return $missing }");
+    let known = w210_codes_in_dialect(
+        "proc f {} { set d {missing ok}\n dict with d {}\n return $missing }",
+        "tcl8.6",
+    );
     assert_eq!(
         known.len(),
         0,
         "known-key dict-with return must be silent; got {known:?}"
     );
     // Unknown-shape dict (param) — conservatively silent.
-    let unknown = w210_codes("proc f {d} { dict with d {}\n return $missing }");
+    let unknown =
+        w210_codes_in_dialect("proc f {d} { dict with d {}\n return $missing }", "tcl8.6");
     assert_eq!(
         unknown.len(),
         0,
@@ -11553,32 +11603,49 @@ fn w210_empty_dict_with_return_fires_but_known_key_silent() {
 /// otherwise).
 #[test]
 fn w210_dict_body_keys_come_from_the_plan() {
-    let path = w210_codes("proc f {} { set d {a {x 1}}\n dict with d a {}\n return $x }");
+    let path = w210_codes_in_dialect(
+        "proc f {} { set d {a {x 1}}\n dict with d a {}\n return $x }",
+        "tcl8.6",
+    );
     assert!(path.is_empty(), "a key path's keys bind; got {path:?}");
-    let beside = w210_codes("proc f {} { set d {a {x 1}}\n dict with d a {}\n return $y }");
+    let beside = w210_codes_in_dialect(
+        "proc f {} { set d {a {x 1}}\n dict with d a {}\n return $y }",
+        "tcl8.6",
+    );
     assert!(
         beside.iter().any(|m| m.contains("'y'")),
         "a key the path does not hold is unbound; got {beside:?}"
     );
-    let unknown = w210_codes("proc f {d} { dict with d a {}\n return $x }");
+    let unknown = w210_codes_in_dialect("proc f {d} { dict with d a {}\n return $x }", "tcl8.6");
     assert!(
         unknown.is_empty(),
         "an unknown dictionary's key path is unknown shape; got {unknown:?}"
     );
-    let qualified = w210_codes("proc f {} { set d {a 1}\n ::tcl::dict::with d {}\n return $a }");
+    let qualified = w210_codes_in_dialect(
+        "proc f {} { set d {a 1}\n ::tcl::dict::with d {}\n return $a }",
+        "tcl8.6",
+    );
     assert!(
         qualified.is_empty(),
         "the qualified spelling binds; got {qualified:?}"
     );
-    let qualified_missing =
-        w210_codes("proc f {} { set d {a 1}\n ::tcl::dict::with d {}\n return $b }");
+    let qualified_missing = w210_codes_in_dialect(
+        "proc f {} { set d {a 1}\n ::tcl::dict::with d {}\n return $b }",
+        "tcl8.6",
+    );
     assert!(
         qualified_missing.iter().any(|m| m.contains("'b'")),
         "the qualified spelling binds only its keys; got {qualified_missing:?}"
     );
-    let present = w210_codes("proc f {} { set d {k 1}\n dict update d k v {}\n return $v }");
+    let present = w210_codes_in_dialect(
+        "proc f {} { set d {k 1}\n dict update d k v {}\n return $v }",
+        "tcl8.6",
+    );
     assert!(present.is_empty(), "a present key binds; got {present:?}");
-    let absent = w210_codes("proc f {} { set d {j 1}\n dict update d k v {}\n return $v }");
+    let absent = w210_codes_in_dialect(
+        "proc f {} { set d {j 1}\n dict update d k v {}\n return $v }",
+        "tcl8.6",
+    );
     assert!(
         absent.iter().any(|m| m.contains("'v'")),
         "an absent key leaves its variable unbound; got {absent:?}"
@@ -11693,7 +11760,7 @@ fn w214_dispatch_protocol_suppresses_peer_family() {
                    proc dispatch {cmd ctx token} { $cmd $ctx $token }\n\
                    }\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = a.analyse(src, "tcl8.6");
     assert!(
         !r.diagnostics
             .iter()
@@ -11819,7 +11886,7 @@ fn analyse_i230_constant_if_branch() {
     // condition is constant, the false branch is unreachable.
     // I230 should fire.
     let mut a = Analyser::new();
-    let r = a.analyse("proc foo {} { if {1} { puts hi } }", "tcl");
+    let r = a.analyse("proc foo {} { if {1} { puts hi } }", "tcl8.6");
     let i230s: Vec<_> = r
         .diagnostics
         .iter()
@@ -12108,7 +12175,7 @@ fn analyse_w307_fires_for_tainted_dispatch_despite_multi_use() {
     // times is still a command-injection risk — the dispatcher-suppression
     // must NOT apply, so W307 fires.
     let mut a = Analyser::new();
-    let r = a.analyse("proc p {} { set c [gets stdin]\n$c one\n$c two }", "tcl");
+    let r = a.analyse("proc p {} { set c [gets stdin]\n$c one\n$c two }", "tcl8.6");
     assert!(
         r.diagnostics.iter().any(|d| d.code == DiagCode::W307),
         "W307 must fire for a tainted dispatched command name; got {:?}",
@@ -16659,8 +16726,8 @@ fn dispatch_diags_both_paths(src: &str) -> Vec<(String, String, Span)> {
             })
             .collect()
     };
-    let whole = collect(&crate::analyser::Analyser::new().analyse(src, "tcl"));
-    let per_item = collect(&crate::analyser::Analyser::new().analyse_per_item(src, "tcl"));
+    let whole = collect(&crate::analyser::Analyser::new().analyse(src, "tcl8.6"));
+    let per_item = collect(&crate::analyser::Analyser::new().analyse_per_item(src, "tcl8.6"));
     assert_eq!(
         whole, per_item,
         "whole-file and per-item paths must report identical dispatch \
@@ -16920,7 +16987,7 @@ fn analyse_w308_1330_quick_fix_span_matches_the_diagnostic() {
     // fix span to the diagnostic's own on the per-item path.
     let src = "oo::class create Dog {\n    method bark {} { return {} }\n}\n\
          proc handler {} {\n    [Dog new] bakr\n}\n";
-    let r = crate::analyser::Analyser::new().analyse_per_item(src, "tcl");
+    let r = crate::analyser::Analyser::new().analyse_per_item(src, "tcl8.6");
     let d = r
         .diagnostics
         .iter()
@@ -17177,7 +17244,7 @@ fn w100_marks_every_unbraced_expression() {
 
     for (src, word) in [
         ("expr $a+1\n", "$a+1"),
-        ("expr \"$a + 1\"\n", "\"$a + 1"),
+        ("expr \"$a + 1\"\n", "\"$a + 1\""),
         ("if \"$x\" {puts hi}\n", "\"$x\""),
         ("while $c {}\n", "$c"),
         ("for {} $c {} {}\n", "$c"),

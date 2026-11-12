@@ -1361,7 +1361,12 @@ mod tests {
         // `int_val == value.trim()` guard is a redundant safety
         // check that catches any future loosening of
         // `parse_decimal_int`.
-        let m = crate::lowering::lower_to_ir("set arg 0005", &CommandRegistry::build_default());
+        let m = crate::lowering::lower_to_ir(
+            "set arg 0005",
+            &CommandRegistry::build_default().project_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
+        );
         let value = match &m.top_level.statements[0] {
             Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
                 value.clone()
@@ -1380,7 +1385,12 @@ mod tests {
         // through the ``AssignValue`` path with the spelling
         // preserved.  Use the brace form so the segmenter passes the
         // literal text through without trimming on its end.
-        let m = crate::lowering::lower_to_ir("set arg { 5}", &CommandRegistry::build_default());
+        let m = crate::lowering::lower_to_ir(
+            "set arg { 5}",
+            &CommandRegistry::build_default().project_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
+        );
         let value = match &m.top_level.statements[0] {
             Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
                 value.clone()
@@ -1397,7 +1407,12 @@ mod tests {
     fn lower_set_folds_canonical_decimal_form() {
         // Canonical decimal spelling — ``5`` parses to ``5`` and
         // can fold without losing repr fidelity.
-        let m = crate::lowering::lower_to_ir("set arg 5", &CommandRegistry::build_default());
+        let m = crate::lowering::lower_to_ir(
+            "set arg 5",
+            &CommandRegistry::build_default().project_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
+        );
         if let Statement::AssignConst { value, .. } = &m.top_level.statements[0] {
             assert_eq!(value, "5");
         } else {
@@ -1407,7 +1422,12 @@ mod tests {
 
     /// The concrete def names of the first lowered statement.
     fn first_stmt_defs(src: &str) -> Vec<String> {
-        let m = crate::lowering::lower_to_ir(src, &CommandRegistry::build_default());
+        let m = crate::lowering::lower_to_ir(
+            src,
+            &CommandRegistry::build_default().project_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
+        );
         match &m.top_level.statements[0] {
             Statement::Call { defs, .. } => defs.clone(),
             other => panic!("expected Call, got {other:?}"),

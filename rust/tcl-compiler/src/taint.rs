@@ -10866,7 +10866,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
         // SSA source-value candidates only; no command lookup, target identity
         // or actual invocation follows from the decoded presentation value.
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         for (escapes, expected) in [
@@ -13412,9 +13412,11 @@ mod tests {
     #[test]
     fn t102_fires_for_assign_value_wrapped_call() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let cu = CompilationUnit::build_for(
-            "set pattern [gets stdin]\nset result [regexp $pattern $haystack]",
+            "set haystack text\nset pattern [gets stdin]\nset result [regexp $pattern $haystack]",
             &registry,
             false,
         );
@@ -13475,8 +13477,11 @@ mod tests {
     #[test]
     fn t102_span_is_tight_around_the_tainted_argument_assign_value() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
-        let src = "set pattern [gets stdin]\nset result [regexp $pattern $haystack]";
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let src =
+            "set haystack text\nset pattern [gets stdin]\nset result [regexp $pattern $haystack]";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let fu = cu.function("::top").unwrap();
         let warnings = find_taint_warnings(
@@ -14404,7 +14409,9 @@ mod tests {
     #[test]
     fn t101_fires_for_puts_via_registry_driven_dispatch() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let source = "set x [gets stdin]\nputs $x\n";
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
@@ -14427,7 +14434,9 @@ mod tests {
     #[test]
     fn t100_fires_for_open_tainted_filename() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(
             registry
                 .get("open")
@@ -14471,7 +14480,9 @@ mod tests {
     #[test]
     fn t100_fires_for_apply_tainted_lambda() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let source = "set lambda [gets stdin]\napply $lambda 1 2\n";
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
@@ -14524,7 +14535,9 @@ mod tests {
     #[test]
     fn t100_fires_for_subst_without_nocommands() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let source = "set x [gets stdin]\nsubst $x\n";
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
@@ -14555,7 +14568,9 @@ mod tests {
     #[test]
     fn t100_fires_for_subst_positive_form_with_commands() {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let source = "set x [gets stdin]\nsubst -variables -commands $x\n";
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, None);
@@ -15323,7 +15338,9 @@ mod tests {
         use crate::compilation_unit::CompilationUnit;
 
         fn taint_warnings_for(source: &str) -> Vec<TaintWarning> {
-            let registry = CommandRegistry::build_default();
+            let registry = CommandRegistry::build_default().project_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            );
             let cu = CompilationUnit::build_for(source, &registry, false)
                 .with_interprocedural(&registry, None);
             find_taint_warnings_for_cu(&cu, &registry, None)
@@ -15681,7 +15698,9 @@ mod tests {
         use crate::compilation_unit::CompilationUnit;
 
         fn taint_warnings_for(source: &str) -> Vec<TaintWarning> {
-            let registry = CommandRegistry::build_default();
+            let registry = CommandRegistry::build_default().project_for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            );
             let cu = CompilationUnit::build_for(source, &registry, false)
                 .with_interprocedural(&registry, None);
             find_taint_warnings_for_cu(&cu, &registry, None)
@@ -15710,8 +15729,11 @@ mod tests {
         /// attacker-controlled content on every future access.
         #[test]
         fn traced_literal_value_is_conservatively_tainted() {
+            // The handler must exist: an undefined one makes the read raise
+            // in C Tcl, so `puts` never runs.
             let w = taint_warnings_for(
-                "set x \"safe-literal\"\ntrace add variable x read {inject}\nputs $x",
+                "proc inject {name args} { upvar 1 $name v; set v [gets stdin] }\n\
+                 set x \"safe-literal\"\ntrace add variable x read {inject}\nputs $x",
             );
             assert!(
                 w.iter().any(|d| d.code == DiagCode::T101),

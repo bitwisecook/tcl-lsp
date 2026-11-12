@@ -3549,7 +3549,9 @@ mod tests {
     }
 
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     fn proc_fold_context(cu: &CompilationUnit, name: &str) -> String {
@@ -4043,7 +4045,7 @@ mod tests {
         // Conditional original child geometry, without handler or erasure permission.
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig {
             expand_syntax: false,
             strict_quoting: true,

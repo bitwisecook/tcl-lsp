@@ -5913,7 +5913,7 @@ mod tests {
         // naming.diagnostic.original-materialized-write-footprint
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-materialized-write-footprint.md
         // These are analysis-only <cond> footprints, not native stores/entry.
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -5970,7 +5970,7 @@ mod tests {
     fn prepared_cfg_refuses_changed_module_profile_and_body_configuration() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let profile = tcl_dialect::DialectProfile::find("tcl").unwrap();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
@@ -6893,7 +6893,9 @@ mod tests {
 
     #[test]
     fn detect_upvar_procs_retains_issued_body_effects() {
-        let module = lower_module("proc ::ns::p {} { upvar 1 caller_x x }\nproc ::ns::p2 {} {}");
+        let module = lower_module(
+            "namespace eval ::ns {}\nproc ::ns::p {} { upvar 1 caller_x x }\nproc ::ns::p2 {} {}",
+        );
         let upvar_procs = detect_upvar_procs(&module);
         assert!(!upvar_procs[&summary_id(&module, "::ns::p")].is_empty());
         assert!(!upvar_procs[&summary_id(&module, "p")].is_empty());
@@ -7362,7 +7364,8 @@ mod tests {
         // and `setter`.  A qualified call site `::ns::setter` should
         // resolve via the qualified key.
         let module = lower_module(
-            "proc ::ns::setter {} { upvar 1 caller_x x }\n\
+            "namespace eval ::ns {}\n\
+             proc ::ns::setter {} { upvar 1 caller_x x }\n\
              ::ns::setter",
         );
         let cfg = build_cfg(&module, false);
@@ -7397,6 +7400,7 @@ mod tests {
     fn late_alias_call_inside_proc_uses_projected_global_write_summary() {
         let module = lower_module(
             "proc ::mutate {} { global x; set x 99 }\n\
+             namespace eval ::z {}\n\
              proc ::z::mutate {} {}\n\
              proc ::outer {} { call_mutate }\n\
              interp alias {} call_mutate {} mutate",

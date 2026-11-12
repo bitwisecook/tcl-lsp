@@ -6549,6 +6549,7 @@ mod tests {
                  proc helper {} { return 1 }\n\
              }\n\
              proc ::helper {} { return 2 }\n\
+             namespace eval ::ns {}\n\
              proc ::ns::f {} { set y [apply {{} {helper} ::other}]; return $y }\n",
         );
         let s = fixture_proc(&ia, "::ns::f").expect("::ns::f summary");

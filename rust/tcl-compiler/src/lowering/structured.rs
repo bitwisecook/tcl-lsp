@@ -1710,15 +1710,16 @@ mod tests {
     #[test]
     fn switch_exact() {
         // Both forms lower to a structured Switch; the multi-arg form
-        // and the single-braced form must agree on shape.
+        // and the single-braced form must agree on shape. The subject is a
+        // known non-option word: an unknown one may be a `-` switch in C.
         for src in [
-            "switch $x { a {puts a} b {puts b} }",
-            "switch $x a {puts a} b {puts b}",
+            "set x a\nswitch $x { a {puts a} b {puts b} }",
+            "set x a\nswitch $x a {puts a} b {puts b}",
         ] {
             let m = lower_to_ir(src, &reg());
             assert!(
                 matches!(
-                    &m.top_level.statements[0],
+                    &m.top_level.statements[1],
                     Statement::Switch { mode, .. } if *mode == SwitchMode::Exact
                 ),
                 "expected exact Switch for {src:?}",
@@ -1730,8 +1731,8 @@ mod tests {
     fn switch_single_braced_body_is_lowered() {
         // The single-braced arm form `switch $x { a {body} … }` must lower
         // each arm body into real IR statements, not an empty Script.
-        let m = lower_to_ir("switch $x { a {puts hi} b {set y 1} }", &reg());
-        let Statement::Switch { arms, .. } = &m.top_level.statements[0] else {
+        let m = lower_to_ir("set x a\nswitch $x { a {puts hi} b {set y 1} }", &reg());
+        let Statement::Switch { arms, .. } = &m.top_level.statements[1] else {
             panic!("expected Switch");
         };
         assert_eq!(arms.len(), 2);
@@ -1770,14 +1771,14 @@ mod tests {
         // FP-guard for: genuinely literal arm bodies (braced,
         // and the `-` fallthrough marker) still lower to a structured Switch.
         for src in [
-            "switch $x a {puts a} b {puts b}",
-            "switch $x a - b {puts b}",
+            "set x a\nswitch $x a {puts a} b {puts b}",
+            "set x a\nswitch $x a - b {puts b}",
         ] {
             let m = lower_to_ir(src, &reg());
             assert!(
-                matches!(&m.top_level.statements[0], Statement::Switch { .. }),
+                matches!(&m.top_level.statements[1], Statement::Switch { .. }),
                 "expected structured Switch for {src:?}, got {:?}",
-                m.top_level.statements[0],
+                m.top_level.statements[1],
             );
         }
     }
@@ -1895,10 +1896,10 @@ mod tests {
 
     #[test]
     fn switch_braced_block_sets_patterns_braced_true() {
-        let m = lower_to_ir("switch $x { a {puts hi} b {set y 1} }", &reg());
+        let m = lower_to_ir("set x a\nswitch $x { a {puts hi} b {set y 1} }", &reg());
         let Statement::Switch {
             patterns_braced, ..
-        } = &m.top_level.statements[0]
+        } = &m.top_level.statements[1]
         else {
             panic!("expected Switch");
         };
@@ -1912,10 +1913,10 @@ mod tests {
     fn switch_separate_words_sets_patterns_braced_false() {
         // `switch $s a {body1} b {body2}` — patterns are separate words
         // that substitute at runtime, so patterns_braced must be false.
-        let m = lower_to_ir("switch $x a {puts hi} b {set y 1}", &reg());
+        let m = lower_to_ir("set x a\nswitch $x a {puts hi} b {set y 1}", &reg());
         let Statement::Switch {
             patterns_braced, ..
-        } = &m.top_level.statements[0]
+        } = &m.top_level.statements[1]
         else {
             panic!("expected Switch");
         };
@@ -2167,9 +2168,9 @@ mod tests {
         // brace-literal `Str` token.  The lowering must treat it
         // as a dynamic body and emit a Barrier so the runtime
         // ``eval_catch`` evaluates the substituted value.
-        let m = lower_to_ir("catch $cmd res", &reg());
+        let m = lower_to_ir("set cmd [gets stdin]\ncatch $cmd res", &reg());
         assert!(matches!(
-            &m.top_level.statements[0],
+            &m.top_level.statements[1],
             Statement::Barrier { reason, .. } if reason == "catch with dynamic body"
         ));
     }
@@ -2218,36 +2219,39 @@ mod tests {
 
     #[test]
     fn while_dollar_var_body_falls_through_to_barrier() {
-        let m = lower_to_ir("while {1} $body", &reg());
+        let m = lower_to_ir("set body [gets stdin]\nwhile {1} $body", &reg());
         assert!(matches!(
-            &m.top_level.statements[0],
+            &m.top_level.statements[1],
             Statement::Barrier { reason, .. } if reason == "while with dynamic arguments"
         ));
     }
 
     #[test]
     fn for_dollar_var_body_falls_through_to_barrier() {
-        let m = lower_to_ir("for {} {1} {} $body", &reg());
+        let m = lower_to_ir("set body [gets stdin]\nfor {} {1} {} $body", &reg());
         assert!(matches!(
-            &m.top_level.statements[0],
+            &m.top_level.statements[1],
             Statement::Barrier { reason, .. } if reason == "for with dynamic arguments"
         ));
     }
 
     #[test]
     fn foreach_dollar_var_body_falls_through_to_barrier() {
-        let m = lower_to_ir("foreach x $l $body", &reg());
+        let m = lower_to_ir(
+            "set l [gets stdin]\nset body [gets stdin]\nforeach x $l $body",
+            &reg(),
+        );
         assert!(matches!(
-            &m.top_level.statements[0],
+            &m.top_level.statements[2],
             Statement::Barrier { reason, .. } if reason == "foreach with dynamic body"
         ));
     }
 
     #[test]
     fn try_dollar_var_body_falls_through_to_barrier() {
-        let m = lower_to_ir("try $body", &reg());
+        let m = lower_to_ir("set body [gets stdin]\ntry $body", &reg());
         assert!(matches!(
-            &m.top_level.statements[0],
+            &m.top_level.statements[1],
             Statement::Barrier { reason, .. } if reason == "try with dynamic body"
         ));
     }
@@ -2262,14 +2266,14 @@ mod tests {
 
     #[test]
     fn try_dollar_var_finally_body_falls_through_to_barrier() {
-        let m = lower_to_ir("try {} finally $body", &reg());
+        let m = lower_to_ir("set body [gets stdin]\ntry {} finally $body", &reg());
         assert!(
             matches!(
-                &m.top_level.statements[0],
+                &m.top_level.statements[1],
                 Statement::Barrier { reason, .. } if reason == "try with dynamic finally body"
             ),
             "got {:?}",
-            m.top_level.statements[0],
+            m.top_level.statements[1],
         );
     }
 

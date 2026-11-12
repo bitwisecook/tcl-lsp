@@ -984,7 +984,14 @@ mod tests {
             .unwrap()
             .invocation_at_source("", command.span.start());
         assert_eq!(binding.logical_source_name_advice_input(), Some(input));
-        assert!(binding.original_recorded_head_name_input().is_none());
+        assert!(
+            binding
+                .original_recorded_head_name_input()
+                .is_none_or(|head| {
+                    head.policy().authority()
+                        == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                })
+        );
         binding
     }
 
@@ -1429,7 +1436,14 @@ mod tests {
             binding.targets[0].prepended,
             vec![crate::registry_invocation::EffectiveInvocationWord::Literal("require".into())]
         );
-        assert!(binding.original_recorded_head_name_input().is_none());
+        assert!(
+            binding
+                .original_recorded_head_name_input()
+                .is_none_or(|head| {
+                    head.policy().authority()
+                        == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                })
+        );
     }
 
     #[test]
@@ -1466,7 +1480,14 @@ mod tests {
                 },
                 "{source}",
             );
-            assert!(binding.original_recorded_head_name_input().is_none());
+            assert!(
+                binding
+                    .original_recorded_head_name_input()
+                    .is_none_or(|head| {
+                        head.policy().authority()
+                            == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                    })
+            );
             assert!(binding.proved_handler_target().is_none());
             assert!(binding.proved_execution_target().is_none());
             assert!(binding.native_handler_envelope.is_none());
