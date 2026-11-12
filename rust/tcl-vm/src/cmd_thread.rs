@@ -97,13 +97,6 @@ struct Worker {
 /// thread-local.
 struct Shared {
     factory: CompileFactory,
-    /// The dialect profile the parent interpreter emulates. A worker builds
-    /// its own `Vm`, which starts at the default profile, so without this a
-    /// `tcl --tcl-version 8.6` worker compiled for 8.6 but *ran* at 9.0 —
-    /// `string is integer 08` answered true there and false in the parent.
-    /// Carrying the whole profile (not a bare release) keeps the worker's
-    /// command-surface availability gate aligned too.
-    dialect_profile: &'static tcl_dialect::DialectProfile,
     /// The separately overridden host command surface, when the parent runs a
     /// sandboxed dialect inside a broader Tcl interpreter.
     command_surface_profile: &'static tcl_dialect::DialectProfile,
@@ -183,7 +176,6 @@ impl Vm {
     pub fn enable_threads(&mut self, factory: CompileFactory, output: ThreadedOutput) {
         let shared = Arc::new(Shared {
             factory,
-            dialect_profile: self.dialect_profile(),
             command_surface_profile: self.command_surface_profile(),
             native_core: self.native_core_recipe(),
             output,
@@ -288,7 +280,8 @@ fn cmd_thread_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     );
 
     let worker_shared = Arc::clone(&shared);
-    let join = std::thread::spawn(move || run_worker(&worker_shared, id, rx, &script));
+    let pin = vm.pinned_context();
+    let join = std::thread::spawn(move || run_worker(&worker_shared, pin, id, rx, &script));
 
     if let Some(w) = shared.workers.lock().expect("workers lock").get_mut(&id) {
         w.join = Some(join);
@@ -297,30 +290,40 @@ fn cmd_thread_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// A worker's own interpreter: a native-core interpreter of the parent's
-/// engine writing to the shared sink. `None` when the parent had no engine.
-fn worker_vm(shared: &Arc<Shared>) -> Option<Vm> {
+/// engine writing to the shared sink, standing on the parent's pin. `None`
+/// when the parent had no engine.
+///
+/// The pin is the parent's whole context — environment, release, package
+/// floors and overlay — as a child interpreter's is: a worker that kept only
+/// the profile compiled for 8.6 but ran at 9.0 before the profile was carried,
+/// and without the floors and overlay it admits modules its parent refuses.
+fn worker_vm(shared: &Arc<Shared>, pin: tcl_registry::model::PinnedContext) -> Option<Vm> {
     let out: Box<dyn Write> = Box::new(SharedOut(Arc::clone(&shared.output)));
-    Vm::with_native_core_recipe(out, shared.native_core.clone()?)
-}
-
-/// A worker thread: build its own `Vm` (shared-nothing), run `script`, then
-/// deregister. The `Vm` is created and dropped entirely within this closure, so
-/// it never crosses a thread boundary.
-fn run_worker(shared: &Arc<Shared>, id: u64, inbox: Receiver<Job>, script: &str) {
-    let Some(mut vm) = worker_vm(shared) else {
-        shared.workers.lock().expect("workers lock").remove(&id);
-        return;
-    };
+    let mut vm = Vm::with_native_core_recipe(out, shared.native_core.clone()?)?;
     vm.set_compiler((shared.factory)());
-    // Same release as the parent: the worker's compiler already targets it, and
-    // the runtime must agree or numerals mean different things either side of
-    // `thread::send`.
-    vm.set_dialect_profile(shared.dialect_profile);
+    vm.inherit_pin(pin);
     assert!(
         vm.set_command_surface_profile(shared.command_surface_profile),
         "worker command surface must remain compatible with its dialect"
     );
     let _ = vm.write_array_raw("tcl_platform", "threaded", Value::string("1"));
+    Some(vm)
+}
+
+/// A worker thread: build its own `Vm` (shared-nothing), run `script`, then
+/// deregister. The `Vm` is created and dropped entirely within this closure, so
+/// it never crosses a thread boundary.
+fn run_worker(
+    shared: &Arc<Shared>,
+    pin: tcl_registry::model::PinnedContext,
+    id: u64,
+    inbox: Receiver<Job>,
+    script: &str,
+) {
+    let Some(mut vm) = worker_vm(shared, pin) else {
+        shared.workers.lock().expect("workers lock").remove(&id);
+        return;
+    };
     vm.thread = ThreadSystem {
         shared: Some(Arc::clone(shared)),
         this_id: id,
@@ -897,20 +900,15 @@ struct PoolInner {
 
 /// A pool worker: build one `Vm` (thread-enabled so jobs can use `tsv`/mutexes),
 /// run the optional `initcmd`, then drain jobs until the pool shuts down.
-fn run_pool_worker(shared: &Arc<Shared>, queue: &Arc<PoolQueue>, initcmd: Option<&str>) {
-    let Some(mut vm) = worker_vm(shared) else {
+fn run_pool_worker(
+    shared: &Arc<Shared>,
+    pin: tcl_registry::model::PinnedContext,
+    queue: &Arc<PoolQueue>,
+    initcmd: Option<&str>,
+) {
+    let Some(mut vm) = worker_vm(shared, pin) else {
         return;
     };
-    vm.set_compiler((shared.factory)());
-    // Same release as the parent: the worker's compiler already targets it, and
-    // the runtime must agree or numerals mean different things either side of
-    // `thread::send`.
-    vm.set_dialect_profile(shared.dialect_profile);
-    assert!(
-        vm.set_command_surface_profile(shared.command_surface_profile),
-        "pool worker command surface must remain compatible with its dialect"
-    );
-    let _ = vm.write_array_raw("tcl_platform", "threaded", Value::string("1"));
     let id = shared.next_id.fetch_add(1, Ordering::SeqCst);
     vm.thread = ThreadSystem {
         shared: Some(Arc::clone(shared)),
@@ -995,8 +993,9 @@ fn cmd_tpool_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         let ws = Arc::clone(&shared);
         let wq = Arc::clone(&queue);
         let ic = initcmd.clone();
+        let pin = vm.pinned_context();
         handles.push(std::thread::spawn(move || {
-            run_pool_worker(&ws, &wq, ic.as_deref());
+            run_pool_worker(&ws, pin, &wq, ic.as_deref());
         }));
     }
     let handle = shared.next_handle("tpool");
@@ -1531,5 +1530,44 @@ mod original_job_boundary_tests {
         };
         assert_eq!(closed, first);
         assert!(vm.execution_refusal.is_none());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct NoCompiler;
+    impl CompileService for NoCompiler {
+        type Module = ModuleAsm;
+        fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            Err(tcl_runtime_api::CompileError::Unsupported(
+                "a worker's pin needs no compilation".into(),
+            ))
+        }
+    }
+
+    /// A worker states the parent's whole context, package floors and overlay
+    /// included, as a child interpreter does (#2316).
+    #[test]
+    fn a_worker_stands_on_its_parents_context() {
+        const OVERLAY: u64 = 0x7_2316;
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |_| {});
+        let mut context = tcl_registry::model::runtime_context_for_profile(profile);
+        context.overlay_generation = OVERLAY;
+        context.packages = vec![("vendor".to_owned(), "2.1".to_owned())];
+        let mut parent = crate::test_support::native_vm_for("tcl8.6", Box::new(std::io::sink()));
+        parent.pin_context(&context).expect("installed, so it pins");
+        parent.enable_threads(
+            Arc::new(|| Box::new(NoCompiler)),
+            Arc::new(Mutex::new(Box::new(std::io::sink()))),
+        );
+        let shared = shared(&parent).unwrap_or_else(|_| panic!("threads are enabled"));
+
+        let worker = worker_vm(&shared, parent.pinned_context()).expect("the parent has an engine");
+        assert_eq!(worker.runtime_context(), &context);
+        assert_eq!(worker.held_identity(), parent.held_identity());
     }
 }

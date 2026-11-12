@@ -2656,6 +2656,16 @@ impl Vm {
         self.pin.identity()
     }
 
+    /// The pin this VM stands on, for an interpreter built to share its world.
+    pub(crate) fn pinned_context(&self) -> tcl_registry::model::PinnedContext {
+        self.pin.clone()
+    }
+
+    /// Stand on `pin`, a pin another interpreter of this build already holds.
+    pub(crate) fn inherit_pin(&mut self, pin: tcl_registry::model::PinnedContext) {
+        self.install_pin(pin);
+    }
+
     fn install_pin(&mut self, mut pin: tcl_registry::model::PinnedContext) {
         let profile = pin.profile;
         let profile_changed = !std::ptr::eq(self.pin.profile, profile);
