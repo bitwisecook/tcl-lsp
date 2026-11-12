@@ -154,10 +154,23 @@ fn original_self_report_refuses_chain_or_index_withdrawal_and_keeps_the_first_ho
     // Software mutation follows an actual checked option read in a real Method frame.
     for mode in [0, 1, 2] {
         let (mut vm, hits) = provided(Some(mode));
-        let result = vm.invoke_command("obj", &[Value::string("m")]);
-        assert_eq!(result.code, Code::Error);
+        let refusal = vm
+            .try_invoke_command("obj", &[Value::string("m")])
+            .unwrap_err();
         assert_eq!(hits.get(), 1);
-        assert!(vm.execution_refusal.is_some());
+        if mode == 2 {
+            assert_eq!(refusal.to_string(), "self-frame first Host");
+        } else {
+            assert_eq!(
+                refusal,
+                NativeExecutionError::ValueAccessRefusal(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original OO self method frame",
+                    ),
+                ),
+            );
+        }
+        assert!(vm.execution_refusal.is_none());
         assert!(vm.oo.call_stack.is_empty());
     }
 }

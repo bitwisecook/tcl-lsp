@@ -1019,13 +1019,35 @@ mod tests {
             .collect::<std::collections::BTreeMap<_, _>>()
     }
 
+    /// Compare a completion with its recorded row before the next command
+    /// resets the interpreter result, as the probe reports each call.
+    fn assert_slot_row(
+        vm: &mut Vm,
+        engine: &str,
+        row: &str,
+        actual: &tcl_runtime_api::Completion<Value>,
+    ) {
+        let fields = row.split('\t').collect::<Vec<_>>();
+        let case = fields[..3].join("/");
+        assert_eq!(
+            actual.code.as_int(),
+            fields[3].parse::<i64>().unwrap(),
+            "{engine}/{case}"
+        );
+        assert_eq!(
+            vm.native_string_bytes(&actual.result).unwrap().as_ref(),
+            unhex(fields[4]).as_slice(),
+            "{engine}/{case}"
+        );
+    }
+
     fn borrowed_source_vm(
         profile: &'static tcl_dialect::DialectProfile,
         engine: &str,
         case: &str,
         receipt_start: std::time::Instant,
     ) -> Vm {
-        let mut vm = Vm::new();
+        let vm = crate::native_fixture::interpreter(profile);
         tcl_test_support::oracle_phase_progress(
             "borrowed-source240",
             engine,
@@ -1033,17 +1055,6 @@ mod tests {
             "vm-new-complete",
             receipt_start,
         );
-        vm.set_dialect_profile(profile);
-        tcl_test_support::oracle_phase_progress(
-            "borrowed-source240",
-            engine,
-            case,
-            "profile-complete",
-            receipt_start,
-        );
-        vm.set_compiler(Box::new(
-            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
         vm
     }
 
@@ -1133,6 +1144,14 @@ mod tests {
                     "definition-complete",
                     receipt_start,
                 );
+                assert_slot_row(&mut vm, engine, pair[0], &definition);
+                compared += 1;
+                tcl_test_support::oracle_row_progress(
+                    "borrowed-source240",
+                    engine,
+                    &case,
+                    Some(compared),
+                );
                 let mut arguments = vec![Value::string("ONE")];
                 if duplicate {
                     arguments.push(Value::string("TWO"));
@@ -1152,33 +1171,14 @@ mod tests {
                     "invoke-complete",
                     receipt_start,
                 );
-                for (row, actual) in pair.iter().zip([definition, invocation]) {
-                    let fields = row.split('\t').collect::<Vec<_>>();
-                    assert_eq!(
-                        actual.code.as_int(),
-                        fields[3].parse::<i64>().unwrap(),
-                        "{engine}/{}/{}/{}",
-                        fields[0],
-                        fields[1],
-                        fields[2]
-                    );
-                    let bytes = vm.native_string_bytes(&actual.result).unwrap();
-                    assert_eq!(
-                        bytes.as_ref(),
-                        unhex(fields[4]).as_slice(),
-                        "{engine}/{}/{}/{}",
-                        fields[0],
-                        fields[1],
-                        fields[2]
-                    );
-                    compared += 1;
-                    tcl_test_support::oracle_row_progress(
-                        "borrowed-source240",
-                        engine,
-                        &case,
-                        Some(compared),
-                    );
-                }
+                assert_slot_row(&mut vm, engine, pair[1], &invocation);
+                compared += 1;
+                tcl_test_support::oracle_row_progress(
+                    "borrowed-source240",
+                    engine,
+                    &case,
+                    Some(compared),
+                );
             }
         }
         assert_eq!(compared, 240);
@@ -1218,15 +1218,13 @@ mod tests {
         let mut compared = 0;
         for (engine, expected) in engines {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
             let first = Value::from_native_string_bytes(b"k\0a".to_vec());
             let second = Value::from_native_string_bytes(b"k\0b".to_vec());
             vm.register_native_command("originalA", Rc::new(OriginalName(first.clone())));
             vm.register_native_command("originalB", Rc::new(OriginalName(second.clone())));
+            let rows = expected.lines().collect::<Vec<_>>();
+            assert_eq!(rows.len(), 2);
             let definition = vm.invoke_command(
                 "proc",
                 &[
@@ -1235,25 +1233,10 @@ mod tests {
                     Value::from_native_string_bytes(body.clone()),
                 ],
             );
+            assert_slot_row(&mut vm, engine, rows[0], &definition);
             let invocation = vm.invoke_command("p", &[Value::string("ONE"), Value::string("TWO")]);
-            let rows = expected.lines().collect::<Vec<_>>();
-            assert_eq!(rows.len(), 2);
-            for (row, actual) in rows.iter().zip([definition, invocation]) {
-                let fields = row.split('\t').collect::<Vec<_>>();
-                assert_eq!(
-                    actual.code.as_int(),
-                    fields[3].parse::<i64>().unwrap(),
-                    "{engine}/{}",
-                    fields[2]
-                );
-                assert_eq!(
-                    vm.native_string_bytes(&actual.result).unwrap().as_ref(),
-                    unhex(fields[4]).as_slice(),
-                    "{engine}/{}",
-                    fields[2]
-                );
-                compared += 1;
-            }
+            assert_slot_row(&mut vm, engine, rows[1], &invocation);
+            compared += 2;
         }
         assert_eq!(compared, 12);
     }

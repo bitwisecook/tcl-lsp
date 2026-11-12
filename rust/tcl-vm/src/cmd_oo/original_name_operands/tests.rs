@@ -407,18 +407,20 @@ fn original_oo_name_declaring_facet_comes_from_the_genuine_entered_method_chain(
         .unwrap();
     let object = Rc::clone(&vm.oo.objects[&receiver].cached_name);
     let namespace = vm.oo.objects[&receiver].namespace_token;
-    let result = vm.invoke_command("OOProviderObject", &[Value::string("inspect")]);
-    assert_eq!(result.code, Code::Error);
+    let refusal = vm
+        .try_invoke_command("OOProviderObject", &[Value::string("inspect")])
+        .unwrap_err();
     assert_eq!(hits.get(), 1);
     assert_eq!(formatter.queries.get(), 0);
     assert_eq!(
-        vm.execution_refusal,
-        Some(NativeExecutionError::ValueAccessRefusal(
+        refusal,
+        NativeExecutionError::ValueAccessRefusal(
             NativeValueAccessRefusal::CommandProtocolUnavailable(
                 "original OO Name declaring facet"
             )
-        ))
+        )
     );
+    assert!(vm.execution_refusal.is_none());
     assert!(Rc::ptr_eq(&object, &vm.oo.objects[&receiver].cached_name));
     assert_eq!(vm.oo.objects[&receiver].namespace_token, namespace);
     assert!(vm.oo.call_stack.is_empty());
@@ -484,15 +486,17 @@ fn original_oo_name_present_method_requires_its_actual_declaring_step() {
         .code,
         Code::Ok,
     );
-    let completion = vm.invoke_command("OOStepObject", &[Value::string("inspect")]);
-    assert_eq!(completion.code, Code::Error);
+    let refusal = vm
+        .try_invoke_command("OOStepObject", &[Value::string("inspect")])
+        .unwrap_err();
     assert_eq!(hits.get(), 1);
     assert_eq!(formatter.queries.get(), 0);
     assert_eq!(
-        vm.execution_refusal,
-        Some(NativeExecutionError::ValueAccessRefusal(
+        refusal,
+        NativeExecutionError::ValueAccessRefusal(
             NativeValueAccessRefusal::CommandProtocolUnavailable("original OO Name declaring step"),
-        ))
+        )
     );
+    assert!(vm.execution_refusal.is_none());
     assert!(vm.oo.call_stack.is_empty());
 }

@@ -91,12 +91,14 @@ impl ByteFormalParameterError {
             Self::ArrayElement(name) | Self::NotSimpleName(name) => {
                 out.extend_from_slice(b"formal parameter \"");
                 // C's array-element diagnostic uses %s; its simple-name
-                // diagnostic appends the counted object on modern releases.
-                let name = if old_c || matches!(self, Self::ArrayElement(_)) {
-                    c_string(name)
-                } else {
-                    name
-                };
+                // diagnostic appends the counted object on 8.6 and 9.0 and
+                // uses %s again from 9.1.
+                let printf = old_c
+                    || matches!(self, Self::ArrayElement(_))
+                    || protocol
+                        .tcl_version()
+                        .is_some_and(|version| version >= TclVersion::V9_1);
+                let name = if printf { c_string(name) } else { name };
                 out.extend_from_slice(name);
                 out.extend_from_slice(if matches!(self, Self::ArrayElement(_)) {
                     if old_c {

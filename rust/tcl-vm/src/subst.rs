@@ -942,10 +942,9 @@ mod tests {
             }
         }
         args.push(Value::string(template));
-        let completion = vm.invoke_command("subst", &args);
-        if let Some(refusal) = vm.execution_refusal.clone() {
-            return Err(crate::error::TclError::from_execution_failure(refusal));
-        }
+        let completion = vm
+            .try_invoke_command("subst", &args)
+            .map_err(crate::error::TclError::from_execution_failure)?;
         if completion.code != tcl_runtime_api::Code::Ok {
             return Err(crate::error::TclError::from_completion(completion));
         }
@@ -954,17 +953,16 @@ mod tests {
 
     /// Actual `subst` dispatch with only backslash substitution enabled.
     fn subst_backslashes(template: &str) -> String {
-        let mut vm = Vm::new();
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
         String::from_utf8(dispatch_subst(&mut vm, template, true, false, false).expect("subst"))
             .expect("Unicode fixture")
     }
 
     #[test]
     fn jim_subst_scanners_preserve_raw_results_and_expression_ingress() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
-        );
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
         vm.set_var("raw", Value::from_string_bytes([0xff, 0].as_slice()))
             .expect("raw variable");
         let template = "pre$(1+2)$raw\\xff";

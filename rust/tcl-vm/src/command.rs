@@ -6393,14 +6393,10 @@ mod tests {
 
     #[test]
     fn jim_native_catch_preserves_its_flag_and_exit_protocol() {
-        use crate::{Value, Vm};
+        use crate::Value;
         use tcl_runtime_api::Code;
-        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(profile);
-        vm.set_compiler(Box::new(
-            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
         let words = |args: &[&str]| {
             args.iter()
                 .map(|word| Value::string(*word))

@@ -229,7 +229,7 @@ fn original_class_definition_failure_tears_down_only_its_allocated_original_reco
         let objects = vm.oo.objects.len();
         let child_objects = vm.st_of(child).unwrap().oo.objects.len();
         let calls = observer(&mut vm, mode, child, target);
-        let completion = vm.invoke_command(
+        let completion = vm.try_invoke_command(
             "oo::class",
             &[
                 Value::string("create"),
@@ -238,10 +238,11 @@ fn original_class_definition_failure_tears_down_only_its_allocated_original_reco
             ],
         );
         assert_eq!(calls.get(), 1);
-        assert_eq!(
-            completion.code,
-            if mode == 0 { Code::Ok } else { Code::Error }
-        );
+        match mode {
+            0 => assert_eq!(completion.unwrap().code, Code::Ok),
+            1 => assert_eq!(completion.unwrap_err().to_string(), "FIRST_DEFINITION_BODY"),
+            _ => assert!(completion.is_err()),
+        }
         assert_eq!(vm.st_of(child).unwrap().oo.objects.len(), child_objects);
         restored(
             &mut vm,
@@ -391,7 +392,7 @@ fn original_failed_procedure_constructor_keeps_child_state_and_retires_original_
         let calls = observer(&mut vm, mode, child, target);
         let objects = vm.oo.objects.len();
         let child_objects = vm.st_of(child).unwrap().oo.objects.len();
-        let completion = vm.invoke_command(
+        let completion = vm.try_invoke_command(
             "DefinitionExitC",
             &[
                 Value::string("create"),
@@ -399,10 +400,11 @@ fn original_failed_procedure_constructor_keeps_child_state_and_retires_original_
             ],
         );
         assert_eq!(calls.get(), 1);
-        assert_eq!(
-            completion.code,
-            if mode == 0 { Code::Ok } else { Code::Error }
-        );
+        match mode {
+            0 => assert_eq!(completion.unwrap().code, Code::Ok),
+            1 => assert_eq!(completion.unwrap_err().to_string(), "FIRST_DEFINITION_BODY"),
+            _ => assert!(completion.is_err()),
+        }
         assert_eq!(vm.st_of(child).unwrap().oo.objects.len(), child_objects);
         restored(
             &mut vm,

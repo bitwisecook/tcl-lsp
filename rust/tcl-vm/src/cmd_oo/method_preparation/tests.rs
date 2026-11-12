@@ -305,10 +305,11 @@ fn original_method_preparation_checks_genuine_caller_frame_before_new_activation
     );
     let outer =
         crate::interp::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
-    let result = vm.invoke_command("preparationObject", &[Value::string("m")]);
-    assert_eq!(result.code, Code::Error);
+    let first = vm
+        .try_invoke_command("preparationObject", &[Value::string("m")])
+        .unwrap_err();
     assert_eq!(calls.get(), 1);
-    let first = vm.execution_refusal.clone().unwrap();
+    assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
     assert_eq!(
         first,
         NativeExecutionError::ValueAccessRefusal(

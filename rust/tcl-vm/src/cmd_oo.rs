@@ -3222,26 +3222,8 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
                     Ok(bytes) => tcl_lexer::SourceImage::native(bytes.as_ref()),
                     Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                 };
-                match vm.eval_source_image_at_internal(&source, args[1].source_location()) {
-                    Ok(c) if c.code == Code::Return => ok(c.result),
-                    Ok(c) if c.code == Code::Error => {
-                        if let Err(error) = definition.append_error_frame(vm, &c.result) {
-                            return crate::command::completion_from_cmd_error(vm, error);
-                        }
-                        c
-                    }
-                    Ok(c) => c,
-                    Err(e) => {
-                        if let Some(completion) = e.guest_completion()
-                            && completion.code == Code::Error
-                            && let Err(error) =
-                                definition.append_error_frame(vm, &completion.result)
-                        {
-                            return crate::command::completion_from_cmd_error(vm, error);
-                        }
-                        crate::command::completion_from_tcl_error(vm, e)
-                    }
-                }
+                let reached = vm.eval_source_image_at_internal(&source, args[1].source_location());
+                definition_script_completion(vm, &definition, reached)
             } else {
                 // Single-command form: dispatch `sub args…` as one definition directive
                 // (no definition-script frame — the directive is the command itself).
@@ -3284,18 +3266,32 @@ fn append_define_frame(vm: &mut Vm, is_class: bool, target: OoId, msg: &[u8]) {
     vm.seed_error_info_frame(msg, &frame);
 }
 
-fn definition_error(
+/// Settle a definition script's outcome, seeding the definition-script frame
+/// on an error through the checked definition exit.
+fn definition_script_completion(
     vm: &mut Vm,
-    is_class: bool,
-    target: OoId,
-    error: crate::error::TclError,
+    definition: &native_context::OriginalDefinitionExit,
+    reached: Result<Completion<Value>, crate::error::TclError>,
 ) -> Completion<Value> {
-    if let Some(completion) = error.guest_completion()
-        && completion.code == Code::Error
-    {
-        append_define_frame(vm, is_class, target, &completion.result.string_bytes());
+    match reached {
+        Ok(c) if c.code == Code::Return => ok(c.result),
+        Ok(c) if c.code == Code::Error => {
+            if let Err(error) = definition.append_error_frame(vm, &c.result) {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            c
+        }
+        Ok(c) => c,
+        Err(e) => {
+            if let Some(completion) = e.guest_completion()
+                && completion.code == Code::Error
+                && let Err(error) = definition.append_error_frame(vm, &completion.result)
+            {
+                return crate::command::completion_from_cmd_error(vm, error);
+            }
+            crate::command::completion_from_tcl_error(vm, e)
+        }
     }
-    crate::command::completion_from_tcl_error(vm, error)
 }
 
 /// The active definition target at the exact selected variable activation.
@@ -4969,15 +4965,8 @@ fn evaluate_class_definition(vm: &mut Vm, class_id: OoId, body: &Value) -> Compl
                     return crate::command::completion_from_cmd_error(vm, error);
                 }
             };
-            match vm.eval_source_image_at_internal(&source, body.source_location()) {
-                Ok(c) if c.code == Code::Return => ok(c.result),
-                Ok(c) if c.code == Code::Error => {
-                    append_define_frame(vm, true, class_id, &c.result.string_bytes());
-                    c
-                }
-                Ok(c) => c,
-                Err(e) => definition_error(vm, true, class_id, e),
-            }
+            let reached = vm.eval_source_image_at_internal(&source, body.source_location());
+            definition_script_completion(vm, &definition, reached)
         });
         definition.finish(vm, res)
     })
@@ -4999,11 +4988,7 @@ mod native_byte_name_tests {
             tcl_dialect::TclVersion::V9_1,
         ] {
             let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
-            let mut vm = Vm::with_output(Box::new(std::io::sink()));
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
             let root = vm_class_root(&vm);
             assert_eq!(make_class_bytes(&mut vm, b"C", None, root).code, Code::Ok);
             let class = Value::string("C");

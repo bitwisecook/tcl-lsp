@@ -24,7 +24,7 @@ use super::{
 };
 
 mod definition_exit;
-pub(super) use definition_exit::DefinitionUsage;
+pub(super) use definition_exit::{DefinitionUsage, OriginalDefinitionExit};
 
 pub(super) fn install_object_helpers(vm: &mut Vm, namespace: &str) -> NsId {
     let token = vm.definition_namespace_token(namespace);
