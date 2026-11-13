@@ -1104,6 +1104,9 @@ fn original_indexed_link_target_using(
     let (receiver, home) = capture_original_indexed_receiver(frames, ns, index, element, true)?
         .ok_or(VarError::NameProtocolUnavailable)?;
     let array = receiver.selected_array().ok_or(VarError::IsScalar)?;
+    // The receiver's empty element shell retires with it; the alias then
+    // selects the array's own member entry, which outlives this operation.
+    drop(receiver);
     link.home = match (home.ns, home.level) {
         (Some(namespace), _) => VarHome::Namespace(namespace),
         (_, Some(level)) => VarHome::Frame(level),
