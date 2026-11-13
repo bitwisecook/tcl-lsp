@@ -103,6 +103,9 @@ fn original_name_dispatch_keeps_direct_success_and_guest_error_separate() {
     }
 }
 
+// The withdrawn host is found by the restored-context re-proof, which runs
+// only under `VERIFY_CURRENCY`.
+#[cfg(debug_assertions)]
 #[test]
 fn original_name_dispatch_checks_enter_and_leave_before_later_work() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -264,7 +267,9 @@ fn original_name_dispatch_refuses_retired_head_before_lookup_or_guest_error() {
         )
     );
     retained_first(&mut vm, &original, &first);
-    assert!(loan.value().resident_string_bytes().is_some());
+    // Retirement detached the string; the refused dispatch re-created nothing.
+    assert!(loan.value().resident_string_bytes().is_none());
+    assert!(loan.value().native_command_name_cache().is_none());
 }
 
 #[test]
@@ -412,8 +417,16 @@ fn original_name_dispatch_parks_caught_tailcall_owner_before_unrelated_entry() {
 fn original_name_dispatch_probe_checks_saved_currency_before_callback() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    for withdraw in [false, true] {
-        let mut vm = native();
+    // `coroprobe` is Tcl 9's (tclsh8.6: `invalid command name "coroprobe"`);
+    // the withdrawn host is found only under `VERIFY_CURRENCY`.
+    let withdrawals: &[bool] = if crate::VERIFY_CURRENCY {
+        &[false, true]
+    } else {
+        &[false]
+    };
+    for &withdraw in withdrawals {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
         let observer = register(&mut vm, "observer", false, false);
         assert_eq!(
             vm.try_eval_source("coroutine paused apply {{} {yield READY; return END}}")

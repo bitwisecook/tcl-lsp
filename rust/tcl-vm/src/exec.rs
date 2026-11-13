@@ -4200,8 +4200,10 @@ impl Vm {
         // failing command. A runtime-compiled proc body (the common case) carries
         // body-relative instruction lines with `body_base_line == 0`, so the line
         // is used as-is; a proc compiled inside a module carries absolute lines, so
-        // subtract its definition line (`absolute − base + 1`).
+        // subtract its definition line (`absolute − base + 1`). Jim keeps its
+        // own stack trace and never spells the lambda or invoking word.
         if c.code == Code::Error
+            && !self.uses_jim_error_stack()
             && let Some(name) = self.current_proc_name()
         {
             let base = act.asm.body_base_line;
