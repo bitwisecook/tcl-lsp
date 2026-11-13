@@ -232,6 +232,13 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::build-info",
         pack_source_sandbox_helper: true,
+        // Native compileProc registration: none. C 9.0.4/9.1.0 `tclBasic.c`
+        // creates it with `Tcl_CreateObjCommand` and no compile proc.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         runtime_backing: RuntimeBacking::shipped("tcl::build-info"),
         surface: Some(SpecSurface::TCL90_PLUS),
         traits: Traits::BYTE_COMPILED,

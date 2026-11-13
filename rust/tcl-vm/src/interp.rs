@@ -1821,6 +1821,9 @@ pub struct InterpState {
     /// unit whose site claims a stamp not among them is not admitted.
     /// Empty — the default — admits exactly the units that claim nothing.
     pack_facts: Vec<tcl_runtime_api::PackFactStamp>,
+    /// The script library [`Vm::init_library`] sourced here, which a trusted
+    /// child runs too, as C's `CreateChild` `Tcl_Init` does.
+    initialised_library: Option<Value>,
     /// The world this interpreter is pinned to ([`Vm::pin_context`]), the
     /// registry generation it holds, and the identity those state together
     /// with the pack facts above — what a compiled unit's manifest is
@@ -4073,6 +4076,7 @@ impl InterpState {
             out,
             compiler: None,
             pack_facts: Vec::new(),
+            initialised_library: None,
             pin: tcl_registry::model::PinnedContext::for_profile(environment.profile),
             debug_hooks: InterpreterDebugHooks::default(),
             pending_exit: None,
@@ -5092,6 +5096,10 @@ impl Vm {
         self.end_package_initialization(initialization);
         if let Err(error) = scope.check(self) {
             return crate::command::completion_from_cmd_error(self, error);
+        }
+        if completion.code.is_ok() {
+            self.state.initialised_library =
+                Some(Value::new_native_string_bytes(library.as_bytes()));
         }
         completion
     }
@@ -8515,6 +8523,16 @@ impl Vm {
         // in this interp is an ordinary command name, so its key qualifies.
         self.children.insert(name, id);
         self.register_command_in_slot(slot, Command::ChildInterp(id));
+        // C's `CreateChild` runs `Tcl_Init` in a trusted child, so it has
+        // `init.tcl`'s `unknown` and `auto_load` (`package.test` loads
+        // tcltest into one). The child reads the parent's library.
+        if !safe && let Some(library) = self.state.initialised_library.clone() {
+            self.in_interp(id, |child| {
+                if child.set_var_bytes(b"::tcl_library", library).is_ok() {
+                    let _ = child.init_library();
+                }
+            });
+        }
         Ok(id)
     }
 
