@@ -223,6 +223,9 @@ pub struct DeclaredCommand {
     pub frame_effect: DeclaredFrameEffect,
     /// The §4.1 surface row this declaration ingested as.
     pub declaration: SurfaceDeclaration,
+    /// `true` when the declaration was inferred from a procedure's formals
+    /// in another workspace document, rather than stated by a stub.
+    pub inferred_from_procedure: bool,
 }
 
 impl DeclaredCommand {
@@ -248,7 +251,35 @@ impl DeclaredCommand {
                 history: ItemHistory::default(),
                 provenance,
             },
+            inferred_from_procedure: false,
         }
+    }
+
+    /// The same declaration, marked as inferred from a procedure's formals
+    /// ([`Self::inferred_from_procedure`]).
+    #[must_use]
+    pub fn inferred_from_procedure(mut self) -> Self {
+        self.inferred_from_procedure = true;
+        self
+    }
+
+    /// Whether a pack the user wrote describes the procedure this
+    /// declaration was inferred from, so the pack, not the formals, answers
+    /// for it: the dialect selects a user pack's spec under the same name,
+    /// and that spec accepts every argument count the procedure accepts. A
+    /// declaration a stub states, or a procedure the pack's arity does not
+    /// cover, overrides the pack instead.
+    #[must_use]
+    pub fn is_described_by_user_pack(&self, catalogue: &crate::registry::CommandRegistry) -> bool {
+        if !self.inferred_from_procedure {
+            return false;
+        }
+        let Some(arity) = catalogue.user_authored_pack_arity(&self.name) else {
+            return false;
+        };
+        let required = self.arguments.iter().filter(|arg| !arg.optional).count();
+        (required..=self.arguments.len())
+            .all(|count| u16::try_from(count).is_ok_and(|count| arity.accepts(count)))
     }
 
     /// The same declaration, stating `traits`.
@@ -522,19 +553,19 @@ impl DeclaredSurface {
     }
 
     /// The workspace procedure declarations a document analysed against
-    /// `catalogue` may adopt: those naming no command the catalogue's own
-    /// dialect specifies. A shipped or pack `CommandSpec` is the authored
-    /// contract for its name; a procedure another document defines under that
-    /// name is its implementation, not a replacement for it. Without this, a
-    /// pack's roles and traits would hold only until workspace indexing
-    /// reached the implementing file.
+    /// `catalogue` may adopt: every one but those a pack the user wrote
+    /// describes ([`DeclaredCommand::is_described_by_user_pack`]). Once its
+    /// file is loaded, a procedure is the command its name calls, a
+    /// built-in's, a package's or a vendor's included, as C Tcl and Jim
+    /// replace one; a user pack that covers it describes that same
+    /// procedure, with roles and traits its formals cannot state.
     #[must_use]
     pub fn workspace_procedures_under(&self, catalogue: &crate::registry::CommandRegistry) -> Self {
         Self {
             commands: self
                 .commands
                 .iter()
-                .filter(|(name, _)| !catalogue.has_command_in_this_dialect(name))
+                .filter(|(_, command)| !command.is_described_by_user_pack(catalogue))
                 .map(|(name, command)| (name.clone(), command.clone()))
                 .collect(),
         }
@@ -919,22 +950,60 @@ mod tests {
         );
     }
 
-    /// A workspace procedure never shadows a command the document's own
-    /// dialect catalogues (#2532), but one the dialect lacks — a polyfill of
-    /// a later release's command — is adopted, and the document's own
-    /// declarations still win over both.
+    /// A loaded procedure is the command its name calls, a built-in's, a
+    /// package's or a vendor pack's included, so its inferred declaration
+    /// stands. A pack the user wrote answers instead when it covers every
+    /// argument count the procedure accepts (#2532); a stub the procedure's
+    /// document states, or a procedure the pack does not cover, overrides
+    /// the pack. The document's own declarations win over all of them.
     #[test]
-    fn workspace_procedures_yield_to_the_catalogue_and_the_document() {
-        let tcl86 = crate::cache::registry_for_profile(
-            tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 profile"),
-        );
-        let tcl90 = crate::cache::registry_for_profile(
-            tcl_dialect::DialectProfile::find("tcl9.0").expect("tcl9.0 profile"),
-        );
-        let mut workspace = DeclaredSurface::new();
-        for name in ["while", "lpop", "helper"] {
-            workspace.declare(declared(name, &[("value", ArgRole::Value)]));
+    fn workspace_procedures_yield_only_to_a_covering_user_pack() {
+        use crate::arity::Arity;
+        use tcl_dialect::model::Provenance;
+        let mut registry = crate::registry::CommandRegistry::build_default();
+        for (name, arity, provenance) in [
+            ("MyDef", Arity::new(1, 3), Provenance::WorkspaceTrusted),
+            (
+                "untrusted_def",
+                Arity::new(0, 2),
+                Provenance::WorkspaceUntrusted,
+            ),
+            ("after", Arity::new(1, Arity::UNLIMITED), Provenance::User),
+            ("narrow_def", Arity::new(1, 1), Provenance::WorkspaceTrusted),
+            ("stated_def", Arity::new(1, 1), Provenance::WorkspaceTrusted),
+            ("vendor_cmd", Arity::new(1, 1), Provenance::BundledPack),
+        ] {
+            let spec: &'static crate::CommandSpec = Box::leak(Box::new(crate::CommandSpec {
+                name,
+                arity,
+                ..crate::CommandSpec::DEFAULT
+            }));
+            registry.insert_static(spec);
+            registry.insert_pack_origin(
+                spec,
+                crate::pack_origin::PackOrigin {
+                    pack: "probe".to_owned(),
+                    content_hash: 1,
+                    vocabulary_version: "2".to_owned(),
+                    provenance,
+                },
+            );
         }
+        let value = |name: &'static str| (name, ArgRole::Value, false);
+        let mut workspace = DeclaredSurface::new();
+        for (name, args) in [
+            ("MyDef", vec![value("name"), value("params"), value("body")]),
+            ("untrusted_def", vec![("a", ArgRole::Value, true)]),
+            ("after", vec![value("ms")]),
+            ("narrow_def", vec![value("a"), value("b")]),
+            ("vendor_cmd", vec![value("a")]),
+            ("lassign", vec![value("list"), value("varName")]),
+            ("http::geturl", vec![value("url")]),
+            ("helper", vec![value("x")]),
+        ] {
+            workspace.declare(declared_with_optionals(name, &args).inferred_from_procedure());
+        }
+        workspace.declare(declared("stated_def", &[("a", ArgRole::Value)]));
         let names = |surface: &DeclaredSurface| {
             surface
                 .iter()
@@ -942,27 +1011,27 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(
-            names(&workspace.workspace_procedures_under(tcl86)),
-            ["helper", "lpop"]
-        );
-        assert_eq!(
-            names(&workspace.workspace_procedures_under(tcl90)),
-            ["helper"]
+            names(&workspace.workspace_procedures_under(&registry)),
+            [
+                "helper",
+                "http::geturl",
+                "lassign",
+                "narrow_def",
+                "stated_def",
+                "vendor_cmd"
+            ]
         );
 
         let mut own = DeclaredSurface::new();
         own.declare(declared("helper", &[("script", ArgRole::Body)]));
-        let merged = own.over_workspace_procedures(Some(&workspace), tcl90);
-        assert_eq!(names(&merged), ["helper"]);
-        let view = DocumentCommandSurface::new(tcl90, Some(&merged));
+        let merged = own.over_workspace_procedures(Some(&workspace), &registry);
+        let view = DocumentCommandSurface::new(&registry, Some(&merged));
         assert_eq!(
             view.arg_indices_for_role("helper", &["{...}"], ArgRole::Body),
             vec![0]
         );
-        assert_eq!(
-            view.arg_indices_for_role("while", &["1", "{...}"], ArgRole::Body),
-            vec![1]
-        );
+        assert!(!view.declares("MyDef"));
+        assert!(view.declares("lassign"));
     }
 
     /// A declaration that redeclares a catalogued name answers alone —

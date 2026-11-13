@@ -7268,8 +7268,8 @@ async fn apply_workspace_class_factories_if_current(
 /// is taken (the global order puts `db` before `workspace_index`; holding
 /// neither across the other sidesteps the ordering entirely).
 /// Give every document the procedures the *other* documents define that a
-/// call may trust ([`tcl_lsp_db::world_preserving_procedure_stubs`]) as
-/// declarations, so a cross-file call keeps the rest of the document proved.
+/// call may trust ([`tcl_lsp_db::world_preserving_procedure_declarations`])
+/// as declarations, so a cross-file call keeps the rest of the document proved.
 /// A document's own procedures are excluded: its definitions resolve them.
 ///
 /// Compare-then-set, like the evidence syncs: an unmoved slice invalidates
@@ -7279,27 +7279,21 @@ async fn sync_workspace_declared_commands(handles: &EvidenceHandles) -> Vec<Uri>
     use salsa::Setter as _;
     let mut db = handles.db.lock().await;
     let db_files = handles.db_files.lock().await;
-    let stubs: Vec<(Uri, Arc<Vec<String>>)> = db_files
+    // A name two documents define resolves the same way on every sync.
+    let mut providers = db_files
         .iter()
-        .map(|(uri, &file)| {
-            (
-                uri.clone(),
-                tcl_lsp_db::world_preserving_procedure_stubs(&*db, file),
-            )
-        })
-        .collect();
+        .map(|(uri, &file)| (uri, file))
+        .collect::<Vec<_>>();
+    providers.sort_by(|(left, _), (right, _)| left.as_str().cmp(right.as_str()));
     let mut changed = Vec::new();
     for (uri, &file) in db_files.iter() {
-        let lines = stubs
-            .iter()
-            .filter(|(owner, _)| owner != uri)
-            .flat_map(|(_, lines)| lines.iter().map(String::as_str))
-            .collect::<Vec<_>>();
-        let want = (!lines.is_empty()).then(|| {
-            Arc::new(
-                tcl_compiler::analyser::utils::workspace_procedure_declarations(&lines.join("\n")),
-            )
-        });
+        let want = tcl_lsp_db::merged_workspace_procedure_declarations(
+            &*db,
+            providers
+                .iter()
+                .filter(|(owner, _)| *owner != uri)
+                .map(|&(_, provider)| provider),
+        );
         let have = file.workspace_declared_commands(&*db);
         let matches = match (have.as_ref(), want.as_ref()) {
             (Some(have), Some(want)) => Arc::ptr_eq(have, want) || **have == **want,

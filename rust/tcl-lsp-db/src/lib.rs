@@ -4229,6 +4229,62 @@ pub fn declared_command_surface(
     Arc::new(Arc::unwrap_or_clone(own).over_workspace_procedures(Some(workspace), registry))
 }
 
+/// [`world_preserving_procedure_stubs`] as the declarations another document
+/// adopts. A procedure this document also declares by stub, inline or in its
+/// sidecar, travels as that stated declaration; every other one is inferred
+/// from its formals ([`DeclaredCommand::inferred_from_procedure`]), which a
+/// user pack covering the same command may answer for instead.
+///
+/// [`DeclaredCommand::inferred_from_procedure`]: tcl_registry::model::DeclaredCommand::inferred_from_procedure
+#[salsa::tracked(returns(clone))]
+pub fn world_preserving_procedure_declarations(
+    db: &dyn TclDb,
+    file: SourceFile,
+) -> Arc<DeclaredSurface> {
+    let rooted = |name: &str| {
+        if name.starts_with("::") {
+            name.to_owned()
+        } else {
+            format!("::{name}")
+        }
+    };
+    let inferred = tcl_compiler::analyser::utils::workspace_procedure_declarations(
+        &world_preserving_procedure_stubs(db, file).join("\n"),
+    );
+    let own = own_declared_command_surface(db, file);
+    let mut surface = DeclaredSurface::new();
+    for (name, command) in inferred.iter() {
+        let stated = own
+            .iter()
+            .find(|(own_name, _)| rooted(own_name) == rooted(name))
+            .map(|(_, stated)| {
+                let mut stated = stated.clone();
+                name.clone_into(&mut stated.name);
+                stated.declaration.provenance = command.declaration.provenance;
+                stated
+            });
+        surface.declare(stated.unwrap_or_else(|| command.clone()));
+    }
+    Arc::new(surface)
+}
+
+/// The workspace declarations a document adopts from the other documents'
+/// [`world_preserving_procedure_declarations`], merged in `providers` order so
+/// a name two documents define resolves the same way every time; `None` when
+/// they declare nothing.
+pub fn merged_workspace_procedure_declarations(
+    db: &dyn TclDb,
+    providers: impl IntoIterator<Item = SourceFile>,
+) -> Option<Arc<DeclaredSurface>> {
+    let mut merged = DeclaredSurface::new();
+    for provider in providers {
+        for (_, command) in world_preserving_procedure_declarations(db, provider).iter() {
+            merged.declare(command.clone());
+        }
+    }
+    (!merged.is_empty()).then(|| Arc::new(merged))
+}
+
 /// The procedures this document defines that a call from another document
 /// may trust, as sidecar-syntax `stub` lines: every declaration-time walk of
 /// the body leaves the command world unchanged. A trailing `args` formal has

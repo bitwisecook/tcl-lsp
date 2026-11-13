@@ -3031,6 +3031,21 @@ impl CommandRegistry {
         self.spec_for_this_registry(head).is_some()
     }
 
+    /// The release arity of the spec this registry's own dialect selects for
+    /// `head`, when that spec came from a pack the user wrote
+    /// ([`Provenance::is_user_authored`]) — a description of the user's own
+    /// command rather than of one a runtime, package or vendor ships.
+    ///
+    /// [`Provenance::is_user_authored`]: tcl_dialect::model::Provenance::is_user_authored
+    #[must_use]
+    pub fn user_authored_pack_arity(&self, head: &str) -> Option<Arity> {
+        let spec = self.spec_for_this_registry(head)?;
+        self.pack_origin(spec)?
+            .provenance
+            .is_user_authored()
+            .then(|| self.release_arity(spec))
+    }
+
     /// Which `TclOO` method-context keyword `head` is, if it is one.
     ///
     /// The single source of truth other consumers would otherwise duplicate as
@@ -10710,6 +10725,7 @@ mod tests {
             pack: "vendor".to_owned(),
             content_hash: 7,
             vocabulary_version: "2".to_owned(),
+            provenance: tcl_dialect::model::Provenance::BundledPack,
         }
     }
 
@@ -11762,6 +11778,7 @@ mod tests {
                 pack: "precedence-test".to_owned(),
                 content_hash: 1,
                 vocabulary_version: "2.0".to_owned(),
+                provenance: tcl_dialect::model::Provenance::WorkspaceTrusted,
             },
         );
 
@@ -19938,6 +19955,7 @@ mod registry_snapshot_tests {
             pack: "SnapshotPack".to_owned(),
             content_hash: 123,
             vocabulary_version: "2.0".to_owned(),
+            provenance: tcl_dialect::model::Provenance::WorkspaceTrusted,
         };
         registry.insert_pack_origin(spec, origin.clone());
         let with_origin = registry.snapshot();

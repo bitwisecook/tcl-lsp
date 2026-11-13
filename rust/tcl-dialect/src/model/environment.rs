@@ -303,6 +303,21 @@ impl Provenance {
         )
     }
 
+    /// Whether the definition is one the user wrote about their own
+    /// commands — a user, workspace or Spec Studio pack — rather than one
+    /// shipped to describe a runtime's or a vendor's. Whether the editor
+    /// trusts the workspace does not change who wrote it.
+    #[must_use]
+    pub const fn is_user_authored(self) -> bool {
+        matches!(
+            self,
+            Provenance::User
+                | Provenance::WorkspaceTrusted
+                | Provenance::WorkspaceUntrusted
+                | Provenance::StudioOverride
+        )
+    }
+
     /// The machine-readable spelling status payloads carry. A workspace
     /// pack reads the same whether or not the editor trusts the workspace:
     /// trust is a separate fact from where the environment came from.

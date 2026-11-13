@@ -35,4 +35,6 @@ pub struct PackOrigin {
     pub content_hash: u64,
     /// The loader's vocabulary version the pack was read under.
     pub vocabulary_version: String,
+    /// The pack's trust class: whether the user wrote it or it shipped.
+    pub provenance: tcl_dialect::model::Provenance,
 }

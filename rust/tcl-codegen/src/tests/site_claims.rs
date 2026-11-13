@@ -32,6 +32,7 @@ fn origin() -> PackOrigin {
         pack: "vendor".to_owned(),
         content_hash: 7,
         vocabulary_version: "2".to_owned(),
+        provenance: tcl_dialect::model::Provenance::WorkspaceTrusted,
     }
 }
 
@@ -104,6 +105,7 @@ fn a_manifests_packs_are_the_claims_stamps_each_once() {
             pack: "another".to_owned(),
             content_hash: 9,
             vocabulary_version: "2".to_owned(),
+            provenance: tcl_dialect::model::Provenance::WorkspaceTrusted,
         }
     }
     let fold = |name: &'static str| CommandSpec {

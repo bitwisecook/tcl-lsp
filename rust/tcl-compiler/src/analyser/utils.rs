@@ -1640,7 +1640,7 @@ pub fn workspace_procedure_declarations(content: &str) -> tcl_registry::model::D
     let stubbed = super::types::build_declared_surface(&cmds);
     let mut surface = tcl_registry::model::DeclaredSurface::new();
     for (_, command) in stubbed.iter() {
-        let mut command = command.clone();
+        let mut command = command.clone().inferred_from_procedure();
         command.declaration.provenance = tcl_dialect::model::Provenance::WorkspaceTrusted;
         surface.declare(command);
     }

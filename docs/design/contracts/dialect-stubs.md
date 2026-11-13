@@ -307,18 +307,32 @@ Two properties are load-bearing:
   keep a redeclared shipped command's security traits and side effects
   beneath the declaration's own — the floor `SecurityFloor::apply` holds a
   pack override to — so a stub cannot take `exec`'s `UNSAFE` away.
-- **A workspace procedure never shadows the catalogue.** The procedures the
-  server declares to a document from its siblings
-  (`SourceFile::workspace_declared_commands`) are inferred, not authored, so
-  they are adopted only for names the document's own catalogue — shipped
-  specs plus its packs, at its dialect — does not specify
-  (`DeclaredSurface::workspace_procedures_under`). A proc that implements a
-  pack command keeps the pack's traits and roles everywhere, however
-  indexing is timed (#2532), and a polyfill of a command the dialect lacks
-  is still adopted. Every merge — the analyser's, the source-entry
-  contracts' and `tcl_lsp_db::declared_command_surface` — goes through
-  `DeclaredSurface::over_workspace_procedures` or that filter; a document's
-  own stubs still win over both.
+- **A user pack describes the workspace procedure it covers.** The server
+  declares each document's world-preserving procedures to the others
+  (`SourceFile::workspace_declared_commands`,
+  `tcl_lsp_db::world_preserving_procedure_declarations`). A procedure the
+  defining document also stubs travels as that stub; any other is inferred
+  from its formals (`DeclaredCommand::inferred_from_procedure`). Once its file
+  is loaded, a procedure is the command its fully qualified name calls, a
+  built-in's, a package's or a vendor's included: C Tcl 8.4–9.1 and Jim
+  replace the command with it
+  ([evidence](../../../evidence/tcl/lsp-2532-procedure-replaces-catalogued-command.md)),
+  so an inferred declaration stands over a shipped or bundled spec. The one
+  exception is a spec from a pack the user wrote
+  (`Provenance::is_user_authored`) that accepts every argument count the
+  procedure accepts: that pack describes the same procedure, so it answers
+  and the inferred declaration is dropped
+  (`DeclaredCommand::is_described_by_user_pack`), however indexing is timed
+  (#2532). A stubbed procedure, or one the pack's arity does not cover,
+  overrides the pack. Names are compared fully qualified, so a procedure
+  `::app::MyDef` shadows a pack's global `MyDef` only for calls that resolve
+  in `::app`, as the interpreters' namespace-first lookup does
+  ([evidence](../../../evidence/tcl/lsp-2532-namespace-procedure-shadows-global-command.md)).
+  Every merge — the analyser's, the source-entry contracts' and
+  `tcl_lsp_db::declared_command_surface` — goes through
+  `DeclaredSurface::over_workspace_procedures` or
+  `DeclaredSurface::workspace_procedures_under`; a document's own stubs win
+  over all of them.
 
 The declared surface is what feeds parameter-trait inference, role lookup, and
 command-resolution for stubbed commands. Cache invalidation rides the ordinary

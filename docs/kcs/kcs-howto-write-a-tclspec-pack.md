@@ -79,13 +79,21 @@ one your manifest requires directly, and a Tcl body (`tcl-body`) unless the
 package is your own
 ([why](kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md)).
 
-The `proc` in your workspace that implements a pack command does not replace
-it. tcl-lsp tells every file about the procs your other files define, but
-only for names that neither the shipped commands nor your packs already
-describe. A call keeps the pack's traits and argument roles (a
+A `proc` in your workspace with the same name as a command in your pack is
+described by the pack, as long as the pack accepts every number of arguments
+the proc accepts. A call keeps the pack's traits and argument roles (a
 `LANGUAGE_KEYWORD` head stays a keyword) whether or not the workspace scan
-has reached the file that defines the proc. You do not need to exclude that
-file from the scan.
+has reached the file that defines the proc, so you do not need to exclude
+that file from the scan. The proc replaces the pack's description instead,
+as it would replace the command in a running interpreter, when:
+
+- you give the proc its own `# tcl-lsp: stub` line or sidecar entry;
+- the pack's `arity` rejects an argument count the proc accepts;
+- the proc is in another namespace (`::app::MyDef` against the pack's
+  global `MyDef`), for calls made inside that namespace.
+
+A proc never gives way to a command tcl-lsp ships, a package's or a bundled
+vendor pack's: once its file is loaded, Tcl runs the proc instead of them.
 
 ### Saying a Tcl proc defines the command
 

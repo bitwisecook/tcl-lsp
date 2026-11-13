@@ -125,6 +125,7 @@ fn install_pack_command(registry: &mut CommandRegistry, spec: CommandSpec) {
             pack: "mylib".to_owned(),
             content_hash: 1,
             vocabulary_version: "1".to_owned(),
+            provenance: tcl_dialect::model::Provenance::WorkspaceTrusted,
         },
     );
 }

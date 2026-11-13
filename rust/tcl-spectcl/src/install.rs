@@ -443,6 +443,7 @@ pub(crate) fn pack_origin(pack: &MergedPack, command: &PackCommand) -> PackOrigi
         pack: pack.name.clone(),
         content_hash: command.content_hash,
         vocabulary_version: crate::VOCABULARY_VERSION.to_owned(),
+        provenance: pack.provenance(),
     }
 }
 

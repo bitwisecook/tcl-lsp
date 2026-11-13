@@ -1008,11 +1008,12 @@ fn head_kind(tokens: &SemanticTokens, source: &str, value: &str) -> Option<u32> 
     })
 }
 
-/// #2532: a procedure another document defines under a pack command's name
-/// implements that command; its workspace declaration must not replace the
-/// pack's `LANGUAGE_KEYWORD` spec once indexing publishes it.
+/// #2532: a procedure another document defines under a name a user pack
+/// covers keeps the pack's spec, whatever indexing has published; one the pack
+/// does not cover, one with its own stub, and one over a shipped command each
+/// override, as C Tcl and Jim replace a command with a loaded procedure.
 #[test]
-fn a_workspace_procedure_does_not_shadow_a_pack_command() {
+fn a_covering_user_pack_describes_a_workspace_procedure() {
     let mut db = TclDatabase::default();
     let packs = tcl_spectcl::pack::load_in_memory(vec![(
         tcl_spectcl::PackFile {
@@ -1021,7 +1022,11 @@ fn a_workspace_procedure_does_not_shadow_a_pack_command() {
             origin: tcl_spectcl::discovery::Origin::DotDir,
             dependency_tier: None,
         },
-        "speclib definer2532 1.0 {\ncommand MyDef {\narity 1..3\ntraits {LANGUAGE_KEYWORD DEFINES_PROCEDURE}\ndefines_command_at 0\narg 0 -role Name\narg 1 -role ParamList\narg 2 -role Body\n}\n}\n"
+        "speclib definer2532 1.0 {\n\
+         command MyDef {\narity 1..3\ntraits {LANGUAGE_KEYWORD DEFINES_PROCEDURE}\ndefines_command_at 0\narg 0 -role Name\narg 1 -role ParamList\narg 2 -role Body\n}\n\
+         command Narrow {\narity 1\n}\n\
+         command Stated {\narity 1\n}\n\
+         }\n"
             .to_owned(),
     )]);
     assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
@@ -1030,7 +1035,10 @@ fn a_workspace_procedure_does_not_shadow_a_pack_command() {
     let config = configuration(&db, packs.key);
     let library = SourceFile::new(
         &db,
-        "proc MyDef {name params body} {}\nproc Helper {x} {}\n".to_owned(),
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub Stated {x}\n# tcl-lsp: stubs-end\n\
+         proc MyDef {name params body} {}\nproc Narrow {a b} {}\nproc Stated {x} {}\n\
+         proc lassign {list varName} {}\nproc Helper {x} {}\n"
+            .to_owned(),
         "tcl8.6".to_owned(),
         None,
     );
@@ -1041,15 +1049,23 @@ fn a_workspace_procedure_does_not_shadow_a_pack_command() {
         vec![library, user],
         Some(vec![(library, config), (user, config)]),
     );
-    let stubs = crate::world_preserving_procedure_stubs(&db, library);
-    assert!(
-        stubs.iter().any(|stub| stub.starts_with("stub MyDef ")),
-        "{stubs:?}"
+    let published = crate::world_preserving_procedure_declarations(&db, library);
+    let inferred = published
+        .iter()
+        .map(|(name, command)| (name, command.inferred_from_procedure))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        inferred,
+        [
+            ("Helper", true),
+            ("MyDef", true),
+            ("Narrow", true),
+            ("Stated", false),
+            ("lassign", true)
+        ]
     );
     user.set_workspace_declared_commands(&mut db)
-        .to(Some(Arc::new(
-            tcl_compiler::analyser::utils::workspace_procedure_declarations(&stubs.join("\n")),
-        )));
+        .to(Some(published));
 
     let keyword = 0; // the legend's `keyword`
     assert_eq!(
@@ -1066,9 +1082,49 @@ fn a_workspace_procedure_does_not_shadow_a_pack_command() {
     );
     let declared = crate::declared_command_surface(&db, user, &registry);
     let names = declared.iter().map(|(name, _)| name).collect::<Vec<_>>();
-    assert_eq!(
-        names,
-        ["Helper"],
-        "only the uncatalogued procedure is adopted"
+    assert_eq!(names, ["Helper", "Narrow", "Stated", "lassign"]);
+}
+
+/// The namespace a call runs in resolves first, as in C Tcl 8.4–9.1 and Jim:
+/// a procedure `::app::MyDef` shadows the pack's global `MyDef` for a call in
+/// `::app`, defined in the same document or another, and nowhere else.
+#[test]
+fn a_namespace_procedure_shadows_a_global_pack_command_only_in_its_namespace() {
+    let mut db = TclDatabase::default();
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: std::path::PathBuf::from("/workspace/.tcl-lsp/shadow2532.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
+        },
+        "speclib shadow2532 1.0 {\ncommand MyDef {\narity 1..3\ntraits {LANGUAGE_KEYWORD DEFINES_PROCEDURE}\ndefines_command_at 0\narg 0 -role Name\narg 1 -role ParamList\narg 2 -role Body\n}\n}\n"
+            .to_owned(),
+    )]);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
+    let config = configuration(&db, packs.key);
+    let (keyword, function) = (Some(0), Some(1)); // legend indices
+    let same = "namespace eval ::app { proc MyDef {name} {} }\n\
+                namespace eval ::app { MyDef x }\nMyDef foo {a} { puts $a }\n";
+    let file = SourceFile::new(&db, same.to_owned(), "tcl".to_owned(), None);
+    let tokens = semantic_tokens(&db, file, config);
+    assert_eq!(head_kind(&tokens, same, "MyDef x"), function);
+    assert_eq!(head_kind(&tokens, same, "MyDef foo"), keyword);
+
+    let library = SourceFile::new(
+        &db,
+        "namespace eval ::app { proc MyDef {name} {} }\n".to_owned(),
+        "tcl8.6".to_owned(),
+        None,
     );
+    let published = crate::world_preserving_procedure_declarations(&db, library);
+    let cross = "namespace eval ::app { MyDef x }\nMyDef foo {a} { puts $a }\n";
+    let user = SourceFile::new(&db, cross.to_owned(), "tcl".to_owned(), None);
+    user.set_workspace_declared_commands(&mut db)
+        .to(Some(published));
+    let tokens = semantic_tokens(&db, user, config);
+    assert_eq!(head_kind(&tokens, cross, "MyDef x"), function);
+    assert_eq!(head_kind(&tokens, cross, "MyDef foo"), keyword);
 }
