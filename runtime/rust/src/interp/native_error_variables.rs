@@ -1111,6 +1111,19 @@ impl Interp {
         currency.ensure_current_or_refuse()
     }
 
+    /// `Tcl_SetReturnOptions` with an error's `-errorinfo`: the trace starts
+    /// at the result where none has, and, as `TclProcessReturn` sets
+    /// `ERR_ALREADY_LOGGED`, the command reporting the error logs no frame.
+    pub(crate) fn settle_error_info_as_logged(
+        &mut self,
+    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        self.seed_error_info_checked(scope.currency())?;
+        self.update_native_error_info_checked(scope.currency())?;
+        self.exc.borrow_mut().already_logged = true;
+        Ok(())
+    }
+
     #[cfg(test)]
     pub(crate) fn update_native_error_info(&mut self) {
         let Ok(scope) = super::native_operation_currency::NativeOperationScope::enter(self) else {

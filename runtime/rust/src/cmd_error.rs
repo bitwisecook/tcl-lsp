@@ -965,6 +965,7 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // clause whose body actually runs (binding *that* clause's variables).
     let mut outcome_code = body_code;
     let mut outcome_result = body_result.clone();
+    let mut binding_failed = false;
     let matched = handlers.iter().position(|h| {
         if h.is_trap {
             body_code == Code::Error && errorcode_prefix_match(&h.pattern, &errorcode)
@@ -1015,6 +1016,7 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             Err(()) => {
                 outcome_code = Code::Error;
+                binding_failed = true;
                 if interp.host_refusal_pending() {
                     unsafe { obj::decr_ref_count(body_opts) };
                     return Code::Error;
@@ -1058,6 +1060,13 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     interp.set_result_bytes(&outcome_result);
+    // C's handlerFailed path installs its options with Tcl_SetReturnOptions,
+    // so the failed variable binding is already logged.
+    if binding_failed {
+        if let Err(first) = interp.settle_error_info_as_logged() {
+            return interp.refuse_native_execution(first);
+        }
+    }
     outcome_code
 }
 
