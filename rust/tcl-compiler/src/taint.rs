@@ -4106,7 +4106,7 @@ fn fresh_callback_replay_names(source: &str) -> (String, String) {
         let proc_collides = (0..MAX_CALLBACK_TAINT_REPLAYS)
             .any(|index| occupied.contains(&format!("{proc_prefix}_{index}")));
         if !occupied.contains(&input) && !proc_collides {
-            return (input, format!("::{proc_prefix}"));
+            return (input, crate::naming::rooted_member_key("::", &proc_prefix));
         }
     }
     unreachable!("a bounded synthetic-name search must find an unoccupied suffix")
@@ -4633,7 +4633,10 @@ fn taint_callback_substitution_report(
         // `input_var` was chosen absent from the complete user source, so
         // seeding both scopes cannot influence the original program.
         let replay_seed = HashMap::from([
-            (format!("::{input_var}"), TaintLattice::tainted()),
+            (
+                crate::naming::rooted_member_key("::", &input_var),
+                TaintLattice::tainted(),
+            ),
             (input_var.clone(), TaintLattice::tainted()),
         ]);
         let replay_report = taint_warning_report_for_cu_base_with_external_variable_seeds(
@@ -6412,7 +6415,7 @@ fn nested_script_replay<S: std::hash::BuildHasher>(
         );
         if let Some(taint) = taints.get(&(symbol, version)).copied() {
             seeds.insert(param, taint);
-            seeds.insert(format!("::{seed}"), taint);
+            seeds.insert(crate::naming::rooted_member_key("::", &seed), taint);
         }
     }
     // Plumbing runs before the ambient table is materialised and uses global
@@ -6486,6 +6489,12 @@ fn ambient_constant_setup(
     setup
 }
 
+/// Whether two written heads, both resolved from the global namespace, name
+/// the same command (`:::puts` and `puts` both name `::puts`).
+fn global_heads_name_one_command(left: &str, right: &str) -> bool {
+    crate::naming::qualify("::", left) == crate::naming::qualify("::", right)
+}
+
 /// Materialise the enclosing command table for an isolated nested-script
 /// analysis. The offset-keyed identity owner already composed imports,
 /// aliases, renames, and user-proc rebindings; this adapter merely spells its
@@ -6544,7 +6553,7 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
             // Tcl refuses an alias onto itself and deletes the command, so a
             // head that still names its own target needs no ambient alias.
             crate::realm::RealmBindingFact::Command(target)
-                if target.trim_start_matches("::") == head.trim_start_matches("::") => {}
+                if global_heads_name_one_command(target, &head) => {}
             crate::realm::RealmBindingFact::Command(target) => {
                 let quoted_target = tcl_syntax::list::list_element(target);
                 let _ = writeln!(
@@ -9744,6 +9753,16 @@ pub fn find_setter_constraint_warnings<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_colon_run_head_still_names_its_own_global_target() {
+        // tclsh 8.6/9.0/9.1: `interp alias {} :::puts {} puts` aliases `::puts`
+        // onto itself and deletes it; the next `puts` is `invalid command name`.
+        assert!(super::global_heads_name_one_command("puts", ":::puts"));
+        assert!(super::global_heads_name_one_command("::puts", "puts"));
+        assert!(!super::global_heads_name_one_command("puts", ":puts"));
+        assert!(!super::global_heads_name_one_command("puts", "ns::puts"));
+    }
+
     #[test]
     fn original_module_sink_candidates_keep_conditional_source_and_refuse_foreign_owners() {
         let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");

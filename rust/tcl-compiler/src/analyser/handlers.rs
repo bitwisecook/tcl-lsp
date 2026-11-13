@@ -1298,16 +1298,9 @@ impl Analyser {
                 }
             }
         }
-        let relative_to = |namespace: &str, name: &str| {
-            if name.starts_with("::") {
-                name.to_owned()
-            } else {
-                format!("{}::{name}", namespace.trim_end_matches("::"))
-            }
-        };
         let path = match target {
-            Target::Global { variable } => relative_to("", variable.literal()?),
-            Target::CurrentNamespace { variable } => relative_to(
+            Target::Global { variable } => crate::naming::qualify("::", variable.literal()?),
+            Target::CurrentNamespace { variable } => crate::naming::qualify(
                 &self.command_resolution_namespace(scope_path),
                 variable.literal()?,
             ),
@@ -1315,13 +1308,11 @@ impl Analyser {
                 namespace,
                 variable,
             } => {
-                let namespace = spelt(namespace, args)?;
-                let namespace = if namespace.starts_with("::") {
-                    namespace.to_owned()
-                } else {
-                    relative_to(&self.command_resolution_namespace(scope_path), namespace)
-                };
-                relative_to(&namespace, spelt(variable, args)?)
+                let namespace = crate::naming::qualify_namespace(
+                    &self.command_resolution_namespace(scope_path),
+                    spelt(namespace, args)?,
+                );
+                crate::naming::qualify(&namespace, spelt(variable, args)?)
             }
             Target::CallerSelectedFrame { frame, variable } => {
                 // The array an element word lives in is named by the word's
@@ -4521,7 +4512,9 @@ impl Analyser {
     pub(super) fn current_interp_domain_prefix(&self) -> String {
         self.interp_path_stack
             .last()
-            .map_or_else(String::new, |frame| format!("::{}", frame.domain))
+            .map_or_else(String::new, |frame| {
+                crate::naming::root_unrooted_key(&frame.domain)
+            })
     }
 
     /// The synthetic namespace name for an interpreter domain: the
@@ -4559,7 +4552,9 @@ impl Analyser {
         } else {
             self.qualified_interp_key(path)
         };
-        Some(format!("::{}", self.interp_domain_name(&key)))
+        Some(crate::naming::root_unrooted_key(
+            &self.interp_domain_name(&key),
+        ))
     }
 
     /// Handle `interp create ?-safe? ?--? ?path?` — record the child
@@ -6231,13 +6226,8 @@ impl Analyser {
         if base.is_empty() || crate::naming::is_dynamic_word(base) {
             return None;
         }
-        if base.starts_with("::") {
-            return Some(base.to_owned());
-        }
-        if level.is_global_frame() {
-            return Some(format!("::{base}"));
-        }
-        None
+        (base.starts_with("::") || level.is_global_frame())
+            .then(|| crate::naming::qualify("::", base))
     }
 
     /// Register the loop variables of `dict for {keyVar valueVar}
@@ -14592,6 +14582,24 @@ mod tests {
             a.result.global_scope.variables["l"].link_target.as_deref(),
             Some("::abs"),
         );
+    }
+
+    #[test]
+    fn variable_links_keep_a_colon_named_namespace_and_collapse_written_runs() {
+        // tclsh 8.6/9.0/9.1: with `set ::v glob; namespace eval : {variable v colon}`,
+        // `proc a {} {namespace upvar : v l; namespace upvar ::: v m; global :::v; list $l $m $v}`
+        // returns `colon glob glob`; `namespace which -variable v` in `:` is `:::::v`.
+        // `upvar 1 :::x y; upvar #0 a:::b z` binds `::x` and `::a::b`.
+        let a = analysed(
+            "namespace upvar : v l\nnamespace upvar ::: v m\nglobal :::g\nupvar #0 :::x y\nupvar #0 a:::b z\n",
+        );
+        let variables = &a.result.global_scope.variables;
+        let link = |name: &str| variables[name].link_target.clone();
+        assert_eq!(link("l").as_deref(), Some(":::::v"));
+        assert_eq!(link("m").as_deref(), Some("::v"));
+        assert_eq!(link("g").as_deref(), Some("::g"));
+        assert_eq!(link("y").as_deref(), Some("::x"));
+        assert_eq!(link("z").as_deref(), Some("::a::b"));
     }
 
     // `upvar` — the `otherVar` link

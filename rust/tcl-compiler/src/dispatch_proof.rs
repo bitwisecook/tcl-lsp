@@ -932,6 +932,17 @@ fn normalise_name(name: &str) -> Cow<'_, str> {
     )
 }
 
+/// The [`normalise_name`] key of `variable` written in `namespace`. The two
+/// written words are qualified separately, so an absolute variable ignores the
+/// namespace and a colon-named namespace keeps its own segment.
+fn namespace_alias_target(namespace: &str, variable: &str) -> String {
+    let namespace = tcl_syntax::naming::qualify_namespace("::", namespace);
+    let rooted = tcl_syntax::naming::qualify(&namespace, variable);
+    tcl_syntax::naming::unroot_rooted_key(&rooted)
+        .unwrap_or(&rooted)
+        .to_owned()
+}
+
 /// Whether an interpreter-path operand can denote the interpreter this
 /// function runs in.  Tcl spells the current interpreter as the empty path.
 fn interpreter_may_be_current(subject: &TransitionSubject) -> bool {
@@ -2144,9 +2155,7 @@ fn apply_variable_alias(
             namespace,
             variable,
         } => match (namespace.literal(), variable.literal()) {
-            (Some(namespace), Some(variable)) => {
-                Some(normalise_name(&format!("{namespace}::{variable}")).into_owned())
-            }
+            (Some(namespace), Some(variable)) => Some(namespace_alias_target(namespace, variable)),
             _ => None,
         },
     };
@@ -2876,6 +2885,17 @@ mod tests {
             "a command-substitution operand cannot be proven inert"
         );
         assert!(!proof.satisfies(llength_dependencies()));
+    }
+
+    #[test]
+    fn namespace_alias_targets_qualify_each_written_word() {
+        // tclsh 8.6/9.0/9.1: with `set ::v glob; namespace eval : {variable v colon}`,
+        // `namespace upvar : v l` reads `colon` and `namespace upvar ns ::v m` reads `glob`.
+        assert_eq!(namespace_alias_target("ns", "v"), "ns::v");
+        assert_eq!(namespace_alias_target("::a:::b", "v"), "a::b::v");
+        assert_eq!(namespace_alias_target("ns", "::v"), "v");
+        assert_eq!(namespace_alias_target(":", "v"), ":::v");
+        assert_ne!(namespace_alias_target(":", "v"), normalise_name("v"));
     }
 
     #[test]
