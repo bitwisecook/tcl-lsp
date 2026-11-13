@@ -128,7 +128,11 @@ pub fn spec() -> CommandSpec {
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         runtime_backing: RuntimeBacking::shipped("::oo::Helpers::self"),
+        // `self class`, `self caller`, `self next`, `self filter`, `self call`
+        // and `self target` answer class names as data; a closed argument
+        // value carries no traits of its own, so the whole command does.
         traits: Traits::PURE
+            | Traits::REFLECTS_COMMAND_NAMES
             | Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_INTROSPECTION
             | Traits::TCLOO_METHOD_CONTEXT

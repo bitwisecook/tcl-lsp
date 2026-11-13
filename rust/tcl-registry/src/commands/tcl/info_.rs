@@ -859,6 +859,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Returns information about the class.",
         synopsis: "info class subcommand class ?arg ...?",
+        // `superclasses`, `subclasses`, `instances`, `mixins`, `call` and
+        // `definition` answer class and object command names as data.
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
@@ -1231,6 +1234,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Returns information about the object.",
         synopsis: "info object subcommand object ?arg ...?",
+        // `class`, `mixins`, `call` and `isa` answer or compare class command
+        // names as data (`string equal [info object class $o] ::C`).
+        traits: Traits::REFLECTS_COMMAND_NAMES,
         pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),

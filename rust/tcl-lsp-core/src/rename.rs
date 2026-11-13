@@ -4200,8 +4200,9 @@ mod tests {
     /// same way; an `[info object class]` comparison prints `different`
     /// instead of `same`; and a taken name fails with `can't create object
     /// "Renamed": command already exists with that name`. A superclass the
-    /// document does not declare runs a constructor nobody has read. Each
-    /// rename must refuse.
+    /// document does not declare runs a constructor nobody has read. A
+    /// method comparing `[self class]` or `[info object class [self]]` with
+    /// `::MyClass` prints `0` instead of `1`. Each rename must refuse.
     #[test]
     fn rename_class_refuses_dynamic_relation_reflected_and_colliding_uses() {
         for source in [
@@ -4216,6 +4217,9 @@ mod tests {
             "oo::class create MyClass {}\nproc Renamed {} {}\nMyClass new\n",
             "oo::class create MyClass {}\noo::class create Renamed {}\n",
             "oo::class create MyClass {superclass ::pkg::Base}\nMyClass new\n",
+            "oo::class create MyClass {\n    method isme {} {string equal [self class] ::MyClass}\n}\n",
+            "oo::class create MyClass {\n    \
+             method isme {} {string equal [info object class [self]] ::MyClass}\n}\n",
         ] {
             let analysis = analyse(source);
             let result = rename_with_diagnosis(
