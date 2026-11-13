@@ -1273,6 +1273,31 @@ mod original_format_scan_tests {
     use crate::interp::native_operation_currency::NativeOperationScope;
     use tcl_runtime_api::Code;
 
+    /// C publishes `NONE` when the evaluation logs the error, not inside
+    /// `BinaryFormatCmd`, so C goes through the public command.
+    fn format_publicly(vm: &mut Vm, profile: &str, original: &Value) -> Completion<Value> {
+        if profile == "jim" {
+            return binary_format(vm, &[original.clone(), Value::string("AB")]);
+        }
+        vm.try_invoke_command(
+            "binary",
+            &[
+                Value::string("format"),
+                original.clone(),
+                Value::string("AB"),
+            ],
+        )
+        .expect("actual public binary command")
+    }
+
+    /// C8.6+ copies the interpreter code into `::errorCode` from a read trace.
+    fn error_code(vm: &mut Vm) -> std::rc::Rc<[u8]> {
+        vm.try_invoke_command("set", &[Value::string("::errorCode")])
+            .expect("actual errorCode read")
+            .result
+            .string_bytes()
+    }
+
     #[test]
     fn original_binary_counted_formats_keep_literal_zero_extent_and_reached_scan_assignment() {
         // naming.binary.original-object-format-grammar-extent
@@ -1294,21 +1319,7 @@ mod original_format_scan_tests {
                 let scope = NativeOperationScope::enter(&mut vm).unwrap();
                 let original = Value::from_string_bytes(format);
                 let format_count = original.native_object_reference_count();
-                // C publishes `NONE` when the evaluation logs the error, not
-                // inside BinaryFormatCmd, so C goes through the public command.
-                let completion = if profile == "jim" {
-                    binary_format(&mut vm, &[original.clone(), Value::string("AB")])
-                } else {
-                    vm.try_invoke_command(
-                        "binary",
-                        &[
-                            Value::string("format"),
-                            original.clone(),
-                            Value::string("AB"),
-                        ],
-                    )
-                    .expect("actual public binary command")
-                };
+                let completion = format_publicly(&mut vm, profile, &original);
                 let modified = format.contains(&0xc0);
                 assert_eq!(
                     completion.code,
@@ -1327,11 +1338,7 @@ mod original_format_scan_tests {
                         "{profile}"
                     );
                     assert_eq!(
-                        vm.try_invoke_command("set", &[Value::string("::errorCode")])
-                            .unwrap()
-                            .result
-                            .string_bytes()
-                            .as_ref(),
+                        error_code(&mut vm).as_ref(),
                         if profile == "jim" {
                             b"SEEDED".as_slice()
                         } else {
@@ -1344,14 +1351,7 @@ mod original_format_scan_tests {
                             .unwrap_or_else(|_| panic!("binary result bytes")),
                         b"A"
                     );
-                    assert_eq!(
-                        vm.try_invoke_command("set", &[Value::string("::errorCode")])
-                            .unwrap()
-                            .result
-                            .string_bytes()
-                            .as_ref(),
-                        b"SEEDED"
-                    );
+                    assert_eq!(error_code(&mut vm).as_ref(), b"SEEDED");
                 }
                 assert!(
                     vm.set_var_bytes(b"::errorCode", Value::string("SEEDED"))
