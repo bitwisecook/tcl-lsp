@@ -1294,7 +1294,21 @@ mod original_format_scan_tests {
                 let scope = NativeOperationScope::enter(&mut vm).unwrap();
                 let original = Value::from_string_bytes(format);
                 let format_count = original.native_object_reference_count();
-                let completion = binary_format(&mut vm, &[original.clone(), Value::string("AB")]);
+                // C publishes `NONE` when the evaluation logs the error, not
+                // inside BinaryFormatCmd, so C goes through the public command.
+                let completion = if profile == "jim" {
+                    binary_format(&mut vm, &[original.clone(), Value::string("AB")])
+                } else {
+                    vm.try_invoke_command(
+                        "binary",
+                        &[
+                            Value::string("format"),
+                            original.clone(),
+                            Value::string("AB"),
+                        ],
+                    )
+                    .expect("actual public binary command")
+                };
                 let modified = format.contains(&0xc0);
                 assert_eq!(
                     completion.code,
@@ -1313,8 +1327,9 @@ mod original_format_scan_tests {
                         "{profile}"
                     );
                     assert_eq!(
-                        vm.get_var_bytes(b"::errorCode")
+                        vm.try_invoke_command("set", &[Value::string("::errorCode")])
                             .unwrap()
+                            .result
                             .string_bytes()
                             .as_ref(),
                         if profile == "jim" {
@@ -1330,8 +1345,9 @@ mod original_format_scan_tests {
                         b"A"
                     );
                     assert_eq!(
-                        vm.get_var_bytes(b"::errorCode")
+                        vm.try_invoke_command("set", &[Value::string("::errorCode")])
                             .unwrap()
+                            .result
                             .string_bytes()
                             .as_ref(),
                         b"SEEDED"

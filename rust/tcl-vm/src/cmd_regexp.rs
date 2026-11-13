@@ -653,6 +653,8 @@ mod original_object_tests {
                 )
                 .is_err()
             );
+            // The outer host boundary reports and retires the missing-updater refusal.
+            assert!(vm.take_host_boundary_refusal().is_some(), "{bytes:?}");
         }
         let pattern = Value::new_native_string_bytes(b"a".as_slice());
         core_re::prepare_pattern_original::<Vm, CrateEngine>(
