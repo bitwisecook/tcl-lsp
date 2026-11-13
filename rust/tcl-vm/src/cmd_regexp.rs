@@ -424,10 +424,16 @@ impl core_re::NativeRegsubObjects for Vm {
             tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
         );
         if completion.code == Code::Ok {
-            Ok(())
-        } else {
-            Err(completion)
+            return Ok(());
         }
+        // C's `Tcl_EvalObjv` logs the command it ran.
+        if completion.code == Code::Error {
+            let text = Value::list(call).string_bytes();
+            let message = completion.result.string_bytes();
+            self.clear_error_logged();
+            self.log_command_info(&*text, &*message, 0);
+        }
+        Err(completion)
     }
     fn regex_reset_result(&mut self) -> Result<(), tcl_syntax::value::ValueError> {
         self.reset_native_jim_result()

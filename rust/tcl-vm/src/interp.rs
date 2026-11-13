@@ -10591,6 +10591,8 @@ impl Vm {
                 };
                 let mut frame = b"\n    result of ensemble unknown subcommand handler: ".to_vec();
                 frame.extend_from_slice(&bytes);
+                // `Tcl_ResetResult` drops the handler's return options first.
+                self.reset_native_error_result();
                 self.seed_error_info_frame(&message, &frame);
                 return Err(err_with_code(message, "TCL ENSEMBLE UNKNOWN_RESULT"));
             }
