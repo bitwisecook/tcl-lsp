@@ -2536,6 +2536,12 @@ mod readonly_source_reference_tests {
                 "oo::class create Base {method ping {} {}}; oo::class create Child {superclass Base; method body {} {my ping}}",
                 1,
             ),
+            // A literal object command call on a document instance reaches
+            // the class's method (tclsh 8.6, 9.0, 9.1), and is counted.
+            (
+                "oo::class create C {method ping {} {}; method body {script cmd} {my ping; return}}; C create c; c ping",
+                2,
+            ),
         ] {
             let report = member_report(source, "tcl8.6", b"ping");
             assert_eq!(
@@ -2610,13 +2616,11 @@ mod readonly_source_reference_tests {
             ("tcl8.6", member("filter ping")),
             ("tcl8.6", member("export ping")),
             ("tcl8.6", member("mixin M")),
-            // Members installed outside a selected definition body, and an
-            // object command call.
+            // Members installed outside a selected definition body.
             (
                 "tcl8.6",
                 format!("{}; oo::define C forward fw my ping", body("return")),
             ),
-            ("tcl8.6", format!("{}; C create c; c ping", body("return"))),
         ];
         for tail in [
             "callback ping",

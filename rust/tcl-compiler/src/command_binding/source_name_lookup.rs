@@ -808,7 +808,9 @@ impl SourceInvocationBinding {
     /// qualified words alike; the class's namespace is not searched (tclsh
     /// 8.6, 9.0, 9.1). The object namespace has no static name, so the
     /// candidates omit it and the lookup carries the commands Tcl puts there;
-    /// such a command stops the lookup there, leaving no candidate.
+    /// such a command stops the lookup there, leaving an empty path. A word
+    /// the object namespace may hold through a member body's own
+    /// publication has no known path at all.
     fn original_receiver_command_lookup(
         &self,
         input: &SignatureSourceNameInput,
@@ -819,19 +821,28 @@ impl SourceInvocationBinding {
         let rows = self.original_receiver_rows(Some(key))?;
         let receiver = original_receiver_namespace(&rows, input.policy())?;
         let (mut candidates, local) = original_receiver_candidates(input, receiver)?;
-        if local
+        let receiver_command = local
             && receiver
                 .family
                 .receiver_namespace_commands()
                 .iter()
-                .any(|name| name.as_bytes() == input.bytes())
-        {
+                .any(|name| name.as_bytes() == input.bytes());
+        if receiver_command {
             candidates.clear();
         }
         Some(OriginalCommandLookup {
             input: input.clone(),
             site: self.invocation_site()?.clone(),
-            candidates: vec![candidates],
+            // When a member body may have published commands into the
+            // receiver namespace, no ordered path past it is known.
+            candidates: if local
+                && !receiver_command
+                && self.receiver_namespace == super::ReceiverNamespaceContents::Unproven
+            {
+                Vec::new()
+            } else {
+                vec![candidates]
+            },
             naming_scope: None,
             observations: rows.into_iter().cloned().collect(),
             callback_scope: None,
@@ -1500,8 +1511,7 @@ mod tests {
         // the object's namespace with `namespace path ::oo::Helpers`; the
         // class's own or declaring namespace is never searched, for simple and
         // relative qualified words alike. `my` (and `myclass` on 9.x) is in
-        // the object namespace itself (`namespace which my` is
-        // `::oo::Obj12::my`), so its lookup stops there with no candidate.
+        // the object namespace itself, so its lookup stops there.
         let slot = |namespace: &[&str], simple: &str| {
             ByteCommandSlot::new(
                 tcl_core_types::ByteNamespacePath::from_segments(namespace.iter().copied()),
@@ -1581,16 +1591,9 @@ mod tests {
                     },
                 );
                 let binding = bindings.invocation_at_source(word, start);
-                let lookup = binding.original_receiver_command_lookup(
-                    &SignatureSourceNameInput::OriginalWord(key.clone()),
-                );
-                if lookup.is_some() {
-                    assert_eq!(
-                        binding.original_static_command_lookup(&key),
-                        lookup,
-                        "{version}: {source}"
-                    );
-                }
+                let lookup = binding
+                    .original_static_command_lookup(&key)
+                    .filter(|_| binding.original_receiver_namespace_commands().is_some());
                 assert_eq!(
                     lookup.as_ref().map(|lookup| lookup.candidates().to_vec()),
                     expected.clone().map(|expected| vec![expected]),
@@ -1601,11 +1604,6 @@ mod tests {
                         .as_ref()
                         .and_then(OriginalCommandLookup::receiver_namespace_commands),
                     local.then_some(&["my", "myclass"][..]),
-                    "{version}: {source}"
-                );
-                assert_eq!(
-                    binding.original_receiver_namespace_commands().is_some(),
-                    expected.is_some(),
                     "{version}: {source}"
                 );
             }

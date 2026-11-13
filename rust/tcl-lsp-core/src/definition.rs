@@ -4087,12 +4087,21 @@ pub(crate) fn resolve_called_proc<'a>(
             .or_else(|| reference.definition())
             .and_then(|definition| analysis.proc_for_definition(definition, source));
     }
-    if let Some(invocation) = invocation_head_at(analysis, call_off)
-        && let Some(definition) = &invocation.resolved_definition
-    {
-        // A retained actual implementation outranks all document-final name
-        // assistance, including definitions installed later in a reached body.
-        return analysis.proc_for_definition(definition, source);
+    if let Some(invocation) = invocation_head_at(analysis, call_off) {
+        if let Some(definition) = &invocation.resolved_definition {
+            // A retained actual implementation outranks all document-final name
+            // assistance, including definitions installed later in a reached body.
+            return analysis.proc_for_definition(definition, source);
+        }
+        // A member-body head is looked up first in its receiver's unnamed
+        // namespace; the namespace-text tables below cannot see that lookup.
+        if invocation
+            .original_lookup
+            .as_ref()
+            .is_some_and(|lookup| lookup.receiver_namespace_commands().is_some())
+        {
+            return None;
+        }
     }
     let has_builtin = ctx.registry.is_some_and(|r| r.get(word).is_some());
     // A `namespace import -force` *replaces* a same-named command the
@@ -8126,8 +8135,8 @@ p\uD800";
     fn method_body_definition_lines(src: &str, word: &str, nth: usize) -> Vec<Vec<u32>> {
         let offset = src.match_indices(word).nth(nth).unwrap().0;
         let line = u32::try_from(src[..offset].matches('\n').count()).unwrap();
-        let column = u32::try_from(offset - src[..offset].rfind('\n').map_or(0, |at| at + 1))
-            .unwrap();
+        let column =
+            u32::try_from(offset - src[..offset].rfind('\n').map_or(0, |at| at + 1)).unwrap();
         ["tcl8.6", "tcl9.0", "tcl9.1"]
             .into_iter()
             .map(|version| {
@@ -8148,24 +8157,51 @@ p\uD800";
     #[test]
     fn definition_in_a_method_body_follows_the_object_namespace_lookup() {
         let ns = "proc helper {} {return global}\nnamespace eval ::app {\n    proc helper {} {return app}\n    oo::class create C {\n        method use {} { helper }\n    }\n}\n";
-        assert_eq!(method_body_definition_lines(ns, "helper", 2), [[0], [0], [0]]);
+        assert_eq!(
+            method_body_definition_lines(ns, "helper", 2),
+            [[0], [0], [0]]
+        );
         let helpers = "proc helper {} {return global}\noo::class create C {\n    method use {} { helper }\n}\nproc ::oo::Helpers::helper {} {return helpers}\n";
         assert_eq!(
             method_body_definition_lines(helpers, "helper", 1),
             [[4], [4], [4]]
         );
+        // `self` only reads the call context and `my` dispatches to a method
+        // whose own body is inspected, so neither leaves the lookup unproved.
+        let introspecting = "proc helper {} {return global}\noo::class create C {\n    method other {} {}\n    method use {} { my other; set me [self]; helper }\n}\n";
+        assert_eq!(
+            method_body_definition_lines(introspecting, "helper", 1),
+            [[0], [0], [0]]
+        );
     }
 
     /// `my` lives in the object namespace (tclsh 8.6, 9.0, 9.1: `namespace
     /// which my` is `::oo::Obj12::my`; `d_my.tcl` prints `method-q` despite a
-    /// global `proc my`), so it never names the global procedure. A method
+    /// global `proc my`), so it never names the global procedure; nor does
+    /// `self`, which `::oo::Helpers` holds (`self_shadow.tcl`: `1`). A method
     /// that defines `helper` relative to the object namespace shadows the
     /// global one for later calls (`relproc_shadow.tcl`: `global local`), so a
     /// document with such a body leaves member-body heads unresolved.
     #[test]
     fn definition_in_a_method_body_demurs_on_object_namespace_commands() {
         let my = "proc my {args} {return global-my}\noo::class create C {\n    method m {} {return [my q]}\n    method q {} {return method-q}\n}\n";
-        assert_eq!(method_body_definition_lines(my, "my", 1), [[], [], []] as [[u32; 0]; 3]);
+        assert_eq!(
+            method_body_definition_lines(my, "my", 1),
+            [[], [], []] as [[u32; 0]; 3]
+        );
+        let own_self = "proc self {args} {return global-self}\noo::class create C {\n    method use {} { self }\n}\n";
+        assert_eq!(
+            method_body_definition_lines(own_self, "self", 1),
+            [[], [], []] as [[u32; 0]; 3]
+        );
+        // tclsh 9.0, 9.1 (`link_shadow.tcl`: `global method`): `link` makes a
+        // method callable as a command in the object namespace, so the call
+        // never names the global procedure; the linked method answers.
+        let linked = "proc helper {} {return global}\noo::class create C {\n    method helper {} {return method}\n    method mk {} { link helper }\n    method use {} { helper }\n}\n";
+        assert_eq!(
+            method_body_definition_lines(linked, "helper", 3)[1..],
+            [[2], [2]]
+        );
         let relproc = "proc helper {} {return global}\noo::class create C {\n    method mk {} { proc helper {} {return local} }\n    method use {} { helper }\n}\n";
         assert_eq!(
             method_body_definition_lines(relproc, "helper", 2),

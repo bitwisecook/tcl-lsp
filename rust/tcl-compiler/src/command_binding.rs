@@ -1463,6 +1463,17 @@ impl SourceCompilerNameClosure {
     }
 }
 
+/// What a runtime receiver's private namespace may hold beyond the commands
+/// Tcl creates there.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub(crate) enum ReceiverNamespaceContents {
+    /// Only the commands Tcl creates in a fresh object namespace.
+    #[default]
+    Created,
+    /// A member body may also have published commands there.
+    Unproven,
+}
+
 /// A resolved source invocation without discarding absence or an unknown
 /// residual. Catalogue identity alone does not establish loader provenance.
 #[derive(Clone, PartialEq, Eq)]
@@ -1516,6 +1527,9 @@ pub struct SourceInvocationBinding {
     original_argument_syntax: Option<Arc<source_argument_syntax::OriginalSourceArgumentSyntax>>,
     conditional_expression_evaluations:
         Option<Arc<[expression_preparation::SourceConditionalExpressionEvaluation]>>,
+    /// Whether a member body of the document may have published commands
+    /// into a runtime receiver's private namespace, ahead of every lookup.
+    receiver_namespace: ReceiverNamespaceContents,
     #[doc(hidden)]
     pub lookup_namespace: String,
     pub(crate) lookup_namespace_key: SourceNamespaceKey,
@@ -1860,6 +1874,7 @@ impl Default for SourceInvocationBinding {
             original_compiler_words: None,
             original_written_words: None,
             conditional_expression_evaluations: None,
+            receiver_namespace: ReceiverNamespaceContents::Created,
             lookup_namespace: String::new(),
             lookup_namespace_key: SourceNamespaceKey::default(),
             lookup_word: None,
@@ -1924,6 +1939,7 @@ impl Hash for SourceInvocationBinding {
         self.original_compiler_words.hash(state);
         self.original_written_words.hash(state);
         self.conditional_expression_evaluations.hash(state);
+        self.receiver_namespace.hash(state);
         self.lookup_namespace.hash(state);
         self.lookup_namespace_key.hash(state);
         self.lookup_word.hash(state);
@@ -2659,6 +2675,9 @@ impl SourceInvocationBinding {
         }
         if self.conditional_expression_evaluations != other.conditional_expression_evaluations {
             self.conditional_expression_evaluations = None;
+        }
+        if other.receiver_namespace == ReceiverNamespaceContents::Unproven {
+            self.receiver_namespace = ReceiverNamespaceContents::Unproven;
         }
         if self.frozen_written_words != other.frozen_written_words {
             self.frozen_written_words = None;
@@ -4294,8 +4313,7 @@ impl PartialEq for SourceCommandBindings {
             && self.recursive_assumptions == other.recursive_assumptions
             && self.recursive_assumption_refused == other.recursive_assumption_refused
             && self.world_preserving_bodies == other.world_preserving_bodies
-            && self.receiver_body_changes_command_world
-                == other.receiver_body_changes_command_world
+            && self.receiver_body_changes_command_world == other.receiver_body_changes_command_world
             && self.active_variable_observers == other.active_variable_observers
             && self.called_implementations == other.called_implementations
             && self.phases == other.phases
@@ -4424,6 +4442,18 @@ fn seed_deferred_inputs(
 
 /// Clone a binding branch outside recursive frames, retaining it on the heap.
 #[inline(never)]
+/// The registry entry a literal head names.
+fn registry_head(
+    registry: &CommandRegistry,
+    effective: &[crate::registry_invocation::EffectiveInvocationWord],
+) -> Option<&'static tcl_registry::CommandSpec> {
+    let crate::registry_invocation::EffectiveInvocationWord::Literal(head) = effective.first()?
+    else {
+        return None;
+    };
+    registry.get(head)
+}
+
 fn boxed_source_branch(state: &ModuleCommandBindings) -> Box<ModuleCommandBindings> {
     #[cfg(any(test, debug_assertions))]
     let _timing = root_owner_work::Timing::at(root_owner_work::Query::Branch);
@@ -7531,6 +7561,21 @@ impl SourceOutcomes {
         });
     }
 
+    /// Whether an outcome of a member-body walk may hold a command its own
+    /// frame published: a changed binding or object, or an unbounded effect
+    /// reached in that frame.
+    fn may_publish_in_receiver_frame(&self, entry: &ModuleCommandBindings) -> bool {
+        self.normal
+            .iter()
+            .map(AsRef::as_ref)
+            .chain(self.abrupt.iter().map(|(_, state)| state.as_ref()))
+            .any(|state| {
+                state.receiver_frame_opacity
+                    || state.bindings != entry.bindings
+                    || state.objects != entry.objects
+            })
+    }
+
     /// Whether every outcome leaves the command world exactly as `entry`
     /// held it: bindings, objects, namespaces, packages and class state.
     fn preserves_command_world(&self, entry: &ModuleCommandBindings) -> bool {
@@ -8437,6 +8482,7 @@ impl SourceCommandBindings {
         }
         let mut branch = boxed_source_branch(incoming);
         branch.current_source_origin.clone_from(&root.source_origin);
+        branch.receiver_frame_opacity = false;
         let parent = Arc::clone(&branch.source_variables);
         let frame = deferred_source_frame(root, &mut branch, &parent);
         seed_deferred_inputs(&mut branch, root, &frame, registry);
@@ -8500,7 +8546,8 @@ impl SourceCommandBindings {
         }
         self.record_conditional_procedure_result(root, &outcomes, branch.baseline.dialect);
         let preserves = outcomes.preserves_command_world(incoming);
-        self.receiver_body_changes_command_world |= root.receiver_namespace.is_some() && !preserves;
+        self.receiver_body_changes_command_world |=
+            root.receiver_namespace.is_some() && outcomes.may_publish_in_receiver_frame(incoming);
         self.world_preserving_bodies
             .entry(root.identity.clone())
             .and_modify(|(held, _)| *held &= preserves)
@@ -8524,7 +8571,7 @@ impl SourceCommandBindings {
     /// Whether a declaration-time walk of a runtime receiver's member body may
     /// have published a command into that receiver's private namespace.
     #[must_use]
-    pub(crate) const fn receiver_body_changes_command_world(&self) -> bool {
+    const fn receiver_body_changes_command_world(&self) -> bool {
         self.receiver_body_changes_command_world
     }
 
@@ -11294,8 +11341,26 @@ impl SourceCommandBindings {
                 if frame != tcl_registry::model::DeclaredFrameEffect::Stated(None) {
                     Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
                 }
+            } else if let Some(traits) = incoming.receiver_context_head(
+                context.registry,
+                effective,
+                self.declaration_preview_depth != 0,
+            ) {
+                // A TclOO helper this walk's namespace cannot reach. It reads
+                // the call context or dispatches to the receiver's own methods,
+                // whose bodies are walked in their own right.
+                if !traits.contains(tcl_registry::Traits::PURE) {
+                    Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
+                }
             } else {
+                // The default `unknown` handler loads at global level, never
+                // into a receiver's private namespace; a command the registry
+                // knows is reached instead, with its own effects.
+                let receiver_opacity = residual.receiver_frame_opacity;
                 residual.mark_opaque_binding_mutation();
+                if registry_head(context.registry, effective).is_none() {
+                    residual.receiver_frame_opacity = receiver_opacity;
+                }
                 residual.loader_handler_unknown = true;
             }
             outcomes.join(&SourceOutcomes::invocation(
@@ -15168,6 +15233,7 @@ fn source_binding_projection_in(
         original_compiler_words: None,
         original_written_words: None,
         conditional_expression_evaluations: None,
+        receiver_namespace: ReceiverNamespaceContents::Created,
         lookup_namespace: namespace_display.clone(),
         lookup_namespace_key: namespace_key.into_owned(),
         lookup_word: Some(head.to_owned()),
@@ -15446,6 +15512,10 @@ pub struct ModuleCommandBindings {
     /// The normal path then holds no exact completed command world, even when
     /// every abrupt alternative is an error.
     unclosed_command_world: bool,
+    /// An unbounded command-world effect was reached in a runtime receiver's
+    /// member-body frame, where relative publications land in the receiver's
+    /// private namespace.
+    receiver_frame_opacity: bool,
     /// Namespace resolution transitions selected after alias-prefix and
     /// command-binding resolution. This is historical rather than final-state
     /// data: restoring a path/import later cannot make an earlier fold sound.
@@ -15521,6 +15591,7 @@ impl PartialEq for ModuleCommandBindings {
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.unclosed_command_world == other.unclosed_command_world
+            && self.receiver_frame_opacity == other.receiver_frame_opacity
             && self.namespace_resolution == other.namespace_resolution
             && self.procedure_bodies == other.procedure_bodies
             && self.rebound_names == other.rebound_names
@@ -16520,6 +16591,7 @@ impl ModuleCommandBindings {
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.unclosed_command_world == other.unclosed_command_world
+            && self.receiver_frame_opacity == other.receiver_frame_opacity
             && self.namespace_resolution == other.namespace_resolution
             && (Arc::ptr_eq(&self.procedure_bodies, &other.procedure_bodies)
                 || self.procedure_bodies == other.procedure_bodies)
@@ -16860,6 +16932,16 @@ impl ModuleCommandBindings {
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.withdraw_ensemble_dispatches();
         self.opaque_domain = true;
+        self.mark_receiver_frame_opacity();
+    }
+
+    fn mark_receiver_frame_opacity(&mut self) {
+        if matches!(
+            self.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+        ) {
+            self.receiver_frame_opacity = true;
+        }
     }
 
     /// Widen both command resolution and the optimiser's command-trust
@@ -16890,6 +16972,32 @@ impl ModuleCommandBindings {
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.unclosed_command_world == other.unclosed_command_world
+    }
+
+    /// Traits of a literal head that a runtime receiver's member body reaches
+    /// in its private namespace or `::oo::Helpers` (`self`, `my`, `next`), when
+    /// the call publishes no command itself. Pure introspection qualifies
+    /// anywhere; a dispatch to the receiver's methods only in a declaration
+    /// preview, whose effects stay in the preview.
+    fn receiver_context_head(
+        &self,
+        registry: &CommandRegistry,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        preview: bool,
+    ) -> Option<tcl_registry::Traits> {
+        use tcl_registry::Traits;
+        let spec = registry_head(registry, effective)?;
+        if !matches!(
+            self.variable_frame,
+            crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+        ) {
+            return None;
+        }
+        let traits = spec.traits;
+        (traits.contains(Traits::TCLOO_METHOD_CONTEXT)
+            && !traits.contains(Traits::TCLOO_BINDS_METHOD_ALIAS)
+            && (preview || traits.contains(Traits::PURE)))
+        .then_some(traits)
     }
 
     /// The frame effect a declared command states when an authored call
@@ -16934,6 +17042,7 @@ impl ModuleCommandBindings {
         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
         self.opaque_domain = true;
         self.opaque_binding_mutation = true;
+        self.mark_receiver_frame_opacity();
         Arc::make_mut(&mut self.namespaces).retain(SourceNamespaceKey::is_root);
         Arc::make_mut(&mut self.source_variables).widen();
     }
@@ -19019,6 +19128,10 @@ impl ModuleCommandBindings {
         }
         if other.opaque_binding_mutation && !self.opaque_binding_mutation {
             self.opaque_binding_mutation = true;
+            changed = true;
+        }
+        if other.receiver_frame_opacity && !self.receiver_frame_opacity {
+            self.receiver_frame_opacity = true;
             changed = true;
         }
         if other.dynamic_proc_binding && !self.dynamic_proc_binding {

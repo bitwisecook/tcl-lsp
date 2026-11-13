@@ -82,6 +82,7 @@ impl SourceInvocationBinding {
             original_written_words,
             original_argument_syntax,
             conditional_expression_evaluations,
+            receiver_namespace,
             lookup_namespace,
             lookup_namespace_key,
             lookup_word,

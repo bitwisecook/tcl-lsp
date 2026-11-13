@@ -305,7 +305,8 @@ impl SourceInvocationBinding {
             return None;
         }
         if self.original_receiver_namespace_commands().is_some() {
-            let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = &input else {
+            let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = &input
+            else {
                 return None;
             };
             return state.original_reference_for_lookup(
@@ -403,7 +404,10 @@ impl ModuleCommandBindings {
                 }
             }
             let reached = reached?;
-            if selected.as_ref().is_some_and(|previous| previous != &reached) {
+            if selected
+                .as_ref()
+                .is_some_and(|previous| previous != &reached)
+            {
                 return None;
             }
             selected = Some(reached);

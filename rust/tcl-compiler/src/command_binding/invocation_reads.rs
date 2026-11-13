@@ -196,6 +196,9 @@ impl SourceCommandBindings {
                 .map(|observations| Arc::from(observations.as_slice()))
         });
         binding = self.attach_original_variable_operands(binding, origin, offset);
+        if self.receiver_body_changes_command_world() {
+            binding.receiver_namespace = super::ReceiverNamespaceContents::Unproven;
+        }
         self.attach_compiler_invocation(binding, origin, offset)
     }
 
