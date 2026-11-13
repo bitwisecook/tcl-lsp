@@ -747,7 +747,7 @@ fn ensemble_subcommand_words_resolve_like_tclsh() {
     const CLOCK_MUST: &str = "must be add, clicks, format, microseconds, milliseconds, \
                               scan, or seconds";
     const FORMATS: &str = "must be base64, hex, or uuencode";
-    const ENC_MUST: &str = "must be convertfrom, convertto, dirs, names, or system";
+    const ENC_MUST: &str = "must be convertfrom, convertto, dirs, names, profiles, system, or user";
     let msg = |src: &str| {
         let (ok, result, _) = run(src);
         assert!(!ok, "expected an error for {src}, got ok");
@@ -772,8 +772,7 @@ fn ensemble_subcommand_words_resolve_like_tclsh() {
         msg("binary decode b YQ=="),
         format!("unknown subcommand \"b\": {FORMATS}")
     );
-    // `encoding`: this engine advertises only what it implements (9.0 also has
-    // `profiles` and `user`), but the verdicts are tclsh's.
+    // `encoding`: 9.0 adds `profiles` and `user` to the table.
     // The default system encoding is locale-dependent; pin it so the prefix
     // lookup is what is measured.
     assert_eq!(run("encoding system utf-8; encoding s").1, "utf-8");
@@ -879,9 +878,7 @@ fn package_option_words_resolve_like_tcl_get_index_from_obj() {
 /// and `NRChildCmd`, `tclInterp.c`), so subcommands abbreviate and the empty
 /// word — a prefix of every entry — is `ambiguous option ""`.
 ///
-/// Both lists name only what this engine dispatches (`aliases`, `cancel`, and
-/// `target` need infrastructure the VM has none of), so the enumeration is
-/// shorter than tclsh's. tclsh 9.0.4, for contrast:
+/// Both lists are tclsh 9.0.4's:
 ///   interp x  -> bad option "x": must be alias, aliases, bgerror, cancel,
 ///                children, create, debug, delete, eval, exists, expose, hide,
 ///                hidden, issafe, invokehidden, limit, marktrusted,
@@ -897,11 +894,12 @@ fn package_option_words_resolve_like_tcl_get_index_from_obj() {
 ///   i ev {set x 1}     -> 1    ;  i h / i hi -> ambiguous option "h" / "hi"
 #[test]
 fn interp_subcommand_words_resolve_like_tcl_get_index_from_obj() {
-    const MUST: &str = "must be alias, bgerror, children, create, debug, delete, eval, \
-                        exists, expose, hide, hidden, issafe, invokehidden, limit, \
-                        marktrusted, recursionlimit, share, or transfer";
-    const CHILD_MUST: &str = "must be debug, eval, expose, hide, hidden, issafe, \
-                              invokehidden, limit, marktrusted, or recursionlimit";
+    const MUST: &str = "must be alias, aliases, bgerror, cancel, children, create, debug, \
+                        delete, eval, exists, expose, hide, hidden, issafe, invokehidden, \
+                        limit, marktrusted, recursionlimit, share, target, or transfer";
+    const CHILD_MUST: &str = "must be alias, aliases, bgerror, debug, eval, expose, hide, \
+                              hidden, issafe, invokehidden, limit, marktrusted, or \
+                              recursionlimit";
     let msg = |src: &str| {
         let (ok, result, _) = run(src);
         assert!(!ok, "expected an error for {src}, got ok");
@@ -1596,7 +1594,7 @@ fn namespace_array_variables() {
 #[test]
 fn namespace_code_inscope() {
     out_eq(
-        "namespace eval foo { variable v 7 }\nputs [namespace inscope ::foo { return $v }]\n",
+        "namespace eval foo { variable v 7 }\nputs [namespace inscope ::foo { set v }]\n",
         "7\n",
     );
     out_eq(

@@ -20,6 +20,30 @@
 
 use tcl_codegen::compile_service::BytecodeCompileService;
 
+/// Jimsh declares its bundled Tcl library before it evaluates a script, and
+/// the recorded Jim vectors ran there (`dict update` is one of its procs).
+fn declare_jim_library(vm: &mut tcl_vm::Vm, profile: &'static tcl_dialect::DialectProfile) {
+    let dialect = tcl_registry::InvocationDialect::of_profile(profile);
+    let mut declared = std::collections::HashSet::new();
+    for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
+        for procedure in tcl_registry::native_scripted_distribution::procedures(dialect, library) {
+            if !declared.insert(procedure.command) {
+                continue;
+            }
+            let declaration = tcl_syntax::list::join_list([
+                "proc",
+                procedure.command,
+                procedure.parameters,
+                procedure.body,
+            ]);
+            let completion = vm
+                .try_eval_source(&declaration)
+                .expect("Jim library declaration");
+            assert!(completion.code.is_ok(), "{}", procedure.command);
+        }
+    }
+}
+
 #[test]
 fn selected_container_models_match_native_root_and_alias_vectors() {
     let mut failures = Vec::new();
@@ -40,6 +64,9 @@ fn selected_container_models_match_native_root_and_alias_vectors() {
             let mut vm =
                 tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
+            if dialect == "jim" {
+                declare_jim_library(&mut vm, profile);
+            }
             checked += 1;
             match vm.try_eval_source(source) {
                 Ok(result) if result.code.is_ok() && result.result.to_str().as_ref() == expected => {}

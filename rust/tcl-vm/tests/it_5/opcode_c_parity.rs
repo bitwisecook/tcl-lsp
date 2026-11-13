@@ -416,11 +416,11 @@ fn record_lappend_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "w" => "write",
         op => op,
     };
-    let seen = vm.get_var("seen").unwrap().to_str();
-    vm.set_var("seen", Value::string(format!("{seen}{op} ")))
+    let seen = vm.get_var("::seen").unwrap().to_str();
+    vm.set_var("::seen", Value::string(format!("{seen}{op} ")))
         .unwrap();
     if op == "read" {
-        let action = vm.get_var("action").unwrap().to_str();
+        let action = vm.get_var("::action").unwrap().to_str();
         let name = if args[1].to_str().is_empty() {
             "x"
         } else {
@@ -712,9 +712,21 @@ fn array_make_over_scalar_errors() {
     let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "can't array set \"s\": variable isn't array");
 
-    // An array *element* name is equally rejected.
+    // An array *element* name is looked up without creating the element
+    // (`createPart2` 0), so a missing one fails the lookup and an existing
+    // one is rejected as not an array.
     let mut a = Asm::new();
     a.push("arr(k)").op(Op::ARRAY_MAKE_STK, &[]);
+    let (_vm, c) = run_fresh(a);
+    assert_eq!(
+        err_str(&c),
+        "can't set \"arr(k)\": no such element in array"
+    );
+    let mut a = Asm::new();
+    a.push("arr(k)").push("v").op(Op::STORE_STK, &[]);
+    a.op(Op::POP, &[])
+        .push("arr(k)")
+        .op(Op::ARRAY_MAKE_STK, &[]);
     let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
@@ -1004,7 +1016,7 @@ fn const_imm_defines_and_redefines_silently() {
 }
 
 /// `constStk` takes the name from the stack, and both forms reject a name that
-/// already holds a normal variable / an array / an array element with C's
+/// already holds a normal variable or an array with C's
 /// `can't make constant "n": …` messages.
 #[test]
 fn const_stk_defines_and_reports_conflicts() {
@@ -1035,13 +1047,14 @@ fn const_stk_defines_and_reports_conflicts() {
         "can't make constant \"arr\": variable is array"
     );
 
-    // An array element name.
+    // An array element name fails the element lookup first, as
+    // `proc q {} {set n arr(k); const $n 2}` does in tclsh 9.0.4.
     let mut a = Asm::new();
     a.push("arr(k)").push("2").op(Op::CONST_STK, &[]);
     let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
-        "can't make constant \"arr(k)\": name refers to an element in an array"
+        "can't const \"arr(k)\": no such element in array"
     );
 }
 
@@ -1368,8 +1381,9 @@ fn irule_word_logic_short_circuits_its_coercion() {
     assert_eq!(err_str(&c), "expected boolean value but got \"zzz\"");
 }
 
-/// `not` is the word spelling of `!`: it shares the boolean coercion and reports
-/// its own spelling in the operand error.
+/// `not` is the word spelling of `!`: it shares the boolean coercion and, as
+/// BIG-IP does (`evidence/tcl/bigip-r2286m-expressions.md`), reports `!` in the
+/// operand error.
 #[test]
 fn irule_word_not_negates_truthiness() {
     for (v, want) in [
@@ -1389,7 +1403,7 @@ fn irule_word_not_negates_truthiness() {
     let (_vm, c) = run_fresh(a);
     assert_eq!(
         err_str(&c),
-        "cannot use non-numeric string \"zzz\" as operand of \"not\""
+        "cannot use non-numeric string \"zzz\" as operand of \"!\""
     );
 }
 
@@ -2222,15 +2236,16 @@ fn return_imm_positive_level_raises_tcl_return() {
             "returnImm {code} {level} must be TCL_RETURN"
         );
         assert_eq!(&*c.result.to_str(), "v");
-        // The carried `-code`/`-level` are what the boundary counts down.
-        let opts = c.options.as_list().expect("options are a dict");
-        let get = |key: &str| {
-            opts.windows(2)
-                .find(|p| &*p[0].to_str() == key)
-                .map(|p| p[1].to_str().to_string())
-        };
-        assert_eq!(get("-code"), Some(code.to_string()), "carried -code");
-        assert_eq!(get("-level"), Some(level.to_string()), "carried -level");
+        // The carried `-code`/`-level` are what the boundary counts down; they
+        // travel as the merge's out parameters, not as dictionary keys.
+        assert_eq!(
+            c.option_origin,
+            tcl_core_types::CompletionOptionOrigin::MergedReturnOptions {
+                code,
+                level: i64::from(level),
+            },
+            "carried -code and -level"
+        );
     }
 }
 
@@ -2289,12 +2304,11 @@ fn return_imm_merges_literal_options_dict() {
     let (_vm, c) = run_fresh(a);
     assert_eq!(err_str(&c), "v");
     assert_eq!(err_code(&c), "MY CODE", "dict keys survive");
-    let opts = c.options.as_list().expect("options are a dict");
-    let level = opts
-        .windows(2)
-        .find(|p| &*p[0].to_str() == "-level")
-        .map(|p| p[1].to_str().to_string());
-    assert_eq!(level, Some("0".into()), "the operand overrides the dict");
+    assert_eq!(
+        c.option_origin,
+        tcl_core_types::CompletionOptionOrigin::MergedReturnOptions { code: 1, level: 0 },
+        "the operands override the dict"
+    );
 }
 
 /// The end-to-end countdown: `return -level 2 -code error` is seen as `TCL_RETURN`
