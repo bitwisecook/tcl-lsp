@@ -27,6 +27,7 @@ use tcl_cmd_core::CmdError;
 struct AppendReceiver {
     capture: Rc<OriginalCVariableCapture>,
     expected: Cell<Result<Option<*mut TclObj>, crate::frame::VarError>>,
+    published: Cell<bool>,
     _original: Option<obj::NativeObjectLifetime>,
 }
 impl AppendReceiver {
@@ -39,7 +40,12 @@ impl AppendReceiver {
                 .map(obj::NativeObjectLifetime::retain),
             capture: Rc::new(capture),
             expected: Cell::new(original),
+            published: Cell::new(false),
         }
+    }
+    fn select(&self, value: Result<Option<*mut TclObj>, crate::frame::VarError>) {
+        self.expected.set(value);
+        self.published.set(true);
     }
     fn check(&self, actual: &Interp, original: &BodyObjectOperation) -> Result<(), CmdError> {
         original.check(actual)?;
@@ -47,7 +53,12 @@ impl AppendReceiver {
             .receiver
             .check_current()
             .map_err(|_| original.refuse(unavailable("original compiled append receiver")))?;
-        let current = self.capture.receiver.read_initial();
+        // A published value is selected without the array default.
+        let current = if self.published.get() {
+            self.capture.receiver.read()
+        } else {
+            self.capture.receiver.read_initial()
+        };
         if current == Err(crate::frame::VarError::NameProtocolUnavailable) {
             return Err(original.refuse(unavailable("original compiled append scalar role")));
         }
@@ -293,7 +304,7 @@ impl Interp {
                 }
                 Ok(())
             }),
-            select: Rc::new(move |value| select.expected.set(value)),
+            select: Rc::new(move |value| select.select(value)),
             refuse: Rc::new(move |error| refuse.refuse(error)),
         };
         let reached = self.append_native_captured_using(&selected.capture, sources, append, owner);
@@ -403,7 +414,7 @@ impl Interp {
                 .map_err(|first| self.report_cmd_error(first))?;
             let capture = &selected.capture;
             let root = capture.root.as_slice();
-            selected.expected.set(Ok(Some(value.as_ptr())));
+            selected.select(Ok(Some(value.as_ptr())));
             if let Err(error) = capture.receiver.store(value.as_ptr()) {
                 original
                     .check(self)
@@ -504,7 +515,7 @@ impl Interp {
                 .check(self, original)
                 .map_err(|first| self.report_cmd_error(first))?;
             // Single-element TclPtrSetVar installs its selected header before conversion.
-            selected.expected.set(Ok(Some(value.as_ptr())));
+            selected.select(Ok(Some(value.as_ptr())));
             if let Err(error) = selected.capture.receiver.store(value.as_ptr()) {
                 original
                     .check(self)

@@ -137,6 +137,7 @@ impl OriginalAppendCommand {
 struct OriginalAppendReceiver {
     receiver: VariableReceiver,
     expected: std::cell::Cell<Result<Option<*mut TclObj>, crate::frame::VarError>>,
+    published: std::cell::Cell<bool>,
     _allocation: Option<crate::obj::NativeObjectLifetime>,
 }
 impl OriginalAppendReceiver {
@@ -149,7 +150,12 @@ impl OriginalAppendReceiver {
                 .map(crate::obj::NativeObjectLifetime::retain),
             receiver,
             expected: std::cell::Cell::new(expected),
+            published: std::cell::Cell::new(false),
         })
+    }
+    fn select(&self, value: Result<Option<*mut TclObj>, crate::frame::VarError>) {
+        self.expected.set(value);
+        self.published.set(true);
     }
     fn entered(&self, original: &OriginalAppendCommand) -> Result<(), tcl_cmd_core::CmdError> {
         original.check()?;
@@ -169,7 +175,12 @@ impl OriginalAppendReceiver {
     }
     fn check(&self, original: &OriginalAppendCommand) -> Result<(), tcl_cmd_core::CmdError> {
         self.entered(original)?;
-        let actual = self.receiver.read_initial();
+        // A published value is selected without the array default.
+        let actual = if self.published.get() {
+            self.receiver.read()
+        } else {
+            self.receiver.read_initial()
+        };
         if actual != self.expected.get() {
             return Err(original.refuse(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -677,7 +688,7 @@ impl Interp {
             let owner = OriginalAppendVariable {
                 current: current.clone(),
                 entered: std::rc::Rc::new(move || entered_selected.entered(&entered_original)),
-                select: std::rc::Rc::new(move |value| select.expected.set(value)),
+                select: std::rc::Rc::new(move |value| select.select(value)),
                 refuse: std::rc::Rc::new(move |error| refuse_original.refuse(error)),
             };
             let code = self.append_retained_operands_using(
