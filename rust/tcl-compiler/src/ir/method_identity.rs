@@ -45,7 +45,7 @@ impl MethodDef {
     /// Presentation only; this label may collide with another declaration.
     #[must_use]
     pub fn reporting_label(&self) -> String {
-        format!("{}::{}", self.class_name, self.method_name)
+        tcl_syntax::naming::rooted_member_key(&self.class_name, &self.method_name)
     }
 }
 

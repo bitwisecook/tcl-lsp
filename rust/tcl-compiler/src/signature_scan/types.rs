@@ -386,7 +386,8 @@ impl SignatureCommandAliasTarget {
     pub fn in_interpreter(domain: &str, written: &str) -> Self {
         let global = crate::naming::qualify("::", written);
         let tail = tcl_syntax::naming::unroot_rooted_key(&global).unwrap_or(&global);
-        Self::Constructed(format!("{domain}::{tail}"))
+        let domain = if domain.is_empty() { "::" } else { domain };
+        Self::Constructed(crate::naming::rooted_member_key(domain, tail))
     }
 
     /// Rehome a retained key when incorporating an interpreter-domain result.

@@ -82,7 +82,7 @@ pub(crate) fn assess_grouped_store_rewrite(
         if resolved.unknown
             || resolved.may_be_absent
             || !binding.registry_backed
-            || binding.command != format!("::{command}")
+            || binding.command != crate::naming::rooted_member_key("::", command)
             || !binding.prepended.is_empty()
         {
             return None;

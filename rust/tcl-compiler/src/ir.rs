@@ -3530,13 +3530,7 @@ impl Module {
     #[must_use]
     pub fn advisory_top_level_namespace(&self) -> Option<String> {
         if let Some(path) = &self.native_namespace {
-            let segments = tcl_syntax::naming::checked_namespace_path_utf8(path).ok()?;
-            let key = if segments.is_empty() {
-                String::from("::")
-            } else {
-                format!("::{}", segments.join("::"))
-            };
-            return (tcl_syntax::naming::key_segments(&key) == segments).then_some(key);
+            return tcl_syntax::naming::checked_namespace_path_key(path);
         }
         Some(if self.top_level_namespace.is_empty() {
             String::from("::")

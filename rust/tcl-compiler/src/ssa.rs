@@ -9292,7 +9292,9 @@ fn project_ssa_source_names(walk: &mut RenameWalk<'_>, func: &cfg::Function) {
         let authored = matches!(key, VariableCellKey::Authored(_));
         let display = &mut walk.interner.names[symbol.0 as usize];
         if !authored
-            || (func.name == "::top" && !source.contains("::") && *display == format!("::{source}"))
+            || (func.name == "::top"
+                && !source.contains("::")
+                && *display == crate::naming::rooted_member_key("::", source))
         {
             display.clone_from(source);
         }

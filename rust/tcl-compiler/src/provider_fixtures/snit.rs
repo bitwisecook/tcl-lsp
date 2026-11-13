@@ -217,7 +217,7 @@ pub(super) fn attest(loader: &mut TrustedPackageLoader) {
     .map(|name| TrustedCommandLookup {
         head: name.to_owned(),
         namespace: "::snit".to_owned(),
-        registry_identity: format!("::{name}"),
+        registry_identity: tcl_syntax::naming::rooted_member_key("::", name),
         required: true,
     })
     .collect();

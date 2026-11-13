@@ -1454,7 +1454,7 @@ impl Analyser {
         crate::naming::bareword_resolution_candidates(&ns, cmd_name)
             .into_iter()
             .next()
-            .unwrap_or_else(|| format!("::{cmd_name}"))
+            .unwrap_or_else(|| crate::naming::qualify("::", cmd_name))
     }
 
     /// Post-walk pass: settle each invocation's `resolved_qualified_name`
@@ -1916,7 +1916,7 @@ impl Analyser {
             // (empty when none was declared), so a call the path would
             // catch settles to the path candidate, exactly as it
             // dispatches at run time.
-            let suffix = format!("::{}", inv.name);
+            let suffix = format!("::{}", crate::naming::canonical_written_command(&inv.name));
             let ns: String = match resolved.strip_suffix(suffix.as_str()) {
                 Some("") => "::".to_owned(),
                 Some(prefix) => prefix.to_owned(),

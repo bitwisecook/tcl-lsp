@@ -650,7 +650,9 @@ pub(super) fn authored_publication_key(
         tcl_core_types::ByteNamespacePath::from_segments(crate::naming::key_segments(namespace));
     let context = NativeNameContext::with_jim_namespace(
         &path,
-        namespace.strip_prefix("::").unwrap_or(namespace).as_bytes(),
+        tcl_syntax::naming::unroot_rooted_key(namespace)
+            .unwrap_or(namespace)
+            .as_bytes(),
     );
     let recipe = policy.recipe();
     let slot = match purpose {

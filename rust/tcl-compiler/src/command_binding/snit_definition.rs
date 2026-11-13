@@ -171,9 +171,9 @@ fn install_snit_dispatcher(
     if dispatcher == DefinitionDispatcher::ItclClass {
         for method in &dispatcher_methods {
             state.install(
-                format!("{name}::{method}"),
+                tcl_syntax::naming::rooted_member_key(name, method),
                 MayBinding::Target(ResolvedCommandTarget {
-                    command: format!("{name}::{method}"),
+                    command: tcl_syntax::naming::rooted_member_key(name, method),
                     prepended: Vec::new(),
                     registry_backed: false,
                     kind: BindingKind::Command,

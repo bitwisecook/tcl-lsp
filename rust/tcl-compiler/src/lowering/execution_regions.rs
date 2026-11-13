@@ -149,7 +149,7 @@ pub fn stock_body_provider_loader(
                 .map(|head| crate::command_binding::TrustedCommandLookup {
                     head: (*head).into(),
                     namespace: (*namespace).into(),
-                    registry_identity: format!("::{head}"),
+                    registry_identity: crate::naming::rooted_member_key("::", head),
                     required: required_heads.contains(head),
                 })
         })

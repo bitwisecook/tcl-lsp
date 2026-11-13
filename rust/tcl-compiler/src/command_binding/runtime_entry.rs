@@ -441,20 +441,8 @@ fn analytical_namespace_context_key(
             namespace.jim_namespace_object.as_ref()?.as_bytes(),
         )
     } else {
-        constructed_namespace_key(&namespace.path)
+        tcl_syntax::naming::checked_namespace_path_key(&namespace.path)
     }
-}
-
-#[cfg(test)]
-fn constructed_namespace_key(path: &tcl_core_types::ByteNamespacePath) -> Option<String> {
-    let components = tcl_syntax::naming::checked_namespace_path_utf8(path).ok()?;
-    let key = if components.is_empty() {
-        String::from("::")
-    } else {
-        format!("::{}", components.join("::"))
-    };
-    // This is an optional compatibility projection, not a native identity.
-    (tcl_syntax::naming::key_segments(&key) == components).then_some(key)
 }
 
 pub(super) fn native_namespace_key(

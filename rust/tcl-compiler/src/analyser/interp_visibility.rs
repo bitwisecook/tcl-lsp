@@ -49,17 +49,21 @@ impl OriginalInterpreterSourceDomain {
         };
         let bytes = tcl_syntax::naming::native_namespace_full_name_bytes(path);
         let suffix = std::str::from_utf8(bytes.get(2..)?).ok()?;
+        let domain = tcl_syntax::naming::root_unrooted_key(&self.label);
         Some(if suffix.is_empty() {
-            format!("::{}", self.label)
+            domain
         } else {
-            format!("::{}::{suffix}", self.label)
+            tcl_syntax::naming::rooted_member_key(&domain, suffix)
         })
     }
 
     pub(super) fn reported_command(&self, slot: &ByteCommandSlot) -> Option<String> {
         let bytes = tcl_syntax::naming::native_command_full_name_bytes(slot);
         let suffix = std::str::from_utf8(bytes.get(2..)?).ok()?;
-        Some(format!("::{}::{suffix}", self.label))
+        Some(tcl_syntax::naming::rooted_member_key(
+            &tcl_syntax::naming::root_unrooted_key(&self.label),
+            suffix,
+        ))
     }
 }
 

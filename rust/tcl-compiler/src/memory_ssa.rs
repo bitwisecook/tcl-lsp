@@ -132,10 +132,16 @@ impl MemoryLocation {
             }
             MemoryLocationKind::Global => format!("global({})", self.name),
             MemoryLocationKind::NamespaceVar => {
-                format!("ns({}::{})", self.qualifier, self.name)
+                format!(
+                    "ns({})",
+                    crate::naming::rooted_member_key(&self.qualifier, &self.name)
+                )
             }
             MemoryLocationKind::InstanceVar => {
-                format!("ivar({}::{})", self.qualifier, self.name)
+                format!(
+                    "ivar({})",
+                    crate::naming::rooted_member_key(&self.qualifier, &self.name)
+                )
             }
             MemoryLocationKind::ArrayElement => {
                 format!("{}({})", self.name, self.qualifier)

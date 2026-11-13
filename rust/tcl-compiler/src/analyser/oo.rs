@@ -1786,7 +1786,7 @@ impl Analyser {
         let init_qn = if class_qualified.is_empty() {
             mb.name.clone()
         } else {
-            format!("{class_qualified}::{}", mb.name)
+            crate::naming::rooted_member_key(class_qualified, &mb.name)
         };
         let Some(init_idx) =
             scope_at_mut(&mut self.result.global_scope, scope_path).map(|parent| {
@@ -1963,7 +1963,7 @@ impl Analyser {
         let method_qn = if class_qualified.is_empty() {
             mb.name.clone()
         } else {
-            format!("{class_qualified}::{}", mb.name)
+            crate::naming::rooted_member_key(class_qualified, &mb.name)
         };
         // Instance-side `TclOO` method of a statically-named class:
         // `[self class]` answers the defining class in this frame, so
