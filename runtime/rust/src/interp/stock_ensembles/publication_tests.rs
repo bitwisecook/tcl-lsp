@@ -25,12 +25,17 @@ use crate::obj::{self};
 use std::cell::{Cell, RefCell};
 
 fn native(profile: &str) -> Interp {
-    Interp::with_native_core(
+    let mut interp = Interp::with_native_core(
         super::super::default_host(),
         crate::environment::profile_for_dialect(profile),
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
-    .unwrap()
+    .unwrap();
+    // Jim's binary is a scripted extension the native core does not load.
+    if profile == "jim" {
+        crate::cmd_binary::install(&mut interp);
+    }
+    interp
 }
 fn noop(_: &mut Interp, _: &[*mut TclObj]) -> Code {
     Code::Ok

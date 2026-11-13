@@ -123,12 +123,16 @@ static LAZY: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 pub(crate) fn instance(engine: &str) -> Interp {
-    Interp::with_native_core(
+    let mut interp = Interp::with_native_core(
         crate::interp::default_host(),
         crate::environment::profile_for_dialect(engine),
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
-    .unwrap()
+    .unwrap();
+    if engine == "jim" {
+        crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+    }
+    interp
 }
 pub(crate) fn lazy(label: char, payload: &[u8]) -> obj::Owned {
     let index = PAYLOADS.with(|values| {

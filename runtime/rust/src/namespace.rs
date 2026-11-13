@@ -795,10 +795,10 @@ impl Namespaces {
                         tcl_runtime_api::NativeJimCommandInventoryKind::Procs => {
                             matches!(&binding.command, Command::Proc(_))
                         }
-                        tcl_runtime_api::NativeJimCommandInventoryKind::Aliases => matches!(
-                            &binding.command,
-                            Command::Alias { .. } | Command::ParentAlias { .. }
-                        ),
+                        // Jim's child alias registers without JIM_CMD_ISALIAS.
+                        tcl_runtime_api::NativeJimCommandInventoryKind::Aliases => {
+                            matches!(&binding.command, Command::Alias { .. })
+                        }
                     }
             })
             .map(|(slot, entry, binding)| {

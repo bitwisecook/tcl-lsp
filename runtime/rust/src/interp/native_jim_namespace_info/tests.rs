@@ -24,12 +24,14 @@ const ORIGINAL: &str = include_str!(
     "../../../tests/data/native_jim_namespace_info_projection/observations-20261015.tsv"
 );
 fn jim() -> Interp {
-    Interp::with_native_core(
+    let mut interp = Interp::with_native_core(
         super::super::default_host(),
         crate::environment::profile_for_dialect("jimtcl"),
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
-    .unwrap()
+    .unwrap();
+    crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+    interp
 }
 fn primary(original: *mut TclObj) -> Vec<u8> {
     let ty = obj::obj_type_ptr(original);

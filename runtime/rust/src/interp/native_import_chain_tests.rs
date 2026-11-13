@@ -161,13 +161,8 @@ fn original_deep_import_queries_match_all_546_c_and_jim_public_rows() {
             )
             .unwrap();
             if engine == "jim" {
-                // The actual CLI's namespace-ensemble helper is explicit;
-                // its own NamespaceInfo dependency remains separately owned.
-                // No complete distribution roster or C ensemble grant follows.
-                crate::cmd_proc::install_stock_scripted_library(
-                    &mut interp,
-                    tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceEnsemble,
-                );
+                // jimsh loads its scripted distribution as static extensions.
+                crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
                 crate::cmd_binary::install(&mut interp);
             }
             assert_eq!(

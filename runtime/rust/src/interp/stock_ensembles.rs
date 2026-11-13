@@ -1422,7 +1422,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn original_import_source_refusal_follows_the_actual_definition_through_rename() {
+    fn original_import_helper_follows_the_actual_definition_through_rename() {
+        // jimsh's nshelper `namespace import` loops over its patterns, so an
+        // empty pattern list returns an empty result.
         for moved in [false, true] {
             let mut interpreter = Interp::with_native_core(
                 crate::interp::default_host(),
@@ -1447,16 +1449,10 @@ mod tests {
                 } else {
                     b"{namespace import}"
                 }),
-                Code::Error
+                Code::Ok
             );
-            assert_eq!(
-                interpreter.native_access_refusal(),
-                Some(
-                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                        "original Jim Import traversal receipts",
-                    ),
-                )
-            );
+            assert_eq!(interpreter.result_bytes(), b"");
+            assert!(interpreter.native_execution_refusal().is_none());
         }
         let mut interpreter = Interp::with_native_core(
             crate::interp::default_host(),

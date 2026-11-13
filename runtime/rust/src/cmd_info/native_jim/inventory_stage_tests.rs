@@ -49,12 +49,14 @@ static PATTERN: obj::TclObjType = obj::TclObjType {
     set_from_any_proc: None,
 };
 fn native_jim() -> Interp {
-    Interp::with_native_core(
+    let mut interp = Interp::with_native_core(
         crate::interp::default_host(),
         crate::environment::profile_for_dialect("jimtcl"),
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
-    .unwrap()
+    .unwrap();
+    crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+    interp
 }
 fn type_name(object: *mut TclObj) -> Vec<u8> {
     let kind = obj::obj_type_ptr(object);

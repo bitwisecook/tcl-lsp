@@ -1128,9 +1128,24 @@ list $root $nsresult $rootdict(k)
     }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
+        leak_free_with(Interp::new, body);
+    }
+
+    fn native_jim() -> Interp {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("jim"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+        interp
+    }
+
+    fn leak_free_with(make: impl FnOnce() -> Interp, body: impl FnOnce(&mut Interp)) {
         counters::reset();
         {
-            let mut interp = Interp::new();
+            let mut interp = make();
             body(&mut interp);
         }
         assert_eq!(
@@ -1410,20 +1425,18 @@ list $root $nsresult $rootdict(k)
     #[test]
     fn alias_cell_lifetimes_follow_real_c_and_jim_policies() {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            leak_free(|i| {
-                let profile = if dialect == "jim" {
-                    Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-                        "jim",
-                        &[],
-                        "Jim",
-                        tcl_dialect::model::DialectPoint::canonical(
-                            tcl_dialect::model::Release::JIM_0_84,
-                        ),
-                    )))
+            let make = || {
+                if dialect == "jim" {
+                    native_jim()
                 } else {
-                    tcl_dialect::DialectProfile::find(dialect).expect("profile")
-                };
-                i.set_dialect_profile(profile);
+                    let mut interp = Interp::new();
+                    interp.set_dialect_profile(
+                        tcl_dialect::DialectProfile::find(dialect).expect("profile"),
+                    );
+                    interp
+                }
+            };
+            leak_free_with(make, |i| {
                 for (script, expected) in [
                     (b"proc lifetime {} {set x OLD; upvar 0 x y; unset x; set y NEW; list $x $y}; lifetime".as_slice(), b"NEW NEW".as_slice()),
                     (b"proc lifetime {} {set x OLD; upvar 0 x y; unset x; set x NEW; list $x $y}; lifetime", b"NEW NEW"),
@@ -1461,14 +1474,7 @@ list $root $nsresult $rootdict(k)
 
     #[test]
     fn jim_namespace_delete_retires_flat_variable_cells() {
-        leak_free(|i| {
-            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-                "jim",
-                &[],
-                "Jim",
-                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-            )));
-            i.set_dialect_profile(profile);
+        leak_free_with(native_jim, |i| {
             assert_eq!(i.eval_str(b"namespace eval N {variable v 4; namespace eval C {variable x 3}}; namespace delete N; list [info exists ::N::v] [info exists ::N::C::x]"), Code::Ok);
             assert_eq!(i.result_bytes(), b"0 0");
         });
@@ -1476,14 +1482,7 @@ list $root $nsresult $rootdict(k)
 
     #[test]
     fn jim_activation_variables() {
-        leak_free(|i| {
-            let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-                "jim",
-                &[],
-                "Jim",
-                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-            )));
-            i.set_dialect_profile(profile);
+        leak_free_with(native_jim, |i| {
             assert_eq!(i.eval_str(br#"namespace eval N {set ephemeral 5; variable v 7; list $ephemeral $v [info locals] [info vars]}; list [info exists ::N::ephemeral] [set ::N::v]"#), Code::Ok);
             assert_eq!(i.result_bytes(), b"0 7");
         });

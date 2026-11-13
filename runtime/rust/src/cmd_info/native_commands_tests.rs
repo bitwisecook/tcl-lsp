@@ -57,6 +57,9 @@ fn original_info_commands_matches_all_110_native_pattern_object_windows() {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
+        if engine == "jim" {
+            crate::cmd_proc::install_stock_scripted_wrappers(&mut interp);
+        }
         define_names(&mut interp);
         for row in rows.lines().skip(1) {
             let fields: Vec<_> = row.split('|').collect();
