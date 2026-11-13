@@ -5509,35 +5509,11 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             assert_eq!(rows.len(), 7);
-            let mut actual = Vec::new();
-            for body in ["set value \"", "error BODY"] {
-                actual.push(vm.invoke_command(
-                    "proc",
-                    &[Value::string("p"), Value::string("x"), Value::string(body)],
-                ));
-                assert!(
-                    matches!(vm.lookup_command("p"), Some(Command::Proc(proc)) if proc.body.is_none()),
-                    "{engine}"
-                );
-                actual.push(vm.invoke_command("p", &[]));
-                actual.push(vm.invoke_command("p", &[Value::string("OK")]));
-            }
-            let definition = vm.invoke_command(
-                "proc",
-                &[
-                    Value::string("q"),
-                    Value::string("x"),
-                    Value::string("set side BODY;return OK"),
-                ],
-            );
-            assert_eq!(definition.code, tcl_runtime_api::Code::Ok);
-            vm.set_var_bytes(b"side", Value::string("BEFORE")).unwrap();
-            actual.push(vm.invoke_command("q", &[]));
-            assert_eq!(
-                vm.get_var_bytes(b"side").unwrap().string_bytes().as_ref(),
-                b"BEFORE"
-            );
-            for (row, completion) in rows.iter().zip(actual) {
+            // The interpreter result is reset by the next command, so each
+            // completion is compared as the call reports it.
+            let mut rows = rows.iter();
+            let mut check = |vm: &mut crate::Vm, completion: crate::Completion<Value>| {
+                let row = rows.next().unwrap();
                 assert_eq!(
                     completion.code.as_int().to_string().as_bytes(),
                     row[1],
@@ -5549,7 +5525,38 @@ mod tests {
                     "{engine}/{row:?}"
                 );
                 compared += 1;
+            };
+            for body in ["set value \"", "error BODY"] {
+                let definition = vm.invoke_command(
+                    "proc",
+                    &[Value::string("p"), Value::string("x"), Value::string(body)],
+                );
+                check(&mut vm, definition);
+                assert!(
+                    matches!(vm.lookup_command("p"), Some(Command::Proc(proc)) if proc.body.is_none()),
+                    "{engine}"
+                );
+                let missing = vm.invoke_command("p", &[]);
+                check(&mut vm, missing);
+                let supplied = vm.invoke_command("p", &[Value::string("OK")]);
+                check(&mut vm, supplied);
             }
+            let definition = vm.invoke_command(
+                "proc",
+                &[
+                    Value::string("q"),
+                    Value::string("x"),
+                    Value::string("set side BODY;return OK"),
+                ],
+            );
+            assert_eq!(definition.code, tcl_runtime_api::Code::Ok);
+            vm.set_var_bytes(b"side", Value::string("BEFORE")).unwrap();
+            let arity = vm.invoke_command("q", &[]);
+            check(&mut vm, arity);
+            assert_eq!(
+                vm.get_var_bytes(b"side").unwrap().string_bytes().as_ref(),
+                b"BEFORE"
+            );
         }
         assert_eq!(compared, 42);
     }
@@ -6007,12 +6014,13 @@ mod tests {
             let completion = vm.try_eval_expr(source).unwrap();
             assert_eq!(completion.code, tcl_runtime_api::Code::Error);
             assert_eq!(completion.result.to_str().as_ref(), expected);
+            // Jim reports `-errorcode` only from a global `errorCode`, which
+            // its core never creates (native_bootstrap/core-roots.tsv).
+            let error_code = super::opt_get(&completion.options, "-errorcode");
             assert_eq!(
-                super::opt_get(&completion.options, "-errorcode")
-                    .unwrap()
-                    .to_str()
-                    .as_ref(),
-                "NONE"
+                error_code.map(|code| code.to_str().to_string()).as_deref(),
+                (dialect != "jim").then_some("NONE"),
+                "{dialect}: {source}"
             );
         }
     }
@@ -6045,13 +6053,18 @@ mod tests {
         }
     }
 
-    // The actual C9 source/Catch surface is supported. The unchanged @
-    // expression is outside the checked presentation window; no absent F5
-    // parser or eval-object provider is used to manufacture that refusal.
+    // The actual C9 source/Catch surface is supported. An expression nested
+    // beyond the checked parser's depth is outside its window, though C
+    // evaluates it (tclsh9.0 gives 1 for 9000 nested parentheses); no absent
+    // F5 parser or eval-object provider is used to manufacture that refusal.
     fn vm_with_supported_source_and_unsupported_expression_window()
     -> (crate::Vm, &'static tcl_dialect::DialectProfile) {
         let profile = crate::environment::profile_for_dialect("tcl9.0");
         (crate::native_fixture::interpreter(profile), profile)
+    }
+
+    fn unsupported_expression_source() -> String {
+        format!("{}1{}", "(".repeat(9000), ")".repeat(9000))
     }
 
     #[test]
@@ -6065,14 +6078,17 @@ mod tests {
         ];
         for body in cases {
             let (mut vm, profile) = vm_with_supported_source_and_unsupported_expression_window();
-            let setup = "set early 0; set late 0; set handler 0; set cleanup 0; set observer 0; set caught ORIGINAL; set options ORIGINAL; set target ORIGINAL; set errorInfo ORIGINAL; set errorCode ORIGINAL; set source {1 @ 2}; proc observe args {set ::observer 1}; trace add execution expr leave observe";
+            let unsupported = unsupported_expression_source();
+            let setup = format!(
+                "set early 0; set late 0; set handler 0; set cleanup 0; set observer 0; set caught ORIGINAL; set options ORIGINAL; set target ORIGINAL; set errorInfo ORIGINAL; set errorCode ORIGINAL; set source {{{unsupported}}}; proc observe args {{set ::observer 1}}; trace add execution expr leave observe"
+            );
             let result = vm.try_eval_source(&format!("{setup}; set ::early 1; {body}"));
             let refusal = result.unwrap_err();
             let NativeExecutionError::ExpressionRefusal(failure) = refusal else {
                 panic!("{body}: expected expression refusal, got {refusal:?}");
             };
             assert_eq!(failure.reason, NativeExpressionRefusal::UnsupportedGrammar);
-            assert_eq!(failure.source.bytes(), b"1 @ 2");
+            assert_eq!(failure.source.bytes(), unsupported.as_bytes());
             assert_eq!(failure.source_profile, profile.cache_key());
             assert_eq!(failure.native_profile, profile.cache_key());
             assert_eq!(failure.interpreter.owner, vm.owner_nonce);
@@ -6115,15 +6131,16 @@ mod tests {
     fn unsupported_expression_refusal_survives_child_interpreter_switches() {
         use tcl_runtime_api::{NativeExecutionError, NativeExpressionRefusal};
         let (mut vm, _) = vm_with_supported_source_and_unsupported_expression_window();
-        let result = vm.try_eval_source(
-            "set parentLate 0; set child [interp create]; interp eval $child {set early 1; set late 0; set source {1 @ 2}; catch {expr $source} result; set late 1}; set parentLate 1",
-        );
+        let unsupported = unsupported_expression_source();
+        let result = vm.try_eval_source(&format!(
+            "set parentLate 0; set child [interp create]; interp eval $child {{set early 1; set late 0; set source {{{unsupported}}}; catch {{expr $source}} result; set late 1}}; set parentLate 1",
+        ));
         let error = result.unwrap_err();
         let NativeExecutionError::ExpressionRefusal(failure) = error else {
             panic!("child expression needs a provider: {error:?}");
         };
         assert_eq!(failure.reason, NativeExpressionRefusal::UnsupportedGrammar);
-        assert_eq!(failure.source.bytes(), b"1 @ 2");
+        assert_eq!(failure.source.bytes(), unsupported.as_bytes());
         assert_eq!(failure.interpreter.owner, vm.owner_nonce);
         assert_ne!(failure.interpreter.interpreter, 0);
         assert_eq!(failure.frame, 0);

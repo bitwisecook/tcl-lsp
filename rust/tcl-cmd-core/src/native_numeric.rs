@@ -212,18 +212,27 @@ pub fn fresh_c84_conversion(
         .ok_or_else(unavailable)?;
     if let Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(value)) =
         conversion.outcome()
+        && (executed.after.range_error || c84_host_integer(kind, negative, executed.value) != value)
     {
-        let actual = if negative {
-            executed.value.wrapping_neg()
-        } else {
-            executed.value
-        }
-        .cast_signed();
-        if executed.after.range_error || actual != value {
-            return Err(unavailable());
-        }
+        return Err(unavailable());
     }
     Ok(conversion)
+}
+
+/// The signed value C 8.4 stores from its unsigned host conversion; `Tcl_GetInt`
+/// keeps only the low 32 bits of `(int) i`.
+fn c84_host_integer(kind: NativeScalarGetterKind, negative: bool, magnitude: u64) -> i64 {
+    let value = if negative {
+        magnitude.wrapping_neg()
+    } else {
+        magnitude
+    }
+    .cast_signed();
+    if kind == NativeScalarGetterKind::Int {
+        i64::from(tcl_syntax::number::native_int32_low_bits(value))
+    } else {
+        value
+    }
 }
 
 /// Execute fresh Jim getter C calls against the retained actual Host. Existing

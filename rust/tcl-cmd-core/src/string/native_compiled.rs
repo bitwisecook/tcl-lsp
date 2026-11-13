@@ -297,7 +297,22 @@ pub fn compiled_index<O: NativeIndexOps>(
             )
             .into());
         }
-        let _ = (units, snapshot.resident);
+        // INST_STR_INDEX copies the byte of a resident string whose length
+        // is its character count, whatever Unicode it has reached.
+        if let Some(bytes) = snapshot.resident
+            && bytes.len() == units.len()
+        {
+            let index = index::resolve_value(ops, index, bytes.len())?;
+            return Ok(
+                match usize::try_from(index)
+                    .ok()
+                    .and_then(|index| bytes.get(index))
+                {
+                    Some(byte) => ops.new_bytes(&[*byte]),
+                    None => ops.empty(),
+                },
+            );
+        }
         super::native_c::original_index(ops, subject, index, version)
     })
 }
