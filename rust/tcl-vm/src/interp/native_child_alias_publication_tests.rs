@@ -144,8 +144,13 @@ fn child_alias_publication_refuses_missing_or_foreign_issuer_before_binding() {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
             let mut vm = crate::native_fixture::core(profile);
             let name = vm.create_child(Some("child".into()), false);
-            let path = crate::Value::new_native_string_bytes(name.as_bytes());
-            let child = vm.resolve_interp_path_original(&path).unwrap();
+            // Jim names a child by its handle command; it has no C interp path.
+            let child = if engine == "jim" {
+                vm.child_id(&name).unwrap()
+            } else {
+                let path = crate::Value::new_native_string_bytes(name.as_bytes());
+                vm.resolve_interp_path_original(&path).unwrap()
+            };
             let before = vm.in_interp(child, |receiver| {
                 let selected = if foreign {
                     if engine == "jim" { "tcl8.6" } else { "jim" }
