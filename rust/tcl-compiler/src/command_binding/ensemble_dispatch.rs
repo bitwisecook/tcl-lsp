@@ -126,6 +126,7 @@ impl SourceCommandBindings {
     pub(super) fn walk_ensemble_dispatch(
         &mut self,
         site: u32,
+        original_words: Option<&[crate::ir::WordExpr]>,
         effective: &[EffectiveInvocationWord],
         state: &mut ModuleCommandBindings,
         target: &SourceCommandTarget,
@@ -185,7 +186,18 @@ impl SourceCommandBindings {
         } else {
             context
         };
-        let words = &effective[1..];
+        // The subcommand word is consumed: the dispatched call keeps the
+        // ensemble's head and the written words after the subcommand, so each
+        // argument retains its own source provenance.
+        let projected = original_words.and_then(|words| {
+            super::named_arguments::ProjectedNamedArguments::capture(
+                words, effective, &incoming, &context, 1,
+            )
+            .ok()
+        });
+        let projected_context = projected
+            .as_ref()
+            .map(|projected| projected.context(&context));
         for selected in &binding.targets {
             let mut branch = incoming.clone();
             if selected.registry_backed {
@@ -201,14 +213,24 @@ impl SourceCommandBindings {
                     .iter()
                     .map(|word| EffectiveInvocationWord::Literal(word.clone())),
             );
-            outcomes.join(&self.walk_document_target(
-                site,
-                None,
-                words,
-                &mut branch,
-                &selected,
-                context,
-            ));
+            outcomes.join(&match (&projected, &projected_context) {
+                (Some(projected), Some(projected_context)) => self.walk_document_target(
+                    site,
+                    Some(&projected.words),
+                    &projected.effective,
+                    &mut branch,
+                    &selected,
+                    **projected_context,
+                ),
+                _ => self.walk_document_target(
+                    site,
+                    None,
+                    &effective[1..],
+                    &mut branch,
+                    &selected,
+                    context,
+                ),
+            });
         }
         outcomes.publish(state);
         Some(outcomes)

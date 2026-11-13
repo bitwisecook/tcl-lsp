@@ -3249,11 +3249,11 @@ mod tests {
             None,
         );
         let applied = apply_edits(src, &edits);
-        // (The class tier's own qualifier handling writes the short form
-        // here; the identity is the same command at global level. What this
-        // test is about is the two words below.)
+        // The declaration keeps its written `::` qualifier and replaces only
+        // the tail; `oo::class create ::Panel` with `-map {make ::Panel}`
+        // prints `drawn ::Panel` on tclsh 8.6, 9.0 and 9.1.
         assert!(
-            applied.contains("oo::class create Panel"),
+            applied.contains("oo::class create ::Panel"),
             "the class declaration must be renamed: {applied}"
         );
         assert!(

@@ -11364,7 +11364,8 @@ impl SourceCommandBindings {
             }
             return opaque_source_invocation(state);
         }
-        if let Some(outcomes) = self.walk_ensemble_dispatch(site, effective, state, target, context)
+        if let Some(outcomes) =
+            self.walk_ensemble_dispatch(site, original_words, effective, state, target, context)
         {
             return outcomes;
         }
