@@ -743,11 +743,7 @@ fn head_lookup<'a>(
             policy: input.policy(),
         });
     let lookup = require_coverage(
-        if receiver.is_some() {
-            binding.original_receiver_command_lookup(input)
-        } else {
-            binding.original_command_lookup(tokens, input)
-        },
+        binding.original_command_lookup(tokens, input),
         command_offset,
         "original-lookup",
     )?;

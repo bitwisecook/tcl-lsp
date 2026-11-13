@@ -12144,7 +12144,6 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
             original_callback_signature_lookup: None,
             original_callback_prefix: None,
             original_lookup: None,
-            original_receiver_lookup: None,
             original_name_input: None,
             lookup: crate::signature_scan::types::SignatureCommandLookup::InvocationHead,
             name: "random_cmd".to_string(),

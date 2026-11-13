@@ -666,6 +666,9 @@ impl SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
         input: &SignatureSourceNameInput,
     ) -> Option<OriginalCommandLookup> {
+        if self.original_receiver_namespace_commands().is_some() {
+            return self.original_receiver_command_lookup(input);
+        }
         let rows = match input {
             SignatureSourceNameInput::OriginalWord(key) => self.original_name_rows(key)?,
             SignatureSourceNameInput::OriginalValue(_) => {
@@ -792,10 +795,11 @@ impl SourceInvocationBinding {
         &self,
         key: &SignatureSourceNameKey,
     ) -> Option<OriginalCommandLookup> {
-        self.original_lookup_from_rows(
-            &SignatureSourceNameInput::OriginalWord(key.clone()),
-            self.original_name_rows(key)?,
-        )
+        let input = SignatureSourceNameInput::OriginalWord(key.clone());
+        if self.original_receiver_namespace_commands().is_some() {
+            return self.original_receiver_command_lookup(&input);
+        }
+        self.original_lookup_from_rows(&input, self.original_name_rows(key)?)
     }
 
     /// Original lookup of a head in a member body whose current namespace is
@@ -803,9 +807,9 @@ impl SourceInvocationBinding {
     /// namespace, then `::oo::Helpers`, then global, for simple and relative
     /// qualified words alike; the class's namespace is not searched (tclsh
     /// 8.6, 9.0, 9.1). The object namespace has no static name, so the
-    /// candidates omit it and the lookup carries the commands Tcl puts there.
-    #[must_use]
-    pub fn original_receiver_command_lookup(
+    /// candidates omit it and the lookup carries the commands Tcl puts there;
+    /// such a command stops the lookup there, leaving no candidate.
+    fn original_receiver_command_lookup(
         &self,
         input: &SignatureSourceNameInput,
     ) -> Option<OriginalCommandLookup> {
@@ -814,7 +818,16 @@ impl SourceInvocationBinding {
         };
         let rows = self.original_receiver_rows(Some(key))?;
         let receiver = original_receiver_namespace(&rows, input.policy())?;
-        let (candidates, local) = original_receiver_candidates(input, receiver)?;
+        let (mut candidates, local) = original_receiver_candidates(input, receiver)?;
+        if local
+            && receiver
+                .family
+                .receiver_namespace_commands()
+                .iter()
+                .any(|name| name.as_bytes() == input.bytes())
+        {
+            candidates.clear();
+        }
         Some(OriginalCommandLookup {
             input: input.clone(),
             site: self.invocation_site()?.clone(),
@@ -1054,14 +1067,7 @@ impl SourceInvocationBinding {
         &self,
         key: &SignatureSourceNameKey,
     ) -> Option<Vec<Vec<ByteCommandSlot>>> {
-        let rows = self.original_name_rows(key)?;
-        Some(
-            self.original_lookup_from_rows(
-                &SignatureSourceNameInput::OriginalWord(key.clone()),
-                rows,
-            )?
-            .candidates,
-        )
+        Some(self.original_static_command_lookup(key)?.candidates)
     }
 
     /// C library `auto_qualify` candidates from the original name producer and
@@ -1494,7 +1500,8 @@ mod tests {
         // the object's namespace with `namespace path ::oo::Helpers`; the
         // class's own or declaring namespace is never searched, for simple and
         // relative qualified words alike. `my` (and `myclass` on 9.x) is in
-        // the object namespace itself.
+        // the object namespace itself (`namespace which my` is
+        // `::oo::Obj12::my`), so its lookup stops there with no candidate.
         let slot = |namespace: &[&str], simple: &str| {
             ByteCommandSlot::new(
                 tcl_core_types::ByteNamespacePath::from_segments(namespace.iter().copied()),
@@ -1540,7 +1547,7 @@ mod tests {
                 "oo::class create C {method m {} {my x}}",
                 "my",
                 0,
-                Some(vec![slot(&["oo", "Helpers"], "my"), slot(&[], "my")]),
+                Some(vec![]),
                 true,
             ),
             ("proc p {} {helper}", "helper", 0, None, false),
@@ -1574,8 +1581,16 @@ mod tests {
                     },
                 );
                 let binding = bindings.invocation_at_source(word, start);
-                let lookup = binding
-                    .original_receiver_command_lookup(&SignatureSourceNameInput::OriginalWord(key));
+                let lookup = binding.original_receiver_command_lookup(
+                    &SignatureSourceNameInput::OriginalWord(key.clone()),
+                );
+                if lookup.is_some() {
+                    assert_eq!(
+                        binding.original_static_command_lookup(&key),
+                        lookup,
+                        "{version}: {source}"
+                    );
+                }
                 assert_eq!(
                     lookup.as_ref().map(|lookup| lookup.candidates().to_vec()),
                     expected.clone().map(|expected| vec![expected]),

@@ -1242,6 +1242,14 @@ impl OriginalClassInstanceMethodRoster {
 }
 
 impl OriginalCompletedCommandWorld {
+    /// The command an exact original lookup selects in the completed world.
+    pub(crate) fn reference_for_lookup(
+        &self,
+        lookup: &super::OriginalCommandLookup,
+    ) -> Option<super::SourceCommandReference> {
+        self.state.original_reference_for_lookup(lookup, None)
+    }
+
     /// Same authenticated completed state for a private conditional syntax view.
     /// Callers retain the cut/declaration owner; this grants no body execution.
     pub(super) fn source_cut_body_state(&self) -> &Arc<ModuleCommandBindings> {

@@ -1135,16 +1135,13 @@ impl Analyser {
         // walk-time resolution has the same horizon; finalise's own
         // rebuild is what normally widens it).
         let folded_candidates = self.folded_head_candidates(&head, folded, scope_path);
-        let (original_name_input, original_lookup, original_receiver_lookup) = self
+        let (original_name_input, original_lookup) = self
             .retained_invocation_tokens(cmd_tok.span.start(), arg_tokens_in)
             .and_then(|tokens| {
                 let binding = tokens.source_binding.as_ref()?;
                 let input = binding.original_head_name_input(&tokens)?;
                 let lookup = binding.original_command_lookup(&tokens, &input);
-                let receiver = binding
-                    .original_receiver_namespace_commands()
-                    .and_then(|_| binding.original_receiver_command_lookup(&input));
-                Some((Some(input), lookup, receiver))
+                Some((Some(input), lookup))
             })
             .unwrap_or_default();
         self.result.command_invocations.push(
@@ -1153,7 +1150,6 @@ impl Analyser {
                 original_callback_signature_lookup: None,
                 original_callback_prefix: None,
                 original_lookup,
-                original_receiver_lookup,
                 resolved_qualified_name: Some(resolved.clone()),
                 resolution_candidates: folded_candidates,
                 indirect: computed,
@@ -1692,7 +1688,6 @@ impl Analyser {
                 original_callback_signature_lookup: None,
                 original_callback_prefix: None,
                 original_lookup: None,
-                original_receiver_lookup: None,
                 original_name_input,
                 lookup:
                     crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
@@ -3918,7 +3913,6 @@ impl Analyser {
                     original_callback_signature_lookup: None,
                     original_callback_prefix: Some(std::sync::Arc::new(original)),
                     original_lookup,
-                    original_receiver_lookup: None,
                     original_name_input,
                     lookup: crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
                     name: head.name,
@@ -3984,7 +3978,6 @@ impl Analyser {
                 original_callback_signature_lookup: None,
                 original_callback_prefix: None,
                 original_lookup: None,
-                original_receiver_lookup: None,
                 original_name_input: None,
                 lookup,
                 name: written,
@@ -4032,7 +4025,6 @@ impl Analyser {
                 original_callback_signature_lookup: None,
                 original_callback_prefix: None,
                 original_lookup: None,
-                original_receiver_lookup: None,
                 original_name_input: None,
                 lookup: head.map_or(
                     crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
@@ -4080,7 +4072,6 @@ impl Analyser {
                 original_callback_signature_lookup: None,
                 original_callback_prefix: None,
                 original_lookup: None,
-                original_receiver_lookup: None,
                 original_name_input: None,
                 lookup: crate::signature_scan::types::SignatureCommandLookup::InvocationHead,
                 name: written,
@@ -5734,7 +5725,6 @@ impl Analyser {
                     original_callback_signature_lookup: None,
                     original_callback_prefix: callback.clone().map(std::sync::Arc::new),
                     original_lookup,
-                    original_receiver_lookup: None,
                     original_name_input,
                     lookup,
                     name,
@@ -5795,7 +5785,6 @@ impl Analyser {
                     original_callback_signature_lookup: None,
                     original_callback_prefix: None,
                     original_lookup: None,
-                    original_receiver_lookup: None,
                     original_name_input: None,
                     name,
                     range: tcl_lexer::Span::new(abs_start, abs_end),

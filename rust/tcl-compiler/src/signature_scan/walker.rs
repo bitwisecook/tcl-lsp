@@ -765,7 +765,6 @@ fn record_command_prefix_invocations(cmd: &SegmentedCommand, ctx: &mut ScanCtx<'
                 original_callback_signature_lookup: None,
                 original_callback_prefix: Some(std::sync::Arc::new(original)),
                 original_lookup: lookup,
-                original_receiver_lookup: None,
                 original_name_input: Some(name_input),
                 lookup: crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
                 name,

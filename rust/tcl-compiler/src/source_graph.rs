@@ -108,12 +108,12 @@ pub fn invocation_targets_declaration_in<T>(
                     && reference_matches_declaration(reference, declaration, follow_links)
             });
     }
-    if invocation.original_lookup.is_none()
-        && let (Some(input), Some(lookup)) = (
-            &invocation.original_name_input,
-            &invocation.original_receiver_lookup,
-        )
-    {
+    let (Some(input), Some(lookup)) =
+        (&invocation.original_name_input, &invocation.original_lookup)
+    else {
+        return false;
+    };
+    if lookup.receiver_namespace_commands().is_some() {
         return receiver_lookup_targets_declaration(
             analysis,
             &image,
@@ -123,11 +123,6 @@ pub fn invocation_targets_declaration_in<T>(
             follow_links,
         );
     }
-    let (Some(input), Some(lookup)) =
-        (&invocation.original_name_input, &invocation.original_lookup)
-    else {
-        return false;
-    };
     if lookup.name_input() != input
         || lookup.site().source.source_image() != &image
         || input.policy() != declaration.name().policy()

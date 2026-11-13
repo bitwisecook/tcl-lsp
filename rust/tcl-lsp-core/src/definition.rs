@@ -8122,6 +8122,57 @@ p\uD800";
         assert_eq!(locs[0].start_line, 2);
     }
 
+    /// The line each version resolves the `nth` occurrence of `word` to.
+    fn method_body_definition_lines(src: &str, word: &str, nth: usize) -> Vec<Vec<u32>> {
+        let offset = src.match_indices(word).nth(nth).unwrap().0;
+        let line = u32::try_from(src[..offset].matches('\n').count()).unwrap();
+        let column = u32::try_from(offset - src[..offset].rfind('\n').map_or(0, |at| at + 1))
+            .unwrap();
+        ["tcl8.6", "tcl9.0", "tcl9.1"]
+            .into_iter()
+            .map(|version| {
+                let analysis = Analyser::new().analyse(src, version).clone();
+                definition(src, line, column, &analysis)
+                    .iter()
+                    .map(|range| range.start_line)
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// tclsh 8.6, 9.0, 9.1: a method body runs in its object's namespace with
+    /// `namespace path ::oo::Helpers`. A method declared inside
+    /// `namespace eval ::app` calls `::helper` (`ns_method.tcl`: `global`),
+    /// and `::oo::Helpers::helper`, even when defined after the class,
+    /// shadows `::helper` (`helpers_shadow.tcl`: `helpers`).
+    #[test]
+    fn definition_in_a_method_body_follows_the_object_namespace_lookup() {
+        let ns = "proc helper {} {return global}\nnamespace eval ::app {\n    proc helper {} {return app}\n    oo::class create C {\n        method use {} { helper }\n    }\n}\n";
+        assert_eq!(method_body_definition_lines(ns, "helper", 2), [[0], [0], [0]]);
+        let helpers = "proc helper {} {return global}\noo::class create C {\n    method use {} { helper }\n}\nproc ::oo::Helpers::helper {} {return helpers}\n";
+        assert_eq!(
+            method_body_definition_lines(helpers, "helper", 1),
+            [[4], [4], [4]]
+        );
+    }
+
+    /// `my` lives in the object namespace (tclsh 8.6, 9.0, 9.1: `namespace
+    /// which my` is `::oo::Obj12::my`; `d_my.tcl` prints `method-q` despite a
+    /// global `proc my`), so it never names the global procedure. A method
+    /// that defines `helper` relative to the object namespace shadows the
+    /// global one for later calls (`relproc_shadow.tcl`: `global local`), so a
+    /// document with such a body leaves member-body heads unresolved.
+    #[test]
+    fn definition_in_a_method_body_demurs_on_object_namespace_commands() {
+        let my = "proc my {args} {return global-my}\noo::class create C {\n    method m {} {return [my q]}\n    method q {} {return method-q}\n}\n";
+        assert_eq!(method_body_definition_lines(my, "my", 1), [[], [], []] as [[u32; 0]; 3]);
+        let relproc = "proc helper {} {return global}\noo::class create C {\n    method mk {} { proc helper {} {return local} }\n    method use {} { helper }\n}\n";
+        assert_eq!(
+            method_body_definition_lines(relproc, "helper", 2),
+            [[], [], []] as [[u32; 0]; 3]
+        );
+    }
+
     #[test]
     fn definition_jumps_to_constructor_keyword() {
         // Bare `constructor` inside a class body jumps to the

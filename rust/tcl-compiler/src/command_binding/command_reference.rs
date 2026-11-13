@@ -304,11 +304,43 @@ impl SourceInvocationBinding {
         {
             return None;
         }
+        if self.original_receiver_namespace_commands().is_some() {
+            let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = &input else {
+                return None;
+            };
+            return state.original_reference_for_lookup(
+                &self.original_static_command_lookup(key)?,
+                self.invocation_site().cloned(),
+            );
+        }
         state.original_reference_for_input(
             &input,
             &self.lookup_namespace_key,
             self.invocation_site().cloned(),
         )
+    }
+
+    /// The evaluated-head reference of a runtime receiver's member body, kept
+    /// only when the completed command world selects the same command. A
+    /// member body may run whenever the document has finished loading, so its
+    /// own lookup point alone does not fix the command a call reaches.
+    #[must_use]
+    pub fn original_receiver_command_reference_after_load(
+        &self,
+        world: &super::OriginalCompletedCommandWorld,
+    ) -> Option<SourceCommandReference> {
+        self.original_receiver_namespace_commands()?;
+        let reference = self.original_evaluated_command_reference()?;
+        let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) =
+            self.original_recorded_head_name_input()?
+        else {
+            return None;
+        };
+        let lookup = self.original_static_command_lookup(&key)?;
+        world
+            .reference_for_lookup(&lookup)
+            .is_some_and(|completed| completed.selects_same_command(&reference))
+            .then_some(reference)
     }
 
     /// Require the caller's genuine complete vector before selecting the same
@@ -350,6 +382,35 @@ impl ModuleCommandBindings {
                 self.source_definition_for_implementation(selection.targets.first()?)
             });
         self.reference_for_command_key(key, bindings, site, linked)
+    }
+
+    /// The single occupied cell an exact original lookup reaches first, on
+    /// every candidate path. A lookup that stops in a namespace with no static
+    /// name (a receiver-namespace command) selects no cell.
+    pub(crate) fn original_reference_for_lookup(
+        &self,
+        lookup: &super::OriginalCommandLookup,
+        site: Option<super::CommandAllocationSite>,
+    ) -> Option<SourceCommandReference> {
+        let mut selected: Option<super::SourceCommandKey> = None;
+        for path in self.original_command_paths_for_slots(lookup.candidates(), lookup.policy())? {
+            let mut reached = None;
+            for key in path {
+                let bindings = self.original_bindings_for_key(&key)?;
+                if bindings != std::collections::BTreeSet::from([MayBinding::Missing]) {
+                    reached = Some(key);
+                    break;
+                }
+            }
+            let reached = reached?;
+            if selected.as_ref().is_some_and(|previous| previous != &reached) {
+                return None;
+            }
+            selected = Some(reached);
+        }
+        let key = selected?;
+        let bindings = self.original_bindings_for_key(&key)?;
+        self.reference_for_command_key(&key, &bindings, site, None)
     }
 
     pub(super) fn reference_for_command_key(

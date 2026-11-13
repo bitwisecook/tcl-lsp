@@ -2054,6 +2054,33 @@ impl ModuleCommandBindings {
             .collect()
     }
 
+    /// Retained cells of exact lookup candidates computed outside this
+    /// table's namespace paths (a runtime receiver's member body). A missing
+    /// holder namespace contributes no cell; unknown geometry declines.
+    pub(super) fn original_command_paths_for_slots(
+        &self,
+        candidates: &[Vec<tcl_core_types::ByteCommandSlot>],
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<Vec<Vec<SourceCommandKey>>> {
+        if self.has_opaque_domain() {
+            return None;
+        }
+        candidates
+            .iter()
+            .map(|path| {
+                let mut retained = Vec::new();
+                for slot in path {
+                    if let OriginalLookupSlot::Retained(key) =
+                        self.original_lookup_key_for_slot(slot, policy)?
+                    {
+                        retained.push(key);
+                    }
+                }
+                Some(retained)
+            })
+            .collect()
+    }
+
     /// Explicit fixed Registry metadata proposal. It shares the original
     /// table path geometry without manufacturing an original source operand.
     pub(super) fn original_registry_command_paths(

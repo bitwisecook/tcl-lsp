@@ -1623,6 +1623,18 @@ impl Analyser {
     /// implementation a reached call selected after evaluating its arguments.
     pub(super) fn retain_positioned_command_definitions(&mut self) {
         let lexical_advice = self.result.allows_lexical_declaration_advice();
+        // A member body that may publish into its receiver's private namespace
+        // may shadow any receiver lookup, so no receiver head is resolved.
+        let completed = self
+            .result
+            .original_command_world
+            .clone()
+            .filter(|_| {
+                !self
+                    .head_identities
+                    .source_bindings_ref()
+                    .receiver_body_changes_command_world()
+            });
         for invocation in &mut self.result.command_invocations {
             if invocation.is_mathfunc_call || invocation.callback_arity.is_some() {
                 continue;
@@ -1649,6 +1661,13 @@ impl Analyser {
                 } => point
                     .lookup_command_word(&invocation.name)
                     .command_reference(&invocation.name),
+                crate::signature_scan::types::SignatureCommandLookup::InvocationHead
+                    if point.original_receiver_namespace_commands().is_some() =>
+                {
+                    completed
+                        .as_ref()
+                        .and_then(|world| point.original_receiver_command_reference_after_load(world))
+                }
                 crate::signature_scan::types::SignatureCommandLookup::InvocationHead => {
                     point.original_evaluated_command_reference().or_else(|| {
                         lexical_advice
@@ -1779,17 +1798,6 @@ impl Analyser {
                         None
                     }
                 };
-            }
-            if invocation.original_lookup.is_none()
-                && invocation.original_receiver_lookup.is_none()
-                && invocation.lookup
-                    == crate::signature_scan::types::SignatureCommandLookup::InvocationHead
-                && binding.original_receiver_namespace_commands().is_some()
-            {
-                invocation.original_receiver_lookup = invocation
-                    .original_name_input
-                    .as_ref()
-                    .and_then(|input| binding.original_receiver_command_lookup(input));
             }
         }
     }

@@ -4220,6 +4220,10 @@ pub struct SourceCommandBindings {
     /// the command world unchanged.
     world_preserving_bodies:
         BTreeMap<String, (bool, Vec<tcl_syntax::formal_params::FormalParameter>)>,
+    /// A declaration-time walk of a runtime receiver's member body may have
+    /// changed the command world: relative names it publishes land in the
+    /// receiver's private namespace, ahead of every lookup there.
+    receiver_body_changes_command_world: bool,
     active_variable_observers: Vec<variable_observers::ActiveVariableObserver>,
     called_implementations: BTreeSet<DeferredImplementationId>,
     phases: SharedSourceInventory<Vec<SourcePhasePoint>>,
@@ -4290,6 +4294,8 @@ impl PartialEq for SourceCommandBindings {
             && self.recursive_assumptions == other.recursive_assumptions
             && self.recursive_assumption_refused == other.recursive_assumption_refused
             && self.world_preserving_bodies == other.world_preserving_bodies
+            && self.receiver_body_changes_command_world
+                == other.receiver_body_changes_command_world
             && self.active_variable_observers == other.active_variable_observers
             && self.called_implementations == other.called_implementations
             && self.phases == other.phases
@@ -8494,6 +8500,7 @@ impl SourceCommandBindings {
         }
         self.record_conditional_procedure_result(root, &outcomes, branch.baseline.dialect);
         let preserves = outcomes.preserves_command_world(incoming);
+        self.receiver_body_changes_command_world |= root.receiver_namespace.is_some() && !preserves;
         self.world_preserving_bodies
             .entry(root.identity.clone())
             .and_modify(|(held, _)| *held &= preserves)
@@ -8512,6 +8519,13 @@ impl SourceCommandBindings {
         self.world_preserving_bodies
             .get(identity)
             .map(|(preserves, _)| *preserves)
+    }
+
+    /// Whether a declaration-time walk of a runtime receiver's member body may
+    /// have published a command into that receiver's private namespace.
+    #[must_use]
+    pub(crate) const fn receiver_body_changes_command_world(&self) -> bool {
+        self.receiver_body_changes_command_world
     }
 
     /// Every procedure whose declaration-time body walks all left the
