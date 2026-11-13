@@ -873,11 +873,23 @@ impl crate::var_resolve::ResolveContext {
             self.coerce_representations_for_values(None);
             return false;
         }
+        // Converting the index never changes bytes, so a stock literal stays a
+        // stock-class object whatever intrep the conversion leaves it.
         let ordinary = self
             .value_representations
             .iter()
-            .filter(|(_, value)| value.container_alternatives().is_some())
-            .map(|(key, value)| (key.clone(), value.clone()))
+            .filter_map(|(key, value)| match value {
+                StoredNativeRepresentation::StockLiteralObject(object) => Some((
+                    key.clone(),
+                    StoredNativeRepresentation::StockLiteralObject(
+                        object.converted(tcl_syntax::value::ValueRepresentation::Unknown),
+                    ),
+                )),
+                _ => value
+                    .container_alternatives()
+                    .is_some()
+                    .then(|| (key.clone(), value.clone())),
+            })
             .collect::<Vec<_>>();
         self.invalidate_shared_representations();
         self.value_representations.extend(ordinary);
