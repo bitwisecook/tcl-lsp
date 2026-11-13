@@ -4287,22 +4287,40 @@ pub fn merged_workspace_procedure_declarations(
 
 /// The procedures this document defines that a call from another document
 /// may trust, as sidecar-syntax `stub` lines: every declaration-time walk of
-/// the body leaves the command world unchanged. A trailing `args` formal has
-/// no stub spelling, so such a procedure is not declared.
+/// the body leaves the command world unchanged. The argument counts follow the
+/// document's own parameter grammar
+/// ([`tcl_syntax::formal_params::formal_argument_count_shape`]): C Tcl's rest
+/// formal is a final `args` and only its trailing defaults are optional; Jim's
+/// `args` is a rest formal anywhere and any default is optional. A rest formal
+/// has no stub spelling, so such a procedure is not declared, nor is any when
+/// the grammar is unknown.
 #[salsa::tracked(returns(clone))]
 pub fn world_preserving_procedure_stubs(db: &dyn TclDb, file: SourceFile) -> Arc<Vec<String>> {
     let unit = document_compilation_unit(db, file);
     let Some(bindings) = unit.ir_module.retained_source_bindings.as_deref() else {
         return Arc::default();
     };
+    let Some(grammar) = unit.ir_module.parameter_grammar() else {
+        return Arc::default();
+    };
     let mut lines = bindings
         .world_preserving_procedures()
-        .filter(|(_, formals)| formals.last().is_none_or(|formal| formal.name != "args"))
-        .map(|(identity, formals)| {
+        .filter_map(|(identity, formals)| {
+            let shape = tcl_syntax::formal_params::formal_argument_count_shape(
+                formals
+                    .iter()
+                    .map(|formal| (formal.name == "args", formal.default.is_some())),
+                grammar,
+            );
+            shape.maximum?;
             let words = formals
                 .iter()
-                .map(|formal| {
-                    if formal.default.is_some() {
+                .enumerate()
+                .map(|(index, formal)| {
+                    let optional = formal.default.is_some()
+                        && (grammar == tcl_dialect::ParameterGrammar::Jim
+                            || index >= shape.minimum);
+                    if optional {
                         format!("?{}?", formal.name)
                     } else {
                         formal.name.clone()
@@ -4314,7 +4332,7 @@ pub fn world_preserving_procedure_stubs(db: &dyn TclDb, file: SourceFile) -> Arc
             let name = tcl_syntax::naming::unroot_rooted_key(identity)
                 .filter(|tail| !tail.contains("::"))
                 .unwrap_or(identity);
-            format!("stub {name} {{{}}}", words.join(" "))
+            Some(format!("stub {name} {{{}}}", words.join(" ")))
         })
         .collect::<Vec<_>>();
     lines.sort_unstable();
@@ -7856,6 +7874,38 @@ p\uD801 ordinary";
             let full = file_analysis(&db, file, cfg);
             assert_eq!(*inc, *full, "incremental != full for:\n{src}");
         }
+    }
+
+    /// Published argument counts follow the document's parameter grammar, as
+    /// C Tcl 8.4–9.1 and Jim bind them: `args` is a rest formal only when last
+    /// in C Tcl and anywhere in Jim, and C Tcl ignores a default before a
+    /// required formal.
+    #[test]
+    fn procedure_stubs_follow_the_documents_parameter_grammar() {
+        let source = "proc last {a args} {}\nproc middle {name args body} {}\n\
+                      proc named {a ARGS} {}\nproc gap {a {b B} c} {}\nproc tail {a {b B}} {}\n";
+        let db = TclDatabase::default();
+        let stubs = |dialect: &str| {
+            let file = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+            (*world_preserving_procedure_stubs(&db, file)).clone()
+        };
+        assert_eq!(
+            stubs("tcl8.6"),
+            [
+                "stub gap {a b c}",
+                "stub middle {name args body}",
+                "stub named {a ARGS}",
+                "stub tail {a ?b?}"
+            ]
+        );
+        assert_eq!(
+            stubs("jim"),
+            [
+                "stub gap {a ?b? c}",
+                "stub named {a ARGS}",
+                "stub tail {a ?b?}"
+            ]
+        );
     }
 
     #[test]

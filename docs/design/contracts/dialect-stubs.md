@@ -312,7 +312,11 @@ Two properties are load-bearing:
   (`SourceFile::workspace_declared_commands`,
   `tcl_lsp_db::world_preserving_procedure_declarations`). A procedure the
   defining document also stubs travels as that stub; any other is inferred
-  from its formals (`DeclaredCommand::inferred_from_procedure`). Once its file
+  from its formals (`DeclaredCommand::inferred_from_procedure`) under the
+  document's parameter grammar: `args` is a rest formal only when last in
+  C Tcl and anywhere in Jim, C Tcl ignores a default before a required
+  formal, and a procedure with a rest formal is not declared
+  ([evidence](../../../evidence/tcl/lsp-2532-procedure-args-formal-and-defaults.md)). Once its file
   is loaded, a procedure is the command its fully qualified name calls, a
   built-in's, a package's or a vendor's included: C Tcl 8.4–9.1 and Jim
   replace the command with it
