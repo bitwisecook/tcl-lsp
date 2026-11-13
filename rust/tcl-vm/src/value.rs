@@ -3863,6 +3863,7 @@ impl Value {
             IntRep::NativeCommandName(_) | IntRep::NativeCommandNameUnresolved(_) => "cmdName",
             IntRep::NativeParsedVariableName(_) => "parsedVarName",
             IntRep::NativeLocalVariableName(_) => "localVarName",
+            IntRep::NativeNamespaceName(_) => "nsName",
             IntRep::Tcl84Long(_) | IntRep::Int(_) => "int",
             IntRep::Tcl84Wide(_) => "wideInt",
             IntRep::Big { .. } => "bignum",

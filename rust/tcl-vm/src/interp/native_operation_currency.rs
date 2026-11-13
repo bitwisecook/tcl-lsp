@@ -971,6 +971,9 @@ mod tests {
         assert!(!vm.native_operation_context.has_entered_operation());
     }
 
+    // The stale inherited receipt is found by the restored-context re-proof,
+    // which runs only under `VERIFY_CURRENCY`.
+    #[cfg(debug_assertions)]
     #[test]
     fn original_numeric_routing_checks_inherited_currency_before_authored_policy() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -978,6 +981,9 @@ mod tests {
         let mut vm = native();
         let outer = NativeOperationScope::enter_native(&mut vm).unwrap();
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+        ));
         assert!(vm.authored_numeric_context().is_some());
         let called = std::cell::Cell::new(false);
         let reached = crate::expr::with_original_numeric_context(&mut vm, |_| {
@@ -994,6 +1000,9 @@ mod tests {
         assert_eq!(outer.check_native(&mut vm).unwrap_err(), first);
         let mut authored = native();
         authored.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(authored.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+        ));
         let answer = crate::expr::with_original_numeric_context(&mut authored, |context| {
             assert!(context.original.is_none());
             Value::int(7).as_int_with_stages(None)
@@ -1114,6 +1123,9 @@ mod tests {
         assert!(vm.execution_refusal.is_none());
     }
 
+    // The foreign selected interpreter is found by the restored-context
+    // re-proof, which runs only under `VERIFY_CURRENCY`.
+    #[cfg(debug_assertions)]
     #[test]
     fn original_saved_execution_target_cleans_parent_and_preserves_callback_child() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1123,7 +1135,7 @@ mod tests {
         let parent = vm.cur_interp();
         let child_name = vm.create_child(Some("saved_execution_child".into()), false);
         let child = vm.child_id(&child_name).unwrap();
-        vm.in_interp(child, |vm| vm.activation_depth = 7);
+        vm.in_interp(child, |vm| vm.oo_dispatch_depth = 7);
         let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
         let target = SavedExecutionTarget::capture(&mut vm);
         crate::interp::oo_cleanup::select_cleanup_fixture_interpreter(&mut vm, child);
@@ -1135,7 +1147,7 @@ mod tests {
                 NativeOperationScope::enter_native(vm).err(),
                 Some(first.clone())
             );
-            vm.activation_depth = 41;
+            vm.oo_dispatch_depth = 41;
             let owned = Value::string("REFUSED_OWNED_RESULT");
             returned = Some(owned.native_lifetime_lease());
             owned
@@ -1143,9 +1155,9 @@ mod tests {
         assert_eq!(reached.err(), Some(first.clone()));
         assert!(!returned.unwrap().value().native_object_is_live());
         assert!(vm.interp_is_current(child));
-        assert_eq!(vm.activation_depth, 7);
+        assert_eq!(vm.oo_dispatch_depth, 7);
         vm.in_interp(parent, |vm| {
-            assert_eq!(vm.activation_depth, 41);
+            assert_eq!(vm.oo_dispatch_depth, 41);
         });
         assert!(vm.interp_is_current(child));
         assert_eq!(vm.execution_refusal, Some(first.clone()));
@@ -1492,8 +1504,8 @@ mod tests {
             let earlier = vm.child_id(&earlier_name).unwrap();
             let later_name = vm.create_child(Some("later_finalizer_selection".into()), false);
             let later = vm.child_id(&later_name).unwrap();
-            vm.in_interp(earlier, |vm| vm.activation_depth = 47);
-            vm.in_interp(later, |vm| vm.activation_depth = 79);
+            vm.in_interp(earlier, |vm| vm.oo_dispatch_depth = 47);
+            vm.in_interp(later, |vm| vm.oo_dispatch_depth = 79);
             let original_world = vm.in_interp(original, |vm| Rc::downgrade(&vm.name_world));
             let earlier_frame = vm.in_interp(earlier, |vm| Rc::downgrade(&vm.frames[0].activation));
             let later_frame = vm.in_interp(later, |vm| Rc::downgrade(&vm.frames[0].activation));
@@ -1538,7 +1550,7 @@ mod tests {
             let first = vm.execution_refusal.clone().unwrap();
             assert_eq!(Some(&first), expected_first.borrow().as_ref());
             vm.in_interp(earlier, |vm| {
-                assert_eq!(vm.activation_depth, 47);
+                assert_eq!(vm.oo_dispatch_depth, 47);
                 assert!(vm.name_world.borrow().is_live());
                 assert!(
                     earlier_frame
@@ -1547,7 +1559,7 @@ mod tests {
                 );
             });
             vm.in_interp(later, |vm| {
-                assert_eq!(vm.activation_depth, 79);
+                assert_eq!(vm.oo_dispatch_depth, 79);
                 assert!(vm.name_world.borrow().is_live());
                 assert!(
                     later_frame

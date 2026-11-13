@@ -111,17 +111,22 @@ impl Vm {
                 return self
                     .refuse_host_command("authored random numeric policy is unavailable".into());
             };
-            let bytes = value.string_bytes();
-            match simulation
-                .parse_number(&bytes, LogicalNumericInputStage::Integer)
-                .ok()
-                .and_then(|number| {
-                    tcl_syntax::expr::wide::parsed_literal(
-                        tcl_dialect::NativeArithmetic::Tcl84Wide,
-                        &number,
-                    )
+            // C8.4 ExprSrandFunc keeps an operand's integer representation
+            // (VerifyExprObjType), so the formatter's "-8" spelling of the
+            // minimum wide never reaches the seed.
+            let integer = value.integer_representation().or_else(|| {
+                simulation
+                    .parse_number(&value.string_bytes(), LogicalNumericInputStage::Integer)
                     .ok()
-                }) {
+                    .and_then(|number| {
+                        tcl_syntax::expr::wide::parsed_literal(
+                            tcl_dialect::NativeArithmetic::Tcl84Wide,
+                            &number,
+                        )
+                        .ok()
+                    })
+            });
+            match integer {
                 Some(seed) => Some(seed),
                 None => {
                     return super::err(format!("expected integer but got \"{}\"", value.to_str()));

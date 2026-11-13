@@ -19,8 +19,8 @@
 //! Authored static publication over enrolled, live worker namespace cells.
 
 use super::{
-    Completion, HashSet, InterpId, Local, NameBytes, Namespaces, NsId, ROOT_INTERP, ROOT_NS, Value,
-    VarBinding, VarId, VarTable, VarTableOwner, Vm, err, ok,
+    Completion, GuardDomain, HashSet, InterpId, Local, NameBytes, Namespaces, NsId, ROOT_INTERP,
+    ROOT_NS, Value, VarBinding, VarId, VarTable, VarTableOwner, Vm, err, ok,
 };
 use tcl_runtime_api::authored_tmm::{
     AuthoredTmmStaticPolicy, AuthoredTmmWorkerTopology, TmmStaticExecutionContext,
@@ -128,7 +128,12 @@ impl Vm {
             let state = self.st_of(recipient.interpreter)?;
             recipients.push(AuthoredTmmStaticRecipient {
                 namespace: selected,
-                observer_epoch: state.compilation_epochs.trace_deopt_epoch.get(),
+                // Every variable observer change in the recipient advances
+                // this domain; a poisoned domain supplies no receipt.
+                observer_epoch: state
+                    .guards
+                    .borrow()
+                    .domain_epoch(GuardDomain::VariableTrace)?,
             });
             // Table attachment, not a name prefix or an alias spelling, selects
             // the actual callback roots in the enrolled recipient namespace.
@@ -1539,7 +1544,7 @@ mod tests {
         assert_eq!(row[0], "vl1");
         assert_eq!(row[1], "0");
         assert_eq!(row[2], "2");
-        assert_eq!(row[3], "192.168.9.80");
+        assert_eq!(row[3], "192.0.2.201");
         assert_eq!(row[4], "42101");
         assert_eq!(row[5], "before");
         assert_eq!(row[7], "action");

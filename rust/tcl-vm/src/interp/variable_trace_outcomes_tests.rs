@@ -517,7 +517,8 @@ fn original_script_trace_guest_keeps_its_existing_error_episode_through_presenta
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut vm = native(profile);
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(profile));
         let completion = vm.try_eval_source(
             "proc original_trace_stop {args} {error STOP SCRIPT_MARKER}; trace add variable x write original_trace_stop; set x changed"
         ).unwrap();

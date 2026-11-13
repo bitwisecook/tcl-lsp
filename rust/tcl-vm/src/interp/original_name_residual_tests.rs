@@ -224,20 +224,21 @@ fn original_formal_list_capture_order_is_selected_before_body_reference_acquisit
     // naming.procedure.counted-body-header-selection
     // docs/design/analysis/name-resolution-proofs/procedure-counted-body-header-selection.md
     // Actual C capture skips formal parsing here; actual Jim reaches its original formal List first.
+    // Jim's string-to-list conversion cannot fail (jim.c SetListFromAny), and
+    // JimCreateProcedureCmd holds the body before it validates the formals.
     for engine in ["tcl8.4", "tcl8.6", "tcl9.1", "jim"] {
         let mut vm = native(engine);
         let parameters = Value::new_native_string_bytes(b"{".as_slice());
         let body = Value::new_native_string_bytes(b"return SAME".as_slice());
-        let reached = vm.capture_procedure_declaration_body(&parameters, &body);
+        let captured = vm
+            .capture_procedure_declaration_body(&parameters, &body)
+            .unwrap();
+        assert!(captured.is_same_object(&body));
+        assert_eq!(body.native_object_reference_count(), 2);
+        assert!(vm.execution_refusal.is_none());
         if engine == "jim" {
-            let error = reached.unwrap_err();
-            assert!(error.native_execution_refusal().is_none());
-            assert_eq!(body.native_object_reference_count(), 1);
-            assert!(vm.execution_refusal.is_none());
+            assert_eq!(parameters.native_object_type_name(), "list");
         } else {
-            let captured = reached.unwrap();
-            assert!(captured.is_same_object(&body));
-            assert_eq!(body.native_object_reference_count(), 2);
             assert!(matches!(
                 parameters.native_object_snapshot().cache,
                 tcl_syntax::native_object::NativeObjectCacheSnapshot::None

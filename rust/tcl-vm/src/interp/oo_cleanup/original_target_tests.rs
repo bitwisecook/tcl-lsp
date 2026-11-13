@@ -56,6 +56,9 @@ fn original_oo_cleanup_selects_physical_namespace_teardown_order() {
     }
 }
 
+// The callback's foreign selection is found by the restored-context re-proof,
+// which runs only under `VERIFY_CURRENCY`.
+#[cfg(debug_assertions)]
 #[test]
 fn original_oo_cleanup_keeps_reached_metadata_and_default_caller_restoration() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -74,16 +77,16 @@ fn original_oo_cleanup_keeps_reached_metadata_and_default_caller_restoration() {
         let metadata = original
             .in_original(&mut vm, |vm| {
                 assert!(vm.interp_is_current(parent));
-                vm.activation_depth = 37;
+                vm.oo_dispatch_depth = 37;
                 select_cleanup_fixture_interpreter(vm, child);
-                vm.activation_depth = 11;
+                vm.oo_dispatch_depth = 11;
                 73u64
             })
             .unwrap();
         assert_eq!(metadata, 73);
         assert!(vm.interp_is_current(parent));
-        assert_eq!(vm.activation_depth, 37);
-        vm.in_interp(child, |vm| assert_eq!(vm.activation_depth, 11));
+        assert_eq!(vm.oo_dispatch_depth, 37);
+        vm.in_interp(child, |vm| assert_eq!(vm.oo_dispatch_depth, 11));
         let first = vm.execution_refusal.clone().unwrap();
         assert_eq!(
             original

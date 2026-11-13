@@ -243,6 +243,9 @@ fn original_arena_withdrawal_never_releases_same_numbered_replacement_cell() {
     drop(replacement);
 }
 
+// The callback's foreign selection is found by the restored-context re-proof,
+// which runs only under `VERIFY_CURRENCY`.
+#[cfg(debug_assertions)]
 #[test]
 fn original_dying_namespace_table_finishes_owned_rows_after_child_callback() {
     // naming.embedding.original-host-publication-and-fact-transport
@@ -250,7 +253,7 @@ fn original_dying_namespace_table_finishes_owned_rows_after_child_callback() {
     let mut vm = native();
     let original_id = vm.cur;
     let target = child(&mut vm);
-    let ns = vm.definition_namespace_token("cleanup_ns");
+    let ns = vm.activate_namespace_written("::cleanup_ns");
     vm.set_var_bytes(b"::cleanup_ns::a", Value::int(1)).unwrap();
     vm.set_var_bytes(b"::cleanup_ns::z", Value::int(2)).unwrap();
     let rows: Vec<_> = vm.ns_vars[&ns].values().copied().collect();

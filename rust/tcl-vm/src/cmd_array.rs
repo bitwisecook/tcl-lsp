@@ -527,7 +527,12 @@ fn array_set_c_after_trace(
         );
     }
     if items.is_empty() {
-        if let Err(error) = vm.ensure_array_bytes(name) {
+        let reached = if vm.authored_c_variable_names() {
+            vm.ensure_array_bytes(name)
+        } else {
+            vm.array_set_empty_original(original_name)
+        };
+        if let Err(error) = reached {
             return error;
         }
     } else {

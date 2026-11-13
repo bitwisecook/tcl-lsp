@@ -370,6 +370,9 @@ impl Vm {
                 .actual_native_invocation_dialect()
                 .native_error_log_protocol()
                 .is_none()
+            // C8.4's logger already published this episode's code (NONE when
+            // no setter ran); a transported option is not a later setter.
+            || (self.uses_c84_global_error_info() && self.native_errors.error_logged.is_logged())
         {
             return Ok(());
         }

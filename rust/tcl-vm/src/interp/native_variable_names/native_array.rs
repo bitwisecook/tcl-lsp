@@ -87,6 +87,29 @@ impl Vm {
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         reached
     }
+    /// `TclArraySet` with an empty list: the array name object's lookup
+    /// creates the root and leaves its name cache before the array shell.
+    pub(crate) fn array_set_empty_original(
+        &mut self,
+        original: &Value,
+    ) -> Result<(), Completion<Value>> {
+        let purpose = self
+            .native_c_variable_name_protocol()
+            .expect("actual C array set issuer")
+            .array_set_lookup_purpose();
+        let original_names =
+            crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let reached = (|| {
+            let (_, name, _, resolved) =
+                self.prepare_native_original_variable(original, purpose)?;
+            self.ensure_array_selected(&name, &resolved)
+        })();
+        original_names
+            .finish(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        reached
+    }
     pub(in crate::interp) fn ensure_array_original_selected_opcode(
         &mut self,
         name: &[u8],

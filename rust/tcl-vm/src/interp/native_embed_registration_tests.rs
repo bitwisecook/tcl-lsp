@@ -77,9 +77,14 @@ fn embedded_registration_keeps_script_publication_slots_and_counted_name_boundar
         } else {
             vm.activate_namespace_written("::a:")
         };
-        vm.resolution_stacks
-            .ns_id_stack
-            .push(super::NamespaceExecutionContext::Resolved(holder));
+        if engine == "jim" {
+            // A Jim namespace is the original object its evaluation frame owns.
+            vm.push_ns_eval_token_frame(holder, Vec::new());
+        } else {
+            vm.resolution_stacks
+                .ns_id_stack
+                .push(super::NamespaceExecutionContext::Resolved(holder));
+        }
         let local = vm
             .register_written_command("p", Command::Native(Rc::new(HostValue(4))))
             .unwrap();
@@ -102,10 +107,15 @@ fn embedded_registration_keeps_script_publication_slots_and_counted_name_boundar
         if local != rooted {
             assert_eq!(host_result(&mut vm, &local), 4);
         }
-        assert_eq!(
-            vm.resolution_stacks.ns_id_stack.pop(),
-            Some(super::NamespaceExecutionContext::Resolved(holder))
-        );
+        if engine == "jim" {
+            vm.pop_call_frame();
+            vm.pop_ns();
+        } else {
+            assert_eq!(
+                vm.resolution_stacks.ns_id_stack.pop(),
+                Some(super::NamespaceExecutionContext::Resolved(holder))
+            );
+        }
     }
 }
 
