@@ -4427,7 +4427,10 @@ impl Vm {
                 .native_compiler_pass_owner
                 .retire_ordinary_entry_observation();
         }
-        if let Some(state) = self.st_of(id)
+        // An interpreter still executing keeps its world until finalization,
+        // as C defers DeleteInterpProc to the last Tcl_Release.
+        if self.interps[id.0].active == 0
+            && let Some(state) = self.st_of(id)
             && state.actual_native_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
         {

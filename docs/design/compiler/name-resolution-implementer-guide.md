@@ -3166,8 +3166,9 @@ Direct `NativeVariableObserver` registrations count as opaque recipient callback
 alongside script traces, even though guest trace introspection does not expose
 those rows. Their original registration token and actual attached cell determine
 lifetime. Unsetting and recreating a same-named recipient cell retires the old
-registration; replacement/removal changes the retained observer epoch, and an
-absent event context remains `Unknown`. A cached script label cannot close this
+registration. The retained observer epoch is the recipient's variable-trace
+guard epoch, so registration, replacement, removal and that retirement each
+change it; an absent event context remains `Unknown`. A cached script label cannot close this
 observer inventory.
 
 

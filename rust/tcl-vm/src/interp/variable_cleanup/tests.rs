@@ -19,9 +19,11 @@
 //! Actual software arena/trace roles; no Native callback chronology grant.
 use super::*;
 use crate::Value;
+#[cfg(debug_assertions)]
 use std::cell::Cell;
 #[cfg(debug_assertions)]
 use tcl_runtime_api::Traces;
+#[cfg(debug_assertions)]
 use tcl_runtime_api::native_variable_trace::{
     NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
 };
@@ -29,6 +31,7 @@ use tcl_runtime_api::native_variable_trace::{
 fn native() -> Vm {
     crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.1"))
 }
+#[cfg(debug_assertions)]
 fn child(vm: &mut Vm) -> InterpId {
     let name = vm.create_child(Some("variable_cleanup_child".into()), false);
     vm.child_id(&name).unwrap()
@@ -39,12 +42,14 @@ fn first(vm: &Vm) -> NativeExecutionError {
         .expect("full original first cause")
 }
 
+#[cfg(debug_assertions)]
 struct Observer {
     child: InterpId,
     mode: u8,
     calls: Rc<Cell<usize>>,
     drops: Rc<Cell<usize>>,
 }
+#[cfg(debug_assertions)]
 impl NativeVariableObserver<Vm> for Observer {
     type Error = CmdError;
     fn observe(&self, vm: &mut Vm, _: NativeVariableTraceAccess<'_>) -> Result<(), CmdError> {
@@ -73,11 +78,13 @@ impl NativeVariableObserver<Vm> for Observer {
         }
     }
 }
+#[cfg(debug_assertions)]
 impl Drop for Observer {
     fn drop(&mut self) {
         self.drops.set(self.drops.get() + 1);
     }
 }
+#[cfg(debug_assertions)]
 fn observer(
     vm: &mut Vm,
     name: &[u8],
