@@ -2285,14 +2285,8 @@ impl Interp {
             // A class that unexports its own `create`/`new` (e.g. a metaclass
             // with a custom factory) hides them from an external miss.
             let ext = self.oo.borrow().unknown_external;
-            let (cre_unexp, new_unexp) = {
-                let oo = self.oo.borrow();
-                let o = oo.objects.get(&obj);
-                (
-                    o.is_some_and(|o| o.unexported.contains(b"create".as_slice())),
-                    o.is_some_and(|o| o.unexported.contains(b"new".as_slice())),
-                )
-            };
+            let cre_unexp = self.factory_export_record(obj, b"create") == Some(false);
+            let new_unexp = self.factory_export_record(obj, b"new") == Some(false);
             if !(ext && cre_unexp) {
                 names.insert(b"create".to_vec());
             }
@@ -6263,22 +6257,13 @@ impl Interp {
         // The metaclass `::oo::class` is a singleton: instantiating it builds a
         // *class* (`oo_make_class`), and `new` is unexported on it.
         let is_meta = Some(class) == self.oo.borrow().class_root;
-        let (cre_unexp, new_unexp, cwn_exp) = {
-            let oo = self.oo.borrow();
-            match oo.objects.get(&class) {
-                Some(o) => (
-                    o.unexported.contains(b"create".as_slice()),
-                    o.unexported.contains(b"new".as_slice()),
-                    o.exported.contains(b"createWithNamespace".as_slice()),
-                ),
-                None => (false, false, false),
-            }
-        };
-        let cre_ok = !block_unexported || !cre_unexp;
-        let new_ok = !block_unexported || !new_unexp;
+        let cre_ok =
+            !block_unexported || self.factory_export_record(class, b"create") != Some(false);
+        let new_ok = !block_unexported || self.factory_export_record(class, b"new") != Some(false);
         // `createWithNamespace` is unexported by default; an external call needs
-        // it `self export`ed, an internal call reaches it regardless.
-        let cwn_ok = !block_unexported || cwn_exp;
+        // it exported, an internal call reaches it regardless.
+        let cwn_ok = !block_unexported
+            || self.factory_export_record(class, b"createWithNamespace") == Some(true);
         let applicable = match method {
             b"new" => !is_meta && new_ok,
             b"create" => cre_ok,
@@ -7965,6 +7950,32 @@ impl Interp {
     /// `(exported, unexported, private)` membership for `method` aggregated over
     /// `obj`'s whole method chain — used to resolve a built-in method's effective
     /// visibility for `info object methods -all`.
+    /// The export state a class built-in takes from the first record naming
+    /// it along the object's method chain: C's lookup reaches a body-less
+    /// `export`/`unexport` record (such as `oo::abstract`'s `unexport new`)
+    /// before the built-in. `None` where no record names it.
+    fn factory_export_record(&self, class: OoId, method: &[u8]) -> Option<bool> {
+        self.method_chain_faceted(class)
+            .into_iter()
+            .find_map(|(provider, is_object)| {
+                let oo = self.oo.borrow();
+                let (exported, unexported) = if is_object {
+                    oo.objects
+                        .get(&provider)
+                        .map(|o| (&o.exported, &o.unexported))?
+                } else {
+                    oo.classes
+                        .get(&provider)
+                        .map(|c| (&c.exported, &c.unexported))?
+                };
+                if unexported.contains(method) {
+                    Some(false)
+                } else {
+                    exported.contains(method).then_some(true)
+                }
+            })
+    }
+
     fn method_visibility_flags(&self, obj: OoId, method: &[u8]) -> (bool, bool, bool) {
         let (mut exp, mut unexp, mut priv_) = (false, false, false);
         for p in self.method_chain(obj) {
