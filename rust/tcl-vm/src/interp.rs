@@ -17403,6 +17403,78 @@ impl Vm {
         self.read_selected_variable_result_bytes(root, element, resolved)
     }
 
+    /// Read as C's `Tcl_ObjGetVar2` without `TCL_LEAVE_ERR_MSG`, the probe
+    /// a no-value `lappend` makes. A failure returns the completion options it
+    /// leaves on a successful update: a lookup miss reaches no trace and leaves
+    /// none, while a reached read that fails leaves the release's value-read
+    /// error code (`TclPtrGetVarIdx` sets it whatever the flags).
+    pub(crate) fn read_variable_unreported_bytes(
+        &mut self,
+        name: &[u8],
+    ) -> Result<Result<Value, Value>, Completion<Value>> {
+        use tcl_syntax::naming::{
+            NativeVariableDiagnosticOperation as Operation,
+            NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
+            NativeVariableInputForm as Input,
+        };
+        let reported =
+            self.dictionary_variable_containers() || self.observed_name_policy_selected();
+        if !reported
+            && !self
+                .resolve_var_from_bytes(name, self.current_level())
+                .is_some_and(|resolved| self.lookup_reaches_variable_cell(&resolved))
+        {
+            return Ok(Err(Value::empty()));
+        }
+        let failure = match self.read_variable_result_bytes(name, None) {
+            Ok(value) => return Ok(Ok(value)),
+            Err(failure) => failure,
+        };
+        if self.refused_completion().is_some() {
+            return Err(failure);
+        }
+        self.publish_swallowed_trace_error();
+        if reported {
+            return Ok(Err(failure.options));
+        }
+        let Some(policy) = self.name_policy_protocol() else {
+            return Err(
+                self.refuse_host_command("native variable diagnostic policy is unavailable".into())
+            );
+        };
+        let code = tcl_syntax::naming::report_native_variable_diagnostic_at(
+            policy.recipe(),
+            Operation::Read,
+            Reason::NoSuchVariable,
+            Site::ValueRead,
+            Input::Combined(name),
+        )
+        .map_err(|error| {
+            self.refuse_host_command(format!(
+                "native variable diagnostic is unavailable: {error:?}"
+            ))
+        })?
+        .error_code;
+        Ok(Err(code.map_or_else(Value::empty, |words| {
+            Value::list(vec![
+                Value::string("-errorcode"),
+                Value::list(words.into_iter().map(Value::from_string_bytes).collect()),
+            ])
+        })))
+    }
+
+    /// Whether a variable lookup that creates nothing reaches a cell: an
+    /// existing variable or link target, or an element of an existing array.
+    fn lookup_reaches_variable_cell(&self, resolved: &ResolvedVar) -> bool {
+        let base = resolved.base_id.and_then(|id| self.var_arena.get(id));
+        if resolved.elem.is_some() {
+            resolved.id.is_some()
+                || base.is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
+        } else {
+            resolved.id.is_some()
+        }
+    }
+
     fn read_selected_variable_result_bytes(
         &mut self,
         root: &[u8],

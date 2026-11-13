@@ -62,6 +62,11 @@ with the operation, the reason the engine observed, and the stage it reached
   compiled local already unset) fails at the unset itself: engines pass
   `ValueUnset`, giving `TCL UNSET VARNAME` from 8.6. Only a name with no entry
   fails at lookup, giving `TCL LOOKUP VARNAME <name>`.
+- A read that asks for no diagnostic (`Tcl_ObjGetVar2` without
+  `TCL_LEAVE_ERR_MSG`, as a no-value `lappend` reads) still leaves the
+  `ValueRead` code on a successful completion once it reaches an entry with no
+  value (`TCL READ VARNAME` from 8.6), but a name with no entry leaves nothing.
+  9.1 compiles `lappend name` as a reached read, so it leaves the code there too.
 - 8.5 tags exactly one variable failure: an unset of a missing array element,
   `TCL LOOKUP ELEMENT <key>`. 8.4 tags none.
 - `namespace which -variable` answers declared variables, including ones
