@@ -14550,7 +14550,7 @@ impl Interp {
         // runs; a procedure body is compiled as its procedure is called, and
         // stdin a chunk at a time.
         if pushed && evaluation == CommandEvaluation::Compiled && !next_proc_body {
-            if let Some(failure) = self.compile_failure_84(src, false) {
+            if let Some(failure) = self.compile_failure_84(src, false, self.current_ns.get()) {
                 self.leave_native_script();
                 return self.raise_compile_failure(&failure, b"");
             }
@@ -15603,6 +15603,7 @@ impl Interp {
         &self,
         src: &[u8],
         in_procedure: bool,
+        namespace: NsId,
     ) -> Option<tcl_runtime_api::CompileFailure> {
         if !self.runtime_version().compile_errors_fail_scripts() {
             return None;
@@ -15620,8 +15621,20 @@ impl Interp {
                 segmenter: &parser,
                 in_procedure,
                 parses_expressions: self.dialect_profile().f5_core_expr_grammar().is_none(),
+                compiles: &|head| self.compiles_with_stock_procedure(namespace, head.as_bytes()),
             },
         )
+    }
+
+    /// Whether `head` finds a stock command, whose compile procedure the
+    /// registry describes, with no execution trace.
+    fn compiles_with_stock_procedure(&self, namespace: NsId, head: &[u8]) -> bool {
+        let Some((_, _, _, lookup)) = self.native_compiler_target(namespace, head) else {
+            return false;
+        };
+        !self.traces.borrow().cmd_traces.iter().any(|trace| {
+            trace.token == Some(lookup) && trace.ops & crate::cmd_trace::ops::EXEC_ANY != 0
+        })
     }
 
     /// Raise a compile's refusal: its message, with its `while compiling`
@@ -18974,7 +18987,7 @@ impl Interp {
         // refuses it before binding a word or running a command
         // (`TclProcCompileProc`).
         if let ProcFrame::Proc(name) = meta.err {
-            if let Some(failure) = self.compile_failure_84(body, true) {
+            if let Some(failure) = self.compile_failure_84(body, true, ns) {
                 let frame = compiling_body_frame(name, failure.line);
                 let code = self.raise_compile_failure(&failure, &frame);
                 self.clear_error_logged();

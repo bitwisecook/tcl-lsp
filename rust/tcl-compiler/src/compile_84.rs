@@ -52,6 +52,8 @@ pub fn compile_failure(
             segmenter: &segmenter,
             in_procedure: unit == CompileUnit::ProcedureBody,
             parses_expressions: profile.f5_core_expr_grammar().is_none(),
+            // Static analysis has no interpreter: every head is the stock command.
+            compiles: &|_| true,
         },
     )
 }

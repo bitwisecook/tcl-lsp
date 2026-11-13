@@ -144,6 +144,10 @@ pub struct Compile<'a> {
     /// where the profile adds operators of its own
     /// (`DialectProfile::f5_core_expr_grammar`).
     pub parses_expressions: bool,
+    /// Whether the command a head word finds is the one whose compile
+    /// procedure the registry records: `TclCompileScript` calls only that
+    /// command's own `compileProc`, and none while it has execution traces.
+    pub compiles: &'a dyn Fn(&str) -> bool,
 }
 
 /// Why 8.4's compiler refuses `source`, or `None` where it compiles.
@@ -224,6 +228,9 @@ impl Compile<'_> {
     /// The compile procedure 8.4 calls for `head`, from the hook the
     /// command's specification carries.
     fn procedure(&self, head: &str, args: &[Word<'_>]) -> Option<Procedure> {
+        if !(self.compiles)(head) {
+            return None;
+        }
         let name = head.strip_prefix("::").unwrap_or(head);
         let arg_texts: Vec<&str> = args
             .iter()
