@@ -288,12 +288,19 @@ pub fn install(interp: &mut Interp) {
         .clock_bootstrap_ensemble()
         .is_some()
     {
+        let admitted: Vec<&[u8]> = interp
+            .native_invocation_dialect()
+            .clock_complete_stock_ensemble_members()
+            .map_or_else(
+                || vec![&b"clicks"[..], b"seconds", b"milliseconds", b"microseconds"],
+                |members| members.iter().map(|member| member.as_bytes()).collect(),
+            );
         interp.register_stock_ensemble(
             tcl_registry::invocation_words::EnsembleImplementationFamily::Clock,
             b"clock",
             clock_cmd,
-            CLOCK_READING_MEMBERS,
-            &[b"clicks", b"seconds", b"milliseconds", b"microseconds"],
+            CLOCK_MEMBERS,
+            &admitted,
         );
         return;
     }
@@ -317,11 +324,14 @@ pub fn install(interp: &mut Interp) {
     interp.register_stock_builtin(b"::tcl::clock::scan", clock_scan);
 }
 
-const CLOCK_READING_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+const CLOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+    (b"add", clock_add),
     (b"clicks", clock_clicks),
-    (b"seconds", clock_seconds),
-    (b"milliseconds", clock_milliseconds),
+    (b"format", clock_format),
     (b"microseconds", clock_microseconds),
+    (b"milliseconds", clock_milliseconds),
+    (b"scan", clock_scan),
+    (b"seconds", clock_seconds),
 ];
 
 /// Dispatch an `::tcl::clock::<sub>` ensemble member by prepending `sub` to the

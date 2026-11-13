@@ -133,6 +133,37 @@ macro_rules! clock_reading_compiler {
     };
 }
 
+// C9.0/C9.1 TclClockInit gives the add, format and scan workers
+// TclCompileBasicMin1ArgCmd; C8.6 defines them in clock.tcl.
+macro_rules! clock_basic_compiler {
+    ($member:literal) => {
+        crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
+                compiler: &crate::native_compilation::NativeCompilationSpec {
+                    grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                        TclVersion::V9_0,
+                    ),
+                    operation: crate::SemanticOperationId::Invoke,
+                    body: crate::native_compilation::NativeBodyCompilation::Inherit,
+                },
+                lookups: &[
+                    crate::native_compilation::NativeCompilerImplementationLookup {
+                        ensemble: "::clock",
+                        member: $member,
+                        slot: concat!("::tcl::clock::", $member),
+                        command: "clock",
+                        prepended: &[$member],
+                    },
+                ],
+                implementation_from: TclVersion::V9_0,
+                monolithic_no_hook_before: false,
+            },
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }
+    };
+}
+
 const FORMAT_FORMAT_OPTION: OptionSpec = OptionSpec {
     name: "-format",
     // The value is the `clock` field string, not a generic value: the
@@ -412,6 +443,7 @@ const ADD_UNIT_VALUES: &[ArgValue] = &[
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "add",
+        native_compilation: Some(clock_basic_compiler!("add")),
         // Added in Tcl 8.5 (the clock rewrite, TIP 173); the `weekdays`
         // unit (see `ADD_UNIT_VALUES`) followed in Tcl 9.0, not 8.6 (the
         // 8.6.18 clock.n page's unit list has no `weekdays`; it first
@@ -454,6 +486,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "format",
+        native_compilation: Some(clock_basic_compiler!("format")),
         arity: Arity::at_least(1),
         detail: "Format a time value.",
         synopsis: "clock format timeVal ?-option value ...?",
@@ -520,6 +553,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "scan",
+        native_compilation: Some(clock_basic_compiler!("scan")),
         arity: Arity::at_least(1),
         detail: "Parse a date/time string.",
         synopsis: "clock scan inputString ?-option value ...?",
@@ -846,6 +880,15 @@ mod tests {
                     .native_compilation_for_registration(&format!("tcl::clock::{member}"), dialect)
                     .is_none()
             );
+        }
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            let dialect = InvocationDialect::for_version(version);
+            for member in ["add", "format", "scan"] {
+                let compiler = registry
+                    .native_compilation_for_registration(&format!("tcl::clock::{member}"), dialect)
+                    .unwrap();
+                assert_eq!(compiler.compiler_hook_presence(dialect), Some(true));
+            }
         }
         for version in TclVersion::ALL {
             assert_eq!(
