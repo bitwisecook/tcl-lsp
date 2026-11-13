@@ -2281,6 +2281,12 @@ fn deferred_method_body(
         namespace_key: context.namespace_identity(),
         event: None,
         receiver_method: true,
+        receiver_namespace: (grammar.member_current_namespace()
+            == tcl_registry::definer::MemberCurrentNamespace::RuntimeReceiver)
+            .then_some(super::conditional_body::SourceReceiverNamespace {
+                path: grammar.member_body_namespace_path,
+                family: grammar.family,
+            }),
         future_frame: None,
         parameters: formals,
         original_parameters,

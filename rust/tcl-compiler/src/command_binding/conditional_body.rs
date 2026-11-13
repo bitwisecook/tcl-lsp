@@ -20,6 +20,15 @@
 
 use super::{Arc, CommandAllocation, ExecutedScriptSource, SourceCommandBindings};
 
+/// Command lookup of a member body whose current namespace is the runtime
+/// receiver's private namespace: that namespace, then `path`, then global.
+/// The private namespace has no static name; Tcl creates `commands` in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SourceReceiverNamespace {
+    pub(crate) path: &'static [&'static str],
+    pub(crate) family: tcl_registry::definer::DefinerFamily,
+}
+
 /// A native receiver-body declaration's original local scope. Its source
 /// recipe and formals do not allocate a method implementation or receiver.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +36,7 @@ pub struct SourceDeclaredReceiverBodyEntry {
     declaration: super::CommandAllocationSite,
     source: ExecutedScriptSource,
     declaration_namespace: super::SourceNamespaceKey,
+    receiver_namespace: Option<SourceReceiverNamespace>,
     parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
     original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
     preview_frame: crate::var_resolve::VariableExecutionFrame,
@@ -65,6 +75,10 @@ impl SourceDeclaredReceiverBodyEntry {
 
     pub(super) fn preview_frame(&self) -> &crate::var_resolve::VariableExecutionFrame {
         &self.preview_frame
+    }
+
+    pub(crate) const fn receiver_namespace(&self) -> Option<SourceReceiverNamespace> {
+        self.receiver_namespace
     }
 
     /// Original declaration context, independently of the unknown namespace
@@ -815,6 +829,7 @@ impl SourceCommandBindings {
                 declaration: declaration.clone(),
                 source: source.clone(),
                 declaration_namespace: body.namespace_key.clone(),
+                receiver_namespace: body.receiver_namespace,
                 parameters: body.parameters.clone(),
                 original_parameters: body.original_parameters.clone(),
                 preview_frame: crate::var_resolve::VariableExecutionFrame::ReceiverMethod {

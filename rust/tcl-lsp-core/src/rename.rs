@@ -4263,6 +4263,127 @@ mod tests {
         );
     }
 
+    fn rename_at_8_6(
+        source: &str,
+        line: u32,
+        character: u32,
+        new_name: &str,
+    ) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+        rename_with_diagnosis(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            line,
+            character,
+            new_name,
+            &analyse(source),
+            None,
+        )
+    }
+
+    /// Oracle (tclsh 8.6, 9.0, 9.1): a method or constructor body looks a
+    /// command up in the object's namespace, then `::oo::Helpers`, then
+    /// global. Renaming the global procedure and both member-body calls
+    /// keeps the program printing `h`.
+    #[test]
+    fn rename_proc_rewrites_calls_in_method_and_constructor_bodies() {
+        let source = "proc helper {} {return h}\n\
+                      oo::class create C {\n    constructor {} {helper}\n    \
+                      method m {} {set r [helper]}\n}\n\
+                      C new\n";
+        let edits = rename_at_8_6(source, 0, 5, "renamed").unwrap();
+        assert_eq!(
+            apply_edits(source, &edits),
+            "proc renamed {} {return h}\n\
+             oo::class create C {\n    constructor {} {renamed}\n    \
+             method m {} {set r [renamed]}\n}\n\
+             C new\n"
+        );
+    }
+
+    /// Oracle (tclsh 8.6, 9.0, 9.1): a conditional body inside a method runs
+    /// in the method's frame and namespace, so its call follows the same
+    /// lookup (`if_*`: `h` before and after).
+    #[test]
+    fn rename_proc_rewrites_a_call_in_a_method_conditional_body() {
+        let source = "proc helper {} {return h}\n\
+                      oo::class create C {\n    method m {} {if {1} {helper}}\n}\n";
+        let edits = rename_at_8_6(source, 0, 5, "renamed").unwrap();
+        assert_eq!(
+            apply_edits(source, &edits),
+            "proc renamed {} {return h}\n\
+             oo::class create C {\n    method m {} {if {1} {renamed}}\n}\n"
+        );
+    }
+
+    /// Oracle (tclsh 8.6, 9.0, 9.1): `::oo::Helpers::helper` shadows the
+    /// global `helper` inside a method (`helpers` before and after), so the
+    /// method's call is not a reference to the renamed global procedure.
+    #[test]
+    fn rename_proc_leaves_a_method_call_that_oo_helpers_shadows() {
+        let source = "proc ::oo::Helpers::helper {} {return helpers}\n\
+                      proc helper {} {return global}\n\
+                      oo::class create C {\n    method m {} {set r [helper]}\n}\n";
+        if let Ok(edits) = rename_at_8_6(source, 1, 5, "renamed") {
+            assert_eq!(
+                apply_edits(source, &edits),
+                "proc ::oo::Helpers::helper {} {return helpers}\n\
+                 proc renamed {} {return global}\n\
+                 oo::class create C {\n    method m {} {set r [helper]}\n}\n"
+            );
+        }
+    }
+
+    /// Oracle (tclsh 8.6, 9.0, 9.1): the object namespace's `my` and
+    /// `::oo::Helpers` both precede global lookup in a method, so a member
+    /// call renamed to `my` or to a Helpers command would reach it
+    /// (`c_collide`: `helpers`, not `global`); a relative `proc` in a method
+    /// body publishes into the object namespace (`e_pub`: `local`).
+    #[test]
+    fn rename_proc_refuses_names_the_method_lookup_reaches_first() {
+        for (source, new_name) in [
+            (
+                "proc ::oo::Helpers::renamed {} {return helpers}\n\
+                 proc helper {} {return global}\n\
+                 oo::class create C {\n    method m {} {set r [helper]}\n}\n",
+                "renamed",
+            ),
+            (
+                "proc helper {} {return global}\n\
+                 oo::class create C {\n    method m {} {set r [helper]}\n}\n",
+                "my",
+            ),
+            (
+                "proc helper {} {return global}\n\
+                 oo::class create C {\n    \
+                 method m {} {proc renamed {} {return local}; return [helper]}\n}\n",
+                "renamed",
+            ),
+        ] {
+            let line = u32::from(source.starts_with("proc ::oo"));
+            let result = rename_at_8_6(source, line, 5, new_name);
+            assert!(
+                !matches!(&result, Ok(edits) if !edits.is_empty()),
+                "{source}: {result:?}"
+            );
+        }
+    }
+
+    /// Oracle (tclsh 8.6, 9.0, 9.1): renaming a class whose method calls a
+    /// global procedure keeps `hi h`.
+    #[test]
+    fn rename_class_whose_method_body_calls_a_procedure() {
+        let source = "proc helper {} {return h}\n\
+                      oo::class create MyClass {\n    method greet {} {set greeting \"hi [helper]\"}\n}\n\
+                      MyClass new\n";
+        let edits = rename_at_8_6(source, 1, 17, "Renamed").unwrap();
+        assert_eq!(
+            apply_edits(source, &edits),
+            "proc helper {} {return h}\n\
+             oo::class create Renamed {\n    method greet {} {set greeting \"hi [helper]\"}\n}\n\
+             Renamed new\n"
+        );
+    }
+
     #[test]
     fn rename_class_at_decl_rewrites_decl_and_calls() {
         // `oo::class create MyClass { ... }` plus a `MyClass new`

@@ -108,6 +108,21 @@ pub fn invocation_targets_declaration_in<T>(
                     && reference_matches_declaration(reference, declaration, follow_links)
             });
     }
+    if invocation.original_lookup.is_none()
+        && let (Some(input), Some(lookup)) = (
+            &invocation.original_name_input,
+            &invocation.original_receiver_lookup,
+        )
+    {
+        return receiver_lookup_targets_declaration(
+            analysis,
+            &image,
+            (input, lookup),
+            invocation.resolved_command_reference.as_ref(),
+            declaration,
+            follow_links,
+        );
+    }
     let (Some(input), Some(lookup)) =
         (&invocation.original_name_input, &invocation.original_lookup)
     else {
@@ -126,6 +141,55 @@ pub fn invocation_targets_declaration_in<T>(
         return false;
     }
     reference_matches_declaration(reference, declaration, follow_links)
+}
+
+/// A head in a runtime receiver's member body names the declaration when the
+/// word is none of the commands Tcl puts in the receiver namespace and every
+/// ordered candidate path reaches the declaration's slot before any slot the
+/// completed command world may occupy. A retained source reference, when
+/// present, must agree.
+fn receiver_lookup_targets_declaration<T>(
+    analysis: &AnalysisResult,
+    image: &SourceImage,
+    (input, lookup): (
+        &crate::signature_scan::scope::SignatureSourceNameInput,
+        &crate::command_binding::OriginalCommandLookup,
+    ),
+    reference: Option<&crate::command_binding::SourceCommandReference>,
+    declaration: &SourceDeclarationMetadata<T>,
+    follow_links: bool,
+) -> bool {
+    if lookup.name_input() != input
+        || lookup.site().source.source_image() != image
+        || input.policy() != declaration.name().policy()
+        || lookup
+            .receiver_namespace_commands()
+            .is_some_and(|local| local.iter().any(|name| name.as_bytes() == input.bytes()))
+    {
+        return false;
+    }
+    let Some(world) = analysis.original_completed_command_world() else {
+        return false;
+    };
+    let slot = declaration.name().slot();
+    let reaches = !lookup.candidates().is_empty()
+        && lookup.candidates().iter().all(|path| {
+            for candidate in path {
+                if candidate == slot {
+                    return true;
+                }
+                if world.command_slot_occupied(candidate, input.policy()) != Some(false) {
+                    return false;
+                }
+            }
+            false
+        });
+    reaches
+        && world.command_slot_occupied(slot, input.policy()) == Some(true)
+        && reference.is_none_or(|reference| {
+            reference.matches_original_invocation_site(lookup.site())
+                && reference_matches_declaration(reference, declaration, follow_links)
+        })
 }
 
 /// Compare a retained original reference with one declaration allocation.

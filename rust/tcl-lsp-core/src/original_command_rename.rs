@@ -381,7 +381,10 @@ pub(crate) fn reject_link_obligations(
 fn reject_command_link_coverage(
     coverage: CommandLinkCoverage<'_, '_>,
 ) -> Result<(), OriginalCommandRenameRefusal> {
-    use tcl_registry::{CommandBindingTransition, NamespaceTransition, StateTransition};
+    use tcl_registry::{
+        CommandBindingTransition, NamespaceTransition, ObjectDispatchTransition,
+        ObjectPrivateNamespace, StateTransition,
+    };
     let selected = match coverage {
         CommandLinkCoverage::Registry(selected) => selected,
         CommandLinkCoverage::SourceLoad { receipt, analysis } => {
@@ -430,6 +433,21 @@ fn reject_command_link_coverage(
     };
     for fact in transition_facts {
         match &fact.transition {
+            // A named private namespace (`oo::copy obj copy ::ns`,
+            // `createWithNamespace`) may already hold commands that shadow
+            // every member-body lookup of that object (tclsh 8.6-9.1).
+            StateTransition::ObjectDispatch(
+                ObjectDispatchTransition::Create {
+                    private_namespace: ObjectPrivateNamespace::Named(_),
+                    ..
+                }
+                | ObjectDispatchTransition::Copy {
+                    private_namespace: ObjectPrivateNamespace::Named(_),
+                    ..
+                },
+            ) => {
+                return Err(OriginalCommandRenameRefusal::UneditableLinks);
+            }
             StateTransition::CommandBinding(CommandBindingTransition::Define { .. })
             | StateTransition::Namespace(NamespaceTransition::Ensure { .. })
             | StateTransition::ObjectDispatch(_)
@@ -590,8 +608,8 @@ fn queue_source_coverage(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
     command: &tcl_compiler::segmenter::SegmentedCommand,
-    depth: u32,
-    pending: &mut Vec<(usize, usize, u32)>,
+    receiver: Option<ReceiverNames<'_>>,
+    (depth, pending): (u32, &mut Vec<(usize, usize, u32)>),
 ) -> Result<bool, OriginalCommandRenameRefusal> {
     let offset = command
         .argv
@@ -599,15 +617,20 @@ fn queue_source_coverage(
         .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?
         .span
         .start();
-    Ok(queue_declaration(walk, document, command, depth, pending)?
-        || quiet_store_coverage(walk, document, command, offset)?
-        || authored_result_completion_coverage(walk, document, command, offset, depth, pending)?)
+    Ok(
+        queue_declaration(walk, document, command, receiver, depth, pending)?
+            || quiet_store_coverage(walk, document, command, offset)?
+            || authored_result_completion_coverage(
+                walk, document, command, offset, depth, pending,
+            )?,
+    )
 }
 
 fn queue_declaration(
     walk: &crate::refactor::FrameWalk<'_>,
     document: OriginalDeclarationDocument<'_>,
     command: &tcl_compiler::segmenter::SegmentedCommand,
+    receiver: Option<ReceiverNames<'_>>,
     depth: u32,
     pending: &mut Vec<(usize, usize, u32)>,
 ) -> Result<bool, OriginalCommandRenameRefusal> {
@@ -623,8 +646,116 @@ fn queue_declaration(
         .span
         .start();
     reject_selected_command_link_coverage(&selected, command_offset)?;
+    if let Some(receiver) = receiver {
+        receiver.reject_publication(&selected, command_offset)?;
+    }
     pending.push((body.start() as usize, body.end() as usize, depth + 1));
     Ok(true)
+}
+
+/// The old and new simple names of a rename seen from a member body whose
+/// current namespace is its runtime receiver's private namespace. A relative
+/// name published there (`proc`, `C create`, `rename`) shadows that body's
+/// later lookups, so a publication that may carry either name demurs.
+#[derive(Clone, Copy)]
+struct ReceiverNames<'a> {
+    names: [&'a [u8]; 2],
+    policy: NamePolicyProtocol,
+}
+
+impl ReceiverNames<'_> {
+    fn matches(self, written: &[u8]) -> bool {
+        self.policy
+            .recipe()
+            .command_tail_extent(written)
+            .and_then(|tail| written.get(tail))
+            .is_some_and(|tail| self.names.contains(&tail))
+    }
+
+    fn reject_publication(
+        self,
+        selected: &tcl_compiler::registry_invocation::ResolvedStatementInvocation,
+        command_offset: u32,
+    ) -> Result<(), OriginalCommandRenameRefusal> {
+        use tcl_registry::{CommandBindingTransition, StateTransition};
+        let Some(transitions) = selected.facts.state_transitions.declared() else {
+            return Ok(());
+        };
+        for fact in transitions.facts() {
+            if let StateTransition::CommandBinding(CommandBindingTransition::Define {
+                name, ..
+            }) = &fact.transition
+                && name
+                    .literal()
+                    .is_none_or(|name| self.matches(name.as_bytes()))
+            {
+                coverage_trace(command_offset, "receiver-namespace-publication");
+                return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+            }
+        }
+        Ok(())
+    }
+
+    fn reject_operands(
+        self,
+        words: &[tcl_lexer::NativeWord],
+        command_offset: u32,
+    ) -> Result<(), OriginalCommandRenameRefusal> {
+        let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            words,
+            self.policy.string_protocol(),
+        )
+        .map_err(|_| OriginalCommandRenameRefusal::IncompleteCoverage)?;
+        if (1..words.len()).any(|ordinal| {
+            captured
+                .literal(ordinal)
+                .is_none_or(|word| self.matches(word))
+        }) {
+            coverage_trace(command_offset, "receiver-namespace-operand");
+            return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+        }
+        Ok(())
+    }
+}
+
+/// The original lookup of a command head, through the runtime receiver's
+/// namespace in a member body whose current namespace is that receiver's.
+fn head_lookup<'a>(
+    document: OriginalDeclarationDocument<'_>,
+    context: &source_coverage::RequestContext<'a, '_>,
+    tokens: &tcl_compiler::ir::CommandTokens,
+    input: &SignatureSourceNameInput,
+    command_offset: u32,
+) -> Result<(OriginalCommandLookup, Option<ReceiverNames<'a>>), OriginalCommandRenameRefusal> {
+    let binding = require_coverage(
+        tokens.source_binding.as_ref(),
+        command_offset,
+        "source-binding",
+    )?;
+    let receiver = binding
+        .original_receiver_namespace_commands()
+        .is_some()
+        .then_some(ReceiverNames {
+            names: [
+                context.declaration.name().slot().simple.as_bytes(),
+                context.tail,
+            ],
+            policy: input.policy(),
+        });
+    let lookup = require_coverage(
+        if receiver.is_some() {
+            binding.original_receiver_command_lookup(input)
+        } else {
+            binding.original_command_lookup(tokens, input)
+        },
+        command_offset,
+        "original-lookup",
+    )?;
+    let image = SourceImage::document(document.source);
+    if lookup.name_input() != input || lookup.site().source.source_image() != &image {
+        return Err(OriginalCommandRenameRefusal::StaleSource);
+    }
+    Ok((lookup, receiver))
 }
 
 fn document_requests(
@@ -687,22 +818,18 @@ fn document_requests(
                 command_offset,
                 "original-head-input",
             )?;
-            let lookup = require_coverage(
-                binding.original_command_lookup(&tokens, &input),
-                command_offset,
-                "original-lookup",
-            )?;
-            let image = SourceImage::document(document.source);
-            if lookup.name_input() != &input || lookup.site().source.source_image() != &image {
-                return Err(OriginalCommandRenameRefusal::StaleSource);
-            }
+            let (lookup, receiver) =
+                head_lookup(document, context, &tokens, &input, command_offset)?;
             let reference = binding.original_command_reference(&tokens);
             requests.extend(head_request(context, reference.as_ref(), &lookup, &input)?);
-            if queue_source_coverage(&walk, document, &command, depth, &mut pending)? {
+            if queue_source_coverage(&walk, document, &command, receiver, (depth, &mut pending))? {
                 continue;
             }
             if let Some(selected) = walk.structure_for_rename_coverage(document.source, &command) {
                 reject_selected_command_link_coverage(&selected, command_offset)?;
+                if let Some(receiver) = receiver {
+                    receiver.reject_publication(&selected, command_offset)?;
+                }
                 for (a, b) in walk
                     .same_frame_regions(document.source, &command)
                     .into_iter()
@@ -722,6 +849,9 @@ fn document_requests(
                     &input,
                     command_offset,
                 )?;
+                if let Some(receiver) = receiver {
+                    receiver.reject_operands(&words, command_offset)?;
+                }
             }
         }
     }
@@ -1493,6 +1623,9 @@ fn head_request(
     lookup: &OriginalCommandLookup,
     input: &SignatureSourceNameInput,
 ) -> Result<Option<(SignatureSourceNameInput, NameBytes)>, OriginalCommandRenameRefusal> {
+    if let Some(local) = lookup.receiver_namespace_commands() {
+        return receiver_head_request(context, reference, lookup, input, local);
+    }
     let Some(reference) = reference else {
         return Ok(None);
     };
@@ -1518,6 +1651,92 @@ fn head_request(
         .replace_command_tail(input.bytes(), context.tail)
         .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
     Ok(Some((input.clone(), NameBytes::from(wanted))))
+}
+
+/// The edit request for a head in a member body that looks a command up in
+/// its receiver's private namespace, then each candidate. The receiver
+/// namespace holds only the commands Tcl creates there: the coverage walk
+/// refuses any publication that could add the old or new name to it.
+fn receiver_head_request(
+    context: &source_coverage::RequestContext<'_, '_>,
+    reference: Option<&SourceCommandReference>,
+    lookup: &OriginalCommandLookup,
+    input: &SignatureSourceNameInput,
+    local: &[&str],
+) -> Result<Option<(SignatureSourceNameInput, NameBytes)>, OriginalCommandRenameRefusal> {
+    if reference.is_some_and(|reference| !reference.matches_original_invocation_site(lookup.site()))
+    {
+        return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+    }
+    let reaches = !local.iter().any(|name| name.as_bytes() == input.bytes())
+        && receiver_lookup_reaches(context, lookup, context.declaration.name().slot())?;
+    let selected =
+        reference.map(|reference| context.declaration.reference_matches(reference, true));
+    if !reaches {
+        // A source reference to the declaration that the ordered lookup does
+        // not reach disagrees with it.
+        return if selected == Some(true) {
+            Err(OriginalCommandRenameRefusal::UneditableLinks)
+        } else {
+            Ok(None)
+        };
+    }
+    if selected == Some(false)
+        || reference
+            .is_some_and(|reference| !context.declaration.reference_matches(reference, false))
+    {
+        return Err(OriginalCommandRenameRefusal::UneditableLinks);
+    }
+    if local.iter().any(|name| name.as_bytes() == context.tail) {
+        return Err(OriginalCommandRenameRefusal::Collision);
+    }
+    destination_matches_with_cut(
+        context.documents,
+        context.conditional,
+        context.selected_cut,
+        lookup,
+        context.destination,
+        context.tail,
+    )?;
+    let wanted = input
+        .policy()
+        .recipe()
+        .replace_command_tail(input.bytes(), context.tail)
+        .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
+    Ok(Some((input.clone(), NameBytes::from(wanted))))
+}
+
+/// Whether every ordered candidate path reaches `declaration` before any
+/// other occupied slot.
+fn receiver_lookup_reaches(
+    context: &source_coverage::RequestContext<'_, '_>,
+    lookup: &OriginalCommandLookup,
+    declaration: &ByteCommandSlot,
+) -> Result<bool, OriginalCommandRenameRefusal> {
+    let mut reached = None;
+    for path in lookup.candidates() {
+        let mut selected = false;
+        for candidate in path {
+            if candidate == declaration {
+                selected = true;
+                break;
+            }
+            if occupied_with_cut(
+                context.documents,
+                context.conditional,
+                context.selected_cut,
+                candidate,
+                lookup.policy(),
+            )? {
+                break;
+            }
+        }
+        if reached.is_some_and(|previous| previous != selected) {
+            return Err(OriginalCommandRenameRefusal::UnknownDestination);
+        }
+        reached = Some(selected);
+    }
+    reached.ok_or(OriginalCommandRenameRefusal::UnknownDestination)
 }
 
 fn reject_incomplete_source_command(
@@ -1756,7 +1975,7 @@ mod tests {
         };
         let mut pending = Vec::new();
         assert!(walk.structure(source, &command).is_none());
-        assert!(queue_declaration(&walk, document, &command, 1, &mut pending).unwrap());
+        assert!(queue_declaration(&walk, document, &command, None, 1, &mut pending).unwrap());
         assert_eq!(pending.len(), 1);
         let (body_start, body_end, depth) = pending[0];
         assert_eq!(depth, 2);

@@ -331,6 +331,7 @@ impl SelectedWrapperWords {
             namespace_key,
             event: None,
             receiver_method: false,
+            receiver_namespace: None,
             future_frame: Some(frame),
             parameters: topology.advisory_parameters(),
             original_parameters: Some(topology),

@@ -1780,6 +1780,17 @@ impl Analyser {
                     }
                 };
             }
+            if invocation.original_lookup.is_none()
+                && invocation.original_receiver_lookup.is_none()
+                && invocation.lookup
+                    == crate::signature_scan::types::SignatureCommandLookup::InvocationHead
+                && binding.original_receiver_namespace_commands().is_some()
+            {
+                invocation.original_receiver_lookup = invocation
+                    .original_name_input
+                    .as_ref()
+                    .and_then(|input| binding.original_receiver_command_lookup(input));
+            }
         }
     }
 

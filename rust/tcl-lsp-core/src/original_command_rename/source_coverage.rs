@@ -742,7 +742,7 @@ fn collect_command_regions<'a>(
         .span
         .start();
     let mut nested = Vec::new();
-    if queue_declaration(walk, document, command, task.depth, &mut nested)? {
+    if queue_declaration(walk, document, command, None, task.depth, &mut nested)? {
         return output.nested(task, walk, nested, Purpose::ProcedureBody);
     }
     if quiet_store_coverage(walk, document, command, offset)? {

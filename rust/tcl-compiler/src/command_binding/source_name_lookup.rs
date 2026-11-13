@@ -36,6 +36,7 @@ pub struct OriginalCommandLookup {
     naming_scope: Option<SignatureNamespaceScope>,
     observations: Vec<super::declaration_layout::DeclarationLayoutObservation>,
     callback_scope: Option<tcl_registry::ScriptLookupScope>,
+    receiver_family: Option<tcl_registry::definer::DefinerFamily>,
 }
 
 impl OriginalCommandLookup {
@@ -73,6 +74,16 @@ impl OriginalCommandLookup {
     #[must_use]
     pub const fn callback_lookup_scope(&self) -> Option<tcl_registry::ScriptLookupScope> {
         self.callback_scope
+    }
+
+    /// Commands Tcl creates in a runtime receiver's private namespace. `Some`
+    /// when that unnamed namespace is searched before every candidate; the
+    /// candidates omit it, so a consumer must resolve these names there and
+    /// prove no other command reaches it.
+    #[must_use]
+    pub fn receiver_namespace_commands(&self) -> Option<&'static [&'static str]> {
+        self.receiver_family
+            .map(tcl_registry::definer::DefinerFamily::receiver_namespace_commands)
     }
 
     pub(super) fn source_observations(
@@ -787,6 +798,82 @@ impl SourceInvocationBinding {
         )
     }
 
+    /// Original lookup of a head in a member body whose current namespace is
+    /// the runtime receiver's private namespace. `TclOO` searches the object
+    /// namespace, then `::oo::Helpers`, then global, for simple and relative
+    /// qualified words alike; the class's namespace is not searched (tclsh
+    /// 8.6, 9.0, 9.1). The object namespace has no static name, so the
+    /// candidates omit it and the lookup carries the commands Tcl puts there.
+    #[must_use]
+    pub fn original_receiver_command_lookup(
+        &self,
+        input: &SignatureSourceNameInput,
+    ) -> Option<OriginalCommandLookup> {
+        let SignatureSourceNameInput::OriginalWord(key) = input else {
+            return None;
+        };
+        let rows = self.original_receiver_rows(Some(key))?;
+        let receiver = original_receiver_namespace(&rows, input.policy())?;
+        let (candidates, local) = original_receiver_candidates(input, receiver)?;
+        Some(OriginalCommandLookup {
+            input: input.clone(),
+            site: self.invocation_site()?.clone(),
+            candidates: vec![candidates],
+            naming_scope: None,
+            observations: rows.into_iter().cloned().collect(),
+            callback_scope: None,
+            receiver_family: local.then_some(receiver.family),
+        })
+    }
+
+    /// Observations of this invocation inside a receiver member body. A body
+    /// entered by an original call keeps its declaration preview in separate
+    /// rows; either preview fixes the same lookup order, which depends only on
+    /// the body's own frame and the written word.
+    fn original_receiver_rows(
+        &self,
+        key: Option<&SignatureSourceNameKey>,
+    ) -> Option<Vec<&super::declaration_layout::DeclarationLayoutObservation>> {
+        let site = self.invocation_site()?;
+        if key.is_some_and(|key| {
+            site.offset != key.original_word().group().span.start()
+                || site.source.source_image() != key.source_image()
+        }) {
+            return None;
+        }
+        let rows = super::declaration_layout::original_source_catalogue_layouts(
+            self.declaration_layout_observations.as_deref()?,
+        )?
+        .collect::<Vec<_>>();
+        if rows.iter().any(|row| {
+            key.is_some_and(|key| row.config != key.lexer_config())
+                || row.snapshot.state.variable_frame != *row.entry.frame()
+        }) {
+            return None;
+        }
+        Some(rows)
+    }
+
+    /// Commands Tcl creates in the runtime receiver namespace that is current
+    /// at this invocation, when every original observation places it in such
+    /// a member body. Code there publishes relative names into that namespace.
+    #[must_use]
+    pub fn original_receiver_namespace_commands(&self) -> Option<&'static [&'static str]> {
+        let rows = self.original_receiver_rows(None)?;
+        let policy = rows
+            .first()?
+            .snapshot
+            .state
+            .baseline
+            .execution_name_policy?
+            .native_recipe()?;
+        Some(
+            original_receiver_namespace(&rows, policy)?
+                .family
+                .receiver_namespace_commands(),
+        )
+    }
+
     pub(super) fn original_lookup_from_rows(
         &self,
         input: &SignatureSourceNameInput,
@@ -883,6 +970,7 @@ impl SourceInvocationBinding {
             naming_scope: naming_scope_available.then_some(naming_scope).flatten(),
             observations: rows.into_iter().cloned().collect(),
             callback_scope: None,
+            receiver_family: None,
         })
     }
 
@@ -932,6 +1020,7 @@ impl SourceInvocationBinding {
                     naming_scope: (scope == ScriptLookupScope::GlobalFrame).then_some(root),
                     observations: rows.into_iter().cloned().collect(),
                     callback_scope: None,
+                    receiver_family: None,
                 }
             }
             ScriptLookupScope::InvokingFrame => {
@@ -1058,6 +1147,80 @@ fn original_home_scope(
             .scope(&row.namespace, policy),
         SourceNamespaceKey::Allocated { .. } => None,
     }
+}
+
+fn original_receiver_namespace(
+    rows: &[&super::declaration_layout::DeclarationLayoutObservation],
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+) -> Option<super::conditional_body::SourceReceiverNamespace> {
+    use super::declaration_layout::OriginalDiagnosticFrameEntry;
+    let mut agreed = None;
+    for row in rows {
+        let OriginalDiagnosticFrameEntry::DeclaredReceiver(body) = row.entry.as_ref() else {
+            return None;
+        };
+        let selected = body.receiver_namespace()?;
+        if agreed.is_some_and(|previous| previous != selected)
+            || row
+                .snapshot
+                .state
+                .baseline
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                != Some(policy)
+        {
+            return None;
+        }
+        agreed = Some(selected);
+    }
+    agreed
+}
+
+/// Ordered candidates after the unnamed receiver namespace, and whether the
+/// word searches that namespace at all (an absolute word does not).
+fn original_receiver_candidates(
+    input: &SignatureSourceNameInput,
+    receiver: super::conditional_body::SourceReceiverNamespace,
+) -> Option<(Vec<ByteCommandSlot>, bool)> {
+    use tcl_syntax::naming::{CommandLookupBase, NativeCommandNamespaceRoute, NativeNameProtocol};
+    let policy = input.policy();
+    let recipe = policy.recipe();
+    if !matches!(recipe, NativeNameProtocol::C(_)) {
+        return None;
+    }
+    let root = SignatureNamespaceScope::root(Some(policy));
+    let selected = recipe
+        .command_lookup_projection(root.context()?, input.bytes())
+        .ok()?;
+    if selected.namespace_route() == NativeCommandNamespaceRoute::Root {
+        return Some((vec![selected.slot().clone()], false));
+    }
+    let path = receiver
+        .path
+        .iter()
+        .map(|namespace| {
+            tcl_syntax::naming::authored_source_namespace_path(
+                &tcl_core_types::ByteNamespacePath::root(),
+                namespace.as_bytes(),
+            )
+            .map(|path| Some(SignatureNamespaceScope::C(path)))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let mut candidates = Vec::new();
+    for base in selected.lookup_bases(None, &path).ok()? {
+        let scope = match base {
+            CommandLookupBase::Context(None) => continue,
+            CommandLookupBase::Context(Some(scope)) => scope,
+            CommandLookupBase::Root => root.clone(),
+        };
+        let candidate = recipe
+            .command_lookup_slot(scope.context()?, input.bytes())
+            .ok()?;
+        if !candidates.contains(&candidate) {
+            candidates.push(candidate);
+        }
+    }
+    Some((candidates, true))
 }
 
 fn original_authored_candidates(
@@ -1323,5 +1486,114 @@ mod tests {
         )
         .unwrap();
         assert_eq!(name.bytes(), b"auto_index(p\\u0000tail)");
+    }
+
+    #[test]
+    fn original_receiver_lookup_searches_object_helpers_then_global() {
+        // tclsh 8.6, 9.0, 9.1: a method, constructor or destructor body runs in
+        // the object's namespace with `namespace path ::oo::Helpers`; the
+        // class's own or declaring namespace is never searched, for simple and
+        // relative qualified words alike. `my` (and `myclass` on 9.x) is in
+        // the object namespace itself.
+        let slot = |namespace: &[&str], simple: &str| {
+            ByteCommandSlot::new(
+                tcl_core_types::ByteNamespacePath::from_segments(namespace.iter().copied()),
+                NameBytes::from(simple.as_bytes()),
+            )
+        };
+        let cases = [
+            (
+                "oo::class create C {method m {} {helper}}",
+                "helper",
+                0,
+                Some(vec![
+                    slot(&["oo", "Helpers"], "helper"),
+                    slot(&[], "helper"),
+                ]),
+                true,
+            ),
+            (
+                "namespace eval ::ns {oo::class create C {constructor {} {helper}}}",
+                "helper",
+                0,
+                Some(vec![
+                    slot(&["oo", "Helpers"], "helper"),
+                    slot(&[], "helper"),
+                ]),
+                true,
+            ),
+            (
+                "oo::class create C {destructor {a::x}}",
+                "a::x",
+                0,
+                Some(vec![slot(&["oo", "Helpers", "a"], "x"), slot(&["a"], "x")]),
+                true,
+            ),
+            (
+                "oo::class create C {method m {} {::abs}}",
+                "::abs",
+                0,
+                Some(vec![slot(&[], "abs")]),
+                false,
+            ),
+            (
+                "oo::class create C {method m {} {my x}}",
+                "my",
+                0,
+                Some(vec![slot(&["oo", "Helpers"], "my"), slot(&[], "my")]),
+                true,
+            ),
+            ("proc p {} {helper}", "helper", 0, None, false),
+        ];
+        for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(version).commands();
+            let point = tcl_dialect::model::DialectPoint::of_dialect_name(Some(version)).unwrap();
+            let dialect = tcl_registry::InvocationDialect::of_point(point);
+            let config = LexerConfig::from_grammar(dialect.lexer_grammar);
+            for (source, word, nth, expected, local) in &cases {
+                let start = u32::try_from(source.match_indices(word).nth(*nth).unwrap().0).unwrap();
+                let plan = tcl_lexer::native_script_words_in(
+                    SourceImage::document(source),
+                    Span::new(start, start + u32::try_from(word.len()).unwrap()),
+                    config,
+                )
+                .unwrap();
+                let key = SignatureSourceNameKey::from_original_native_word(
+                    &plan.commands[0].words[0],
+                    WordValueRules::from_config(&config),
+                    dialect.authored_name_policy().unwrap(),
+                )
+                .unwrap();
+                let bindings = super::super::SourceCommandBindings::analyse_with_options(
+                    source,
+                    config,
+                    registry,
+                    super::super::SourceAnalysisOptions {
+                        invocation_dialect: Some(dialect),
+                        ..super::super::SourceAnalysisOptions::default()
+                    },
+                );
+                let binding = bindings.invocation_at_source(word, start);
+                let lookup = binding
+                    .original_receiver_command_lookup(&SignatureSourceNameInput::OriginalWord(key));
+                assert_eq!(
+                    lookup.as_ref().map(|lookup| lookup.candidates().to_vec()),
+                    expected.clone().map(|expected| vec![expected]),
+                    "{version}: {source}"
+                );
+                assert_eq!(
+                    lookup
+                        .as_ref()
+                        .and_then(OriginalCommandLookup::receiver_namespace_commands),
+                    local.then_some(&["my", "myclass"][..]),
+                    "{version}: {source}"
+                );
+                assert_eq!(
+                    binding.original_receiver_namespace_commands().is_some(),
+                    expected.is_some(),
+                    "{version}: {source}"
+                );
+            }
+        }
     }
 }

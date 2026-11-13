@@ -234,6 +234,7 @@ impl SourceCommandBindings {
                 namespace_key: state.native_root_namespace_key().unwrap_or_default(),
                 event: None,
                 receiver_method: false,
+                receiver_namespace: None,
                 future_frame: Some(VariableExecutionFrame::Global.with_namespace_identity(
                     state.native_root_namespace_key().unwrap_or_default(),
                 )),

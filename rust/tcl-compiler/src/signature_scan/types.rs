@@ -946,6 +946,10 @@ pub struct SignatureCommandInvocation {
     /// Missing positioned ownership remains unknown even when static naming
     /// geometry or an advisory reporting label is available.
     pub original_lookup: Option<crate::command_binding::OriginalCommandLookup>,
+    /// Original lookup of a head in a runtime receiver's member body. Kept
+    /// apart from [`Self::original_lookup`]: its candidates omit the unnamed
+    /// receiver namespace that is searched first.
+    pub original_receiver_lookup: Option<crate::command_binding::OriginalCommandLookup>,
     /// Original native naming producer, independent of UI reporting, selected
     /// implementation and writable token geometry. Computed unowned values
     /// and specialised purposes retain no complete-word authority here.
@@ -1114,6 +1118,7 @@ impl SignatureCommandInvocation {
             original_callback_prefix: None,
             lookup: SignatureCommandLookup::InvocationHead,
             original_lookup: None,
+            original_receiver_lookup: None,
             original_name_input: None,
             name,
             range,

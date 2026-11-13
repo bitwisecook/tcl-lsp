@@ -1544,7 +1544,7 @@ impl MemberSpec {
 /// `snit::type Name { … }`).  Consumers that only walk members (folding,
 /// semantic tokens) never read this; the analyser dispatches on it instead of
 /// hardcoding definer names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefinerFamily {
     /// `TclOO` metaclasses and the `oo::define` / `oo::objdefine` script form.
     TclOo,
@@ -1825,6 +1825,18 @@ impl DefinerFamily {
             Self::Snit | Self::Itcl | Self::JimClass | Self::SpecTcl | Self::SslicTcl => {
                 MemberCurrentNamespace::DefinedEntity
             }
+        }
+    }
+
+    /// Commands Tcl itself places in a fresh receiver's private namespace,
+    /// searched before [`DefinitionBodyGrammar::member_body_namespace_path`]
+    /// by an unqualified command word in a member body. Empty for families
+    /// whose member bodies run in the defined entity's namespace.
+    #[must_use]
+    pub const fn receiver_namespace_commands(self) -> &'static [&'static str] {
+        match self {
+            Self::TclOo | Self::Clay => TCLOO_RECEIVER_NAMESPACE_COMMANDS,
+            Self::Snit | Self::Itcl | Self::JimClass | Self::SpecTcl | Self::SslicTcl => &[],
         }
     }
 }
@@ -4325,9 +4337,10 @@ pub const TCLOO_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     builtin_object_methods: TCLOO_BUILTIN_OBJECT_METHODS,
     builtin_terminating_methods: &["unknown"],
     // TclOO injects no extra *commands* into a method body — its helpers
-    // (`my` / `next` / `self` / `link` / `classvariable`) are real global
-    // commands in `::oo::Helpers` with their own specs, reached through
-    // `member_body_namespace_path` above.
+    // (`next` / `self` / `link` / `classvariable`) are real global commands in
+    // `::oo::Helpers` with their own specs, reached through
+    // `member_body_namespace_path` above; `my` lives in the receiver's own
+    // namespace (`DefinerFamily::receiver_namespace_commands`).
     member_body_commands: &[],
     // `Foo $win.a` is not a construction in TclOO: a class command only
     // constructs through `create` / `new` (tclsh 9.0.4: `::C x` →
@@ -4458,6 +4471,12 @@ const SNIT_MANUFACTURERS: &[ManufacturerMethod] = &[ManufacturerMethod {
 /// "this frame resolves like a `TclOO` method body" flag (rather than the
 /// whole grammar) still reads the path from registry data.
 pub const TCLOO_MEMBER_BODY_NAMESPACE_PATH: &[&str] = &["::oo::Helpers"];
+
+/// The commands Tcl creates in a fresh `TclOO` object's private namespace:
+/// `info commands [info object namespace $o]::*` answers `my` on tclsh 8.6
+/// and `my myclass` on 9.0 and 9.1. Both are listed, so a consumer that does
+/// not separate the releases still treats `myclass` as possibly local.
+pub const TCLOO_RECEIVER_NAMESPACE_COMMANDS: &[&str] = &["my", "myclass"];
 
 // snit — `snit::type` / `snit::widget` / `snit::widgetadaptor` bodies.
 
