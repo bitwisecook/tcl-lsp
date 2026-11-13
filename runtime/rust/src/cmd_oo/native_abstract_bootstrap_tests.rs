@@ -32,7 +32,7 @@ fn original_abstract_bootstrap_realizes_class_side_visibility_and_release_absenc
         .unwrap();
         let original = interpreter.oo_resolve_object_bytes(b"::oo::abstract");
         if version == "tcl8.6" {
-            assert!(original.is_err());
+            assert_eq!(original.unwrap(), OoId(0));
             continue;
         }
         let original = original.unwrap();

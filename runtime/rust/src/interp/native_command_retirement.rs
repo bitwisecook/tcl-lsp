@@ -75,9 +75,11 @@ impl OriginalDeletion {
         let same_namespace = actual.current_ns.get() == self.caller_namespace
             && self.namespace.as_ref().is_some_and(|(token, lifecycle)| {
                 let namespaces = actual.namespaces.borrow();
+                // Deleting the caller's own namespace defers it: Live becomes
+                // Dying while the activation keeps the same incarnation.
                 namespaces.owns_namespace_name_token(token)
-                    && token.lifecycle() == *lifecycle
                     && *lifecycle != NativeNamespaceLifecycle::Dead
+                    && token.lifecycle() != NativeNamespaceLifecycle::Dead
             });
         let frame = self.frame.check_frame(actual);
         if !same_namespace || frame.is_err() {

@@ -149,7 +149,7 @@ fn original_call_report_uses_payload_descriptors_before_literal_names_and_stock_
         if version == "tcl9.1" {
             source(
                 &mut interpreter,
-                b"oo::configurable create PropertyType {property p}",
+                b"oo::configurable create PropertyType {property p}; oo::define PropertyType {export <ReadProp-p>}",
             );
             let report = info_report(&mut interpreter, b"PropertyType", b"<ReadProp-p>", true);
             assert_eq!(
@@ -188,7 +188,7 @@ fn original_call_report_keeps_filter_unknown_and_declaring_facet_flags_independe
             elements(&interpreter, chain[0])[1],
             elements(&interpreter, chain[1])[1]
         );
-        source(&mut interpreter, b"oo::define FlagsClass filter {}; oo::define FlagsClass method unknown args {return [self call]}; oo::define FlagsClass export unknown; FlagsObject missing");
+        source(&mut interpreter, b"oo::define FlagsClass filter -clear; oo::define FlagsClass method unknown args {return [self call]}; oo::define FlagsClass export unknown; FlagsObject missing");
         let missing = obj::Owned::retain(interpreter.get_obj_result());
         let missing_chain = elements(&interpreter, elements(&interpreter, missing.as_ptr())[0]);
         assert!(missing_chain
