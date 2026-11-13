@@ -2276,3 +2276,60 @@ fn the_bundled_upf_body_resolver_reaches_editor_diagnostics_and_tokens() {
     );
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// A pack keyword-definer whose implementation is an ordinary workspace proc.
+const KEYWORD_DEFINER_PACK: &str = r"
+speclib definer 1.0 {
+    command MyDef {
+        arity 1..3
+        traits {LANGUAGE_KEYWORD DEFINES_PROCEDURE}
+        defines_command_at 0
+        arg 0 -role Name
+        arg 1 -role ParamList
+        arg 2 -role Body
+    }
+}
+";
+
+/// #2532: a workspace procedure implementing a pack command must not replace
+/// the pack's spec once indexing publishes it to other documents — the head
+/// stays a keyword and the body keeps its `Body` role, before and after.
+#[test]
+fn a_workspace_proc_implementing_a_pack_command_keeps_the_pack_spec() {
+    let root = workspace("pack-implementation");
+    write(&root.join(".tcl-lsp/definer.tclspec"), KEYWORD_DEFINER_PACK);
+    let library = "proc MyDef {name params body} {}\n";
+    write(&root.join("lib.tcl"), library);
+    let source = "MyDef foo {a} { puts $a }\n";
+    let doc = root.join("use.tcl");
+    write(&doc, source);
+
+    let mut lsp = Lsp::with_config_at_root(json!({}), &root);
+    await_pack_named(&mut lsp, "definer");
+    let legend: Vec<String> =
+        lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
+            .as_array()
+            .expect("semantic-token legend")
+            .iter()
+            .filter_map(Value::as_str)
+            .map(ToOwned::to_owned)
+            .collect();
+    let uri = file_uri(&doc);
+    lsp.open_ready(&uri, source);
+    let assert_pack_tokens = |lsp: &mut Lsp, when: &str| {
+        let tokens = decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri));
+        let kind_at = |char: i64| {
+            tokens
+                .iter()
+                .find(|token| token.line == 0 && token.char == char)
+                .map(|token| legend[usize::try_from(token.ttype).unwrap()].as_str())
+        };
+        assert_eq!(kind_at(0), Some("keyword"), "{when}: {tokens:?}");
+        assert_eq!(kind_at(16), Some("function"), "{when}: {tokens:?}");
+    };
+    assert_pack_tokens(&mut lsp, "before the library is open");
+    lsp.open_ready(&file_uri(&root.join("lib.tcl")), library);
+    assert_pack_tokens(&mut lsp, "after the library is indexed");
+
+    let _ = std::fs::remove_dir_all(&root);
+}

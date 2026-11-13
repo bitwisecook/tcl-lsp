@@ -50,7 +50,8 @@ impl SourceDeclaredCommandContracts {
             file_path,
             input.analyser_profile().name,
         );
-        let mut result = workspace.cloned().unwrap_or_default();
+        let mut result = workspace
+            .map_or_default(|workspace| workspace.workspace_procedures_under(context.commands()));
         if let Some(inherited) = entry.and_then(|entry| entry.declared_commands.as_ref()) {
             for (_, command) in inherited.iter() {
                 result.declare(command.clone());

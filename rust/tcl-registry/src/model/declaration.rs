@@ -520,6 +520,42 @@ impl DeclaredSurface {
     pub fn is_empty(&self) -> bool {
         self.commands.is_empty()
     }
+
+    /// The workspace procedure declarations a document analysed against
+    /// `catalogue` may adopt: those naming no command the catalogue's own
+    /// dialect specifies. A shipped or pack `CommandSpec` is the authored
+    /// contract for its name; a procedure another document defines under that
+    /// name is its implementation, not a replacement for it. Without this, a
+    /// pack's roles and traits would hold only until workspace indexing
+    /// reached the implementing file.
+    #[must_use]
+    pub fn workspace_procedures_under(&self, catalogue: &crate::registry::CommandRegistry) -> Self {
+        Self {
+            commands: self
+                .commands
+                .iter()
+                .filter(|(name, _)| !catalogue.has_command_in_this_dialect(name))
+                .map(|(name, command)| (name.clone(), command.clone()))
+                .collect(),
+        }
+    }
+
+    /// `own` over the workspace procedure declarations `catalogue` admits
+    /// ([`Self::workspace_procedures_under`]): a document's own declarations
+    /// win.
+    #[must_use]
+    pub fn over_workspace_procedures(
+        self,
+        workspace: Option<&Self>,
+        catalogue: &crate::registry::CommandRegistry,
+    ) -> Self {
+        let Some(workspace) = workspace else {
+            return self;
+        };
+        let mut merged = workspace.workspace_procedures_under(catalogue);
+        merged.commands.extend(self.commands);
+        merged
+    }
 }
 
 /// **The** command surface one document analyses against: the catalogue
@@ -880,6 +916,52 @@ mod tests {
         assert_eq!(
             view.arg_indices_for_role("while", &["1", "{...}"], ArgRole::Body),
             registry.arg_indices_for_role("while", &["1", "{...}"], ArgRole::Body),
+        );
+    }
+
+    /// A workspace procedure never shadows a command the document's own
+    /// dialect catalogues (#2532), but one the dialect lacks — a polyfill of
+    /// a later release's command — is adopted, and the document's own
+    /// declarations still win over both.
+    #[test]
+    fn workspace_procedures_yield_to_the_catalogue_and_the_document() {
+        let tcl86 = crate::cache::registry_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 profile"),
+        );
+        let tcl90 = crate::cache::registry_for_profile(
+            tcl_dialect::DialectProfile::find("tcl9.0").expect("tcl9.0 profile"),
+        );
+        let mut workspace = DeclaredSurface::new();
+        for name in ["while", "lpop", "helper"] {
+            workspace.declare(declared(name, &[("value", ArgRole::Value)]));
+        }
+        let names = |surface: &DeclaredSurface| {
+            surface
+                .iter()
+                .map(|(name, _)| name.to_owned())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            names(&workspace.workspace_procedures_under(tcl86)),
+            ["helper", "lpop"]
+        );
+        assert_eq!(
+            names(&workspace.workspace_procedures_under(tcl90)),
+            ["helper"]
+        );
+
+        let mut own = DeclaredSurface::new();
+        own.declare(declared("helper", &[("script", ArgRole::Body)]));
+        let merged = own.over_workspace_procedures(Some(&workspace), tcl90);
+        assert_eq!(names(&merged), ["helper"]);
+        let view = DocumentCommandSurface::new(tcl90, Some(&merged));
+        assert_eq!(
+            view.arg_indices_for_role("helper", &["{...}"], ArgRole::Body),
+            vec![0]
+        );
+        assert_eq!(
+            view.arg_indices_for_role("while", &["1", "{...}"], ArgRole::Body),
+            vec![1]
         );
     }
 

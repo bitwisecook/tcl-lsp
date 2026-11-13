@@ -2078,14 +2078,14 @@ impl Analyser {
         &self,
         own: tcl_registry::model::DeclaredSurface,
     ) -> tcl_registry::model::DeclaredSurface {
-        let Some(workspace) = &self.workspace_declared_commands else {
+        let Some(workspace) = self.workspace_declared_commands.as_deref() else {
             return own;
         };
-        let mut merged = (**workspace).clone();
-        for (_, command) in own.iter() {
-            merged.declare(command.clone());
-        }
-        merged
+        // An unavailable generation performs no walk, so nothing reads this.
+        let Ok(context) = self.try_analysis_context() else {
+            return own;
+        };
+        own.over_workspace_procedures(Some(workspace), context.commands())
     }
 
     /// Supply the workspace's **subclass-provided method** view — the

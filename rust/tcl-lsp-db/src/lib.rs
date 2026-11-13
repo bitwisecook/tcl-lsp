@@ -1396,12 +1396,16 @@ pub fn file_call_site_evidence(
         return Arc::new(unavailable);
     };
     let reach = reach.iter().cloned().collect::<Vec<_>>();
-    let declared = declared_command_surface(db, file);
     let config = project_token_inputs::configuration_for_file(db, project, file);
     let own = config.and_then(|config| file_original_procedure_facts(db, file, config));
     let scanned = match config {
         Some(config) => {
             if let Ok(input) = walked_document_input(db, file, config) {
+                let declared = declared_command_surface(
+                    db,
+                    file,
+                    input.borrowed_context_registry().commands(),
+                );
                 let external: Vec<_> = project_original_procedure_facts(db, project)
                     .iter()
                     .filter(|(provider, _)| *provider != file)
@@ -1431,7 +1435,11 @@ pub fn file_call_site_evidence(
         None => tcl_compiler::unit_scope::scan_source_call_sites(
             file.text(db),
             db.registry(file.dialect(db)),
-            Some(&declared),
+            Some(&declared_command_surface(
+                db,
+                file,
+                db.registry(file.dialect(db)),
+            )),
             tcl_lsp_core::profile_for_dialect(file.dialect(db)),
             &known,
             &reach,
@@ -3643,7 +3651,7 @@ pub fn proc_taint_solve<'db>(
     };
     let registry: &CommandRegistry = &registry;
     let external = file.external_call_sites(db).clone();
-    let declared = declared_command_surface(db, file);
+    let declared = declared_command_surface(db, file, registry);
     let (cu, lattice_keys) = build_unit_with_keys(
         db,
         file.text(db),
@@ -4196,22 +4204,29 @@ fn unit_build_options<'a>(
 /// invalidation rides the ordinary inputs — the document's text and path for
 /// an inline block, [`SourceFile::sidecar_stubs_epoch`] for a sidecar.
 #[salsa::tracked(returns(clone))]
-pub fn declared_command_surface(db: &dyn TclDb, file: SourceFile) -> Arc<DeclaredSurface> {
+fn own_declared_command_surface(db: &dyn TclDb, file: SourceFile) -> Arc<DeclaredSurface> {
     let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
-    let own = tcl_compiler::analyser::utils::document_declared_surface(
+    Arc::new(tcl_compiler::analyser::utils::document_declared_surface(
         file.text(db),
         file.path(db).as_deref(),
         file.dialect(db),
-    );
+    ))
+}
+
+/// [`own_declared_command_surface`] over the workspace procedures the
+/// document's `registry` admits
+/// ([`DeclaredSurface::workspace_procedures_under`]): a workspace procedure
+/// never shadows a shipped or pack command of the same name.
+pub fn declared_command_surface(
+    db: &dyn TclDb,
+    file: SourceFile,
+    registry: &CommandRegistry,
+) -> Arc<DeclaredSurface> {
+    let own = own_declared_command_surface(db, file);
     let Some(workspace) = file.workspace_declared_commands(db) else {
-        return Arc::new(own);
+        return own;
     };
-    // The document's own declarations win over a workspace procedure's.
-    let mut merged = (**workspace).clone();
-    for (_, command) in own.iter() {
-        merged.declare(command.clone());
-    }
-    Arc::new(merged)
+    Arc::new(Arc::unwrap_or_clone(own).over_workspace_procedures(Some(workspace), registry))
 }
 
 /// The procedures this document defines that a call from another document
@@ -4285,7 +4300,7 @@ pub fn compilation_unit<'db>(
         return abstain();
     };
     let external = file.external_call_sites(db).clone();
-    let declared = declared_command_surface(db, file);
+    let declared = declared_command_surface(db, file, &registry);
     Some(Arc::new(memoised_compilation_unit(
         db,
         file.text(db),
@@ -4305,7 +4320,7 @@ pub fn compilation_unit_for_config<'db>(
     let input = walked_document_input(db, file, config).ok()?;
     let registry = input.borrowed_context_registry().commands();
     let external = file.external_call_sites(db).clone();
-    let declared = declared_command_surface(db, file);
+    let declared = declared_command_surface(db, file, registry);
     let options = supplied_unit_build_options(
         db,
         file,
@@ -4331,7 +4346,7 @@ pub fn proc_taint_solve_for_config<'db>(
     let input = walked_document_input(db, file, config).ok()?;
     let registry = input.borrowed_context_registry().commands();
     let external = file.external_call_sites(db).clone();
-    let declared = declared_command_surface(db, file);
+    let declared = declared_command_surface(db, file, registry);
     let options = supplied_unit_build_options(
         db,
         file,
@@ -5993,7 +6008,7 @@ p\uD801 ordinary";
         let input = document_analysis_input(&db, file, policy).unwrap();
         let key = lexer_cfg_key(&db, "tcl9.1");
         let registry = input.borrowed_context_registry().commands();
-        let declared = declared_command_surface(&db, file);
+        let declared = declared_command_surface(&db, file, registry);
         assert!(
             supplied_unit_build_options(&db, file, key, registry, None, &declared, &input)
                 .is_some()
@@ -8918,7 +8933,7 @@ p\uD801 ordinary";
         let input = walked_document_input(db, file, analysis_config)
             .expect("actual selected document input");
         let registry = input.borrowed_context_registry().commands();
-        let declared = declared_command_surface(db, file);
+        let declared = declared_command_surface(db, file, registry);
         let options = supplied_unit_build_options(db, file, cfg, registry, None, &declared, &input)
             .expect("the document's original grammar and Registry");
         let (cu, _) =

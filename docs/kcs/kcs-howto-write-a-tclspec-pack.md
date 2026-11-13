@@ -79,6 +79,14 @@ one your manifest requires directly, and a Tcl body (`tcl-body`) unless the
 package is your own
 ([why](kcs-qa-why-was-a-declaration-dropped-from-my-dependencys-pack.md)).
 
+The `proc` in your workspace that implements a pack command does not replace
+it. tcl-lsp tells every file about the procs your other files define, but
+only for names that neither the shipped commands nor your packs already
+describe. A call keeps the pack's traits and argument roles (a
+`LANGUAGE_KEYWORD` head stays a keyword) whether or not the workspace scan
+has reached the file that defines the proc. You do not need to exclude that
+file from the scan.
+
 ### Saying a Tcl proc defines the command
 
 `runtime_backing tcl-body {-pack-text {proc NAME args body}}` says the command

@@ -44,7 +44,7 @@ fn both_paths(db: &TclDatabase, file: SourceFile) -> (Arc<CompilationUnit>, Comp
             cfg_key,
             db.registry(&dialect),
             None,
-            &declared_command_surface(db, file),
+            &declared_command_surface(db, file, db.registry(&dialect)),
         ),
     );
     (memoised, direct)
@@ -902,8 +902,8 @@ fn only_a_call_a_summary_may_answer_reads_the_module() {
     let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
     let dialect = file.dialect(&db).clone();
     let cfg_key = lexer_cfg_key(&db, &dialect);
-    let surface = declared_command_surface(&db, file);
     let registry = db.registry(&dialect);
+    let surface = declared_command_surface(&db, file, registry);
     let options = unit_build_options(&db, file, cfg_key, registry, None, &surface);
     let (unit, keys) = build_unit_with_keys(&db, source, options);
     let reads = |qname: &str| {

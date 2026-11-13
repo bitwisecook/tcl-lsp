@@ -307,6 +307,18 @@ Two properties are load-bearing:
   keep a redeclared shipped command's security traits and side effects
   beneath the declaration's own — the floor `SecurityFloor::apply` holds a
   pack override to — so a stub cannot take `exec`'s `UNSAFE` away.
+- **A workspace procedure never shadows the catalogue.** The procedures the
+  server declares to a document from its siblings
+  (`SourceFile::workspace_declared_commands`) are inferred, not authored, so
+  they are adopted only for names the document's own catalogue — shipped
+  specs plus its packs, at its dialect — does not specify
+  (`DeclaredSurface::workspace_procedures_under`). A proc that implements a
+  pack command keeps the pack's traits and roles everywhere, however
+  indexing is timed (#2532), and a polyfill of a command the dialect lacks
+  is still adopted. Every merge — the analyser's, the source-entry
+  contracts' and `tcl_lsp_db::declared_command_surface` — goes through
+  `DeclaredSurface::over_workspace_procedures` or that filter; a document's
+  own stubs still win over both.
 
 The declared surface is what feeds parameter-trait inference, role lookup, and
 command-resolution for stubbed commands. Cache invalidation rides the ordinary

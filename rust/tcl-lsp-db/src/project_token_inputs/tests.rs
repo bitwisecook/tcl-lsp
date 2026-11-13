@@ -991,3 +991,84 @@ fn project_class_foreign_equal_content_unknown_inventory_stays_terminal() {
         );
     }
 }
+
+fn head_kind(tokens: &SemanticTokens, source: &str, value: &str) -> Option<u32> {
+    let offset = u32::try_from(source.find(value).unwrap()).unwrap();
+    let target = tcl_lexer::LineIndex::new(source).position_at_utf16(offset, source);
+    let mut line = 0;
+    let mut column = 0;
+    tokens.data.as_chunks::<5>().0.iter().find_map(|token| {
+        line += token[0];
+        column = if token[0] == 0 {
+            column + token[1]
+        } else {
+            token[1]
+        };
+        (line == target.line && column == target.character.get()).then_some(token[3])
+    })
+}
+
+/// #2532: a procedure another document defines under a pack command's name
+/// implements that command; its workspace declaration must not replace the
+/// pack's `LANGUAGE_KEYWORD` spec once indexing publishes it.
+#[test]
+fn a_workspace_procedure_does_not_shadow_a_pack_command() {
+    let mut db = TclDatabase::default();
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: std::path::PathBuf::from("/workspace/.tcl-lsp/definer2532.tclspec"),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
+        },
+        "speclib definer2532 1.0 {\ncommand MyDef {\narity 1..3\ntraits {LANGUAGE_KEYWORD DEFINES_PROCEDURE}\ndefines_command_at 0\narg 0 -role Name\narg 1 -role ParamList\narg 2 -role Body\n}\n}\n"
+            .to_owned(),
+    )]);
+    assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &packs);
+    set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
+    let config = configuration(&db, packs.key);
+    let library = SourceFile::new(
+        &db,
+        "proc MyDef {name params body} {}\nproc Helper {x} {}\n".to_owned(),
+        "tcl8.6".to_owned(),
+        None,
+    );
+    let source = "MyDef foo {a} { puts $a }\nHelper 1\n";
+    let user = SourceFile::new(&db, source.to_owned(), "tcl".to_owned(), None);
+    let project = Project::with_token_configurations(
+        &db,
+        vec![library, user],
+        Some(vec![(library, config), (user, config)]),
+    );
+    let stubs = crate::world_preserving_procedure_stubs(&db, library);
+    assert!(
+        stubs.iter().any(|stub| stub.starts_with("stub MyDef ")),
+        "{stubs:?}"
+    );
+    user.set_workspace_declared_commands(&mut db)
+        .to(Some(Arc::new(
+            tcl_compiler::analyser::utils::workspace_procedure_declarations(&stubs.join("\n")),
+        )));
+
+    let keyword = 0; // the legend's `keyword`
+    assert_eq!(
+        head_kind(&semantic_tokens(&db, user, config), source, "MyDef"),
+        Some(keyword)
+    );
+    assert_eq!(
+        head_kind(
+            &semantic_tokens_project_for_inputs(&db, user, project),
+            source,
+            "MyDef"
+        ),
+        Some(keyword)
+    );
+    let declared = crate::declared_command_surface(&db, user, &registry);
+    let names = declared.iter().map(|(name, _)| name).collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        ["Helper"],
+        "only the uncatalogued procedure is adopted"
+    );
+}
