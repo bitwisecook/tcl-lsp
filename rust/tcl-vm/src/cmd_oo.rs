@@ -1125,12 +1125,18 @@ fn bootstrap(vm: &mut Vm) {
         NativeTclooMethodReportProtocol::select(vm.actual_native_invocation_dialect())
             .map(FoundationMethodReports::new);
     // TclOO is compiled into the VM, so — like C Tcl's core at startup — seed
-    // the `::oo` version variables. The `TclOO` / `tcl::oo` package entries are
-    // release data, provided with the core's own (`provide_core_packages`):
-    // 8.6 provides `TclOO` 1.1.0 alone, 9.x both names at 1.3.1.
+    // the `::oo` version variables from the release's `tclOO.h`. The `TclOO` /
+    // `tcl::oo` package entries are release data, provided with the core's own
+    // (`provide_core_packages`).
     vm.declare_namespace("::oo");
-    let _ = vm.set_var("::oo::version", Value::string("1.3"));
-    let _ = vm.set_var("::oo::patchlevel", Value::string("1.3.1"));
+    if let Some((version, patchlevel)) = vm
+        .actual_native_invocation_dialect()
+        .tcl_version
+        .and_then(tcl_dialect::TclVersion::tcloo_version)
+    {
+        let _ = vm.set_var("::oo::version", Value::string(version));
+        let _ = vm.set_var("::oo::patchlevel", Value::string(patchlevel));
+    }
 
     let object_root = vm.oo.allocate("oo::object".to_string());
     let class_root = vm.oo.allocate("oo::class".to_string());
@@ -1577,11 +1583,52 @@ impl OoState {
         exported || dflt.unwrap_or(false)
     }
 
+    /// Whether `step` holds a non-private record or an export override for
+    /// `name`; C's `unexport` and `export` create such a record.
+    fn step_declares_visibility(&self, step: &Step, name: &str) -> bool {
+        let (methods, exported, unexported) = if step.is_object {
+            let Some(object) = self.objects.get(&step.provider) else {
+                return false;
+            };
+            (&object.methods, &object.exported, &object.unexported)
+        } else {
+            let Some(class) = self.classes.get(&step.provider) else {
+                return false;
+            };
+            (&class.methods, &class.exported, &class.unexported)
+        };
+        exported.contains(name)
+            || unexported.contains(name)
+            || methods
+                .owner(name)
+                .is_some_and(|method| !method.borrow().private)
+    }
+
+    /// Whether an external call may name `name`: the first record met, the
+    /// object's own before any class's, decides, even one that only records
+    /// visibility (tclOOCall.c `AddSimpleChainToCallContext`).
+    fn publicly_visible(&self, obj_key: OoId, precedence: &[Step], name: &str) -> bool {
+        precedence
+            .iter()
+            .find(|step| {
+                step.is_object
+                    && step.provider == obj_key
+                    && self.step_declares_visibility(step, name)
+            })
+            .or_else(|| {
+                precedence
+                    .iter()
+                    .find(|step| self.step_declares_visibility(step, name))
+            })
+            .is_some_and(|step| self.step_exported(step, name))
+    }
+
     /// Names callable on `obj_key` (for the unknown-method error), honouring
     /// export state. `internal` includes unexported names.
     fn visible_methods(&self, obj_key: OoId, internal: bool) -> BTreeSet<String> {
         let mut names = BTreeSet::new();
-        for step in self.object_precedence(obj_key) {
+        let precedence = self.object_precedence(obj_key);
+        for step in &precedence {
             let provided: Vec<String> = if step.is_object {
                 self.objects
                     .get(&step.provider)
@@ -1593,9 +1640,9 @@ impl OoState {
             };
             for name in provided {
                 if self
-                    .step_method(&step, &name)
+                    .step_method(step, &name)
                     .is_some_and(|method| !method.visibility_only && !method.private)
-                    && (internal || self.step_exported(&step, &name))
+                    && (internal || self.publicly_visible(obj_key, &precedence, &name))
                 {
                     names.insert(name);
                 }
@@ -1806,6 +1853,7 @@ fn invocation_method_chain(
     Ok(if let Some(chain) = cached {
         chain
     } else {
+        let public = vm.oo.publicly_visible(obj_key, &precedence, method);
         let mut chain: Vec<Step> = precedence
             .into_iter()
             .filter(|step| {
@@ -1830,14 +1878,14 @@ fn invocation_method_chain(
         if chain.is_empty() {
             return Err(unknown_method(vm, obj_key, method, external));
         }
-        // External calls require the most-derived definer to be exported.
+        // External calls require the first visibility record to be exported.
         if external
             && (vm
                 .oo
                 .objects
                 .get(&obj_key)
                 .is_some_and(|object| object.unexported.contains(method))
-                || !vm.oo.step_exported(&chain[0], method))
+                || !public)
             && !vm
                 .oo
                 .step_method(&chain[0], method)
@@ -5056,11 +5104,7 @@ mod native_byte_name_tests {
             tcl_dialect::TclVersion::V9_1,
         ] {
             let profile = crate::environment::profile_for_dialect(version.dialect_profile_name());
-            let mut vm = Vm::with_output(Box::new(std::io::sink()));
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
             let class = Value::from_native_string_bytes(b"C\xff".as_slice());
             let metaclass = vm_class_root(&vm);
             let created = make_class_bytes(&mut vm, b"C\xff", None, metaclass);
@@ -5221,6 +5265,31 @@ mod original_bootstrap_namespace_tests {
             ),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod tcloo_version_tests {
+    use super::*;
+
+    #[test]
+    fn bootstrap_seeds_the_release_tcloo_version_variables() {
+        // tclsh8.6.18 prints `1.1.0 1.1.0 1.1.0`; tclsh9.0.4 and 9.1.0 print
+        // `1.3 1.3.1 1.3.1`.
+        for (dialect, expected) in [
+            ("tcl8.6", "1.1.0 1.1.0 1.1.0"),
+            ("tcl9.0", "1.3 1.3.1 1.3.1"),
+            ("tcl9.1", "1.3 1.3.1 1.3.1"),
+        ] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect(dialect),
+            );
+            let reached = vm
+                .eval_source("list $::oo::version $::oo::patchlevel [package present TclOO]")
+                .unwrap();
+            assert_eq!(reached.code, Code::Ok, "{dialect}");
+            assert_eq!(reached.result.to_str().as_ref(), expected, "{dialect}");
+        }
     }
 }
 

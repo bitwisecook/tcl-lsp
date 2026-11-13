@@ -133,7 +133,8 @@ fn original_foundation_value_report_refuses_missing_and_unsupported_owners() {
         assert!(
             matches!(completion, Err(crate::error::TclError::Host(crate::error::TclHostFailure::Execution(cause))) if cause == expected)
         );
-        assert_eq!(vm.execution_refusal, Some(expected));
+        // The outermost host boundary takes the refusal it reports.
+        assert!(vm.execution_refusal.is_none());
         assert!(vm.oo.method_reports.is_none());
     }
 }

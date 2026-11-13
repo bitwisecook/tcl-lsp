@@ -135,11 +135,11 @@ impl tcl_platform::Host for Host {
     }
 }
 #[test]
-fn original_method_preparation_string_callback_allows_same_record_flags_and_keeps_host_before_cache_or_body()
- {
+fn original_method_preparation_formats_an_integer_body_without_the_host() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Actual numeric formatter/VM body callback; no Native procedure callback equivalence.
+    // C9.1 spells an integer with TclFormatInt (tclObj.c UpdateStringOfInt):
+    // a supplied formatter that would fail or change the record is never called.
     for fail in [false, true] {
         let (mut vm, target, _, chain) = provided();
         let calls = Rc::new(Cell::new(0));
@@ -168,36 +168,18 @@ fn original_method_preparation_string_callback_allows_same_record_flags_and_keep
         let outer =
             crate::interp::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
         let result = invoke(&mut vm, target, &chain);
-        assert_eq!(formatter.calls.get(), 1);
-        assert!(owner.borrow().private);
-        assert!(!owner.borrow().exported);
+        assert_eq!(formatter.calls.get(), 0);
+        assert!(!owner.borrow().private);
+        assert!(owner.borrow().exported);
         assert!(vm.oo.call_stack.is_empty());
-        if fail {
-            assert_eq!(result.code, Code::Error);
-            let first = vm.execution_refusal.clone().unwrap();
-            assert!(matches!(
-                first,
-                NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::StringAccess(_))
-            ));
-            assert!(owner.borrow().compiled_body.is_none());
-            assert_eq!(calls.get(), 0);
-            assert_eq!(invoke(&mut vm, target, &chain).code, Code::Error);
-            assert_eq!(formatter.calls.get(), 1);
-            assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
-            assert_eq!(
-                outer.check(&mut vm).unwrap_err().native_execution_refusal(),
-                Some(&first)
-            );
-        } else {
-            assert_eq!(result.code, Code::Ok);
-            assert_eq!(
-                result.result.resident_string_bytes().unwrap().as_ref(),
-                b"BODY"
-            );
-            assert!(owner.borrow().compiled_body.is_some());
-            assert_eq!(calls.get(), 1);
-            outer.check(&mut vm).unwrap();
-        }
+        assert_eq!(result.code, Code::Ok);
+        assert_eq!(
+            result.result.resident_string_bytes().unwrap().as_ref(),
+            b"BODY"
+        );
+        assert!(owner.borrow().compiled_body.is_some());
+        assert_eq!(calls.get(), 1);
+        outer.check(&mut vm).unwrap();
     }
 }
 #[test]

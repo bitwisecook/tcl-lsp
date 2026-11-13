@@ -231,11 +231,12 @@ impl NativeCommand for Body {
     }
 }
 #[test]
-fn original_oo_method_name_formatter_refusal_preserves_full_first_cause_before_body() {
+fn original_oo_method_name_spells_an_integer_without_the_host_before_body() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Supplied formatter callback behavior is software evidence only.
-    let (mut vm, target, formatter) = provided();
+    // C8.6 spells an integer with TclFormatInt (tclObj.c UpdateStringOfInt):
+    // a supplied formatter that would fail is never called.
+    let (mut vm, _, formatter) = provided();
     let calls = Rc::new(Cell::new(0));
     vm.register_command(
         "record_oo_name_body",
@@ -275,9 +276,6 @@ fn original_oo_method_name_formatter_refusal_preserves_full_first_cause_before_b
     )
     .unwrap()
     .unwrap();
-    let prior = vm
-        .adopt_native_interp_result(Value::new_native_string_bytes(b"BEFORE".as_slice()))
-        .unwrap();
     let original = numeric(&vm);
     formatter.fail.set(true);
     let result = oo_dispatch(
@@ -286,32 +284,19 @@ fn original_oo_method_name_formatter_refusal_preserves_full_first_cause_before_b
         &Value::new_native_string_bytes(b"OONameObject".as_slice()),
         std::slice::from_ref(&original),
     );
-    assert_eq!(result.code, Code::Error);
-    let first = vm.execution_refusal.clone().unwrap();
-    assert!(matches!(
-        first,
-        NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::StringAccess(_))
-    ));
-    assert_eq!(formatter.formats.get(), 1);
-    assert_eq!(calls.get(), 0);
-    assert!(original.resident_string_bytes().is_none());
-    assert!(
-        vm.with_native_interp_result(|value| value.is_same_object(prior.value()))
-            .unwrap()
-    );
-    let again = native_context::object_name(&vm, target);
-    assert_eq!(
-        oo_dispatch(&mut vm, object, &again, &[Value::string("42")]).code,
-        Code::Error
-    );
-    assert_eq!(vm.execution_refusal, Some(first));
-    assert_eq!(calls.get(), 0);
-    assert_eq!(formatter.formats.get(), 1);
+    assert_eq!(result.code, Code::Ok);
+    assert_eq!(result.result.string_bytes().as_ref(), b"BODY");
+    assert_eq!(formatter.formats.get(), 0);
+    assert_eq!(calls.get(), 1);
+    assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"42");
+    assert!(vm.execution_refusal.is_none());
 }
 #[test]
-fn original_oo_definition_name_refusal_restores_real_definition_activation_before_return() {
+fn original_oo_definition_name_spells_an_integer_without_the_host_and_restores_activation() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // C8.6 spells an integer with TclFormatInt (tclObj.c UpdateStringOfInt):
+    // a supplied formatter that would fail is never called.
     let (mut vm, target, formatter) = provided();
     let original = numeric(&vm);
     let level = vm.current_level();
@@ -325,15 +310,10 @@ fn original_oo_definition_name_refusal_restores_real_definition_activation_befor
             original,
         ],
     );
-    assert_eq!(completion.code, Code::Error);
-    assert!(matches!(
-        vm.execution_refusal,
-        Some(NativeExecutionError::ValueAccessRefusal(
-            NativeValueAccessRefusal::StringAccess(_)
-        ))
-    ));
-    assert_eq!(formatter.formats.get(), 1);
-    assert!(vm.oo.classes[&target].variables.is_empty());
+    assert_eq!(completion.code, Code::Ok);
+    assert!(vm.execution_refusal.is_none());
+    assert_eq!(formatter.formats.get(), 0);
+    assert_eq!(vm.oo.classes[&target].variables.len(), 1);
     assert!(vm.oo.def_stack.is_empty());
     assert_eq!(vm.current_level(), level);
     assert_eq!(vm.current_ns_id(), namespace);

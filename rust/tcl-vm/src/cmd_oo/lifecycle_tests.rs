@@ -33,6 +33,9 @@ fn provided() -> (Vm, OoId, OoId) {
         .eval_source("oo::configurable create C {property a -get {return A}}; C create obj")
         .unwrap();
     assert_eq!(reached.code, Code::Ok, "{}", reached.result.to_str());
+    drop(reached);
+    // The interpreter result holds `obj`'s name, as Tcl_SetObjResult does in C.
+    drop(vm.adopt_native_interp_result(Value::empty()).unwrap());
     let class = resolve_object_value(&mut vm, &Value::string("C"))
         .unwrap()
         .unwrap();
@@ -203,7 +206,10 @@ fn original_oo_destructor_guest_host_and_restored_context_preserve_cleanup_and_f
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Real destructor dispatch supplies Guest/Host/context effects, rather than a fabricated payload Drop.
-    for mode in 0..=3 {
+    // Only builds that verify currency re-prove a restored context
+    // (docs/design/runtime/debug-and-release-validation.md).
+    let last = if crate::VERIFY_CURRENCY { 3 } else { 2 };
+    for mode in 0..=last {
         let (mut vm, class, object) = provided();
         let calls = install_destructor(&mut vm, class, mode);
         let namespace = vm.oo.objects[&object].namespace_token.unwrap();
@@ -281,7 +287,10 @@ fn original_oo_cleanup_uses_parked_original_interpreter_without_retiring_child_r
 fn original_oo_rename_continuation_keeps_record_and_refuses_withdrawn_or_restored_context() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    for mode in 0..3 {
+    // Only builds that verify currency re-prove a restored context
+    // (docs/design/runtime/debug-and-release-validation.md).
+    let last = if crate::VERIFY_CURRENCY { 2 } else { 1 };
+    for mode in 0..=last {
         let (mut vm, _, object) = provided();
         let name = retained_name(&vm, object);
         let scope = NativeOperationScope::enter(&mut vm).unwrap();

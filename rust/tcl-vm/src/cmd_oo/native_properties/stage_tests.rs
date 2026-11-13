@@ -36,7 +36,6 @@ struct Formatter {
     fail: bool,
     formats: Cell<usize>,
     original: NativeObjectLifetimeLease,
-    references: Cell<usize>,
 }
 impl NativeIntegerFormatter for Formatter {
     fn build(&self) -> NativeIntegerFormatterBuild {
@@ -52,8 +51,6 @@ impl NativeIntegerFormatter for Formatter {
         value: i64,
     ) -> Result<Vec<u8>, NativeIntegerFormatterUnavailable> {
         self.formats.set(self.formats.get() + 1);
-        self.references
-            .set(self.original.value().native_object_reference_count());
         if self.fail {
             Err(NativeIntegerFormatterUnavailable::Operation)
         } else {
@@ -107,7 +104,8 @@ fn instance() -> (Vm, OoId, OoId) {
 fn original_property_report_sort_uses_canonical_string_and_actual_member_roles() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Actual owning metadata and formatter stages are software fixtures, not Native SortPropList callbacks.
+    // C9.1 sorts an integer member through TclFormatInt (tclObj.c
+    // UpdateStringOfInt): a supplied formatter that would fail is never called.
     for fail in [false, true] {
         let (mut vm, class, target) = instance();
         let numeric = Value::from_native_scalar_cache(
@@ -120,7 +118,6 @@ fn original_property_report_sort_uses_canonical_string_and_actual_member_roles()
             fail,
             formats: Cell::new(0),
             original: numeric.native_lifetime_lease(),
-            references: Cell::new(0),
         });
         let key = vm
             .oo
@@ -141,55 +138,25 @@ fn original_property_report_sort_uses_canonical_string_and_actual_member_roles()
             formatter: Rc::clone(&formatter),
         }));
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
-        let prior = vm
-            .adopt_native_interp_result(Value::new_native_string_bytes(b"BEFORE".as_slice()))
+        let header = vm.native_all_property_header(target, false, false).unwrap();
+        assert_eq!(formatter.formats.get(), 0);
+        let names = header
+            .value()
+            .native_object_list_elements(tcl_syntax::native_string::NativeStringProtocol::C(
+                tcl_dialect::TclVersion::V9_1,
+            ))
             .unwrap();
-        let reached = vm.native_all_property_header(target, false, false);
-        assert_eq!(formatter.formats.get(), 1);
-        assert_eq!(
-            formatter.references.get(),
-            2,
-            "metadata and actual report member, no Native reference from the lease"
+        assert!(
+            names
+                .iter()
+                .any(|name| name.is_same_object(formatter.original.value()))
         );
-        if fail {
-            let Err(error) = reached else {
-                panic!("formatter refusal must stop report publication");
-            };
-            let first = vm.execution_refusal.clone().unwrap();
-            assert_eq!(error.native_execution_refusal(), Some(&first));
-            assert!(matches!(
-                first,
-                NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::StringAccess(_))
-            ));
-            assert!(!vm.oo.property_caches.contains_key(&(target, false)));
-            assert_eq!(
-                formatter.original.value().native_object_reference_count(),
-                1
-            );
-            vm.with_native_interp_result(|current| assert!(current.is_same_object(prior.value())))
-                .unwrap();
-            assert!(scope.check(&mut vm).is_err());
-            assert_eq!(vm.execution_refusal, Some(first));
-        } else {
-            let header = reached.unwrap();
-            let names = header
-                .value()
-                .native_object_list_elements(tcl_syntax::native_string::NativeStringProtocol::C(
-                    tcl_dialect::TclVersion::V9_1,
-                ))
-                .unwrap();
-            assert!(
-                names
-                    .iter()
-                    .any(|name| name.is_same_object(formatter.original.value()))
-            );
-            assert_eq!(
-                formatter.original.value().native_object_reference_count(),
-                2
-            );
-            assert!(vm.execution_refusal.is_none());
-            scope.check(&mut vm).unwrap();
-        }
+        assert_eq!(
+            formatter.original.value().native_object_reference_count(),
+            2
+        );
+        assert!(vm.execution_refusal.is_none());
+        scope.check(&mut vm).unwrap();
     }
 }
 struct ChangeReport {
@@ -486,10 +453,11 @@ fn original_property_temporary_table_does_not_reread_its_frozen_member_strings()
 }
 
 #[test]
-fn original_dictionary_constructor_retains_first_key_refusal_before_input_cleanup() {
+fn original_dictionary_constructor_spells_integer_keys_without_the_host() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Same constructor kernel and real formatter/input roles; no Native Dictionary callback chronology.
+    // C9.1 spells an integer key with TclFormatInt (tclObj.c UpdateStringOfInt):
+    // a supplied formatter that would fail is never called.
     let (mut vm, _, target) = instance();
     let first = Value::from_native_scalar_cache(
         NativeScalarCache::Number(Number::Int(42)),
@@ -508,7 +476,6 @@ fn original_dictionary_constructor_retains_first_key_refusal_before_input_cleanu
         fail: true,
         formats: Cell::new(0),
         original: first.native_lifetime_lease(),
-        references: Cell::new(0),
     });
     vm.set_host(Rc::new(Host {
         actual: vm.host_rc(),
@@ -528,27 +495,28 @@ fn original_dictionary_constructor_retains_first_key_refusal_before_input_cleanu
             (later, Value::new_native_string_bytes(b"two".as_slice())),
         ],
     );
-    let reached = operation.complete(&mut vm, reached);
-    assert!(reached.is_err());
-    assert_eq!(formatter.formats.get(), 1);
-    assert_eq!(formatter.references.get(), 1);
+    let dictionary = operation.complete(&mut vm, reached).unwrap();
+    assert_eq!(formatter.formats.get(), 0);
     assert_eq!(
-        formatter.original.value().native_object_reference_count(),
-        0
+        formatter
+            .original
+            .value()
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"42"
     );
-    assert_eq!(later_observation.value().native_object_reference_count(), 0);
-    assert!(later_observation.value().resident_string_bytes().is_none());
-    let cause = vm.execution_refusal.clone().unwrap();
     assert_eq!(
-        reached.unwrap_err().native_execution_refusal(),
-        Some(&cause)
+        later_observation
+            .value()
+            .resident_string_bytes()
+            .unwrap()
+            .as_ref(),
+        b"43"
     );
-    assert!(matches!(
-        cause,
-        NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::StringAccess(_))
-    ));
-    assert!(outer.check(&mut vm).is_err());
-    assert_eq!(vm.execution_refusal, Some(cause));
+    drop(dictionary);
+    assert!(vm.execution_refusal.is_none());
+    outer.check(&mut vm).unwrap();
 }
 
 #[test]

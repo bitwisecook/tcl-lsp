@@ -24,10 +24,7 @@ use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,
 };
-use tcl_runtime_api::NativeExecutionError;
-use tcl_syntax::{
-    number::Number, raw_string::NativeValueAccessRefusal, scalar_getter::NativeScalarCache,
-};
+use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
 
 struct Formatter {
     version: [i32; 4],
@@ -35,7 +32,6 @@ struct Formatter {
     queries: Cell<usize>,
     calls: Cell<usize>,
     selected: Weak<RefCell<Method>>,
-    record_owners: Cell<usize>,
     original: RefCell<Option<Value>>,
 }
 impl NativeIntegerFormatter for Formatter {
@@ -52,7 +48,6 @@ impl NativeIntegerFormatter for Formatter {
         value: i64,
     ) -> Result<Vec<u8>, NativeIntegerFormatterUnavailable> {
         self.calls.set(self.calls.get() + 1);
-        self.record_owners.set(self.selected.strong_count());
         if self.mode == 2 {
             let retired = self.original.borrow_mut().take();
             drop(retired);
@@ -116,7 +111,6 @@ fn provided(version: &str, mode: u8) -> (Vm, OoId, Rc<Formatter>) {
         queries: Cell::new(0),
         calls: Cell::new(0),
         selected,
-        record_owners: Cell::new(0),
         original: RefCell::new(None),
     });
     vm.set_host(Rc::new(Host {
@@ -148,10 +142,11 @@ fn selected(vm: &Vm, target: OoId) -> Rc<Vec<Step>> {
     ))
 }
 #[test]
-fn original_method_cache_string_uses_captured_formatter_before_all_record_upgrade() {
+fn original_method_cache_string_formats_an_integer_key_without_the_host() {
     // naming.tcloo.original-method-cache-and-active-call-lifetime
     // docs/design/analysis/name-resolution-proofs/tcloo-original-method-cache-and-active-call-lifetime.md
-    // The direct existing cache worker isolates its real String stage; no C callback/count equivalence.
+    // C8.6, 9.0 and 9.1 spell an integer with TclFormatInt (tclObj.c
+    // UpdateStringOfInt): the key's String stage queries the host but never calls it.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let (mut vm, target, formatter) = provided(version, 0);
         let original = numeric(&vm);
@@ -160,8 +155,7 @@ fn original_method_cache_string_uses_captured_formatter_before_all_record_upgrad
         assert_eq!(formatter.selected.strong_count(), 2);
         let chain = remember(&mut vm, target, "42", &original, true, steps).unwrap();
         assert_eq!(formatter.queries.get(), 1);
-        assert_eq!(formatter.calls.get(), 1);
-        assert_eq!(formatter.record_owners.get(), 1);
+        assert_eq!(formatter.calls.get(), 0);
         assert_eq!(formatter.selected.strong_count(), 2);
         assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"42");
         assert!(original.native_method_name_chain().is_some());
@@ -179,75 +173,37 @@ fn original_method_cache_string_uses_captured_formatter_before_all_record_upgrad
             b"42"
         );
         assert_eq!(formatter.queries.get(), 1);
-        assert_eq!(formatter.calls.get(), 1);
+        assert_eq!(formatter.calls.get(), 0);
         assert!(vm.execution_refusal.is_none());
     }
 }
 #[test]
-fn original_method_cache_string_refusal_or_header_withdrawal_precedes_cache_adoption() {
+fn original_method_cache_string_never_reaches_a_failing_or_retiring_formatter() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Actual formatter failure/last header release, not a Native MethodType delete simulation.
+    // C8.6, 9.0 and 9.1 spell an integer with TclFormatInt (tclObj.c
+    // UpdateStringOfInt): a supplied formatter that would fail or drop the last
+    // header is never called, so the cache is adopted.
     for version in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for mode in [1, 2] {
             let (mut vm, target, formatter) = provided(version, mode);
             let scope = NativeOperationScope::enter(&mut vm).unwrap();
-            let prior = vm
-                .adopt_native_interp_result(Value::new_native_string_bytes(b"BEFORE".as_slice()))
-                .unwrap();
             let original = numeric(&vm);
             let held = original.native_lifetime_lease();
-            let references = original.native_object_reference_count();
             *formatter.original.borrow_mut() = Some(original);
             let steps = selected(&vm, target);
-            let Err(error) = remember(&mut vm, target, "42", held.value(), true, steps) else {
-                panic!("original String refusal must stop cache publication");
-            };
-            let first = vm.execution_refusal.clone().unwrap();
-            assert_eq!(error.native_execution_refusal(), Some(&first));
-            if mode == 1 {
-                assert!(matches!(
-                    first,
-                    NativeExecutionError::ValueAccessRefusal(
-                        NativeValueAccessRefusal::StringAccess(_)
-                    )
-                ));
-                assert_eq!(held.value().native_object_reference_count(), references);
-            } else {
-                assert_eq!(
-                    first,
-                    NativeExecutionError::ValueAccessRefusal(
-                        NativeValueAccessRefusal::CommandProtocolUnavailable(
-                            "retired native object header"
-                        )
-                    )
-                );
-                assert!(!held.value().native_object_is_live());
-            }
+            let chain = remember(&mut vm, target, "42", held.value(), true, steps).unwrap();
             assert_eq!(formatter.queries.get(), 1);
-            assert_eq!(formatter.calls.get(), 1);
-            assert_eq!(formatter.record_owners.get(), 1);
-            assert_eq!(formatter.selected.strong_count(), 1);
-            assert!(held.value().resident_string_bytes().is_none());
-            assert!(held.value().native_method_name_chain().is_none());
-            assert!(
-                vm.oo
-                    .native_methods
-                    .tables
-                    .values()
-                    .all(|table| !table.contains_key("42"))
-            );
-            vm.with_native_interp_result(|result| assert!(result.is_same_object(prior.value())))
-                .unwrap();
+            assert_eq!(formatter.calls.get(), 0);
+            assert!(held.value().native_object_is_live());
             assert_eq!(
-                vm.native_name_operand_bytes_checked(&Value::string("later"))
-                    .unwrap_err()
-                    .native_execution_refusal(),
-                Some(&first)
+                held.value().resident_string_bytes().unwrap().as_ref(),
+                b"42"
             );
-            assert_eq!(vm.execution_refusal, Some(first));
-            assert_eq!(formatter.queries.get(), 1);
-            assert!(scope.check(&mut vm).is_err());
+            assert!(held.value().native_method_name_chain().is_some());
+            drop(chain);
+            assert!(vm.execution_refusal.is_none());
+            scope.check(&mut vm).unwrap();
         }
     }
 }

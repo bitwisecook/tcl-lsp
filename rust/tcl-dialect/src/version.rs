@@ -29,6 +29,9 @@ mod reference_toolchains {
 
 use reference_toolchains::{REFERENCE_PATCHLEVELS, REFERENCE_SOURCE_TAGS};
 
+const TCLOO_8_6: (&str, &str) = ("1.1.0", "1.1.0");
+const TCLOO_9: (&str, &str) = ("1.3", "1.3.1");
+
 /// How Tcl converts a Unicode string representation to binary bytes.
 ///
 /// Tcl 8.x keeps the historic one-byte conversion: each character contributes
@@ -479,19 +482,19 @@ impl TclVersion {
         const TCL_8_5: &[CorePackage] = &[CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[1])];
         const TCL_8_6: &[CorePackage] = &[
             CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[2]),
-            CorePackage::tcloo("TclOO", "1.1.0"),
+            CorePackage::tcloo("TclOO", TCLOO_8_6.1),
         ];
         const TCL_9_0: &[CorePackage] = &[
             CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[3]),
             CorePackage::core("tcl", REFERENCE_PATCHLEVELS[3]),
-            CorePackage::tcloo("TclOO", "1.3.1"),
-            CorePackage::tcloo("tcl::oo", "1.3.1"),
+            CorePackage::tcloo("TclOO", TCLOO_9.1),
+            CorePackage::tcloo("tcl::oo", TCLOO_9.1),
         ];
         const TCL_9_1: &[CorePackage] = &[
             CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[4]),
             CorePackage::core("tcl", REFERENCE_PATCHLEVELS[4]),
-            CorePackage::tcloo("TclOO", "1.3.1"),
-            CorePackage::tcloo("tcl::oo", "1.3.1"),
+            CorePackage::tcloo("TclOO", TCLOO_9.1),
+            CorePackage::tcloo("tcl::oo", TCLOO_9.1),
         ];
         match self {
             Self::V8_4 => TCL_8_4,
@@ -499,6 +502,19 @@ impl TclVersion {
             Self::V8_6 => TCL_8_6,
             Self::V9_0 => TCL_9_0,
             Self::V9_1 => TCL_9_1,
+        }
+    }
+
+    /// The core's `TCLOO_VERSION` and `TCLOO_PATCHLEVEL` (`tclOO.h`), which
+    /// seed `::oo::version` and `::oo::patchlevel`; `None` before `TclOO`
+    /// joined the core in 8.6. 8.6 spells both `1.1.0`; 9.x has `1.3` and
+    /// `1.3.1`.
+    #[must_use]
+    pub const fn tcloo_version(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::V8_4 | Self::V8_5 => None,
+            Self::V8_6 => Some(TCLOO_8_6),
+            Self::V9_0 | Self::V9_1 => Some(TCLOO_9),
         }
     }
 

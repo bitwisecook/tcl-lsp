@@ -356,7 +356,11 @@ The VM manages the object/class registry at runtime:
 - **Object lifecycle** — creation, destruction, per-object instance
   namespaces (`oo::Obj<N>`).
 - **Method dispatch** — walks the shared MRO, applies filter chains, handles
-  `next`/`nextto`.
+  `next`/`nextto`. An external call takes the export flag from the first
+  record that mentions the name, the object's own before any class's, as in
+  *Export state vs. implementation* above; a body-less record (an `export` or
+  `unexport` override, or `oo::abstract`'s private factories) decides it even
+  though the body comes from a later class.
 - **Variable binding** — `my variable`, `my varname`, private variable
   mangling using creation IDs (TIP 500).
 - **Introspection** — `info object` / `info class` subcommands

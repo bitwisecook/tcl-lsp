@@ -206,7 +206,7 @@ Failures grouped by panic site and message shape (release builds, current `work`
 ## Nineteenth pass: VM witnesses on their real engines
 
 - Most of the remaining `NativePreflightRequired` and package witnesses built a Tcl 9.0 core and then re-pinned the profile, so the compiler's prerequisites, the package protocol and the pre-provided packages all stayed 9.0. They now build the selected engine (`native_fixture::interpreter`, plus the scripted distribution for Jim). The package protocol follows the actual engine, so after a 9.0 engine is re-pinned to 8.6, `package require p 1.2` still accepts `1.2+platform`, as tclsh9.0 does.
-- `oo` bootstrap no longer provides `tcl::oo` 1.3.1 on every release; the core's own package rows provide it, so 8.6 has `TclOO` 1.1.0 alone, as tclsh8.6 does. `::oo::version` and `::oo::patchlevel` are still 1.3 / 1.3.1 on 8.6, where C has 1.1.0 for both.
+- `oo` bootstrap no longer provides `tcl::oo` 1.3.1 on every release; the core's own package rows provide it, so 8.6 has `TclOO` 1.1.0 alone, as tclsh8.6 does. `::oo::version` and `::oo::patchlevel` now come from the release's `tclOO.h` (`TclVersion::tcloo_version`): 1.1.0 for both on 8.6, 1.3 and 1.3.1 on 9.x.
 - A compiled procedure's bytecode is retained on its body object, not on `ProcDef::body`; the dictionary epilogue witness reads it there.
 - VM lib: 1370 tests, 251 → 222 failures, none new. Still open in this group: two Jim `namespace import` witnesses (traversal receipt), `array exists` on a name with a NUL (its worker compiler sees no UTF-8 literal and leaves the entry unresolved), and the sixteen `array default` usage rows (no nested ensemble worker in the compilation entry).
 

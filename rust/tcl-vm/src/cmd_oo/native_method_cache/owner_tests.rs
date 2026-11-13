@@ -311,6 +311,9 @@ fn original_oo_cleanup_epoch_exhaustion_retains_first_cause_and_retires_whole_pa
         .eval_source("oo::class create C {}; C create object")
         .unwrap();
     assert_eq!(reached.code, Code::Ok);
+    drop(reached);
+    // The interpreter result holds `object`'s name, as Tcl_SetObjResult does in C.
+    drop(vm.adopt_native_interp_result(Value::empty()).unwrap());
     let object = super::super::resolve_object_value(&mut vm, &Value::string("object"))
         .unwrap()
         .unwrap();
@@ -369,22 +372,24 @@ fn original_method_creation_epoch_refuses_after_actual_same_record_payload_retir
     vm.oo.native_methods.foundation = u64::MAX;
     let property_epoch = vm.oo.property_foundation_epoch;
     let scope = NativeOperationScope::enter(&mut vm).unwrap();
+    // An unshared body is retained, as TclCreateProc keeps it in C.
     let incoming = Value::new_native_string_bytes(b"return AFTER".as_slice());
+    let held = incoming.native_lifetime_lease();
     let reached = super::super::def_method(
         &mut vm,
         true,
         class,
-        &[Value::string("m"), Value::empty(), incoming.clone()],
+        &[Value::string("m"), Value::empty(), incoming],
     );
     assert_eq!(reached.code, Code::Error);
     assert!(!old_body.value().native_object_is_live());
     assert_eq!(old_body.value().native_object_reference_count(), 0);
     let current = vm.oo.classes[&class].methods.owner("m").unwrap();
     assert!(Rc::ptr_eq(&record.upgrade().unwrap(), &current));
-    assert!(current.borrow().body_src.is_same_object(&incoming));
+    assert!(current.borrow().body_src.is_same_object(held.value()));
     drop(current);
     assert_eq!(record.strong_count(), 1);
-    assert_eq!(incoming.native_object_reference_count(), 2);
+    assert_eq!(held.value().native_object_reference_count(), 1);
     assert_eq!(vm.oo.property_foundation_epoch, property_epoch);
     let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
         tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -443,17 +448,13 @@ fn original_constructor_and_destructor_replace_actual_slot_roles_before_epoch_co
                 vm.oo.native_methods.foundation = u64::MAX;
             }
             let scope = NativeOperationScope::enter(&mut vm).unwrap();
+            // An unshared body is retained, as TclCreateProc keeps it in C.
             let incoming = Value::new_native_string_bytes(b"return AFTER".as_slice());
+            let held = incoming.native_lifetime_lease();
             let reached = if constructor {
-                super::super::def_constructor(
-                    &mut vm,
-                    true,
-                    class,
-                    &[Value::empty(), incoming.clone()],
-                )
+                super::super::def_constructor(&mut vm, true, class, &[Value::empty(), incoming])
             } else {
-                let argument = incoming.clone();
-                super::super::def_destructor(&mut vm, true, class, std::slice::from_ref(&argument))
+                super::super::def_destructor(&mut vm, true, class, &[incoming])
             };
             assert_eq!(reached.code, if exhausted { Code::Error } else { Code::Ok });
             assert!(record.upgrade().is_none());
@@ -465,9 +466,9 @@ fn original_constructor_and_destructor_replace_actual_slot_roles_before_epoch_co
                 vm.oo.classes[&class].destructor.owner()
             }
             .unwrap();
-            assert!(current.borrow().body_src.is_same_object(&incoming));
+            assert!(current.borrow().body_src.is_same_object(held.value()));
             drop(current);
-            assert_eq!(incoming.native_object_reference_count(), 2);
+            assert_eq!(held.value().native_object_reference_count(), 1);
             if exhausted {
                 let first = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
                     tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -491,7 +492,7 @@ fn original_constructor_and_destructor_replace_actual_slot_roles_before_epoch_co
                     super::super::def_destructor(&mut vm, true, class, &[Value::empty()])
                 };
                 assert_eq!(cleared.code, Code::Ok);
-                assert_eq!(incoming.native_object_reference_count(), 1);
+                assert!(!held.value().native_object_is_live());
                 assert!(
                     if constructor {
                         vm.oo.classes[&class].constructor.owner()

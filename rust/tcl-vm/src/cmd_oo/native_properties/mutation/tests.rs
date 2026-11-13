@@ -20,7 +20,7 @@
 use super::*;
 use crate::Code;
 use crate::cmd_oo::resolve_object_value;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
@@ -85,8 +85,6 @@ struct Formatter {
     fail: bool,
     values: RefCell<Vec<i64>>,
     original: NativeObjectLifetimeLease,
-    references: Cell<usize>,
-    retired: Option<(NativeObjectLifetimeLease, NativeObjectLifetimeLease)>,
 }
 impl NativeIntegerFormatter for Formatter {
     fn build(&self) -> NativeIntegerFormatterBuild {
@@ -102,22 +100,6 @@ impl NativeIntegerFormatter for Formatter {
         value: i64,
     ) -> Result<Vec<u8>, NativeIntegerFormatterUnavailable> {
         self.values.borrow_mut().push(value);
-        self.references
-            .set(self.original.value().native_object_reference_count());
-        if let Some((member, cache)) = &self.retired {
-            assert_eq!(
-                cache.value().native_object_reference_count(),
-                0,
-                "cache retired before String/hash"
-            );
-            assert!(!cache.value().native_object_is_live());
-            assert_eq!(
-                member.value().native_object_reference_count(),
-                0,
-                "old members retired before String/hash"
-            );
-            assert!(!member.value().native_object_is_live());
-        }
         if self.fail {
             Err(NativeIntegerFormatterUnavailable::Operation)
         } else {
@@ -152,18 +134,11 @@ impl tcl_platform::Host for Host {
         Some(self.formatter.as_ref())
     }
 }
-fn formatter(
-    vm: &mut Vm,
-    original: &Value,
-    fail: bool,
-    retired: Option<(NativeObjectLifetimeLease, NativeObjectLifetimeLease)>,
-) -> Rc<Formatter> {
+fn formatter(vm: &mut Vm, original: &Value, fail: bool) -> Rc<Formatter> {
     let result = Rc::new(Formatter {
         fail,
         values: RefCell::new(Vec::new()),
         original: original.native_lifetime_lease(),
-        references: Cell::new(0),
-        retired,
     });
     vm.set_host(Rc::new(Host {
         actual: vm.host_rc(),
@@ -172,16 +147,17 @@ fn formatter(
     result
 }
 #[test]
-fn original_property_setter_retires_cache_and_members_before_sequential_hash() {
+fn original_property_setter_retires_cache_and_members_and_formats_integers_without_the_host() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Software formatter/count observation at the inspected C91 stage; no Native callback chronology.
+    // C9.1 spells an integer with TclFormatInt (tclObj.c UpdateStringOfInt):
+    // a supplied formatter that would fail is never called before the hash.
     for fail in [false, true] {
         let (mut vm, _, target) = provided();
-        let retired = supplied_old(&mut vm, target);
+        let (member, cache) = supplied_old(&mut vm, target);
         let incoming = numeric(&vm, 42);
         let later = numeric(&vm, 43);
-        let callback = formatter(&mut vm, &incoming, fail, Some(retired));
+        let callback = formatter(&mut vm, &incoming, fail);
         let scope = NativeOperationScope::enter(&mut vm).unwrap();
         let recipe = vm
             .actual_native_invocation_dialect()
@@ -200,56 +176,27 @@ fn original_property_setter_retires_cache_and_members_before_sequential_hash() {
         );
         let reached =
             vm.install_original_property_members(target, false, false, &operation, &headers);
-        assert_eq!(
-            callback.references.get(),
-            2,
-            "caller plus actual incoming member role"
-        );
-        if fail {
-            let error = reached.unwrap_err();
-            let first = vm.execution_refusal.clone().unwrap();
-            assert_eq!(error.native_execution_refusal(), Some(&first));
-            assert!(matches!(
-                first,
-                NativeExecutionError::ValueAccessRefusal(NativeValueAccessRefusal::StringAccess(_))
-            ));
-            assert_eq!(*callback.values.borrow(), [42]);
-            assert_eq!(incoming.native_object_reference_count(), 1);
-            assert_eq!(later.native_object_reference_count(), 1);
-            assert!(!vm.oo.property_members.contains_key(&(target, false, false)));
-            assert!(vm.oo.objects[&target].readable_properties.is_empty());
-            assert!(operation.complete(&mut vm, Err::<(), _>(error)).is_err());
-            let second = slot(
-                &mut vm,
-                target,
-                false,
-                false,
-                SlotOp::Set,
-                std::slice::from_ref(&later),
-            )
-            .unwrap_err();
-            assert_eq!(second.native_execution_refusal(), Some(&first));
-            assert_eq!(*callback.values.borrow(), [42]);
-            assert_eq!(vm.execution_refusal, Some(first));
-            assert!(scope.check(&mut vm).is_err());
-        } else {
-            assert_eq!(*callback.values.borrow(), [42, 43]);
-            assert_eq!(reached.unwrap().len(), 2);
-            operation.finish(&mut vm).unwrap();
-            assert_eq!(incoming.native_object_reference_count(), 2);
-            assert_eq!(later.native_object_reference_count(), 2);
-            assert!(vm.execution_refusal.is_none());
-            scope.check(&mut vm).unwrap();
+        assert!(callback.values.borrow().is_empty());
+        assert_eq!(reached.unwrap().len(), 2);
+        for retired in [&member, &cache] {
+            assert!(!retired.value().native_object_is_live());
+            assert_eq!(retired.value().native_object_reference_count(), 0);
         }
+        operation.finish(&mut vm).unwrap();
+        assert_eq!(incoming.native_object_reference_count(), 2);
+        assert_eq!(later.native_object_reference_count(), 2);
+        assert!(vm.execution_refusal.is_none());
+        scope.check(&mut vm).unwrap();
     }
 }
 #[test]
 fn original_property_setter_acquires_all_incoming_roles_and_keeps_first_duplicate_header() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // C9.1 hashes an integer member through TclFormatInt, never the host formatter.
     let (mut vm, _, target) = provided();
     let incoming = numeric(&vm, 42);
-    let callback = formatter(&mut vm, &incoming, false, None);
+    let callback = formatter(&mut vm, &incoming, false);
     let recipe = vm
         .actual_native_invocation_dialect()
         .native_property_lookup_protocol()
@@ -264,12 +211,7 @@ fn original_property_setter_acquires_all_incoming_roles_and_keeps_first_duplicat
         .install_original_property_members(target, false, false, &operation, &headers)
         .unwrap();
     assert_eq!(names.len(), 1);
-    assert_eq!(
-        callback.references.get(),
-        3,
-        "both incoming roles precede the first hash"
-    );
-    assert_eq!(*callback.values.borrow(), [42]);
+    assert!(callback.values.borrow().is_empty());
     assert_eq!(
         incoming.native_object_reference_count(),
         2,
@@ -288,9 +230,10 @@ fn original_property_setter_acquires_all_incoming_roles_and_keeps_first_duplicat
 fn original_property_registration_compares_before_acquiring_working_list_member() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // C9.1 compares an integer member through TclFormatInt, never the host formatter.
     let (mut vm, _, target) = provided();
     let original = numeric(&vm, 42);
-    let callback = formatter(&mut vm, &original, false, None);
+    let callback = formatter(&mut vm, &original, false);
     let key = vm
         .oo
         .intern_method_key(tcl_core_types::NameBytes::from(b"42".as_slice()));
@@ -306,12 +249,7 @@ fn original_property_registration_compares_before_acquiring_working_list_member(
         .or_default()
         .insert(key, original);
     register(&mut vm, target, false, b"new", true, false).unwrap();
-    assert_eq!(*callback.values.borrow(), [42]);
-    assert_eq!(
-        callback.references.get(),
-        1,
-        "comparison precedes the original member's List append"
-    );
+    assert!(callback.values.borrow().is_empty());
     assert_eq!(callback.original.value().native_object_reference_count(), 1);
     let members = &vm.oo.property_members[&(target, false, false)];
     assert_eq!(members.len(), 2);

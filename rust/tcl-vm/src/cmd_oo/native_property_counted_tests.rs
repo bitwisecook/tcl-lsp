@@ -22,7 +22,13 @@ use crate::{Vm, value::Value};
 use tcl_runtime_api::{Code, Completion};
 
 fn instance(engine: &str) -> Vm {
-    crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine))
+    let mut vm =
+        crate::native_fixture::interpreter(crate::environment::profile_for_dialect(engine));
+    if engine == "jimtcl" {
+        // Jim's `info commands` reaches `namespace info` from its scripted library.
+        crate::native_fixture::install_distribution(&mut vm);
+    }
+    vm
 }
 fn string(bytes: &[u8]) -> Value {
     Value::new_native_string_bytes(bytes)

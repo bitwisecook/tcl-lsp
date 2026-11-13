@@ -20,7 +20,7 @@
 use super::*;
 use crate::cmd_oo::{Code, make_class_bytes, resolve_object_value};
 use crate::value::NativeObjectLifetimeLease;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,
@@ -58,9 +58,6 @@ fn numeric(vm: &Vm, number: i64) -> Value {
 struct Formatter {
     fail: bool,
     calls: RefCell<Vec<i64>>,
-    old: NativeObjectLifetimeLease,
-    incoming: Vec<NativeObjectLifetimeLease>,
-    observed: Cell<bool>,
 }
 impl NativeIntegerFormatter for Formatter {
     fn build(&self) -> NativeIntegerFormatterBuild {
@@ -76,17 +73,6 @@ impl NativeIntegerFormatter for Formatter {
         value: i64,
     ) -> Result<Vec<u8>, NativeIntegerFormatterUnavailable> {
         self.calls.borrow_mut().push(value);
-        if !self.observed.replace(true) {
-            assert!(!self.old.value().native_object_is_live());
-            assert_eq!(self.old.value().native_object_reference_count(), 0);
-            for original in &self.incoming {
-                assert_eq!(
-                    original.value().native_object_reference_count(),
-                    2,
-                    "all actual incoming references precede any key getter"
-                );
-            }
-        }
         if self.fail {
             Err(NativeIntegerFormatterUnavailable::Operation)
         } else {
@@ -121,7 +107,7 @@ impl tcl_platform::Host for Host {
         Some(self.formatter.as_ref())
     }
 }
-fn formatting(vm: &mut Vm, target: OoId, originals: &[&Value], fail: bool) -> Rc<Formatter> {
+fn formatting(vm: &mut Vm, target: OoId, fail: bool) -> (Rc<Formatter>, NativeObjectLifetimeLease) {
     let old = Value::new_native_string_bytes(b"old".as_slice());
     let observer = old.native_lifetime_lease();
     vm.oo
@@ -137,70 +123,46 @@ fn formatting(vm: &mut Vm, target: OoId, originals: &[&Value], fail: bool) -> Rc
     let formatter = Rc::new(Formatter {
         fail,
         calls: RefCell::new(Vec::new()),
-        old: observer,
-        incoming: originals
-            .iter()
-            .map(|value| value.native_lifetime_lease())
-            .collect(),
-        observed: Cell::new(false),
     });
     vm.set_host(Rc::new(Host {
         actual: vm.host_rc(),
         formatter: Rc::clone(&formatter),
     }));
-    formatter
+    (formatter, observer)
 }
 #[test]
-fn original_variable_mapping_acquires_all_and_retires_old_before_sequential_first_unique_keys() {
+fn original_variable_mapping_retires_old_and_keeps_first_unique_integer_keys_without_the_host() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // Actual VM roles/formatter are software observations; no Native callback equivalence.
-    let (mut vm, target) = provided();
-    let first = numeric(&vm, 42);
-    let equal = numeric(&vm, 42);
-    let later = numeric(&vm, 43);
-    let formatter = formatting(&mut vm, target, &[&first, &equal, &later], false);
-    let originals = [descriptor(&first), descriptor(&equal), descriptor(&later)];
-    let names = OriginalOoNameScope::enter(&mut vm, Some((true, target))).unwrap();
-    let policy = vm.name_policy_protocol().unwrap();
-    install(&mut vm, &names, true, target, false, policy, &originals).unwrap();
-    assert_eq!(*formatter.calls.borrow(), [42, 42, 43]);
-    let map = &vm.oo.classes[&target].variables;
-    assert_eq!(map.len(), 2);
-    assert!(map[0].original.is_same_object(&first));
-    assert_eq!(map[0].name.as_bytes(), b"42");
-    assert_eq!(map[1].name.as_bytes(), b"43");
-    assert_eq!(first.native_object_reference_count(), 2);
-    assert_eq!(equal.native_object_reference_count(), 1);
-    assert_eq!(later.native_object_reference_count(), 2);
-    assert!(vm.oo.variable_mapping_retirements.is_empty());
-    names.finish(&mut vm).unwrap();
-}
-#[test]
-fn original_variable_mapping_string_refusal_keeps_full_first_cause_and_skips_later_key_and_adoption()
- {
-    // naming.embedding.original-host-publication-and-fact-transport
-    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    let (mut vm, target) = provided();
-    let first = numeric(&vm, 42);
-    let later = numeric(&vm, 43);
-    let formatter = formatting(&mut vm, target, &[&first, &later], true);
-    let outer = NativeOperationScope::enter(&mut vm).unwrap();
-    let originals = [descriptor(&first), descriptor(&later)];
-    let names = OriginalOoNameScope::enter(&mut vm, Some((true, target))).unwrap();
-    let policy = vm.name_policy_protocol().unwrap();
-    let reached = install(&mut vm, &names, true, target, false, policy, &originals).unwrap_err();
-    let cause = vm.execution_refusal.clone().unwrap();
-    assert_eq!(reached.native_execution_refusal(), Some(&cause));
-    assert_eq!(*formatter.calls.borrow(), [42]);
-    assert!(vm.oo.classes[&target].variables.is_empty());
-    assert!(vm.oo.variable_mapping_retirements.is_empty());
-    assert_eq!(first.native_object_reference_count(), 1);
-    assert_eq!(later.native_object_reference_count(), 1);
-    let second = install(&mut vm, &names, true, target, false, policy, &originals).unwrap_err();
-    assert_eq!(second.native_execution_refusal(), Some(&cause));
-    assert_eq!(*formatter.calls.borrow(), [42]);
-    assert!(outer.check(&mut vm).is_err());
+    // C9.1 spells an integer with TclFormatInt (tclObj.c UpdateStringOfInt):
+    // a supplied formatter that would fail is never called.
+    for fail in [false, true] {
+        let (mut vm, target) = provided();
+        let first = numeric(&vm, 42);
+        let equal = numeric(&vm, 42);
+        let later = numeric(&vm, 43);
+        let (formatter, old) = formatting(&mut vm, target, fail);
+        let outer = NativeOperationScope::enter(&mut vm).unwrap();
+        let originals = [descriptor(&first), descriptor(&equal), descriptor(&later)];
+        let names = OriginalOoNameScope::enter(&mut vm, Some((true, target))).unwrap();
+        let policy = vm.name_policy_protocol().unwrap();
+        install(&mut vm, &names, true, target, false, policy, &originals).unwrap();
+        assert!(formatter.calls.borrow().is_empty());
+        assert!(!old.value().native_object_is_live());
+        assert_eq!(old.value().native_object_reference_count(), 0);
+        let map = &vm.oo.classes[&target].variables;
+        assert_eq!(map.len(), 2);
+        assert!(map[0].original.is_same_object(&first));
+        assert_eq!(map[0].name.as_bytes(), b"42");
+        assert_eq!(map[1].name.as_bytes(), b"43");
+        assert_eq!(first.native_object_reference_count(), 2);
+        assert_eq!(equal.native_object_reference_count(), 1);
+        assert_eq!(later.native_object_reference_count(), 2);
+        assert!(vm.oo.variable_mapping_retirements.is_empty());
+        names.finish(&mut vm).unwrap();
+        assert!(vm.execution_refusal.is_none());
+        outer.check(&mut vm).unwrap();
+    }
 }
 #[test]
 fn original_private_variable_mapping_keeps_counted_key_and_stored_cstring_full_name_copy_role() {
