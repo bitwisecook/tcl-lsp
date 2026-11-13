@@ -93,23 +93,26 @@ fn original_binary_base64_wide_and_uuencode_int_remain_distinct() {
         );
         assert_eq!(interp.result_bytes(), b"QQ==");
         assert!(interp.native_execution_refusal().is_none());
-        let mut interp = native(profile);
-        assert_eq!(
-            call(
-                &mut interp,
-                &[
-                    b"binary",
-                    b"encode",
-                    b"uuencode",
-                    b"-maxlen",
-                    b"2147483648",
-                    b"A"
-                ]
+        // Tcl_GetIntFromObj wraps 2147483648 to INT_MIN, so uuencode reaches
+        // its range check; only a value past UINT_MAX fails the int getter.
+        for (maxlen, code) in [
+            (&b"2147483648"[..], &b"TCL BINARY ENCODE LINE_LENGTH"[..]),
+            (
+                b"4294967296",
+                b"ARITH IOVERFLOW {integer value too large to represent}",
             ),
-            Code::Error
-        );
-        assert_ne!(interp.error_code(), b"TCL BINARY ENCODE LINE_LENGTH");
-        assert!(interp.native_execution_refusal().is_none());
+        ] {
+            let mut interp = native(profile);
+            assert_eq!(
+                call(
+                    &mut interp,
+                    &[b"binary", b"encode", b"uuencode", b"-maxlen", maxlen, b"A"]
+                ),
+                Code::Error
+            );
+            assert_eq!(interp.error_code(), code);
+            assert!(interp.native_execution_refusal().is_none());
+        }
     }
 }
 thread_local! { static CALLS:Cell<usize>=const{Cell::new(0)}; }
