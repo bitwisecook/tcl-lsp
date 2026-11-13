@@ -502,7 +502,14 @@ fn regsub_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if let [pattern, string, subspec, ..] = regex_operands(argv) {
         crate::list::read_as_other_type(*pattern);
         crate::list::read_as_string(*string);
-        crate::list::read_as_string(*subspec);
+        // A -command prefix is read as a list (TCL_EXACT option match).
+        let options = &argv[1..argv.len() - regex_operands(argv).len()];
+        if !options
+            .iter()
+            .any(|&word| obj_bytes(word).as_slice() == b"-command")
+        {
+            crate::list::read_as_string(*subspec);
+        }
     }
     let version = interp.runtime_version();
     if interp
