@@ -4534,8 +4534,6 @@ impl Vm {
         proc: &ProcDef,
         argv: &[Value],
     ) -> Result<Option<Completion<Value>>, Completion<Value>> {
-        self.require_original_jim_import_traversal(proc)
-            .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
         self.early_procedure_activation_inputs(
             &proc.formal_parameters(),
             proc.parameter_grammar,
@@ -4632,8 +4630,6 @@ impl Vm {
         invoked: &Value,
         argv: &[Value],
     ) -> Result<(), Completion<Value>> {
-        self.require_original_jim_import_traversal(proc)
-            .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
         if body.jim_script.is_none() {
             body.asm
                 .validate_native_compilation_entry()

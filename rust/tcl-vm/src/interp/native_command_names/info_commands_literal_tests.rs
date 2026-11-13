@@ -179,7 +179,10 @@ fn original_jim_import_retains_helper_publication_before_inventory_root_prefix()
     let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
     let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
         profile,
-        &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo],
+        &[
+            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceHelpers,
+            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::NamespaceInfo,
+        ],
     );
     let case = ORIGINAL_INFO_COMMANDS_CASES[4];
     assert_eq!(case.0, "imported-command");

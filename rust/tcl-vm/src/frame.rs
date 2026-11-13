@@ -57,6 +57,8 @@ pub(crate) struct CallFrame {
     pub(crate) jim_namespace: std::cell::RefCell<Option<(Option<NsId>, Value)>>,
     /// Successful local-command results retained until this real frame is freed.
     pub(crate) jim_local_commands: Vec<crate::interp::OriginalJimLocalCommand>,
+    /// Alias names the original Jim Import helper's current walk has reached.
+    pub(crate) jim_import_aliases: std::collections::BTreeSet<Vec<u8>>,
     /// The sole lifetime owner for retained activation receipts.
     pub(crate) activation: Rc<ActivationIdentity>,
     /// Original Jim link-frame storage; activation identity remains independently fresh.
@@ -119,6 +121,7 @@ impl CallFrame {
             jim_lookup_id: std::cell::Cell::new(ActivationIdentity::new().serial),
             jim_namespace: std::cell::RefCell::new(None),
             jim_local_commands: Vec::new(),
+            jim_import_aliases: std::collections::BTreeSet::new(),
             activation: Rc::new(ActivationIdentity::new()),
             jim_storage: tcl_runtime_api::jim_call_frame::JimCallFrameStorageSlot::default(),
             tailcall: None,

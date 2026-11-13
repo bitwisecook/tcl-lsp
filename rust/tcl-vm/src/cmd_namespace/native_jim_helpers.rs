@@ -289,7 +289,9 @@ mod tests {
         );
     }
     #[test]
-    fn original_import_entry_requires_a_genuine_traversal_receipt_after_rename() {
+    fn original_import_entry_completes_an_empty_inventory_after_rename() {
+        // runtime/rust/tests/data/native_jim_import_source_completion: jimsh
+        // 0.84 completes `namespace import ::ReceiptMissing::*` with an empty result.
         for (setup, invocation) in [
             ("", "{namespace import} ::missing::*"),
             ("", "namespace import ::missing::*"),
@@ -311,10 +313,14 @@ mod tests {
             let original = original.declaration();
             let header = original.body_src.native_object_type_name().to_owned();
             assert_eq!(vm.eval_source(setup).unwrap().code, Code::Ok);
-            let failure = vm.eval_source(invocation).unwrap_err();
-            assert!(failure.is_host(), "{invocation}");
-            assert_eq!(vm.current_level(), 0, "Import never entered a frame");
-            assert_eq!(original.body_src.native_object_type_name(), header);
+            let completion = vm.eval_source(invocation).unwrap();
+            assert_eq!(completion.code, Code::Ok, "{invocation}");
+            assert_eq!(&*completion.result.to_str(), "", "{invocation}");
+            assert!(vm.execution_refusal.is_none(), "{invocation}");
+            assert_eq!(vm.current_level(), 0, "Import left its frame");
+            // jim.c JimSetScriptFromAny replaces the entered Source rep.
+            assert_eq!(header, "source");
+            assert_eq!(original.body_src.native_object_type_name(), "script");
         }
     }
 

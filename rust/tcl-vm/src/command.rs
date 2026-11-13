@@ -597,22 +597,27 @@ fn jim_command_exists(
     if let Some(refusal) = vm.refused_completion() {
         return refusal;
     }
-    let Some(command) = command else {
-        return ok(Value::bool(false));
-    };
-    let alias = matches!(
-        command,
-        Command::Alias { .. } | Command::CallerAlias(_) | Command::CrossAlias { .. }
-    );
-    let exists = match kind {
-        Kind::Command => true,
-        Kind::Procedure => matches!(command, Command::Proc(_)),
-        Kind::Alias => alias,
-        Kind::Channel if alias || matches!(command, Command::Proc(_)) => false,
-        Kind::Channel | Kind::Variable => {
+    let alias = command.as_ref().is_some_and(|command| {
+        matches!(
+            command,
+            Command::Alias { .. } | Command::CallerAlias(_) | Command::CrossAlias { .. }
+        )
+    });
+    let exists = match (kind, command) {
+        (_, None) => false,
+        (Kind::Command, Some(_)) => true,
+        (Kind::Procedure, Some(command)) => matches!(command, Command::Proc(_)),
+        (Kind::Alias, Some(_)) => alias,
+        (Kind::Channel, Some(command)) if alias || matches!(command, Command::Proc(_)) => false,
+        (Kind::Channel | Kind::Variable, Some(_)) => {
             return vm.refuse_host_command("Jim channel command flag is unavailable".into());
         }
     };
+    if kind == Kind::Alias
+        && let Err(refusal) = vm.observe_original_jim_import_alias(&name, exists)
+    {
+        return refusal;
+    }
     ok(Value::bool(exists))
 }
 

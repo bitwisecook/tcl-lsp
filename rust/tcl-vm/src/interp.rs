@@ -119,6 +119,7 @@ mod native_expression_bool_tests;
 mod native_index_lookup;
 mod native_interpreter_paths;
 mod native_introspection;
+mod native_jim_import;
 mod native_jim_increment;
 mod native_jim_interpreter_crossing;
 mod native_jim_links;
@@ -19408,26 +19409,6 @@ impl Vm {
             })
     }
 
-    pub(crate) fn require_original_jim_import_traversal(
-        &mut self,
-        proc: &ProcDef,
-    ) -> Result<(), TclError> {
-        if proc.requires_original_jim_import_traversal() {
-            let reason = if proc.native_reference_count() == 0 {
-                "native procedure declaration has retired"
-            } else {
-                "original Jim namespace import traversal receipt is unavailable"
-            };
-            let _ = self.refuse_host_command(reason.into());
-            return Err(TclError::from_execution_failure(
-                self.execution_refusal
-                    .clone()
-                    .expect("Import traversal refusal retained"),
-            ));
-        }
-        Ok(())
-    }
-
     pub(crate) fn ensure_proc_traced(
         &mut self,
         command: crate::command::NativeProcedureCommand,
@@ -19461,7 +19442,6 @@ impl Vm {
                     .expect("procedure retirement refusal retained"),
             ));
         }
-        self.require_original_jim_import_traversal(&proc)?;
         let body = if !protocol.retains_prepared_body() {
             self.prepare_native_jim_script_unit(
                 &proc.body_src,
@@ -19578,7 +19558,6 @@ impl Vm {
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "native procedure activation issuer",
         ))?;
-        self.require_original_jim_import_traversal(&proc)?;
         let current = protocol
             .retains_prepared_body()
             .then(|| self.current_native_procedure_body(&proc))
