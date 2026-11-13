@@ -166,7 +166,7 @@ pub fn prepare_in_program(
 }
 
 fn method_item_name(class_def: &ClassDef, method: &MethodDef) -> String {
-    format!("{}::{}", class_def.qualified_name, method.name)
+    tcl_syntax::naming::rooted_member_key(&class_def.qualified_name, &method.name)
 }
 
 /// Grouping identity for one end of a call-hierarchy edge — the caller

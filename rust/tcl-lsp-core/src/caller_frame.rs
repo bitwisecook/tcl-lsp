@@ -557,7 +557,7 @@ fn bindings_from_self_dispatch(
         ctx,
         cmd,
         entry.body(),
-        &format!("{}::{}", class.command, entry.name()),
+        &tcl_syntax::naming::rooted_member_key(&class.command, entry.name()),
         &names,
         |i| template.literal_parameter_argument(i),
         out,

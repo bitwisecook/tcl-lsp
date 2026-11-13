@@ -49,7 +49,7 @@ pub fn item(
                     let owner = tcl_syntax::native_string::resident_name_label(
                         &tcl_syntax::naming::native_command_full_name_bytes(class.name().slot()),
                     );
-                    format!("{owner}::{}", identity.label())
+                    tcl_syntax::naming::rooted_member_key(&owner, &identity.label())
                 },
             )
         } else {

@@ -1953,7 +1953,10 @@ impl DocumentRecords {
             }
             if matches_query(&symbol.name, lower_query)
                 || symbol.container_name.as_ref().is_some_and(|container| {
-                    matches_query(&format!("{container}::{}", symbol.name), lower_query)
+                    matches_query(
+                        &tcl_syntax::naming::rooted_member_key(container, &symbol.name),
+                        lower_query,
+                    )
                 })
             {
                 out.push(symbol.clone());

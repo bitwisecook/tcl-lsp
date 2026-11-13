@@ -1019,11 +1019,7 @@ fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
 
 /// Display label only: `::` for the root, then `parent::child`.
 fn child_scope_label(parent_label: &str, child_name: &str) -> String {
-    if parent_label == "::" {
-        format!("::{child_name}")
-    } else {
-        format!("{parent_label}::{child_name}")
-    }
+    tcl_syntax::naming::rooted_member_key(parent_label, child_name)
 }
 
 /// Reborrow the actual deepest source scope and render its separate label.

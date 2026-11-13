@@ -277,7 +277,10 @@ impl OriginalMethodCandidate {
             format!("{} parameter(s)", self.method.metadata().params.len())
         };
         Some(crate::hover::Hover {
-            value: format!("**{kind}** `{class}::{method}` ({parameters})\n\n{purpose}."),
+            value: format!(
+                "**{kind}** `{}` ({parameters})\n\n{purpose}.",
+                tcl_syntax::naming::rooted_member_key(&class, &method)
+            ),
             kind: crate::hover::HoverKind::Markdown,
         })
     }

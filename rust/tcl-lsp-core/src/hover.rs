@@ -3836,7 +3836,10 @@ fn class_member_hover_text(
             tcl_compiler::analyser::MemberSide::Instance => "method",
             tcl_compiler::analyser::MemberSide::ClassObject => "classmethod",
         };
-        let mut text = format!("**{side}** `{}::{}`", class.qualified_name, method.name);
+        let mut text = format!(
+            "**{side}** `{}`",
+            tcl_syntax::naming::rooted_member_key(&class.qualified_name, &method.name)
+        );
         if !method.doc.is_empty() {
             text.push_str("\n\n");
             text.push_str(&method.doc);
@@ -3929,8 +3932,8 @@ fn member_declaration_hover_text(
         let suffix = oo_method_resolution_note(analysis, qname, &m.name)
             .map_or(String::new(), |n| format!("  \n{n}"));
         format!(
-            "**{label}** `{qname}::{name}` ({nparam} param(s)){suffix}",
-            name = m.name,
+            "**{label}** `{name}` ({nparam} param(s)){suffix}",
+            name = tcl_syntax::naming::rooted_member_key(qname, &m.name),
             nparam = m.params.len(),
         )
     };
@@ -3940,10 +3943,12 @@ fn member_declaration_hover_text(
             .class_methods
             .get(word)
             .map(|m| note("classmethod", m)),
-        MemberSel::Property => class_def
-            .properties
-            .get(word)
-            .map(|p| format!("**property** `{qname}::{name}`", name = p.name)),
+        MemberSel::Property => class_def.properties.get(word).map(|p| {
+            format!(
+                "**property** `{}`",
+                tcl_syntax::naming::rooted_member_key(qname, &p.name)
+            )
+        }),
     }
 }
 
@@ -4061,7 +4066,12 @@ fn oo_resolution_note_for_provider(
         analysis
             .class_hierarchy()
             .next_provider(class_q, method, class_q, None)
-            .map(|sup| format!("_overrides `{sup}::{method}`_"))
+            .map(|sup| {
+                format!(
+                    "_overrides `{}`_",
+                    tcl_syntax::naming::rooted_member_key(sup, method)
+                )
+            })
     } else {
         Some(format!("_inherited from `{provider}`_"))
     }

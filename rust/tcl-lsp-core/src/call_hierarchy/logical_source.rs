@@ -198,7 +198,7 @@ impl LogicalCallIdentity {
                     member.class().source_candidate_coordinate()?,
                 )?;
                 (
-                    format!("{owner}::{name}"),
+                    tcl_syntax::naming::rooted_member_key(&owner, &name),
                     member.original_name_word()?.span(),
                     member.original_body_word()?.span(),
                     Some(format!("{:?} source member", member.side())),
