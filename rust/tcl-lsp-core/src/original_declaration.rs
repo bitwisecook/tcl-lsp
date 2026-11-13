@@ -1540,6 +1540,106 @@ pub(crate) fn class_relation_member(
         })
 }
 
+/// How a command rename covers one selected definition member.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CommandRenameMember {
+    /// A callable or wrapper row, whose declared body the caller locates.
+    Declaration,
+    /// State, visibility, retraction or a superclass or mixin relation that
+    /// names none of the checked commands.
+    Inert,
+}
+
+/// Classify the selected definition member at this command for a command
+/// rename. `Ok(None)` when the command is not a definition member. `Err`
+/// when the member may name or run a command the rename cannot follow: a
+/// forward, filter, init script or unknown row, a command name, prefix or
+/// opaque script operand, a command substitution in any word, or a relation
+/// operand that is substituted or has a token whose tail is one of
+/// `simple_names`.
+pub(crate) fn command_rename_member(
+    syntax: &crate::source_structure::SourceSyntaxStructure,
+    source: &str,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    simple_names: &[&[u8]],
+) -> Result<Option<CommandRenameMember>, ()> {
+    use tcl_registry::ArgRole;
+    use tcl_registry::definer::{MemberEffect, RelationSlot};
+    let Some(head) = command.argv.first() else {
+        return Ok(None);
+    };
+    let Some(member) = syntax
+        .definition_member_at(head.span.start())
+        .map_err(|_| ())?
+    else {
+        return Ok(None);
+    };
+    let region = member.region();
+    let words = member.original_words();
+    if !census_member_matches(&member, command)
+        || words.iter().any(|word| {
+            word.group().expand
+                || word.executable_parts().all_parts().any(|part| {
+                    !matches!(
+                        part.part,
+                        tcl_lexer::ExecutablePart::Text(_)
+                            | tcl_lexer::ExecutablePart::Variable { .. }
+                    )
+                })
+        })
+        || ![
+            ArgRole::CommandPrefix,
+            ArgRole::CommandName,
+            ArgRole::OpaqueScript,
+        ]
+        .into_iter()
+        .all(|role| {
+            region
+                .argument_words_for_role(words, role)
+                .is_some_and(|words| words.is_empty())
+        })
+    {
+        return Err(());
+    }
+    let row = region.checked_member_row(words).ok_or(())?;
+    match row.effect {
+        MemberEffect::Callable { .. } | MemberEffect::Configuration => {
+            Ok(Some(CommandRenameMember::Declaration))
+        }
+        MemberEffect::StateDeclaration { .. }
+        | MemberEffect::Visibility
+        | MemberEffect::Retraction => Ok(Some(CommandRenameMember::Inert)),
+        MemberEffect::Relation {
+            slot: RelationSlot::Superclass | RelationSlot::Mixin,
+        } => {
+            for word in words.iter().skip(1) {
+                for part in word.executable_parts().all_parts() {
+                    let text = match &part.part {
+                        tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Decoded(
+                            bytes,
+                        )) => bytes.as_ref(),
+                        tcl_lexer::ExecutablePart::Text(_) => {
+                            source.get(part.span.as_range()).ok_or(())?.as_bytes()
+                        }
+                        // A substituted operand may name any class.
+                        _ => return Err(()),
+                    };
+                    if census_tokens(text).any(|(_, token)| {
+                        let tail = std::str::from_utf8(token).map_or(token, |token| {
+                            tcl_syntax::naming::key_tail(token).as_bytes()
+                        });
+                        simple_names.contains(&tail)
+                    }) {
+                        return Err(());
+                    }
+                }
+            }
+            Ok(Some(CommandRenameMember::Inert))
+        }
+        _ => Err(()),
+    }
+}
+
 /// Tokens of literal text split at whitespace and Tcl word, script, list and
 /// substitution punctuation, with their byte offsets.
 fn census_tokens(bytes: &[u8]) -> impl Iterator<Item = (usize, &[u8])> {

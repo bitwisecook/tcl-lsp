@@ -629,15 +629,14 @@ fn queue_declaration(
 
 fn document_requests(
     document: OriginalDeclarationDocument<'_>,
-    documents: &[OriginalDeclarationDocument<'_>],
-    conditional: &[OriginalConditionalCommandWorld<'_>],
-    declaration: &Declaration<'_>,
-    destination: &ByteCommandSlot,
-    tail: &[u8],
+    context: &source_coverage::RequestContext<'_, '_>,
 ) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalCommandRenameRefusal> {
     trace_coverage_document(&document);
     let walk = crate::refactor::FrameWalk::new(document.source, document.analysis)
         .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
+    let syntax =
+        crate::source_structure::SourceSyntaxStructure::capture(document.source, document.analysis)
+            .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
     let mut requests = Vec::new();
     let mut pending = vec![(0_usize, document.source.len(), 0_u32)];
     let mut visited = HashSet::new();
@@ -667,6 +666,16 @@ fn document_requests(
                 command_offset,
                 "native-words",
             )?;
+            if member_coverage(
+                document,
+                &syntax,
+                &command,
+                &words,
+                context,
+                (depth, &mut pending),
+            )? {
+                continue;
+            }
             let tokens = walk.tokens(document.source, &command);
             let binding = require_coverage(
                 tokens.source_binding.as_ref(),
@@ -688,23 +697,7 @@ fn document_requests(
                 return Err(OriginalCommandRenameRefusal::StaleSource);
             }
             let reference = binding.original_command_reference(&tokens);
-            if let Some(reference) = &reference {
-                if !reference.matches_original_invocation_site(lookup.site()) {
-                    return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
-                }
-                if declaration.reference_matches(reference, true) {
-                    if !declaration.reference_matches(reference, false) {
-                        return Err(OriginalCommandRenameRefusal::UneditableLinks);
-                    }
-                    destination_matches(documents, conditional, &lookup, destination, tail)?;
-                    let wanted = input
-                        .policy()
-                        .recipe()
-                        .replace_command_tail(input.bytes(), tail)
-                        .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
-                    requests.push((input.clone(), NameBytes::from(wanted)));
-                }
-            }
+            requests.extend(head_request(context, reference.as_ref(), &lookup, &input)?);
             if queue_source_coverage(&walk, document, &command, depth, &mut pending)? {
                 continue;
             }
@@ -722,7 +715,7 @@ fn document_requests(
                     return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
                 }
             } else {
-                reject_incomplete_source_procedure(
+                reject_incomplete_source_command(
                     document,
                     ensemble_dispatch_reference(document, reference.as_ref(), command_offset),
                     &words,
@@ -1036,14 +1029,7 @@ fn rename_document_edits<'a>(
     reject_readonly_math_references(document, &context.owner, context.declaration)?;
     let mut requests = match coverage.and_then(|coverage| coverage.requests(document, context)) {
         Some(requests) => requests?,
-        None => document_requests(
-            document,
-            context.documents,
-            context.conditional,
-            context.declaration,
-            context.destination,
-            context.tail,
-        )?,
+        None => document_requests(document, context)?,
     };
     requests.extend(ensemble_word_requests(
         document,
@@ -1446,28 +1432,120 @@ fn ensemble_dispatch_reference<'a>(
         })
 }
 
-fn reject_incomplete_source_procedure(
+/// Queue the declared body of a selected definition member at this command.
+/// `false` when the command is not a member. A member that may name or run a
+/// command the rename cannot follow, or a relation operand that may name the
+/// old or new command, refuses.
+fn member_coverage(
+    document: OriginalDeclarationDocument<'_>,
+    syntax: &crate::source_structure::SourceSyntaxStructure,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    words: &[tcl_lexer::NativeWord],
+    context: &source_coverage::RequestContext<'_, '_>,
+    (depth, pending): (u32, &mut Vec<(usize, usize, u32)>),
+) -> Result<bool, OriginalCommandRenameRefusal> {
+    use crate::original_declaration::CommandRenameMember;
+    let command_offset = command.argv.first().map_or(0, |word| word.span.start());
+    let simple = context.declaration.name().slot().simple.as_bytes();
+    let member = crate::original_declaration::command_rename_member(
+        syntax,
+        document.source,
+        command,
+        &[simple, context.tail],
+    )
+    .map_err(|()| {
+        coverage_trace(command_offset, "definition-member");
+        OriginalCommandRenameRefusal::IncompleteCoverage
+    })?;
+    let Some(member) = member else {
+        return Ok(false);
+    };
+    let records = document
+        .analysis
+        .original_class_declarations()
+        .collect::<Vec<_>>();
+    let body = crate::original_member_rename::declared_member_body(
+        &records,
+        command_offset,
+        words,
+        context.declaration.name().policy().string_protocol(),
+    )
+    .map_err(|_| OriginalCommandRenameRefusal::IncompleteCoverage)?;
+    match (member, body) {
+        (CommandRenameMember::Declaration, Some((body, _, _))) => {
+            pending.push((body.start() as usize, body.end() as usize, depth + 1));
+            Ok(true)
+        }
+        (CommandRenameMember::Inert, None) => Ok(true),
+        _ => {
+            coverage_trace(command_offset, "definition-member-body");
+            Err(OriginalCommandRenameRefusal::IncompleteCoverage)
+        }
+    }
+}
+
+/// The edit request for a command head whose reference selects the renamed
+/// declaration. A linked spelling, or a lookup the new name would not lead
+/// to the renamed slot, refuses.
+fn head_request(
+    context: &source_coverage::RequestContext<'_, '_>,
+    reference: Option<&SourceCommandReference>,
+    lookup: &OriginalCommandLookup,
+    input: &SignatureSourceNameInput,
+) -> Result<Option<(SignatureSourceNameInput, NameBytes)>, OriginalCommandRenameRefusal> {
+    let Some(reference) = reference else {
+        return Ok(None);
+    };
+    if !reference.matches_original_invocation_site(lookup.site()) {
+        return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+    }
+    if !context.declaration.reference_matches(reference, true) {
+        return Ok(None);
+    }
+    if !context.declaration.reference_matches(reference, false) {
+        return Err(OriginalCommandRenameRefusal::UneditableLinks);
+    }
+    destination_matches(
+        context.documents,
+        context.conditional,
+        lookup,
+        context.destination,
+        context.tail,
+    )?;
+    let wanted = input
+        .policy()
+        .recipe()
+        .replace_command_tail(input.bytes(), context.tail)
+        .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
+    Ok(Some((input.clone(), NameBytes::from(wanted))))
+}
+
+fn reject_incomplete_source_command(
     document: OriginalDeclarationDocument<'_>,
     reference: Option<&SourceCommandReference>,
     words: &[tcl_lexer::NativeWord],
     input: &SignatureSourceNameInput,
     command_offset: u32,
 ) -> Result<(), OriginalCommandRenameRefusal> {
-    // A genuine direct source procedure with static argv has no
-    // Registry-defined executable argument regions. Its own body
-    // is visited at the separately selected declaration worker.
+    // A genuine direct source procedure or class object with static argv has
+    // no Registry-defined executable argument regions. The procedure body, or
+    // the class's member bodies, are visited where the walk meets their
+    // declaration.
     let reference = require_coverage(
         reference,
         command_offset,
         "unselected-registry-or-source-reference",
     )?;
     if !reference.is_direct_definition()
-        || !document
+        || !(document
             .analysis
             .original_procedure_declarations()
             .any(|row| {
                 crate::original_declaration::reference_matches_declaration(reference, row, false)
             })
+            || document.analysis.original_class_declarations().any(|row| {
+                crate::original_declaration::reference_matches_declaration(reference, row, false)
+            }))
     {
         coverage_trace(command_offset, "direct-procedure-owner");
         return Err(OriginalCommandRenameRefusal::IncompleteCoverage);

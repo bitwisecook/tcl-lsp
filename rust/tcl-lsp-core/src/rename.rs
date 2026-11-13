@@ -4192,6 +4192,77 @@ mod tests {
 
     // class rename
 
+    /// Oracle (tclsh 8.6, 9.0 and 9.1): renaming only the declaration and
+    /// the static call heads breaks each of these programs. A name reached
+    /// dynamically (`$c new`, `oo::define $c`) fails with `invalid command
+    /// name "MyClass"` or `MyClass does not refer to an object`; a
+    /// `superclass`, `mixin` or `forward` operand left unwritten fails the
+    /// same way; an `[info object class]` comparison prints `different`
+    /// instead of `same`; and a taken name fails with `can't create object
+    /// "Renamed": command already exists with that name`. A superclass the
+    /// document does not declare runs a constructor nobody has read. Each
+    /// rename must refuse.
+    #[test]
+    fn rename_class_refuses_dynamic_relation_reflected_and_colliding_uses() {
+        for source in [
+            "oo::class create MyClass {}\nset c MyClass\n$c new\n",
+            "oo::class create MyClass {}\nset c MyClass\noo::define $c {method m {} {}}\n",
+            "oo::class create MyClass {}\nMyClass create obj\n\
+             if {[info object class obj] eq \"::MyClass\"} {puts same}\n",
+            "oo::class create MyClass {}\noo::class create Sub {superclass MyClass}\n",
+            "oo::class create MyClass {}\noo::class create Other {mixin MyClass}\n",
+            "oo::class create MyClass {}\nset b MyClass\noo::class create Sub {superclass $b}\n",
+            "oo::class create MyClass {\n    forward mk MyClass new\n}\n",
+            "oo::class create MyClass {}\nproc Renamed {} {}\nMyClass new\n",
+            "oo::class create MyClass {}\noo::class create Renamed {}\n",
+            "oo::class create MyClass {superclass ::pkg::Base}\nMyClass new\n",
+        ] {
+            let analysis = analyse(source);
+            let result = rename_with_diagnosis(
+                source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                0,
+                17,
+                "Renamed",
+                &analysis,
+                None,
+            );
+            assert!(
+                !matches!(&result, Ok(edits) if !edits.is_empty()),
+                "{source}: {result:?}"
+            );
+        }
+    }
+
+    /// Oracle (tclsh 8.6, 9.0 and 9.1): renaming a subclass with its static
+    /// call heads, including one reached from `namespace eval`, keeps
+    /// `base ::Base` and the instance class follows the new name.
+    #[test]
+    fn rename_class_with_a_superclass_rewrites_every_static_call_head() {
+        let source = "oo::class create Base {}\n\
+                      oo::class create MyClass {\n    superclass Base\n    method m {} {}\n}\n\
+                      MyClass new\n\
+                      namespace eval ns { MyClass new }\n";
+        let analysis = analyse(source);
+        let edits = rename_with_diagnosis(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            1,
+            17,
+            "Renamed",
+            &analysis,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            apply_edits(source, &edits),
+            "oo::class create Base {}\n\
+             oo::class create Renamed {\n    superclass Base\n    method m {} {}\n}\n\
+             Renamed new\n\
+             namespace eval ns { Renamed new }\n"
+        );
+    }
+
     #[test]
     fn rename_class_at_decl_rewrites_decl_and_calls() {
         // `oo::class create MyClass { ... }` plus a `MyClass new`
@@ -4204,7 +4275,7 @@ mod tests {
         // Cursor on the `MyClass` declaration name (column 17).
         let edits = rename(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             0,
             17,
             "Renamed",
@@ -4231,7 +4302,7 @@ mod tests {
         // Cursor on the `MyClass` in `MyClass new` (line 2, col 3).
         let edits = rename(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             2,
             3,
             "Renamed",
