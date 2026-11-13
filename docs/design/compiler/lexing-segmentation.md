@@ -156,6 +156,14 @@ the ordinary argument tail is emitted. Expanding an empty command-word list is
 a successful empty invocation, while a malformed list preserves the shared
 list owner's structured `TCL VALUE LIST ...` error code.
 
+That path is for words expanded at run time. From 8.5, `Tcl_ParseCommand`
+expands a `{*}` word of plain text whose list elements are all literal into
+one word per element (an empty list into none), so the compiler never sees it
+as an expansion. Emission does the same: the command's selected compiler gets
+first refusal over the parser's words (`upvar {*}{0 x alias}` compiles to
+`upvar` as `tclsh` disassembles it), and otherwise the elements are invoked as
+ordinary words with `invokeStk`, not `invokeExpanded`.
+
 Arity checks at both the analyser (user-proc call sites) and the IR layer
 (`check_simple_arity` in
 `rust/tcl-compiler/src/analyser/diagnostics/validity.rs`, which takes the

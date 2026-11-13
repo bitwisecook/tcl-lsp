@@ -725,6 +725,13 @@ impl CodegenCtx<'_> {
             .and_then(|t| t.expand_word.as_ref())
             .is_some_and(|ew| ew.iter().any(|&e| e));
         if has_expand {
+            // The selected original compiler sees the parser's literal
+            // expansion as ordinary words, so it owns the command first.
+            if self.emit_native_original_preparation_invocation(tokens) {
+                self.emit(Op::POP, vec![]);
+                *used_generic_invoke = true;
+                return;
+            }
             let ew = tokens.and_then(|t| t.expand_word.as_ref()).unwrap();
             if let Some(words) = super::cmd_subst::parse_time_expansion(
                 std::iter::once(command)
