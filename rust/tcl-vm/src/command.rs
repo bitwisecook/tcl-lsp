@@ -2961,6 +2961,13 @@ pub(crate) fn option_code_checked(
 }
 
 /// Carried options or the ordinary standard options when genuinely empty.
+fn is_error_metadata_key(key: &[u8]) -> bool {
+    matches!(
+        key,
+        b"-errorcode" | b"-errorinfo" | b"-errorline" | b"-errorstack"
+    )
+}
+
 pub(crate) fn completion_options(vm: &mut Vm, comp: &Completion<Value>) -> Result<Value, TclError> {
     if completion_option_rows_checked(vm, &comp.options)?.is_empty() {
         Ok(options_dict(comp.code, 0, &[]))
@@ -3875,12 +3882,15 @@ impl Vm {
         let jim_quote = self.native_invocation_dialect().expression_quote_control()
             == Some(tcl_registry::invocation_words::ExpressionQuoteControl::Jim084);
         if jim_quote && comp.code == Code::Ok {
-            carried.retain(|(key, _)| {
-                !matches!(
-                    key.as_slice(),
-                    b"-errorcode" | b"-errorinfo" | b"-errorline" | b"-errorstack"
-                )
-            });
+            carried.retain(|(key, _)| !is_error_metadata_key(key));
+        }
+        let live = if jim_quote {
+            None
+        } else {
+            self.live_success_error_options(comp)?
+        };
+        if live.is_some() {
+            carried.retain(|(key, _)| !is_error_metadata_key(key));
         }
         let (code, level) = if comp.code == Code::Return {
             (
@@ -3897,7 +3907,10 @@ impl Vm {
                 },
             )
         };
-        let error = self.completion_error_options(comp, code, level)?;
+        let error = match live {
+            Some(live) => Some(live),
+            None => self.completion_error_options(comp, code, level)?,
+        };
         let rows = shared_options::plan_with_origin(
             self.runtime_version(),
             code,
@@ -3917,6 +3930,45 @@ impl Vm {
                 })
                 .collect(),
         ))
+    }
+
+    /// The interpreter error code, info and line a successful completion
+    /// carries, such as a swallowed read's. `Tcl_GetReturnOptions` reports
+    /// them after `-code` and `-level`; only a `return` carries its own.
+    fn live_success_error_options(
+        &mut self,
+        comp: &Completion<Value>,
+    ) -> Result<Option<ErrorOptions<Value>>, TclError> {
+        if matches!(comp.code, Code::Error | Code::Return)
+            || matches!(
+                comp.option_origin,
+                tcl_core_types::CompletionOptionOrigin::MergedReturnOptions { .. }
+            )
+        {
+            return Ok(None);
+        }
+        let error_code = opt_get_checked(self, &comp.options, b"-errorcode")?;
+        let error_info = opt_get_checked(self, &comp.options, b"-errorinfo")?;
+        let error_line = if opt_get_checked(self, &comp.options, b"-errorline")?.is_some() {
+            Some(option_integer_checked(
+                self,
+                &comp.options,
+                b"-errorline",
+                0,
+            )?)
+        } else {
+            None
+        };
+        Ok(
+            (error_code.is_some() || error_info.is_some() || error_line.is_some()).then_some(
+                ErrorOptions {
+                    error_code,
+                    error_info,
+                    error_line,
+                    ..ErrorOptions::default()
+                },
+            ),
+        )
     }
 
     fn completion_error_options(
@@ -3986,7 +4038,10 @@ impl Vm {
             .map_err(|error| completion_option_failure(self, error))?;
         drop(original);
         let active_error = comp.code == Code::Error && level == 0;
-        let error = if code == 1 {
+        let live = self.live_success_error_options(comp)?;
+        let error = if let Some(live) = live {
+            Some(live)
+        } else if code == 1 {
             let error_code = match self.native_return_error_code().cloned() {
                 Some(value) => value,
                 None => resolved_error_code(self, comp)?,

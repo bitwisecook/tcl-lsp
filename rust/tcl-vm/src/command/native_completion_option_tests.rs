@@ -139,3 +139,139 @@ fn option_snapshot_preserves_first_host_cause_and_earlier_guest_effects() {
         b"RETAINED"
     );
 }
+
+// tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1.0 output for each script.
+const LIVE_METADATA_CASES: [(&str, [&str; 4]); 10] = [
+    (
+        "array set A {k 1}; list [catch {lappend A(nk)} m o] $m $o",
+        [
+            "0 {} {-code 0 -level 0}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+        ],
+    ),
+    (
+        "list [catch {incr absent} m o] $m $o",
+        [
+            "0 1 {-code 0 -level 0}",
+            "0 1 {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 1 {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 1 {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+        ],
+    ),
+    (
+        "list [catch {lappend absent} m o] $m $o",
+        [
+            "0 {} {-code 0 -level 0}",
+            "0 {} {-code 0 -level 0}",
+            "0 {} {-code 0 -level 0}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+        ],
+    ),
+    (
+        "list [catch {return -level 0 -errorcode X ok} m o] $m $o",
+        [
+            "0 ok {-errorcode X -code 0 -level 0}",
+            "0 ok {-errorcode X -code 0 -level 0}",
+            "0 ok {-errorcode X -code 0 -level 0}",
+            "0 ok {-errorcode X -code 0 -level 0}",
+        ],
+    ),
+    (
+        "proc p {} {array set A {k 1}; list [catch {lappend A(nk)} m o] $m $o}; p",
+        [
+            "0 {} {-code 0 -level 0}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+        ],
+    ),
+    (
+        "proc p {} {list [catch {incr absent} m o] $m $o}; p",
+        [
+            "0 1 {-code 0 -level 0}",
+            "0 1 {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 1 {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 1 {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+        ],
+    ),
+    (
+        "proc tr args {error boom}; set t 1; trace add variable t read tr; list [catch {lappend t} m o] $m $o",
+        [
+            "0 {} {-code 0 -level 0}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME}}",
+            "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME} -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+        ],
+    ),
+    (
+        "proc tr args {error boom}; set t 1; trace add variable t read tr; list [catch {lappend t x} m o] $m $o",
+        [
+            "0 x {-code 0 -level 0 -errorcode NONE -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+            "0 x {-code 0 -level 0 -errorcode {TCL READ VARNAME} -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+            "0 x {-code 0 -level 0 -errorcode {TCL READ VARNAME} -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+            "0 x {-code 0 -level 0 -errorcode {TCL READ VARNAME} -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+        ],
+    ),
+    (
+        "proc tr args {error boom}; set t 1; trace add variable t read tr; set c lappend; list [catch {$c t x} m o] $m $o",
+        [
+            "0 x {-code 0 -level 0 -errorcode NONE -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+            "0 x {-code 0 -level 0 -errorcode {TCL READ VARNAME} -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+            "0 x {-code 0 -level 0 -errorcode {TCL READ VARNAME} -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+            "0 x {-code 0 -level 0 -errorcode {TCL READ VARNAME} -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr t {} read\"\n    (read trace on \"t\")} -errorline 1}",
+        ],
+    ),
+    (
+        "proc q {} {list [catch {return -level 0 -errorcode X ok} m o] $m $o}; q",
+        [
+            "0 ok {-errorcode X -code 0 -level 0}",
+            "0 ok {-errorcode X -code 0 -level 0}",
+            "0 ok {-errorcode X -code 0 -level 0}",
+            "0 ok {-errorcode X -code 0 -level 0}",
+        ],
+    ),
+];
+
+/// Live error metadata on a successful completion follows `-code` and
+/// `-level`, as `Tcl_GetReturnOptions` appends `iPtr->errorCode` and
+/// `errorInfo` after them, while a carried `return -errorcode` stays first.
+/// A read trace's failure keeps its code through the command's return.
+#[test]
+fn successful_completions_place_live_error_metadata_after_control_keys() {
+    let mut mismatches = Vec::new();
+    for (source, expected) in LIVE_METADATA_CASES {
+        for (release, expected) in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
+            .into_iter()
+            .zip(expected)
+        {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect(release),
+            );
+            let completion = vm.try_eval_source(source).unwrap();
+            let actual = completion.result.to_str();
+            if completion.code != Code::Ok || actual.as_ref() != expected {
+                mismatches.push(format!(
+                    "{release}: {source}\n  got  {actual}\n  want {expected}"
+                ));
+            }
+        }
+    }
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+}
+
+/// `array get` swallows a failed element read trace; its live metadata
+/// follows the control keys (tclsh 8.6.18, 9.0.4 and 9.1.0).
+#[test]
+fn array_get_trace_failure_places_live_metadata_after_control_keys() {
+    let source = "proc tr args {error boom}; array set A {x 1}; trace add variable A read tr; list [catch {array get A} m o] $m $o";
+    let expected = "0 {} {-code 0 -level 0 -errorcode {TCL READ VARNAME} -errorinfo {boom\n    while executing\n\"error boom\"\n    (procedure \"tr\" line 1)\n    invoked from within\n\"tr A x read\"\n    (read trace on \"A(x)\")} -errorline 1}";
+    for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(release));
+        let completion = vm.try_eval_source(source).unwrap();
+        assert_eq!(completion.code, Code::Ok, "{release}");
+        assert_eq!(completion.result.to_str().as_ref(), expected, "{release}");
+    }
+}

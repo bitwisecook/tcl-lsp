@@ -182,10 +182,12 @@ pub fn retained_failed_read_options<V>(
 ///
 /// Carried options are retained, including custom keys and explicit error
 /// metadata. `-code` and `-level` are always replaced by the settled values;
-/// live level-zero error metadata replaces its carried counterpart. A missing
-/// `-errorcode` is filled for every error. Synthesis of TIP 348 metadata is
-/// gated by the selected Tcl release; a carried pre-TIP option with the same
-/// spelling remains an ordinary custom pair.
+/// live error metadata replaces its carried counterpart or follows them, as
+/// `Tcl_GetReturnOptions` appends the interpreter's error code, info and line
+/// whatever the code. A missing `-errorcode` is filled for every error, and
+/// `-errorstack` and `-during` belong to errors only. Synthesis of TIP 348
+/// metadata is gated by the selected Tcl release; a carried pre-TIP option
+/// with the same spelling remains an ordinary custom pair.
 #[must_use]
 pub fn plan<V: Clone>(
     version: TclVersion,
@@ -229,13 +231,12 @@ pub fn plan_with_origin<V: Clone>(
     rows.push((b"-code".to_vec(), OptionValue::Integer(code.as_int())));
     rows.push((b"-level".to_vec(), OptionValue::Integer(level)));
 
-    if code != Code::Error {
-        return rows;
-    }
     let Some(error) = error else {
         return rows;
     };
-    if version.has_error_stack()
+    let failed = code == Code::Error;
+    if failed
+        && version.has_error_stack()
         && let Some(value) = &error.error_stack
     {
         set_or_append(&mut rows, b"-errorstack", OptionValue::Value(value.clone()));
@@ -249,7 +250,7 @@ pub fn plan_with_origin<V: Clone>(
     if let Some(line) = error.error_line {
         set_or_append(&mut rows, b"-errorline", OptionValue::Integer(line));
     }
-    if let Some(value) = &error.during {
+    if failed && let Some(value) = &error.during {
         set_or_append(&mut rows, b"-during", OptionValue::Value(value.clone()));
     }
     rows
@@ -313,6 +314,41 @@ mod tests {
                 b"-errorstack"
             ]
         );
+    }
+
+    #[test]
+    fn live_metadata_on_success_follows_the_control_keys() {
+        let carried = [(b"-errorcode".to_vec(), "CARRIED")];
+        let live = ErrorOptions {
+            error_code: Some("TCL READ VARNAME"),
+            error_info: Some("boom"),
+            error_stack: Some("INNER boom"),
+            error_line: Some(1),
+            during: Some("PRIOR"),
+        };
+        let rows = plan(TclVersion::V8_6, Code::Ok, 0, &[], Some(&live));
+        assert_eq!(
+            keys(&rows),
+            [
+                b"-code".as_slice(),
+                b"-level",
+                b"-errorcode",
+                b"-errorinfo",
+                b"-errorline"
+            ]
+        );
+        let rows = plan(TclVersion::V8_6, Code::Ok, 0, &carried, Some(&live));
+        assert_eq!(
+            keys(&rows),
+            [
+                b"-errorcode".as_slice(),
+                b"-code",
+                b"-level",
+                b"-errorinfo",
+                b"-errorline"
+            ]
+        );
+        assert_eq!(rows[0].1, OptionValue::Value("TCL READ VARNAME"));
     }
 
     #[test]

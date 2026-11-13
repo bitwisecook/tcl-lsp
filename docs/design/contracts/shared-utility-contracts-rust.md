@@ -1831,8 +1831,12 @@ Missing policy or physical lookup capability is a typed refusal.
   completion without rebuilding it.
   A default private `errorCode` is not an explicit carried option. Return
   preparation retains its original extra pairs; the snapshot planner adds
-  live private fields after the control keys. Primitive error transport and
-  merged return dictionaries therefore keep distinct provenance and order.
+  live private fields after the control keys. As `Tcl_GetReturnOptions`
+  does, live `-errorcode`, `-errorinfo` and `-errorline` follow the control
+  keys whatever the code, so a successful update that swallowed a failed
+  read reports them after `-code 0 -level 0`; `-errorstack` and `-during`
+  belong to errors only. Primitive error transport and merged return
+  dictionaries therefore keep distinct provenance and order.
   Engines supply their concrete values and live error metadata; the owner
   preserves carried custom and explicit return options, replaces `-code` and
   `-level` with their settled values, and release-gates only the synthesis of

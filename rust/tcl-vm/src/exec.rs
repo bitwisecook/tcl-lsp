@@ -7776,10 +7776,11 @@ impl Vm {
                 let result = try_core!(self.frame_result_transport(f));
                 let opts = match Self::innermost_caught(f) {
                     Some(caught) => caught.options.clone(),
-                    None => match crate::command::completion_options(
-                        self,
-                        &Completion::new(Code::Ok, result, f.last_options.clone()),
-                    ) {
+                    None => match self.completion_options_snapshot(&Completion::new(
+                        Code::Ok,
+                        result,
+                        f.last_options.clone(),
+                    )) {
                         Ok(options) => options,
                         Err(error) => {
                             return Tick::Return(crate::command::completion_from_tcl_error(
