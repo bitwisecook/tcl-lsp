@@ -263,8 +263,10 @@ fn tk_gated_registry(
 
 /// A package row is windowed on the package's own axis, and a registry asks
 /// it at the floor it guarantees: introduced after the floor, the row is not
-/// there yet; at or above the floor it is; with no floor stated nothing is
-/// ruled out. `tk` is the profile whose point carries a hosted library.
+/// there yet; at or above the floor it is. `tk` is the profile whose point
+/// carries the library, and its 8.6 core ships Tk 8.6, so that is its own
+/// floor: a weaker declared floor cannot lower it and a stronger one raises
+/// it past rows retired in 8.6 alike.
 #[test]
 fn a_package_row_introduced_after_the_floor_is_not_admitted() {
     let selected = |registry: &CommandRegistry, name: &str| {
@@ -274,9 +276,9 @@ fn a_package_row_introduced_after_the_floor_is_not_admitted() {
     };
     for arrives in [Floor::BeforeProjection, Floor::AfterProjection] {
         for (floor, from_8_6, before_8_6) in [
-            (None, true, true),
-            (Some("8.4"), false, true),
-            (Some("8.5"), false, true),
+            (None, true, false),
+            (Some("8.4"), true, false),
+            (Some("8.5"), true, false),
             (Some("8.6"), true, false),
             (Some("9.0"), true, false),
         ] {

@@ -3234,12 +3234,14 @@ mod tests {
     fn renaming_a_class_used_as_a_map_target_does_not_rewrite_the_subcommand_word_1281() {
         let src = "oo::class create ::Widget { method draw {} {} }\n\
                    namespace ensemble create -command ::app -map {make ::Widget}\n\
-                   ::app make\n";
+                   ::app make new\n";
+        // `::app make new` dispatches to `::Widget new` (tclsh 8.6–9.1); a
+        // bare `::app make` is a `wrong # args` error, not a call of the class.
         let analysis = analyse(src);
         // Cursor on the `::Widget` of the class declaration (line 0, col 17).
         let edits = rename(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             0,
             17,
             "Panel",
@@ -3259,7 +3261,7 @@ mod tests {
             "the -map value names the class and must follow it: {applied}"
         );
         assert!(
-            applied.contains("::app make\n"),
+            applied.contains("::app make new\n"),
             "the -map key is arbitrary and must be left alone: {applied}"
         );
     }

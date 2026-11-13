@@ -74,6 +74,22 @@ const LIBS_TCL86_PLUS: &[LibraryPin] = &[
     },
 ];
 
+/// Library pins for the `tk` environment: `wish` has loaded the Tk that
+/// ships with its 8.6 core before the script runs, so Tk is ambient there
+/// and Itcl stays hosted, as the environment's placements state.
+const LIBS_TK: &[LibraryPin] = &[
+    LibraryPin {
+        package: "Tk",
+        version: LibraryVersion::TracksBase,
+        ambient: true,
+    },
+    LibraryPin {
+        package: "Itcl",
+        version: LibraryVersion::Pinned("4.2"),
+        ambient: false,
+    },
+];
+
 /// The Tcl 8.4 lexing grammar: no `{*}` expansion (TIP 157 is 8.5), the
 /// 8.x first-close `${…}` rule, no `expr` comments (TIP 582 is 9.0).
 const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
@@ -1510,7 +1526,7 @@ const fn core_provider(family: Family) -> &'static [SpecProvider] {
 /// Set-only `tk` ingress: Tcl **8.6** behaviour, plus Tk in the point.
 ///
 /// The grammar is the `tk` environment's core (`Release::TCL_8_6`), the
-/// same release its library pins (`LIBS_TCL86_PLUS`) and its version gating
+/// same release its library pins (`LIBS_TK`) and its version gating
 /// already answer for. A grammar naming a different release than the rest
 /// of the row would expose the lexer and codegen disagreeing about one
 /// document once resolution is centralised; the agreement test in
@@ -1543,7 +1559,7 @@ static TK_PROFILE: DialectProfile = DialectProfile {
     has_fixed_ensembles: false,
     vm_runtime_version: TclVersion::V8_6,
     evaluation_evidence: EvaluationEvidence::Unmeasured,
-    libraries: LIBS_TCL86_PLUS,
+    libraries: LIBS_TK,
     help_terms: &["tk"],
 };
 

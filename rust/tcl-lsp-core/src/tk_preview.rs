@@ -2011,7 +2011,8 @@ pack .w -\x69n \x2e"#;
 
     #[test]
     fn dynamic_paths_and_manager_forms_abstain() {
-        let ui = model("frame $path\npack $path\npack configure .missing\n");
+        // An unset `$path` read ends the script (tclsh: `can't read "path"`).
+        let ui = model("set path [gets stdin]\nframe $path\npack $path\npack configure .missing\n");
         assert_eq!(ui.widget_count, 1);
         assert!(
             ui.uncertainties
@@ -2599,8 +2600,10 @@ pack .w -\x69n \x2e"#;
 
     #[test]
     fn caps_repetitive_uncertainty_detail_and_reports_the_omitted_count() {
-        let source = (0..(MAX_TK_UI_UNCERTAINTIES + 17))
-            .map(|index| format!("frame $dynamic{index}"))
+        let source = std::iter::once("set dynamic [gets stdin]".to_owned())
+            .chain(
+                (0..(MAX_TK_UI_UNCERTAINTIES + 17)).map(|index| format!("frame $dynamic.f{index}")),
+            )
             .collect::<Vec<_>>()
             .join("\n");
         let ui = model(&source);

@@ -337,13 +337,14 @@ fn tk_command_option_body_is_analysed() {
             .any(|diagnostic| diagnostic.code.to_string() == "W100"),
         "{loaded:?}"
     );
-    let unloaded = analyse(src, "tk", &[]);
+    // `wish` has loaded its Tk before the script runs.
+    let ambient = analyse(src, "tk", &[]);
     assert!(
-        !unloaded
+        ambient
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code.to_string() == "W100"),
-        "{unloaded:?}"
+        "{ambient:?}"
     );
     let text = analyse(
         "package require Tk; button .b -text {expr $x+1}",

@@ -363,14 +363,12 @@ impl ObjectHandleFacts {
         let logical = input.has_logical_source_name_context();
         // Unreached versioned source has original coordinates independently
         // of Native dispatch. This record is used only for report comparison.
+        // The unit's own point versions its source; `tk` analyses that unit
+        // under the anonymous lenient profile, every other input under itself.
         let versioned_source = !input.has_hosted_source_name_context()
-            && [input.analyser_profile(), input.unit_profile()]
-                .into_iter()
-                .all(|profile| {
-                    tcl_registry::InvocationDialect::of_profile(profile)
-                        .native_name_protocol()
-                        .is_some()
-                });
+            && tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                .native_name_protocol()
+                .is_some();
         if (!logical && !versioned_source)
             || (logical && !analysis.allows_retained_logical_declaration_advice())
             || !realm.matches_resolved_analysis_input(input)
