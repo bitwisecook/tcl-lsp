@@ -215,6 +215,63 @@ fn script_body_region(
     Ok(content)
 }
 
+/// The script body of the method, constructor or destructor one of `records`
+/// declares at this command, with that record's index and whether the body
+/// runs on the record's instances. The independently retained definition
+/// worker supplies source body geometry, never an ordinary runtime call.
+pub(crate) fn declared_member_body(
+    records: &[&ClassRecord],
+    command_offset: u32,
+    words: &[tcl_lexer::NativeWord],
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<Option<(Span, usize, bool)>, OriginalMemberRenameRefusal> {
+    if let Some((class, declaration)) = records
+        .iter()
+        .enumerate()
+        .flat_map(|(index, record)| {
+            record
+                .metadata()
+                .original_members
+                .declarations()
+                .map(move |row| (index, row))
+        })
+        .find(|(_, row)| row.declaration().site().offset == command_offset)
+    {
+        if declaration.declaration().static_occurrence().is_none()
+            || !words.contains(declaration.declaration().original_word())
+        {
+            return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+        }
+        // The selected whole body word and shared delimiter/value owners
+        // provide source geometry; report spans supply no script.
+        let body = original_method_body_region(declaration, words)?;
+        let instance =
+            declaration.side() == MemberSide::Instance && !declaration.native_class_delegate();
+        return Ok(Some((body, class, instance)));
+    }
+    // A constructor or destructor body runs with the new or dying object as
+    // its receiver, an instance of its class or a descendant.
+    if let Some((class, special)) = records
+        .iter()
+        .enumerate()
+        .flat_map(|(index, record)| {
+            record
+                .metadata()
+                .original_special_members
+                .declarations()
+                .map(move |row| (index, row))
+        })
+        .find(|(_, row)| row.site().offset == command_offset)
+    {
+        if !words.contains(special.keyword_word()) {
+            return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+        }
+        let body = script_body_region(Some(special.body_word()), words, protocol)?;
+        return Ok(Some((body, class, special.side() == MemberSide::Instance)));
+    }
+    Ok(None)
+}
+
 type ClassRecord = tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
     tcl_compiler::analyser::ClassDef,
 >;
@@ -673,61 +730,13 @@ impl MemberRenameScan<'_, '_> {
         words: &[tcl_lexer::NativeWord],
     ) -> Result<Option<(Span, Option<usize>)>, OriginalMemberRenameRefusal> {
         let Self { family, method, .. } = *self;
-        // The independently retained definition worker supplies source
-        // body geometry. It does not supply an ordinary runtime call.
-        if let Some((class, declaration)) = family
-            .records
-            .iter()
-            .enumerate()
-            .flat_map(|(index, record)| {
-                record
-                    .metadata()
-                    .original_members
-                    .declarations()
-                    .map(move |row| (index, row))
-            })
-            .find(|(_, row)| row.declaration().site().offset == command_offset)
-        {
-            if declaration.declaration().static_occurrence().is_none()
-                || !words.contains(declaration.declaration().original_word())
-            {
-                return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
-            }
-            // The selected whole body word and shared delimiter/value
-            // owners provide source geometry; report spans supply no script.
-            let body = original_method_body_region(declaration, words)?;
-            let receiver = (declaration.side() == MemberSide::Instance
-                && !declaration.native_class_delegate())
-            .then_some(class);
-            return Ok(Some((body, receiver)));
-        }
-        // A constructor or destructor body runs with the new or dying object
-        // as its receiver, an instance of its class or a descendant.
-        if let Some((class, special)) = family
-            .records
-            .iter()
-            .enumerate()
-            .flat_map(|(index, record)| {
-                record
-                    .metadata()
-                    .original_special_members
-                    .declarations()
-                    .map(move |row| (index, row))
-            })
-            .find(|(_, row)| row.site().offset == command_offset)
-        {
-            if !words.contains(special.keyword_word()) {
-                return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
-            }
-            let body = script_body_region(
-                Some(special.body_word()),
-                words,
-                method.original_name_input().policy().string_protocol(),
-            )?;
-            let receiver = (special.side() == MemberSide::Instance).then_some(class);
-            return Ok(Some((body, receiver)));
-        }
-        Ok(None)
+        Ok(declared_member_body(
+            &family.records,
+            command_offset,
+            words,
+            method.original_name_input().policy().string_protocol(),
+        )?
+        .map(|(body, class, instance)| (body, instance.then_some(class))))
     }
 
     fn command(
