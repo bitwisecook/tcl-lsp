@@ -220,10 +220,14 @@ impl<'a> NativeSummaryContext<'a> {
             "store.receiver",
             self.receiver(body, tokens, &normal, defs, ssa),
         )?;
-        let stored = n17_native_option("store.value-index", normal.stored_value_argument())?
-            .checked_add(1)?;
+        // A store whose value is a word (`set x [cmd]`) takes that word's
+        // sole substitution; a keyed update (`dict unset d a`) has no stored
+        // word and every word is literal.
+        let stored = normal
+            .stored_value_argument()
+            .and_then(|index| index.checked_add(1));
         for (index, word) in operation.effective.words.iter().enumerate() {
-            if index == stored {
+            if Some(index) == stored {
                 n17_native_option("store.sole-child", word.sole_command_substitution())?;
             } else if n17_native_decline("store.nonliteral-argv", !literal_word(word)) {
                 return None;
@@ -254,28 +258,30 @@ impl<'a> NativeSummaryContext<'a> {
         ssa: &SsaFunction,
     ) -> Option<()> {
         use tcl_registry::native_compilation::VariableOperandBindingPhase;
-        if n17_native_decline(
-            "receiver.phase-or-roles",
-            normal.variable_binding_phase() != VariableOperandBindingPhase::AfterArguments
-                || normal.variable_roles().as_slice() != [(0, tcl_registry::ArgRole::VarWrite)],
-        ) {
-            return None;
-        }
+        // One written variable, at whichever argument the command names it:
+        // `set x [cmd]` at 0, `dict unset d a` at 1, after its subcommand.
+        let roles = normal.variable_roles();
+        let receiver = match roles.as_slice() {
+            [(receiver, tcl_registry::ArgRole::VarWrite)]
+                if normal.variable_binding_phase()
+                    == VariableOperandBindingPhase::AfterArguments =>
+            {
+                *receiver
+            }
+            _ => return n17_native_option("receiver.phase-or-roles", None),
+        };
         let [(display, (symbol, version))] = defs else {
             return n17_native_option("receiver.single-definition", None);
         };
         let binding = n17_native_option("receiver.binding", tokens.source_binding.as_ref())?;
-        n17_native_option(
-            "receiver.stored-child",
-            n17_native_option(
-                "receiver.stored-word",
-                normal.stored_value_word(&binding.variable_context, self.registry),
-            )?
-            .sole_command_substitution(),
-        )?;
+        // A stored word (`set x [cmd]`) is the sole substitution the value
+        // comes from; a keyed update (`dict unset d a`) has none.
+        if let Some(word) = normal.stored_value_word(&binding.variable_context, self.registry) {
+            n17_native_option("receiver.stored-child", word.sole_command_substitution())?;
+        }
         let place = n17_native_option(
             "receiver.place",
-            normal.variable_operand_place(0, &binding.variable_context, self.registry),
+            normal.variable_operand_place(receiver, &binding.variable_context, self.registry),
         )?;
         if n17_native_decline(
             "receiver.unbounded-place",
@@ -293,7 +299,7 @@ impl<'a> NativeSummaryContext<'a> {
         if n17_native_decline("receiver.SSA-cell-key", ssa.cell_key(*symbol) != Some(&key)) {
             return None;
         }
-        let name = n17_native_option("receiver.literal-name", normal.argument_literal(0))?;
+        let name = n17_native_option("receiver.literal-name", normal.argument_literal(receiver))?;
         if n17_native_decline(
             "receiver.name-projection",
             name != *display

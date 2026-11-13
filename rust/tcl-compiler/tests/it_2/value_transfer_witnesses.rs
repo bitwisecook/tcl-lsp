@@ -902,10 +902,17 @@ fn a_typed_assignment_declines_once_set_is_rebound() {
         "proc set {name value} {return ZZZ}\nproc p {} {set s hello; append s world; puts $s}\np\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
         let unit = unit_of(source, dialect);
-        assert_eq!(
-            value_at(&unit, "::p", "s", 1),
-            Some(LatticeValue::Overdefined),
-            "{dialect}"
+        // The rebound `set` never writes `s`, so `append` starts from an
+        // unbound `s`: its value is `world`, as tclsh prints, or unknown —
+        // never the `helloworld` a typed assignment would have given.
+        assert!(
+            matches!(
+                value_at(&unit, "::p", "s", 1),
+                Some(LatticeValue::Overdefined)
+            ) || value_at(&unit, "::p", "s", 1)
+                == Some(LatticeValue::Const(ConstValue::String("world".into()))),
+            "{dialect}: {:?}",
+            value_at(&unit, "::p", "s", 1)
         );
         let (rewritten, rewrites) = optimised(source, dialect);
         assert!(
