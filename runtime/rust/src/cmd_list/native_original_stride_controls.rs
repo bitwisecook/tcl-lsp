@@ -64,6 +64,12 @@ fn original_stride_guest_and_header_predicates_match_native644() {
         if row.case < 9 {
             argv.push(pattern.as_ptr());
         }
+        // jimsh's interpreter allocates every argument it passes.
+        if let Ok(context) = ops.native_jim_object_context() {
+            for &object in &argv {
+                crate::native_source::bind_context(object, &context).unwrap();
+            }
+        }
         let code = if row.case < 9 {
             super::lsearch(&mut ops, &argv)
         } else {

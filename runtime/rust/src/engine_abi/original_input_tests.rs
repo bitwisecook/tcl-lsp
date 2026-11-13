@@ -309,9 +309,14 @@ fn original_abi_counted_package_and_error_bytes_keep_nuls_and_opaque_suffixes() 
             interp.result_bytes(),
             b"conflicting versions provided for package \"package\0\xff\": 1.0, then 2.0"
         );
+        // C8.4 and C8.5 Tcl_PkgProvideEx set no error code for a conflict.
         assert_eq!(
             interp.error_code_bytes_checked().unwrap(),
-            b"TCL PACKAGE VERSIONCONFLICT"
+            if matches!(version, TclVersion::V8_4 | TclVersion::V8_5) {
+                b"NONE".as_slice()
+            } else {
+                b"TCL PACKAGE VERSIONCONFLICT".as_slice()
+            }
         );
         let invalid = Owned::fresh(new_string(b"1.0\0\xff"));
         assert_eq!(

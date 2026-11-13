@@ -91,11 +91,14 @@ fn original_numeric_search_sort_public_predicates_match_independent_native645_an
         if let Some(pattern) = &pattern {
             argv.push(pattern.as_ptr());
         }
-        let code = if row.sort {
-            super::lsort(&mut ops, &argv)
-        } else {
-            super::lsearch(&mut ops, &argv)
-        };
+        if let Ok(context) = ops.native_jim_object_context() {
+            for &object in argv.iter().chain(&members) {
+                crate::native_source::bind_context(object, &context).unwrap();
+            }
+        }
+        // The providers ran each case through Tcl_EvalObjv, whose error
+        // logging materialises the command words.
+        let code = ops.eval_original_object_vector(&argv);
         let label = format!(
             "{}:{}:{}:{}",
             row.series, row.dialect, row.case, row.stream_sha256

@@ -132,6 +132,18 @@ fn grouped_sort_and_original_comparator_result_public_predicates_match_native651
             arguments.push(unique.as_ptr());
         }
         arguments.push(container.as_ptr());
+        // jimsh's interpreter allocates every value it passes.
+        if let Ok(context) = interp.native_jim_object_context() {
+            let returned = returned.as_ref().map(obj::Owned::as_ptr);
+            let values = arguments
+                .iter()
+                .chain(&members)
+                .chain([&command_member])
+                .chain(returned.as_ref());
+            for &object in values {
+                crate::native_source::bind_context(object, &context).unwrap();
+            }
+        }
         let code = super::lsort(&mut interp, &arguments);
         let label = format!("{}:{}:{}", row.dialect, row.case, row.stream_sha256);
         assert_eq!(

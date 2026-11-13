@@ -1982,13 +1982,14 @@ mod tests {
                 interp.native_access_refusal(),
                 Some(tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(_))
             ));
+            // The refusal stops variable lookup, so observe owned storage.
             assert_eq!(
-                interp.var_get(b"prior").map(obj::bytes_of),
+                crate::test_storage::global_scalar(&interp, b"prior").map(obj::bytes_of),
                 Some(b"1".to_vec())
             );
             for name in [b"captured".as_slice(), b"recovered", b"final", b"after"] {
                 assert!(
-                    interp.var_get(name).is_none(),
+                    crate::test_storage::global_scalar(&interp, name).is_none(),
                     "unexpected guest write: {name:?}"
                 );
             }

@@ -2314,23 +2314,20 @@ mod tests {
     }
 
     #[test]
-    fn unpresented_native_rejection_is_a_host_obligation_before_any_effects() {
+    fn legacy_compile_failure_precedes_procedure_effects() {
+        // tclsh8.4 compiles the body first: `**` is not an 8.4 operator.
         let mut interpreter = interpreter("tcl8.4");
         assert_eq!(
             interpreter.eval_str(
-                b"set before 0; proc p {} {set ::before 1; expr {1 ** 2}}; catch p; set after 1"
+                b"set before 0; proc p {} {set ::before 1; expr {1 ** 2}}; list [catch p msg] $msg $before"
             ),
-            Code::Error,
+            Code::Ok,
         );
         assert_eq!(
-            interpreter.native_compilation_admission_error(),
-            Some(NativeCompilationAdmissionError::NativePreflightRequired,)
+            interpreter.result_bytes(),
+            b"1 {syntax error in expression \"1 ** 2\": unexpected operator *} 0"
         );
-        assert_eq!(
-            interpreter.var_get(b"before").map(obj_bytes),
-            Some(b"0".to_vec())
-        );
-        assert!(interpreter.var_get(b"after").is_none());
+        assert_eq!(interpreter.native_compilation_admission_error(), None);
     }
 
     #[test]
