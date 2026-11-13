@@ -255,6 +255,8 @@ pub use body_template::{BodyProofScope, BodySourceProofs, NativeBodyTemplate};
 mod command_publication;
 mod compiled_invocation;
 mod ensemble_compilation;
+mod ensemble_dispatch;
+use ensemble_dispatch::EnsembleDispatches;
 mod named_arguments;
 mod named_invocation;
 pub use named_invocation::SourceNamedInvocationProof;
@@ -4685,6 +4687,12 @@ impl PreparedSourceNativeInvocation<'_> {
             tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
                 tcl_registry::completion::CompletionCode::Ok,
             )
+        } else if creates_literal_ensemble(&self.facts) {
+            // It evaluates no script: it installs its one command or raises.
+            tcl_registry::completion_route::InvocationCompletionRoute::TclAlternatives(&[
+                tcl_registry::completion::CompletionCode::Ok,
+                tcl_registry::completion::CompletionCode::Error,
+            ])
         } else {
             self.route
         }
@@ -5103,6 +5111,12 @@ fn command_world_closed_on_normal_return(
     facts: &InvocationFacts,
 ) -> bool {
     use tcl_registry::OwnedSubcommandResolution;
+    if creates_literal_ensemble(facts) {
+        return target.registry_backed
+            && target.kind == BindingKind::Builtin
+            && target.prepended.is_empty()
+            && !facts.effects.requires_world_barrier();
+    }
     let complete_builtin = target.registry_backed
         && target.kind == BindingKind::Builtin
         && target.prepended.is_empty()
@@ -5123,6 +5137,29 @@ fn command_world_closed_on_normal_return(
         }
         None => undeclared_transitions_leave_command_world_closed(facts),
     }
+}
+
+/// A literal `namespace ensemble create` whose one installed command the
+/// binding walk publishes exactly; the original world withdraws itself when
+/// it cannot.
+fn creates_literal_ensemble(facts: &InvocationFacts) -> bool {
+    facts
+        .state_transitions
+        .declared()
+        .is_some_and(|transitions| {
+            !transitions.facts().is_empty()
+                && transitions.facts().iter().all(|fact| {
+                    matches!(
+                        fact.transition,
+                        tcl_registry::StateTransition::Namespace(
+                            tcl_registry::NamespaceTransition::Ensemble {
+                                created: Some(_),
+                                ..
+                            }
+                        )
+                    )
+                })
+        })
 }
 
 /// A builtin without declared transitions is the walk's generic invocation:
@@ -11327,6 +11364,10 @@ impl SourceCommandBindings {
             }
             return opaque_source_invocation(state);
         }
+        if let Some(outcomes) = self.walk_ensemble_dispatch(site, effective, state, target, context)
+        {
+            return outcomes;
+        }
         if state.installed_definition_dispatcher(target).is_some() {
             // No constructor or typemethod execution contract is donated by
             // the definition receipt. Its nominal result query is separate.
@@ -15219,6 +15260,7 @@ struct NonBindingObservationStamp {
     unknown_namespace_paths: Arc<SourceNamespaceSet>,
     namespace_unknown_handlers: Arc<SourceNamespaceSet>,
     ensemble_owner_namespaces: Arc<SourceNamespaceSet>,
+    ensemble_dispatches: Arc<EnsembleDispatches>,
     unknown_export_namespaces: Arc<SourceNamespaceSet>,
     packages: Arc<BTreeMap<String, BTreeSet<PackageProvision>>>,
     revoked_loaders: Arc<BTreeSet<String>>,
@@ -15346,6 +15388,7 @@ pub struct ModuleCommandBindings {
     unknown_namespace_paths: Arc<SourceNamespaceSet>,
     namespace_unknown_handlers: Arc<SourceNamespaceSet>,
     ensemble_owner_namespaces: Arc<SourceNamespaceSet>,
+    ensemble_dispatches: Arc<EnsembleDispatches>,
     unknown_export_namespaces: Arc<SourceNamespaceSet>,
     packages: Arc<BTreeMap<String, BTreeSet<PackageProvision>>>,
     revoked_loaders: Arc<BTreeSet<String>>,
@@ -15448,6 +15491,7 @@ impl PartialEq for ModuleCommandBindings {
             && self.unknown_namespace_paths == other.unknown_namespace_paths
             && self.namespace_unknown_handlers == other.namespace_unknown_handlers
             && self.ensemble_owner_namespaces == other.ensemble_owner_namespaces
+            && self.ensemble_dispatches == other.ensemble_dispatches
             && self.unknown_export_namespaces == other.unknown_export_namespaces
             && self.packages == other.packages
             && self.revoked_loaders == other.revoked_loaders
@@ -16446,6 +16490,7 @@ impl ModuleCommandBindings {
             && self.unknown_namespace_paths == other.unknown_namespace_paths
             && self.namespace_unknown_handlers == other.namespace_unknown_handlers
             && self.ensemble_owner_namespaces == other.ensemble_owner_namespaces
+            && self.ensemble_dispatches == other.ensemble_dispatches
             && self.unknown_export_namespaces == other.unknown_export_namespaces
             && self.packages == other.packages
             && self.revoked_loaders == other.revoked_loaders
@@ -16487,6 +16532,7 @@ impl ModuleCommandBindings {
             unknown_namespace_paths: Arc::clone(&self.unknown_namespace_paths),
             namespace_unknown_handlers: Arc::clone(&self.namespace_unknown_handlers),
             ensemble_owner_namespaces: Arc::clone(&self.ensemble_owner_namespaces),
+            ensemble_dispatches: Arc::clone(&self.ensemble_dispatches),
             unknown_export_namespaces: Arc::clone(&self.unknown_export_namespaces),
             packages: Arc::clone(&self.packages),
             revoked_loaders: Arc::clone(&self.revoked_loaders),
@@ -16536,6 +16582,7 @@ impl std::hash::Hash for ModuleCommandBindings {
         self.unknown_namespace_paths.hash(state);
         self.namespace_unknown_handlers.hash(state);
         self.ensemble_owner_namespaces.hash(state);
+        self.ensemble_dispatches.hash(state);
         self.unknown_export_namespaces.hash(state);
         self.packages.hash(state);
         self.revoked_loaders.hash(state);
@@ -16793,6 +16840,7 @@ impl ModuleCommandBindings {
     /// resolution but do not by themselves invalidate optimiser trust.
     fn mark_opaque_resolution(&mut self) {
         Arc::make_mut(&mut self.original_command_world).withdraw();
+        self.withdraw_ensemble_dispatches();
         self.opaque_domain = true;
     }
 
@@ -16810,6 +16858,7 @@ impl ModuleCommandBindings {
             && self.unknown_namespace_paths == other.unknown_namespace_paths
             && self.namespace_unknown_handlers == other.namespace_unknown_handlers
             && self.ensemble_owner_namespaces == other.ensemble_owner_namespaces
+            && self.ensemble_dispatches == other.ensemble_dispatches
             && self.unknown_export_namespaces == other.unknown_export_namespaces
             && self.packages == other.packages
             && self.revoked_loaders == other.revoked_loaders
@@ -16862,6 +16911,7 @@ impl ModuleCommandBindings {
             .fresh_procedures
             .clear();
         Arc::make_mut(&mut self.original_command_world).withdraw();
+        self.withdraw_ensemble_dispatches();
         self.ordinary_literal_pool = None;
         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
         self.opaque_domain = true;
@@ -18874,6 +18924,7 @@ impl ModuleCommandBindings {
     fn join_lookup_support(&mut self, other: &Self) -> bool {
         let mut changed = false;
         changed |= join_alternatives(&mut self.objects, &other.objects);
+        changed |= self.join_ensemble_dispatches(other);
         if !Arc::ptr_eq(&self.namespace_exports, &other.namespace_exports) {
             changed |= Arc::make_mut(&mut self.namespace_exports)
                 .join_with_default(&other.namespace_exports, &Vec::new());
@@ -22135,17 +22186,22 @@ fn apply_ensemble_transition(
         namespace,
         operation,
         created,
+        dispatch,
         ..
     } = transition
     else {
         return;
     };
     if let Some(created) = created
-        && install_created_ensemble(state, created, current, offset, original_operands).is_some()
+        && let Some(key) =
+            install_created_ensemble(state, created, current, offset, original_operands)
     {
         Arc::make_mut(&mut state.ensemble_owner_namespaces).insert(current.clone());
+        state.freeze_ensemble_dispatch(&key, offset, current, dispatch.as_ref());
         return;
     }
+    // Any other operation may rewrite an existing ensemble's dispatch.
+    state.withdraw_ensemble_dispatches();
     if *operation == Some(tcl_registry::state_transition::EnsembleManagementOperation::Configure) {
         return;
     }
@@ -22162,7 +22218,7 @@ fn install_created_ensemble(
     current: &SourceNamespaceKey,
     declaration: u32,
     original_operands: Option<&original_command_table::OriginalCommandOperands>,
-) -> Option<()> {
+) -> Option<SourceCommandKey> {
     if let Some(operands) = original_operands {
         return operands.apply_ensemble_creation(state, created, current, declaration);
     }
@@ -22175,8 +22231,8 @@ fn install_created_ensemble(
     };
     let key =
         state.publication_key_at(current, name, namespace_slots::PublicationPurpose::Command)?;
-    state.install_created_command(key, declaration);
-    Some(())
+    state.install_created_command(key.clone(), declaration);
+    Some(key)
 }
 
 fn apply_namespace_deletion(

@@ -544,15 +544,16 @@ pub use special_vars::{
 pub use state_transition::{
     AbruptTransitionTransfer, AliasTargetLookup, AliasWords, CallerFrameSelection,
     ChildInterpreterSafety, CommandBindingDefinitionKind, CommandBindingTransition,
-    CommandResolutionImpact, EnsembleCommandName, InterpreterTransition, NamespaceTransition,
-    NamespaceTransitionTarget, ObjectDispatchKind, ObjectDispatchLayer, ObjectDispatchTarget,
-    ObjectDispatchTransition, ObjectPrivateNamespace, ResolvedStateTransitions, StateTransition,
-    StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
-    StateTransitionDescriptor, StateTransitionDomain, StateTransitionFact,
-    StateTransitionKnowledge, StateTransitionOperandLayout, StateTransitionResolver,
-    StateTransitionWidening, StateTransitionWideningRule, StateTransitions, TraceOperation,
-    TraceOperationSet, TraceTarget, TraceTransition, TransitionSubject, VariableAliasDestination,
-    VariableAliasFrame, VariableAliasTarget, VariableCellAliasTransition,
+    CommandResolutionImpact, EnsembleCommandName, EnsembleDispatchTable, EnsembleDispatchTarget,
+    InterpreterTransition, NamespaceTransition, NamespaceTransitionTarget, ObjectDispatchKind,
+    ObjectDispatchLayer, ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace,
+    ResolvedStateTransitions, StateTransition, StateTransitionArgumentShape, StateTransitionCommit,
+    StateTransitionComposition, StateTransitionDescriptor, StateTransitionDomain,
+    StateTransitionFact, StateTransitionKnowledge, StateTransitionOperandLayout,
+    StateTransitionResolver, StateTransitionWidening, StateTransitionWideningRule,
+    StateTransitions, TraceOperation, TraceOperationSet, TraceTarget, TraceTransition,
+    TransitionSubject, VariableAliasDestination, VariableAliasFrame, VariableAliasTarget,
+    VariableCellAliasTransition,
 };
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour, TaintColourAtom};

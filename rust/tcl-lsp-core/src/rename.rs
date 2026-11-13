@@ -2611,6 +2611,30 @@ mod tests {
         );
     }
 
+    /// With no dispatch, nothing proves which command the `-map` value names
+    /// when the ensemble runs, so the rename refuses rather than leave the
+    /// map naming the old command.
+    #[test]
+    fn an_undispatched_map_target_refuses_rather_than_leave_the_map_stale() {
+        let src = "proc ::app::Show {} { return \"showing\" }\n\
+                   namespace ensemble create -command ::app::widget \
+                   -map {show ::app::Show}\n";
+        let analysis = analyse(src);
+        let result = rename_with_diagnosis(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            0,
+            12,
+            "Display",
+            &analysis,
+            None,
+        );
+        assert!(
+            result.as_ref().is_err() || result.as_ref().is_ok_and(Vec::is_empty),
+            "{result:?}"
+        );
+    }
+
     #[test]
     fn renaming_a_map_target_does_not_rewrite_the_subcommand_word_1281() {
         let src = "namespace eval ::app::widget {}\n\

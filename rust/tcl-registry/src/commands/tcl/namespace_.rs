@@ -851,6 +851,7 @@ fn namespace_ensemble_state_transitions(arguments: InvocationArguments<'_>) -> S
                 .filter_map(|index| TransitionSubject::from_argument(arguments, index))
                 .collect(),
             created: literal_ensemble_creation(arguments),
+            dispatch: literal_ensemble_dispatch(arguments),
         }));
     }
     transitions
@@ -910,6 +911,80 @@ fn literal_ensemble_creation(
             EnsembleCommandName::Named(TransitionSubject::from_argument(arguments, index)?)
         }
         None => EnsembleCommandName::CurrentNamespace,
+    })
+}
+
+/// The dispatch table of a literal ensemble creation (see
+/// [`literal_ensemble_creation`]). C Tcl qualifies a relative `-map` head in
+/// the ensemble's namespace; a `-subcommands` entry without a `-map` key is
+/// that namespace's member before 8.6 and a relative lookup from it after
+/// (tclsh 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0). With neither option the
+/// namespace's exports at call time decide, and `-parameters` moves the
+/// subcommand word, so neither freezes a table.
+fn literal_ensemble_dispatch(
+    arguments: InvocationArguments<'_>,
+) -> Option<crate::state_transition::EnsembleDispatchTable> {
+    use crate::state_transition::{EnsembleDispatchTable, EnsembleDispatchTarget};
+    literal_ensemble_creation(arguments)?;
+    let dialect = arguments.dialect()?;
+    let words = dialect.word_values;
+    let list = |value: &str| {
+        words
+            .split_list(value)
+            .ok()
+            .map(|items| items.into_iter().map(String::from).collect::<Vec<_>>())
+    };
+    let mut map: Vec<(String, Vec<String>)> = Vec::new();
+    let mut subcommands = Vec::new();
+    let mut prefixes = true;
+    let mut unknown_handler = false;
+    for index in (2..arguments.len()).step_by(2) {
+        let value = arguments.literal_at(index + 1)?;
+        match arguments.literal_at(index)? {
+            "-map" => {
+                map.clear();
+                let entries = list(value)?;
+                for entry in entries.chunks(2) {
+                    let target = list(&entry[1])?;
+                    map.retain(|(name, _)| *name != entry[0]);
+                    map.push((entry[0].clone(), target));
+                }
+            }
+            "-subcommands" => subcommands = list(value)?,
+            "-parameters" => {
+                if !list(value)?.is_empty() {
+                    return None;
+                }
+            }
+            "-prefixes" => prefixes = tcl_syntax::boolean::truthiness(value)?,
+            "-unknown" => unknown_handler = !list(value)?.is_empty(),
+            _ => {}
+        }
+    }
+    let relative = dialect.tcl_version? >= tcl_dialect::TclVersion::V8_6;
+    let entries = if subcommands.is_empty() {
+        map.into_iter()
+            .map(|(name, target)| (name, EnsembleDispatchTarget::Qualified(target)))
+            .collect::<Vec<_>>()
+    } else {
+        let mut entries: Vec<(String, EnsembleDispatchTarget)> = Vec::new();
+        for name in subcommands {
+            if entries.iter().any(|(known, _)| *known == name) {
+                continue;
+            }
+            let target = match map.iter().find(|(key, _)| *key == name) {
+                Some((_, target)) => EnsembleDispatchTarget::Qualified(target.clone()),
+                None if relative => EnsembleDispatchTarget::Relative(name.clone()),
+                None => EnsembleDispatchTarget::Qualified(vec![name.clone()]),
+            };
+            entries.push((name, target));
+        }
+        entries
+    };
+    (!entries.is_empty()).then_some(EnsembleDispatchTable {
+        entries,
+        prefixes,
+        unknown_handler,
     })
 }
 
@@ -2275,6 +2350,90 @@ mod tests {
             None
         );
         assert_eq!(created(None, &["ensemble", "create"]), None);
+    }
+
+    /// tclsh 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0: a relative `-map` head is
+    /// qualified in the ensemble's namespace, the last duplicate key wins, a
+    /// `-map` key overrides its `-subcommands` entry, and an unmapped
+    /// `-subcommands` entry is the namespace's member in 8.5 and a relative
+    /// lookup from it in 8.6+ (evidence/tcl/ensemble-call-dispatches-its-target.md).
+    #[test]
+    fn literal_ensemble_create_freezes_its_dispatch_table() {
+        use crate::state_transition::EnsembleDispatchTarget::{Qualified, Relative};
+        use tcl_dialect::TclVersion;
+        let dispatch = |version: TclVersion, words: &[&str]| {
+            super::literal_ensemble_dispatch(
+                InvocationArguments::literals(words)
+                    .with_dialect(crate::InvocationDialect::for_version(version)),
+            )
+        };
+        let owned = |words: &[&str]| words.iter().map(|word| (*word).to_owned()).collect();
+        let table = dispatch(
+            TclVersion::V8_6,
+            &[
+                "ensemble",
+                "create",
+                "-map",
+                "go A go {B x} two T",
+                "-prefixes",
+                "0",
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            table.entries,
+            [
+                ("go".to_owned(), Qualified(owned(&["B", "x"]))),
+                ("two".to_owned(), Qualified(owned(&["T"]))),
+            ]
+        );
+        assert!(!table.prefixes && !table.unknown_handler);
+        assert_eq!(table.select("go"), Some(&Qualified(owned(&["B", "x"]))));
+        assert_eq!(table.select("g"), None);
+        for (version, unmapped) in [
+            (TclVersion::V8_5, Qualified(owned(&["y"]))),
+            (TclVersion::V8_6, Relative("y".to_owned())),
+        ] {
+            let table = dispatch(
+                version,
+                &[
+                    "ensemble",
+                    "create",
+                    "-subcommands",
+                    "x y",
+                    "-map",
+                    "x ::m::y z ::m::z",
+                    "-unknown",
+                    "h",
+                ],
+            )
+            .unwrap();
+            assert_eq!(
+                table.entries,
+                [
+                    ("x".to_owned(), Qualified(owned(&["::m::y"]))),
+                    ("y".to_owned(), unmapped),
+                ]
+            );
+            assert!(table.prefixes && table.unknown_handler);
+            assert_eq!(table.select("x"), Some(&Qualified(owned(&["::m::y"]))));
+        }
+        for frozen_nothing in [
+            &["ensemble", "create"][..],
+            &["ensemble", "create", "-map", "", "-subcommands", ""],
+            &["ensemble", "create", "-map", "a ::b", "-parameters", "p"],
+            &["ensemble", "create", "-com", "x", "-map", "a ::b"],
+            &["ensemble", "configure", "::e", "-map", "a ::b"],
+        ] {
+            assert_eq!(dispatch(TclVersion::V8_6, frozen_nothing), None);
+        }
+        assert!(
+            dispatch(
+                TclVersion::V8_6,
+                &["ensemble", "create", "-map", "a ::b", "-parameters", ""]
+            )
+            .is_some()
+        );
     }
 
     #[test]

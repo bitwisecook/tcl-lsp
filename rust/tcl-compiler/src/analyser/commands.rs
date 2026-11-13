@@ -2176,7 +2176,12 @@ impl Analyser {
                 false
             }
             Hook::NamespaceEnsemble => {
-                self.handle_namespace_ensemble(args, arg_tokens, scope_path);
+                self.handle_namespace_ensemble(
+                    args,
+                    arg_tokens,
+                    scope_path,
+                    Some(cmd_tok.span.start()),
+                );
                 false
             }
             Hook::InterpAlias => {

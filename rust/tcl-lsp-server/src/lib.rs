@@ -9244,6 +9244,7 @@ fn original_diagnostic_consumers(
             if matches!(
                 invocation.lookup,
                 tcl_compiler::signature_scan::types::SignatureCommandLookup::DeferredReference
+                    | tcl_compiler::signature_scan::types::SignatureCommandLookup::EnsembleTarget { .. }
             ) {
                 continue;
             }

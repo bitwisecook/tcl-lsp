@@ -860,7 +860,7 @@ fn select_invocation(
     else {
         return ControlFlow::Continue(());
     };
-    if invocation.ensemble_dispatch.is_some() {
+    if invocation.matches_by_receipt() {
         let Some(reference) = &invocation.resolved_command_reference else {
             return ControlFlow::Break(None);
         };

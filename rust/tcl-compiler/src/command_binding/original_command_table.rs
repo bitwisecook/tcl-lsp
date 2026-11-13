@@ -1661,7 +1661,7 @@ impl OriginalCommandOperands {
         created: &tcl_registry::EnsembleCommandName,
         current: &SourceNamespaceKey,
         declaration: u32,
-    ) -> Option<()> {
+    ) -> Option<SourceCommandKey> {
         let key = match created {
             tcl_registry::EnsembleCommandName::Named(name) => state.original_definition_key(
                 current,
@@ -1675,8 +1675,8 @@ impl OriginalCommandOperands {
                 state.original_command_key_for_slot(&slot, policy)?
             }
         };
-        state.install_created_command(key, declaration);
-        Some(())
+        state.install_created_command(key.clone(), declaration);
+        Some(key)
     }
 
     /// One selected operation mutates the canonical command table. Its source

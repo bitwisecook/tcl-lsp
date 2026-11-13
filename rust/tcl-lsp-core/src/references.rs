@@ -6131,7 +6131,12 @@ mod tests {
             4,
             "expected decl + map entry + 2 call sites: {refs:?}"
         );
-        assert_eq!(refs[0].start_line, 5, "declaration: {refs:?}");
+        // References come back in source order, so the `-map` entry precedes
+        // the declaration.
+        assert!(
+            refs.iter().any(|r| r.start_line == 5),
+            "declaration: {refs:?}"
+        );
         assert!(
             refs.iter().any(|r| r.start_line == 2),
             "expected the -map target-text reference: {refs:?}",

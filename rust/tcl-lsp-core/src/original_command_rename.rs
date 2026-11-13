@@ -724,7 +724,7 @@ fn document_requests(
             } else {
                 reject_incomplete_source_procedure(
                     document,
-                    reference.as_ref(),
+                    ensemble_dispatch_reference(document, reference.as_ref(), command_offset),
                     &words,
                     &input,
                     command_offset,
@@ -975,6 +975,57 @@ fn rename_declaration<'a>(
     })
 }
 
+/// Ensemble words naming the renamed command: a `-map` target head, a
+/// `-subcommands` entry and a dispatch word under `-subcommands` all spell the
+/// command, while a `-map` key is arbitrary and stays. A word of the same tail
+/// without an agreed receipt cannot be proved either way, so it refuses.
+fn ensemble_word_requests(
+    document: OriginalDeclarationDocument<'_>,
+    declaration: &Declaration<'_>,
+    tail: &[u8],
+) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalCommandRenameRefusal> {
+    let simple = declaration.name().slot().simple.as_bytes();
+    let mut requests = Vec::new();
+    for invocation in &document.analysis.command_invocations {
+        if !invocation.matches_by_receipt()
+            || invocation.ensemble_dispatch
+                == Some(tcl_compiler::signature_scan::types::EnsembleSubcommandProvenance::Map)
+        {
+            continue;
+        }
+        let Some(reference) = &invocation.resolved_command_reference else {
+            if invocation
+                .resolved_qualified_name
+                .as_deref()
+                .is_some_and(|name| tcl_syntax::naming::key_tail(name).as_bytes() == simple)
+            {
+                return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+            }
+            continue;
+        };
+        if !declaration.reference_matches(reference, true) {
+            continue;
+        }
+        if reference
+            .linked_definition()
+            .is_some_and(|linked| Some(linked) != reference.definition())
+        {
+            return Err(OriginalCommandRenameRefusal::UneditableLinks);
+        }
+        let input = invocation
+            .original_name_input
+            .as_ref()
+            .ok_or(OriginalCommandRenameRefusal::UneditableInput)?;
+        let wanted = input
+            .policy()
+            .recipe()
+            .replace_command_tail(input.bytes(), tail)
+            .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
+        requests.push((input.clone(), NameBytes::from(wanted)));
+    }
+    Ok(requests)
+}
+
 fn rename_document_edits<'a>(
     document: OriginalDeclarationDocument<'a>,
     context: &source_coverage::RequestContext<'_, 'a>,
@@ -994,6 +1045,11 @@ fn rename_document_edits<'a>(
             context.tail,
         )?,
     };
+    requests.extend(ensemble_word_requests(
+        document,
+        context.declaration,
+        context.tail,
+    )?);
     if document.uri == context.owner.uri {
         requests.push((original.clone(), NameBytes::from(replacement.to_vec())));
     }
@@ -1365,6 +1421,31 @@ pub fn original_command_prepare_span_in_with_conditional_worlds(
         .ok_or(OriginalCommandRenameRefusal::UneditableInput)
 }
 
+/// A literal ensemble's call runs the source procedure its subcommand word
+/// selects, so that dispatch receipt stands for the call's own reference.
+fn ensemble_dispatch_reference<'a>(
+    document: OriginalDeclarationDocument<'a>,
+    reference: Option<&'a SourceCommandReference>,
+    command_offset: u32,
+) -> Option<&'a SourceCommandReference> {
+    if reference.is_some_and(SourceCommandReference::is_direct_definition) {
+        return reference;
+    }
+    document
+        .analysis
+        .command_invocations
+        .iter()
+        .find(|invocation| {
+            invocation.lookup
+                == tcl_compiler::signature_scan::types::SignatureCommandLookup::EnsembleDispatch {
+                    invocation_offset: command_offset,
+                }
+        })
+        .map_or(reference, |dispatch| {
+            dispatch.resolved_command_reference.as_ref()
+        })
+}
+
 fn reject_incomplete_source_procedure(
     document: OriginalDeclarationDocument<'_>,
     reference: Option<&SourceCommandReference>,
@@ -1488,10 +1569,53 @@ fn reject_readonly_math_references(
     Ok(())
 }
 
+/// A literal ensemble creation whose every subcommand names one command
+/// holds those names only in the words [`ensemble_word_requests`] edits or
+/// refuses for; its own `-command` word is a definition like `proc`'s.
+fn literal_ensemble_names_are_covered(
+    selected: &tcl_compiler::registry_invocation::ResolvedStatementInvocation,
+) -> bool {
+    use tcl_registry::{EnsembleDispatchTarget, NamespaceTransition, StateTransition};
+    let Some(transitions) = selected.facts.state_transitions.declared() else {
+        return false;
+    };
+    let [fact] = transitions.facts() else {
+        return false;
+    };
+    let StateTransition::Namespace(NamespaceTransition::Ensemble {
+        created: Some(_),
+        dispatch: Some(dispatch),
+        ..
+    }) = &fact.transition
+    else {
+        return false;
+    };
+    selected.facts.arg_roles_complete
+        && dispatch.entries.iter().all(|(_, target)| match target {
+            EnsembleDispatchTarget::Qualified(words) => words.len() == 1,
+            EnsembleDispatchTarget::Relative(_) => true,
+        })
+        && !selected.facts.traits.intersects(
+            tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION
+                | tcl_registry::Traits::INVOKES_USER_PROC,
+        )
+        && !selected.written_argument_roles().iter().any(|(_, role)| {
+            matches!(
+                role,
+                tcl_registry::ArgRole::CommandPrefix
+                    | tcl_registry::ArgRole::CommandName
+                    | tcl_registry::ArgRole::CommandNameProbe
+            )
+        })
+}
+
 fn reject_selected_command_link_coverage(
     selected: &tcl_compiler::registry_invocation::ResolvedStatementInvocation,
     command_offset: u32,
 ) -> Result<(), OriginalCommandRenameRefusal> {
+    if literal_ensemble_names_are_covered(selected) {
+        return Ok(());
+    }
     reject_link_obligations(selected).inspect_err(|refusal| {
         coverage_trace(command_offset, "registry-name-link-or-effect-coverage");
         #[cfg(test)]

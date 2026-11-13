@@ -260,6 +260,7 @@ impl Analyser {
                     .head_identities
                     .diagnostic_command_slot_presence_at(name, offset),
                 crate::signature_scan::types::SignatureCommandLookup::DeferredReference
+                | crate::signature_scan::types::SignatureCommandLookup::EnsembleTarget { .. }
                 | crate::signature_scan::types::SignatureCommandLookup::EnsembleDispatch {
                     ..
                 }

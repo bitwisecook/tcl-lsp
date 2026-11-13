@@ -1656,13 +1656,66 @@ impl Analyser {
                             .flatten()
                     })
                 }
-                crate::signature_scan::types::SignatureCommandLookup::DeferredReference => None,
+                crate::signature_scan::types::SignatureCommandLookup::EnsembleTarget { .. }
+                | crate::signature_scan::types::SignatureCommandLookup::DeferredReference => None,
             };
             let Some(reference) = reference else {
                 invocation.clear_positioned_reference();
                 continue;
             };
             invocation.retain_reference(&reference);
+        }
+        self.retain_ensemble_target_references();
+    }
+
+    /// An ensemble target word names the command each dispatch to it looks
+    /// up; it shares their receipt only when every such dispatch has one and
+    /// all agree.
+    fn retain_ensemble_target_references(&mut self) {
+        let mut agreed: std::collections::HashMap<
+            String,
+            Option<crate::command_binding::SourceCommandReference>,
+        > = std::collections::HashMap::new();
+        for invocation in &self.result.command_invocations {
+            if invocation.ensemble_dispatch.is_none() {
+                continue;
+            }
+            let Some(target) = &invocation.resolved_qualified_name else {
+                continue;
+            };
+            let reference = invocation.resolved_command_reference.as_ref();
+            agreed
+                .entry(target.clone())
+                .and_modify(|known| {
+                    if !known
+                        .as_ref()
+                        .zip(reference)
+                        .is_some_and(|(known, reference)| known.selects_same_command(reference))
+                    {
+                        *known = None;
+                    }
+                })
+                .or_insert_with(|| {
+                    reference.map(
+                        crate::command_binding::SourceCommandReference::without_invocation_site,
+                    )
+                });
+        }
+        for invocation in &mut self.result.command_invocations {
+            if !matches!(
+                invocation.lookup,
+                crate::signature_scan::types::SignatureCommandLookup::EnsembleTarget { .. }
+            ) {
+                continue;
+            }
+            match invocation
+                .resolved_qualified_name
+                .as_ref()
+                .and_then(|target| agreed.get(target))
+            {
+                Some(Some(reference)) => invocation.retain_reference(reference),
+                _ => invocation.clear_positioned_reference(),
+            }
         }
     }
 
@@ -1671,10 +1724,21 @@ impl Analyser {
         let rules = self.word_rules();
         let policy = self.declaration_name_policy();
         for invocation in &mut self.result.command_invocations {
-            if invocation.is_mathfunc_call
-                || invocation.callback_arity.is_some()
-                || invocation.ensemble_dispatch.is_some()
-            {
+            if invocation.matches_by_receipt() {
+                if invocation.original_name_input.is_none()
+                    && let Some(policy) = policy
+                {
+                    invocation.original_name_input = ensemble_word_input(
+                        &self.head_identities,
+                        invocation,
+                        config,
+                        rules,
+                        policy,
+                    );
+                }
+                continue;
+            }
+            if invocation.is_mathfunc_call || invocation.callback_arity.is_some() {
                 continue;
             }
             let Some(offset) = invocation.lookup.offset(invocation.range) else {
@@ -1706,6 +1770,9 @@ impl Analyser {
                         ..
                     }
                     | crate::signature_scan::types::SignatureCommandLookup::EnsembleDispatch {
+                        ..
+                    }
+                    | crate::signature_scan::types::SignatureCommandLookup::EnsembleTarget {
                         ..
                     }
                     | crate::signature_scan::types::SignatureCommandLookup::DeferredReference => {
@@ -4193,6 +4260,60 @@ fn collect_expr_reads(
     }
 }
 
+/// The written name of an ensemble word, for edits: a dispatch word is a whole
+/// word of the ensemble invocation; a target word is a list element (or the
+/// head of a prefix element) of the configuring command's option value.
+fn ensemble_word_input(
+    realm: &crate::realm::CommandBindingRealm,
+    invocation: &crate::signature_scan::types::SignatureCommandInvocation,
+    config: tcl_lexer::LexerConfig,
+    rules: tcl_syntax::word_rules::WordValueRules,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+    use crate::signature_scan::scope::SignatureSourceNameInput;
+    use crate::signature_scan::types::SignatureCommandLookup;
+    match invocation.lookup {
+        SignatureCommandLookup::EnsembleDispatch { invocation_offset } => realm
+            .invocation_at_source("", invocation_offset)
+            .original_source_name_key_at_span(invocation.range, config, rules, policy)
+            .map(SignatureSourceNameInput::OriginalWord),
+        SignatureCommandLookup::EnsembleTarget {
+            invocation_offset,
+            container_start,
+            container_end,
+        } => {
+            let mut current = realm
+                .invocation_at_source("", invocation_offset)
+                .original_source_name_key_at_span(
+                    Span::new(container_start, container_end),
+                    config,
+                    rules,
+                    policy,
+                )
+                .map(SignatureSourceNameInput::OriginalWord)?;
+            let range = invocation.range;
+            for _ in 0..2 {
+                let (child, extent) = current
+                    .original_list_elements_with_source_spans()?
+                    .into_iter()
+                    .find_map(|(child, extent)| {
+                        extent
+                            .filter(|extent| {
+                                extent.start() <= range.start() && range.end() <= extent.end()
+                            })
+                            .map(|extent| (child, extent))
+                    })?;
+                if extent == range {
+                    return Some(child);
+                }
+                current = child;
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -6623,6 +6744,45 @@ mod original_positioned_reference_tests {
             );
             assert!(!resolves(&source, call(&source)), "{source}");
         }
+    }
+
+    /// evidence/tcl/ensemble-call-dispatches-its-target.md: a literal
+    /// ensemble's call runs its selected target and nothing else, a miss
+    /// without `-unknown` only raises, and the world after the call is the
+    /// target's. `configure`, a computed subcommand and `-unknown` on a miss
+    /// leave the call unknown.
+    #[test]
+    fn literal_ensemble_call_keeps_the_command_world_of_its_target() {
+        let later_resolves = |calls: &str| {
+            let source = format!(
+                "namespace eval ::e {{namespace ensemble create -map {{foo ::e::Foo}}}}\nproc ::e::Foo {{args}} {{proc ::made {{}} {{}}}}\nproc p {{}} {{}}\n{calls}\np\nmade\n"
+            );
+            let analysis = Analyser::new().analyse(&source, "tcl8.6");
+            let resolves = |offset: usize| {
+                let offset = u32::try_from(offset).unwrap();
+                analysis.command_invocations.iter().any(|invocation| {
+                    invocation.range.start() == offset
+                        && invocation.resolved_command_reference.is_some()
+                })
+            };
+            let p = source.rfind("\np\n").unwrap() + 1;
+            (resolves(p), resolves(p + 2))
+        };
+        assert_eq!(later_resolves("e foo bar"), (true, true));
+        assert_eq!(later_resolves("e fo bar"), (true, true));
+        assert_eq!(later_resolves("catch {e zz}\ne foo"), (true, true));
+        for unknown in [
+            "e [lindex $::argv 0]",
+            "namespace ensemble configure ::e -map {foo ::q}\ne foo",
+        ] {
+            assert_eq!(later_resolves(unknown), (false, false), "{unknown}");
+        }
+        let source = "namespace eval ::u {namespace ensemble create -map {go ::u::go} -unknown ::h}\nproc p {} {}\ncatch {u zz}\np\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let p = u32::try_from(source.rfind("\np\n").unwrap() + 1).unwrap();
+        assert!(analysis.command_invocations.iter().any(|invocation| {
+            invocation.range.start() == p && invocation.resolved_command_reference.is_none()
+        }));
     }
 
     #[test]

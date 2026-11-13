@@ -97,9 +97,9 @@ pub fn invocation_targets_declaration_in<T>(
     {
         return false;
     }
-    // An ensemble dispatch has no written target word; its receipt is the
-    // target lookup at the ensemble invocation.
-    if invocation.ensemble_dispatch.is_some() {
+    // An ensemble dispatch has no written target word, and an ensemble's
+    // target word is looked up at its dispatches; the receipt is the lookup.
+    if invocation.matches_by_receipt() {
         return invocation
             .resolved_command_reference
             .as_ref()

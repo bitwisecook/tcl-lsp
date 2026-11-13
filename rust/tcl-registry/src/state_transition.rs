@@ -603,6 +603,47 @@ pub enum EnsembleCommandName {
     Named(TransitionSubject),
 }
 
+/// Where one subcommand of a literal ensemble dispatches.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum EnsembleDispatchTarget {
+    /// A command prefix whose head is qualified in the ensemble's namespace
+    /// when relative, then looked up exactly (`-map`, and `-subcommands`
+    /// before 8.6).
+    Qualified(Vec<String>),
+    /// A name looked up relative to the ensemble's namespace at call time
+    /// (`-subcommands` from 8.6).
+    Relative(String),
+}
+
+/// The dispatch table a literal `namespace ensemble create` freezes: its
+/// subcommands in table order, whether unique prefixes select them, and
+/// whether an `-unknown` handler answers a miss. Absent when dispatch
+/// depends on later namespace exports or on `-parameters`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct EnsembleDispatchTable {
+    /// Subcommand names and their targets.
+    pub entries: Vec<(String, EnsembleDispatchTarget)>,
+    /// `-prefixes`: unique prefixes select a subcommand.
+    pub prefixes: bool,
+    /// A non-empty `-unknown` handler runs on a miss.
+    pub unknown_handler: bool,
+}
+
+impl EnsembleDispatchTable {
+    /// The entry C Tcl's ensemble selects for `word`: an exact name, else a
+    /// unique prefix when `-prefixes` allows it. `None` is a miss.
+    #[must_use]
+    pub fn select(&self, word: &str) -> Option<&EnsembleDispatchTarget> {
+        let names = self
+            .entries
+            .iter()
+            .map(|(name, _)| name.as_bytes())
+            .collect::<Vec<_>>();
+        tcl_cmd_core::ensemble::resolve_subcommand(&names, word.as_bytes(), self.prefixes)
+            .map(|index| &self.entries[index].1)
+    }
+}
+
 /// A mutation of namespace-owned state.
 ///
 /// These are deliberately semantic operations, rather than command names or
@@ -675,6 +716,9 @@ pub enum NamespaceTransition {
         /// known and valid for the selected release installs; `None` for any
         /// other operation or form.
         created: Option<EnsembleCommandName>,
+        /// The created ensemble's frozen dispatch table, when `created` is
+        /// known and its subcommands do not depend on later namespace state.
+        dispatch: Option<EnsembleDispatchTable>,
     },
 }
 

@@ -129,6 +129,26 @@ impl SourceCommandReference {
         &self.binding
     }
 
+    /// Whether two lookups select the same command, wherever each was made.
+    #[must_use]
+    pub fn selects_same_command(&self, other: &Self) -> bool {
+        self.slot == other.slot
+            && self.original_slot == other.original_slot
+            && self.binding == other.binding
+            && self.definition == other.definition
+            && self.linked_definition == other.linked_definition
+            && self.called_implementation_allocation == other.called_implementation_allocation
+    }
+
+    /// The same selection with no lookup site of its own.
+    #[must_use]
+    pub(crate) fn without_invocation_site(&self) -> Self {
+        Self {
+            invocation_site: None,
+            ..self.clone()
+        }
+    }
+
     /// Allocation of the currently selected source definition. This is the
     /// implementation allocation, not the surviving command token's original
     /// declaration. Imported definitions retain their actual origin allocation.

@@ -5027,6 +5027,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
+        head: Option<u32>,
     ) {
         if args.len() < 2 {
             return;
@@ -5140,6 +5141,7 @@ impl Analyser {
                             text_tok,
                             scope_path,
                             ensemble_key.as_deref(),
+                            head,
                         );
                     }
                 }
@@ -5155,6 +5157,7 @@ impl Analyser {
                             text_tok,
                             &ns_prefix,
                             ensemble_key.as_deref(),
+                            head,
                         );
                     }
                 }
@@ -5363,6 +5366,7 @@ impl Analyser {
         tok: Token,
         scope_path: &[usize],
         ensemble_key: Option<&str>,
+        command_head: Option<u32>,
     ) {
         if let Some(key) = ensemble_key {
             self.ensemble_command_maps
@@ -5405,8 +5409,33 @@ impl Analyser {
                 self.ensemble_record_offsets
                     .insert(key.to_owned(), tok.span.start());
             }
-            self.push_command_reference(head, head_span, resolved, None);
+            self.push_command_reference_with_policy(
+                head,
+                head_span,
+                resolved,
+                None,
+                false,
+                Self::ensemble_target_lookup(command_head, tok),
+            );
         }
+    }
+
+    /// A target word of a configuring command with a known head is looked up
+    /// at the ensemble's dispatches; without one it stays deferred.
+    fn ensemble_target_lookup(
+        head: Option<u32>,
+        container: Token,
+    ) -> crate::signature_scan::types::SignatureCommandLookup {
+        head.map_or(
+            crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
+            |invocation_offset| {
+                crate::signature_scan::types::SignatureCommandLookup::EnsembleTarget {
+                    invocation_offset,
+                    container_start: container.span.start(),
+                    container_end: container.span.end(),
+                }
+            },
+        )
     }
 
     /// Record each `-subcommands` name as a reference to the command
@@ -5427,6 +5456,7 @@ impl Analyser {
         tok: Token,
         ns_prefix: &str,
         ensemble_key: Option<&str>,
+        command_head: Option<u32>,
     ) {
         for (elem, span) in Self::list_word_elements(list_text, tok) {
             if crate::naming::is_dynamic_word(&elem) {
@@ -5449,7 +5479,14 @@ impl Analyser {
                 self.ensemble_record_offsets
                     .insert(key.to_owned(), tok.span.start());
             }
-            self.push_command_reference(elem, span, resolved, None);
+            self.push_command_reference_with_policy(
+                elem,
+                span,
+                resolved,
+                None,
+                false,
+                Self::ensemble_target_lookup(command_head, tok),
+            );
         }
     }
 
@@ -16980,7 +17017,12 @@ mod tests {
             .global_scope
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
-        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[], &[0]);
+        a.handle_namespace_ensemble(
+            &["ensemble".to_string(), "create".to_string()],
+            &[],
+            &[0],
+            None,
+        );
         assert!(a.ensemble_namespaces.contains("::myns"));
     }
 
@@ -17005,6 +17047,7 @@ mod tests {
             ],
             &[],
             &[0],
+            None,
         );
         assert!(a.ensemble_namespaces.contains("::myns"));
         assert!(a.ensemble_namespaces.contains("::ens"));
@@ -17031,6 +17074,7 @@ mod tests {
             ],
             &[],
             &[0],
+            None,
         );
         assert!(a.ensemble_namespaces.contains("::myns::ens"));
     }
@@ -17052,6 +17096,7 @@ mod tests {
             ],
             &[],
             &[0],
+            None,
         );
         assert_eq!(
             a.ensemble_namespaces,
@@ -17452,6 +17497,7 @@ mod tests {
             ],
             &[],
             &[],
+            None,
         );
         assert_eq!(a.result.ensemble_subcommand_targets.len(), 0);
     }
@@ -17461,7 +17507,12 @@ mod tests {
         // TN — the bare query form `namespace ensemble configure` (no NAME,
         // no options) must not panic on `args[2]` indexing.
         let mut a = Analyser::new();
-        a.handle_namespace_ensemble(&["ensemble".to_string(), "configure".to_string()], &[], &[]);
+        a.handle_namespace_ensemble(
+            &["ensemble".to_string(), "configure".to_string()],
+            &[],
+            &[],
+            None,
+        );
         assert_eq!(a.result.ensemble_subcommand_targets.len(), 0);
     }
 
@@ -17676,6 +17727,7 @@ mod tests {
             ],
             &[],
             &[0],
+            None,
         );
         assert_eq!(
             a.ensemble_namespaces,
@@ -17688,7 +17740,12 @@ mod tests {
     #[test]
     fn handle_namespace_ensemble_global_scope_no_op() {
         let mut a = Analyser::new();
-        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[], &[]);
+        a.handle_namespace_ensemble(
+            &["ensemble".to_string(), "create".to_string()],
+            &[],
+            &[],
+            None,
+        );
         assert_eq!(a.ensemble_namespaces.len(), 0);
     }
 
@@ -17700,7 +17757,7 @@ mod tests {
             .global_scope
             .children
             .push(Scope::new(ScopeKind::Namespace, "myns"));
-        a.handle_namespace_ensemble(&["eval".to_string(), "myns".to_string()], &[], &[0]);
+        a.handle_namespace_ensemble(&["eval".to_string(), "myns".to_string()], &[], &[0], None);
         assert_eq!(a.ensemble_namespaces.len(), 0);
     }
 

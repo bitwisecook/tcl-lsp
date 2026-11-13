@@ -139,10 +139,30 @@ The registry names that slot (`NamespaceTransition::Ensemble::created`); the
 binding lattice installs a `Command` binding there and keeps every other
 reference. Any other ensemble operation, an abbreviated option or a computed
 word stays fail-closed, and `configure` leaves the command table as it was.
-Calling the ensemble is not modelled, so the world after the call is unknown.
+
+The same create freezes a dispatch table when its subcommands are literal and
+closed (`NamespaceTransition::Ensemble::dispatch`): `-map` entries, or the
+`-subcommands` list with `-map` overriding its entries; not exports and not a
+non-empty `-parameters`. A relative `-map` head is qualified in the ensemble's
+namespace; an unmapped `-subcommands` entry is that namespace's member before
+8.6 and a relative lookup from it after
+([evidence](../../../evidence/tcl/ensemble-call-dispatches-its-target.md)).
+The binding lattice keeps the table by the created command's allocation, so a
+rename keeps it. A call whose subcommand word is literal and selects one entry
+(exactly, or by unique prefix unless `-prefixes 0`) is walked like an
+interpreter alias: the target prefix is looked up in the ensemble's namespace,
+its extra words come first and the call's remaining words follow, and the world
+after the call is the target's. A miss without `-unknown` only raises. Any
+other ensemble operation, unknown code, a namespace deletion or a join of
+disagreeing tables withdraws every frozen table, and a computed subcommand, a
+miss answered by `-unknown` or a registry-backed target stays an unknown call.
+
 Each statically dispatched subcommand word carries the target lookup made at
 the ensemble invocation (`SignatureCommandLookup::EnsembleDispatch`), which
-navigation reads instead of a written target word.
+navigation reads instead of a written target word. A `-map` target head or a
+`-subcommands` entry (`SignatureCommandLookup::EnsembleTarget`) takes the
+receipt every dispatch to that name agrees on, and none when a dispatch has
+none or two disagree.
 
 ## AOT compiler implications — the binding lattice
 

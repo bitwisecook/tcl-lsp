@@ -839,6 +839,17 @@ pub enum SignatureCommandLookup {
         /// Exact source offset of the ensemble invocation's head.
         invocation_offset: u32,
     },
+    /// A literal ensemble's `-map` target head or `-subcommands` entry. The
+    /// ensemble looks it up at each dispatch, so it takes the receipt every
+    /// dispatch to that name agrees on; it is no lookup point of its own.
+    EnsembleTarget {
+        /// Exact source offset of the configuring `namespace ensemble` head.
+        invocation_offset: u32,
+        /// Source extent of the option value word holding the name.
+        container_start: u32,
+        /// End of that word's extent.
+        container_end: u32,
+    },
     /// The name is declared for a later or independently selected invocation.
     DeferredReference,
 }
@@ -852,7 +863,7 @@ impl SignatureCommandLookup {
             Self::ConsumedName { invocation_offset }
             | Self::PossibleConsumedName { invocation_offset }
             | Self::EnsembleDispatch { invocation_offset } => Some(invocation_offset),
-            Self::DeferredReference => None,
+            Self::EnsembleTarget { .. } | Self::DeferredReference => None,
         }
     }
 
@@ -876,6 +887,24 @@ impl SignatureCommandLookup {
                 .map_or(Self::DeferredReference, |invocation_offset| {
                     Self::EnsembleDispatch { invocation_offset }
                 }),
+            Self::EnsembleTarget {
+                invocation_offset,
+                container_start,
+                container_end,
+            } => match (
+                invocation_offset.checked_add(delta),
+                container_start.checked_add(delta),
+                container_end.checked_add(delta),
+            ) {
+                (Some(invocation_offset), Some(container_start), Some(container_end)) => {
+                    Self::EnsembleTarget {
+                        invocation_offset,
+                        container_start,
+                        container_end,
+                    }
+                }
+                _ => Self::DeferredReference,
+            },
             other => other,
         }
     }
@@ -1112,6 +1141,14 @@ impl SignatureCommandInvocation {
         self.resolved_user_definition = reference.is_direct_definition();
         self.resolved_qualified_name = reference.slot().map(str::to_owned);
         self.resolution_candidates = reference.slot().into_iter().map(str::to_owned).collect();
+    }
+
+    /// Whether this occurrence names its target only through its retained
+    /// receipt: an ensemble's dispatch word or a literal ensemble's target.
+    #[must_use]
+    pub fn matches_by_receipt(&self) -> bool {
+        self.ensemble_dispatch.is_some()
+            || matches!(self.lookup, SignatureCommandLookup::EnsembleTarget { .. })
     }
 
     /// Withdraw positioned navigation facts together. Written/candidate names
