@@ -1797,6 +1797,7 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            point: None,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
         let links = module.links(callee)?;
@@ -2357,78 +2358,130 @@ impl<'a> LatticeDriver<'a> {
     pub(crate) fn template_plans_in<S: std::hash::BuildHasher>(
         &self,
         ssa: &SsaFunction,
-        block: &crate::ssa::SsaBlock,
+        (block_id, block): (crate::cfg::BlockId, &crate::ssa::SsaBlock),
         values: &HashMap<ValueKey, LatticeValue, S>,
     ) -> Vec<crate::sccp::TemplatePlanRecord> {
         let mut records = Vec::new();
-        for stmt_ssa in &block.statements {
-            let Statement::Call {
-                command,
-                args,
-                tokens: Some(tokens),
-                foreach_groups: None,
-                ..
-            } = &stmt_ssa.statement
-            else {
-                continue;
+        for (index, stmt_ssa) in block.statements.iter().enumerate() {
+            let point = (block_id, index);
+            let host = match &stmt_ssa.statement {
+                Statement::Call {
+                    command,
+                    args,
+                    tokens: Some(tokens),
+                    foreach_groups: None,
+                    ..
+                } => {
+                    let head = stmt_ssa.statement.canonical_command_or_source();
+                    if tokens.argv.len() == args.len() + 1 {
+                        records.extend(self.template_plan_of(
+                            (head, command),
+                            args,
+                            (tokens, false),
+                            (stmt_ssa, point),
+                            (values, ssa),
+                        ));
+                    }
+                    tokens
+                }
+                Statement::AssignValue {
+                    tokens: Some(tokens),
+                    ..
+                } => tokens,
+                _ => continue,
             };
-            let head = stmt_ssa.statement.canonical_command_or_source();
-            if tokens.argv.len() != args.len() + 1 || !self.trusted(head) {
+            // A `subst` a word substitutes reads the statement's use versions
+            // as the statement's own words do, while no earlier substitution
+            // in it may have written one (#2451).
+            if host.synthetic.is_some() {
                 continue;
             }
-            let cooked = call_arguments(args, Some(tokens), &self.lexer_config);
-            let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
-            let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
-            let Some(resolved) = self.resolve(head, &words) else {
-                continue;
-            };
-            if !resolved
-                .semantics
-                .traits
-                .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
-            {
-                continue;
-            }
-            let Some(semantics) = resolved.semantics.value.semantics() else {
-                continue;
-            };
-            let inputs = LatticeInputs {
-                original: None,
-                written_arguments: Vec::new(),
-                expression_base: None,
-                expression_source: RefCell::new(None),
-                nested_source: RefCell::new(None),
-                driver: self,
-                prior_writes: Vec::new(),
-                words: Words::Independent,
-                view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
-                uses: &stmt_ssa.uses,
-                values,
-                ssa,
-                sources: cooked.iter().map(|arg| arg.source).collect(),
-            };
-            if let PlanAnswer::TemplateWord(plan) = semantics.structure(&inputs)
-                && let Some(&span) = tokens.argv.get(plan.operand.0 + 1)
-            {
-                // The spelling each switch reads as, when the lattice
-                // proves every one exactly.
-                let switches = (0..plan.operand.0)
-                    .map(
-                        |index| match inputs.operand(OperandId(index), FactDomain::ExactValue) {
-                            FactView::Exact(value, _) => String::from_utf8(value.bytes).ok(),
-                            _ => None,
-                        },
-                    )
-                    .collect();
-                records.push(crate::sccp::TemplatePlanRecord {
-                    span,
-                    command: command.clone(),
-                    switches,
-                    plan,
-                });
+            let calls = crate::word_subst::lifted_calls(Some(host), self.lexer_config);
+            for call in &calls {
+                let Some(words) = &call.words else {
+                    continue;
+                };
+                if !written_before(stmt_ssa, Some(call.span.start()), &calls).is_empty() {
+                    continue;
+                }
+                let Some(args) = words.argv_texts.get(1..) else {
+                    continue;
+                };
+                records.extend(self.template_plan_of(
+                    (&call.command, &call.command),
+                    args,
+                    (words, true),
+                    (stmt_ssa, point),
+                    (values, ssa),
+                ));
             }
         }
         records
+    }
+
+    /// The template-word plan one trusted call to a command that performs
+    /// substitution declares, read at `stmt_ssa`'s use versions.
+    fn template_plan_of<S: std::hash::BuildHasher>(
+        &self,
+        (head, command): (&str, &String),
+        args: &[String],
+        (tokens, nested): (&CommandTokens, bool),
+        (stmt_ssa, point): (&crate::ssa::SsaStatement, (crate::cfg::BlockId, usize)),
+        (values, ssa): (&HashMap<ValueKey, LatticeValue, S>, &SsaFunction),
+    ) -> Option<crate::sccp::TemplatePlanRecord> {
+        if !self.trusted(head) {
+            return None;
+        }
+        // A substituted call's words are read by their spelling: its lifted
+        // tokens carry no lowering snapshot of their own.
+        let cooked = call_arguments(args, (!nested).then_some(tokens), &self.lexer_config);
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let words: Vec<InvocationWord<'_>> = cooked.iter().map(ArgWord::word).collect();
+        let resolved = self.resolve(head, &words)?;
+        if !resolved
+            .semantics
+            .traits
+            .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+        {
+            return None;
+        }
+        let semantics = resolved.semantics.value.semantics()?;
+        let inputs = LatticeInputs {
+            original: None,
+            written_arguments: Vec::new(),
+            expression_base: None,
+            expression_source: RefCell::new(None),
+            nested_source: RefCell::new(None),
+            driver: self,
+            prior_writes: Vec::new(),
+            words: Words::Independent,
+            view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+            uses: &stmt_ssa.uses,
+            values,
+            ssa,
+            point: Some(point),
+            sources: cooked.iter().map(|arg| arg.source).collect(),
+        };
+        let PlanAnswer::TemplateWord(plan) = semantics.structure(&inputs) else {
+            return None;
+        };
+        let &span = tokens.argv.get(plan.operand.0 + 1)?;
+        // The spelling each switch reads as, when the lattice proves every
+        // one exactly.
+        let switches = (0..plan.operand.0)
+            .map(
+                |index| match inputs.operand(OperandId(index), FactDomain::ExactValue) {
+                    FactView::Exact(value, _) => String::from_utf8(value.bytes).ok(),
+                    _ => None,
+                },
+            )
+            .collect();
+        Some(crate::sccp::TemplatePlanRecord {
+            span,
+            command: command.clone(),
+            switches,
+            plan,
+        })
     }
 
     /// The selection each opaque case-list statement of `block` makes over
@@ -2519,6 +2572,7 @@ impl<'a> LatticeDriver<'a> {
             uses: &stmt_ssa.uses,
             values,
             ssa,
+            point: None,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
         let PlanAnswer::CaseList {
@@ -2816,6 +2870,7 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            point: None,
             sources,
         };
         self.call_defs(head, semantics, defs, &inputs)
@@ -3613,6 +3668,7 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            point: None,
             sources: Vec::new(),
         }
     }
@@ -3901,6 +3957,7 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            point: None,
             sources: words
                 .iter()
                 .map(|word| match word {
@@ -4098,6 +4155,7 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            point: None,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
         inputs.resolve_roles_over_values(resolved);
@@ -4433,6 +4491,7 @@ impl<'a> LatticeDriver<'a> {
             uses,
             values,
             ssa,
+            point: None,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
         // A command that stores reads its targets' roles from its words as
@@ -4831,6 +4890,7 @@ impl<'a> LatticeDriver<'a> {
             uses: from.uses,
             values: from.values,
             ssa: from.ssa,
+            point: None,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
         let PlanAnswer::Iterate(plan) = semantics.structure(&inputs) else {
@@ -6787,6 +6847,9 @@ struct LatticeInputs<'a, S1, S2> {
     uses: &'a HashMap<Symbol, Version, S1>,
     values: &'a HashMap<ValueKey, LatticeValue, S2>,
     ssa: &'a SsaFunction,
+    /// The operation the uses are read at, where the SSA binds a spelling
+    /// per operation ([`SsaFunction::var_symbol_at`]).
+    point: Option<(crate::cfg::BlockId, usize)>,
     /// How each operand's word substitutes, in operand order.
     sources: Vec<OperandSource>,
     /// The writes the enclosing evaluations have made before this
@@ -6914,7 +6977,13 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
             WrittenPlace::Unknown => return FactView::Top(DeclineReason::NotExact),
             WrittenPlace::Untouched => {}
         }
-        let Some(sym) = self.ssa.var_symbol(name) else {
+        let sym = match self.point {
+            Some((block, index)) if self.ssa.point_contexts.is_some() => {
+                self.ssa.var_symbol_at(block, index, name)
+            }
+            _ => self.ssa.var_symbol(name),
+        };
+        let Some(sym) = sym else {
             return FactView::Top(DeclineReason::NotExact);
         };
         let Some(&ver) = self.uses.get(&sym) else {
@@ -10628,6 +10697,7 @@ mod tests {
             uses: &uses,
             values: &values,
             ssa: &ssa,
+            point: None,
             sources: Vec::new(),
         };
         let EvalAnswer::Evaluated(outcome) =

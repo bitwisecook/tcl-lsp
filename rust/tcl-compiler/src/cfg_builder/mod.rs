@@ -1588,6 +1588,7 @@ impl<'a> CfgBuilder<'a> {
     /// recording the statement twice.
     fn upvar_invalidated(&self, stmt: Statement) -> Vec<Statement> {
         let call_unseen = self.call_is_unseen(&stmt);
+        let substitution_last = self.substitution_runs_last(&stmt);
         let span = stmt.span();
         let (mut out, substitution_unseen) = self.upvar_effect_statements(stmt);
         // An embedded command runs while the host's words are still being
@@ -1595,14 +1596,55 @@ impl<'a> CfgBuilder<'a> {
         // call's own head runs after its words are, so its marker follows:
         // the words read the versions before it, and a read after the call
         // finds the fresh one the marker leaves
-        // ([`crate::ssa::SsaFunction::value_clobbers`]).
-        if substitution_unseen {
+        // ([`crate::ssa::SsaFunction::value_clobbers`]). Where the embedded
+        // command is the last thing the host evaluates before it runs, every
+        // read the host makes precedes it, and its marker follows the host as
+        // a call's own does: the host's writes come after it (#2451).
+        if substitution_unseen && !substitution_last {
             out.insert(0, Statement::unseen_call_marker(span));
         }
-        if call_unseen {
+        if call_unseen || (substitution_unseen && substitution_last) {
             out.push(Statement::unseen_call_marker(span));
         }
         out
+    }
+
+    /// Whether every read `stmt` makes precedes the command its last word
+    /// substitutes: the earlier words are literal, the last is one `[…]`
+    /// holding no further substitution, and the host reads no variable of its
+    /// own (`set r [cmd $x]`, `puts [cmd $x]`). The host then reads nothing
+    /// that command can change before it runs; only its own writes follow.
+    fn substitution_runs_last(&self, stmt: &Statement) -> bool {
+        let reads_by_name = match stmt {
+            Statement::AssignValue { .. } => false,
+            Statement::Call {
+                reads,
+                reads_own_defs,
+                foreach_groups: None,
+                ..
+            } => *reads_own_defs || !reads.is_empty(),
+            _ => return false,
+        };
+        let Some(tokens) = self.original_tokens_for_statement(stmt) else {
+            return false;
+        };
+        let Some((crate::ir::WordExpr::CommandSubstitution { spelling, .. }, earlier)) =
+            tokens.word_exprs.split_last()
+        else {
+            return false;
+        };
+        !reads_by_name
+            && tokens.expand_word.is_none()
+            && tokens.word_exprs.len() == tokens.argv.len()
+            && earlier.iter().all(|word| {
+                matches!(
+                    word,
+                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+                )
+            })
+            && spelling
+                .strip_prefix('[')
+                .is_some_and(|inner| !inner.contains(['[', '\\']))
     }
 
     /// The statements [`Self::upvar_invalidated`] puts for `stmt` before its

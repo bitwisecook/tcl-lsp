@@ -12942,6 +12942,33 @@ fn w102_narrows_a_proven_switch_word() {
     );
 }
 
+/// A `subst` a word substitutes narrows by its proven switch as a
+/// statement-level one does (#2451).
+#[test]
+fn w102_narrows_a_proven_switch_in_a_substituted_subst() {
+    let w102 = |src: &str| -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W102)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let statement = w102("proc f {x} { set opt -novariables; subst $opt $x }\n");
+    assert_eq!(statement.len(), 1, "{statement:?}");
+    for src in [
+        "proc g {x} { set opt -novariables; set r [subst $opt $x] }\n",
+        "proc p {t} { set opt -novariables; return [subst $opt $t] }\n",
+        "proc q {t} { set opt -novariables; puts [subst $opt $t] }\n",
+    ] {
+        assert_eq!(w102(src), statement, "{src}");
+    }
+    let unproven = w102("proc g {opt x} { set r [subst $opt $x] }\n");
+    assert_eq!(unproven.len(), 1, "{unproven:?}");
+    assert!(!unproven[0].contains("Add "), "{unproven:?}");
+}
+
 #[test]
 fn w103_open_pipeline() {
     // `|`-pipeline with substitution → WARNING (injection).

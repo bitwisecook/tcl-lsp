@@ -271,7 +271,7 @@ fn original_template_segment(
     unit: &crate::compilation_unit::FunctionUnit,
     record: &crate::sccp::TemplatePlanRecord,
 ) -> Option<crate::segmenter::SegmentedCommand> {
-    let mut sites = unit
+    let statements = unit
         .cfg
         .command_binding_sites
         .iter()
@@ -283,14 +283,27 @@ fn original_template_segment(
                 .flat_map(|block| block.statements.iter())
                 .filter_map(crate::ir::Statement::tokens),
         )
-        .filter(|tokens| {
-            tokens.synthetic.is_none()
-                && tokens.argv.iter().skip(1).any(|span| *span == record.span)
-        });
-    let tokens = sites.next()?;
-    if sites.any(|other| other != tokens) {
-        return None;
-    }
+        .filter(|tokens| tokens.synthetic.is_none());
+    let holds = |tokens: &crate::ir::CommandTokens| {
+        tokens.argv.iter().skip(1).any(|span| *span == record.span)
+    };
+    let mut sites = statements.clone().filter(|tokens| holds(tokens)).cloned();
+    // A plan for a call a word substitutes (#2451) names that call's words.
+    let nested = statements.flat_map(|tokens| {
+        crate::word_subst::checked_lifted_calls(tokens, unit.source_lexer_config().nested())
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|call| call.tokens)
+            .filter(|tokens| holds(tokens))
+    });
+    let tokens = if let Some(first) = sites.next() {
+        only(sites, first)?
+    } else {
+        let mut nested = nested;
+        let first = nested.next()?;
+        only(nested, first)?
+    };
+    let tokens = &tokens;
     let binding = tokens.source_binding.as_ref()?;
     binding.original_lexer_config_for_tokens(tokens)?;
     let (segment, recorded) = binding.original_recorded_command()?;
@@ -320,6 +333,11 @@ fn original_template_switch_values(
         }
     }
     original.with_supplemental_literals(&literals)
+}
+
+/// `first` when every remaining item equals it.
+fn only<T: PartialEq>(mut items: impl Iterator<Item = T>, first: T) -> Option<T> {
+    items.all(|other| other == first).then_some(first)
 }
 
 #[cfg(test)]

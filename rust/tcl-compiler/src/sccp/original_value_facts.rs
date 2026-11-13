@@ -728,11 +728,11 @@ fn finish_value_facts(
         let driver = crate::value_transfer::LatticeDriver::new(trace, folds, policy, escaping)
             .with_cfg_metadata(&cfg.metadata_context);
         let mut plans = Vec::new();
-        for block in order {
-            if executable_blocks.contains(block)
-                && let Some(block) = ssa.blocks.get(block)
+        for &id in order {
+            if executable_blocks.contains(&id)
+                && let Some(block) = ssa.blocks.get(&id)
             {
-                plans.extend(driver.template_plans_in(ssa, block, &values));
+                plans.extend(driver.template_plans_in(ssa, (id, block), &values));
             }
         }
         plans.sort_by_key(|record| (record.span.start(), record.span.end()));

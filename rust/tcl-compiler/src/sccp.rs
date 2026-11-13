@@ -4736,7 +4736,7 @@ fn settled_statements(
             continue;
         }
         let narrowed = narrowing.narrow(values, block_id);
-        plans.extend(driver.template_plans_in(ssa, block, values));
+        plans.extend(driver.template_plans_in(ssa, (block_id, block), values));
         let (records, arms) = driver.selection_facts_in(cfg, ssa, (block_id, block), values);
         selections.extend(records);
         unreached.extend(arms);
