@@ -72,20 +72,6 @@ fn framework_manifest_is_admitted_only_under_its_original_selection() {
 }
 
 #[test]
-fn selecting_profile_without_core_never_issues_host_context() {
-    let mut vm = Vm::without_native_engine();
-    vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-    assert!(vm.set_native_engine_profile(host()));
-    assert!(vm.native_core_pin.is_none());
-    vm.active_native_profile = Some(host());
-    assert!(vm.selected_source_identity().is_err());
-    let mut producer = vendor_vm();
-    let module = host_module(&mut producer);
-    assert!(vm.validate_module_profile(&module).is_err());
-    assert!(!vm.manifest_admits(&module.top_level, module.manifest.as_deref()));
-}
-
-#[test]
 fn changed_engine_and_returned_label_do_not_renew_core_context() {
     let mut vm = vendor_vm();
     let foreign = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();

@@ -12342,32 +12342,6 @@ mod tests {
     }
 
     #[test]
-    fn procedure_activation_does_not_derive_an_engine_from_the_source_profile() {
-        let mut vm = Vm::without_native_engine();
-        let source = tcl_dialect::DialectProfile::irules();
-        vm.set_dialect_profile(source);
-        assert!(!vm.set_native_engine_profile(source));
-        let body = Value::new_native_string_bytes(b"".as_slice());
-        let reached = vm.early_procedure_activation_inputs(
-            &[],
-            tcl_dialect::ParameterGrammar::Tcl,
-            &body,
-            &[],
-            |_| panic!("missing physical issuer must refuse before usage"),
-        );
-        assert!(reached.is_err());
-        assert!(matches!(
-            vm.execution_refusal,
-            Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_))
-        ));
-        assert!(
-            vm.actual_native_invocation_dialect()
-                .execution_point()
-                .is_none()
-        );
-    }
-
-    #[test]
     fn procedure_parse_failure_uses_the_host_but_keeps_missing_geometry_closed() {
         let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
         let source = tcl_dialect::DialectProfile::irules();

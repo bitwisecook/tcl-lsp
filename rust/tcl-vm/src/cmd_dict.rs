@@ -1660,41 +1660,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn host_dictionary_surface_without_actual_object_owner_refuses_construction() {
-        // naming.embedding.original-host-publication-and-fact-transport
-        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        // Software ingress purpose only; a surface profile supplies no object owner.
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-        assert!(vm.set_command_surface_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
-        ));
-        assert!(vm.object_materialization().is_none());
-        let result = cmd_dict(
-            &mut vm,
-            &[
-                Value::string("create"),
-                Value::string("key"),
-                Value::string("value"),
-            ],
-        );
-        assert_eq!(result.code, crate::Code::Error);
-        assert_eq!(
-            vm.execution_refusal.as_ref(),
-            Some(&tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "native dictionary construction",
-                ),
-            ),)
-        );
-        assert!(vm.object_materialization().is_none());
-        assert_eq!(
-            vm.runtime_version(),
-            tcl_dialect::DialectProfile::irules().vm_runtime_version
-        );
-    }
-
     /// A dict `Value`'s top-level `(key, value-string)` pairs.
     fn top_pairs(vm: &mut Vm, v: &Value) -> Vec<(String, String)> {
         pairs(vm, v)

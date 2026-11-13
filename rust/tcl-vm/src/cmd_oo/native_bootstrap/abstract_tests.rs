@@ -323,15 +323,6 @@ fn original_abstract_public_rooted_lookup_joins_canonical_token_and_registry_mar
             .unwrap()
             .is_none()
     );
-    let mut logical = Vm::without_native_engine();
-    logical.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.1"));
-    assert!(
-        tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
-            logical.actual_native_invocation_dialect(),
-        )
-        .is_none()
-    );
-    assert!(original(&logical).is_none());
 }
 
 #[test]

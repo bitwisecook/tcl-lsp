@@ -1229,16 +1229,12 @@ mod original_operand_tests {
     }
 
     #[test]
-    fn coroutine_original_name_lookup_keeps_missing_and_unavailable_distinct() {
+    fn coroutine_original_name_lookup_reports_a_missing_name_as_a_guest_error() {
         let missing = Value::new_native_string_bytes(b"absent\xff".as_slice());
         let mut vm = native();
         let error = cmd_corotype(&mut vm, std::slice::from_ref(&missing));
         assert_eq!(error.code, crate::Code::Error);
         assert!(vm.refused_completion().is_none());
-        let mut unavailable = Vm::without_native_engine();
-        unavailable.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-        let _ = cmd_corotype(&mut unavailable, &[missing]);
-        assert!(unavailable.refused_completion().is_some());
     }
 }
 

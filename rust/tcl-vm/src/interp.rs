@@ -175,7 +175,7 @@ pub(crate) use selected_frame::SelectedFrameRestore;
 
 use crate::command::{
     BuiltinFn, Command, EnsembleDef, NativeEnsembleImplementation, ProcDef, err_with_code,
-    register_builtins, settle_control_options,
+    settle_control_options,
 };
 use crate::compiled::{
     CompiledUnit, CompilerProvenance, NativeCompilerCacheEpoch, NativeCompilerCacheStamp,
@@ -1407,12 +1407,9 @@ pub(crate) struct ActivationFreshnessWorld {
 }
 
 #[derive(Clone)]
-enum NativeBootstrapPurpose {
-    Distribution,
-    Core {
-        protocol: tcl_registry::special_vars::NativeBootstrapProtocol,
-        inputs: tcl_registry::special_vars::NativeBootstrapInputs,
-    },
+struct NativeBootstrapPurpose {
+    protocol: tcl_registry::special_vars::NativeBootstrapProtocol,
+    inputs: tcl_registry::special_vars::NativeBootstrapInputs,
 }
 
 /// Hidden command allocations and their exact token and provenance indexes.
@@ -2559,23 +2556,6 @@ impl Vm {
         crate::test_support::native_vm_with_output(out)
     }
 
-    /// An interpreter with **no** native engine, writing `puts` output to
-    /// `out`. Test-only: it names no command until a test selects an engine
-    /// with [`Self::set_native_engine_profile`], so unit tests use it only to
-    /// exercise that unselected state.
-    #[cfg(test)]
-    #[must_use]
-    pub(crate) fn without_native_engine_with_output(out: Box<dyn Write>) -> Self {
-        Self::with_shared_output(Rc::new(RefCell::new(out)))
-    }
-
-    /// [`Self::without_native_engine_with_output`] writing to stdout.
-    #[cfg(test)]
-    #[must_use]
-    pub(crate) fn without_native_engine() -> Self {
-        Self::without_native_engine_with_output(Box::new(io::stdout()))
-    }
-
     /// Pin the Tcl release this VM's number/expr grammar emulates —
     /// callers thread `DialectProfile::vm_runtime_version` here, and the
     /// release-reporting globals (`tcl_version` / `tcl_patchLevel`) are
@@ -3328,13 +3308,6 @@ impl Vm {
         self.source_profile().grammar.escapes
     }
 
-    /// A VM writing to an already-shared output sink. Test-only (see
-    /// [`Self::new`]).
-    #[cfg(test)]
-    fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
-        Self::with_shared_output_bootstrap(out, None)
-    }
-
     /// The interpreter constructor: the native core of `profile` names its
     /// commands, over `host`, with the core's root variables and no library or
     /// CLI globals. This backend still registers its supported command
@@ -3359,7 +3332,7 @@ impl Vm {
         }
         Some(Self::with_shared_output_bootstrap(
             Rc::new(RefCell::new(out)),
-            Some((host, profile, protocol, inputs)),
+            (host, profile, protocol, inputs),
         ))
     }
 
@@ -3375,46 +3348,41 @@ impl Vm {
     }
 
     /// The engine profile and bootstrap inputs a sibling interpreter of this
-    /// one is built from ([`Self::with_native_core_recipe`]). `None` when this
-    /// interpreter has no native engine.
+    /// one is built from ([`Self::with_native_core_recipe`]).
     pub(crate) fn native_core_recipe(&self) -> Option<NativeCoreRecipe> {
         let profile = self.actual_engine_profile?;
-        let inputs = match &self.bootstrap {
-            NativeBootstrapPurpose::Core { inputs, .. } => inputs.clone(),
-            NativeBootstrapPurpose::Distribution => {
-                tcl_registry::special_vars::NativeBootstrapInputs::default()
-            }
-        };
-        Some((profile, inputs))
+        Some((profile, self.bootstrap.inputs.clone()))
     }
 
     fn with_shared_output_bootstrap(
         out: Rc<RefCell<Box<dyn Write>>>,
-        native: Option<(
+        (host, profile, protocol, inputs): (
             Rc<dyn tcl_platform::Host>,
             &'static tcl_dialect::DialectProfile,
             tcl_registry::special_vars::NativeBootstrapProtocol,
             tcl_registry::special_vars::NativeBootstrapInputs,
-        )>,
+        ),
     ) -> Self {
         let _constructor_allocation =
             crate::value::JimAllocationScope::enter(None, Rc::new(|| true));
         let owner_nonce =
             tcl_runtime_api::native_compilation::NativeInterpreterIdentity::fresh_owner();
-        let mut state = Box::new(InterpState::fresh(out, owner_nonce, 0));
-        if let Some((host, profile, protocol, inputs)) = &native {
-            state.bootstrap = NativeBootstrapPurpose::Core {
-                protocol: *protocol,
+        let mut state = Box::new(InterpState::fresh(
+            out,
+            owner_nonce,
+            0,
+            NativeBootstrapPurpose {
+                protocol,
                 inputs: inputs.clone(),
-            };
-            state.host = Rc::clone(host);
-            state.runtime_version = profile.vm_runtime_version;
-            state.pin = tcl_registry::model::PinnedContext::for_profile(profile);
-            state.command_surface_profile = *profile;
-            state.actual_engine_profile = Some(*profile);
-            state.command_surface_point = Some(crate::environment::surface_point(profile));
-            state.profile_registry = Some(crate::environment::store_for_profile(profile));
-        }
+            },
+        ));
+        state.host = host;
+        state.runtime_version = profile.vm_runtime_version;
+        state.pin = tcl_registry::model::PinnedContext::for_profile(profile);
+        state.command_surface_profile = profile;
+        state.actual_engine_profile = Some(profile);
+        state.command_surface_point = Some(crate::environment::surface_point(profile));
+        state.profile_registry = Some(crate::environment::store_for_profile(profile));
         let system_encoding = state.host.system_encoding();
         let standard_channels = RefCell::new(tcl_cmd_core::channel::StandardChannelConfigs::new(
             state.runtime_version,
@@ -3440,10 +3408,8 @@ impl Vm {
             default_system_encoding: system_encoding,
             alias_backrefs: Vec::new(),
         };
-        if native.is_some() {
-            tcl_syntax::number::set_runtime_syntax(vm.runtime_version.number_syntax());
-            vm.select_dictionary_containers();
-        }
+        tcl_syntax::number::set_runtime_syntax(vm.runtime_version.number_syntax());
+        vm.select_dictionary_containers();
         let _root_operation =
             match native_operation_currency::NativeOperationScope::enter_native(&mut vm) {
                 Ok(scope) => scope,
@@ -3460,17 +3426,10 @@ impl Vm {
             let _ = crate::command::completion_from_cmd_error(&mut vm, error);
             return vm;
         }
-        crate::command::register_builtins_with_native_core(
-            &mut vm,
-            native.as_ref().map(|(_, _, protocol, _)| *protocol),
-        );
-        if let Some((_, _, protocol, inputs)) = native {
-            vm.bootstrap_native_core(protocol, &inputs);
-            if vm.execution_refusal.is_none() {
-                vm.native_core_pin = Some(vm.pin.clone());
-            }
-        } else {
-            vm.bootstrap_globals();
+        crate::command::register_builtins_with_native_core(&mut vm, protocol);
+        vm.bootstrap_native_core(protocol, &inputs);
+        if vm.execution_refusal.is_none() {
+            vm.native_core_pin = Some(vm.pin.clone());
         }
         vm.enable_command_semantics_tracking();
         vm
@@ -3973,12 +3932,23 @@ impl InterpState {
     }
 
     /// A fresh interpreter state writing `puts` output to `out` — no commands
-    /// registered yet ([`Vm::with_shared_output`] / [`Vm::fork_child`] follow
+    /// registered yet ([`Vm::with_native_core`] / [`Vm::fork_child`] follow
     /// up with `register_builtins`).
-    fn fresh(out: Rc<RefCell<Box<dyn Write>>>, owner: u64, interpreter: u64) -> Self {
+    fn fresh(
+        out: Rc<RefCell<Box<dyn Write>>>,
+        owner: u64,
+        interpreter: u64,
+        bootstrap: NativeBootstrapPurpose,
+    ) -> Self {
         let _constructor_allocation =
             crate::value::JimAllocationScope::enter(None, Rc::new(|| true));
-        Self::fresh_in_environment(out, Self::fresh_semantic_environment(), owner, interpreter)
+        Self::fresh_in_environment(
+            out,
+            Self::fresh_semantic_environment(),
+            owner,
+            interpreter,
+            bootstrap,
+        )
     }
 
     fn fresh_literal_world() -> Rc<RefCell<crate::literal_pool::NativeLiteralWorld>> {
@@ -4002,6 +3972,7 @@ impl InterpState {
         environment: FreshSemanticEnvironment,
         owner: u64,
         interpreter: u64,
+        bootstrap: NativeBootstrapPurpose,
     ) -> Self {
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
@@ -4043,7 +4014,7 @@ impl InterpState {
             namespace_ensembles: HashMap::new(),
             scripted_distribution_libraries: HashMap::new(),
             explicit_scripted_libraries: Vec::new(),
-            bootstrap: NativeBootstrapPurpose::Distribution,
+            bootstrap,
             native_literal_world: Self::fresh_literal_world(),
             native_compiler_pass_owner: Self::fresh_compiler_pass_owner(owner, interpreter),
             ns_exports: HashMap::new(),
@@ -4768,19 +4739,6 @@ impl Vm {
         }
         self.install_native_error_variable_traces();
         self.install_native_env_trace();
-    }
-
-    /// Populate the predefined global variables a fresh interpreter exposes:
-    /// the `tcl_platform`/`env` arrays and the `argv`/`argv0`/`argc` scalars,
-    /// so library scripts (tcltest) that read them at load time work.
-    fn bootstrap_globals(&mut self) {
-        self.rebootstrap_host_globals();
-        self.write_host_bootstrap_scalar("argv", Value::list(Vec::new()));
-        self.write_host_bootstrap_scalar("argv0", Value::string("tcltest"));
-        self.write_host_bootstrap_scalar("argc", Value::int(0));
-        self.write_release_globals();
-        self.install_native_precision_trace();
-        self.write_host_bootstrap_scalar("tcl_interactive", Value::int(0));
     }
 
     /// Fixed host slots are already selected root-table keys, not guest names.
@@ -8320,6 +8278,7 @@ impl Vm {
             Rc::clone(&self.out),
             self.owner_nonce,
             u64::try_from(self.interps.len()).expect("interpreter slot fits u64"),
+            self.bootstrap.clone(),
         );
         child.compiler.clone_from(&self.compiler);
         child.host = Rc::clone(&self.host);
@@ -8329,7 +8288,6 @@ impl Vm {
         if let Some(core) = &mut child.native_core_pin {
             core.restate(&child.pack_facts);
         }
-        child.bootstrap = self.bootstrap.clone();
         child.logical_providers.quote = self.logical_providers.quote;
         child.logical_providers.expression_parse = self.logical_providers.expression_parse;
         child.logical_providers.source_words = self.logical_providers.source_words;
@@ -8415,27 +8373,20 @@ impl Vm {
                             .clone()
                             .expect("C execution environment refusal")
                     })?;
-                match vm.bootstrap.clone() {
-                    NativeBootstrapPurpose::Core { protocol, inputs } => {
-                        crate::command::register_builtins_with_native_core(vm, Some(protocol));
+                let NativeBootstrapPurpose { protocol, inputs } = vm.bootstrap.clone();
+                crate::command::register_builtins_with_native_core(vm, protocol);
+                scope.check_native(vm)?;
+                vm.bootstrap_native_core(protocol, &inputs);
+                scope.check_native(vm)?;
+                if protocol
+                    .child_initialisation()
+                    .initialises_jim_static_extensions()
+                {
+                    for &library in
+                        tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL
+                    {
+                        vm.install_scripted_library(library);
                         scope.check_native(vm)?;
-                        vm.bootstrap_native_core(protocol, &inputs);
-                        scope.check_native(vm)?;
-                        if protocol
-                            .child_initialisation()
-                            .initialises_jim_static_extensions()
-                        {
-                            for &library in
-                            tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL
-                        {
-                            vm.install_scripted_library(library);
-                            scope.check_native(vm)?;
-                        }
-                        }
-                    }
-                    NativeBootstrapPurpose::Distribution => {
-                        register_builtins(vm);
-                        vm.bootstrap_globals();
                     }
                 }
                 scope.check_native(vm)?;
@@ -8496,7 +8447,8 @@ impl Vm {
         let safe = safe || self.is_safe();
         let parent = self.cur;
         let child = self.fork_child_state();
-        if let NativeBootstrapPurpose::Core { protocol, .. } = &child.bootstrap {
+        {
+            let protocol = &child.bootstrap.protocol;
             let actual = child.actual_engine_profile.and_then(|profile| {
                 tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()
             });
@@ -25770,13 +25722,7 @@ impl Vm {
     /// Bootstrap each real scripted procedure once per selected distribution library.
     /// Replacement and deletion remain visible through subsequent profile repinning.
     pub(crate) fn refresh_scripted_distribution_libraries(&mut self) {
-        use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
-        let selected = if matches!(self.bootstrap, NativeBootstrapPurpose::Core { .. }) {
-            self.explicit_scripted_libraries.clone()
-        } else {
-            NativeScriptedLibrary::ALL.to_vec()
-        };
-        for library in selected {
+        for library in self.explicit_scripted_libraries.clone() {
             self.install_selected_scripted_library(library);
         }
     }
@@ -31046,6 +30992,26 @@ mod family_b_tests {
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
+    fn construction_without_a_native_engine_refuses() {
+        let source = tcl_dialect::DialectProfile::irules();
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(source)
+                .native_bootstrap_protocol()
+                .is_none()
+        );
+        assert!(
+            Vm::with_native_core(
+                Box::new(std::io::sink()),
+                std::rc::Rc::new(crate::host_native::NativeHost::new()),
+                source,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn default_c_error_code_stays_private_until_return_options_are_requested() {
         for engine in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
@@ -31492,19 +31458,13 @@ mod family_b_tests {
 
     #[test]
     fn explicit_host_engine_keeps_source_logical_and_availability_axes_separate() {
-        let mut vm = Vm::without_native_engine();
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
         vm.set_dialect_profile(source);
         let logical = vm.native_invocation_dialect();
         let lexical = vm.lexer_config();
         assert!(vm.set_command_surface_profile(host));
-        assert!(
-            vm.native_compilation_entry_for_namespace("", false)
-                .unwrap()
-                .execution_point
-                .is_none()
-        );
         assert!(!vm.set_native_engine_profile(source));
         let old_generation = vm.profile_generation();
         assert!(vm.set_native_engine_profile(host));
@@ -31564,11 +31524,6 @@ mod family_b_tests {
         let provider = AuthoredLogicalNumericSimulation::Tcl84Core;
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
-        // Before an actual engine is selected the provider is refused.
-        let mut unselected = Vm::without_native_engine();
-        unselected.set_dialect_profile(source);
-        assert!(unselected.set_command_surface_profile(host));
-        assert!(!unselected.set_logical_numeric_provider(provider));
         let mut vm = Vm::new();
         vm.set_dialect_profile(source);
         assert!(vm.set_command_surface_profile(host));
@@ -31778,10 +31733,8 @@ mod family_b_tests {
         use tcl_registry::invocation_words::LogicalSourceWordProvider;
         let provider = LogicalSourceWordProvider::Tcl84CoreSimulation;
         let host = crate::environment::profile_for_dialect("tcl9.0");
-        let mut vm = Vm::without_native_engine();
+        let mut vm = Vm::new();
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-        assert!(vm.source_string_protocol().is_none());
-        assert!(!vm.set_logical_source_word_provider(provider));
         assert!(vm.set_native_engine_profile(host));
         let before = vm.native_compiler_policy();
         assert!(vm.set_logical_source_word_provider(provider));
@@ -31836,11 +31789,6 @@ mod family_b_tests {
         let provider = LogicalExpressionParseProvider::Tcl84CoreSimulation;
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
-        let mut unselected = Vm::without_native_engine();
-        unselected.set_dialect_profile(source);
-        assert!(unselected.set_command_surface_profile(host));
-        assert!(!unselected.set_logical_expression_parse_provider(provider));
-        assert!(unselected.expression_template_policy().is_none());
         let mut vm = Vm::new();
         vm.set_dialect_profile(source);
         assert!(vm.set_command_surface_profile(host));
@@ -31894,23 +31842,6 @@ mod family_b_tests {
         }
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
-        // Before an actual engine is selected neither the provider nor a host
-        // activation is available.
-        let mut unselected = Vm::without_native_engine();
-        unselected.set_dialect_profile(source);
-        assert!(unselected.set_command_surface_profile(host));
-        assert!(unselected.expression_quote_control().is_none());
-        assert!(!unselected.set_logical_quote_provider(
-            tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
-        ));
-        let refusal = unselected
-            .try_eval_native_host_source("policy_probe")
-            .unwrap_err();
-        assert!(matches!(
-            refusal,
-            tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
-        ));
-        assert!(unselected.active_native_profile.is_none());
         let mut vm = Vm::new();
         vm.set_dialect_profile(source);
         assert!(vm.set_command_surface_profile(host));
@@ -35402,12 +35333,11 @@ mod compiled_variable_provider_tests {
 
     #[test]
     fn logical_local_compiler_is_explicit_retained_and_independent_of_host() {
-        let mut vm = Vm::without_native_engine();
+        let mut vm = Vm::new();
         let f5 = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
         let provider = LogicalCompiledVariableProvider::Tcl84CoreSimulation;
         vm.set_dialect_profile(f5);
-        assert!(!vm.set_logical_compiled_variable_provider(provider));
         assert!(vm.set_native_engine_profile(host));
         assert!(vm.compiled_variable_protocol().is_none());
         let prior = vm.native_compiler_policy();
@@ -36011,9 +35941,7 @@ mod native_child_constructor_tests {
                 .create_child_named_bytes(NameBytes::from(b"child"), false)
                 .unwrap();
             vm.in_interp(id, |child| {
-                let NativeBootstrapPurpose::Core { protocol, inputs } = &child.bootstrap else {
-                    panic!("actual child core constructor");
-                };
+                let NativeBootstrapPurpose { protocol, inputs } = &child.bootstrap;
                 assert_eq!(inputs.package_path, b"original-library");
                 assert_eq!(
                     inputs.default_library.as_deref(),
@@ -36172,21 +36100,6 @@ mod native_child_constructor_tests {
             .create_child_named_bytes(NameBytes::from(b"child"), false)
             .unwrap();
         c.in_interp(id, |child| assert!(child.get_var("argv").is_none()));
-    }
-
-    #[test]
-    fn distribution_child_keeps_its_independent_bootstrap_purpose() {
-        let mut vm = Vm::new();
-        let id = vm
-            .create_child_named_bytes(NameBytes::from(b"child"), false)
-            .unwrap();
-        vm.in_interp(id, |child| {
-            assert!(matches!(
-                child.bootstrap,
-                NativeBootstrapPurpose::Distribution
-            ));
-            assert!(child.get_var("argv").is_some());
-        });
     }
 }
 
@@ -36573,200 +36486,6 @@ mod original_c_import_preload_cleanup_tests {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod host_bootstrap_storage_tests {
-    use super::*;
-
-    struct BootstrapEnvironment {
-        revision: &'static str,
-    }
-    impl tcl_platform::Env for BootstrapEnvironment {
-        fn get(&self, key: &str) -> Option<String> {
-            self.vars()
-                .into_iter()
-                .find(|(name, _)| name == key)
-                .map(|(_, value)| value)
-        }
-        fn set(&self, _: &str, _: &str) {
-            panic!("host bootstrap must not mutate the environment");
-        }
-        fn unset(&self, _: &str) {
-            panic!("host bootstrap must not mutate the environment");
-        }
-        fn vars(&self) -> Vec<(String, String)> {
-            vec![
-                ("USER".into(), "bootstrap-user".into()),
-                ("TCL_LIBRARY".into(), format!("/library/{}", self.revision)),
-                ("literal::key(x)".into(), self.revision.into()),
-            ]
-        }
-        fn cwd(&self) -> Result<String, tcl_platform::HostError> {
-            Err(tcl_platform::HostError::Unsupported)
-        }
-        fn chdir(&self, _: &str) -> Result<(), tcl_platform::HostError> {
-            Err(tcl_platform::HostError::Unsupported)
-        }
-    }
-    struct BootstrapHost {
-        actual: Rc<dyn Host>,
-        environment: BootstrapEnvironment,
-    }
-    impl Host for BootstrapHost {
-        fn capabilities(&self) -> tcl_platform::Capabilities {
-            self.actual.capabilities()
-        }
-        fn clock(&self) -> &dyn tcl_platform::Clock {
-            self.actual.clock()
-        }
-        fn stdio(&self) -> &dyn tcl_platform::StdIo {
-            self.actual.stdio()
-        }
-        fn env(&self) -> &dyn tcl_platform::Env {
-            &self.environment
-        }
-    }
-    fn host(vm: &Vm, revision: &'static str) -> Rc<dyn Host> {
-        Rc::new(BootstrapHost {
-            actual: vm.host_rc(),
-            environment: BootstrapEnvironment { revision },
-        })
-    }
-    fn root(vm: &Vm, name: &str) -> VarId {
-        *vm.frames[0]
-            .locals
-            .get(name)
-            .expect("actual host root slot")
-    }
-    fn bytes(vm: &Vm, id: VarId) -> Vec<u8> {
-        let Local::Scalar(value) = vm.var_arena.get(id).unwrap().state() else {
-            panic!("host scalar cell");
-        };
-        value
-            .resident_string_bytes()
-            .expect("host authored string")
-            .to_vec()
-    }
-    fn array_member(vm: &Vm, array: VarId, key: &str) -> VarId {
-        let Local::Array(table) = vm.var_arena.get(array).unwrap().state() else {
-            panic!("host array cell");
-        };
-        *table.get(key).expect("actual counted host element")
-    }
-
-    #[test]
-    fn distribution_host_bootstrap_owns_storage_without_a_native_name_policy() {
-        let mut vm = Vm::with_output(Box::new(std::io::sink()));
-        assert!(vm.actual_engine_profile.is_none());
-        assert!(vm.active_native_profile.is_none());
-        assert!(vm.name_policy_protocol().is_none());
-        assert!(vm.execution_name_policy().is_none());
-        assert!(vm.execution_refusal.is_none());
-        for name in [
-            "argv",
-            "argv0",
-            "argc",
-            "tcl_version",
-            "tcl_patchLevel",
-            "tcl_interactive",
-            "auto_path",
-            "tcl_library",
-        ] {
-            assert!(
-                matches!(
-                    vm.var_arena.get(root(&vm, name)).unwrap().state(),
-                    Local::Scalar(_)
-                ),
-                "{name}"
-            );
-        }
-        assert_eq!(bytes(&vm, root(&vm, "argv0")), b"tcltest");
-        assert_eq!(
-            bytes(&vm, root(&vm, "tcl_version")),
-            vm.runtime_version.as_package_version().as_bytes()
-        );
-        let first_host = host(&vm, "first");
-        vm.set_host(first_host);
-        assert!(vm.execution_refusal.is_none());
-        let first_env = root(&vm, "env");
-        let first_element = array_member(&vm, first_env, "literal::key(x)");
-        assert_eq!(bytes(&vm, first_element), b"first");
-        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/first");
-        let platform = root(&vm, "tcl_platform");
-        assert_eq!(
-            bytes(&vm, array_member(&vm, platform, "user")),
-            b"bootstrap-user"
-        );
-        let second_host = host(&vm, "second");
-        vm.set_host(second_host);
-        assert!(vm.execution_refusal.is_none());
-        let second_env = root(&vm, "env");
-        assert_ne!(first_env, second_env);
-        assert!(vm.var_arena.get(first_env).is_none());
-        assert!(vm.var_arena.get(first_element).is_none());
-        assert_eq!(
-            bytes(&vm, array_member(&vm, second_env, "literal::key(x)")),
-            b"second"
-        );
-        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/second");
-        assert!(vm.actual_engine_profile.is_none());
-        assert!(vm.active_native_profile.is_none());
-        assert!(vm.name_policy_protocol().is_none());
-        assert!(vm.execution_name_policy().is_none());
-        assert!(vm.ensure_array("guest").is_err());
-        let first = vm.execution_refusal.clone().expect("genuine guest refusal");
-        assert!(!vm.frames[0].locals.contains_key("guest"));
-        let third_host = host(&vm, "third");
-        vm.set_host(third_host);
-        assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
-        assert_eq!(bytes(&vm, root(&vm, "tcl_library")), b"/library/third");
-        assert!(vm.actual_engine_profile.is_none());
-        assert!(vm.name_policy_protocol().is_none());
-    }
-
-    #[test]
-    fn host_release_slot_keeps_a_name_link_to_a_missing_array_element() {
-        let mut vm = Vm::with_output(Box::new(std::io::sink()));
-        let array = vm.install_host_bootstrap_array("host-target");
-        vm.write_host_bootstrap_element(array, "retained", "unchanged");
-        let retained = array_member(&vm, array, "retained");
-        let root_slot = VarBinding {
-            owner: VarTableOwner::Namespace(ROOT_NS),
-            name: NameBytes::from("tcl_version"),
-        };
-        let link = vm
-            .bind_new_var(
-                &root_slot,
-                Local::NameLink(NameLink {
-                    original_target: None,
-                    binding: VarBinding {
-                        owner: VarTableOwner::Namespace(ROOT_NS),
-                        name: NameBytes::from("host-target"),
-                    },
-                    element: Some(NameBytes::from("missing::key(x)")),
-                }),
-            )
-            .unwrap();
-        vm.write_release_globals();
-        assert_eq!(root(&vm, "tcl_version"), link);
-        assert!(matches!(
-            vm.var_arena.get(link).unwrap().state(),
-            Local::NameLink(_)
-        ));
-        assert_eq!(root(&vm, "host-target"), array);
-        assert_eq!(array_member(&vm, array, "retained"), retained);
-        assert_eq!(bytes(&vm, retained), b"unchanged");
-        let installed = array_member(&vm, array, "missing::key(x)");
-        assert_eq!(
-            bytes(&vm, installed),
-            vm.runtime_version.as_package_version().as_bytes()
-        );
-        assert!(vm.actual_engine_profile.is_none());
-        assert!(vm.active_native_profile.is_none());
-        assert!(vm.name_policy_protocol().is_none());
-        assert!(vm.execution_refusal.is_none());
     }
 }
 

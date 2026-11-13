@@ -1617,42 +1617,6 @@ mod tests {
         assert!(vm.execution_refusal.is_none());
     }
 
-    #[test]
-    fn original_observed_transition_none_stays_readonly_and_keeps_missing_string_provider() {
-        // naming.embedding.original-host-publication-and-fact-transport
-        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        let mut vm = Vm::new();
-        let names = measured_names(&mut vm);
-        let original =
-            super::super::original_authored_operands::OriginalAuthoredOperandScope::capture(
-                &mut vm,
-            )
-            .unwrap();
-        assert!(vm.actual_native_string_protocol().is_none());
-        original
-            .replace_observed_inputs(&mut vm, Some(names), None, false)
-            .unwrap();
-        assert!(!vm.native_operation_context.has_entered_operation());
-        assert!(vm.actual_native_string_protocol().is_none());
-        let resident = Value::string("RESIDENT");
-        assert_eq!(
-            original.string(&mut vm, &resident).unwrap().as_ref(),
-            b"RESIDENT"
-        );
-        original
-            .replace_observed_inputs(&mut vm, None, None, true)
-            .unwrap();
-        original.finish(&mut vm).unwrap();
-        assert!(!vm.native_operation_context.has_entered_operation());
-        let missing =
-            super::super::original_authored_operands::OriginalAuthoredOperandScope::capture(
-                &mut vm,
-            )
-            .unwrap();
-        assert!(missing.string(&mut vm, &Value::double(1.5)).is_err());
-        assert!(!vm.native_operation_context.has_entered_operation());
-    }
-
     // The host and profile ABA are found by the restored-context re-proof,
     // which runs only under `VERIFY_CURRENCY`.
     #[cfg(debug_assertions)]

@@ -316,15 +316,10 @@ impl EnsembleDef {
 
 pub(crate) mod native_ensemble_objects;
 
-/// Register the builtin set on `vm`.
-pub(crate) fn register_builtins(vm: &mut Vm) {
-    register_builtins_with_native_core(vm, None);
-}
-
 /// Register this backend's commands under the explicitly selected constructor purpose.
 pub(crate) fn register_builtins_with_native_core(
     vm: &mut Vm,
-    native: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
+    native: tcl_registry::special_vars::NativeBootstrapProtocol,
 ) {
     vm.register_stock_builtin("set", cmd_set);
     refresh_jim_exists(vm);
@@ -363,10 +358,6 @@ pub(crate) fn register_builtins_with_native_core(
     vm.register_stock_builtin("variable", cmd_variable);
     vm.register_stock_builtin("unset", cmd_unset);
     vm.register_stock_builtin("subst", cmd_subst);
-    if native.is_none() {
-        vm.register_stock_builtin("auto_load", cmd_auto_load);
-        vm.register_stock_builtin("auto_import", |_, _| ok(Value::empty()));
-    }
     vm.register_stock_builtin("exit", cmd_exit);
     crate::cmd_array::register(vm);
     crate::cmd_chan::register(vm);
@@ -378,12 +369,10 @@ pub(crate) fn register_builtins_with_native_core(
     crate::cmd_format::register(vm);
     crate::cmd_info::register(vm);
     crate::cmd_math::register(vm, native);
-    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_binary)
-    {
+    if native.registers_core_binary() {
         crate::cmd_binary::register(vm);
     }
-    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_mathop)
-    {
+    if native.registers_core_mathop() {
         crate::cmd_mathop::register(vm);
     }
     crate::cmd_lseq::register(vm);
@@ -393,12 +382,8 @@ pub(crate) fn register_builtins_with_native_core(
     crate::cmd_regexp::register(vm);
     crate::cmd_switch::register(vm);
     crate::cmd_trace::register(vm);
-    if native.is_some() {
-        crate::cmd_try::register_for_bootstrap(vm, native);
-    } else {
-        crate::cmd_try::register(vm);
-    }
-    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::initializes_tcl_oo) {
+    crate::cmd_try::register_for_bootstrap(vm, native);
+    if native.initializes_tcl_oo() {
         crate::cmd_oo::register(vm);
     }
     crate::cmd_coro::register(vm);
@@ -1892,41 +1877,6 @@ fn interp_command(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
         // covered by the per-interp channel table, not a global one).
         "share" | "transfer" => ok(Value::empty()),
         _ => vm.refuse_host_command("native interpreter worker unavailable".to_owned()),
-    }
-}
-
-/// The standard library `parray` proc, defined on demand by `auto_load`.
-const PARRAY_SRC: &str = r#"proc ::parray {a {pattern *}} {
-    upvar 1 $a array
-    set maxl 0
-    foreach name [lsort [array names array $pattern]] {
-        if {[string length $name] > $maxl} {
-            set maxl [string length $name]
-        }
-    }
-    set maxl [expr {$maxl + [string length $a] + 2}]
-    foreach name [lsort [array names array $pattern]] {
-        set nameString [format %s(%s) $a $name]
-        puts stdout [format "%-*s = %s" $maxl $nameString $array($name)]
-    }
-}"#;
-
-/// `auto_load command` — there is no on-disk autoloader, but a few standard
-/// library procs are provided on demand (so e.g. `info body ::parray` works).
-/// Returns 1 if the command was made available, 0 otherwise.
-fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let name = args.first().map_or_default(|v| v.to_str().to_string());
-    // The shared `namespace tail` op (separator-run-aware, matching C).
-    let simple = std::str::from_utf8(tcl_cmd_core::namespace::tail(name.as_bytes()))
-        .expect("subslice of valid UTF-8");
-    let src = match simple {
-        "parray" => PARRAY_SRC,
-        _ => return ok(Value::int(0)),
-    };
-    match vm.eval_source(src) {
-        Ok(c) if c.code.is_ok() => ok(Value::int(1)),
-        Ok(c) => c,
-        Err(e) => completion_from_tcl_error(vm, e),
     }
 }
 
@@ -5316,15 +5266,6 @@ mod tests {
             ),
             Header::NoOp,
         );
-        let mut missing = Vm::without_native_engine();
-        missing.set_dialect_profile(authored);
-        assert!(!missing.set_native_engine_profile(authored));
-        assert!(
-            missing
-                .capture_procedure_declaration_body(&parameters, &original)
-                .is_err()
-        );
-        assert!(super::procedure_header_compilation(&mut missing, &parameters, &original).is_err());
     }
 
     #[test]
@@ -6080,34 +6021,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn original_legacy_bareword_profile_labels_do_not_issue_native_function_or_error_owners() {
-        // naming.embedding.original-host-publication-and-fact-transport
-        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        for dialect in ["tcl8.4", "jim"] {
-            let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
-            let mut vm = crate::Vm::without_native_engine();
-            vm.set_dialect_profile(profile);
-            assert!(
-                vm.actual_native_invocation_dialect()
-                    .execution_point()
-                    .is_none()
-            );
-            assert!(
-                vm.actual_native_invocation_dialect()
-                    .native_error_objects_protocol()
-                    .is_none()
-            );
-            assert!(
-                tcl_registry::native_expression_program::expression_function_dispatch(
-                    vm.expression_evaluation_policy().as_ref(),
-                    vm.actual_native_invocation_dialect(),
-                )
-                .is_none()
-            );
-        }
-    }
-
     // The actual C9 source/Catch surface is supported. An expression nested
     // beyond the checked parser's depth is outside its window, though C
     // evaluates it (tclsh9.0 gives 1 for 9000 nested parentheses); no absent
@@ -6533,7 +6446,7 @@ mod native_frame_numeric;
 
 #[cfg(test)]
 mod physical_variable_declaration_tests {
-    use crate::{Value, Vm};
+    use crate::Value;
     use tcl_runtime_api::Code;
     use tcl_syntax::value::ValueOps;
 
@@ -6572,13 +6485,8 @@ mod physical_variable_declaration_tests {
     }
 
     #[test]
-    fn namespace_variable_declaration_keeps_missing_host_and_release_arity_closed() {
+    fn namespace_variable_declaration_keeps_release_arity_closed() {
         let source = tcl_dialect::DialectProfile::irules();
-        let mut missing = Vm::without_native_engine();
-        missing.set_dialect_profile(source);
-        assert!(!missing.set_native_engine_profile(source));
-        assert_eq!(super::cmd_variable(&mut missing, &[]).code, Code::Error);
-        assert!(missing.execution_refusal.is_some());
         let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
         let mut original = crate::native_fixture::core(host);
         original.set_dialect_profile(source);

@@ -44,19 +44,14 @@ use crate::command::{completion_options, opt_get_checked};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
-pub(crate) fn register(vm: &mut Vm) {
-    register_for_bootstrap(vm, None);
-}
-
 pub(crate) fn register_for_bootstrap(
     vm: &mut Vm,
-    native: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
+    native: tcl_registry::special_vars::NativeBootstrapProtocol,
 ) {
-    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_try) {
+    if native.registers_core_try() {
         vm.register_stock_builtin("try", cmd_try);
     }
-    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_throw)
-    {
+    if native.registers_core_throw() {
         vm.register_stock_builtin("throw", cmd_throw);
     }
 }

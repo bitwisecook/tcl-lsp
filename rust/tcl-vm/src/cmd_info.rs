@@ -1175,14 +1175,6 @@ mod tests {
             vm.actual_native_execution_profile().cache_key(),
             actual.cache_key()
         );
-        let mut unavailable = Vm::without_native_engine();
-        unavailable.set_dialect_profile(actual);
-        assert!(unavailable.actual_native_string_protocol().is_none());
-        assert!(
-            unavailable
-                .try_invoke_command("info", &[Value::string("loaded"), Value::string("")])
-                .is_err()
-        );
     }
 }
 

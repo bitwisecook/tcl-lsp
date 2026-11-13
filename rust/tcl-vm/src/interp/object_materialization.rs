@@ -18,30 +18,26 @@
 
 //! List and dictionary materialization purposes, independent of source grammar.
 
-use super::{InterpState, NativeBootstrapPurpose};
+use super::InterpState;
 use tcl_registry::native_string_materialization::{
     LogicalStringProvider, NativeStringMaterialization,
 };
 use tcl_syntax::native_string::NativeStringProtocol;
 
 /// A selected recipe together with the independent purpose that supplied it.
-/// Standalone compatibility and authored simulation establish no native entry.
+/// Authored simulation establishes no native entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ObjectMaterialization {
     /// Actual native activation or independently retained engine.
     Native(NativeStringMaterialization),
     /// Explicitly installed F5 object-string simulation.
     AuthoredLogical(NativeStringMaterialization),
-    /// Portable Distribution constructor and getter compatibility only.
-    StandaloneCompatibility(NativeStringMaterialization),
 }
 
 impl ObjectMaterialization {
     const fn recipe(self) -> NativeStringMaterialization {
         match self {
-            Self::Native(recipe)
-            | Self::AuthoredLogical(recipe)
-            | Self::StandaloneCompatibility(recipe) => recipe,
+            Self::Native(recipe) | Self::AuthoredLogical(recipe) => recipe,
         }
     }
 
@@ -104,17 +100,9 @@ impl InterpState {
         if self.logical_providers.names.is_some() {
             return self.authored_logical_object_materialization();
         }
-        if let Some(profile) = self.actual_engine_profile {
-            return tcl_registry::InvocationDialect::of_profile(profile)
-                .native_string_materialization(None)
-                .map(ObjectMaterialization::Native);
-        }
-        if !matches!(self.bootstrap, NativeBootstrapPurpose::Distribution) {
-            return None;
-        }
-        self.native_invocation_dialect()
+        tcl_registry::InvocationDialect::of_profile(self.actual_engine_profile?)
             .native_string_materialization(None)
-            .map(ObjectMaterialization::StandaloneCompatibility)
+            .map(ObjectMaterialization::Native)
     }
 }
 
@@ -259,51 +247,6 @@ mod tests {
         );
         vm.active_native_profile = None;
         assert!(vm.object_materialization().is_none());
-    }
-
-    #[test]
-    fn standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe() {
-        // naming.invocation.original-object-materialization-purpose
-        // docs/design/analysis/name-resolution-proofs/invocation-original-object-materialization-purpose.md
-        let mut vm = Vm::new();
-        assert!(vm.actual_engine_profile.is_none());
-        assert!(matches!(
-            vm.object_materialization(),
-            Some(ObjectMaterialization::StandaloneCompatibility(_))
-        ));
-        let member = Value::int(17);
-        let list = vm.new_list(vec![member.clone()]);
-        assert_eq!(vm.list_len(&list), Ok(1));
-        assert!(vm.list_elements(&list).unwrap()[0].is_same_object(&member));
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
-        );
-        assert!(matches!(
-            vm.object_materialization(),
-            Some(ObjectMaterialization::StandaloneCompatibility(_))
-        ));
-        assert_eq!(
-            vm.object_materialization().unwrap().protocol(),
-            NativeStringProtocol::Jim084
-        );
-        let source = Value::from_string_bytes(vec![b'{', 0xff]);
-        assert_eq!(
-            vm.list_elements(&source).unwrap()[0]
-                .string_bytes()
-                .as_ref(),
-            &[0xff]
-        );
-        vm.set_dialect_profile(unknown_jim());
-        assert!(vm.object_materialization().is_none());
-        let untouched = Value::int(23);
-        assert!(vm.list_len(&untouched).is_err());
-        assert!(vm.list_elements(&untouched).is_err());
-        assert!(vm.dict_pairs(&untouched).is_err());
-        assert!(untouched.resident_string_bytes().is_none());
-        assert!(vm.new_dict_checked(Vec::new()).is_err());
-        let portable = vm.new_list(vec![untouched]);
-        assert!(portable.resident_string_bytes().is_none());
-        assert_eq!(portable.native_object_type_name(), "list");
     }
 
     #[test]

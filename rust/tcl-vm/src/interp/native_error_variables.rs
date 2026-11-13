@@ -1304,28 +1304,6 @@ mod tests {
     }
 
     #[test]
-    fn c84_execution_environment_fallback_pin_and_temporary_override_do_not_share_births() {
-        let mut vm = Vm::new();
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_4);
-        let (info, code) = c84_execution_names(&vm);
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_4);
-        let (same_info, same_code) = c84_execution_names(&vm);
-        assert!(info.value().is_same_object(same_info.value()));
-        assert!(code.value().is_same_object(same_code.value()));
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_5);
-        assert!(vm.native_errors.c84_execution_names.is_none());
-        assert!(!info.value().native_object_is_live());
-        assert!(!code.value().native_object_is_live());
-        vm.active_native_profile =
-            Some(tcl_registry::model::resolve_environment("tcl8.4").unit_profile());
-        vm.configure_c84_execution_environment_error_names()
-            .unwrap();
-        assert!(vm.native_errors.c84_execution_names.is_none());
-        vm.active_native_profile = None;
-        assert!(vm.execution_refusal.is_none());
-    }
-
-    #[test]
     fn c84_execution_error_logging_uses_the_same_original_parsed_name_headers() {
         let mut vm = native_vm("tcl8.4");
         let (info, code) = c84_execution_names(&vm);

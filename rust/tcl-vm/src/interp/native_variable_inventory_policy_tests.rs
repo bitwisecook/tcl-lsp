@@ -52,39 +52,6 @@ fn variable_inventory_uses_the_actual_selected_name_purpose() {
 }
 
 #[test]
-fn unsupported_inventory_policy_refuses_before_a_pattern_getter() {
-    // naming.invocation.original-variable-inventory-policy
-    // docs/design/analysis/name-resolution-proofs/invocation-original-variable-inventory-policy.md
-    // Standalone ingress supplies no independently retained actual native core.
-    let mut vm = Vm::without_native_engine();
-    let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-        "jim",
-        &[],
-        "Jim",
-        tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
-    )));
-    vm.set_dialect_profile(unknown);
-    assert!(vm.name_policy_protocol().is_none());
-    assert_eq!(Namespaces::variable_lookup_policy(&vm), None);
-    let pattern = Value::int(17);
-    assert!(pattern.resident_string_bytes().is_none());
-    for error in [
-        tcl_cmd_core::info::vars(&mut vm, Some(&pattern)).unwrap_err(),
-        tcl_cmd_core::info::globals(&mut vm, Some(&pattern)).unwrap_err(),
-    ] {
-        assert_eq!(
-            error.native_access_refusal(),
-            Some(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "variable inventory lookup policy"
-                )
-            )
-        );
-        assert!(pattern.resident_string_bytes().is_none());
-    }
-}
-
-#[test]
 fn genuine_native_inventory_policy_survives_unknown_source_profile() {
     // naming.invocation.original-variable-inventory-policy
     // docs/design/analysis/name-resolution-proofs/invocation-original-variable-inventory-policy.md

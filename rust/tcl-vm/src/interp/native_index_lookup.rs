@@ -703,14 +703,6 @@ mod tests {
             }
         ));
 
-        let mut unknown = Vm::without_native_engine();
-        unknown.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-        let error = table
-            .index_of_original(&mut unknown, &original)
-            .expect_err("absent actual issuer");
-        crate::command::completion_from_cmd_error(&mut unknown, error);
-        assert!(unknown.execution_refusal.is_some());
-
         let mut legacy =
             crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         let error = table

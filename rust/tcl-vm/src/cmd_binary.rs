@@ -1171,8 +1171,7 @@ mod native_ensemble_tests {
     #[test]
     fn binary_private_tokens_follow_the_actual_bootstrap_release() {
         for dialect in ["tcl8.4", "tcl8.5", "jim"] {
-            let mut vm = Vm::without_native_engine();
-            vm.set_dialect_profile(
+            let vm = crate::native_fixture::core(
                 tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
             );
             assert!(
@@ -1263,7 +1262,7 @@ mod original_decode_owner_tests {
         );
         assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
         assert_eq!(original.check_native(&mut vm).unwrap_err(), first);
-        assert!(loan.value().resident_string_bytes().is_some());
+        assert!(loan.value().resident_string_bytes().is_none());
     }
 }
 

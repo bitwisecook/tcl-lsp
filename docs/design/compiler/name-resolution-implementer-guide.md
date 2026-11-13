@@ -4862,8 +4862,9 @@ its own purpose. Otherwise an installed logical name/materialization provider
 requires its current F5 source contract; an unavailable selected logical purpose
 refuses without physical fallback. Without that logical selection, the retained
 actual engine supplies the native recipe independently of source grammar.
-Distribution bootstrap preserves standalone compatibility under a distinct tag,
-which grants no actual engine or entered command. Checked getters and checked dictionary
+Every VM is constructed over an actual native core: `Vm::with_native_core`
+refuses (returns `None`) for a profile with no native bootstrap protocol, so
+there is no engineless VM. Checked getters and checked dictionary
 constructors refuse missing recipes; infallible constructors retain their plain
 portable construction contract.
 

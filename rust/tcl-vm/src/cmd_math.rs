@@ -513,10 +513,7 @@ fn m_integer_conversion_using(
     })
 }
 
-pub(crate) fn register(
-    vm: &mut Vm,
-    native: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
-) {
+pub(crate) fn register(vm: &mut Vm, native: tcl_registry::special_vars::NativeBootstrapProtocol) {
     // `::tcl::mathfunc` is a real namespace in C Tcl, so a user
     // `proc tcl::mathfunc::square {x} {…}` (TIP 232's custom-function
     // mechanism) must find it existing — declare it alongside the builtin
@@ -524,17 +521,15 @@ pub(crate) fn register(
     vm.declare_namespace("tcl::mathfunc");
     // A measured native constructor roster precedes library procedure births.
     // Other constructors retain the shared implementation inventory.
-    let names = native
-        .and_then(tcl_registry::special_vars::NativeBootstrapProtocol::core_mathfunc_roster)
-        .map_or_else(
-            || {
-                tcl_syntax::expr::mathfunc::all()
-                    .into_iter()
-                    .map(|spec| spec.name)
-                    .collect::<Vec<_>>()
-            },
-            <[_]>::to_vec,
-        );
+    let names = native.core_mathfunc_roster().map_or_else(
+        || {
+            tcl_syntax::expr::mathfunc::all()
+                .into_iter()
+                .map(|spec| spec.name)
+                .collect::<Vec<_>>()
+        },
+        <[_]>::to_vec,
+    );
     for name in names {
         vm.register_stock_builtin(&format!("tcl::mathfunc::{name}"), m_mathfunc);
     }

@@ -308,7 +308,7 @@ fn original_taken_unset_stops_host_callbacks_but_finishes_removed_cell_cleanup()
                 },
             );
             let cell = vm.trace_cell_bytes(b"x").unwrap().id.unwrap();
-            assert!(vm.unset_var_bytes(b"x"));
+            assert_eq!(vm.unset_var_bytes(b"x"), !host);
             assert_eq!(*reached.borrow(), if host { vec![2] } else { vec![2, 1] });
             assert_eq!(vm.execution_refusal, host.then(first));
             assert!(!vm.variable_observers.script_traces.contains_key(&cell));

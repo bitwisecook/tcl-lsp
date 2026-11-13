@@ -48,21 +48,8 @@ fn generic_each_loop_uses_the_actual_host_with_a_separate_source_policy() {
 }
 
 #[test]
-fn generic_each_loop_keeps_missing_and_unsupported_host_recipes_closed() {
+fn generic_each_loop_keeps_unsupported_host_recipes_closed() {
     let source = tcl_dialect::DialectProfile::irules();
-    let mut missing = Vm::without_native_engine();
-    missing.set_dialect_profile(source);
-    assert!(!missing.set_native_engine_profile(source));
-    let arguments = [
-        Value::new_native_string_bytes(b"v".as_slice()),
-        Value::new_native_string_bytes(b"".as_slice()),
-        Value::new_native_string_bytes(b"".as_slice()),
-    ];
-    assert_eq!(
-        super::each_loop(&mut missing, &arguments, false).code,
-        Code::Error
-    );
-    assert!(missing.pending.each_loop.is_none());
     let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile();
     let mut unsupported = crate::native_fixture::core(host);
     let original = inputs(&mut unsupported, 3, false);
