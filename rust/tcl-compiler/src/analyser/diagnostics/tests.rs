@@ -2158,10 +2158,11 @@ fn a_nested_index_reads_the_proven_container() {
 
 /// A container written as a command substitution, or built by one into a
 /// variable, is checked over the value the registry's folds prove (#2438,
-/// #2437); an index inside it is not reported.
+/// #2437), at every read: reading a range built from a literal list runs no
+/// object method the module cannot see. An index inside it is not reported.
 #[test]
 fn a_container_built_by_a_command_is_checked() {
-    let rows: [(&str, DiagCode, &[&str]); 8] = [
+    let rows: [(&str, DiagCode, &[&str]); 10] = [
         ("lindex [list a b c] 9\n", DiagCode::W230, &["9"]),
         ("puts [lindex [list a b c] 9]\n", DiagCode::W230, &["9"]),
         (
@@ -2172,6 +2173,16 @@ fn a_container_built_by_a_command_is_checked() {
         ("set l [list a b c]\nlindex $l 9\n", DiagCode::W230, &["9"]),
         (
             "set l [lrange {a b c d e} 0 2]\nlindex $l 9\n",
+            DiagCode::W230,
+            &["9"],
+        ),
+        (
+            "set l [lrange {a b c d e} 0 2]\nlindex $l 9\nputs [lindex $l 9]\n",
+            DiagCode::W230,
+            &["9", "9"],
+        ),
+        (
+            "llength [lrange {a b c d e} 0 2]\nlindex {a b c} 9\n",
             DiagCode::W230,
             &["9"],
         ),

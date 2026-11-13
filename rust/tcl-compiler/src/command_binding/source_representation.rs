@@ -416,10 +416,20 @@ pub(super) fn capture_range_result(
             variables
                 .read_produces_value(place, context.registry)
                 .then(|| variables.contents_representation_at(place))
-        })?;
+        });
     let ordinary = match representation {
-        ValueRepresentation::List => OrdinaryContainerRepresentation::List,
-        ValueRepresentation::Dict => OrdinaryContainerRepresentation::Dictionary,
+        Some(ValueRepresentation::List) => OrdinaryContainerRepresentation::List,
+        Some(ValueRepresentation::Dict) => OrdinaryContainerRepresentation::Dictionary,
+        // An original pool literal is a stock object whatever its current
+        // intrep, and no stock type supplies a slice, so the native range
+        // converts it as an ordinary list.
+        _ if super::literal_object_pool::SourceOrdinaryLiteralObject::capture(
+            native, list_at, state, context,
+        )
+        .is_some() =>
+        {
+            OrdinaryContainerRepresentation::List
+        }
         _ => return None,
     };
     let dialect = arguments.dialect()?;
