@@ -873,8 +873,23 @@ fn pkg_require(
     }
     if !discover {
         let protocol = package_protocol(vm).expect("selected package protocol");
+        // C's `package present` names the version it asked for when the first
+        // requirement is a plain version (`Tcl_PkgPresentEx`'s `version`).
+        let version = requested
+            .first()
+            .filter(|word| exact || validate_version_bytes_for(word.as_bytes(), release));
+        let message: Vec<&[u8]> = match version {
+            Some(version) => vec![
+                b"package ",
+                name.as_bytes(),
+                b" ",
+                version.as_bytes(),
+                b" is not present",
+            ],
+            None => vec![b"package ", name.as_bytes(), b" is not present"],
+        };
         return package_error(
-            &[b"package ", name.as_bytes(), b" is not present"],
+            &message,
             protocol.failure_error_code_update(
                 tcl_registry::native_package::NativePackageFailure::PresentMissing,
                 name.as_bytes(),

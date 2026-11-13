@@ -8526,6 +8526,11 @@ impl Vm {
         // C's `CreateChild` runs `Tcl_Init` in a trusted child, so it has
         // `init.tcl`'s `unknown` and `auto_load` (`package.test` loads
         // tcltest into one). The child reads the parent's library.
+        // C reads `TCL_PKG_PREFER_LATEST` as each interpreter is created, so
+        // a child sees an `env` written since its parent began.
+        if self.host_rc().env().get("TCL_PKG_PREFER_LATEST").is_some() {
+            self.in_interp(id, |child| child.state.package_prefer = PackagePrefer::Latest);
+        }
         if !safe && let Some(library) = self.state.initialised_library.clone() {
             self.in_interp(id, |child| {
                 if child.set_var_bytes(b"::tcl_library", library).is_ok() {
