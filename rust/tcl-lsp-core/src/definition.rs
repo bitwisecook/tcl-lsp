@@ -7844,10 +7844,12 @@ p\uD800";
     /// "fo": must be foo`; `g foo` returns `FOO`.
     #[test]
     fn prefixless_ensemble_resolves_only_the_exact_subcommand() {
-        let src = "namespace eval ::g {\n    namespace ensemble create -map {\n        foo ::g::Foo\n    } -prefixes 0\n}\nproc ::g::Foo {args} { return G }\n\nputs [g fo bar]\nputs [g foo bar]\n";
+        // tclsh 8.5-9.1 reject `g fo bar` (`unknown subcommand "fo": must be
+        // foo`), so the abbreviated call is caught for the exact one to run.
+        let src = "namespace eval ::g {\n    namespace ensemble create -map {\n        foo ::g::Foo\n    } -prefixes 0\n}\nproc ::g::Foo {args} { return G }\n\ncatch {g fo bar} m; puts $m\nputs [g foo bar]\n";
         let analysis = analyse(src);
         // The abbreviation must NOT resolve…
-        let abbreviated = definition(src, 7, 8, &analysis);
+        let abbreviated = definition(src, 7, 9, &analysis);
         assert!(abbreviated.is_empty(), "{abbreviated:?}");
         // …while the exact spelling still does.
         let exact = definition(src, 8, 8, &analysis);
