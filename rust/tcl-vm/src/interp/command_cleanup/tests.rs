@@ -185,7 +185,7 @@ fn original_recursive_delete_unlinks_once_and_outer_owner_retires_captured_imple
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for recreate in [false, true] {
             let mut vm = native(environment);
-            let (key, _, retired) = installed(&mut vm, 0, None);
+            let (key, events, retired) = installed(&mut vm, 0, None);
             let old = vm
                 .command_generation_for_cleanup(&CommandSidecarKey::visible(&key))
                 .unwrap();
@@ -219,12 +219,59 @@ fn original_recursive_delete_unlinks_once_and_outer_owner_retires_captured_imple
                     Some(old)
                 );
                 assert!(vm.visible_command_at_key(&key).is_some());
-            } else {
-                assert!(vm.visible_command_at_key(&key).is_none());
+                // The recreation adopts the dying command's imports.
+                assert!(!events.borrow().contains(&"imports"), "{environment}");
+                let result = vm
+                    .eval_source("list [namespace origin ::dst::victim] [::dst::victim]")
+                    .unwrap();
+                assert_eq!(result.code, Code::Ok, "{environment}");
+                assert_eq!(
+                    &*result.result.to_str(),
+                    "::src::victim 99",
+                    "{environment}"
+                );
+                vm.remove_registered_command(&key);
+                assert_eq!(events.borrow().last(), Some(&"imports"), "{environment}");
+                assert_eq!(calls.get(), 1);
             }
+            assert!(vm.visible_command_at_key(&key).is_none());
             assert!(vm.imported_commands.is_empty());
             assert!(vm.name_world.borrow().command_deletion_active.is_empty());
         }
+    }
+}
+
+#[test]
+fn delete_trace_recreation_keeps_imports_on_the_new_command() {
+    // tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all print the expected list.
+    let script = r"namespace eval src {namespace export *; proc victim {} {return 1}}
+        namespace eval dst {namespace import ::src::victim}
+        set log {}
+        proc recreate args {lappend ::log src; proc ::src::victim {} {return 2}}
+        trace add command ::src::victim delete recreate
+        proc imported args {lappend ::log imp}
+        trace add command ::dst::victim delete imported
+        rename ::src::victim {}
+        set result [list $log [info commands ::dst::victim] [namespace origin ::dst::victim] [::dst::victim]]
+        set log {}
+        rename ::src::victim {}
+        lappend result $log [info commands ::dst::victim] [info commands ::src::victim]";
+    for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut vm = native(environment);
+        let result = vm.eval_source(script).unwrap();
+        assert_eq!(
+            result.code,
+            Code::Ok,
+            "{environment}: {}",
+            result.result.to_str()
+        );
+        assert_eq!(
+            &*result.result.to_str(),
+            "src ::dst::victim ::src::victim 2 imp {} {}",
+            "{environment}"
+        );
+        assert!(vm.imported_commands.is_empty());
+        assert!(vm.name_world.borrow().command_deletion_active.is_empty());
     }
 }
 
