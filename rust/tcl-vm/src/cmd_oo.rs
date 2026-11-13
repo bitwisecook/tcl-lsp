@@ -5294,6 +5294,56 @@ mod tcloo_version_tests {
 }
 
 #[cfg(test)]
+mod export_visibility_tests {
+    use super::*;
+
+    #[test]
+    fn the_first_record_naming_a_method_decides_external_visibility() {
+        // tclsh8.6.18, 9.0.4 and 9.1.0 print
+        // `1 {unknown method "foo": must be destroy} 0 F 0 F`.
+        let script = "oo::class create A {method foo {} {return F}}
+            oo::class create B {superclass A; unexport foo}
+            B create b1
+            set r [list [catch {b1 foo} m] $m]
+            oo::class create D {superclass B; export foo}
+            lappend r [catch {[D new] foo} m] $m
+            B create b2; oo::objdefine b2 export foo
+            lappend r [catch {b2 foo} m] $m";
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect(dialect),
+            );
+            let reached = vm.eval_source(script).unwrap();
+            assert_eq!(reached.code, Code::Ok, "{dialect}");
+            assert_eq!(
+                reached.result.to_str().as_ref(),
+                "1 {unknown method \"foo\": must be destroy} 0 F 0 F",
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_abstract_class_hides_its_factories() {
+        // tclsh9.0.4 and 9.1.0 print `1 {unknown method "new": must be destroy}`.
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            let mut vm = crate::native_fixture::interpreter(
+                crate::environment::profile_for_dialect(dialect),
+            );
+            let reached = vm
+                .eval_source("oo::abstract create A; list [catch {A new} m] $m")
+                .unwrap();
+            assert_eq!(reached.code, Code::Ok, "{dialect}");
+            assert_eq!(
+                reached.result.to_str().as_ref(),
+                "1 {unknown method \"new\": must be destroy}",
+                "{dialect}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod original_call_argv_tests {
     use super::*;
     use std::cell::RefCell;
