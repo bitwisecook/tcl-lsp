@@ -94,10 +94,8 @@ fn original_static_lookup_preserves_counted_invalid_bytes_and_does_not_cache_mis
         error.message_bytes(),
         b"bad option \"\xff\": must be provide or present"
     );
-    assert_eq!(
-        error.error_code_bytes(),
-        Some(b"TCL LOOKUP INDEX option \xff".as_slice())
-    );
+    // tclsh 8.4 sets no index-lookup error code (`lsort -foo x` leaves NONE).
+    assert_eq!(error.error_code_bytes(), Some(b"NONE".as_slice()));
     assert!(error.native_execution_refusal().is_none());
     assert_eq!(original.native_object_snapshot(), before);
     assert_eq!(acquisitions.get(), 0);

@@ -648,7 +648,12 @@ impl<'a> OriginalNumericOps<'a> {
             current(value)?;
             return Ok(bytes);
         }
-        let formatter = self.host.native_integer_formatter();
+        // A compound's members reach the host formatter only where the
+        // release formats integers through it; a scalar's stage always asks.
+        let formatter = (!value.is_native_compound()
+            || crate::value::host_formats_integers(protocol))
+        .then(|| self.host.native_integer_formatter())
+        .flatten();
         current(value)?;
         let reached = value.native_string_bytes_checked_for_value_retaining(
             protocol,

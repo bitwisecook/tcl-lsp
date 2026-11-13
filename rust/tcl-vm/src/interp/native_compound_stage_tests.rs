@@ -19,7 +19,6 @@
 //! Supplied original String stages in List-copy and Dictionary conversion.
 
 use super::*;
-use crate::value::NativeObjectLifetimeLease;
 use tcl_platform::{
     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
     NativeIntegerKind,
@@ -109,13 +108,6 @@ fn integer(vm: &Vm, number: i64) -> Value {
     )
     .unwrap()
 }
-fn retired_header() -> tcl_runtime_api::NativeExecutionError {
-    tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
-        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-            "retired native object header",
-        ),
-    )
-}
 
 #[test]
 fn original_compound_copy_keeps_actual_backing_member_roles_and_queries_no_host() {
@@ -185,7 +177,9 @@ fn original_compound_dictionary_member_uses_the_supplied_key_string_once() {
         key_view.value().resident_string_bytes().unwrap().as_ref(),
         b"42"
     );
-    assert_eq!(formatter.calls.get(), 1);
+    // C8.6 spells an integer with TclFormatInt (tclObj.c UpdateStringOfInt):
+    // the key's String stage queries the host once but never calls it.
+    assert_eq!(formatter.calls.get(), 0);
     assert_eq!(acquisitions.get(), 1);
     assert_eq!(numeric.get(), 0);
     let reached = prepared
@@ -201,42 +195,12 @@ fn original_compound_dictionary_member_uses_the_supplied_key_string_once() {
 }
 
 #[test]
-fn original_compound_dictionary_conversion_stops_at_actual_root_retirement_before_adoption() {
+fn original_compound_dictionary_conversion_formats_integer_members_without_the_host() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    // The supplied software formatter drops the actual final root owner.
-    let (mut vm, formatter, acquisitions, numeric) = provided();
-    let root = Value::native_list_constructor(
-        vec![
-            integer(&vm, 7),
-            Value::new_native_string_bytes(b"value".as_slice()),
-        ],
-        protocol(),
-    );
-    let held: NativeObjectLifetimeLease = root.native_lifetime_lease();
-    *formatter.retire.borrow_mut() = Some(root);
-    let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
-    let reached = OriginalNumericOps::in_original_scope(&mut vm, &scope)
-        .unwrap()
-        .prepare_dictionary_with_currency(held.value(), protocol(), scope.currency());
-    let first = vm.execution_refusal.clone().unwrap();
-    assert_eq!(first, retired_header());
-    assert_eq!(
-        reached.err().unwrap().native_execution_refusal(),
-        Some(&first)
-    );
-    assert!(!held.value().native_object_is_live());
-    assert!(held.value().cached_dictionary_representation().is_none());
-    assert_eq!(formatter.calls.get(), 1);
-    assert_eq!(acquisitions.get(), 1);
-    assert_eq!(numeric.get(), 0);
-    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
-}
-
-#[test]
-fn original_compound_failed_string_preserves_typed_host_before_dictionary_guest_work() {
-    // naming.embedding.original-host-publication-and-fact-transport
-    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // C8.6 spells an integer member with TclFormatInt (tclObj.c
+    // UpdateStringOfInt): the key's String stage queries the host once, but a
+    // supplied formatter that would fail or retire the root is never called.
     let (mut vm, formatter, acquisitions, numeric) = provided();
     formatter.fail.set(true);
     let root = Value::native_list_constructor(
@@ -246,21 +210,28 @@ fn original_compound_failed_string_preserves_typed_host_before_dictionary_guest_
         ],
         protocol(),
     );
+    let held = root.native_lifetime_lease();
+    *formatter.retire.borrow_mut() = Some(root);
     let scope = NativeOperationScope::enter_native(&mut vm).unwrap();
-    let reached = OriginalNumericOps::in_original_scope(&mut vm, &scope)
-        .unwrap()
-        .prepare_dictionary_with_currency(&root, protocol(), scope.currency());
-    let first = vm.execution_refusal.clone().unwrap();
-    assert_eq!(
-        reached.err().unwrap().native_execution_refusal(),
-        Some(&first)
-    );
-    assert!(root.cached_dictionary_representation().is_none());
-    assert!(root.native_object_is_live());
-    assert_eq!(formatter.calls.get(), 1);
+    let ops = OriginalNumericOps::in_original_scope(&mut vm, &scope).unwrap();
+    let prepared = ops
+        .prepare_dictionary_with_currency(held.value(), protocol(), scope.currency())
+        .unwrap();
+    let reached = prepared
+        .original()
+        .with_cached_dictionary_member(b"7", |value| {
+            value.unwrap().resident_string_bytes().unwrap()
+        })
+        .unwrap();
+    assert_eq!(reached.as_ref(), b"value");
+    drop(prepared);
+    drop(ops);
+    assert!(held.value().native_object_is_live());
+    assert_eq!(formatter.calls.get(), 0);
     assert_eq!(acquisitions.get(), 1);
     assert_eq!(numeric.get(), 0);
-    assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+    assert!(vm.execution_refusal.is_none());
+    scope.check_native(&mut vm).unwrap();
 }
 
 #[test]

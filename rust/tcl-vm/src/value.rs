@@ -210,6 +210,13 @@ fn observe_native_retirement(original: &Value) {
     }
 }
 
+/// Whether `protocol`'s string updater formats an integer through the host's
+/// C formatter. Only C 8.4's wide updater calls `sprintf`; later releases and
+/// Jim format integers themselves.
+pub(crate) fn host_formats_integers(protocol: NativeStringProtocol) -> bool {
+    protocol == NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4)
+}
+
 /// Lifetime-only original header lease used by authenticated engine transports.
 pub struct NativeObjectLifetimeLease(Option<Value>);
 
@@ -2926,7 +2933,7 @@ impl Value {
             });
             return Ok(bytes);
         }
-        if protocol == NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4) {
+        if host_formats_integers(protocol) {
             let scalar = match self.native_scalar_cache() {
                 Some(NativeScalarCache::Tcl84Long(value)) => {
                     Some((tcl_platform::NativeIntegerKind::Long, value))
@@ -2946,11 +2953,11 @@ impl Value {
                         tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
                     ));
                 }
-                let reached = formatter.format(kind, value).map_err(|_| {
-                    failure(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
-                });
+                let reached = formatter.format(kind, value);
                 self.native_string_stage_check(check)?;
-                let bytes: Rc<[u8]> = Rc::from(reached?);
+                let bytes: Rc<[u8]> = Rc::from(reached.map_err(|_| {
+                    failure(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
+                })?);
                 self.native_string_stage_check(check)?;
                 *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
                 self.0

@@ -167,9 +167,11 @@ fn original_checked_string_and_concat_keep_actual_formatter_children_and_referen
         } else {
             Value::native_list_constructor(vec![first, second], protocol())
         };
+        // A dictionary key's string is generated when the key is hashed at
+        // construction, so only the value member reaches the formatter here.
         let borrowed = if dictionary {
             root.with_cached_dictionary_representation(|pairs, _| {
-                pairs[0].0.native_lifetime_lease()
+                pairs[0].1.native_lifetime_lease()
             })
             .unwrap()
         } else {
@@ -195,7 +197,7 @@ fn original_checked_string_and_concat_keep_actual_formatter_children_and_referen
                 .iter()
                 .filter(|call| call.0 == "format")
                 .count(),
-            2
+            if dictionary { 1 } else { 2 }
         );
         assert!(
             formatter
@@ -1631,12 +1633,15 @@ fn original_debug_retired_header_stops_supported_boolean_before_flag_or_guest_er
     assert!(!vm.debug_frame);
 }
 
-fn original_numeric_public_error(completion: crate::Completion<Value>) -> (Rc<[u8]>, Rc<[u8]>) {
+fn original_numeric_public_error(
+    vm: &mut Vm,
+    completion: crate::Completion<Value>,
+) -> (Rc<[u8]>, Rc<[u8]>) {
     assert_eq!(completion.code, Code::Error);
     let error = crate::TclError::from_completion(completion);
     (
         error.message_bytes().unwrap(),
-        error.error_code_bytes().unwrap().unwrap(),
+        error.error_code_bytes_in(vm).unwrap().unwrap(),
     )
 }
 
@@ -1681,7 +1686,7 @@ fn original_public_read_counts_preserve_selected_errors_and_untouched_cursor() {
                     &[Value::string(channel.as_str()), Value::string(count)],
                 )
                 .unwrap();
-            let (message, code) = original_numeric_public_error(completion);
+            let (message, code) = original_numeric_public_error(&mut vm, completion);
             assert_eq!(message.as_ref(), expected, "{dialect} {count}");
             assert_eq!(
                 code.as_ref(),
@@ -1724,7 +1729,7 @@ fn original_public_seek_errors_preserve_conversion_order_and_negative_target_pos
                 ],
             )
             .unwrap();
-        let (message, _) = original_numeric_public_error(invalid);
+        let (message, _) = original_numeric_public_error(&mut vm, invalid);
         assert_eq!(
             message.as_ref(),
             if dialect == "jim" {
@@ -1743,7 +1748,7 @@ fn original_public_seek_errors_preserve_conversion_order_and_negative_target_pos
         let failed = vm
             .try_invoke_command("seek", &[Value::string(channel.as_str()), Value::int(-1)])
             .unwrap();
-        let (message, code) = original_numeric_public_error(failed);
+        let (message, code) = original_numeric_public_error(&mut vm, failed);
         if dialect == "jim" {
             assert_eq!(
                 message.as_ref(),
@@ -1796,7 +1801,7 @@ fn original_public_binary_line_length_uses_actual_primitive_and_negative_code() 
                     ],
                 )
                 .unwrap();
-            let (message, code) = original_numeric_public_error(completion);
+            let (message, code) = original_numeric_public_error(&mut vm, completion);
             assert_eq!(message.as_ref(), expected);
             let expected_code = if input == "-1" {
                 b"TCL BINARY ENCODE LINE_LENGTH".as_slice()
@@ -1824,7 +1829,7 @@ fn original_public_debug_bad_boolean_refuses_before_flag_and_numeric_boolean_suc
             )
             .unwrap_err();
         let completion = crate::command::completion_from_cmd_error(&mut vm, error);
-        let (message, code) = original_numeric_public_error(completion);
+        let (message, code) = original_numeric_public_error(&mut vm, completion);
         assert_eq!(message.as_ref(), b"expected boolean value but got \"bad\"");
         assert_eq!(code.as_ref(), b"TCL VALUE NUMBER");
         assert!(!vm.debug_frame);
@@ -1865,7 +1870,7 @@ fn original_open_channel_retains_the_actual_checked_path_for_jim_seek_error() {
     let failed = vm
         .try_invoke_command("seek", &[Value::string(id.as_ref()), Value::int(-1)])
         .unwrap();
-    let (message, code) = original_numeric_public_error(failed);
+    let (message, code) = original_numeric_public_error(&mut vm, failed);
     let mut expected = written.as_bytes().to_vec();
     expected.extend_from_slice(b": Invalid argument");
     assert_eq!(message.as_ref(), expected.as_slice());

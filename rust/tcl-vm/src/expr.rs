@@ -1384,9 +1384,11 @@ pub(crate) fn authored_boolean<'a>(
             .parse_boolean(&value.string_bytes(), stage)
             .map(|value| value.value())
             .map_err(|_| {
-                TclError::from(tcl_syntax::value::ValueError::NotBooleanBytes(
-                    value.string_bytes().to_vec(),
-                ))
+                selected_operand_error_code(
+                    dialect,
+                    tcl_syntax::value::ValueError::NotBooleanBytes(value.string_bytes().to_vec())
+                        .into(),
+                )
             });
     }
     Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -2212,11 +2214,18 @@ mod tests {
             compare_in(vm.numeric_context(), BinOp::Eq, retired.value(), &right).unwrap_err();
         assert_eq!(error.native_access_refusal(), Some(expected));
         assert_eq!(right.native_object_snapshot(), before);
+        // The checked expression path reports the same refusal as the
+        // interpreter's retained first cause.
         let mut ops = ExprEval::new(&mut vm);
         let error = ops
             .compare_numeric_checked(retired.value(), &right)
             .unwrap_err();
-        assert_eq!(error.native_access_refusal(), Some(expected));
+        assert!(matches!(
+            error,
+            TclError::Host(crate::error::TclHostFailure::Execution(
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(refusal)
+            )) if refusal == expected
+        ));
         assert_eq!(right.native_object_snapshot(), before);
         assert_eq!(retired.value().native_object_reference_count(), 0);
     }
@@ -2230,6 +2239,12 @@ mod tests {
         assert!(vm.eval_expr("\"abcd\" matches \"a*\"").is_err());
         assert!(vm.set_logical_expression_parse_provider(
             LogicalExpressionParseProvider::Tcl84CoreSimulation
+        ));
+        assert!(vm.set_logical_quote_provider(
+            tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation
+        ));
+        assert!(vm.set_logical_source_word_provider(
+            tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation
         ));
         assert!(vm.set_logical_numeric_provider(
             tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
@@ -2269,8 +2284,8 @@ mod tests {
         }
         assert!(vm.eval_expr(r#""foobar" matches_regex "o+b""#).is_err());
         for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(crate::environment::profile_for_dialect(name));
+            let mut vm =
+                crate::native_fixture::interpreter(crate::environment::profile_for_dialect(name));
             for row in
                 include_str!("../../tcl-syntax/tests/data/f5-matches-21.1.0.1-0.0.26.tsv").lines()
             {
@@ -2383,8 +2398,7 @@ mod tests {
     #[test]
     fn original_expression_bytes_keep_leaf_values_and_cached_source() {
         for profile in arithmetic_profiles() {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(profile);
+            let mut vm = crate::native_fixture::interpreter(profile);
             vm.set_var_bytes(b"\xff", Value::from_native_string_bytes(&b"7"[..]))
                 .expect("original byte variable name");
             for (source, expected) in [
@@ -2529,7 +2543,10 @@ mod tests {
                     Some(b"ARITH DOMAIN {non-numeric string}".as_slice())
                 );
                 assert_eq!(
-                    boolean.error_code_bytes().unwrap().as_deref(),
+                    boolean
+                        .error_code_bytes_in(&mut original)
+                        .unwrap()
+                        .as_deref(),
                     Some(b"TCL VALUE NUMBER".as_slice())
                 );
             }
@@ -2540,10 +2557,9 @@ mod tests {
     /// bytecode arithmetic and through the dynamic expression parser.
     #[test]
     fn checked_equality_ordering_and_mathop_preserve_distinct_native_object_protocols() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
-        );
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+        crate::native_fixture::install_distribution(&mut vm);
         let dialect = vm.native_invocation_dialect();
         let raw = Value::from_string_bytes([0xff]);
         let unicode = Value::string("ÿ");
@@ -2561,7 +2577,8 @@ mod tests {
         let ordered = tcl_cmd_core::mathop::eval(&mut ops, "lt", vec![cached, recounted])
             .unwrap_or_else(|_| panic!("known cached ordering succeeds"));
         assert!(ordered.as_bool().unwrap());
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::find("tcl9.0").unwrap());
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
         let error =
             tcl_cmd_core::mathop::eval(&mut ExprEval::new(&mut vm), "lt", vec![raw, unicode])
                 .unwrap_err();
@@ -2663,12 +2680,14 @@ mod tests {
             ok(Value::int(99))
         }
 
-        let mut vm = Vm::new();
+        let interpreter = |name| {
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(name))
+        };
+        let mut vm = interpreter("tcl8.4");
         // Replace the normal command-table entry after construction. The
         // preserved fixed table is intentionally not changed: Tcl 8.4's expr
         // dispatch did not use a Tcl command name at all.
         vm.register_command("tcl::mathfunc::sqrt", Command::Builtin(replacement));
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_4);
 
         // TP: a fixed-table builtin remains executable.
         assert_eq!(vm.eval_expr("sqrt(4)").unwrap().to_str().as_ref(), "2.0");
@@ -2682,12 +2701,11 @@ mod tests {
             "unknown math function \"user_supplied\""
         );
         // Host registrations remain visible independently of absent stock commands.
-        let replacement = vm.invoke_command("::tcl::mathfunc::sqrt", &[Value::int(4)]);
-        assert_eq!(replacement.code, Code::Ok);
-        assert_eq!(replacement.result.to_str().as_ref(), "99");
+        let replaced = vm.invoke_command("::tcl::mathfunc::sqrt", &[Value::int(4)]);
+        assert_eq!(replaced.code, Code::Ok);
+        assert_eq!(replaced.result.to_str().as_ref(), "99");
         // The default stock wrapper is absent before TIP 232.
-        let mut stock = Vm::new();
-        stock.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+        let mut stock = interpreter("tcl8.4");
         assert_eq!(
             stock
                 .invoke_command("::tcl::mathfunc::sqrt", &[Value::int(4)])
@@ -2695,7 +2713,8 @@ mod tests {
             Code::Error
         );
 
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_5);
+        let mut vm = interpreter("tcl8.5");
+        vm.register_command("tcl::mathfunc::sqrt", Command::Builtin(replacement));
         // FP guard: the same replacement becomes the open command-table target
         // once TIP 232 is enabled, rather than retaining the 8.4 shortcut.
         assert_eq!(vm.eval_expr("sqrt(4)").unwrap().to_str().as_ref(), "99");
@@ -2709,13 +2728,14 @@ mod tests {
     /// lexeme-boundary assertion here.
     #[test]
     fn shared_expr_numeral_boundaries_reach_the_vm() {
-        let mut vm = Vm::new();
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
         assert!(vm.eval_expr("0b1ne 1").is_ok());
         assert!(vm.eval_expr("0xfne 1").is_ok());
         assert!(vm.eval_expr("0xffin {255}").is_ok());
 
-        vm.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
         assert!(vm.eval_expr("0xfge 15").is_ok());
         assert!(vm.eval_expr("0d9lt 10").is_ok());
         for source in ["0 + 1_eq", "0 + 12x"] {
@@ -3016,14 +3036,12 @@ mod tests {
     fn bignum_float_contagion_matches_c() {
         let s = |t: &str| Value::string(t);
         let f = |op: BinOp, a: &Value, b: &Value| arith(op, a, b).unwrap().to_str().to_string();
-        // tclsh: expr {1.5 + 18446744073709551616} — the *value* is exactly
-        // 2^64 (tclsh: entier of it is 18446744073709551616). tclsh 8.6
-        // prints it "1.844674407370955e+19", which does not round-trip (it
-        // re-parses as 2^64 - 2048); this toolchain's `format_double` is
-        // pinned to the shortest *round-tripping* form.
+        // tclsh 8.5 to 9.1: expr {1.5 + 18446744073709551616} prints the
+        // exact 2^64 as "1.844674407370955e+19", which re-parses as
+        // 2^64 - 2048; `format_double` follows C's digit generation.
         assert_eq!(
             f(BinOp::Add, &Value::double(1.5), &s("18446744073709551616")),
-            "1.8446744073709552e+19"
+            "1.844674407370955e+19"
         );
         // tclsh: expr {2**200 + 1.5} → 1.6069380442589903e+60
         let p200 = "1606938044258990275541962092341162602522202993782792835301376";
