@@ -73,7 +73,7 @@ fn framework_manifest_is_admitted_only_under_its_original_selection() {
 
 #[test]
 fn selecting_profile_without_core_never_issues_host_context() {
-    let mut vm = Vm::new();
+    let mut vm = Vm::without_native_engine();
     vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
     assert!(vm.set_native_engine_profile(host()));
     assert!(vm.native_core_pin.is_none());

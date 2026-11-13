@@ -437,10 +437,8 @@ mod physical_ensemble_owner_tests {
                 &[Value::string("complete"), Value::string("set x ${a{}")],
             )
             .unwrap();
-        assert_eq!(
-            completion.result.resident_string_bytes().unwrap().as_ref(),
-            b"0"
-        );
+        // C9 InfoCompleteCmd returns Tcl_NewBooleanObj, which has no string.
+        assert_eq!(completion.result.string_bytes().as_ref(), b"0");
     }
 
     #[test]

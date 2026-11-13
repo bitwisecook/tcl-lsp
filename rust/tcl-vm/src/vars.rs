@@ -816,12 +816,24 @@ impl VarArena {
             }
         }
     }
-    pub(crate) fn invalidate_destroyed_element(&mut self, id: VarId, preserve_definition: bool) {
+    /// Whether a destroyed element keeps its C84 defined flag through its
+    /// unset trace. Read before the stored scalar is released.
+    pub(crate) fn destroyed_element_keeps_definition(
+        &self,
+        id: VarId,
+        preserve_definition: bool,
+    ) -> bool {
+        preserve_definition
+            && self
+                .cells
+                .get(&id)
+                .is_some_and(|cell| matches!(cell.state, VarState::Scalar(_) | VarState::Array(_)))
+    }
+    pub(crate) fn invalidate_destroyed_element(&mut self, id: VarId, definition_pending: bool) {
         if let Some(cell) = self.cells.get_mut(&id) {
             cell.element_destruction = Some(true);
             // This is the C84 Var flag, not a value or an existence result.
-            cell.element_definition_pending = preserve_definition
-                && matches!(cell.state, VarState::Scalar(_) | VarState::Array(_));
+            cell.element_definition_pending = definition_pending;
         }
     }
     pub(crate) fn finish_destroyed_element_trace(&mut self, id: VarId) {

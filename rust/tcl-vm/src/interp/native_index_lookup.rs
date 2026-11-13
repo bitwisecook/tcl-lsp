@@ -703,7 +703,7 @@ mod tests {
             }
         ));
 
-        let mut unknown = Vm::new();
+        let mut unknown = Vm::without_native_engine();
         unknown.set_dialect_profile(tcl_dialect::DialectProfile::irules());
         let error = table
             .index_of_original(&mut unknown, &original)
@@ -711,8 +711,8 @@ mod tests {
         crate::command::completion_from_cmd_error(&mut unknown, error);
         assert!(unknown.execution_refusal.is_some());
 
-        let mut legacy = Vm::new();
-        legacy.set_runtime_version(TclVersion::V8_4);
+        let mut legacy =
+            crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         let error = table
             .index_of_original(&mut legacy, &original)
             .expect_err("actual C84 Index miss");
@@ -798,15 +798,15 @@ mod tests {
 
     #[test]
     fn foreign_index_origin_refuses_before_getter_and_failed_match_preserves_primary() {
-        let mut vm = Vm::new();
-        vm.set_runtime_version(TclVersion::V8_4);
+        let legacy = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
         let table = NativeStaticIndexTable::supported_backend(WORDS);
         let original = Value::new_native_string_bytes(b"pro".as_slice());
-        vm.native_index_from_original(&original, &table, false, "option")
+        legacy
+            .native_index_from_original(&original, &table, false, "option")
             .unwrap()
             .unwrap();
         let bytes = original.resident_string_bytes().unwrap();
-        vm.set_runtime_version(TclVersion::V9_0);
+        let vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
         assert!(
             vm.native_index_from_original(&original, &table, false, "option")
                 .is_err()

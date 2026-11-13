@@ -1419,7 +1419,7 @@ mod tests {
         add: bool,
         receipt_start: std::time::Instant,
     ) -> Vm {
-        let mut vm = Vm::new();
+        let mut vm = crate::native_fixture::interpreter(profile);
         tcl_test_support::oracle_phase_progress(
             "dictionary-callback14",
             engine,
@@ -1427,17 +1427,6 @@ mod tests {
             "vm-new-complete",
             receipt_start,
         );
-        vm.set_dialect_profile(profile);
-        tcl_test_support::oracle_phase_progress(
-            "dictionary-callback14",
-            engine,
-            case,
-            "profile-complete",
-            receipt_start,
-        );
-        vm.set_compiler(Box::new(
-            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
         vm.register_native_command(
             "advance",
             crate::native_conformance::dictionary_search_mutation_driver(

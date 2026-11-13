@@ -133,7 +133,7 @@ fn special_and_nested_frames_match_12_native_command_logs() {
             if special {
                 // Actual host-pushed special frame, matching Tcl_PushCallFrame's
                 // empty objc rather than a namespace command's invocation.
-                vm.push_ns_eval_frame("", Vec::new());
+                vm.push_ns_eval_token_frame(crate::interp::ROOT_NS, Vec::new());
             }
             let completion = vm.eval_source(script).unwrap();
             assert_eq!(
@@ -153,6 +153,7 @@ fn special_and_nested_frames_match_12_native_command_logs() {
             );
             if special {
                 vm.pop_call_frame();
+                vm.pop_ns();
             }
             matched += 1;
         }

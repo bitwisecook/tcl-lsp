@@ -1641,6 +1641,9 @@ mod tests {
         assert!(!vm.native_operation_context.has_entered_operation());
     }
 
+    // The host and profile ABA are found by the restored-context re-proof,
+    // which runs only under `VERIFY_CURRENCY`.
+    #[cfg(debug_assertions)]
     #[test]
     fn original_observed_transition_never_authorises_foreign_aba_or_raw_policy_setters() {
         // naming.embedding.original-host-publication-and-fact-transport

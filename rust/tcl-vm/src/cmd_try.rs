@@ -1321,7 +1321,15 @@ fn advance_after_finally(
         } else {
             fc.code
         };
-        let result = if !plan.ignored_body && fc.code == Code::Ok {
+        let restored = !plan.ignored_body && fc.code == Code::Ok;
+        let result = if restored {
+            // JimCatchTryHelper sets the saved result again after an OK finally.
+            if let Err(error) = vm.adopt_native_interp_result(outcome.result.clone()) {
+                return TryOutcome::Deliver(crate::command::completion_from_cmd_error(
+                    vm,
+                    error.into(),
+                ));
+            }
             outcome.result
         } else {
             fc.result

@@ -76,6 +76,8 @@ impl Vm {
                     old_style: false,
                 });
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
+            // Static compilation receipts record this epoch per recipient.
+            self.bump_trace_deopt_epoch();
             Ok(token)
         })();
         original_names
@@ -119,6 +121,7 @@ impl Vm {
             }
         }
         self.invalidate_guard_domain(GuardDomain::VariableTrace);
+        self.bump_trace_deopt_epoch();
         true
     }
 }

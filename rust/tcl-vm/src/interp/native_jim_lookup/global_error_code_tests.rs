@@ -152,6 +152,8 @@ fn captured_error_code_options_do_not_reach_a_second_global_getter() {
         .lines()
         .find_map(|line| line.strip_prefix("3|"))
         .unwrap();
+    // Jim_SetVariableLink refuses to relink a variable that is not a link.
+    let setup = format!("unset errorCode; {setup}");
     assert_eq!(
         vm.try_eval_source_bytes(setup.as_bytes()).unwrap().code,
         Code::Ok

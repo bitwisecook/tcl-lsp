@@ -280,6 +280,7 @@ mod tests {
                 "{engine}"
             );
             vm.pop_call_frame();
+            vm.pop_ns();
             assert!(
                 vm.module_proc("a:::b::p", "", "return SAME", old).is_none(),
                 "{engine}"

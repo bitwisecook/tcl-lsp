@@ -418,16 +418,22 @@ impl OriginalVariableCleanup {
                 let _ = self.retire(vm, VariableRetirement::unbind(raw));
                 continue;
             };
+            let pending = self.state_mut(vm).is_ok_and(|state| {
+                state
+                    .var_arena
+                    .destroyed_element_keeps_definition(id, preserve)
+            });
             if self.c_protocol.is_some() {
                 // DeleteArray releases the old stored scalar while its pointer
-                // is visible, then clears it and invalidates the entry.
+                // is visible, then clears it and invalidates the entry; C84
+                // clears the defined flag only after the unset trace.
                 self.release_visible_scalar(vm, id);
                 if let Ok(state) = self.state_mut(vm) {
-                    state.var_arena.invalidate_destroyed_element(id, preserve);
+                    state.var_arena.invalidate_destroyed_element(id, pending);
                 }
             } else {
                 if let Ok(state) = self.state_mut(vm) {
-                    state.var_arena.invalidate_destroyed_element(id, preserve);
+                    state.var_arena.invalidate_destroyed_element(id, pending);
                 }
                 if let Some(old) = self.retire(vm, VariableRetirement::detach(id)) {
                     let _ = self.retire(vm, VariableRetirement::state(old));

@@ -1135,21 +1135,19 @@ mod tests {
             let mut vm = crate::native_fixture::interpreter(
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
             );
-            let completion = vm.try_eval_source_bytes(source).unwrap();
+            // The retained observer measures binary-scan units after the catch,
+            // independently of the result's native modified-UTF-8 string bytes.
+            let mut observer = b"set observed [".to_vec();
+            observer.extend_from_slice(source.trim_ascii());
+            observer.extend_from_slice(b"]\nbinary scan $observed H* hex\nset hex");
+            let completion = vm.try_eval_source_bytes(&observer).unwrap();
             assert_eq!(completion.code, crate::Code::Ok, "{version:?}");
             let expected = row.split_once('\t').unwrap().1;
-            let expected: Vec<_> = expected
-                .as_bytes()
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
-                .collect();
             assert_eq!(
                 vm.native_name_operand_bytes(&completion.result)
                     .unwrap()
                     .as_ref(),
-                expected,
+                expected.as_bytes(),
                 "{version:?}"
             );
             let result = vm.native_namespace_origin_result(b"::selected").unwrap();
@@ -1260,8 +1258,9 @@ mod tests {
                 ("data-absolute", true, true),
                 ("command-absolute", true, false),
             ] {
-                let mut vm = Vm::new();
-                vm.set_runtime_version(version);
+                let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(
+                    version.dialect_name(),
+                ));
                 command(&mut vm, b"head");
                 let head: &[u8] = if absolute { b"::head" } else { b"head" };
                 let entry = vm.native_compilation_entry_for_namespace_token(ROOT_NS, false);
@@ -1332,8 +1331,9 @@ mod tests {
     #[test]
     fn original_lookup_refreshes_replaced_nodes_and_keeps_release_specific_misses() {
         for version in TclVersion::ALL {
-            let mut vm = Vm::new();
-            vm.set_runtime_version(version);
+            let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(
+                version.dialect_name(),
+            ));
             command(&mut vm, b"head");
             let original = Value::new_native_string_bytes(b"head".as_slice());
             let resident = original.resident_string_bytes().unwrap();

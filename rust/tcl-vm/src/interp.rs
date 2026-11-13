@@ -4869,9 +4869,12 @@ impl Vm {
             self.install_native_env_trace();
             return;
         }
-        self.ensure_array("::tcl_platform")
-            .expect("fresh tcl_platform array");
-        self.ensure_array("::env").expect("fresh env array");
+        // A refused root store (a pending refusal or an observed name policy)
+        // keeps its first cause; the replaced host's globals stay withdrawn.
+        if self.ensure_array("::tcl_platform").is_err() || self.ensure_array("::env").is_err() {
+            self.limits.confined_stores = confined;
+            return;
+        }
         self.write_scalar_raw("::tcl_library", Value::string(snapshot.tcl_library()));
         self.write_scalar_raw("::auto_path", Value::list(Vec::new()));
         for (name, value) in snapshot.platform() {
@@ -19968,25 +19971,6 @@ impl Vm {
             }
         }
         Ok(scopes)
-    }
-
-    /// Push a non-proc call frame for a `namespace eval`/`inscope` body running
-    /// in namespace `ns` (canonical, no leading `::`). Like a proc call this is a
-    /// real frame — `info level` counts it and `uplevel`/`upvar` can target it —
-    /// but it is marked [`ns_eval`](CallFrame::ns_eval) so an unqualified variable
-    /// in its body resolves to a namespace variable rather than a frame local.
-    /// `call_argv` is the invoking command words (for `info level N`).
-    #[cfg(test)]
-    pub(crate) fn push_ns_eval_frame(&mut self, ns: &str, call_argv: Vec<Value>) -> usize {
-        let level = self.frames.len();
-        let mut frame = CallFrame::new(level, ROOT_NS, None, call_argv);
-        if self.uses_native_jim_lookup() {
-            frame.jim_storage = self.jim_storage.acquire();
-        }
-        frame.ns_eval = Some(NameBytes::from(ns));
-        self.frames.push(frame);
-        self.recursion_depth += 1;
-        level
     }
 
     /// The current call-nesting depth (proc recursion bound).
@@ -35188,8 +35172,7 @@ mod native_namespace_variable_fixture_tests {
                     "plain" => b"a",
                     _ => panic!("unknown native input {name}"),
                 };
-                let mut vm = Vm::new();
-                vm.set_dialect_profile(profile);
+                let mut vm = crate::native_fixture::core(profile);
                 let operand = if parts[1] == "pure-byte-array" {
                     Value::byte_array(Rc::<[u8]>::from(spelling))
                 } else {
@@ -35259,8 +35242,8 @@ mod native_hidden_byte_names {
         for row in rows.lines() {
             let fields = row.split_whitespace().collect::<Vec<_>>();
             assert_eq!(fields.len(), 5);
-            let mut vm = Vm::with_output(Box::new(std::io::sink()));
-            vm.set_dialect_profile(crate::environment::profile_for_dialect(fields[0]));
+            let mut vm =
+                crate::native_fixture::core(crate::environment::profile_for_dialect(fields[0]));
             let policy = vm.command_visibility_policy().unwrap();
             let completion = match fields[1] {
                 "invalid-token" => {
@@ -35957,6 +35940,7 @@ mod debug_owned_cell_tests {
     #[test]
     fn snapshot_reads_owned_cells_before_rendering_native_name_bytes() {
         let mut vm = Vm::new();
+        let globals = vm.debug_snapshot(6, "before").variables;
         vm.push_call_frame(Some("inspection".into()), Vec::new());
         let array = VarBinding {
             owner: VarTableOwner::Frame(vm.current_level()),
@@ -35993,10 +35977,7 @@ mod debug_owned_cell_tests {
         assert_eq!(snapshot.level, 1);
         assert_eq!(snapshot.stack[0].name, "inspection");
         vm.pop_call_frame();
-        assert_eq!(
-            vm.debug_snapshot(8, "after").variables,
-            [] as [crate::debug::DebugVar; 0]
-        );
+        assert_eq!(vm.debug_snapshot(8, "after").variables, globals);
     }
 }
 

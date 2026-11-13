@@ -34,7 +34,7 @@ impl Write for Output {
 fn compare(engine: &str, oracle: &[u8]) {
     let profile = crate::environment::profile_for_dialect(engine);
     let output = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = crate::native_fixture::interpreter_with_output(
+    let mut vm = crate::native_fixture::interpreter_with_utf8_output(
         profile,
         Box::new(Output(Rc::clone(&output))),
     );

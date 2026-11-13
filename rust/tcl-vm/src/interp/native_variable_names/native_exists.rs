@@ -30,6 +30,24 @@ impl Vm {
             crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let reached = (|| {
+            // C84 `info exists` hands Tcl_GetString's bytes to TclLookupVar, so
+            // the original object acquires no name cache.
+            let byte_name;
+            let original = if element.is_none()
+                && self
+                    .native_c_variable_name_protocol()
+                    .is_some_and(|protocol| {
+                        !protocol.uses_original_name_cache(NativeVariableNameLookupPurpose::Exists)
+                    }) {
+                byte_name = Value::new_native_string_bytes(
+                    original_names
+                        .read(self, original)
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?,
+                );
+                &byte_name
+            } else {
+                original
+            };
             // TclObjLookupVarEx obtains part2 before inspecting part1's cache.
             let element_bytes = element
                 .map(|element| original_names.read(self, element))

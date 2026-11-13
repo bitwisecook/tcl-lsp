@@ -748,9 +748,7 @@ mod tests {
 
     fn selected_local() -> SelectedLocalControls {
         let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-        let mut vm = super::Vm::new();
-        assert!(vm.set_native_engine_profile(profile));
-        vm.set_dialect_profile(profile);
+        let mut vm = crate::native_fixture::core(profile);
         let released = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let command = |label| {
             super::Command::Native(std::rc::Rc::new(PreviousOwnerObserver {
@@ -903,8 +901,8 @@ mod tests {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let (mut vm, slot, original_token, released) = selected_local();
-        vm.create_child(Some("independent".into()), false);
-        let child = vm.child_id("independent").unwrap();
+        let name = vm.create_jim_child();
+        let child = vm.child_id(&name).unwrap();
         let scope =
             super::super::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm).unwrap();
         let (continuation, previous) = vm.unlink_original_jim_local_command(slot.clone()).unwrap();

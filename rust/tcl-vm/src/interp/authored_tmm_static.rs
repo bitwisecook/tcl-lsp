@@ -1430,7 +1430,7 @@ mod tests {
             assert_eq!(row.len(), 11);
             assert_eq!(row[0], "vl1");
             assert_eq!(row[1], "0");
-            assert_eq!(row[3], "192.168.9.80");
+            assert_eq!(row[3], "192.0.2.201");
             let expected_port = (42100 + tuple).to_string();
             assert_eq!(row[4].as_ref(), expected_port.as_str());
             assert_eq!(row[5], "before");

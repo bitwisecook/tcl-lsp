@@ -661,7 +661,9 @@ fn original_jim_namespace_eval_uses_its_actual_holder_without_c_tree_registratio
     let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
     let outer =
         super::super::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
-    let completion = vm.eval_source("namespace eval originalJimHolder {set value HELD}; namespace eval originalJimHolder {set value}").unwrap();
+    // Jim_EvalNamespace evaluates each body in a new call frame, so only a
+    // global outlives the first evaluation.
+    let completion = vm.eval_source("namespace eval originalJimHolder {set ::held HELD}; namespace eval originalJimHolder {set ::held}").unwrap();
     assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
     assert_eq!(
         completion.result.resident_string_bytes().unwrap().as_ref(),
