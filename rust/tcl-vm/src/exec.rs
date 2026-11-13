@@ -12492,8 +12492,7 @@ mod tests {
             for row in rows.lines().filter(|row| row.starts_with("0\t")) {
                 let fields = row.split('\t').collect::<Vec<_>>();
                 tcl_test_support::oracle_row_progress("objectvector24", engine, fields[1], None);
-                let mut vm = Vm::new();
-                vm.set_dialect_profile(
+                let mut vm = crate::native_fixture::core(
                     tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
                 );
                 vm.register_native_command("fail", std::rc::Rc::new(Failure));
@@ -12587,8 +12586,9 @@ mod tests {
             .into_iter()
             .filter(|version| *version >= tcl_dialect::TclVersion::V8_5)
         {
-            let mut vm = Vm::new();
-            vm.set_runtime_version(version);
+            let mut vm = crate::native_fixture::core(
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
+            );
             let slot = CommandSlot {
                 namespace: ROOT_NS,
                 simple: NameBytes::from(b"h\xff".as_slice()),
@@ -12686,8 +12686,9 @@ mod tests {
                 // Compare the command and opcode through independent original
                 // objects, so the command cannot donate a cache to the opcode.
                 for compiled in [false, true] {
-                    let mut vm = Vm::new();
-                    vm.set_runtime_version(version);
+                    let mut vm = crate::native_fixture::core(
+                        tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
+                    );
                     vm.register_command_in_slot(
                         CommandSlot {
                             namespace: ROOT_NS,

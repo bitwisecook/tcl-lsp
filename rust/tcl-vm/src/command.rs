@@ -5282,7 +5282,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/procedure-error.long-name-and-argv-context.md
         // Native proof: naming.procedure-error.body-line-context
         // docs/design/analysis/name-resolution-proofs/procedure-error.body-line-context.md
-        use super::{Value, Vm};
+        use super::Value;
         let decode = |text: &str| {
             assert_eq!(text.len() % 2, 0);
             text.as_bytes()
@@ -5297,11 +5297,7 @@ mod tests {
         for row in include_str!("../tests/data/native_procedure_parse_context/8.4.20.tsv").lines() {
             let fields = row.split('\t').collect::<Vec<_>>();
             assert_eq!(fields.len(), 8);
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
             let name = Value::new_native_string_bytes(decode(fields[3]));
             let definition = super::cmd_proc(
                 &mut vm,
@@ -5360,7 +5356,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/procedure-original-string-body-capture.md
         // Native proof: naming.procedure.original-list-bytearray-body-capture
         // docs/design/analysis/name-resolution-proofs/procedure-original-list-bytearray-body-capture.md
-        use super::{Command, Value, Vm};
+        use super::{Command, Value};
         let engines = [
             (
                 "tcl8.4",
@@ -5396,8 +5392,7 @@ mod tests {
                 let refs = expected[1].parse::<usize>().unwrap();
                 let profile =
                     tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-                let mut vm = Vm::new();
-                vm.set_dialect_profile(profile);
+                let mut vm = crate::native_fixture::interpreter(profile);
                 let dialect = vm.native_invocation_dialect();
                 let protocol = dialect.native_string_protocol().unwrap();
                 let body = match kind {
@@ -5468,7 +5463,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/procedure-original-malformed-body-arity-order.md
         // Native proof: naming.procedure.original-wrong-arity-body-withdrawal
         // docs/design/analysis/name-resolution-proofs/procedure-original-wrong-arity-body-withdrawal.md
-        use super::{Command, Value, Vm};
+        use super::{Command, Value};
         let engines = [
             (
                 "tcl8.4",
@@ -5498,11 +5493,7 @@ mod tests {
         let mut compared = 0;
         for (engine, fixture) in engines {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
             let protocol = vm
                 .native_invocation_dialect()
                 .native_string_protocol()
@@ -5870,11 +5861,7 @@ mod tests {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
             for (source, c_result, jim_result) in cases {
-                let mut vm = crate::Vm::new();
-                vm.set_dialect_profile(profile);
-                vm.set_compiler(Box::new(
-                    tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-                ));
+                let mut vm = crate::native_fixture::interpreter(profile);
                 let completion = vm
                     .try_eval_source(source)
                     .unwrap_or_else(|error| panic!("{dialect}: {source}: {error:?}"));
@@ -5901,11 +5888,7 @@ mod tests {
     fn expression_argv_validation_precedes_shared_source_coercion() {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
-            let mut vm = crate::Vm::new();
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
             let result = vm
                 .try_eval_source(
                     "set x [list 3]; set code [catch {expr $x + 1} result]; list $code $result [concat $x [list]]",
@@ -6184,11 +6167,8 @@ mod tests {
             assert_eq!(words.len(), 3);
             assert_eq!(wanted.len(), 3);
             assert_eq!(words[1], wanted[0]);
-            let mut vm = crate::Vm::new();
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
+            crate::native_fixture::install_distribution(&mut vm);
             let completion = vm.eval_source(&words[2]).unwrap();
             assert_eq!(
                 completion.code.as_int().to_string(),
@@ -6218,11 +6198,8 @@ mod tests {
         ];
         let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
         for (source, wanted) in cases {
-            let mut vm = crate::Vm::new();
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
+            crate::native_fixture::install_distribution(&mut vm);
             let completion = vm.eval_source(source).unwrap();
             assert_eq!(
                 completion.code,
@@ -6357,15 +6334,14 @@ mod tests {
 
     #[test]
     fn original_list_eval_retains_member_identity_without_materialising_source() {
-        use crate::{Value, Vm};
+        use crate::Value;
         use tcl_runtime_api::Code;
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(profile);
+            if dialect == "jim" {
+                crate::native_fixture::install_distribution(&mut vm);
+            }
             let result = Value::new_native_string_bytes(&b"\xff\0TAIL"[..]);
             let script = Value::list(vec![Value::string("return"), result.clone()]);
             let completion = {
