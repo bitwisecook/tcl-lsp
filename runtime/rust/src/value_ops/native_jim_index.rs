@@ -432,6 +432,16 @@ impl NativeIndexOps for Interp {
                     "original sort List issuer",
                 ))?;
         let list = crate::list::new_list_obj_native(&members, protocol);
+        // Jim's lsort -stride groups are interpreter-created Lists.
+        if protocol.is_jim084() {
+            let context = self.native_jim_object_context();
+            let bound =
+                context.and_then(|context| crate::native_source::bind_context(list, &context));
+            if let Err(error) = bound {
+                crate::interp::drop_fresh(list);
+                return Err(error.into());
+            }
+        }
         if held {
             Ok(RuntimeIndexKey::held(obj::Owned::fresh(list)))
         } else {
