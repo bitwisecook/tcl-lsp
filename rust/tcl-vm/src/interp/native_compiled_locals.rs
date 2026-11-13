@@ -734,12 +734,13 @@ impl Vm {
             return Err(refusal);
         }
         if !existed && complain {
-            // A compiled local always has a cell, so a scalar fails at the unset itself.
+            // A compiled local always has a cell, as does a traced element, so
+            // either fails at the unset itself.
             return Err(self.variable_access_error_at(
                 "unset",
                 input,
                 reason,
-                if element.is_none() {
+                if element.is_none() || resolved.id.is_some() {
                     tcl_syntax::naming::NativeVariableFailureSite::ValueUnset
                 } else {
                     tcl_syntax::naming::NativeVariableFailureSite::NameLookup

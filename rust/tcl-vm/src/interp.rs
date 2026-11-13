@@ -1211,12 +1211,21 @@ struct PackageState {
     package_ifneeded: HashMap<tcl_core_types::NameBytes, Vec<(tcl_core_types::NameBytes, Vec<u8>)>>,
     /// Selected package loaders currently being evaluated. Tcl uses the
     /// selected loader's required name/version as a circular-dependency guard;
-    /// the stack matters because loaders may require other packages.
-    package_loading: Vec<(tcl_core_types::NameBytes, tcl_core_types::NameBytes)>,
+    /// the stack matters because loaders may require other packages. A
+    /// `package forget` retires the guard (C deletes the `Package` record
+    /// holding it) while the loader itself still runs.
+    package_loading: Vec<PackageLoadingMarker>,
     /// Libraries loaded into this interpreter, `(file name, prefix)` in the
     /// order they were loaded (`info loaded`). The file name is empty for one
     /// linked into the program.
     loaded_libraries: Vec<(String, String)>,
+}
+
+/// One running package loader's circular-dependency guard.
+struct PackageLoadingMarker {
+    name: tcl_core_types::NameBytes,
+    version: tcl_core_types::NameBytes,
+    forgotten: bool,
 }
 
 /// The guard machinery's record of command tokens, by token generation.
@@ -3057,6 +3066,7 @@ impl Vm {
         crate::cmd_file::refresh_profile(self);
         crate::cmd_array::refresh_profile(self);
         crate::cmd_binary::refresh_profile(self);
+        crate::cmd_clock::refresh_profile(self);
         crate::command::refresh_encoding_profile(self);
         crate::cmd_namespace::refresh_profile(self);
         crate::cmd_string::refresh_profile(self);
@@ -15848,7 +15858,8 @@ impl Vm {
             .package_loading
             .iter()
             .rev()
-            .find_map(|(key, version)| (key.as_bytes() == name.as_ref()).then_some(version))
+            .find(|marker| !marker.forgotten && marker.name.as_bytes() == name.as_ref())
+            .map(|marker| &marker.version)
     }
 
     pub(crate) fn begin_package_loading(
@@ -15866,10 +15877,13 @@ impl Vm {
                 .package_file_scopes
                 .push(tcl_core_types::NameBytes::from(name.as_ref()));
         }
-        self.selected_package_state_mut().package_loading.push((
-            tcl_core_types::NameBytes::from(name.as_ref()),
-            tcl_core_types::NameBytes::from(version.as_ref()),
-        ));
+        self.selected_package_state_mut()
+            .package_loading
+            .push(PackageLoadingMarker {
+                name: tcl_core_types::NameBytes::from(name.as_ref()),
+                version: tcl_core_types::NameBytes::from(version.as_ref()),
+                forgotten: false,
+            });
     }
 
     /// Cleanup remains tolerant of a loader forgetting its own package.
@@ -15898,8 +15912,9 @@ impl Vm {
             .selected_package_state()
             .package_loading
             .iter()
-            .rposition(|(key, loading_version)| {
-                key.as_bytes() == name.as_ref() && loading_version.as_bytes() == version.as_ref()
+            .rposition(|marker| {
+                marker.name.as_bytes() == name.as_ref()
+                    && marker.version.as_bytes() == version.as_ref()
             });
         if let Some(position) = position {
             self.selected_package_state_mut()
@@ -15972,6 +15987,11 @@ impl Vm {
         self.selected_package_state_mut()
             .package_loader_origins
             .retain(|(key, _), _| key.as_bytes() != name.as_ref());
+        for marker in &mut self.selected_package_state_mut().package_loading {
+            if marker.name.as_bytes() == name.as_ref() {
+                marker.forgotten = true;
+            }
+        }
     }
 
     pub(crate) fn set_package_unknown(&mut self, script: Option<Vec<u8>>) {
@@ -16518,9 +16538,25 @@ impl Vm {
         {
             return Ok(());
         }
+        let scalar_root = self
+            .resolve_var_from_bytes(projection.selected(), self.current_level())
+            .is_some_and(|resolved| {
+                resolved.elem.is_some()
+                    && matches!(
+                        resolved
+                            .base_id
+                            .and_then(|id| self.var_arena.get(id))
+                            .map(crate::vars::VarCell::state),
+                        Some(Local::Scalar(_))
+                    )
+            });
         let mut message = b"can't trace \"".to_vec();
         message.extend_from_slice(original);
-        message.extend_from_slice(b"\": parent namespace doesn't exist");
+        message.extend_from_slice(if scalar_root {
+            b"\": variable isn't array".as_slice()
+        } else {
+            b"\": parent namespace doesn't exist"
+        });
         Err(err(message))
     }
 
@@ -18492,7 +18528,7 @@ impl Vm {
                 }
             };
         message.extend_from_slice(&original_message);
-        failure.code = Code::Error;
+        settle_trace_failure_code(&mut failure, was_error);
         failure.result = Value::from_string_bytes(message);
         if self
             .native_c_variable_name_protocol()
@@ -36688,4 +36724,17 @@ fn created_without_compile_procedure(identity: &str) -> bool {
         || ["thread::", "tsv::", "tpool::"]
             .iter()
             .any(|prefix| name.starts_with(prefix))
+}
+
+/// A variable trace failure is the access's own level-0 error: a callback's
+/// merged control code does not survive into the options it reports.
+fn settle_trace_failure_code(failure: &mut Completion<Value>, was_error: bool) {
+    failure.code = Code::Error;
+    if !was_error
+        && let tcl_core_types::CompletionOptionOrigin::MergedReturnOptions { .. } =
+            failure.option_origin
+    {
+        failure.option_origin =
+            tcl_core_types::CompletionOptionOrigin::MergedReturnOptions { code: 1, level: 0 };
+    }
 }

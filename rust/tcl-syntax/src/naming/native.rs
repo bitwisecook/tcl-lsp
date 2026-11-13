@@ -2834,7 +2834,7 @@ fn native_variable_failure_code(
             (NameLookup, NoSuchVariable | MissingParentNamespace | NotArray) => {
                 &[b"TCL", b"LOOKUP", b"VARNAME", root]
             }
-            (NameLookup | ValueUnset, NoSuchElement) if element.is_some() => &[
+            (NameLookup, NoSuchElement) if element.is_some() => &[
                 b"TCL",
                 b"LOOKUP",
                 b"ELEMENT",
@@ -2843,7 +2843,7 @@ fn native_variable_failure_code(
             (ValueRead, NoSuchVariable | NoSuchElement | IsArray | DetachedElement) => {
                 &[b"TCL", b"READ", b"VARNAME"]
             }
-            (ValueUnset, NoSuchVariable) => &[b"TCL", b"UNSET", b"VARNAME"],
+            (ValueUnset, NoSuchVariable | NoSuchElement) => &[b"TCL", b"UNSET", b"VARNAME"],
             (ValueWrite, Constant) if operation == Increment => &[b"TCL", b"WRITE", b"CONST"],
             (
                 ValueWrite,
@@ -2858,7 +2858,7 @@ fn native_variable_failure_code(
     } else if protocol == NativeNameProtocol::C(TclVersion::V8_5)
         && operation == NativeVariableDiagnosticOperation::Unset
         && reason == NoSuchElement
-        && matches!(site, NameLookup | ValueUnset)
+        && site == NameLookup
     {
         // C8.5's element lookup tags only the unset miss.
         element.map(|element| {

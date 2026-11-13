@@ -1105,7 +1105,7 @@ pub(crate) fn emit_lappend_values(
     let script_frame = !ctx.compiles_locals();
     let single = values.len() == 1 && !values[0].2 && !script_frame;
     if single {
-        ctx.emit_word_arg(1, &values[0].0);
+        ctx.emit_native_argument_word(1, &values[0].0, values[0].1);
     } else {
         ctx.emit_native_argument_list(
             values

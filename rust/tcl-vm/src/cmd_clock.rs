@@ -28,22 +28,7 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register_stock_builtin("clock", cmd_clock);
-    // The ensemble's implementation members — `clock clicks` compiles/dispatches
-    // to `::tcl::clock::clicks`, and library/framework code calls these
-    // fully-qualified forms directly. Each prepends its subcommand and reuses
-    // the same dispatch.
-    vm.register_stock_builtin("::tcl::clock::seconds", |vm, a| member(vm, "seconds", a));
-    vm.register_stock_builtin("::tcl::clock::milliseconds", |vm, a| {
-        member(vm, "milliseconds", a)
-    });
-    vm.register_stock_builtin("::tcl::clock::microseconds", |vm, a| {
-        member(vm, "microseconds", a)
-    });
-    vm.register_stock_builtin("::tcl::clock::clicks", |vm, a| member(vm, "clicks", a));
-    vm.register_stock_builtin("::tcl::clock::format", |vm, a| member(vm, "format", a));
-    vm.register_stock_builtin("::tcl::clock::add", |vm, a| member(vm, "add", a));
-    vm.register_stock_builtin("::tcl::clock::scan", |vm, a| member(vm, "scan", a));
+    register_clock(vm);
     vm.register_stock_builtin(
         "::tcl::unsupported::clock::configure",
         |_vm, args| match args {
@@ -52,6 +37,59 @@ pub(crate) fn register(vm: &mut Vm) {
         },
     );
 }
+
+/// The `::tcl::clock` ensemble where the release bootstraps one, so compiled
+/// readings find the members C compiles; elsewhere the plain command. Library
+/// and framework code call the fully-qualified members directly either way.
+fn register_clock(vm: &mut Vm) {
+    if let Some(namespace) = vm
+        .actual_native_invocation_dialect()
+        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Clock)
+    {
+        let subs: Vec<&str> = CLOCK_MEMBERS.iter().map(|&(member, _)| member).collect();
+        vm.register_stock_namespace_ensemble("clock", namespace, CLOCK_MEMBERS, &subs);
+        return;
+    }
+    vm.register_stock_builtin("clock", cmd_clock);
+    for &(member, handler) in CLOCK_MEMBERS {
+        vm.register_stock_builtin(&format!("::tcl::clock::{member}"), handler);
+    }
+}
+
+/// Repinning retains user replacements and selects the release's surface.
+pub(crate) fn refresh_profile(vm: &mut Vm) {
+    if vm.stock_native_identity("clock").as_deref() != Some("clock") {
+        return;
+    }
+    for &(member, _) in CLOCK_MEMBERS {
+        let target = format!("::tcl::clock::{member}");
+        if vm.stock_native_identity(&target).as_deref()
+            == tcl_syntax::naming::unroot_rooted_key(&target)
+        {
+            vm.remove_registered_command(
+                tcl_syntax::naming::unroot_rooted_key(&target).unwrap_or(&target),
+            );
+        }
+    }
+    register_clock(vm);
+    if vm
+        .actual_native_invocation_dialect()
+        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Clock)
+        .is_none()
+    {
+        vm.retire_unused_stock_ensemble_namespace("clock");
+    }
+}
+
+const CLOCK_MEMBERS: &[(&str, crate::command::BuiltinFn)] = &[
+    ("add", |vm, args| member(vm, "add", args)),
+    ("clicks", |vm, args| member(vm, "clicks", args)),
+    ("format", |vm, args| member(vm, "format", args)),
+    ("microseconds", |vm, args| member(vm, "microseconds", args)),
+    ("milliseconds", |vm, args| member(vm, "milliseconds", args)),
+    ("scan", |vm, args| member(vm, "scan", args)),
+    ("seconds", |vm, args| member(vm, "seconds", args)),
+];
 
 /// Dispatch an `::tcl::clock::<sub>` ensemble member by prepending `sub`.
 fn member(vm: &mut Vm, sub: &str, a: &[Value]) -> Completion<Value> {

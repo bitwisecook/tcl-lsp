@@ -158,7 +158,8 @@ fn package_error(
 }
 
 /// Pre-provide the core's own package entries for the release this VM is
-/// pinned to, replacing whatever a previous pin left behind.
+/// pinned to, with the `ifneeded` stub C's `TclOO` init script registers,
+/// replacing whatever a previous pin left behind.
 ///
 /// Which names exist and what version each carries is release data
 /// ([`tcl_dialect::TclVersion::core_provided_packages`]), not an engine
@@ -175,7 +176,11 @@ pub(crate) fn provide_core_packages(vm: &mut Vm) {
     // added to one release's row cannot be left behind by a re-pin.
     for version in tcl_dialect::TclVersion::ALL {
         for core in version.core_provided_packages() {
-            vm.forget_package(core.name);
+            if core.ifneeded_stub {
+                vm.forget_package_completely(core.name);
+            } else {
+                vm.forget_package(core.name);
+            }
         }
     }
     if let Some(tcl_registry::native_package::NativePackageProtocol::C(release)) = vm
@@ -184,6 +189,14 @@ pub(crate) fn provide_core_packages(vm: &mut Vm) {
     {
         for core in release.core_provided_packages() {
             vm.provide_package(core.name, core.version);
+            if core.ifneeded_stub {
+                vm.set_package_ifneeded(
+                    core.name,
+                    core.version,
+                    b"# Already present, OK?",
+                    release,
+                );
+            }
         }
     }
 }
@@ -1354,11 +1367,14 @@ fn restore_pending_package_error(
     // Only an explicit pending error return carries its trace into the newly
     // generated BADRESULT episode. Break/continue/custom traces are discarded.
     let pending_error = completion.code == Code::Return
-        && match vm.checked_tcl(|vm| {
-            crate::command::option_code_checked(vm, &completion.options, Code::Ok)
-        }) {
-            Ok(code) => code == Code::Error,
-            Err(error) => return Err(crate::command::completion_from_tcl_error(vm, error)),
+        && match completion.option_origin {
+            tcl_core_types::CompletionOptionOrigin::MergedReturnOptions { code, .. } => code == 1,
+            _ => match vm.checked_tcl(|vm| {
+                crate::command::option_code_checked(vm, &completion.options, Code::Ok)
+            }) {
+                Ok(code) => code == Code::Error,
+                Err(error) => return Err(crate::command::completion_from_tcl_error(vm, error)),
+            },
         };
     let carried = if pending_error {
         match vm.checked_tcl(|vm| {
@@ -1559,45 +1575,49 @@ fn finish_loader(
         }
         Some(provided) => {
             vm.forget_package(name);
-            package_error(
-                &[
-                    b"attempt to provide package ",
+            let message = [
+                b"attempt to provide package ".as_slice(),
+                name.as_bytes(),
+                b" ",
+                loader.version.as_bytes(),
+                b" failed: package ",
+                name.as_bytes(),
+                b" ",
+                provided.as_bytes(),
+                b" provided instead",
+            ]
+            .concat();
+            let code = package_protocol(vm)
+                .expect("selected package protocol")
+                .failure_error_code_update(
+                    tcl_registry::native_package::NativePackageFailure::LoaderWrongVersion,
                     name.as_bytes(),
-                    b" ",
-                    loader.version.as_bytes(),
-                    b" failed: package ",
-                    name.as_bytes(),
-                    b" ",
-                    provided.as_bytes(),
-                    b" provided instead",
-                ],
-                package_protocol(vm)
-                    .expect("selected package protocol")
-                    .failure_error_code_update(
-                        tcl_registry::native_package::NativePackageFailure::LoaderWrongVersion,
-                        name.as_bytes(),
-                    ),
-                vm,
-            )
+                );
+            let failure = package_error(&[&message], code, vm);
+            append_loader_error_frame(vm, &message, Some((name, &loader.version)));
+            failure
         }
-        None => package_error(
-            &[
-                b"attempt to provide package ",
+        None => {
+            let message = [
+                b"attempt to provide package ".as_slice(),
                 name.as_bytes(),
                 b" ",
                 loader.version.as_bytes(),
                 b" failed: no version of package ",
                 name.as_bytes(),
                 b" provided",
-            ],
-            package_protocol(vm)
+            ]
+            .concat();
+            let code = package_protocol(vm)
                 .expect("selected package protocol")
                 .failure_error_code_update(
                     tcl_registry::native_package::NativePackageFailure::LoaderMissing,
                     name.as_bytes(),
-                ),
-            vm,
-        ),
+                );
+            let failure = package_error(&[&message], code, vm);
+            append_loader_error_frame(vm, &message, Some((name, &loader.version)));
+            failure
+        }
     }
 }
 

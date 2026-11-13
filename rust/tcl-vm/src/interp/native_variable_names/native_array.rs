@@ -67,7 +67,7 @@ impl Vm {
                 NativeVariableNameLookupPurpose::ArrayMake,
             )?;
             if let Some(element) = resolved.elem.as_ref() {
-                let exists = resolved.id.and_then(|id| self.var_arena.get(id)).is_some_and(|cell| matches!(cell.state(), super::super::Local::Array(elements) if elements.contains_key(element.as_bytes())));
+                let exists = resolved.base_id.and_then(|id| self.var_arena.get(id)).is_some_and(|cell| matches!(cell.state(), super::super::Local::Array(elements) if elements.contains_key(element.as_bytes())));
                 let original_bytes = original_names
                     .read(self, original)
                     .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
