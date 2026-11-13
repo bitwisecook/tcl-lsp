@@ -413,6 +413,8 @@ fn private_property_comparison_rejects_changed_original_declaration_inventory() 
         obj::invalidate_string(declaration.as_ptr());
         REACHED.with(|result| *result.borrow_mut() = None);
         UPDATES.with(|updates| updates.borrow_mut().clear());
+        // A refusal stops later lookups, so resolve the class first.
+        let class = interpreter.oo_resolve_object(b"C");
         MODE.with(|mode| mode.set(if changed { 4 } else { 0 }));
         let code = interpreter.eval_str(b"o readPrivate");
         assert_eq!(UPDATES.with(|updates| updates.borrow().clone()), [9]);
@@ -425,7 +427,6 @@ fn private_property_comparison_rejects_changed_original_declaration_inventory() 
                     result.borrow().as_ref().unwrap().as_ptr()
                 )
             });
-            let class = interpreter.oo_resolve_object(b"C");
             assert!(interpreter.oo.borrow().classes[&class]
                 .private_variables
                 .iter()

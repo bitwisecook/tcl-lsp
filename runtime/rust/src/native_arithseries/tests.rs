@@ -382,7 +382,8 @@ fn multiple_index_path_reports_the_host_materialisation_limit() {
                 NativeMaterializationLimitError::new(100_000_001, 100_000_000),
             ))
         );
-        let original = interp.var_get(b"sequence").unwrap();
+        // The refusal stops variable lookup, so observe owned storage.
+        let original = crate::test_storage::global_scalar(&interp, b"sequence").unwrap();
         assert_eq!(descriptor(original), "arithseries");
         assert!(!obj::has_string_rep(original));
         assert!(!has_element_cache(original));

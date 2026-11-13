@@ -341,12 +341,13 @@ mod variable_helper_head_tests {
         PATTERN_GETTERS.with(|calls| calls.set(0));
         MODE.with(|mode| mode.set(0));
         FIRST.with(|first| first.borrow_mut().take());
-        let actual = Interp::with_native_core(
+        let mut actual = Interp::with_native_core(
             super::super::super::default_host(),
             crate::environment::profile_for_dialect("jimtcl"),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();
+        crate::cmd_proc::install_stock_scripted_wrappers(&mut actual);
         ACTUAL.with(|owner| *owner.borrow_mut() = Some(actual.clone()));
         (actual, Cleanup)
     }

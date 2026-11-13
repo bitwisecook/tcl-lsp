@@ -121,14 +121,9 @@ fn original_concat_checked_source_conversion_retains_first_cause_before_working_
     assert_eq!(fixture::FREES.with(Cell::get), 1);
     assert_eq!(fixture::REFS.with(Cell::get), 1);
     assert_eq!(unsafe { (*source.as_ptr()).ref_count }, 1);
-    assert_eq!(
-        list::native_list_backing(target.as_ptr())
-            .unwrap()
-            .elements()
-            .unwrap()
-            .len(),
-        0
-    );
+    // Like C's Tcl_NewListObj(0, NULL), the empty target has no List
+    // representation, and the failed source conversion gives it none.
+    assert!(list::native_list_backing(target.as_ptr()).is_none());
     assert_eq!(crate::counters::live_objs(), before);
 }
 #[test]
