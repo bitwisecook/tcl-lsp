@@ -829,7 +829,13 @@ fn linear_search<O: NativeIndexOps, R>(
             SearchMode::Glob => {
                 let kb = index::checked_operand_bytes(ops, index::key_value::<O>(&key))
                     .map_err(LsearchError::from_command)?;
-                match (str_opt(pattern.expect("glob pattern")), str_opt(&kb)) {
+                // C matches the NUL-terminated strings (Tcl_StringCaseMatch).
+                match (
+                    str_opt(tcl_core_types::c_string_extent(
+                        pattern.expect("glob pattern"),
+                    )),
+                    str_opt(tcl_core_types::c_string_extent(&kb)),
+                ) {
                     (Some(p), Some(e)) => tcl_syntax::glob::string_case_match(p, e, o.nocase),
                     _ => false,
                 }

@@ -490,8 +490,7 @@ mod tests {
 
     #[test]
     fn jim_private_state_retains_original_error_objects_after_ordinary_completion() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
+        let mut vm = crate::native_fixture::core(
             tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
         );
         let trace = Value::list(vec![Value::from_string_bytes(&b"TRACE\xff"[..])]);

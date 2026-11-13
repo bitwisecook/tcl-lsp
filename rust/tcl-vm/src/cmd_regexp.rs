@@ -631,7 +631,7 @@ mod original_object_tests {
                     name,
                 ],
             );
-            assert_eq!(outcome.code, Code::Ok);
+            assert_eq!(outcome.code, Code::Ok, "{bytes:?}");
             assert_eq!(pattern.native_object_type_name(), "regexp");
             assert_eq!(subject.native_object_type_name(), "none");
             assert_eq!(outcome.result.native_object_type_name(), "int");

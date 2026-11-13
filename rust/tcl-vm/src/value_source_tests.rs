@@ -469,11 +469,10 @@ fn native_jim_public_source_uses_original_script_without_c_compiler_or_library_g
             },
         )
         .unwrap();
+    // Jim_EvalSource installs Source metadata on the script but leaves
+    // interp->currentFilenameObj, which `info script` reports, unchanged.
     assert_eq!(completion.code, crate::Code::Ok);
-    assert_eq!(
-        completion.result.string_bytes().as_ref(),
-        b"actual-source.tcl"
-    );
+    assert_eq!(completion.result.string_bytes().as_ref(), b"");
 
     let unavailable = vm
         .try_eval_source("catch {{dict update} d k v {}} result; set result")

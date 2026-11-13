@@ -141,8 +141,7 @@ fn original_script_execution_matches_51_native_callback_windows() {
     ];
     let mut transcript = String::new();
     for (case, source) in sources.into_iter().enumerate() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
+        let mut vm = crate::native_fixture::core(
             tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
         );
         let context = vm.native_jim_object_context().unwrap();

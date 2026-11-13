@@ -1274,16 +1274,16 @@ mod raw_value_tests {
 
     #[test]
     fn selected_jim_byte_values_keep_native_units_list_objects_and_numeric_errors() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
-        );
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         let value = Value::from_string_bytes(vec![0xff, 0xed, 0xa0, 0x80]);
         assert_eq!(vm.native_char_len(&value), Ok(2));
         assert!(vm.try_as_str(&value).is_err());
+        let Err(ValueError::NativeScalarGetter(error)) = vm.as_int(&value) else {
+            panic!("Jim's original Wide getter must refuse the raw bytes");
+        };
         assert_eq!(
-            vm.as_int(&value),
-            Err(ValueError::NotIntegerBytes(vec![0xff, 0xed, 0xa0, 0x80]))
+            error.message_bytes(),
+            b"expected integer but got \"\xff\xed\xa0\x80\""
         );
         let list = Value::list(vec![value.clone()]);
         assert_eq!(
@@ -1347,13 +1347,9 @@ mod raw_value_tests {
             vm.refuse_host_command("test native-access refusal".to_owned())
         }
         for version in tcl_dialect::TclVersion::ALL {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
+            let mut vm = crate::native_fixture::interpreter(
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
             );
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::default(),
-            ));
             vm.register("refuse", refuse);
             vm.set_var("x", Value::int(10)).unwrap();
             vm.add_var_trace("x", vec!["read".to_owned()], "refuse".to_owned(), false);
@@ -1429,10 +1425,7 @@ mod raw_value_tests {
 
     #[test]
     fn selected_jim_string_operations_match_original_native_byte_extents() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
-        );
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         // Pinned Jim084 observations: FF, ASCII A, surrogate D800, scalar é.
         let raw = vec![0xff, b'A', 0xed, 0xa0, 0x80, 0xc3, 0xa9];
         let value = Value::from_string_bytes(raw.clone());
@@ -1518,10 +1511,7 @@ mod raw_value_tests {
 
     #[test]
     fn jim_range_retains_native_seek_and_cached_count_until_conversion() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
-        );
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         let source = Value::from_string_bytes(vec![0xc3, b'A', 0xc3, 0xa9]);
         assert_eq!(vm.native_char_len(&source), Ok(3));
         assert_eq!(
@@ -1617,8 +1607,7 @@ mod native_equality_tests {
 
     #[test]
     fn byte_and_unicode_equality_follow_the_original_native_cache() {
-        let mut vm = Vm::new();
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
         let raw = Value::from_string_bytes(b"\xff".as_slice());
         let encoded = Value::from_string_bytes(b"\xc3\xbf".as_slice());
         assert_eq!(full_native_equality(&mut vm, &raw, &encoded), Ok(false));
@@ -1641,10 +1630,7 @@ mod native_equality_tests {
 
     #[test]
     fn jim_identity_still_reaches_original_string_and_count_getters() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
-        );
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         let value = Value::int(5);
         assert_eq!(full_native_equality(&mut vm, &value, &value), Ok(true));
         assert_eq!(
@@ -1741,8 +1727,7 @@ mod native_equality_fixture_tests {
                             let row: Vec<_> = rows.next().unwrap().split('\t').collect();
                             let case = format!("{name}-L{left_rep}-R{right_rep}-same{same}");
                             assert_eq!(row[0], case);
-                            let mut vm = Vm::new();
-                            vm.set_dialect_profile(profile);
+                            let mut vm = crate::native_fixture::core(profile);
                             let left = object(&mut vm, left, left_rep, jim);
                             let right = if same == 1 {
                                 left.clone()

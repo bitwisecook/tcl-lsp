@@ -306,8 +306,7 @@ mod native_object_tests {
 
     #[test]
     fn temporary_c86_table_retires_only_a_nonidentity_key_cache() {
-        let mut vm = Vm::new();
-        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
         let key = Value::int(5);
         let table = Value::list(vec![Value::string("5")]);
         let result = prefix_match(&mut vm, &[table, key.clone()]);

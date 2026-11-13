@@ -901,8 +901,14 @@ fn cmd_yieldto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// non-yieldable NRE boundary C Tcl reports as `cannot yield: C stack busy`.
 fn check_yieldable(vm: &Vm, verb: &str) -> Result<(), Completion<Value>> {
     match vm.coro.stack.last() {
-        None => Err(err(format!("{verb} can only be called in a coroutine"))),
-        Some(h) if vm.activation_depth != h.base_depth => Err(err("cannot yield: C stack busy")),
+        None => Err(crate::command::err_with_code(
+            format!("{verb} can only be called in a coroutine"),
+            "TCL COROUTINE ILLEGAL_YIELD",
+        )),
+        Some(h) if vm.activation_depth != h.base_depth => Err(crate::command::err_with_code(
+            "cannot yield: C stack busy",
+            "TCL COROUTINE CANT_YIELD",
+        )),
         Some(_) => Ok(()),
     }
 }
@@ -1125,6 +1131,40 @@ mod retirement_tests {
                     "{engine}/{relay}"
                 );
                 assert!(vm.refused_completion().is_none(), "{engine}/{relay}");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod error_code_tests {
+    use tcl_syntax::value::ValueOps;
+
+    #[test]
+    fn coroutine_errors_keep_the_interpreter_error_code() {
+        // tclsh 8.6.18, 9.0.4 and 9.1.0 print exactly these lines.
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            for (script, expected) in [
+                (
+                    "proc p {} {yield}; proc q {} {yieldto foo}; \
+                     list [catch p m] $m $::errorCode [catch q m] $m $::errorCode",
+                    "1 {yield can only be called in a coroutine} {TCL COROUTINE ILLEGAL_YIELD} \
+                     1 {yieldto can only be called in a coroutine} {TCL COROUTINE ILLEGAL_YIELD}",
+                ),
+                (
+                    "list [catch {coroutine c apply {{} {error x {} {A B}}}} m] $m $::errorCode",
+                    "1 x {A B}",
+                ),
+            ] {
+                let completion = vm.try_eval_source(script).unwrap();
+                assert_eq!(completion.code, crate::Code::Ok, "{engine}");
+                assert_eq!(
+                    vm.native_string_bytes(&completion.result).unwrap().as_ref(),
+                    expected.as_bytes(),
+                    "{engine}"
+                );
             }
         }
     }

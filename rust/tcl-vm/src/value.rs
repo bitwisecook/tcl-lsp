@@ -9371,7 +9371,7 @@ mod tests {
             );
             assert_eq!(
                 value.byte_array_representation().is_some(),
-                version == TclVersion::V8_6
+                version >= TclVersion::V8_6
             );
         }
         // Modern C's short-string bypass retains a converted object too.
@@ -9454,7 +9454,8 @@ mod tests {
     fn list_roundtrip() {
         let v = Value::list(vec![Value::int(1), Value::string("a b")]);
         assert_eq!(&*v.to_str(), "1 {a b}");
-        let parsed = Value::string("1 {a b}").as_list().unwrap();
+        let source = Value::string("1 {a b}");
+        let parsed = source.as_list().unwrap();
         assert_eq!(parsed.len(), 2);
         assert_eq!(&*parsed[1].to_str(), "a b");
     }

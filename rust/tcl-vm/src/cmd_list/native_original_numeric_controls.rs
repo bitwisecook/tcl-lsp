@@ -83,11 +83,9 @@ fn original_numeric_search_sort_public_predicates_match_independent_native645_an
         if let Some(pattern) = &pattern {
             args.push(argument(pattern));
         }
-        let completion = if row.sort {
-            super::cmd_lsort(&mut ops, &args)
-        } else {
-            super::cmd_lsearch(&mut ops, &args)
-        };
+        let completion = ops
+            .try_invoke_command(if row.sort { "lsort" } else { "lsearch" }, &args)
+            .expect("actual public list command");
         let label = format!(
             "{}:{}:{}:{}",
             row.series, row.dialect, row.case, row.stream_sha256

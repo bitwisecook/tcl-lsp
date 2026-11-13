@@ -1121,8 +1121,7 @@ mod native_ensemble_tests {
     #[test]
     fn binary_bootstrap_retains_real_nested_tokens_and_configuration() {
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
+            let mut vm = crate::native_fixture::core(
                 tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
             );
             for (head, args) in [

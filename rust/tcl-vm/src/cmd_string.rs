@@ -433,10 +433,9 @@ mod tests {
 
     #[test]
     fn jim_repeat_charges_the_normalized_expression_count_and_exact_bytes() {
-        use crate::{interp::Vm, value::Value};
+        use crate::value::Value;
         let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(profile);
+        let mut vm = crate::native_fixture::core(profile);
         vm.set_value_size_limit_value(Some(2));
         let source = Value::from_string_bytes([0xff].as_slice());
         let allowed = super::string_repeat(&mut vm, &source, &Value::string("1+1"));

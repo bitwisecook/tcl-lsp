@@ -8529,7 +8529,9 @@ impl Vm {
         // C reads `TCL_PKG_PREFER_LATEST` as each interpreter is created, so
         // a child sees an `env` written since its parent began.
         if self.host_rc().env().get("TCL_PKG_PREFER_LATEST").is_some() {
-            self.in_interp(id, |child| child.state.package_prefer = PackagePrefer::Latest);
+            self.in_interp(id, |child| {
+                child.state.package_prefer = PackagePrefer::Latest;
+            });
         }
         if !safe && let Some(library) = self.state.initialised_library.clone() {
             self.in_interp(id, |child| {
@@ -19907,6 +19909,9 @@ impl Vm {
             self.seed_native_error_result_object(&info);
         }
         self.native_errors.error_line = p.error_line;
+        // C keeps one interpreter error code, so the body's code reaches the
+        // resumer with its trace.
+        self.native_errors.primitive_error_code = p.primitive_error_code.take();
         std::mem::swap(&mut self.native_errors.error_stack, &mut p.error_stack);
         let recipe = self
             .actual_native_invocation_dialect()

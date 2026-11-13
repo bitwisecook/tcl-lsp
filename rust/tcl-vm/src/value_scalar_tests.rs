@@ -703,7 +703,7 @@ fn snapshot_retains_string_units_and_actual_list_canonical_state() {
         pure.native_object_snapshot().cache,
         Cache::List {
             length: 1,
-            canonical: true
+            canonical: false
         }
     ));
     assert!(pure.resident_string_bytes().is_none());

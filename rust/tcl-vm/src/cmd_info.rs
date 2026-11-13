@@ -1030,11 +1030,10 @@ mod tests {
 
     #[test]
     fn errorstack_surface_follows_the_selected_runtime_release() {
-        let mut vm = Vm::new();
-        vm.set_runtime_version(TclVersion::V8_5);
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.5"));
         assert!(!info(&mut vm, "errorstack").code.is_ok());
 
-        vm.set_runtime_version(TclVersion::V8_6);
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
         let result = info(&mut vm, "errorstack");
         assert!(result.code.is_ok());
         assert!(result.result.as_list().expect("TIP 348 list").is_empty());

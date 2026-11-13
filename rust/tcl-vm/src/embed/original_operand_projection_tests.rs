@@ -68,11 +68,14 @@ fn original_raw_operand_projection_observes_none_without_native_or_unicode_grant
             .as_ref(),
         i64::MIN.to_string().as_bytes()
     );
-    assert!(
+    // C9.0 spells an integer with TclFormatInt, never the host formatter.
+    assert_eq!(
         vm.original_operand_string_bytes(&next, &Value::int(23))
-            .is_err()
+            .unwrap()
+            .as_ref(),
+        b"23"
     );
-    assert!(vm.finish_original_operand_projection(next).is_err());
+    assert!(vm.finish_original_operand_projection(next).is_ok());
     assert!(
         NativeOperationScope::current_entered(&mut vm)
             .unwrap()

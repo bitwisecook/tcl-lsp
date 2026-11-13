@@ -19,7 +19,11 @@
 //! Native C compiled-pattern ownership and range allocation recipes.
 //! A compiled cache retains the executable engine artifact, not a type label.
 
-use crate::{native_object::NativeObjectSnapshot, native_tcl_utf::NativeTclUtf, value::ValueError};
+use crate::{
+    native_object::NativeObjectSnapshot,
+    native_tcl_utf::{NativeCPlainChar, NativeTclUtf},
+    value::ValueError,
+};
 use std::{cell::RefCell, rc::Rc};
 use tcl_dialect::TclVersion;
 
@@ -36,9 +40,12 @@ impl NativeRegexpRecipe {
     pub const fn version(self) -> TclVersion {
         self.version
     }
+    /// The pattern's units as `CompileRegexp` stores them: through the core's
+    /// internal `TclUtfToUniChar`, so C8.4/8.5 promote a naked trail byte
+    /// through the backend's plain `char`, exactly as the subject's storage.
     #[must_use]
-    pub fn pattern_units(self, bytes: &[u8]) -> Vec<u32> {
-        NativeTclUtf::for_version(self.version).decode_units(bytes)
+    pub fn pattern_units(self, bytes: &[u8], promotion: NativeCPlainChar) -> Vec<u32> {
+        NativeTclUtf::for_version(self.version).decode_storage_units(bytes, promotion)
     }
     #[must_use]
     pub fn literal_mapping_substitution(self, substitution: &[u8]) -> bool {
@@ -323,7 +330,7 @@ mod tests {
         for version in TclVersion::ALL {
             let recipe = NativeRegexpRecipe::for_version(version);
             for bytes in [b"a".as_slice(), b"\xff", b"\xc0\x80", b"\xf0\x9f\x98\x80"] {
-                let units = recipe.pattern_units(bytes);
+                let units = recipe.pattern_units(bytes, NativeCPlainChar::Unsigned);
                 let snapshot = NativeObjectSnapshot {
                     resident: Some(Rc::from(bytes)),
                     storage: Some(NativeStringStorageIdentity::Allocated),

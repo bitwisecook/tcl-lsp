@@ -2350,7 +2350,6 @@ mod tests {
 
     #[test]
     fn native_namespace_bodies_propagate_return_and_inscope_requires_c_target() {
-        use tcl_codegen::compile_service::BytecodeCompileService;
         for profile in tcl_dialect::TclVersion::ALL
             .map(|version| crate::environment::profile_for_dialect(version.dialect_profile_name()))
             .into_iter()
@@ -2358,9 +2357,7 @@ mod tests {
                 "jim",
             )))
         {
-            let mut vm = Vm::with_output(Box::new(std::io::sink()));
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(BytecodeCompileService::default()));
+            let mut vm = crate::native_fixture::interpreter(profile);
             let arguments = [Value::string("n"), Value::string("return x")];
             // These direct handler tests install the real caller vector explicitly;
             // frame construction no longer invents a public command head.
@@ -3282,8 +3279,7 @@ mod original_ensemble_tests {
             tcl_dialect::TclVersion::V9_0,
             tcl_dialect::TclVersion::V9_1,
         ] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
+            let mut vm = crate::native_fixture::core(
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
             );
             let args: Vec<_> = ["-command", "::E", "-map", "a ::target"]
@@ -3406,8 +3402,7 @@ mod original_ensemble_tests {
             tcl_dialect::TclVersion::V9_0,
             tcl_dialect::TclVersion::V9_1,
         ] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
+            let mut vm = crate::native_fixture::core(
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
             );
             let protocol = vm
@@ -3502,8 +3497,7 @@ mod original_ensemble_tests {
             tcl_dialect::TclVersion::V9_0,
             tcl_dialect::TclVersion::V9_1,
         ] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
+            let mut vm = crate::native_fixture::core(
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
             );
             let args: Vec<_> = [

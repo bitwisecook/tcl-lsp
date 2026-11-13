@@ -807,9 +807,8 @@ mod tests {
             ("tcl9.0", b"$(1+2)".as_slice()),
             ("jim", b"3".as_slice()),
         ] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            let mut vm = crate::native_fixture::core(
+                tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
             );
             assert_eq!(
                 super::subst_word_bytes(b"$(1+2)", &mut vm)

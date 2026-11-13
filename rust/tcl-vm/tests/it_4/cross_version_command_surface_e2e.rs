@@ -2262,7 +2262,10 @@ fn a_module_compiled_for_tk_states_tk_and_runs_under_a_tk_pin() {
     let module = BytecodeCompileService::for_profile(profile)
         .compile("set x 1")
         .expect("compiles");
-    let manifest = module.manifest.as_ref().expect("a compiler states a manifest");
+    let manifest = module
+        .manifest
+        .as_ref()
+        .expect("a compiler states a manifest");
     assert_eq!(manifest.environment, "tk");
     assert_eq!(manifest.release, "8.6");
 
@@ -2277,5 +2280,9 @@ fn a_module_compiled_for_tk_states_tk_and_runs_under_a_tk_pin() {
         .try_eval_source("list [expr {010}] [catch {string insert abc 1 X}]")
         .expect("the VM's own compile entry");
     assert_eq!(completion.code, Code::Ok, "{}", completion.result.to_str());
-    assert_eq!(&*completion.result.to_str(), "8 1", "8.6: octal 010, no string insert");
+    assert_eq!(
+        &*completion.result.to_str(),
+        "8 1",
+        "8.6: octal 010, no string insert"
+    );
 }

@@ -616,8 +616,7 @@ mod original_source_location_tests {
     use crate::value::NativeJimSourceInfo;
 
     fn provided(source: &[u8]) -> (crate::Vm, Value, Value) {
-        let mut vm = crate::Vm::new();
-        vm.set_dialect_profile(
+        let vm = crate::native_fixture::core(
             tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
         );
         let context = vm.native_jim_object_context().unwrap();

@@ -647,13 +647,9 @@ mod tests {
     #[test]
     fn expression_quotes_follow_selected_native_control_and_level_protocol() {
         for engine in ["tcl9.0", "jim"] {
-            let mut vm = Vm::new();
-            let profile =
-                tcl_registry::model::ingress::resolve_environment(engine).analyser_profile();
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
+            let mut vm = crate::native_fixture::interpreter(
+                tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
+            );
             let source = "\"prefix [return -level 2 -code error -errorcode {X Y} -errorinfo ORIGINAL MESSAGE]\"";
             let completion = vm.try_eval_expr(source).expect("guest quote completion");
             if engine == "jim" {
@@ -686,13 +682,9 @@ mod tests {
                         .as_ref(),
                     b"ORIGINAL"
                 );
-                assert_eq!(
-                    opt_get(&completion.options, "-level")
-                        .unwrap()
-                        .as_int()
-                        .unwrap(),
-                    2
-                );
+                let snapshot = vm.completion_options_snapshot(&completion).unwrap();
+                assert_eq!(opt_get(&snapshot, "-code").unwrap().as_int().unwrap(), 1);
+                assert_eq!(opt_get(&snapshot, "-level").unwrap().as_int().unwrap(), 2);
             }
         }
     }

@@ -2105,7 +2105,10 @@ fn native_compiled_pattern<O: NativeRegexObjects<E>, E: RegexEngine>(
         return Ok(compiled);
     }
     let bytes = ops.native_string_bytes(original).map_err(host)?;
-    let units = recipe.pattern_units(&bytes);
+    let units = recipe.pattern_units(
+        &bytes,
+        tcl_runtime_api::native_c_string_abi::supported_backend_plain_char(),
+    );
     let compiled = E::compile_units(&units, flags)
         .ok_or_else(|| {
             host(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

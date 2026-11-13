@@ -103,8 +103,7 @@ const APPEND_FIXTURES: [(&str, &str); 6] = [
 ];
 
 fn append_vm(profile: &str) -> (Vm, NativeStringProtocol) {
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(
+    let vm = crate::native_fixture::core(
         tcl_registry::model::ingress::resolve_environment(profile).unit_profile(),
     );
     let protocol = vm
@@ -477,10 +476,12 @@ fn native_cache_carriers_preserve_original_aliases_and_owned_table_lifetime() {
         original.native_object_identity(),
         alias.native_object_identity()
     );
-    vm.set_dialect_profile(tcl_registry::model::ingress::resolve_environment("jim").unit_profile());
+    let jim = crate::native_fixture::core(
+        tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+    );
     assert!(
         original
-            .adopt_native_object_representation(&index, vm.native_scalar_carrier_dialect())
+            .adopt_native_object_representation(&index, jim.native_scalar_carrier_dialect())
             .is_err()
     );
 }
