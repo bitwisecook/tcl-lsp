@@ -1347,7 +1347,11 @@ impl Interp {
             tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
         )).ok_or(ValueError::CommandProtocolUnavailable("native string materialization"))?;
         let host = self.host();
-        let formatter = host.native_integer_formatter();
+        // Only C8.4's integer updater reaches the host formatter.
+        let formatter = (recipe.protocol()
+            == tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4))
+        .then(|| host.native_integer_formatter())
+        .flatten();
         if let Some(check) = check {
             check()?;
         }

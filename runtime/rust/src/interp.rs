@@ -2517,7 +2517,11 @@ impl Interp {
             ),
         )?;
         let host = self.host();
-        let formatter = host.native_integer_formatter();
+        // Only C8.4's integer updater reaches the host formatter.
+        let formatter = (protocol
+            == tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4))
+        .then(|| host.native_integer_formatter())
+        .flatten();
         check()?;
         let result =
             crate::dict::native_object_bytes_with_integer_formatter(original, protocol, formatter);

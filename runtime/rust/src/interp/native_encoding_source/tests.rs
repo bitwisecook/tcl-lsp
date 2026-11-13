@@ -45,7 +45,8 @@ fn invoke(interpreter: &mut Interp, words: &[&[u8]]) -> super::super::Code {
     for &original in &argv {
         unsafe { crate::capi::Tcl_IncrRefCount(original) };
     }
-    let code = interpreter.dispatch(&argv);
+    // The providers ran each case through Tcl_EvalObjv.
+    let code = interpreter.eval_original_object_vector(&argv);
     for original in argv {
         unsafe { crate::capi::Tcl_DecrRefCount(original) };
     }
