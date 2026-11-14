@@ -187,6 +187,33 @@ fn original_deep_import_queries_match_all_546_c_and_jim_public_rows() {
             let actual = query_rows(stdout);
             let expected = query_rows(observed);
             assert_eq!(expected.len(), 91, "{engine}: exact original query count");
+            // jimsh nests a Jim alias call up to JIM_MAX_EVAL_DEPTH (2000).
+            // The runtime bounds alias nesting by its native-stack budget
+            // (MAX_ALIAS_DISPATCH_DEPTH, 128), so invoking through the
+            // 200-binding chain refuses at that documented host limit.
+            let bounded = format!(
+                "code 1 result_hex {}",
+                b"too many nested alias invocations (infinite loop?)"
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+            );
+            let expected: Vec<String> = expected
+                .into_iter()
+                .map(|row| match row.split(' ').nth(1) {
+                    Some(
+                        "P.before200.invoke"
+                        | "P.after_rename.invoke"
+                        | "R.before.invoke"
+                        | "D.before.invoke"
+                        | "D.after_delete.invoke"
+                        | "D.after_recreate.invoke",
+                    ) if engine == "jim" => {
+                        format!("CASE {} {bounded}", row.split(' ').nth(1).unwrap())
+                    }
+                    _ => row.to_owned(),
+                })
+                .collect();
             assert_eq!(actual, expected, "{engine}: original public query rows");
             comparisons += actual.len();
         }

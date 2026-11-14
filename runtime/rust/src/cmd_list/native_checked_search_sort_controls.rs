@@ -206,6 +206,11 @@ fn original_numeric_primitives_preserve_first_refusal_before_keys_and_mandatory_
                     plain.as_ptr()
                 });
             }
+            if profile == "jim" {
+                // Every Jim object belongs to its interpreter's object context.
+                ops.associate_native_jim_arguments(&argv).unwrap();
+                ops.associate_native_jim_arguments(&members).unwrap();
+            }
             let prior = obj::Owned::fresh(obj::new_string_bytes(b"PRIOR"));
             ops.set_result(prior.as_ptr());
             let code = if operation == 0 {

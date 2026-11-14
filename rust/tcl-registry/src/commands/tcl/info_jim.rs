@@ -524,6 +524,16 @@ enum JimInfoReportKind {
 }
 
 impl NativeJimInfoProtocol {
+    /// `Jim_InfoCoreCommand`'s refusal of a resolved command that is not a
+    /// procedure, for `info args`, `body` and `statics`.
+    #[must_use]
+    pub fn not_procedure_message(self, name: &[u8]) -> Vec<u8> {
+        let mut message = b"command \"".to_vec();
+        message.extend_from_slice(name);
+        message.extend_from_slice(b"\" is not a procedure");
+        message
+    }
+
     /// Original `Jim_Eval` input for an already selected core member.
     /// These bytes supply no installed helper or execution authority.
     #[must_use]

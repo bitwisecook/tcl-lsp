@@ -1129,6 +1129,34 @@ fn info_global(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], var: &[u
     }
 }
 
+/// Jim_InfoCoreCommand refuses a resolved command that is not a procedure in
+/// its own words, and a name that resolves to nothing as Jim_GetCommand does.
+fn jim_procedure_error(
+    interp: &mut Interp,
+    name: *mut TclObj,
+    error: tcl_cmd_core::CmdError,
+) -> tcl_cmd_core::CmdError {
+    let Some(protocol) = interp
+        .native_invocation_dialect()
+        .native_jim_info_protocol()
+    else {
+        return error;
+    };
+    if error.native_execution_refusal().is_some() || error.native_access_refusal().is_some() {
+        return error;
+    }
+    let Ok(bytes) = interp.native_string_bytes(&name) else {
+        return error;
+    };
+    if interp.command_exists(&bytes) {
+        return tcl_cmd_core::CmdError::new_bytes(protocol.not_procedure_message(&bytes));
+    }
+    let mut message = b"invalid command name \"".to_vec();
+    message.extend_from_slice(&bytes);
+    message.push(b'"');
+    tcl_cmd_core::CmdError::new_bytes(message)
+}
+
 fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"procname");
@@ -1149,7 +1177,10 @@ fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Err(error) => interp.report_cmd_error(error),
             }
         }
-        Err(error) => interp.report_cmd_error(error),
+        Err(error) => {
+            let error = jim_procedure_error(interp, argv[2], error);
+            interp.report_cmd_error(error)
+        }
     }
 }
 
@@ -1162,7 +1193,10 @@ fn info_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.report_cmd_error(e),
+        Err(e) => {
+            let e = jim_procedure_error(interp, argv[2], e);
+            interp.report_cmd_error(e)
+        }
     }
 }
 

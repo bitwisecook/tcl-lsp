@@ -695,18 +695,6 @@ mod tests {
                 Some(options.as_ptr())
             );
             assert!(!obj::has_string_rep(code.as_ptr()));
-            assert!(interp
-                .process_original_c_return_options(
-                    NativeReturnOptionsApplication::Stack,
-                    1,
-                    0,
-                    options.as_ptr(),
-                )
-                .is_err());
-            assert_eq!(
-                interp.return_options.borrow().header(),
-                Some(options.as_ptr())
-            );
             let line_key = obj::Owned::fresh(obj::new_string_bytes(b"-errorline"));
             let line = obj::Owned::fresh(obj::new_string_bytes(b"7"));
             let line_options = obj::Owned::fresh(
@@ -786,6 +774,18 @@ mod tests {
                 assert_eq!(unsafe { (*old.as_ptr()).ref_count }, 2);
                 assert!(!interp.error_stack.borrow().is_reset());
             }
+            // An unavailable application is a terminal first cause, so it runs
+            // after the available ones and leaves the merged header in place.
+            let header = interp.return_options.borrow().header();
+            assert!(interp
+                .process_original_c_return_options(
+                    NativeReturnOptionsApplication::Stack,
+                    1,
+                    0,
+                    options.as_ptr(),
+                )
+                .is_err());
+            assert_eq!(interp.return_options.borrow().header(), header);
         }
     }
 

@@ -1552,7 +1552,8 @@ mod original_prepared_stack_tests {
                     .is_none());
                 assert!(interpreter.error_stack.borrow().protocol.is_none());
                 let refused = interpreter.seed_original_error_stack(member.as_ptr());
-                assert!(refused.unwrap_err().native_access_refusal().is_some());
+                let cause = refused.unwrap_err().native_access_refusal();
+                assert!(cause.is_some());
                 assert_eq!(unsafe { (*member.as_ptr()).ref_count }, 1);
                 assert_eq!(
                     obj::obj_type_ptr(member.as_ptr()),
@@ -1560,7 +1561,13 @@ mod original_prepared_stack_tests {
                 );
                 assert!(events.borrow().is_empty());
                 assert!(!published.get());
-                scope.currency().ensure_current_or_refuse().unwrap();
+                // The refusal is the operation's retained first cause.
+                assert_eq!(
+                    scope.currency().ensure_current_or_refuse(),
+                    Err(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                        cause.unwrap()
+                    ))
+                );
                 clear(&interpreter, &arm);
                 drop(member);
                 drop(scope);
