@@ -1,6 +1,38 @@
 # Current LSP naming migration state
 
-Updated 4 November 2026, 22:57 UTC. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Git and preserved receipts retain earlier attempts.
+Updated 14 November 2026. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
+
+## Measured state, 14 November 2026
+
+Measured at `775be44f` on one 4-core Linux host with `cargo nextest`, test profile `opt-level 1`, every test including the heavy tier.
+
+| Scope | Result |
+| --- | --- |
+| `cargo check --workspace --all-targets` | Clean, no warnings. |
+| Root workspace, all features, excluding `tcl-lsp-server`, `tcl-irule-test`, `f5-cli`, `tcl-fuzz`, `tcl-engine-wasm` | 31,569 run: 27,162 pass, 4,407 fail (one timeout, `tcl-spectcl::it_5 codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site`, 1,200 s). |
+| `tcl-lsp-server` unit and e2e | 2,690 run: 2,154 pass, 536 fail. |
+| CI run 5309 (`ad0b2016`, light tier) | Lint and drift legs pass; all five `rust-tests-shard` legs fail. |
+| `runtime/rust`, editors, WASM hosts | Not run in this pass. |
+
+Failures by crate: `tcl-compiler` 2,666 of 13,074; `tcl-lsp-core` 862 of 4,887; `tcl-codegen` 326 of 1,531; `tcl-vm` 191 of 3,200; `tcl-lsp-db` 78 of 244; `tcl-cli` 60 of 288. `tcl-syntax` (936), `tcl-lexer` (820), `tcl-cmd-core`, `tcl-dialect` and `tcl-core-types` pass in full. About 2,930 of the 4,407 failing tests carry a name that exists on `rust`.
+
+The dominant failure shape is an analysis that returns nothing where the test expects an answer (a diagnostic, fold, token role, reference or hover). Causes established:
+
+- A profile with no `NativeNameProtocol` (`tcl`, every F5 profile, Jim before 0.84) takes the Logical path; a concrete release takes the Native path, which withholds an answer whenever a proof input is missing.
+- One dynamic word in a command leaves its role set incomplete, and consumers then drop the whole command's roles.
+- Fixtures built from the profile-less default registry no longer see an authored `proc` as a procedure.
+
+Semantic tokens: 74 token tests failed in `tcl-lsp-core` and `tcl-lsp-db`, and 10 in the server e2e suite. Three faults are fixed in this pass and recover 16 of the 84 (12 and 4) with no other test changing:
+
+- `registry_overrides` returned before its per-word schema queries when the role set was incomplete, so `switch $x {…}` lost its case list and `return -options $o` its option.
+- The case-list walk read the enclosing context's operand instead of the argument's own, so a top-level case list was never entered on a concrete release.
+- The shape-based option scan for a computed head (`$obj cfg -real 1 -- -literal`) had been removed.
+
+Open token faults, 68 tests: method dispatch on `my`, `$self` and object handles on a concrete release; regex source literals; `uplevel $level {body}` with a dynamic level; iRules `proc` and `when` declarations; inline `oo::define` member keywords; SpecTcl and SslicTcl body keywords; the four `large_file_*` promptness tests.
+
+The server e2e suite is not deterministic on this host: 14 tests that passed in one full run failed in the next and each passed again on rerun; `spec_packs::a_pack_added_after_startup_reloads_and_re_analyses_open_documents` passed one run in four alone on one thread.
+
+Recorded `edit.tokens` (100 edits): 2.1.22 1.47 s and 2.1.24 2.87 s on `darwin-arm64`; 2.2.0 6.48 s on `linux-x86_64`. The platforms differ, so the last step is not a like-for-like comparison.
 
 ## Scope and publication
 
