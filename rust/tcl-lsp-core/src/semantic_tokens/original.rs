@@ -826,6 +826,13 @@ fn insert_source_schema_overrides(
         {
             overrides.insert(token.span.start(), ArgOverride::SubcommandKeyword);
         }
+        if let tcl_registry::resolved_invocation::AuthoredSourceOptionBoundary::Terminator(
+            argument,
+        ) = scan.boundary
+            && let Some(token) = token_at(argument)
+        {
+            overrides.insert(token.span.start(), ArgOverride::Decorator);
+        }
         for option in scan.options.into_iter().filter(|option| option.available) {
             if let Some(token) = token_at(option.argument) {
                 overrides.insert(token.span.start(), ArgOverride::Decorator);
@@ -846,6 +853,7 @@ fn insert_source_schema_overrides(
             }
         }
     }
+    insert_inline_member_keywords(ctx, command, words, schema, overrides);
     for ordinal in schema.authored_source_enum_arguments() {
         if let Some(token) = token_at(ordinal) {
             overrides
@@ -1032,6 +1040,46 @@ pub(super) fn definition_class_name<'a>(
     let value = words.arguments.get(ordinal)?.literal_bytes()?;
     let (start, text) = super::subspec_content(ctx.full_source, token)?;
     (text.as_bytes() == value && start <= token.span.end() as usize).then_some(text)
+}
+
+/// An inline definition call (`oo::define C method …`) writes its member word
+/// at argument 1, after any wrapper members (`self`). Membership comes from the
+/// selected descriptor's grammar, so the word is a keyword on every profile.
+fn insert_inline_member_keywords(
+    ctx: ScriptCtx<'_>,
+    command: &SegmentedCommand,
+    words: &crate::original_invocation::OriginalRegistryWords,
+    schema: &tcl_registry::resolved_invocation::ResolvedInvocation<'_, '_>,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    if !matches!(
+        schema.semantics.analyser_hook,
+        Some(
+            tcl_registry::hooks::AnalyserHookId::OoDefine
+                | tcl_registry::hooks::AnalyserHookId::OoObjdefine
+        )
+    ) {
+        return;
+    }
+    let Some(grammar) = schema.authored_source_descriptors().command.definition_body else {
+        return;
+    };
+    let mut ordinal = 1;
+    while let Some(member) = words
+        .arguments
+        .get(ordinal)
+        .and_then(|word| word.literal_bytes())
+        .and_then(|bytes| grammar.source_member_in(bytes, Some(ctx.context.authoring_query())))
+    {
+        let Some(token) = original_argument_token(command, words, ordinal) else {
+            break;
+        };
+        overrides.insert(token.span.start(), ArgOverride::Kind(TokenKind::Keyword));
+        if member.kind != tcl_registry::definer::MemberKind::Wrapper {
+            break;
+        }
+        ordinal += 1;
+    }
 }
 
 fn insert_logical_inline_member_overrides(
