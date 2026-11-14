@@ -108,7 +108,7 @@ pub enum Qualifier<'a> {
 /// to return the historical empty string for `::lassign`.
 #[must_use]
 pub fn qualifier(name: &[u8]) -> Qualifier<'_> {
-    let rooted = name.starts_with(b"::");
+    let rooted = tcl_syntax::naming::is_absolute_bytes(name);
     match last_sep_run(name) {
         Some((start, _)) => {
             // The leading root is itself the qualifier when the only `::`
@@ -571,15 +571,10 @@ pub fn children_tokens_checked<O: ValueOps + Namespaces>(
         ))?;
     let target = ops.name_bytes(namespace);
     let qualified = pattern.map(|pattern| {
-        if pattern.starts_with(b"::") {
+        if tcl_syntax::naming::is_absolute_bytes(pattern) {
             pattern.to_vec()
         } else {
-            let mut qualified = target.clone();
-            if qualified != b"::" {
-                qualified.extend_from_slice(b"::");
-            }
-            qualified.extend_from_slice(pattern);
-            qualified
+            tcl_syntax::naming::rooted_member_key_bytes(&target, pattern)
         }
     });
     let purpose = NativeNameGlobPurpose::NamespaceChildrenSearch;
@@ -764,8 +759,7 @@ pub fn variable_fqn_bytes<O: Namespaces + ?Sized>(
             ops.find_namespace_bytes(cur, prefix)
         }
         (VariableLookupBase::Root, Qualifier::Relative(prefix)) => {
-            let mut rooted = b"::".to_vec();
-            rooted.extend_from_slice(prefix);
+            let rooted = tcl_syntax::naming::root_unrooted_key_bytes(prefix);
             ops.find_namespace_bytes(cur, &rooted)
         }
         (VariableLookupBase::Context(_), Qualifier::Absolute(_)) => {
@@ -777,12 +771,10 @@ pub fn variable_fqn_bytes<O: Namespaces + ?Sized>(
         .into_iter()
         .flatten()
         .find(|ns| ops.namespace_var_exists_bytes(*ns, simple))?;
-    let mut fqn = ops.name_bytes(ns);
-    if fqn != b"::" {
-        fqn.extend_from_slice(b"::");
-    }
-    fqn.extend_from_slice(simple);
-    Some(fqn)
+    Some(tcl_syntax::naming::rooted_member_key_bytes(
+        &ops.name_bytes(ns),
+        simple,
+    ))
 }
 
 /// Lossy UTF-8 presentation of the explicit Logical reporting result.

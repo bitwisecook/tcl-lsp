@@ -426,7 +426,7 @@ where
         .map(|pattern| ops.native_string_bytes(pattern).map(|bytes| bytes.to_vec()))
         .transpose()?
         .unwrap_or_else(|| b"*".to_vec());
-    let rooted = pattern.starts_with(b"::");
+    let rooted = tcl_syntax::naming::is_absolute_bytes(&pattern);
     let current = Namespaces::current(ops);
     let namespace = Namespaces::name_bytes(ops, current);
     let key = tcl_syntax::naming::jim_global_variable_key_bytes(&namespace, &pattern);
@@ -439,11 +439,7 @@ where
     if rooted {
         names = names
             .into_iter()
-            .map(|name| {
-                let mut rooted = b"::".to_vec();
-                rooted.extend_from_slice(&name);
-                rooted
-            })
+            .map(|name| tcl_syntax::naming::root_unrooted_key_bytes(&name))
             .collect();
     }
     Ok(build_name_list_bytes(ops, names))
@@ -514,7 +510,7 @@ where
     let pat = pattern
         .map(|value| {
             let bytes = ops.native_string_bytes(value)?;
-            let selected = if bytes.starts_with(b"::") {
+            let selected = if tcl_syntax::naming::is_absolute_bytes(&bytes) {
                 tcl_core_types::c_string_extent(&bytes)
                     .iter()
                     .position(|byte| *byte != b':')
