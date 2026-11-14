@@ -155,7 +155,8 @@ fn original_proc_binding_retires_resources_outside_table_borrow_while_query_view
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Query metadata is not a native Proc reference. C resource-role software control only.
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        for mode in 0..3 {
+        // Mode 2 changes and restores the context, which only debug re-proves.
+        for mode in (0..3).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
             crate::counters::reset();
             {
                 let mut interpreter = native(profile);
@@ -193,7 +194,8 @@ fn original_proc_replacement_checks_retirement_and_holder_before_incoming_adopti
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Callback recreation has no non-Obj payload disposal purpose; no second delete or Native grant.
     for profile in ["tcl8.4", "tcl8.6", "tcl9.1"] {
-        for mode in 0..5 {
+        // Mode 2 changes and restores the context, which only debug re-proves.
+        for mode in (0..5).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
             crate::counters::reset();
             {
                 let mut interpreter = native(profile);
@@ -296,7 +298,8 @@ fn original_ensemble_replacement_uses_shared_retirement_before_token_activation(
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Real Proc release from the ordinary shared replacement worker, not Native ensemble chronology.
-    for mode in 0..3 {
+    // Mode 2 changes and restores the context, which only debug re-proves.
+    for mode in (0..3).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
         crate::counters::reset();
         {
             let mut interpreter = native("tcl9.1");

@@ -269,7 +269,8 @@ fn public_replacement_refusal_stops_creation_workers_and_retires_partial_objects
     // Select a genuine empty publication slot before installing the actual old
     // shim. This isolates the continuation, not collision-pretest parity.
     for class in [false, true] {
-        for mode in 0..3 {
+        // Mode 2 changes and restores the context, which only debug re-proves.
+        for mode in (0..3).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
             let mut interpreter = native("tcl9.1");
             let publication = interpreter.oo_publication(b"CreatedPublication").unwrap();
             let observed = install_old(
@@ -355,7 +356,8 @@ static NAMESPACE: obj::TclObjType = obj::TclObjType {
 fn copy_replacement_callback_stops_cloned_worker_after_original_namespace_getter() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    for mode in 0..3 {
+    // Mode 2 changes and restores the context, which only debug re-proves.
+    for mode in (0..3).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
         let mut interpreter = native("tcl9.1");
         MODE.with(|selected| selected.set(mode));
         let head = obj::Owned::fresh(obj::new_string_bytes(b"oo::copy"));

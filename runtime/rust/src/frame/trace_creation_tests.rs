@@ -205,7 +205,8 @@ fn original_trace_member_creation_retires_searches_outside_storage_before_regist
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        for mode in 0..=4 {
+        // Mode 2 changes and restores the context, which only debug re-proves.
+        for mode in (0..=4).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
             let mut interpreter = native(profile);
             interpreter.frames.borrow_mut().push(GLOBAL);
             let value = text(b"V");

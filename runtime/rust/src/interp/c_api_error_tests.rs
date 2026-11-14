@@ -213,7 +213,8 @@ fn original_error_snapshot_restoration_retires_native_options_after_full_state_p
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Software snapshot ownership and callback transport; no Native cleanup chronology claim.
     for info in [false, true] {
-        for mode in 0..3 {
+        // Mode 2 changes and restores the context, which only debug re-proves.
+        for mode in (0..3).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
             leak_free(|interpreter| {
                 interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
                 assert_eq!(
