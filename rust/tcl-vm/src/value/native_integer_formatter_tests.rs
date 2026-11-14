@@ -39,11 +39,15 @@ fn actual_c84_formatter_materializes_original_minimum_children_without_cache_or_
             NativeScalarCache::Number(Number::Int(i64::MIN)),
         ),
     ] {
-        let original = Value::from_native_scalar_cache(cache.clone(), None, dialect).unwrap();
+        // Without a formatter the updater spells INT64_MIN as tclsh 8.4.20's
+        // TclFormatInt does on LP64: `expr {-9223372036854775807 - 1}` and
+        // `expr {wide(-9223372036854775807) - 1}` both print `-8`.
+        let unformatted = Value::from_native_scalar_cache(cache.clone(), None, dialect).unwrap();
         assert_eq!(
-            original.native_string_bytes(protocol).unwrap_err(),
-            tcl_syntax::native_string::NativeStringUnavailable::StringUpdater
+            unformatted.native_string_bytes(protocol).unwrap().as_ref(),
+            b"-8"
         );
+        let original = Value::from_native_scalar_cache(cache.clone(), None, dialect).unwrap();
         assert!(original.resident_string_bytes().is_none());
         let list = Value::native_list_constructor(vec![original], protocol);
         let expected = formatter.format(kind, i64::MIN).unwrap();
