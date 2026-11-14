@@ -1,0 +1,54 @@
+== p1: B
+B
+    while executing
+"error B "
+    (procedure "p1" line 1)
+    invoked from within
+"$p"
+-- during: A
+    while executing
+"error A "
+== p2: F
+F
+    while executing
+"error F "
+    (procedure "p2" line 1)
+    invoked from within
+"$p"
+-- during: A
+    while executing
+"error A "
+== p3: F
+F
+    while executing
+"error F "
+    (procedure "p3" line 1)
+    invoked from within
+"$p"
+== p4: F
+F
+    while executing
+"error F "
+    (procedure "p4" line 1)
+    invoked from within
+"$p"
+-- during: B
+    while executing
+"error B "
+== p5: X
+CUSTOM
+    invoked from within
+"$p"
+== p6: B
+B
+    while executing
+"error B"
+    (procedure "p6" line 6)
+    invoked from within
+"$p"
+-- during: A
+    while executing
+"error A"
+== top: B
+    while executing
+"error B"

@@ -308,6 +308,18 @@ impl Interp {
         reached
     }
 
+    /// END_CATCH reaches Tcl_ResetResult once a range's completion is
+    /// captured, so a later handler or `finally` error is logged afresh.
+    fn end_try_catch(&mut self, code: Code) -> Result<(), Code> {
+        if code == Code::Error {
+            self.publish_and_reset_error();
+            if self.host_refusal_pending() {
+                return Err(Code::Error);
+            }
+        }
+        Ok(())
+    }
+
     fn splice_try_during(
         &mut self,
         original: &Rc<BodyObjectOperation>,
@@ -573,6 +585,7 @@ impl Interp {
             } else {
                 self.capture_body_completion(original, body_code)?
             };
+            self.end_try_catch(body_code)?;
             let mut outcome = initial.store(self, &operation.prepared.temporaries)?;
             let mut matched = None;
             for (index, handler) in recipe.handlers.iter().enumerate() {
@@ -639,6 +652,7 @@ impl Interp {
                     return Ok(Code::Ok);
                 }
                 let replacement = self.capture_body_completion(original, code)?;
+                self.end_try_catch(code)?;
                 let replacement =
                     self.splice_try_during(original, artifact, operation, &outcome, replacement)?;
                 if recipe.finally.is_none() {
@@ -662,6 +676,7 @@ impl Interp {
                 }
                 if code != Code::Ok {
                     let replacement = self.capture_body_completion(original, code)?;
+                    self.end_try_catch(code)?;
                     let replacement = self.splice_try_during(
                         original,
                         artifact,
@@ -724,6 +739,24 @@ mod tests {
             })
             .collect()
     }
+    #[test]
+    fn compiled_try_handler_and_finally_errors_log_as_tclsh_does() {
+        // errorinfo.expect is what tclsh 8.6.18, 9.0.4 and 9.1.0 each return
+        // for errorinfo.tcl: an error raised in a handler or `finally` is
+        // logged afresh, its body's error chained under -during.
+        let script = include_bytes!("../../../tests/data/native_compiled_try/errorinfo.tcl");
+        let expected = include_bytes!("../../../tests/data/native_compiled_try/errorinfo.expect");
+        for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = super::super::tests::interpreter(profile);
+            assert_eq!(interp.eval_str(script), Code::Ok, "{profile}");
+            assert_eq!(
+                String::from_utf8_lossy(&interp.result_bytes()),
+                String::from_utf8_lossy(expected),
+                "{profile}"
+            );
+        }
+    }
+
     #[test]
     fn compiled_try_matches_original_native_handlers_fallthrough_and_finally() {
         // naming.try-original-compiler-topology
