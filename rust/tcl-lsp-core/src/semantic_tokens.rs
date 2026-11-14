@@ -3488,9 +3488,7 @@ fn collect_script(
             .insert_overrides(ctx, &seg, &mut overrides);
         // Regex-source tracking: retag a `set` value word that feeds a regexp
         // pattern as a (substitution-aware) regex.
-        if ctx.lexical {
-            mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
-        }
+        mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
 
         let body_ctx = command_body_context(ctx, &seg, original.as_ref(), head_text, &arg_texts);
 
@@ -5169,18 +5167,14 @@ fn collect_entries(
     // Regex-source spans: the def-site literal words (`set my_re ".*"`) whose
     // variable flows into a `regexp`/`regsub` pattern, keyed by word start so
     // the walk can retag the matching argument.  Empty (no map lookups) when
-    // there is no analysis or no such flow.
-    // Read only by the lexical walk; a Native-context document never uses it.
-    let regex_sources: FxHashMap<u32, Span> =
-        cu.filter(|_| lexical)
-            .map_or_else(FxHashMap::default, |cu| {
-                tcl_compiler::regex_source::regex_source_literal_spans(
-                    source, cu, registry, dialect,
-                )
-                .into_iter()
-                .map(|span| (span.start(), span))
-                .collect()
-            });
+    // there is no analysis or no such flow. The compiler decides the spans
+    // under the unit's own profile, so every profile reads them.
+    let regex_sources: FxHashMap<u32, Span> = cu.map_or_else(FxHashMap::default, |cu| {
+        tcl_compiler::regex_source::regex_source_literal_spans(source, cu, registry, dialect)
+            .into_iter()
+            .map(|span| (span.start(), span))
+            .collect()
+    });
 
     // The document's command-identity facts: bare-name aliases for commands
     // imported from an exported namespace (`namespace import tcltest::*` →
@@ -5910,6 +5904,14 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    /// The command set of one release, so a unit built from it carries that
+    /// release rather than the dialect-blind standalone configuration.
+    fn release_reg(dialect: &str) -> CommandRegistry {
+        reg().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        )
     }
 
     fn expect_reg() -> CommandRegistry {
@@ -7368,8 +7370,10 @@ mod tests {
     #[test]
     fn regex_source_variable_highlights_def_site_literal() {
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
-        let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
+        let registry = release_reg("tcl9.0");
+        // The subject is bound: reading an unset `$s` raises before `regexp`
+        // runs, so the pattern would never be used.
+        let src = "set my_re \".*abc\"\nset s subject\nregexp $my_re $s\n";
         // Without a CompilationUnit the `set` value is a plain string.
         let plain = decode_full(
             src,
@@ -7414,7 +7418,7 @@ mod tests {
         // Root registry calls because TclOO selects the receiver's private
         // namespace at runtime, where a relative command may be shadowed.
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "oo::class create C {\n  method m {s} {\n    ::set re \".*x\"\n    ::regexp $re $s\n  }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
@@ -8413,8 +8417,9 @@ mod tests {
         // so a `set re "…"; regexp $re` inside the eval highlights the def-site
         // literal — end-to-end through the CU overlay, matching a proc body.
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
-        let src = "namespace eval ::ns {\n  set re \".*x\"\n  regexp $re $s\n}\n";
+        let registry = release_reg("tcl9.0");
+        // The subject is bound, so the `regexp` call is reached.
+        let src = "namespace eval ::ns {\n  set s subject\n  set re \".*x\"\n  regexp $re $s\n}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
             src,
@@ -8441,7 +8446,7 @@ mod tests {
         // `apply` lambda bodies are synthetic body units too — a def-site regex
         // literal inside the lambda highlights as a regex.
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "apply {{s} {\n  set re \".*x\"\n  regexp $re $s\n}} foo\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(

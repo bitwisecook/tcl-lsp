@@ -77,17 +77,14 @@ fn inner(word: &str) -> &str {
 }
 
 fn highlighted_literals(source: &str) -> Vec<String> {
-    let registry = CommandRegistry::build_default();
-    let cu = CompilationUnit::build_for(source, &registry, false);
-    regex_source_literal_spans(
-        source,
-        &cu,
-        &registry,
-        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-    )
-    .into_iter()
-    .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
-    .collect()
+    // The oracle is tclsh 9.0, so the unit is built under that release.
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+    let registry = CommandRegistry::build_default().project_for_profile(profile);
+    let cu = CompilationUnit::build_for_profile(source, &registry, false, profile);
+    regex_source_literal_spans(source, &cu, &registry, profile)
+        .into_iter()
+        .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
+        .collect()
 }
 
 #[test]
