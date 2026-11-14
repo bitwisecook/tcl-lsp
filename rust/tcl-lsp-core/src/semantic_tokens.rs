@@ -3584,7 +3584,7 @@ fn emit_selected_command_head(
     }
 }
 
-/// A written member of the document's own grammar (a `.sslictcl` or SpecTcl
+/// A written member of the document's own grammar (a `.sslictcl` or `SpecTcl`
 /// document), at the root or inside a member that opens a member grammar,
 /// where no selected definition-member inventory covers the command.
 fn document_member(
