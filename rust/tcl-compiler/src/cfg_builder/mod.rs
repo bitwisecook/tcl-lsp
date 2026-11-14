@@ -4206,7 +4206,7 @@ fn build_cfg_inner_with_context(
             .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
         let timeline = top_timeline
             .entry_after(
-                first_possible_invocation(module, proc.span),
+                first_possible_invocation(module, registry, proc.span),
                 command_bindings,
             )
             .map_or_else(
@@ -4239,9 +4239,16 @@ fn build_cfg_inner_with_context(
 /// procedure defined at `definition`: the first statement after the definition
 /// that may run code, or past the end when none does. A body runs only once its
 /// procedure is invoked, so a command defined before that point is bound when it
-/// runs, and a call to it is the module's own (#2407). Under a trace an inert
-/// statement may run code too, so there the definition itself is the point.
-fn first_possible_invocation(module: &Module, definition: Span) -> Span {
+/// runs, and a call to it is the module's own (#2407). A statement is inert
+/// when it is a definition, a literal assignment, or a literal invocation whose
+/// registry footprint re-enters Tcl only through a trace. Under a trace an
+/// inert statement may run code too, so there the definition itself is the
+/// point.
+fn first_possible_invocation(
+    module: &Module,
+    registry: &CommandRegistry,
+    definition: Span,
+) -> Span {
     let traced = module.has_dynamic_trace
         || module.has_dynamic_variable_trace
         || !module.traced_commands.is_empty()
@@ -4256,8 +4263,7 @@ fn first_possible_invocation(module: &Module, definition: Span) -> Span {
         Statement::AssignValue { value, .. } => literal(value),
         Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
             defines(stmt.span())
-                || (command == "variable" && args.iter().all(literal))
-                || (command == "package" && args.first().is_some_and(|sub| sub == "provide"))
+                || (args.iter().all(literal) && reenters_tcl_only_by_trace(registry, command, args))
         }
         _ => false,
     };
@@ -4282,6 +4288,21 @@ fn first_possible_invocation(module: &Module, definition: Span) -> Span {
         let before = at.start().saturating_sub(1);
         Span::new(before, before)
     })
+}
+
+/// Whether the registry's effect footprint for this literal invocation declares
+/// that a variable trace is the only way it can re-enter Tcl. The caller rules
+/// traces out for the module. An undeclared footprint is unknown, so the
+/// invocation may run code.
+fn reenters_tcl_only_by_trace(registry: &CommandRegistry, command: &str, args: &[String]) -> bool {
+    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    registry
+        .resolve_invocation(command, &words, None)
+        .is_some_and(|invocation| {
+            invocation.semantics.world_effects.is_declared()
+                && tcl_registry::CallbackKinds::TRACE
+                    .contains(invocation.effects().callback().kinds)
+        })
 }
 
 /// Build a CFG for a single script body against one resolved command surface.

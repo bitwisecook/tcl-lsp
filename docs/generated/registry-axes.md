@@ -85,8 +85,8 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2150` | site | same reason as this loop's other "--" check above |
 | irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2956` | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
 | irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:2957` | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:3796` | site | this function only runs for a computed head with no selected invocation, so there is no per-command `EndsOptions` row here to read |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:3822` | site | same reason as this function's other "--" check above: no `CommandSpec` exists for this head |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:3798` | site | this function only runs for a computed head with no selected invocation, so there is no per-command `EndsOptions` row here to read |
+| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens.rs:3824` | site | same reason as this function's other "--" check above: no `CommandSpec` exists for this head |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs:250` | site | `set` and `return` are recognised as Tcl's own primitive syntax for this one-command-body shape, not as a pack-authorable command |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs:255` | site | same primitive-syntax reason |
 | irreducible | never | `rust/tcl-syntax/src/execution_conformance.rs:109` | file | a conformance table's empty-cell marker, not a Tcl word |
@@ -183,7 +183,6 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/per_item.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/tk_checks.rs` | 2 |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 6 |
-| `rust/tcl-compiler/src/cfg_builder/mod.rs` | 2 |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 |
 | `rust/tcl-compiler/src/interprocedural.rs` | 1 |
 | `rust/tcl-compiler/src/ir.rs` | 2 |

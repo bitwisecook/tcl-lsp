@@ -30,6 +30,23 @@ const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableTraces,
 ];
 
+const VARIABLE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
+    static_footprint: StaticEffectFootprint {
+        accesses: &[StaticEffectAccess::new(
+            WorldStateDomain::VariableStore,
+            EffectAccessMode::Write,
+            StaticInterpreterScope::Current,
+            StaticNamespaceScope::Any,
+            StaticSubjectScope::Wildcard,
+        )],
+        callback: CallbackEffect {
+            kinds: CallbackKinds::TRACE,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        },
+    },
+    ..WorldEffectDescriptor::EMPTY
+};
+
 const VARIABLE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     logical_source_resolver: None,
     composition: StateTransitionComposition::Extend,
@@ -214,9 +231,11 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Variable),
         native_lowering: Some(NativeLowering::Scope(ScopeKind::NamespaceVariable)),
         forms: FORMS,
-        // A value-bearing `variable name value` can run variable traces;
-        // until value writes are transition-modelled, leave its world
-        // declaration open rather than falsely claiming `EMPTY`.
+        // A value-bearing `variable name value` writes the named cell, in
+        // whichever namespace a qualified name selects, and its only re-entry
+        // is that cell's write trace. The transition records cell identity
+        // and covers none of this.
+        world_effects: Some(VARIABLE_EFFECTS),
         state_transitions: Some(VARIABLE_TRANSITIONS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::VARIABLE),
         ..CommandSpec::DEFAULT
