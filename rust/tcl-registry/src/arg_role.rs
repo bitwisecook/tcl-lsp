@@ -84,6 +84,16 @@ pub enum ArgRole {
     VarWrite,
     /// Variable name read without modification (`info exists`, `array get`).
     VarRead,
+    /// Names a variable **cell another frame or namespace owns**, which the
+    /// command links to without reading or writing its value here: `upvar`'s
+    /// and `namespace upvar`'s `otherVar` (#2259).
+    ///
+    /// Distinct from [`Self::VarRead`]: the word is no use of a cell in this
+    /// frame, so [`Self::names_variable`] is `false` and a reference recorder
+    /// does not count it as a read of a local. A consumer that asks which
+    /// words can spell a cell anywhere — the rename hazard scan, a cell
+    /// token — reads this role beside `VarWrite` and `VarRead`.
+    VarCell,
     /// Loop variable-binding list evaluated once before the body
     /// (`dict for {k v} …`, `dict map {k v} …`).
     LoopVarList,
@@ -283,6 +293,7 @@ impl ArgRole {
         Self::Expr,
         Self::VarWrite,
         Self::VarRead,
+        Self::VarCell,
         Self::LoopVarList,
         Self::ParamList,
         Self::StaticVarList,
@@ -356,6 +367,7 @@ impl ArgRole {
             | Self::CommandNameProbe
             | Self::VarWrite
             | Self::VarRead
+            | Self::VarCell
             | Self::LoopVarList
             | Self::ParamList
             | Self::StaticVarList
@@ -401,6 +413,7 @@ impl ArgRole {
             | Self::CommandNameProbe
             | Self::VarWrite
             | Self::VarRead
+            | Self::VarCell
             | Self::LoopVarList
             | Self::ParamList
             | Self::StaticVarList
@@ -443,7 +456,8 @@ impl ArgRole {
     pub const fn names_variable(self) -> bool {
         match self {
             Self::VarWrite | Self::VarRead => true,
-            Self::Body
+            Self::VarCell
+            | Self::Body
             | Self::OpaqueScript
             | Self::Expr
             | Self::LambdaLiteral
@@ -505,6 +519,7 @@ impl ArgRole {
             | Self::CommandNameProbe
             | Self::VarWrite
             | Self::VarRead
+            | Self::VarCell
             | Self::LoopVarList
             | Self::ParamList
             | Self::StaticVarList
@@ -589,6 +604,13 @@ impl ArgRole {
                 (0, "token secret", "writes the cell"),
                 (1, "token", "is a bare use of that cell, exactly as $token would be, so the write is not a W220 dead store"),
                 (2, "$present", "observes 1"),
+            ),
+            Self::VarCell => worked_example!(
+                "namespace eval ::pkg { variable version 1 }\nproc show {} { namespace upvar ::pkg version v; puts $v }";
+                carrier (1, "version");
+                (0, "variable version 1", "creates the cell ::pkg::version"),
+                (1, "version", "names that cell without reading it, so a rename of ::pkg::version reaches this word"),
+                (1, "puts $v", "reads ::pkg::version through the local the link binds"),
             ),
             Self::LoopVarList => worked_example!(
                 "set pairs {a 1 b 2}\nforeach {key value} $pairs { puts \"$key=$value\" }";

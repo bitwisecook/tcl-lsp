@@ -130,6 +130,10 @@ pub const ARG_ROLES: &[Variant] = &[
     v("Expr", "expr sub-language expression"),
     v("VarWrite", "names a variable the command writes"),
     v("VarRead", "names a variable the command reads"),
+    v(
+        "VarCell",
+        "names a cell another frame owns (`upvar`'s otherVar)",
+    ),
     v("LoopVarList", "loop variable list (foreach / lmap)"),
     v("ParamList", "procedure parameter list"),
     v(
@@ -938,6 +942,7 @@ mod tests {
             | ArgRole::Expr
             | ArgRole::VarWrite
             | ArgRole::VarRead
+            | ArgRole::VarCell
             | ArgRole::LoopVarList
             | ArgRole::ParamList
             | ArgRole::StaticVarList

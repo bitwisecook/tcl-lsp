@@ -1249,7 +1249,8 @@ impl InvocationSemantics<'_, '_> {
 pub struct AuthoredSourceScopeAliasArgument {
     /// Effective post-head argument naming the local declaration.
     pub local: usize,
-    /// Adjacent selected `VarRead` ordinal, without an alias-target grant.
+    /// Adjacent selected `VarRead` or `VarCell` ordinal (an `upvar`'s
+    /// `otherVar`), without an alias-target grant.
     pub preceding_read: Option<usize>,
 }
 
@@ -4956,7 +4957,10 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
                 }
                 let preceding_read = index
                     .checked_sub(1)
-                    .filter(|previous| roles.contains(&(*previous, ArgRole::VarRead)))
+                    .filter(|previous| {
+                        roles.contains(&(*previous, ArgRole::VarRead))
+                            || roles.contains(&(*previous, ArgRole::VarCell))
+                    })
                     .and_then(|previous| {
                         self.semantics
                             .argument_offset
@@ -10794,7 +10798,10 @@ mod tests {
         );
         let normal = invocation.facts_after_success();
         assert!(normal.arg_roles_complete);
-        assert_eq!(normal.arg_roles, vec![(1, ArgRole::VarWrite)]);
+        assert_eq!(
+            normal.arg_roles,
+            vec![(0, ArgRole::VarCell), (1, ArgRole::VarWrite)]
+        );
         assert!(
             normal
                 .state_transitions
@@ -12236,7 +12243,7 @@ mod logical_frame_source_role_tests {
                     InvocationWord::Literal("original"),
                     InvocationWord::Literal("local"),
                 ],
-                vec![(2, ArgRole::VarWrite)],
+                vec![(1, ArgRole::VarCell), (2, ArgRole::VarWrite)],
             ),
             (
                 "uplevel",

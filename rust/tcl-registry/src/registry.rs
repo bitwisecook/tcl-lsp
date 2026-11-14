@@ -13660,6 +13660,40 @@ mod tests {
         );
     }
 
+    /// Each `otherVar` of `upvar` and `namespace upvar` names the cell the
+    /// pair links (#2259), wherever the optional level puts it, beside the
+    /// `myVar` local the link writes.
+    #[test]
+    fn upvar_other_vars_carry_the_cell_role() {
+        let reg = CommandRegistry::build_default();
+        for (args, cells, locals) in [
+            (&["a", "b"][..], vec![0], vec![1]),
+            (&["1", "a", "b"][..], vec![1], vec![2]),
+            (&["a", "b", "c", "d"][..], vec![0, 2], vec![1, 3]),
+            (&["#0", "a", "b", "c", "d"][..], vec![1, 3], vec![2, 4]),
+        ] {
+            assert_eq!(
+                reg.arg_indices_for_role("upvar", args, ArgRole::VarCell),
+                cells,
+                "{args:?}"
+            );
+            assert_eq!(
+                reg.arg_indices_for_role("upvar", args, ArgRole::VarWrite),
+                locals,
+                "{args:?}"
+            );
+        }
+        let args = ["upvar", "::ns", "a", "b", "c", "d"];
+        assert_eq!(
+            reg.arg_indices_for_role("namespace", &args, ArgRole::VarCell),
+            vec![2, 4]
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("namespace", &args, ArgRole::VarWrite),
+            vec![3, 5]
+        );
+    }
+
     /// `for`'s three script arguments share the semantic
     /// [`ArgRole::Body`], and the *presentation* fact is what separates the
     /// trailing body (block-expanded) from `start` / `next` (inline).

@@ -1219,6 +1219,7 @@ What an argument position *is*. Roles are how the tools know `while`'s second wo
 | `Expr` | expr sub-language expression |
 | `VarWrite` | names a variable the command writes |
 | `VarRead` | names a variable the command reads |
+| `VarCell` | names a cell another frame owns (`upvar`'s otherVar) |
 | `LoopVarList` | loop variable list (foreach / lmap) |
 | `ParamList` | procedure parameter list |
 | `StaticVarList` | procedure static-variable list (`proc name args statics body`) |

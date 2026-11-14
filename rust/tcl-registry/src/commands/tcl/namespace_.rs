@@ -1674,9 +1674,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // elsewhere (tclsh 9.0.4 / 8.6.16: inside `namespace eval ::rel`,
         // `namespace upvar kid v alias` binds `::rel::kid::v`).
         arg_roles: &[(0, ArgRole::NamespaceName)],
-        // `namespace upvar NS otherVar myVar ?otherVar myVar ...?` — the
-        // *local* name of each pair, from index 2 after the subcommand word
-        repeated_args: &[RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2)],
+        // `namespace upvar NS otherVar myVar ?otherVar myVar ...?`, indexed
+        // after the subcommand word: each pair's `otherVar` (from 1) names the
+        // namespace cell it links (#2259), its `myVar` (from 2) the local.
+        repeated_args: &[
+            RepeatedArgLayout::strided(ArgRole::VarCell, 1, 2),
+            RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2),
+        ],
         subcommand_forms: NAMESPACE_UPVAR_FORMS,
         codegen_hook: Some(crate::hooks::CodegenHookId::NamespaceUpvar),
         creates_scope_alias: true,

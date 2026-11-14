@@ -637,6 +637,7 @@ counted after the subcommand word.
 | `Expr` | Expression -- parsed into the expression AST |
 | `VarWrite` | Variable written by the command (SSA def) |
 | `VarRead` | Variable read without modification |
+| `VarCell` | Names a cell another frame or namespace owns, linked without being read here (`upvar` / `namespace upvar`'s `otherVar`) |
 | `LoopVarList` | Loop variable *list* (`foreach` / `lmap`) -- several names in one word |
 | `ParamList` | Procedure parameter list |
 | `StaticVarList` | Procedure static-variable list (Jim's `proc name args statics body`) |

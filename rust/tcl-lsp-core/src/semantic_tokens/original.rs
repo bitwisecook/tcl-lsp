@@ -1548,7 +1548,9 @@ pub(super) fn expanded_role_extents(
             }
             let kind = match role {
                 tcl_registry::ArgRole::VarWrite => (TokenKind::Variable, super::MOD_DECLARATION),
-                tcl_registry::ArgRole::VarRead => (TokenKind::Variable, 0),
+                tcl_registry::ArgRole::VarRead | tcl_registry::ArgRole::VarCell => {
+                    (TokenKind::Variable, 0)
+                }
                 tcl_registry::ArgRole::CommandName
                 | tcl_registry::ArgRole::CommandNameProbe
                 | tcl_registry::ArgRole::CommandPrefix => (TokenKind::Function, 0),

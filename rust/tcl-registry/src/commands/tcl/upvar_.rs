@@ -25,10 +25,20 @@ use tcl_dialect::model::SpecSurface;
 
 const UPVAR_FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec::UPVAR;
 
-const UPVAR_REPEATED_ARGS: &[RepeatedArgLayout] = &[RepeatedArgLayout {
-    optional_leading_word: true,
-    ..RepeatedArgLayout::strided(ArgRole::VarWrite, 1, 2)
-}];
+// Each `otherVar myVar` pair: `otherVar` names the linked cell in the target
+// frame (#2259) and `myVar` the local the link binds. Both anchor on the end
+// of the list, which the optional `level` word shifts.
+const UPVAR_REPEATED_ARGS: &[RepeatedArgLayout] = &[
+    RepeatedArgLayout {
+        optional_leading_word: true,
+        exclude_trailing: 1,
+        ..RepeatedArgLayout::strided(ArgRole::VarCell, 0, 2)
+    },
+    RepeatedArgLayout {
+        optional_leading_word: true,
+        ..RepeatedArgLayout::strided(ArgRole::VarWrite, 1, 2)
+    },
+];
 
 const UPVAR_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,

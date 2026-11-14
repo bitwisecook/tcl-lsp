@@ -843,7 +843,13 @@ mod tests {
         );
         assert_eq!(
             words.roles(),
-            Some([(2, tcl_registry::ArgRole::VarWrite)].as_slice())
+            Some(
+                [
+                    (1, tcl_registry::ArgRole::VarCell),
+                    (2, tcl_registry::ArgRole::VarWrite)
+                ]
+                .as_slice()
+            )
         );
         assert_eq!(
             words.operands()[2]

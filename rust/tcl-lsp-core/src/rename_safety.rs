@@ -986,7 +986,8 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 ///
 /// Which argument of which command names a variable is the registry's
 /// answer ([`tcl_registry::ArgRole::VarWrite`] /
-/// [`tcl_registry::ArgRole::VarRead`]); whether a word is computed is
+/// [`tcl_registry::ArgRole::VarRead`], and [`tcl_registry::ArgRole::VarCell`]
+/// for the cell an `upvar` links); whether a word is computed is
 /// [`tcl_compiler::dynamic_names::source_name_word_is_dynamic`]'s. No command
 /// name is matched here.
 ///
@@ -1082,7 +1083,9 @@ pub fn namespace_variable_rename_hazard(
                         index == ordinal
                             && matches!(
                                 role,
-                                tcl_registry::ArgRole::VarWrite | tcl_registry::ArgRole::VarRead,
+                                tcl_registry::ArgRole::VarWrite
+                                    | tcl_registry::ArgRole::VarRead
+                                    | tcl_registry::ArgRole::VarCell,
                             )
                     }) =>
                 {
@@ -1555,6 +1558,29 @@ mod tests {
         let reason = var_hazard(src, "::ns::v")
             .expect("a `set $n` in the same document must refuse the cell rename");
         assert!(reason.contains("computed at run time"), "{reason}");
+    }
+
+    /// FP guard (#2259): the `otherVar` of `namespace upvar` and `upvar` names
+    /// the cell the pair links. A computed one may be the cell being renamed,
+    /// which the registry's cell role, not a separate alias record, reports.
+    #[test]
+    fn fp_refuses_a_namespace_variable_rename_beside_a_computed_upvar_cell() {
+        for link in ["namespace upvar ::ns $v local", "upvar #0 $v local"] {
+            let src = format!(
+                "namespace eval ::ns {{\n    variable version 1\n}}\n\
+                 proc p {{v}} {{ {link}; return $local }}\n"
+            );
+            let reason = var_hazard(&src, "::ns::version")
+                .unwrap_or_else(|| panic!("`{link}` may link `::ns::version`"));
+            assert!(reason.contains("computed at run time"), "{link}: {reason}");
+        }
+        let src = "namespace eval ::ns {\n    variable version 1\n}\n\
+                   proc p {} { namespace upvar ::ns version local; return $local }\n";
+        assert_eq!(
+            var_hazard(src, "::ns::version"),
+            None,
+            "a literal cell is rewritable"
+        );
     }
 
     /// FN guard: the ordinary namespace-variable document has no dynamic

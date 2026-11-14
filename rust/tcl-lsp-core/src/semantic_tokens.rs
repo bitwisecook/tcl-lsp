@@ -6658,6 +6658,24 @@ mod tests {
     }
 
     #[test]
+    fn upvar_other_var_highlights_the_linked_cell() {
+        // `otherVar` names the cell an `upvar` links (#2259), so it is a
+        // `Variable` rather than a plain string.
+        for (src, col) in [
+            ("namespace upvar ::ns version local\n", 21),
+            ("proc p {} { upvar #0 version local }\n", 21),
+        ] {
+            let toks = decode_full(src, tcl(), &reg());
+            assert!(
+                toks.iter().any(|(line, c, len, k, _)| {
+                    *line == 0 && *c == col && *len == 7 && *k == TokenKind::Variable as u32
+                }),
+                "expected `version` as a Variable in {src:?}; got {toks:?}"
+            );
+        }
+    }
+
+    #[test]
     fn varread_value_argument_is_not_a_variable() {
         // `dict get $d k` — `$d` is a value (a dict), not a var-name spot, so
         // the read-role retag must not fire on it; only the `$d` substitution
