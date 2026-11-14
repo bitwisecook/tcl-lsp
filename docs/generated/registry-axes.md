@@ -183,6 +183,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/per_item.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/tk_checks.rs` | 2 |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 6 |
+| `rust/tcl-compiler/src/cfg_builder/mod.rs` | 2 |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 |
 | `rust/tcl-compiler/src/interprocedural.rs` | 1 |
 | `rust/tcl-compiler/src/ir.rs` | 2 |
