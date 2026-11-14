@@ -3481,7 +3481,7 @@ fn collect_script(
         }
         // `my method …` inside a class body resolves against the enclosing
         // class's MRO (the most common `TclOO` dispatch form).
-        if !ctx.original_roles.has_head(head_tok.span.start()) {
+        if !ctx.lexical || !ctx.original_roles.has_head(head_tok.span.start()) {
             insert_self_method_overrides(ctx, &seg, original.as_ref(), &mut overrides);
         }
         ctx.original_roles
@@ -3904,7 +3904,7 @@ fn command_body_context<'a>(
             .and_then(|words| original::definition_class_name(ctx, seg, words))
             .or(ctx.enclosing_class)
     } else {
-        None
+        declared_class_for_body(ctx, seg).or(ctx.enclosing_class)
     };
     // The scoped command environment the recursion into THIS command's body
     // should carry: a command whose spec declares a `body_scope` switches it
@@ -4085,6 +4085,26 @@ fn insert_lexical_user_overrides(
         },
         overrides,
     );
+}
+
+/// The analysed class one of this command's words is a body of. A method body
+/// the analysis never entered still belongs to its class for display, so a
+/// self-dispatch inside it reads that class's declared methods. This names no
+/// receiver and grants no edit.
+fn declared_class_for_body<'a>(
+    ctx: ScriptCtx<'a>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Option<&'a str> {
+    ctx.analysis?
+        .class_body_spans
+        .iter()
+        .find(|(_, span)| {
+            seg.argv
+                .iter()
+                .skip(1)
+                .any(|token| token.span.start().abs_diff(span.start()) <= 1)
+        })
+        .map(|(name, _)| name.as_str())
 }
 
 /// Retain only the actual selected outer source grammar and the independent
