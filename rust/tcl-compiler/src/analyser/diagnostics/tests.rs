@@ -8181,6 +8181,25 @@ fn info_exists_fresh_activation_absence_does_not_borrow_namespace_contents() {
     assert!(codes.contains(&"I230".to_owned()), "{codes:?}");
 }
 
+/// `info exists` runs the read traces of the place it names, and one may
+/// bind it: tclsh 8.5-9.1 print `hi` for the traced `f` and `no` for `g`.
+#[test]
+fn info_exists_does_not_fold_a_place_a_read_trace_may_bind() {
+    let callback = "proc cb {n1 n2 op} { upvar 1 $n1 v; set v bound }\n";
+    let traced = format!(
+        "{callback}proc f {{}} {{\n trace add variable v read cb\n if {{[info exists v]}} {{ puts hi }} else {{ puts no }}\n}}\nf\n"
+    );
+    assert!(
+        !codes_for_in(&traced, "tcl8.6").contains(&"I230".to_owned()),
+        "a read trace may bind the queried place"
+    );
+    let plain = "proc g {} {\n if {[info exists v]} { puts hi } else { puts no }\n}\ng\n";
+    assert!(
+        codes_for_in(plain, "tcl8.6").contains(&"I230".to_owned()),
+        "an untraced never-set local still folds"
+    );
+}
+
 #[test]
 fn info_exists_folds_true_for_parameter() {
     // A parameter always exists → predicate folds true → I230.

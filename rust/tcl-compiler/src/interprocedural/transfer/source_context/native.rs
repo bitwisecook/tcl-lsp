@@ -334,6 +334,21 @@ impl<'a> NativeSummaryContext<'a> {
         n17_native_option("receiver.owned-point", point.map(|_| ()))
     }
 
+    /// Whether a variable trace the module installs may be on `name`'s
+    /// place: a computed trace target may be any place, and a literal one
+    /// is compared by its array base's tail, which over-approximates.
+    fn may_carry_variable_trace(&self, name: &str) -> bool {
+        fn tail(name: &str) -> &str {
+            tcl_syntax::naming::key_tail(crate::sccp::place_base(name))
+        }
+        self.module.has_dynamic_variable_trace
+            || self
+                .module
+                .traced_variables
+                .iter()
+                .any(|traced| tail(traced) == tail(name))
+    }
+
     pub(in crate::interprocedural::transfer) fn with_value_operation<T>(
         &self,
         tokens: &CommandTokens,
@@ -343,9 +358,19 @@ impl<'a> NativeSummaryContext<'a> {
         ) -> Option<T>,
     ) -> Option<T> {
         let (operation, normal) = n17_native_option("child.operation", self.operation(tokens))?;
+        // An existence query reads no contents, but it does run the read
+        // traces of the place it names, which may bind or unset it (tclsh
+        // 8.4-9.1). Only a place no module trace may name answers from the
+        // existence rung; any other keeps the variable-role refusal.
+        let existence =
+            crate::existence_query::operand(&operation.facts).is_some_and(|(_, argument)| {
+                operation
+                    .argument_literal(argument)
+                    .is_some_and(|name| !self.may_carry_variable_trace(&name))
+            });
         if n17_native_decline(
             "child.roles-arguments-or-literals",
-            !normal.variable_roles().is_empty()
+            (!existence && !normal.variable_roles().is_empty())
                 || !tokens
                     .source_binding
                     .as_ref()?
