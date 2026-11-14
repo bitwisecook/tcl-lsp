@@ -3699,6 +3699,8 @@ fn command_role_overrides(
         // independent source-display branch requires the selected original
         // class/instance and preserves stronger role overrides on insertion.
         receiver_source::insert_project_method(ctx, seg, providers, &mut overrides);
+    } else {
+        insert_object_method_overrides(ctx, seg, ctx.classes, &mut overrides);
     }
     original::insert_definition_member_overrides(ctx, seg, &mut overrides);
     if let Some(member) = document_member(ctx, seg) {
@@ -5300,17 +5302,19 @@ fn token_object_maps(
     } = facts;
     let analysis = Some(retained);
     // Source candidates retain the same complete analysis/Module inputs as
-    // their shared producer. Native lookup retains its independent reader.
-    // Both maps are read only by the lexical walk (object-method overrides and
-    // loop-variable handles); a Native-context document never consults them.
-    if !lexical {
-        return (ObjectClassMap::default(), ObjectClassMap::default());
-    }
+    // their shared producer. A release profile colours handles from the unit's
+    // own map; the map is display data and proves no receiver.
     let mut object_classes: ObjectClassMap = cu
         .and_then(|cu| {
-            tcl_compiler::object_types::logical_source_object_handle_classes(
-                cu, registry, analysis?,
-            )
+            if lexical {
+                tcl_compiler::object_types::logical_source_object_handle_classes(
+                    cu, registry, analysis?,
+                )
+            } else {
+                Some(tcl_compiler::object_types::object_handle_classes(
+                    cu, registry,
+                ))
+            }
         })
         .unwrap_or_default();
 
@@ -7019,7 +7023,7 @@ mod tests {
         // The plumbing is analysis-driven, so it needs the enriched path.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "proc myset {varName value} {\n\
                      upvar 1 $varName v\n\
                      set v $value\n\
@@ -7130,7 +7134,7 @@ mod tests {
         // the analyser, through to the token retag.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "array set aa {foo 1}\n\
                    proc b {v k} {\n\
                        return [set ${v}($k)]\n\
@@ -7165,7 +7169,7 @@ mod tests {
         // the call site (`dispatch greet …`) then highlights as a `Function`.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "proc dispatch {cmd arg} {\n\
                      $cmd $arg\n\
                    }\n\
@@ -7469,7 +7473,7 @@ mod tests {
         // method and its declared options through the registry's object-class
         // model — the precise path, not the shape-based fallback.
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "set chart [ticklecharts::chart new]\n$chart Xaxis -name {v(anode), V} -type value -min 0.4 -splitLine {show True}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
@@ -7538,7 +7542,7 @@ mod tests {
         // namespace at runtime, where a relative command may be shadowed.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "oo::configurable create Pin { property node }\n\
                    oo::class create Device {\n\
                      variable Pins\n\
@@ -7590,7 +7594,7 @@ mod tests {
         // namespace at runtime, where a relative command may be shadowed.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "oo::configurable create Pin { property node }\n\
                    oo::class create Device {\n\
                      variable Pins\n\
@@ -7721,7 +7725,7 @@ mod tests {
         // ~12.6% of the unresolved `$var` dispatches; see experiments/tcloo_diag).
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "snit::type C {\n\
                    \x20   method helper {} {}\n\
                    \x20   method run {} { $self helper }\n\
@@ -7749,7 +7753,7 @@ mod tests {
         // idiom.  A source scan supplies the class (snit bodies aren't lowered).
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "snit::widget verticalAxis { method draw {} {} }\n\
                    snit::widget chart {\n\
                    \x20   component axis\n\
@@ -7794,7 +7798,7 @@ mod tests {
     fn configure_resolves_by_metaclass_trait_not_spelling() {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let resolves = |src: &str, line: u32| {
             let cu = CompilationUnit::build_for(src, &registry, false);
             let analysis = Analyser::new().analyse(src, "tcl9.0");
@@ -7828,7 +7832,7 @@ mod tests {
     fn snit_installhull_types_the_implicit_hull_component() {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let resolves = |src: &str| {
             let cu = CompilationUnit::build_for(src, &registry, false);
             let analysis = Analyser::new().analyse(src, "tcl9.0");
@@ -7875,7 +7879,7 @@ mod tests {
         // aren't lowered), gated on Engine being a known snit-family class.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "snit::type Engine { method run {} {} }\n\
                    snit::type Wrapper {\n\
                    \x20   variable eng\n\
@@ -7996,7 +8000,7 @@ mod tests {
         // the proc resolves the method — the param-receiver case.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "oo::configurable create Pin { property node }\n\
                    proc connect {dev t} { $dev configure -node $t }\n\
                    set p [Pin new]\n\
@@ -8245,7 +8249,7 @@ mod tests {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
         let cases = TCLOO_DISPATCH_CASES;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let mut failures = Vec::new();
         for &(name, src, method, line, expect) in cases {
             let cu = CompilationUnit::build_for(src, &registry, false);
@@ -8305,7 +8309,7 @@ mod tests {
         // class is not in this file (the cross-file mro_eval lever).
         use tcl_compiler::analyser::{Analyser, build_class_hierarchy};
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let lib = "oo::configurable create ::Pin { property node }\n";
         let hierarchy = build_class_hierarchy(Analyser::new().analyse(lib, "tcl9.0").all_classes);
         let user = "[::Pin new] configure -node 5\n";
@@ -8350,7 +8354,7 @@ mod tests {
         // namespace at runtime, where a relative command may be shadowed.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "oo::configurable create Pin { property node }\n\
                    oo::class create Device {\n\
                      variable Pins\n\
@@ -8379,7 +8383,7 @@ mod tests {
         // handle resolves its method + property option against the ClassDef.
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
+        let registry = release_reg("tcl9.0");
         let src = "oo::configurable create Pin { property node }\n\
                    set p [Pin new]\n\
                    $p configure -node 5\n";

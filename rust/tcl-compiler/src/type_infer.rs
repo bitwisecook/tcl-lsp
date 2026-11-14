@@ -1322,6 +1322,45 @@ fn value_word_type<S: std::hash::BuildHasher>(
     }
 }
 
+/// A `[Class new …]` / `[Class create …]` word whose head names a class this
+/// unit declares, typed as that class's object. This is a candidate type from
+/// the written words, as a top-level constructor call's result is; it is not
+/// the construction proof, which only `proved_construction_result` gives. A
+/// registry command and a head bound to a builtin are never candidates.
+fn source_class_construction_candidate<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    tokens: &crate::ir::CommandTokens,
+) -> TypeLattice {
+    fn literal(word: Option<&crate::ir::WordExpr>) -> Option<&str> {
+        match word? {
+            crate::ir::WordExpr::Literal { text, .. }
+            | crate::ir::WordExpr::BracedLiteral { text, .. } => Some(text.as_str()),
+            _ => None,
+        }
+    }
+    let words = tokens.words();
+    let (Some(head), Some(first)) = (literal(words.first()), literal(words.get(1))) else {
+        return TypeLattice::overdefined();
+    };
+    if ctx.known_classes.is_empty()
+        || ctx.registry.get(head).is_some()
+        || tokens
+            .source_binding
+            .as_ref()
+            .and_then(crate::command_binding::SourceInvocationBinding::proved_target)
+            .is_some_and(|target| target.registry_backed)
+    {
+        return TypeLattice::overdefined();
+    }
+    constructor_object_type(
+        ctx.registry,
+        head,
+        &[first],
+        ctx.known_classes,
+        ctx.namespace,
+    )
+}
+
 /// Type the original sole nested command using the same source metadata.
 fn command_word_result_type<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
@@ -1345,6 +1384,10 @@ fn command_word_result_type<S: std::hash::BuildHasher>(
         .and_then(|binding| binding.proved_construction_result(ctx.registry))
     {
         return TypeLattice::object_of(class_name);
+    }
+    let candidate = source_class_construction_candidate(ctx, &tokens);
+    if candidate.class_name().is_some() {
+        return candidate;
     }
     let Some(invocation) =
         crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
