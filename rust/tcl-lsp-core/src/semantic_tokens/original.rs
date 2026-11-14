@@ -710,6 +710,8 @@ pub(super) fn registry_overrides(
             },
             &mut overrides,
         );
+    } else {
+        insert_written_word_roles(ctx, command, words, &mut overrides);
     }
     insert_format_overrides(ctx, command, words, &mut overrides);
     insert_pattern_overrides(ctx, command, words, &mut overrides);
@@ -717,6 +719,73 @@ pub(super) fn registry_overrides(
         insert_source_schema_overrides(ctx, command, words, schema, &mut overrides);
     });
     overrides
+}
+
+/// Display roles for a command whose exact role set a dynamic word leaves
+/// incomplete. Each written spelling stands in for its unknown value, so `$re`
+/// is an operand rather than a switch. Lowering, rename and diagnostics read
+/// the exact roles and are unaffected.
+fn insert_written_word_roles(
+    ctx: ScriptCtx<'_>,
+    command: &SegmentedCommand,
+    words: &crate::original_invocation::OriginalRegistryWords,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    use tcl_registry::ArgRole;
+    if words.arguments.len() + 1 != command.texts.len()
+        || words
+            .arguments
+            .iter()
+            .all(|word| word.literal_bytes().is_some())
+    {
+        return;
+    }
+    let Some((name, script_frame)) = words.with_source_schema(ctx.generation, |schema| {
+        (
+            schema.authored_source_descriptors().command.name,
+            schema.semantics.frame_effect.is_some_and(|effect| {
+                effect.layout == tcl_registry::FrameArgLayout::ScriptInSelectedFrame
+            }),
+        )
+    }) else {
+        return;
+    };
+    let texts: Vec<&str> = command.texts[1..].iter().map(String::as_str).collect();
+    let arguments = tcl_registry::InvocationArguments::literals(&texts);
+    let mut roles = if script_frame {
+        // Whatever the level word evaluates to, the last word is script text.
+        texts
+            .len()
+            .checked_sub(1)
+            .into_iter()
+            .map(|last| (last, ArgRole::Body))
+            .collect()
+    } else {
+        ctx.registry
+            .arg_role_assignments_words(name, arguments, &[ArgRole::VarWrite, ArgRole::VarRead])
+            .unwrap_or_default()
+    };
+    roles.retain(|&(_, role)| role != ArgRole::Pattern);
+    insert_source_roles(
+        command,
+        &roles,
+        &words.arguments,
+        |ordinal| original_argument_token(command, words, ordinal),
+        |ordinal| words.operands.get(ordinal)?.as_ref()?.word.as_ref(),
+        overrides,
+    );
+    for pattern in ctx.registry.pattern_args_words(name, arguments) {
+        if pattern.kind == tcl_registry::patterns::PatternType::Regex
+            && let Some(Some(operand)) = words.operands.get(usize::from(pattern.index))
+        {
+            super::mark_literal_fragments(
+                command,
+                operand.span,
+                &ArgOverride::RegexPattern,
+                overrides,
+            );
+        }
+    }
 }
 
 /// Source declarations own their roles independently of the Registry. Their
@@ -826,9 +895,8 @@ fn insert_source_schema_overrides(
         {
             overrides.insert(token.span.start(), ArgOverride::SubcommandKeyword);
         }
-        if let tcl_registry::resolved_invocation::AuthoredSourceOptionBoundary::Terminator(
-            argument,
-        ) = scan.boundary
+        if let tcl_registry::resolved_invocation::AuthoredSourceOptionBoundary::Terminator(argument) =
+            scan.boundary
             && let Some(token) = token_at(argument)
         {
             overrides.insert(token.span.start(), ArgOverride::Decorator);
@@ -2277,11 +2345,13 @@ mod original_source_schema_tests {
                     TokenKind::Parameter,
                     MOD_DECLARATION,
                 ),
+                // The body's own commands are unrecorded; an unrebound builtin
+                // spelling there is coloured as it is at top level.
                 (
                     "after idle [list ::apply {{x} {puts $x}} 5]",
                     "puts",
                     TokenKind::Function,
-                    0,
+                    super::super::MOD_DEFAULT_LIBRARY,
                 ),
             ] {
                 let analysis = Analyser::new()

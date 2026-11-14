@@ -3359,15 +3359,21 @@ fn emit_static_command_head(
     let Some(&head_tok) = seg.argv.first() else {
         return;
     };
-    let kind = if ctx.original_roles.is_class_head(head_tok.span.start()) {
-        TokenKind::Class
+    let (kind, mods) = if ctx.original_roles.is_class_head(head_tok.span.start()) {
+        (TokenKind::Class, 0)
     } else if original::definition_member_head(ctx, seg) {
-        TokenKind::Keyword
+        (TokenKind::Keyword, 0)
     } else {
-        TokenKind::Function
+        unrecorded_head_kind(ctx, seg)
     };
-    // A missing source schema carries no built-in or namespace-name authority.
-    push_token(ctx.line_index, ctx.full_source, head_tok, kind, 0, entries);
+    push_token(
+        ctx.line_index,
+        ctx.full_source,
+        head_tok,
+        kind,
+        mods,
+        entries,
+    );
 }
 
 /// Segment `text` (anchored at absolute byte `base_offset` within
@@ -3566,14 +3572,79 @@ fn emit_selected_command_head(
     } else if let Some(words) = original {
         original::registry_head(ctx, seg, words, entries);
     } else {
-        push_token(
-            ctx.line_index,
-            full_source,
-            head_tok,
-            TokenKind::Function,
-            0,
-            entries,
-        );
+        let (kind, mods) = unrecorded_head_kind(ctx, seg);
+        push_token(ctx.line_index, full_source, head_tok, kind, mods, entries);
+    }
+}
+
+/// Head colour of a command with no selected invocation: its descriptor's
+/// kind when the spelling still names the document's own command.
+fn unrecorded_head_kind(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+) -> (TokenKind, u32) {
+    let Some(traits) = unrecorded_command_spec(ctx, seg).map(|spec| spec.traits) else {
+        return (TokenKind::Function, 0);
+    };
+    if traits.contains(tcl_registry::Traits::LANGUAGE_KEYWORD) {
+        (TokenKind::Keyword, 0)
+    } else if traits.contains(tcl_registry::Traits::OPERATOR_COMMAND) {
+        (TokenKind::Operator, 0)
+    } else {
+        (TokenKind::Function, MOD_DEFAULT_LIBRARY)
+    }
+}
+
+/// The document's own command for a written bareword head the analysis kept
+/// no invocation for (a body it did not enter). Display only: the spelling
+/// selects the descriptor, so it grants no binding.
+fn unrecorded_command_spec(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Option<&'static tcl_registry::CommandSpec> {
+    let head = seg.argv.first()?;
+    (head.kind == TokenType::Esc && seg.single_token_word.first() == Some(&true)).then_some(())?;
+    // A spelling the document rebinds (a `proc` over a builtin, a rename)
+    // resolves to the empty name, which no descriptor answers.
+    let name = ctx
+        .analysis?
+        .retained_command_realm()?
+        .resolve(seg.texts.first()?, head.span.start())
+        .spec_name();
+    ctx.generation.resolve_command(name)
+}
+
+/// Body, expression, keyword and option words of an unrecorded command, from
+/// its written spellings.
+fn insert_unrecorded_command_roles(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    use tcl_registry::ArgRole;
+    let Some(spec) = unrecorded_command_spec(ctx, seg) else {
+        return;
+    };
+    let texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
+    let arguments = tcl_registry::InvocationArguments::literals(&texts);
+    for (ordinal, role) in ctx
+        .registry
+        .arg_role_assignments_words(spec.name, arguments, &[])
+        .unwrap_or_default()
+    {
+        let Some(token) = ordinal.checked_add(1).and_then(|word| seg.argv.get(word)) else {
+            continue;
+        };
+        let braced = token.kind == TokenType::Str;
+        let kind = match role {
+            ArgRole::Body if braced => ArgOverride::BodyScript,
+            ArgRole::Expr if braced => ArgOverride::ExprScript,
+            ArgRole::Subcommand => ArgOverride::SubcommandKeyword,
+            ArgRole::Keyword => ArgOverride::KeywordArg,
+            ArgRole::Option | ArgRole::OptionTerminator => ArgOverride::Decorator,
+            _ => continue,
+        };
+        overrides.entry(token.span.start()).or_insert(kind);
     }
 }
 
@@ -3604,6 +3675,7 @@ fn command_role_overrides(
     original::insert_definition_member_overrides(ctx, seg, &mut overrides);
     if original.is_none() {
         insert_generic_option_overrides(seg, &mut overrides);
+        insert_unrecorded_command_roles(ctx, seg, &mut overrides);
     }
     overrides
 }
