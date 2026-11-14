@@ -306,31 +306,34 @@ correctness payoff (every procedure without a trailing `return`, which
 idiomatic Tcl leans on heavily) disproportionate to how the case was
 found — auditing existence-read positions. Tracked as #2264.
 
-## Open — a procedure that calls one defined after it has no transfer summary
+## Partly closed — a procedure that calls one defined after it
 
 A procedure's transfer summary (`interprocedural/transfer.rs`)
 says what a call to it does to its caller's places; a caller's lattice
 applies it, and without one the call widens every place it may write. A
 procedure has none when it reaches code the module cannot see, and the flow
-graph marks a call to a procedure the file defines *later* as exactly that:
-the source-order timeline gives the call the unseen-call marker
-(`SyntheticMarker::UnseenCall`), since at the definition the callee is not
-yet bound. So in
+graph marks a call to a procedure not yet bound as exactly that
+(`SyntheticMarker::UnseenCall`).
+
+A body runs only once its procedure is invoked, so its command bindings are
+taken from the first top-level statement that could invoke it rather than
+from its definition (#2407). Procedure definitions, literal assignments,
+`variable` and `package provide` cannot invoke anything; so in
 
 ```tcl
 proc twice {name} {upvar 1 $name w; bump w; bump w}
 proc bump {name} {upvar 1 $name v; incr v}
 ```
 
-`twice` has no summary, where with `bump` defined first it has one, its
-place bound afterwards; mutual recursion therefore never summarises, while
-a procedure that calls itself does. The answer is sound — the call keeps
-the widening every call to unseen code has — and only precision is lost.
+`twice` now calls `::bump` and has a summary, and mutual recursion between
+procedures defined back to back summarises too.
 
-Why it has not been done: the marker is the flow graph's source-order rule
-for every caller, not the summary's, and a procedure body runs after the
-whole file in the ordinary case; reading a forward call as a call to the
-procedure the file defines is a change to that rule, with its own witnesses.
+Still open: a definition that is not a top-level statement (inside a loop,
+a branch or a `namespace eval` body), any statement between the definitions
+that may invoke code (a call, a substitution, `eval`), and any command or
+variable trace in the module keep the definition-point bindings, and so the
+unseen-call marker. Independently, a module with any `namespace eval` marks
+every call to its own procedures unseen, whatever the definition order.
 
 ## Open — an embedded call whose result its statement needs leaves its places unknown
 

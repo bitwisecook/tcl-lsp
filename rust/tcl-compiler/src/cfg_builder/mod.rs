@@ -4205,7 +4205,10 @@ fn build_cfg_inner_with_context(
             .body
             .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
         let timeline = top_timeline
-            .entry_after(proc.span, command_bindings)
+            .entry_after(
+                first_possible_invocation(module, proc.span),
+                command_bindings,
+            )
             .map_or_else(
                 || {
                     command_bindings
@@ -4230,6 +4233,55 @@ fn build_cfg_inner_with_context(
         top_level: top_cfg,
         procedures: proc_cfgs,
     }
+}
+
+/// The point before which the file's own top-level run cannot invoke the
+/// procedure defined at `definition`: the first statement after the definition
+/// that may run code, or past the end when none does. A body runs only once its
+/// procedure is invoked, so a command defined before that point is bound when it
+/// runs, and a call to it is the module's own (#2407). Under a trace an inert
+/// statement may run code too, so there the definition itself is the point.
+fn first_possible_invocation(module: &Module, definition: Span) -> Span {
+    let traced = module.has_dynamic_trace
+        || module.has_dynamic_variable_trace
+        || !module.traced_commands.is_empty()
+        || !module.traced_variables.is_empty();
+    if traced {
+        return definition;
+    }
+    let literal = |word: &String| !word.contains(['$', '[', '\\']);
+    let defines = |span: Span| module.procedures.values().any(|proc| proc.span == span);
+    let inert = |stmt: &Statement| match stmt {
+        Statement::AssignConst { .. } => true,
+        Statement::AssignValue { value, .. } => literal(value),
+        Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+            defines(stmt.span())
+                || (command == "variable" && args.iter().all(literal))
+                || (command == "package" && args.first().is_some_and(|sub| sub == "provide"))
+        }
+        _ => false,
+    };
+    // A definition nested in a loop, a branch or a body may be reached again
+    // after code that invokes it, so only a top-level one moves the point.
+    if !module
+        .top_level
+        .statements
+        .iter()
+        .any(|stmt| stmt.span() == definition)
+    {
+        return definition;
+    }
+    let first = module
+        .top_level
+        .statements
+        .iter()
+        .filter(|stmt| stmt.span().start() >= definition.end())
+        .find(|stmt| !inert(stmt))
+        .map(Statement::span);
+    first.map_or(Span::new(u32::MAX, u32::MAX), |at| {
+        let before = at.start().saturating_sub(1);
+        Span::new(before, before)
+    })
 }
 
 /// Build a CFG for a single script body against one resolved command surface.
@@ -7815,6 +7867,39 @@ mod tests {
             markers("foreach n {a b} {proc puts args {}}\nputs hi\n"),
             []
         );
+    }
+
+    /// A body runs once its procedure is invoked, so a call to a procedure the
+    /// file defines later is the module's own when no statement between the two
+    /// definitions can invoke the caller (#2407). A call at top level before
+    /// the callee's definition, or a definition a loop may reach again, keeps
+    /// the call unseen.
+    #[test]
+    fn a_forward_call_in_a_body_nothing_runs_early_is_named() {
+        let unseen_in = |src: &str, name: &str| {
+            let cfg = build_cfg(&lower_module(src), false);
+            calls_in_order(
+                cfg.procedures
+                    .get(&fixture_id(&cfg.procedures, name))
+                    .expect("authored fixture body"),
+            )
+            .iter()
+            .any(|(command, _)| *command == "<unseen-call>")
+        };
+        let twice = "proc twice {name} {upvar 1 $name w; bump w; bump w}\n";
+        let bump = "proc bump {name} {upvar 1 $name v; incr v}\n";
+        for between in ["", "set x 0\n", "variable y 1\n"] {
+            let src =
+                format!("{twice}{between}{bump}proc c {{}} {{set x 0; twice x; return $x}}\n");
+            assert!(!unseen_in(&src, "::twice"), "{src}");
+        }
+        for src in [
+            format!("{twice}set x 0\ntwice x\n{bump}"),
+            format!("{twice}puts hi\n{bump}"),
+            format!("foreach i {{1 2}} {{\n{twice}}}\n{bump}"),
+        ] {
+            assert!(unseen_in(&src, "::twice"), "{src}");
+        }
     }
 
     /// The marker for a call whose own head runs code the module cannot see
