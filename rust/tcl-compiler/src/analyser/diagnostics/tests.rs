@@ -1015,8 +1015,10 @@ fn apply_lambda_body_in_command_substitution_is_walked() {
         "puts [apply {{a} {zz9unknowncmd}} 5]\n",
         "proc p {} { set r [apply {{a} {zz9unknowncmd}} 5]; return $r }\n",
         "set r [catch {apply {{a} {zz9unknowncmd}} 5}]\nputs $r\n",
-        // Three-element lambda: element 2 is a namespace, not a script.
-        "set r [apply {{a} {zz9unknowncmd} ::ns} 5]\nputs $r\n",
+        // Three-element lambda: element 2 is a namespace, not a script. It
+        // must exist, or tclsh 8.6/9.0 fail `namespace "::ns" not found`
+        // before the body runs.
+        "namespace eval ::ns {}\nset r [apply {{a} {zz9unknowncmd} ::ns} 5]\nputs $r\n",
     ] {
         let codes = codes_for_dialect(src, "tcl9.0");
         assert!(
@@ -1039,7 +1041,9 @@ fn plain_body_argument_in_command_substitution_still_walked() {
     for src in [
         "set r [if {1} {zz9unknowncmd}]\nputs $r\n",
         "set r [eval {zz9unknowncmd}]\nputs $r\n",
-        "set r [uplevel 1 {zz9unknowncmd}]\nputs $r\n",
+        // `uplevel 1` needs a caller: at the top level tclsh 8.6/9.0 fail
+        // `bad level "1"` before the body runs.
+        "proc p {} { set r [uplevel 1 {zz9unknowncmd}] }\np\n",
     ] {
         let codes = codes_for_dialect(src, "tcl9.0");
         assert!(
@@ -3660,7 +3664,9 @@ fn e003_highlights_only_the_surplus_arguments() {
 fn e003_falls_back_to_whole_command_on_expansion() {
     // A `{*}`-expanded positional makes the first surplus word ambiguous, so
     // the highlight falls back to the whole command (still a TP).
-    let src = "lreverse {a b c} {*}$extra more\n";
+    // `$extra` is a formal: an unset top-level read would end the script
+    // first. tclsh 8.6 `p {}`: `wrong # args: should be "lreverse list"`.
+    let src = "proc p {extra} { lreverse {a b c} {*}$extra more }\np {}\n";
     let text = e003_highlighted_text(src);
     assert!(
         text.starts_with("lreverse"),
@@ -5353,10 +5359,12 @@ fn w003_dialect_is_file_wide_regardless_of_namespace_or_proc_nesting() {
 
 #[test]
 fn w003_fires_inside_a_tcl_oo_method_body() {
-    let src = "oo::class create Foo {\n  method bar {} {\n    if {$x in $y} { return 1 }\n  }\n}\n";
-    let hits = w003_hits(src, "tcl8.4");
+    // 8.4 has no TclOO, so the gated operator is 9.0's `lt` under 8.6:
+    // tclsh 8.6 calling the method fails `invalid bareword "lt"`.
+    let src = "oo::class create Foo {\n  method bar {} {\n    if {$x lt $y} { return 1 }\n  }\n}\n";
+    let hits = w003_hits(src, "tcl8.6");
     assert_eq!(hits.len(), 1, "{hits:?}");
-    assert_eq!(hits[0].0, "in");
+    assert_eq!(hits[0].0, "lt");
 }
 
 #[test]
