@@ -973,7 +973,11 @@ fn test_regex_source_variable_highlights_def_site_literal() {
     // the CompilationUnit), not just the token pass.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
-    let uri = open_doc(&mut lsp, "set my_re \".*abc\"\nregexp $my_re $s\n");
+    // The subject is bound: reading an unset `$s` raises before `regexp` runs.
+    let uri = open_doc(
+        &mut lsp,
+        "set my_re \".*abc\"\nset s subject\nregexp $my_re $s\n",
+    );
     let toks = typed(&mut lsp, &lg, &uri);
     // The `*` in the def-site literal (line 0) is a regex quantifier.
     assert!(

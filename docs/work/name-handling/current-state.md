@@ -22,13 +22,25 @@ The dominant failure shape is an analysis that returns nothing where the test ex
 - One dynamic word in a command leaves its role set incomplete, and consumers then drop the whole command's roles.
 - Fixtures built from the profile-less default registry no longer see an authored `proc` as a procedure.
 
-Semantic tokens: 74 token tests failed in `tcl-lsp-core` and `tcl-lsp-db`, and 10 in the server e2e suite. Three faults are fixed in this pass and recover 16 of the 84 (12 and 4) with no other test changing:
+Semantic tokens: 74 token tests failed in `tcl-lsp-core` and `tcl-lsp-db`, and 10 in the server e2e suite. At `f3a35fed` plus the self-dispatch change, 41 fail in `tcl-lsp-core` and 5 in the server e2e suite; no other `tcl-lsp-core` test changed result. Faults fixed, all in the token walk unless marked:
 
-- `registry_overrides` returned before its per-word schema queries when the role set was incomplete, so `switch $x {…}` lost its case list and `return -options $o` its option.
-- The case-list walk read the enclosing context's operand instead of the argument's own, so a top-level case list was never entered on a concrete release.
+- `registry_overrides` returned before its per-word schema queries when a dynamic word left the role set incomplete, so `switch $x {…}` lost its case list and `return -options $o` its option. An incomplete command now also takes display roles from its written spellings (`unset arr($i)`, a regexp pattern with a substitution, `uplevel $level {…}`).
+- The case-list walk read the enclosing context's operand instead of the argument's own, so a top-level case list was never entered on a release profile.
 - The shape-based option scan for a computed head (`$obj cfg -real 1 -- -literal`) had been removed.
+- The `--` terminator and an inline definition member word (`oo::define C method …`, `self method`) had no colour.
+- A command the analysis recorded no invocation for (inside a body it did not enter) had a plain head and no roles. An unrebound bareword there now reads the document's own descriptor.
+- A SslicTcl or SpecTcl document's own grammar was not selected on its concrete core.
+- A hosted iRules document's `when` event and top-level `proc` name had no reader.
+- Regex source literals were read only on a Logical profile.
+- A `my` call in a method body the analysis never entered had no class. The walk now carries the analysed class into its bodies.
+- Fixtures: the regex-source tests and the tclsh 9.0 oracle built a dialect-blind standalone unit while naming `tcl9.0`; three sources read an unset `$s`, which raises before `regexp` runs.
 
-Open token faults, 68 tests: method dispatch on `my`, `$self` and object handles on a concrete release; regex source literals; `uplevel $level {body}` with a dynamic level; iRules `proc` and `when` declarations; inline `oo::define` member keywords; SpecTcl and SslicTcl body keywords; the four `large_file_*` promptness tests.
+Open token faults and their cause:
+
+- Object handles (`set p [Pin new]; $p configure`, collections, widget paths, snit components), about 20 tests: `tcl_compiler::object_types::object_handle_classes` returns no handle for these inputs under a profiled or a standalone unit, and 20 `object_types` tests fail in `tcl-compiler` itself. A candidate-typing patch in `type_infer::command_word_result_type` changed no compiler test, so the refusing step is not yet located.
+- Receiver receipts (`semantic_tokens::receiver_source`, 7 tests) and snit or itcl implicit receivers (`$self helper`): the compiler answers only for a receiver its execution entered. Hover and definition share that lookup (`receiver_identity::method_at_command`).
+- The four `large_file_*` promptness tests and `test_issue_898_default_library_modifier` in the server e2e suite.
+- `st_irules_event_fallback_survives_generic_tcl_registry` contradicts `event_declarations_read_the_documents_own_registry`; one of the two expectations has to go.
 
 The server e2e suite is not deterministic on this host: 14 tests that passed in one full run failed in the next and each passed again on rerun; `spec_packs::a_pack_added_after_startup_reloads_and_re_analyses_open_documents` passed one run in four alone on one thread.
 
