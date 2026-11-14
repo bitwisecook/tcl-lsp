@@ -3549,7 +3549,16 @@ fn emit_selected_command_head(
 ) {
     let full_source = ctx.full_source;
     let head_tok = seg.argv[0];
-    if ctx.lexical && original.is_none() && member_head.is_none() {
+    if member_head.is_none() && document_member(ctx, seg).is_some() {
+        push_token(
+            ctx.line_index,
+            full_source,
+            head_tok,
+            TokenKind::Keyword,
+            0,
+            entries,
+        );
+    } else if ctx.lexical && original.is_none() && member_head.is_none() {
         emit_static_command_head(ctx, seg, entries);
     } else if let Some((_, span)) = member_head {
         push_token(
@@ -3575,6 +3584,27 @@ fn emit_selected_command_head(
         let (kind, mods) = unrecorded_head_kind(ctx, seg);
         push_token(ctx.line_index, full_source, head_tok, kind, mods, entries);
     }
+}
+
+/// A written member of the document's own grammar (a `.sslictcl` or SpecTcl
+/// document), at the root or inside a member that opens a member grammar,
+/// where no selected definition-member inventory covers the command.
+fn document_member(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Option<&'static tcl_registry::definer::MemberSpec> {
+    if ctx.original_definition_members.is_some()
+        || seg.single_token_word.first() != Some(&true)
+        || seg.argv.first()?.kind != TokenType::Esc
+    {
+        return None;
+    }
+    let grammar = ctx.oo_grammar?;
+    (ctx.registry.document_grammar()?.family == grammar.family).then_some(())?;
+    grammar.source_member_in(
+        seg.texts.first()?.as_bytes(),
+        Some(ctx.context.authoring_query()),
+    )
 }
 
 /// Head colour of a command with no selected invocation: its descriptor's
@@ -3673,7 +3703,23 @@ fn command_role_overrides(
         receiver_source::insert_project_method(ctx, seg, providers, &mut overrides);
     }
     original::insert_definition_member_overrides(ctx, seg, &mut overrides);
-    if original.is_none() {
+    if let Some(member) = document_member(ctx, seg) {
+        use tcl_registry::ArgRole;
+        for &(ordinal, role) in member.arg_roles {
+            let word = usize::from(ordinal) + 1;
+            let Some(token) = seg.argv.get(word) else {
+                continue;
+            };
+            let single = seg.single_token_word.get(word) == Some(&true);
+            let kind = match role {
+                ArgRole::Body if token.kind == TokenType::Str => ArgOverride::BodyScript,
+                ArgRole::ParamList if single => ArgOverride::ParamList,
+                ArgRole::Name if single => ArgOverride::MemberName,
+                _ => continue,
+            };
+            overrides.entry(token.span.start()).or_insert(kind);
+        }
+    } else if original.is_none() {
         insert_generic_option_overrides(seg, &mut overrides);
         insert_unrecorded_command_roles(ctx, seg, &mut overrides);
     }
@@ -3842,7 +3888,12 @@ fn command_body_context<'a>(
     let next_oo = if ctx.lexical {
         next_original_definition_grammar(ctx, head_text, arg_texts, outer_grammar)
     } else {
-        None
+        // A document grammar's member opens its own member grammar on every
+        // profile; a class-system body keeps its selected source owner.
+        ctx.oo_grammar.and_then(|current| {
+            ctx.registry
+                .authored_document_member_grammar(current, head_text)
+        })
     };
     // The class whose body the recursion enters: a `oo::class create NAME`
     // (and the property-/instantiation-metaclasses) names it at argv[2], an
@@ -5179,11 +5230,7 @@ fn collect_entries(
         // says so: a `.sslictcl` document's legal top-level words are exactly
         // its document grammar's members, painted from membership like every
         // level below. An ordinary Tcl document has no such grammar.
-        oo_grammar: if lexical {
-            registry.document_grammar()
-        } else {
-            None
-        },
+        oo_grammar: registry.document_grammar(),
         receiver_grammar: None,
         original_definition_parent: None,
         original_definition_members: None,
