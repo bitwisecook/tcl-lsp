@@ -285,6 +285,40 @@ pub fn is_qualified(name: &[u8]) -> bool {
     tcl_core_types::naming::has_namespace_separator(name)
 }
 
+/// Is the **written** `name` absolute, that is rooted at the global namespace?
+///
+/// `TclGetNamespaceForQualName` (`tclNamesp.c`) starts its component walk at
+/// the global namespace exactly when the name begins with two colons, and then
+/// skips every further colon of that run. A leading run of two or more colons
+/// is therefore the root marker (`::a`, `:::a`, and `::` alone, which names
+/// the global namespace or its `{}` entity), while a single leading `:` is the
+/// first character of a simple name, so `:a` is relative. A separator later in
+/// the name qualifies it without rooting it: `a::b` is relative.
+///
+/// This reads a written name. A constructed key carries its own rooting
+/// convention ([`root_unrooted_key`], [`unroot_rooted_key`]), and Jim's flat
+/// names theirs ([`jim_global_variable_key_bytes`]).
+///
+/// ```
+/// use tcl_syntax::naming::is_absolute;
+/// assert!(is_absolute("::a"));
+/// assert!(is_absolute(":::a"));
+/// assert!(is_absolute("::"));
+/// assert!(!is_absolute(":a"));
+/// assert!(!is_absolute("a::b"));
+/// assert!(!is_absolute(""));
+/// ```
+#[must_use]
+pub fn is_absolute(name: &str) -> bool {
+    is_absolute_bytes(name.as_bytes())
+}
+
+/// Counted-byte twin of [`is_absolute`], for names that need not be UTF-8.
+#[must_use]
+pub fn is_absolute_bytes(name: &[u8]) -> bool {
+    name.starts_with(b"::")
+}
+
 /// Whether a source variable name belongs to an ordinary activation's table.
 /// C qualifiers select namespace cells; Jim only roots a name with initial `::`.
 /// The empty name remains local. The caller owns the policy and input extent;
@@ -469,7 +503,7 @@ pub fn written_command_parts(name: &[u8]) -> WrittenCommandParts<'_> {
         qualifiers.pop();
     }
     WrittenCommandParts {
-        absolute: name.starts_with(b"::"),
+        absolute: is_absolute_bytes(name),
         qualifiers,
         simple: written_command_tail(name),
     }
@@ -537,7 +571,7 @@ pub fn canonical_written_command(name: &str) -> String {
     } else {
         ""
     };
-    if name.starts_with("::") {
+    if is_absolute(name) {
         if segs.is_empty() {
             // Two-or-more colons alone: the global namespace's `{}` command.
             return "::".to_owned();
@@ -1447,7 +1481,7 @@ pub fn qualify(prefix: &str, name: &str) -> String {
     // joined result, which would collapse a legitimately colon-named segment
     // into its parent (`proc :` inside `namespace eval :`).
     let canonical = canonical_written_command(name);
-    if name.starts_with("::") {
+    if is_absolute(name) {
         return canonical;
     }
     // The prefix is a *constructed* namespace key (possibly unrooted); use it
@@ -1471,7 +1505,7 @@ pub fn qualify(prefix: &str, name: &str) -> String {
 /// without native namespace existence or execution authority.
 #[must_use]
 pub fn qualify_namespace(prefix: &str, written: &str) -> String {
-    if written.starts_with("::") {
+    if is_absolute(written) {
         return normalise_qualified_name(written);
     }
     let parts = qualifier_segments_owned(written);
@@ -1490,7 +1524,7 @@ pub fn qualify_namespace(prefix: &str, written: &str) -> String {
 /// The prefix is constructed; only the written name's colon runs collapse.
 #[must_use]
 pub fn qualify_bytes(prefix: &[u8], name: &[u8]) -> Vec<u8> {
-    let mut result = if name.starts_with(b"::") {
+    let mut result = if is_absolute_bytes(name) {
         b"::".to_vec()
     } else {
         let prefix = prefix.strip_prefix(b"::").unwrap_or(prefix);
@@ -1579,6 +1613,27 @@ pub fn rooted_member_key_bytes(rooted_namespace: &[u8], member: &[u8]) -> Vec<u8
     }
     key.extend_from_slice(member);
     key
+}
+
+/// A member's key under an **unrooted constructed namespace key**, the
+/// counterpart of [`rooted_member_key`] for tables keyed without the root
+/// marker. The root is the empty key there, so its members stand alone; any
+/// other namespace takes one separator. Neither input is reparsed.
+///
+/// ```
+/// use tcl_syntax::naming::unrooted_member_key;
+/// assert_eq!(unrooted_member_key("", "v"), "v");
+/// assert_eq!(unrooted_member_key("a", "b"), "a::b");
+/// assert_eq!(unrooted_member_key("a::b", ""), "a::b::");
+/// assert_eq!(unrooted_member_key(":", ":"), "::::");
+/// ```
+#[must_use]
+pub fn unrooted_member_key(unrooted_namespace: &str, member: &str) -> String {
+    if unrooted_namespace.is_empty() {
+        member.to_owned()
+    } else {
+        format!("{unrooted_namespace}::{member}")
+    }
 }
 
 /// Remove exactly the root marker from a **rooted constructed key**.
@@ -2802,6 +2857,61 @@ mod tests {
         // re-prefixed under the current namespace.
         assert_eq!(qualify("::ns", "::other::C"), "::other::C");
         assert_eq!(qualify("ns", "::C"), "::C");
+    }
+
+    #[test]
+    fn is_absolute_reads_a_leading_colon_run_of_two_or_more() {
+        for (name, absolute) in [
+            ("::a", true),
+            (":::a", true),
+            ("::a::b", true),
+            ("::", true),
+            (":::", true),
+            ("::a::", true),
+            (":a", false),
+            (":", false),
+            ("a::b", false),
+            ("a:::b", false),
+            ("a::", false),
+            ("a", false),
+            ("", false),
+        ] {
+            assert_eq!(is_absolute(name), absolute, "{name:?}");
+            assert_eq!(is_absolute_bytes(name.as_bytes()), absolute, "{name:?}");
+            assert_eq!(
+                written_command_parts(name.as_bytes()).absolute,
+                absolute,
+                "{name:?}"
+            );
+        }
+        // Counted bytes: NUL and non-UTF-8 bytes are name data, not a boundary.
+        assert!(is_absolute_bytes(b"::\0a"));
+        assert!(is_absolute_bytes(b"::\xff"));
+        assert!(!is_absolute_bytes(b"\0::a"));
+        assert!(!is_absolute_bytes(b"\xff::a"));
+    }
+
+    #[test]
+    fn unrooted_member_key_roots_to_the_rooted_member_key() {
+        for (namespace, member) in [
+            ("", "v"),
+            ("", ""),
+            ("", ":"),
+            ("a", "b"),
+            ("a::b", "c"),
+            ("a", ""),
+            ("a", ":b"),
+            (":", ":"),
+            ("a:", "b"),
+        ] {
+            assert_eq!(
+                root_unrooted_key(&unrooted_member_key(namespace, member)),
+                rooted_member_key(&root_unrooted_key(namespace), member),
+                "{namespace:?} {member:?}"
+            );
+        }
+        assert_eq!(unrooted_member_key("", "v"), "v");
+        assert_eq!(unrooted_member_key("oo::Obj1", "m"), "oo::Obj1::m");
     }
     use super::*;
 
