@@ -188,7 +188,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
         return;
     }
     for &(member, _) in DICT_MEMBERS {
-        let target = format!("::tcl::dict::{member}");
+        let target = tcl_syntax::naming::rooted_member_key("::tcl::dict", member);
         if vm.stock_native_identity(&target).as_deref()
             == tcl_syntax::naming::unroot_rooted_key(&target)
         {
@@ -345,7 +345,7 @@ fn member_op(vm: &mut Vm, sub: &str, args: &[Value]) -> Completion<Value> {
                 Err(completion) => return completion,
             }
         }
-        None => format!("::tcl::dict::{sub}"),
+        None => tcl_syntax::naming::rooted_member_key("::tcl::dict", sub),
     };
     dict_op(vm, sub, args, &invoked)
 }

@@ -96,10 +96,9 @@ pub(super) fn register_provider(vm: &mut Vm) {
 }
 
 fn private_name(target: &RuleProcedureTarget) -> String {
-    format!(
-        "::tmm::_rule_callables::{}::{}",
-        target.rule.as_path(),
-        target.procedure
+    tcl_syntax::naming::rooted_member_key(
+        &tcl_syntax::naming::rooted_member_key("::tmm::_rule_callables", target.rule.as_path()),
+        &target.procedure,
     )
 }
 
@@ -146,9 +145,9 @@ fn declare_in_original(
         ));
     }
     original.check(vm)?;
-    vm.declare_namespace(&format!(
-        "::tmm::_rule_callables::{}",
-        target.rule.as_path()
+    vm.declare_namespace(&tcl_syntax::naming::rooted_member_key(
+        "::tmm::_rule_callables",
+        target.rule.as_path(),
     ));
     original.check(vm)?;
     let private = private_name(&target);

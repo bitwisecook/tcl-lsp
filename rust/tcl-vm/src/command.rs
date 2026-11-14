@@ -3282,7 +3282,7 @@ pub(crate) fn refresh_encoding_profile(vm: &mut Vm) {
         return;
     }
     for &(member, _) in ENCODING_MEMBERS {
-        let target = format!("tcl::encoding::{member}");
+        let target = tcl_syntax::naming::unrooted_member_key("tcl::encoding", member);
         if vm.stock_native_identity(&target).as_deref() == Some(target.as_str()) {
             vm.remove_registered_command(&target);
         }

@@ -80,7 +80,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
         ("::tcl::binary", BINARY_MEMBERS),
     ] {
         for &(member, _) in members {
-            let target = format!("{namespace}::{member}");
+            let target = tcl_syntax::naming::rooted_member_key(namespace, member);
             if vm.stock_native_identity(&target).as_deref()
                 == tcl_syntax::naming::unroot_rooted_key(&target)
             {

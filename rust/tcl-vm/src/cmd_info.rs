@@ -58,7 +58,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
         return;
     }
     for &(member, _) in INFO_MEMBERS {
-        let target = format!("::tcl::info::{member}");
+        let target = tcl_syntax::naming::rooted_member_key("::tcl::info", member);
         if vm.stock_native_identity(&target).as_deref()
             == tcl_syntax::naming::unroot_rooted_key(&target)
         {
@@ -800,10 +800,11 @@ fn info_global(vm: &mut Vm, rest: &[Value], usage: &str, name: &str) -> Completi
     if !rest.is_empty() {
         return crate::command::native_wrong_args(vm, usage);
     }
-    vm.get_var(&format!("::{name}")).map_or_else(
-        || err(format!("can't read \"{name}\": no such variable")),
-        ok,
-    )
+    vm.get_var(&tcl_syntax::naming::root_unrooted_key(name))
+        .map_or_else(
+            || err(format!("can't read \"{name}\": no such variable")),
+            ok,
+        )
 }
 
 #[cfg(test)]

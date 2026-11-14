@@ -531,7 +531,10 @@ pub(crate) fn register(vm: &mut Vm, native: tcl_registry::special_vars::NativeBo
         <[_]>::to_vec,
     );
     for name in names {
-        vm.register_stock_builtin(&format!("tcl::mathfunc::{name}"), m_mathfunc);
+        vm.register_stock_builtin(
+            &tcl_syntax::naming::unrooted_member_key("tcl::mathfunc", name),
+            m_mathfunc,
+        );
     }
     // `fpclassify` is a top-level command, not a math function.
     vm.register_stock_builtin("fpclassify", cmd_fpclassify);

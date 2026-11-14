@@ -52,7 +52,10 @@ fn register_clock(vm: &mut Vm) {
     }
     vm.register_stock_builtin("clock", cmd_clock);
     for &(member, handler) in CLOCK_MEMBERS {
-        vm.register_stock_builtin(&format!("::tcl::clock::{member}"), handler);
+        vm.register_stock_builtin(
+            &tcl_syntax::naming::rooted_member_key("::tcl::clock", member),
+            handler,
+        );
     }
 }
 
@@ -62,7 +65,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
         return;
     }
     for &(member, _) in CLOCK_MEMBERS {
-        let target = format!("::tcl::clock::{member}");
+        let target = tcl_syntax::naming::rooted_member_key("::tcl::clock", member);
         if vm.stock_native_identity(&target).as_deref()
             == tcl_syntax::naming::unroot_rooted_key(&target)
         {

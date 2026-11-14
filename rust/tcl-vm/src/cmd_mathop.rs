@@ -87,7 +87,10 @@ fn mathop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// Register `::tcl::mathop::*`.
 pub(crate) fn register(vm: &mut Vm) {
     for op in mathop_names() {
-        vm.register_stock_builtin(&format!("::tcl::mathop::{op}"), mathop);
+        vm.register_stock_builtin(
+            &tcl_syntax::naming::rooted_member_key("::tcl::mathop", op),
+            mathop,
+        );
     }
     // C exports every operator from `::tcl::mathop`, so
     // `namespace import ::tcl::mathop::*` works (mathop-25.*).

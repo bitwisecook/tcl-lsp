@@ -398,7 +398,7 @@ impl OoState {
 
 /// Render a canonical FQN in display (`::`-qualified) form.
 fn display(canonical: &str) -> String {
-    format!("::{canonical}")
+    tcl_syntax::naming::root_unrooted_key(canonical)
 }
 
 /// Resolve a class *reference* (`superclass`, `mixin`, `nextto`, `info … isa`)
@@ -1413,7 +1413,7 @@ fn oo_new(
     let object_display = tcl_core_types::NameBytes::from(vm.command_slot_display_bytes(&slot));
     let object_id = vm.oo.allocate(object_display);
     let ns = obj_ns.to_string();
-    vm.declare_namespace(&format!("::{ns}"));
+    vm.declare_namespace(&tcl_syntax::naming::root_unrooted_key(&ns));
     let namespace_token = native_context::install_object_helpers(vm, &ns);
     vm.oo.objects.insert(
         object_id,
@@ -2198,7 +2198,7 @@ fn prepare_method_step(
     let proc = ProcDef {
         formals: crate::command::FormalParameterCache::default(),
         native_resources: Rc::default(),
-        name: format!("{obj_ns}::{method}"),
+        name: tcl_syntax::naming::unrooted_member_key(&obj_ns, method),
         command_ns_id: ns_id,
         simple_name: tcl_core_types::NameBytes::from(vm.oo.method_name_bytes(method)),
         execution_namespace: crate::interp::ProcedureNamespace::Resolved {
@@ -4959,7 +4959,7 @@ fn make_class_bytes(
             destroyed: false,
         },
     );
-    vm.activate_namespace_written(&format!("::{class_namespace}"));
+    vm.activate_namespace_written(&tcl_syntax::naming::root_unrooted_key(&class_namespace));
     let namespace_token = native_context::install_object_helpers(vm, &class_namespace);
     vm.oo.objects.get_mut(&class_id).unwrap().namespace_token = Some(namespace_token);
     let command_key = vm.register_command_in_slot(slot, Command::Object(class_id));

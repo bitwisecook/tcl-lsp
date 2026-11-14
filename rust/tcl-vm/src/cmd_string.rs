@@ -51,7 +51,7 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
         return;
     }
     for &(member, _) in STRING_MEMBERS {
-        let target = format!("::tcl::string::{member}");
+        let target = tcl_syntax::naming::rooted_member_key("::tcl::string", member);
         if vm.stock_native_identity(&target).as_deref()
             == tcl_syntax::naming::unroot_rooted_key(&target)
         {

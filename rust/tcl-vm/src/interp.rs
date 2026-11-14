@@ -5408,7 +5408,7 @@ impl Vm {
                     })
                     .flatten();
                 let target = nested.map_or_else(
-                    || format!("{implementation_namespace}::{member}"),
+                    || tcl_syntax::naming::rooted_member_key(implementation_namespace, member),
                     str::to_owned,
                 );
                 let key = tcl_syntax::naming::unroot_rooted_key(&target).unwrap_or(&target);
@@ -5455,7 +5455,7 @@ impl Vm {
             &Rc::new(
                 tcl_cmd_core::ensemble::EnsembleToken::with_configuration_retirement(
                     definition,
-                    NameBytes::from(format!("::{identity}")),
+                    NameBytes::from(tcl_syntax::naming::root_unrooted_key(identity)),
                     self.native_hook_for_registry_identity(identity),
                     crate::command::native_ensemble_objects::retire_configuration,
                 ),
@@ -10079,7 +10079,7 @@ impl Vm {
         }
         let _ = self.unset_one("::env", false);
         for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
-            let _ = self.unset_one(&format!("::{name}"), false);
+            let _ = self.unset_one(&tcl_syntax::naming::root_unrooted_key(name), false);
         }
     }
 
@@ -23388,8 +23388,8 @@ impl Vm {
             } else {
                 // C parses a combined `a(k)` name into its array and element,
                 // so the array's traces fire; an alias to an element does not.
-                let element_syntax =
-                    cell.elem.is_some() && name.last() == Some(&b')') && name.contains(&b'(');
+                let element_syntax = cell.elem.is_some()
+                    && tcl_syntax::naming::split_element_ref_bytes(name).is_some();
                 (name.to_vec(), (name, None), element_syntax)
             };
             let reached = self.variable_trace_guest_or_unwind(|vm| {
@@ -27117,17 +27117,15 @@ impl Vm {
             .current_namespace_execution_context()
             .resolved_token()
             .filter(|token| self.native_namespace_token_has_owner(*token))
-            && tcl_syntax::naming::checked_namespace_path_utf8(&self.ns_path(current))
-                .is_ok_and(|segments| segments.join("::") == namespace)
+            && tcl_syntax::naming::native_namespace_key_bytes(&self.ns_path(current))
+                == namespace.as_bytes()
         {
             Some(current)
         } else {
             let world = self.name_world.borrow();
             let mut matches = world.ns_intern.iter().filter_map(|(path, token)| {
-                tcl_syntax::naming::checked_namespace_path_utf8(path)
-                    .ok()
-                    .filter(|segments| segments.join("::") == namespace)
-                    .map(|_| *token)
+                (tcl_syntax::naming::native_namespace_key_bytes(path) == namespace.as_bytes())
+                    .then_some(*token)
             });
             matches.next().filter(|_| matches.next().is_none())
         };
@@ -30238,7 +30236,7 @@ impl Commands for Vm {
         }) else {
             return self.finish_host_execution(err("invalid command id"));
         };
-        let display = format!("::{}", self.command_display_key(&key));
+        let display = tcl_syntax::naming::root_unrooted_key(&self.command_display_key(&key));
         self.host_execution_depth += 1;
         let completion =
             self.invoke_resolved_command(&display, CommandSidecarKey::visible(key), command, argv);
@@ -30606,12 +30604,7 @@ impl Namespaces for Vm {
     fn name(&self, ns: NsId) -> String {
         // The arena holds the canonical (unrooted) name; `namespace current`
         // reports the absolute form (`""` → `"::"`).
-        let canonical = self.ns_name(ns);
-        if canonical.is_empty() {
-            "::".to_string()
-        } else {
-            format!("::{canonical}")
-        }
+        tcl_syntax::naming::root_unrooted_key(&self.ns_name(ns))
     }
 
     fn namespace_report_parts_checked(
@@ -30964,12 +30957,10 @@ impl Namespaces for Vm {
                     "namespace variable query owner",
                 ));
             };
-            let mut report = Namespaces::name_bytes(self, namespace);
-            if namespace != ROOT_NS {
-                report.extend_from_slice(b"::");
-            }
-            report.extend_from_slice(binding.name.as_bytes());
-            return Ok(Some(report));
+            return Ok(Some(tcl_syntax::naming::rooted_member_key_bytes(
+                &Namespaces::name_bytes(self, namespace),
+                binding.name.as_bytes(),
+            )));
         }
         Ok(None)
     }
@@ -36752,7 +36743,7 @@ mod ordinary_entry_observer_tests {
 /// procedure: the Thread extension's `thread::`, `tsv::` and `tpool::`
 /// commands, and 9.0's `ClockConfigureObjCmd`.
 fn created_without_compile_procedure(identity: &str) -> bool {
-    let name = identity.strip_prefix("::").unwrap_or(identity);
+    let name = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
     name == "tcl::unsupported::clock::configure"
         || ["thread::", "tsv::", "tpool::"]
             .iter()
