@@ -1008,15 +1008,22 @@ fn insert_logical_definition_overrides(
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     use tcl_registry::ArgRole;
-    if original_logical_head(ctx, words).is_none() {
+    // A hosted iRules document has no Logical head; its rule-load declarations
+    // (`when`, `proc`) are still read from the selected schema.
+    let logical = original_logical_head(ctx, words).is_some();
+    if !logical && !ctx.dialect.is_irules() {
         return;
     }
+    let top_level_declaration = ctx
+        .irules_top_level_declaration_heads
+        .contains(&command.argv[0].span.start());
     let selected = schema.authored_source_descriptors();
     if schema
         .semantics
         .traits
         .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
         && selected.command.definition_body.is_none()
+        && (logical || top_level_declaration)
     {
         for &(ordinal, role) in words.roles.as_deref().unwrap_or(&[]) {
             if role == ArgRole::Name
@@ -1036,9 +1043,7 @@ fn insert_logical_definition_overrides(
         .semantics
         .traits
         .contains(tcl_registry::Traits::IS_EVENT_HANDLER)
-        && ctx
-            .irules_top_level_declaration_heads
-            .contains(&command.argv[0].span.start())
+        && top_level_declaration
         && let Some(token) = original_argument_token(command, words, 0)
         && words
             .arguments

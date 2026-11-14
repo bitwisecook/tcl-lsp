@@ -5194,7 +5194,7 @@ fn collect_entries(
     // The iRules declaration overlay uses the shared top-level boundary facts
     // (including offset-resolved command identity) rather than this walk's
     // recursive depth as its placement predicate.
-    let irules_top_level_declaration_heads = if lexical {
+    let irules_top_level_declaration_heads = if lexical || dialect.is_irules() {
         irules_top_level_declaration_heads(source, registry, config, head_identities)
     } else {
         FxHashSet::default()
