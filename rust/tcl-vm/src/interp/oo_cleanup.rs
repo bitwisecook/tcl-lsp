@@ -205,7 +205,8 @@ impl OriginalOoCleanup {
         vm: &mut Vm,
         work: impl FnOnce(&mut Vm) -> T,
     ) -> Result<T, CmdError> {
-        if let Err(first) = self.check(vm) {
+        // The work runs in the original interpreter, whichever one selected it.
+        if let Err(first) = self.check_at(vm, self.interpreter) {
             retain_error(vm, &first);
         }
         if !self.physical(vm) {
@@ -248,6 +249,11 @@ impl OriginalOoCleanup {
         result
     }
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        let current = vm.cur;
+        self.check_at(vm, current)
+    }
+    /// Re-prove the entered operation against `interpreter`.
+    fn check_at(&self, vm: &mut Vm, interpreter: InterpId) -> Result<(), CmdError> {
         if let Some(first) = vm.execution_refusal.clone() {
             return Err(CmdError::from_execution_refusal(first));
         }
@@ -255,7 +261,10 @@ impl OriginalOoCleanup {
             return Err(first.clone());
         }
         match &self.operation {
-            Some(operation) => operation.check(vm),
+            Some(operation) => operation
+                .currency()
+                .check_saved_target(vm, interpreter)
+                .map_err(CmdError::from_execution_refusal),
             None if self.physical(vm) && vm.cur == self.interpreter => Ok(()),
             None => Err(Self::missing(vm)),
         }

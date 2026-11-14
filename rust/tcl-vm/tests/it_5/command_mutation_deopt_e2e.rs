@@ -166,10 +166,8 @@ struct SwitchCompilerToCustom;
 
 struct SwitchCompilerToDefault;
 
-#[cfg(debug_assertions)]
 struct SwitchCompilerAndError;
 
-#[cfg(debug_assertions)]
 struct SwitchCompilerAndReturn;
 
 struct CompileOrInvokeHandle(RefCell<Option<FunctionHandle>>);
@@ -228,7 +226,6 @@ impl NativeCommand for SwitchCompilerToDefault {
     }
 }
 
-#[cfg(debug_assertions)]
 impl NativeCommand for SwitchCompilerAndError {
     fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         vm.set_compiler(Box::new(custom_compile_service()));
@@ -240,7 +237,6 @@ impl NativeCommand for SwitchCompilerAndError {
     }
 }
 
-#[cfg(debug_assertions)]
 impl NativeCommand for SwitchCompilerAndReturn {
     fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         vm.set_compiler(Box::new(custom_compile_service()));
@@ -1072,19 +1068,17 @@ fn eval_ok(vm: &mut Vm, source: &str) -> String {
 
 /// Cluster P test correction (every interpreter is a native core).
 ///
-/// A native core's entered operation captures the pinned profile and the
-/// compile service in its currency receipt
-/// (`interp/native_operation_currency.rs`, unit test
-/// `original_vm_context_receipt_refuses_host_profile_compiler_and_pack_change_restore`).
-/// Switching either while bytecode of that operation is still entered or
-/// parked retires the receipt, so the first refusal is this host refusal: it
-/// reaches the embedder as `TclError::Host`, outside every guest `catch`/`try`
-/// and before the stale bytecode can take another step. These scenarios used
-/// to expect the guest error `cannot continue bytecode after … changed`, which
-/// the engine-less VM raised one tick later. tclsh has no mid-run release or
-/// compiler switch, so no C behaviour is at stake; the run still fails closed.
-/// The receipt is re-proved only in debug builds, so these scenarios are
-/// debug-only: a release build stops one tick later with that guest error.
+/// A native core's entered operation captures the pinned profile in its
+/// currency receipt (`interp/native_operation_currency.rs`, unit test
+/// `original_vm_context_receipt_refuses_host_profile_and_pack_change_restore`).
+/// Debug builds re-prove it, so switching the profile while bytecode of that
+/// operation is still entered or parked retires the receipt, and the first
+/// refusal is this host refusal: it reaches the embedder as `TclError::Host`,
+/// outside every guest `catch`/`try`. tclsh has no mid-run release switch, so
+/// no C behaviour is at stake; the run still fails closed. A release build
+/// stops one tick later with the guest error `cannot continue bytecode after
+/// dialect profile changed`. A compile-service switch is left to that
+/// freshness check in every build (`assert_stale_compile_service`).
 #[cfg(debug_assertions)]
 const MID_RUN_SWITCH_REFUSAL: &str = "entered VM original execution context";
 
@@ -1108,6 +1102,22 @@ fn assert_mid_run_switch_refused(result: Result<Completion<Value>, tcl_vm::TclEr
             panic!("{label}: a mid-run switch must be refused at the host boundary: {completion:?}")
         }
     }
+}
+
+/// A compile-service switch under running bytecode stops that bytecode with
+/// a guest error at its next step.
+fn assert_stale_compile_service(
+    result: Result<Completion<Value>, tcl_vm::TclError>,
+    label: &str,
+) -> Completion<Value> {
+    let completion = result.unwrap_or_else(|error| panic!("{label}: {error:?}"));
+    assert_eq!(completion.code, Code::Error, "{label}: {completion:?}");
+    assert_eq!(
+        completion.result.to_str().as_ref(),
+        "cannot continue bytecode after compile service changed",
+        "{label}"
+    );
+    completion
 }
 
 #[test]
@@ -1760,7 +1770,6 @@ fn compiler_swap_refreshes_function_proc_and_tcloo_bodies() {
     assert_eq!(eval_ok(&mut vm, "$o m"), "{1 + 2}");
 }
 
-#[cfg(debug_assertions)]
 #[test]
 fn suspended_coroutine_fails_closed_after_compiler_swap() {
     let (mut vm, _output) = vm();
@@ -1772,11 +1781,9 @@ fn suspended_coroutine_fails_closed_after_compiler_swap() {
         "ready"
     );
 
-    // Cluster P correction: the parked coroutine's operation receipt was
-    // captured under the old compile service, so resuming it is refused at
-    // the host boundary (`assert_mid_run_switch_refused`).
+    // The parked coroutine's bytecode was compiled by the old service.
     vm.set_compiler(Box::new(custom_compile_service()));
-    assert_mid_run_switch_refused(vm.eval_source("c"), "resume after swap to custom");
+    assert_stale_compile_service(vm.eval_source("c"), "resume after swap to custom");
 
     let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(custom_compile_service()));
@@ -1788,7 +1795,7 @@ fn suspended_coroutine_fails_closed_after_compiler_swap() {
         "ready"
     );
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    assert_mid_run_switch_refused(vm.eval_source("c"), "resume after swap to default");
+    assert_stale_compile_service(vm.eval_source("c"), "resume after swap to default");
 }
 
 #[test]
@@ -1848,7 +1855,6 @@ fn stale_coroutine_teardown_does_not_run_queued_injection() {
     assert_eq!(eval_ok(&mut vm, "info commands c"), "");
 }
 
-#[cfg(debug_assertions)]
 #[test]
 fn tailcall_non_ok_after_compiler_swap_rejects_the_stale_parent() {
     for (name, command) in [
@@ -1871,10 +1877,9 @@ fn tailcall_non_ok_after_compiler_swap_rejects_the_stale_parent() {
             ),
         );
 
-        // Cluster P correction (`assert_mid_run_switch_refused`): the stale
-        // parent never continues past the tailcall, and `return unreachable`
-        // cannot become the result.
-        assert_mid_run_switch_refused(vm.eval_source("parent"), name);
+        // The stale parent never continues past the tailcall, and `return
+        // unreachable` cannot become the result.
+        assert_stale_compile_service(vm.eval_source("parent"), name);
     }
 }
 
@@ -1909,7 +1914,6 @@ fn final_native_compiler_swap_cannot_settle_old_deferred_bytecode() {
     }
 }
 
-#[cfg(debug_assertions)]
 #[test]
 fn stale_coroutine_ancestor_cannot_leak_from_fresh_try_handler_or_finally() {
     for source in [
@@ -1918,14 +1922,12 @@ fn stale_coroutine_ancestor_cannot_leak_from_fresh_try_handler_or_finally() {
     ] {
         let (mut vm, _output) = vm();
         vm.register_native_command("switch_compiler", Rc::new(SwitchCompilerToCustom));
-        // Cluster P correction (`assert_mid_run_switch_refused`): the fresh
-        // handler or finally clause never yields `leaked`.
-        assert_mid_run_switch_refused(vm.eval_source(source), source);
+        // The fresh handler or finally clause never yields `leaked`.
+        assert_stale_compile_service(vm.eval_source(source), source);
         assert_eq!(eval_ok(&mut vm, "info commands c"), "");
     }
 }
 
-#[cfg(debug_assertions)]
 #[test]
 fn fresh_try_return_cannot_pop_a_stale_directly_invoked_proc() {
     for body in [
@@ -1936,12 +1938,12 @@ fn fresh_try_return_cannot_pop_a_stale_directly_invoked_proc() {
         vm.register_native_command("switch_compiler", Rc::new(SwitchCompilerToCustom));
         eval_ok(&mut vm, &format!("proc p {{}} {{{body}}}"));
 
-        // Cluster P correction (`assert_mid_run_switch_refused`): through the
-        // fallible host entry, since `invoke_command` panics on a host refusal.
-        match vm.try_invoke_command("p", &[]) {
-            Err(error) if is_mid_run_switch_refusal(&error) => {}
-            other => panic!("{body}: expected the mid-run switch refusal, got {other:?}"),
-        }
+        // The fresh handler or finally clause never returns `leaked`.
+        assert_stale_compile_service(
+            vm.try_invoke_command("p", &[])
+                .map_err(tcl_vm::TclError::from_execution_failure),
+            body,
+        );
     }
 }
 

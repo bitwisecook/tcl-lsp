@@ -61,6 +61,28 @@ In release, an operation whose world changes under it continues against the
 changed world instead of refusing, as C Tcl does. Tests that assert those
 refusals are therefore debug-only; they run in every debug test build.
 
+## Keeping debug re-proofs pure
+
+A re-proof is an assertion about the world, not a second semantics. Where
+release reaches a defined result, debug must reach the same one: the same
+completion, refusal, first cause and stage counts. Three rules keep it so.
+
+- **Release failures come first.** A stage that reports a failure release
+  reaches (a failed 8.4 host integer formatter) runs its stage checks inside
+  `crate::with_release_checks`, so a debug re-proof cannot retain its own
+  refusal ahead of that failure. Every gate above reads
+  `crate::verify_currency()`, which is `VERIFY_CURRENCY` outside that scope.
+- **Re-prove the interpreter the work runs in.** Original cleanup runs in its
+  saved interpreter even when another one selected it (OO teardown from a
+  child), so `OriginalOoCleanup::in_original` and
+  `SavedExecutionTarget::settle_in_original` re-prove against that target,
+  not the current selection.
+- **Leave semantic changes to freshness.** A compile-service change is not an
+  invariant violation: bytecode freshness reports `cannot continue bytecode
+  after compile service changed` where bytecode continues, and other work
+  carries on. The saved-target re-proof therefore accepts a currency whose
+  interpreter's compiler generation has moved since capture.
+
 ## Shared entries
 
 Independently of the switch, nested entry reuses work that is identical by
@@ -73,5 +95,6 @@ unpooled entry would shadow nothing.
 ## Adding a gate
 
 Gate only a comparison that re-proves state an ordinary script cannot change
-mid-operation, and keep its retained-refusal check ahead of the gate. Add the
-gate to the table above.
+mid-operation, and keep its retained-refusal check ahead of the gate. Read
+`crate::verify_currency()` rather than the constant, and add the gate to the
+table above.

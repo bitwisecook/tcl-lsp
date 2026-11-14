@@ -2953,11 +2953,16 @@ impl Value {
                         tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
                     ));
                 }
-                let reached = formatter.format(kind, value);
+                let Ok(reached) = formatter.format(kind, value) else {
+                    // The failure is reported after release's own stage checks,
+                    // so a debug re-proof cannot pre-empt it.
+                    crate::with_release_checks(|| self.native_string_stage_check(check))?;
+                    return Err(failure(
+                        tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
+                    ));
+                };
                 self.native_string_stage_check(check)?;
-                let bytes: Rc<[u8]> = Rc::from(reached.map_err(|_| {
-                    failure(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)
-                })?);
+                let bytes: Rc<[u8]> = Rc::from(reached);
                 self.native_string_stage_check(check)?;
                 *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
                 self.0

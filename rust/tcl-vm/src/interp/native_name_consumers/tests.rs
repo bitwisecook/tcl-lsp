@@ -497,11 +497,10 @@ fn ensemble_list_configuration_keeps_original_objects_and_checks_reached_caller_
                     *formatter.withdraw_on_query.borrow_mut() = Some(Rc::clone(&vm.name_world));
                 }
                 let configured = configure_ensemble(&mut vm, option, &original, &later);
-                assert_eq!(
-                    queries.get(),
-                    if withdraw { 1 } else { 2 },
-                    "{release}/{option}/{withdraw}"
-                );
+                // Only the integer's String stage queries the host: a compound
+                // asks only where C 8.4 formats its integers, so `later` never
+                // does here.
+                assert_eq!(queries.get(), 1, "{release}/{option}/{withdraw}");
                 if withdraw {
                     assert_eq!(configured.code, crate::Code::Error);
                     assert!(original.resident_string_bytes().is_none());
@@ -574,11 +573,9 @@ fn ensemble_map_dictionary_conversion_keeps_original_members_and_caller_checks()
                 *formatter.withdraw_on_query.borrow_mut() = Some(Rc::clone(&vm.name_world));
             }
             let configured = configure_ensemble(&mut vm, "-map", &original, &later);
-            assert_eq!(
-                queries.get(),
-                if withdraw { 1 } else { 2 },
-                "{release}/{withdraw}"
-            );
+            // Only the integer key's String stage queries the host: a compound
+            // asks only where C 8.4 formats its integers.
+            assert_eq!(queries.get(), 1, "{release}/{withdraw}");
             if withdraw {
                 assert_eq!(configured.code, crate::Code::Error);
                 assert!(key_lease.value().resident_string_bytes().is_none());

@@ -268,11 +268,29 @@ fn original_checked_compound_string_stops_after_first_reached_formatter_refusal(
                 scope.check(&mut vm)
             },
         );
-        let first = vm.execution_refusal.clone().unwrap();
-        assert_eq!(
-            reached.unwrap_err().native_execution_refusal(),
-            Some(&first)
-        );
+        let first = if stage == "failed-format" {
+            // The formatter's failure is reported as release reports it, ahead
+            // of the re-proof that finds the withdrawn host at the next check.
+            let expected: CmdError = tcl_syntax::value::ValueError::from(
+                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(
+                    tcl_syntax::native_string::NativeStringUnavailable::StringUpdater,
+                ),
+            )
+            .into();
+            assert_eq!(
+                reached.unwrap_err().native_execution_refusal(),
+                expected.native_execution_refusal()
+            );
+            assert!(vm.execution_refusal.is_none());
+            scope.check_native(&mut vm).unwrap_err()
+        } else {
+            let first = vm.execution_refusal.clone().unwrap();
+            assert_eq!(
+                reached.unwrap_err().native_execution_refusal(),
+                Some(&first)
+            );
+            first
+        };
         assert!(root.resident_string_bytes().is_none());
         assert_eq!(
             children

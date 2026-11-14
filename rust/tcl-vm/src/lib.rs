@@ -46,6 +46,33 @@ macro_rules! eprintln {
 /// refusal still stops execution while unchanged-world re-proofs are skipped.
 pub(crate) const VERIFY_CURRENCY: bool = cfg!(debug_assertions);
 
+thread_local! {
+    static RELEASE_CHECKS_ONLY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether a currency check runs its debug re-proofs: [`VERIFY_CURRENCY`],
+/// except inside [`with_release_checks`].
+pub(crate) fn verify_currency() -> bool {
+    VERIFY_CURRENCY && !RELEASE_CHECKS_ONLY.with(std::cell::Cell::get)
+}
+
+/// Run `checks` as release runs them. A stage that reports a failure release
+/// reaches first uses this so a debug re-proof cannot pre-empt that failure.
+pub(crate) fn with_release_checks<T>(checks: impl FnOnce() -> T) -> T {
+    if !VERIFY_CURRENCY {
+        return checks();
+    }
+    let _restore = RestoreReleaseChecks(RELEASE_CHECKS_ONLY.with(|only| only.replace(true)));
+    checks()
+}
+
+struct RestoreReleaseChecks(bool);
+impl Drop for RestoreReleaseChecks {
+    fn drop(&mut self) {
+        RELEASE_CHECKS_ONLY.with(|only| only.set(self.0));
+    }
+}
+
 pub mod debug;
 pub mod embed;
 pub mod error;

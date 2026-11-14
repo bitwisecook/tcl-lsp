@@ -152,7 +152,7 @@ impl OriginalVariableCleanup {
             retain(vm, first);
         }
         current?;
-        if !crate::VERIFY_CURRENCY {
+        if !crate::verify_currency() {
             return Ok(());
         }
         if !self.physical(vm)

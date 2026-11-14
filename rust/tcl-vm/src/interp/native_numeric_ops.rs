@@ -133,7 +133,7 @@ impl<'a> OriginalNumericOps<'a> {
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
         let mut vm = self.vm.borrow_mut();
         self.scope.check_native(&mut vm)?;
-        if !crate::VERIFY_CURRENCY {
+        if !crate::verify_currency() {
             return Ok(());
         }
         if let Err(refusal) = value.original_native_header_currentness() {

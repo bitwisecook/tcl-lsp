@@ -88,6 +88,8 @@ pub(crate) struct NativeOperationCurrency {
     profile: &'static tcl_dialect::DialectProfile,
     engine: Option<&'static tcl_dialect::DialectProfile>,
     host: Rc<dyn tcl_platform::Host>,
+    /// The interpreter's compile-service generation at capture.
+    compiler_generation: u64,
 }
 /// Opaque readonly currentness; it exposes no entered or saved currency door.
 /// Original authored operations may retain this even when entry is absent.
@@ -271,20 +273,26 @@ impl SavedExecutionTarget {
     /// Check the original receipt and callback-selected current physical target.
     /// This grants no command, object, frame, namespace or Native getter purpose.
     pub(crate) fn check_current(&self, vm: &mut Vm) -> Result<(), NativeExecutionError> {
+        let current = vm.cur;
+        self.check_at(vm, current)
+    }
+
+    /// [`Self::check_current`] as if `interpreter` were selected.
+    fn check_at(&self, vm: &mut Vm, interpreter: InterpId) -> Result<(), NativeExecutionError> {
         if let Some(first) = vm.execution_refusal.clone() {
             return Err(first);
         }
         if let Err(first) = &self.currency {
             return Err(retain_first(vm, first.clone()));
         }
-        if !crate::VERIFY_CURRENCY {
+        if !crate::verify_currency() {
             return Ok(());
         }
-        if !self.owns_target(vm) || !vm.interp_is_current(self.interpreter) {
+        if !self.owns_target(vm) || interpreter != self.interpreter {
             return Err(retain_first(vm, unavailable()));
         }
         match &self.currency {
-            Ok(Some(currency)) => currency.check_native(vm),
+            Ok(Some(currency)) => currency.check_saved_target(vm, interpreter),
             Ok(None) => Ok(()),
             Err(_) => unreachable!("original readonly refusal returned above"),
         }
@@ -381,7 +389,8 @@ impl SavedExecutionTarget {
         }
         // Preserve the callback-selected refusal before parking it. Withdrawn
         // currency still permits already-reached same-physical-target cleanup.
-        let _ = self.check_current(vm);
+        // The work runs in this target, whichever interpreter selected it.
+        let _ = self.check_at(vm, self.interpreter);
         if !self.owns_target(vm) {
             return Err(retain_first(vm, unavailable()));
         }
@@ -469,6 +478,7 @@ impl NativeOperationCurrency {
             profile: vm.dialect_profile(),
             engine: vm.actual_engine_profile,
             host: vm.host_rc(),
+            compiler_generation: vm.state.compiler_generation,
         })
     }
 
@@ -511,17 +521,22 @@ impl NativeOperationCurrency {
         if let Some(first) = vm.execution_refusal.clone() {
             return Err(first);
         }
-        if !crate::VERIFY_CURRENCY {
+        if !crate::verify_currency() {
             return Ok(());
         }
         let current = self.owns_saved_target(vm, interpreter)
             && vm.st_of(interpreter).is_some_and(|state| {
-                self.owner.generation.get() == Some(generation)
-                    && state.pin.context == self.context
-                    && std::ptr::eq(state.pin.profile, self.profile)
-                    && state.actual_engine_profile.map(std::ptr::from_ref)
-                        == self.engine.map(std::ptr::from_ref)
-                    && Rc::ptr_eq(&state.host, &self.host)
+                // A compile-service change is not an invariant violation:
+                // release reports it as stale bytecode where bytecode
+                // continues and otherwise carries on, so this re-proof leaves
+                // it to them.
+                state.compiler_generation != self.compiler_generation
+                    || self.owner.generation.get() == Some(generation)
+                        && state.pin.context == self.context
+                        && std::ptr::eq(state.pin.profile, self.profile)
+                        && state.actual_engine_profile.map(std::ptr::from_ref)
+                            == self.engine.map(std::ptr::from_ref)
+                        && Rc::ptr_eq(&state.host, &self.host)
             });
         if !current {
             return Err(retain_first(vm, unavailable()));
@@ -805,10 +820,10 @@ mod tests {
     }
     #[cfg(debug_assertions)]
     #[test]
-    fn original_vm_context_receipt_refuses_host_profile_compiler_and_pack_change_restore() {
+    fn original_vm_context_receipt_refuses_host_profile_and_pack_change_restore() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        for stage in 0..4 {
+        for stage in 0..3 {
             let mut vm = native();
             let scope = NativeOperationScope::enter(&mut vm).unwrap();
             match stage {
@@ -820,13 +835,6 @@ mod tests {
                 1 => {
                     vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.1"));
                     vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl8.6"));
-                }
-                2 => {
-                    vm.set_compiler(Box::new(
-                        tcl_codegen::compile_service::BytecodeCompileService::for_profile(
-                            crate::environment::profile_for_dialect("tcl8.6"),
-                        ),
-                    ));
                 }
                 _ => {
                     vm.set_pack_facts(vec![tcl_runtime_api::PackFactStamp {
@@ -849,6 +857,18 @@ mod tests {
             assert!(NativeOperationScope::enter(&mut vm).is_err());
             assert_eq!(vm.execution_refusal, Some(first));
         }
+    }
+    #[test]
+    fn original_vm_context_receipt_leaves_a_compile_service_change_to_bytecode_freshness() {
+        let mut vm = native();
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        vm.set_compiler(Box::new(
+            tcl_codegen::compile_service::BytecodeCompileService::for_profile(
+                crate::environment::profile_for_dialect("tcl8.6"),
+            ),
+        ));
+        scope.check(&mut vm).unwrap();
+        assert!(vm.execution_refusal.is_none());
     }
     #[cfg(debug_assertions)]
     #[test]

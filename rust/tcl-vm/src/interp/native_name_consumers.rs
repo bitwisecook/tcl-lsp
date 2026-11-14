@@ -107,7 +107,7 @@ impl OriginalNameConsumerState {
         require_absent_frame: bool,
         require: impl Fn(&mut Vm, bool, &'static str) -> Result<(), CmdError>,
     ) -> Result<(), CmdError> {
-        if !crate::VERIFY_CURRENCY {
+        if !crate::verify_currency() {
             return Ok(());
         }
         let world_current = Rc::ptr_eq(&self.world, &vm.name_world)
