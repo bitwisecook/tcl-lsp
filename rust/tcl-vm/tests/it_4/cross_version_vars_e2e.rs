@@ -319,9 +319,12 @@ fn namespace_upvar_release_surface_and_zero_pair_arity_are_registry_driven() {
         "puts [catch {namespace upvar :: value local} msg]:$msg\n",
         TclVersion::V8_4,
     );
-    assert!(
-        unavailable.starts_with("1:unknown or ambiguous subcommand \"upvar\":"),
-        "Tcl 8.4 must not expose the 8.5 subcommand: {unavailable}"
+    // tclsh 8.4.20: `namespace` is a plain option table there, not an ensemble.
+    assert_eq!(
+        unavailable,
+        "1:bad option \"upvar\": must be children, code, current, delete, eval, exists, \
+         export, forget, import, inscope, origin, parent, qualifiers, tail, or which",
+        "Tcl 8.4 must not expose the 8.5 subcommand"
     );
 
     assert_eq!(
@@ -331,12 +334,13 @@ fn namespace_upvar_release_surface_and_zero_pair_arity_are_registry_driven() {
         ),
         "ok"
     );
+    // tclsh 8.5.19 still requires one pair.
     assert_eq!(
         vm_output(
             "puts [catch {namespace upvar ::} msg]:$msg\n",
             TclVersion::V8_5,
         ),
-        "1:wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\""
+        "1:wrong # args: should be \"namespace upvar ns otherVar myVar ?otherVar myVar ...?\""
     );
 
     for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {

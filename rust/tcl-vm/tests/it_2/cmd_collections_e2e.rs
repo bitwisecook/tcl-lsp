@@ -1215,10 +1215,11 @@ fn lsort_error_paths() {
     let (ok, msg, _) = run("lsort -integer {a b}");
     assert!(!ok);
     assert_eq!(msg, "expected integer but got \"a\"");
-    // An empty -command prefix errors before any comparison (VM-specific wording).
+    // tclsh 8.6.18/9.0.4: an empty -command prefix evaluates the first
+    // comparison's words as the command.
     let (ok, msg, _) = run("lsort -command {} {1 2}");
     assert!(!ok, "empty -command should error");
-    assert!(msg.contains("comparison command is empty"), "got: {msg}");
+    assert_eq!(msg, "invalid command name \"1\"");
     // tclsh: a -command that returns a non-integer errors. The VM reports its own
     // wording (tclsh says "-compare command returned non-integer result"); the
     // behaviour — erroring on a non-integer comparator result — matches.

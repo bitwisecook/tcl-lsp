@@ -170,15 +170,41 @@ fn check_constructor_roster(profile: &'static DialectProfile) {
             );
         }
     }
-    let distribution =
+    // `min` and `max` are procedures C 8.5/8.6 define in `init.tcl`, not
+    // constructor mathfuncs: the native core has them only once its library
+    // has been sourced.
+    let mut distribution =
         tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
-    for name in [
+    let library_procedures = [
         b"::tcl::mathfunc::min".as_slice(),
         b"::tcl::mathfunc::max".as_slice(),
-    ] {
+    ];
+    for name in library_procedures {
+        assert!(
+            distribution.registered_command_token_bytes(name).is_none(),
+            "the native constructor has no library procedures"
+        );
+    }
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let Some(source_tree) =
+        tcl_test_support::locate_source_tree(&repo_root, tcl_dialect::TclVersion::V8_6, None)
+            .expect("Tcl 8.6 source tree discovery")
+    else {
+        return;
+    };
+    distribution.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    distribution
+        .set_var(
+            "::tcl_library",
+            Value::string(source_tree.library_dir().to_string_lossy().into_owned()),
+        )
+        .expect("library path is settable");
+    let init = distribution.init_library();
+    assert!(init.code.is_ok(), "{}", init.result.to_str());
+    for name in library_procedures {
         assert!(
             distribution.registered_command_token_bytes(name).is_some(),
-            "distribution constructor retains mathfunc implementations"
+            "init.tcl defines the library mathfuncs"
         );
     }
 }

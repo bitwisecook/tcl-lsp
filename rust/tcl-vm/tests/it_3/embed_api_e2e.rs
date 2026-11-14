@@ -321,27 +321,23 @@ fn the_command_limit_is_enforced() {
     );
 }
 
-/// **What the limit does not see.** The counter charges *dispatched* commands
-/// — which is what C Tcl's `interp limit commands` charges too. A loop the
-/// compiler inlines into bytecode dispatches nothing, so it runs to completion
-/// under a budget of one. An embedder that needs containment against *any*
-/// runaway pairs this with [`Vm::set_wall_clock_budget`], which the trampoline
-/// polls per tick; this test pins the gap so it is a documented property
-/// rather than a surprise.
+/// The counter charges a command the compiler inlined into bytecode as well
+/// as each dispatch, as C Tcl's `interp limit commands` does (C counts one at
+/// `INST_START_CMD`): a compiled loop exhausts a budget of one (tclsh 8.5.19,
+/// 8.6.18 and 9.0.4).
 #[test]
-fn an_inlined_loop_dispatches_nothing_and_so_is_not_charged() {
+fn an_inlined_loop_is_charged_per_command() {
     let mut vm = vm();
     vm.set_command_limit(Some(1));
     let handle = vm
         .compile_function("set i 0\nwhile {$i < 500} { incr i }\nset i")
         .expect("the body compiles");
     let completion = vm.invoke_function(&handle);
-    assert!(
-        completion.code.is_ok(),
-        "an inlined loop is not charged: {}",
-        completion.result.to_str()
+    assert_eq!(completion.code, Code::Error);
+    assert_eq!(
+        completion.result.to_str().as_ref(),
+        "command count limit exceeded"
     );
-    assert_eq!(completion.result.to_str().to_string(), "500");
 }
 
 #[test]

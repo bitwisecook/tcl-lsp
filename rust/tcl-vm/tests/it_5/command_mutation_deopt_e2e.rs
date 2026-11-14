@@ -1651,64 +1651,30 @@ fn foreign_module_procs_are_recompiled_by_the_current_service_in_both_orders() {
     }
 }
 
+/// A VM with no compile service cannot compile a foreign module's procedure
+/// bodies, so calling one is a host refusal, never a guest error. Once a
+/// service is installed the procedure the module defined compiles through it.
 #[test]
-fn source_less_vm_runs_a_self_contained_foreign_module_proc_as_supplied() {
+fn source_less_vm_refuses_a_foreign_modules_procedure_bodies() {
     let module = BytecodeCompileService::default()
         .compile("proc foreign_self {} {list {1 + 2}}; foreign_self")
         .expect("default module compiles");
     let mut vm = tcl_vm::test_support::native_vm();
 
-    let completion = vm.run_module(&module);
-    assert_eq!(completion.code, Code::Ok, "{completion:?}");
-    assert_eq!(completion.result.to_str().as_ref(), "{1 + 2}");
+    let refusal = vm
+        .try_run_module(&module)
+        .expect_err("a source-less VM compiles no procedure body");
+    assert!(
+        matches!(
+            &refusal,
+            tcl_runtime_api::NativeExecutionError::CompileServiceRefusal(refusal)
+                if refusal.reason == "procedure compilation requires a byte CompileService"
+        ),
+        "{refusal:?}"
+    );
 
-    // Admission did not relabel the proc as VM-produced: installing a service
-    // later still forces recompilation through that service.
     vm.set_compiler(Box::new(custom_compile_service()));
     assert_eq!(eval_ok(&mut vm, "foreign_self"), "3");
-}
-
-#[test]
-fn source_less_vm_admits_multiple_exact_bodies_for_one_foreign_proc_name() {
-    let service = BytecodeCompileService::default();
-    let first = service
-        .compile("proc same_name {} {return FIRST}; same_name")
-        .expect("first module compiles");
-    let second = service
-        .compile("proc same_name {value} {return SECOND-$value}; same_name ok")
-        .expect("second module compiles");
-    let mut vm = tcl_vm::test_support::native_vm();
-
-    let completion = vm.run_module(&first);
-    assert_eq!(completion.code, Code::Ok, "{completion:?}");
-    assert_eq!(completion.result.to_str().as_ref(), "FIRST");
-
-    let completion = vm.run_module(&second);
-    assert_eq!(completion.code, Code::Ok, "{completion:?}");
-    assert_eq!(completion.result.to_str().as_ref(), "SECOND-ok");
-
-    // Re-admitting the first module proves cache order does not select a body.
-    let completion = vm.run_module(&first);
-    assert_eq!(completion.code, Code::Ok, "{completion:?}");
-    assert_eq!(completion.result.to_str().as_ref(), "FIRST");
-}
-
-#[test]
-fn source_less_vm_uses_each_foreign_modules_same_source_proc_artifact() {
-    let source = "proc same_source {} {list {1 + 2}}; same_source";
-    let default = BytecodeCompileService::default()
-        .compile(source)
-        .expect("default module compiles");
-    let custom = custom_compile_service()
-        .compile(source)
-        .expect("custom module compiles");
-    let mut vm = tcl_vm::test_support::native_vm();
-
-    for (module, expected) in [(&default, "{1 + 2}"), (&custom, "3"), (&default, "{1 + 2}")] {
-        let completion = vm.run_module(module);
-        assert_eq!(completion.code, Code::Ok, "{completion:?}");
-        assert_eq!(completion.result.to_str().as_ref(), expected);
-    }
 }
 
 #[test]
@@ -1734,13 +1700,15 @@ fn foreign_proc_provenance_name_must_match_its_module_entry() {
         .compile("proc target {} {return CLAIMED}; target")
         .expect("valid module compiles");
     let mut vm = tcl_vm::test_support::native_vm();
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
 
-    // A source-less VM cannot compile the malformed module's unmatched proc
-    // definition, but merely admitting it must not poison another name.
-    assert_eq!(vm.run_module(&malformed).code, Code::Error);
+    // Admitting the malformed module defines only its own procedure; its
+    // forged provenance must not poison another name.
+    assert_eq!(vm.run_module(&malformed).code, Code::Ok);
     let completion = vm.run_module(&valid);
     assert_eq!(completion.code, Code::Ok, "{completion:?}");
     assert_eq!(completion.result.to_str().as_ref(), "CLAIMED");
+    assert_eq!(eval_ok(&mut vm, "wrong"), "POISON");
 }
 
 #[test]
@@ -2578,29 +2546,29 @@ fn reusable_consumers_revalidate_command_execution_traces() {
     assert_eq!(eval_ok(&mut eval_vm, "set ::traced"), "1");
 }
 
+/// A command replacement recompiles against the live commands and needs no
+/// plain dispatch; a step trace still does, so a service without that
+/// capability fails closed when a step-traced procedure is entered.
 #[test]
-fn mutation_recovery_fails_closed_without_plain_dispatch_capability() {
+fn step_traced_procedure_fails_closed_without_plain_dispatch_capability() {
     let (mut vm, _output) = vm();
-    let handle = vm
-        .compile_function("expr {1+2}")
-        .expect("function compiles");
     eval_ok(
         &mut vm,
-        "rename expr real_expr; proc expr args {return SHOULD_NOT_RUN_OPTIMISED}",
+        "proc p {} {expr {1+2}}; proc step_callback args {}; \
+         trace add execution p enterstep step_callback",
     );
     vm.set_compiler(Box::new(OptimisedOnlyCompilerSvc(
         BytecodeCompileService::default(),
     )));
 
-    let completion = vm.invoke_function(&handle);
-    assert_eq!(completion.code, Code::Error, "{completion:?}");
-    assert!(
-        completion
-            .result
-            .to_str()
-            .contains("does not support plain command dispatch"),
-        "{}",
-        completion.result.to_str()
+    let Err(tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(refusal))) =
+        vm.eval_source("p")
+    else {
+        panic!("a missing plain-dispatch capability is a host refusal");
+    };
+    assert_eq!(
+        refusal.to_string(),
+        "CompileService does not support plain command dispatch"
     );
 }
 
@@ -3329,7 +3297,7 @@ fn precompiled_proc_cache_requires_exact_body_and_parameters() {
 }
 
 #[test]
-fn exact_static_proc_provenance_preserves_the_precompiled_body() {
+fn a_procedure_body_compiled_at_its_first_call_is_reused() {
     let fast_calls = Rc::new(Cell::new(0));
     let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(CountingCompilerSvc {
@@ -3343,11 +3311,13 @@ fn exact_static_proc_provenance_preserves_the_precompiled_body() {
     let completion = vm.invoke_command("p", &[Value::string("kept")]);
     assert!(completion.code.is_ok(), "{completion:?}");
     assert_eq!(completion.result.to_str().as_ref(), "kept");
-    assert_eq!(
-        fast_calls.get(),
-        1,
-        "exact provenance should admit the module's precompiled proc body"
-    );
+    // Defining `p` moved the command world on, so the first call compiles the
+    // body against it, as C compiles a body at its first call; later calls
+    // reuse that body.
+    let compiled = fast_calls.get();
+    let completion = vm.invoke_command("p", &[Value::string("again")]);
+    assert_eq!(completion.result.to_str().as_ref(), "again");
+    assert_eq!(fast_calls.get(), compiled, "the compiled body is reused");
 }
 
 #[test]
@@ -3585,8 +3555,12 @@ fn a_host_registered_builtin_at_a_registry_name_is_not_the_shipped_command() {
     assert_eq!(run(&mut restored), "3", "the shipped token is back");
 }
 
+/// A procedure whose body compiled `expr` inline is recompiled against the
+/// live commands once `expr` is replaced, so the replacement runs (tclsh
+/// 9.0.4 and 8.6.18: `3`, then `OVERRIDE`, then `3` again). The recompiled
+/// body is cached: a second call compiles nothing.
 #[test]
-fn proc_reoptimises_after_running_plain_during_a_builtin_replacement() {
+fn proc_recompiles_against_a_replaced_builtin_and_its_restoration() {
     let (mut vm, _output) = vm();
     eval_ok(&mut vm, "proc p {} {expr {1+2}}");
     assert_eq!(eval_ok(&mut vm, "p"), "3");
@@ -3603,18 +3577,23 @@ fn proc_reoptimises_after_running_plain_during_a_builtin_replacement() {
         plain_calls: Rc::clone(&plain_calls),
     }));
     assert_eq!(eval_ok(&mut vm, "p"), "OVERRIDE");
-    assert!(plain_calls.get() > 0, "the replacement must deopt the proc");
+    assert!(
+        fast_calls.get() + plain_calls.get() > 0,
+        "the replacement must recompile the proc"
+    );
 
     eval_ok(&mut vm, "rename expr {}; rename held_expr expr");
-    fast_calls.set(0);
-    plain_calls.set(0);
     assert_eq!(eval_ok(&mut vm, "p"), "3");
-    assert_eq!(fast_calls.get(), 1, "the proc must re-enter fast bytecode");
-    assert_eq!(plain_calls.get(), 0);
+    assert_eq!(plain_calls.get(), 0, "no plain dispatch is needed");
+    fast_calls.set(0);
+    assert_eq!(vm.dispatch("p", &[]).unwrap().result.to_str().as_ref(), "3");
+    assert_eq!(fast_calls.get(), 0, "the recompiled body is cached");
 }
 
+/// [`proc_recompiles_against_a_replaced_builtin_and_its_restoration`] for a
+/// reusable function handle.
 #[test]
-fn function_handle_reoptimises_after_running_plain_during_a_builtin_replacement() {
+fn function_handle_recompiles_against_a_replaced_builtin_and_its_restoration() {
     let (mut vm, _output) = vm();
     let handle = vm
         .compile_function("expr {1+2}")
@@ -3637,20 +3616,16 @@ fn function_handle_reoptimises_after_running_plain_during_a_builtin_replacement(
         "OVERRIDE"
     );
     assert!(
-        plain_calls.get() > 0,
-        "the replacement must deopt the handle"
+        fast_calls.get() + plain_calls.get() > 0,
+        "the replacement must recompile the handle"
     );
 
     eval_ok(&mut vm, "rename expr {}; rename held_expr expr");
-    fast_calls.set(0);
-    plain_calls.set(0);
     assert_eq!(vm.invoke_function(&handle).result.to_str().as_ref(), "3");
-    assert_eq!(
-        fast_calls.get(),
-        1,
-        "the handle must re-enter fast bytecode"
-    );
-    assert_eq!(plain_calls.get(), 0);
+    assert_eq!(plain_calls.get(), 0, "no plain dispatch is needed");
+    fast_calls.set(0);
+    assert_eq!(vm.invoke_function(&handle).result.to_str().as_ref(), "3");
+    assert_eq!(fast_calls.get(), 0, "the recompiled handle is cached");
 }
 
 #[test]
@@ -3684,21 +3659,23 @@ fn proc_reoptimises_after_running_plain_under_a_removed_step_trace() {
     assert_eq!(plain_calls.get(), 0);
 }
 
+/// [`proc_recompiles_against_a_replaced_builtin_and_its_restoration`] for a
+/// cached TclOO method body.
 #[test]
-fn tcloo_method_reoptimises_after_running_plain_during_a_builtin_replacement() {
+fn tcloo_method_recompiles_against_a_replaced_builtin_and_its_restoration() {
     let (mut vm, _output) = vm();
     eval_ok(
         &mut vm,
         "oo::class create C {method m {} {expr {1+2}}}; C create o",
     );
-    assert_eq!(
+    let call = |vm: &mut Vm| {
         vm.dispatch("o", &[Value::string("m")])
             .unwrap()
             .result
             .to_str()
-            .as_ref(),
-        "3"
-    );
+            .to_string()
+    };
+    assert_eq!(call(&mut vm), "3");
     eval_ok(
         &mut vm,
         "rename expr held_expr; proc expr args {return METHOD_OVERRIDE}",
@@ -3713,90 +3690,54 @@ fn tcloo_method_reoptimises_after_running_plain_during_a_builtin_replacement() {
     }));
     assert_eq!(eval_ok(&mut vm, "o m"), "METHOD_OVERRIDE");
     assert!(
-        plain_calls.get() > 0,
-        "the replacement must deopt the cached method"
+        fast_calls.get() + plain_calls.get() > 0,
+        "the replacement must recompile the cached method"
     );
 
     eval_ok(&mut vm, "rename expr {}; rename held_expr expr");
+    assert_eq!(call(&mut vm), "3");
+    assert_eq!(plain_calls.get(), 0, "no plain dispatch is needed");
     fast_calls.set(0);
-    plain_calls.set(0);
-    assert_eq!(
-        vm.dispatch("o", &[Value::string("m")])
-            .unwrap()
-            .result
-            .to_str()
-            .as_ref(),
-        "3"
-    );
-    assert_eq!(
-        fast_calls.get(),
-        1,
-        "the method must re-enter fast bytecode"
-    );
-    assert_eq!(plain_calls.get(), 0);
+    assert_eq!(call(&mut vm), "3");
+    assert_eq!(fast_calls.get(), 0, "the recompiled method is cached");
 }
 
+/// An `enterstep` trace observes only the commands its traced command runs
+/// (C's `TclCheckExecutionTraces`), so one on an unrelated procedure leaves a
+/// cached method on its compiled body.
 #[test]
-fn tcloo_method_reoptimises_after_running_plain_under_a_removed_step_trace() {
+fn tcloo_method_stays_compiled_under_an_unrelated_step_trace() {
     let (mut vm, _output) = vm();
     eval_ok(
         &mut vm,
         "oo::class create C {method m {} {expr {1+2}}}; \
          C create o; proc traced {} {}; proc step_callback args {}",
     );
-    assert_eq!(
+    let call = |vm: &mut Vm| {
         vm.dispatch("o", &[Value::string("m")])
             .unwrap()
             .result
             .to_str()
-            .as_ref(),
-        "3"
-    );
+            .to_string()
+    };
+    assert_eq!(call(&mut vm), "3");
     eval_ok(
         &mut vm,
         "trace add execution traced enterstep step_callback",
     );
 
-    let fast_calls = Rc::new(Cell::new(0));
     let plain_calls = Rc::new(Cell::new(0));
     vm.set_compiler(Box::new(CountingCompilerSvc {
         inner: BytecodeCompileService::default(),
-        fast_calls: Rc::clone(&fast_calls),
+        fast_calls: Rc::new(Cell::new(0)),
         plain_calls: Rc::clone(&plain_calls),
     }));
+    assert_eq!(call(&mut vm), "3");
     assert_eq!(
-        vm.dispatch("o", &[Value::string("m")])
-            .unwrap()
-            .result
-            .to_str()
-            .as_ref(),
-        "3"
+        plain_calls.get(),
+        0,
+        "an unrelated step trace does not deopt the method"
     );
-    assert!(
-        plain_calls.get() > 0,
-        "the active step trace must deopt the cached method"
-    );
-
-    eval_ok(
-        &mut vm,
-        "trace remove execution traced enterstep step_callback",
-    );
-    fast_calls.set(0);
-    plain_calls.set(0);
-    assert_eq!(
-        vm.dispatch("o", &[Value::string("m")])
-            .unwrap()
-            .result
-            .to_str()
-            .as_ref(),
-        "3"
-    );
-    assert_eq!(
-        fast_calls.get(),
-        1,
-        "trace removal must restore fast method code"
-    );
-    assert_eq!(plain_calls.get(), 0);
 }
 
 #[test]
@@ -3892,39 +3833,15 @@ fn profileless_function_fails_closed_after_binding_replacement() {
     );
 }
 
-#[test]
-fn mutation_recovery_rejects_a_dishonest_plain_compiler() {
-    let (mut vm, _output) = vm();
-    let handle = vm
-        .compile_function("expr {1+2}")
-        .expect("function compiles");
-    eval_ok(
-        &mut vm,
-        "rename expr real_expr; proc expr args {return SHOULD_NOT_RUN_OPTIMISED}",
-    );
-    vm.set_compiler(Box::new(DishonestPlainCompilerSvc(
-        BytecodeCompileService::default(),
-    )));
-
-    let completion = vm.invoke_function(&handle);
-    assert_eq!(completion.code, Code::Error, "{completion:?}");
-    assert!(
-        completion
-            .result
-            .to_str()
-            .contains("returned optimised bytecode"),
-        "{}",
-        completion.result.to_str()
-    );
-}
-
+/// A step-traced procedure needs plain dispatch, so a service that answers
+/// that request with optimised bytecode is rejected.
 #[test]
 fn procedure_recovery_rejects_a_dishonest_plain_compiler() {
     let (mut vm, _output) = vm();
-    eval_ok(&mut vm, "proc p {} {expr {1+2}}");
     eval_ok(
         &mut vm,
-        "rename expr real_expr; proc expr args {return SHOULD_NOT_RUN_OPTIMISED}",
+        "proc p {} {expr {1+2}}; proc step_callback args {}; \
+         trace add execution p enterstep step_callback",
     );
     vm.set_compiler(Box::new(DishonestPlainCompilerSvc(
         BytecodeCompileService::default(),
@@ -3936,7 +3853,7 @@ fn procedure_recovery_rejects_a_dishonest_plain_compiler() {
         completion
             .result
             .to_str()
-            .contains("procedure plain-dispatch capability returned optimised bytecode"),
+            .contains("plain-dispatch capability returned optimised bytecode"),
         "{}",
         completion.result.to_str()
     );
@@ -3945,24 +3862,30 @@ fn procedure_recovery_rejects_a_dishonest_plain_compiler() {
 #[test]
 fn procedure_consumers_preserve_a_missing_typed_compiler_capability() {
     const CAUSE: &str = "CompileService does not support procedure-body compilation";
+    // A missing procedure capability is never bypassed: it surfaces as the
+    // service's own diagnostic or as a host refusal, outside guest code.
+    let refused = |result: Result<Completion<Value>, tcl_vm::TclError>| match result {
+        Ok(completion) => {
+            completion.code == Code::Error && completion.result.to_str().as_ref() == CAUSE
+        }
+        Err(tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(
+            tcl_runtime_api::NativeExecutionError::CompileServiceRefusal(_),
+        ))) => true,
+        Err(_) => false,
+    };
 
     let mut host_vm = tcl_vm::test_support::native_vm();
     host_vm.set_compiler(Box::new(ScriptOnlyCompilerSvc(
         BytecodeCompileService::default(),
     )));
-    let host_error = host_vm
+    // As in C, a body compiles at its first call, not at its definition.
+    host_vm
         .define_procedure("host_p", &[], "return HOST")
-        .expect_err("host procedure needs the typed capability");
-    assert_eq!(
-        host_error
-            .message_unicode()
-            .expect("Unicode fixture error")
-            .as_ref(),
-        format!("procedure \"host_p\": {CAUSE}")
-    );
+        .expect("a definition compiles nothing");
+    assert!(refused(host_vm.eval_source("host_p")), "host procedure");
 
     for source in [
-        "set body {return PROC}; proc p {} $body",
+        "set body {return PROC}; proc p {} $body; p",
         "set lambda [list {} {return APPLY}]; apply $lambda",
         "oo::class create C {method m {} {return METHOD}}; set o [C new]; $o m",
     ] {
@@ -3970,9 +3893,7 @@ fn procedure_consumers_preserve_a_missing_typed_compiler_capability() {
         vm.set_compiler(Box::new(ScriptOnlyCompilerSvc(
             BytecodeCompileService::default(),
         )));
-        let completion = vm.eval_source(source).expect("outer script compiles");
-        assert_eq!(completion.code, Code::Error, "{source}: {completion:?}");
-        assert_eq!(completion.result.to_str().as_ref(), CAUSE, "{source}");
+        assert!(refused(vm.eval_source(source)), "{source}");
     }
 }
 

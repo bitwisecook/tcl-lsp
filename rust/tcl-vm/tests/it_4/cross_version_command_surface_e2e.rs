@@ -485,27 +485,30 @@ fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
     let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
     let mut fixed = tcl_vm::test_support::native_vm_for_profile(v84, Box::new(std::io::stdout()));
     fixed.set_compiler(Box::new(FixedFallbackCompilerSvc));
+    // The refusal is the host's, outside every guest catch.
     assert_eq!(
         fixed
             .eval_source("set x 1")
             .unwrap_err()
             .message_unicode()
-            .expect("Unicode fixture error")
-            .as_ref(),
+            .expect_err("a host refusal is no guest error")
+            .to_string(),
         "CompileService does not support dialect profile tcl8.4"
     );
 
     let mut mislabelled =
         tcl_vm::test_support::native_vm_for_profile(v84, Box::new(std::io::stdout()));
     mislabelled.set_compiler(Box::new(WrongProfileCompilerSvc));
+    // A service that compiles for another profile is refused before it can
+    // label a module, as the fixed one is.
+    let Err(tcl_vm::VmCompilationError::Host(refusal)) =
+        mislabelled.try_compile_function("lassign {a b} x")
+    else {
+        panic!("a mislabelled compile service is a host refusal");
+    };
     assert_eq!(
-        mislabelled
-            .compile_function("lassign {a b} x")
-            .unwrap_err()
-            .message_unicode()
-            .expect("Unicode fixture error")
-            .as_ref(),
-        "bytecode compiled for dialect profile tcl8.5 cannot run under tcl8.4"
+        refusal.to_string(),
+        "CompileService does not support dialect profile tcl8.4"
     );
 }
 
@@ -634,15 +637,18 @@ fn compatible_irules_host_surface_override_remains_accepted() {
 /// vector can pin `extra characters after close-brace` and `invalid command
 /// name "lassign"` the same way it pins a value.
 fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
-    let svc = BytecodeCompileService::for_profile(profile);
-    let asm = match svc.compile(src) {
-        Ok(asm) => asm,
-        Err(e) => return e.to_string(),
-    };
     let cap = Capture::default();
-    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(cap.clone()));
+    let mut vm = vm_for_profile(profile, Box::new(cap.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    let completion = vm.run_module(&asm);
+    // A script the release cannot compile at all reports through `Err`.
+    let completion = match vm.eval_source(src) {
+        Ok(completion) => completion,
+        Err(error) => {
+            return error
+                .message_unicode()
+                .map_or_else(|failure| failure.to_string(), |message| message.to_string());
+        }
+    };
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
     if !completion.code.is_ok() || out.is_empty() {
         // An uncaught error's message, or — for a profile with no `puts`
@@ -650,6 +656,20 @@ fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
         return completion.result.to_str().trim().to_string();
     }
     out
+}
+
+/// A VM pinned to `profile`. A vendor profile has no native core of its own:
+/// it runs on the engine of the release it emulates.
+fn vm_for_profile(profile: &'static DialectProfile, out: Box<dyn std::io::Write>) -> tcl_vm::Vm {
+    if tcl_registry::InvocationDialect::of_profile(profile)
+        .native_bootstrap_protocol()
+        .is_some()
+    {
+        return tcl_vm::test_support::native_vm_for_profile(profile, out);
+    }
+    let mut vm = tcl_vm::test_support::native_vm_for_release(profile.vm_runtime_version, out);
+    vm.set_dialect_profile(profile);
+    vm
 }
 
 /// [`profile_output`] for a plain release pin (the `--tcl-version` path).
@@ -1358,8 +1378,14 @@ fn refused_alias_rename_restores_import_provenance() {
         "two=::src::a\n",
         "forgot=",
     );
+    // C 8.4 names the alias by the name it was created with
+    // (`aliasPtr->namePtr`; tclsh 8.4.20).
+    assert_eq!(
+        vm_output(src, TclVersion::V8_4),
+        want.replace("alias \"b\"", "alias \"::src::a\""),
+        "[V8_4] refused alias rename"
+    );
     for version in [
-        TclVersion::V8_4,
         TclVersion::V8_5,
         TclVersion::V8_6,
         TclVersion::V9_0,

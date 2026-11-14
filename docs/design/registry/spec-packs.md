@@ -361,10 +361,9 @@ overlay, so the analyser always finds the context its key names.
 | `tcl-registry::extension_host` | seam | The **extension evaluation seam**: `ExtensionHost` (`load` an artefact, named by its content hash, and `evaluate` one command's exact words under an `ImplementationBudget`), the thread-local host, and a `Transient` decline on a thread with none. |
 
 - **The two budgets bound different things.** The command limit counts
-  *dispatched* commands — as C Tcl's does — so a loop the compiler inlines
-  into bytecode is not charged; the wall-clock cap, polled inside the
-  bytecode trampoline, is what stops that case. Containment needs both,
-  and the host's default config sets both.
+  commands; the wall-clock cap, polled inside the bytecode trampoline,
+  bounds time, including time spent inside one long command. Containment
+  needs both, and the host's default config sets both.
 - **The cacheability rule has a spelling**: `-inputs {nwords kinds}` on a
   hook statement. A hook whose declared inputs exclude the words' content
   is answered from the registry's shape-keyed cache; a hook that declares

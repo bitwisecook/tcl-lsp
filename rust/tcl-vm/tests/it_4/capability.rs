@@ -150,6 +150,16 @@ mod seam {
         }
     }
 
+    /// The seam's catalogue holds no encoding beyond the built-in ones.
+    impl tcl_platform::EncodingCatalogue for Seam {
+        fn lookup(
+            &self,
+            _name: &[u8],
+        ) -> Result<Option<SystemEncoding>, tcl_platform::EncodingCatalogueUnavailable> {
+            Ok(None)
+        }
+    }
+
     impl Host for Seam {
         fn capabilities(&self) -> Capabilities {
             Capabilities::empty()
@@ -162,6 +172,9 @@ mod seam {
         }
         fn env(&self) -> &dyn Env {
             self.inner.env()
+        }
+        fn encoding_catalogue(&self) -> Option<&dyn tcl_platform::EncodingCatalogue> {
+            Some(self)
         }
         fn system_encoding(&self) -> SystemEncoding {
             self.system
@@ -224,9 +237,10 @@ fn source_reads_through_the_hosts_filesystem() {
 }
 
 /// `source -encoding` decodes the file as the encoding it names: the same
-/// bytes are `é` as ISO-8859-1 and a replacement character as UTF-8, a name
-/// the VM does not know is Tcl's `unknown encoding`, and `-nopkg` may stand
-/// beside it in either order.
+/// bytes are `é` as ISO-8859-1 and a replacement character as UTF-8, and a
+/// name the VM does not know is Tcl's `unknown encoding`. Tcl 9's `-nopkg`
+/// is a separate two-word form: it never stands beside `-encoding`, and the
+/// word where either option belongs is matched exactly (tclsh 9.0.4/9.1.0).
 #[test]
 fn source_honours_its_encoding_option() {
     let bytes: &[u8] = b"set r [string length \"\xe9\"]\nscan [string index \"\xe9\" 0] %c";
@@ -243,16 +257,30 @@ fn source_honours_its_encoding_option() {
         "65533",
         "Tcl 9 reads UTF-8"
     );
+    let no_package = eval(&mut vm, "source -nopkg /virtual/latin1.tcl");
+    assert_eq!(no_package.result.to_str().as_ref(), "65533");
 
-    for form in [
-        "source -nopkg -encoding iso8859-1 /virtual/latin1.tcl",
-        "source -encoding iso8859-1 -nopkg /virtual/latin1.tcl",
+    for (form, message) in [
+        (
+            "source -nopkg -encoding iso8859-1 /virtual/latin1.tcl",
+            "wrong # args: should be \"source ?-encoding encoding? fileName\"",
+        ),
+        (
+            "source -encoding iso8859-1 -nopkg /virtual/latin1.tcl",
+            "wrong # args: should be \"source ?-encoding encoding? fileName\"",
+        ),
+        (
+            "source -encoding utf-8",
+            "bad option \"-encoding\": must be -nopkg",
+        ),
+        (
+            "source -enc utf-8 /virtual/latin1.tcl",
+            "bad option \"-enc\": must be -encoding",
+        ),
     ] {
-        assert_eq!(
-            eval(&mut vm, form).result.to_str().as_ref(),
-            "233",
-            "{form}"
-        );
+        let refused = eval(&mut vm, form);
+        assert_eq!(refused.code, tcl_runtime_api::Code::Error, "{form}");
+        assert_eq!(refused.result.to_str().as_ref(), message, "{form}");
     }
 
     let unknown = eval(&mut vm, "source -encoding klingon /virtual/latin1.tcl");
@@ -260,13 +288,6 @@ fn source_honours_its_encoding_option() {
     assert_eq!(
         unknown.result.to_str().as_ref(),
         "unknown encoding \"klingon\""
-    );
-
-    let bare = eval(&mut vm, "source -encoding utf-8");
-    assert_eq!(bare.code, tcl_runtime_api::Code::Error);
-    assert_eq!(
-        bare.result.to_str().as_ref(),
-        "wrong # args: should be \"source ?-encoding name? ?-nopkg? fileName\""
     );
 }
 
