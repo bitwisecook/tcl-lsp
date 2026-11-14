@@ -4426,12 +4426,14 @@ impl Interp {
         };
         let loops = self.alias_chain_loops_original(ns, &simple);
         if loops.as_ref().is_ok_and(|loops| !loops) {
-            self.complete_original_alias_registration(
+            if let Some(token) = self.complete_original_alias_registration(
                 name,
                 tcl_syntax::naming::NativeNamePurpose::AliasPublication,
                 &retained_registration,
                 generation,
-            )?;
+            )? {
+                self.set_result(token.as_ptr());
+            }
             return Ok(None);
         }
         // Reentrant getters may replace the slot. Retire only this actual
@@ -5453,6 +5455,16 @@ impl Interp {
         if self.host_refusal_pending() {
             return None;
         }
+        // A Rust-authored formal list has no original object. C's compile hook
+        // depends only on whether the list is exactly `args`, so spell that.
+        let args_only = matches!(
+            params.as_slice(),
+            [Param { name, default: None }] if name.as_slice() == b"args"
+        );
+        let authored_formals: Option<&[u8]> =
+            parameters_obj
+                .is_none()
+                .then_some(if args_only { b"args" } else { b"" });
         let (original_body, body, import_source) = body;
         if self.invocation_string_protocol()
             == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
@@ -5571,8 +5583,10 @@ impl Interp {
         if current(self).is_err() {
             return None;
         }
+        let authored_formals =
+            authored_formals.map(|formals| obj::Owned::fresh(new_string(formals)));
         let header = match self.original_procedure_compiler_header(
-            parameters_obj,
+            parameters_obj.or(authored_formals.as_ref().map(obj::Owned::as_ptr)),
             original_body,
             &current,
         ) {
@@ -6960,8 +6974,12 @@ impl Interp {
                 == tcl_syntax::native_string::NativeStringProtocol::Jim084)
                 .then(|| obj::Owned::fresh(new_string(name)));
             match variable {
+                // C publishes these with TCL_GLOBAL_ONLY, so bootstrap inside a
+                // procedure never selects a same-named local.
                 V::ErrorInfo | V::ErrorCode | V::Precision => {
-                    let allocated = self.ensure_trace_variable(name);
+                    let allocated = self
+                        .prepare_trace_registration(name, None, Some(0))
+                        .map(|_| ());
                     scope
                         .currency()
                         .ensure_current_or_refuse()
@@ -6971,7 +6989,7 @@ impl Interp {
                     self.checked_bootstrap_outcome(scope.currency(), allocated)?;
                 }
                 V::Environment | V::Platform => {
-                    let allocated = self.ensure_array(name);
+                    let allocated = self.ensure_array_at(name, 0);
                     scope
                         .currency()
                         .ensure_current_or_refuse()
@@ -9060,11 +9078,21 @@ impl Interp {
         )
     }
 
-    /// Materialise an unset variable cell for `trace add variable` without
-    /// firing write traces or making `info exists` true.
-    pub(crate) fn ensure_trace_variable(&self, name: &[u8]) -> Result<(), VarError> {
-        self.prepare_trace_registration(name, None, None)
-            .map(|_| ())
+    /// Ensure an array in the variable table of frame `level`, whatever frame
+    /// is current (C's `TCL_GLOBAL_ONLY` for level 0).
+    pub(crate) fn ensure_array_at(&self, name: &[u8], level: usize) -> Result<(), VarError> {
+        if self.observed_names.borrow().is_some() {
+            return self.observed_ensure_array(name, level);
+        }
+        self.require_variable_name_protocol()?;
+        self.with_captured_byte_variable(
+            self.current_ns.get(),
+            Some(level),
+            name,
+            None,
+            true,
+            |place, currency| place.ensure_array(self, currency),
+        )
     }
 
     pub(crate) fn prepare_trace_registration(
@@ -14055,6 +14083,11 @@ impl Interp {
 
     /// Publish and consume the accumulated exception at a native result reset.
     fn publish_error(&mut self) {
+        self.publish_error_episode(true);
+    }
+
+    /// Publish the accumulated exception, consuming it when `reset`.
+    fn publish_error_episode(&mut self, reset: bool) {
         #[cfg(test)]
         self.observe_c84_error_episode("publish.enter", None);
         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
@@ -14112,6 +14145,9 @@ impl Interp {
                     }
                 }
             }
+        }
+        if !reset {
+            return;
         }
         if self
             .replace_exception_state_checked(scope.currency(), ExceptionState::default())
@@ -14643,7 +14679,9 @@ impl Interp {
                     return;
                 }
             } else {
-                self.publish_error();
+                // C8.4 keeps ERR_IN_PROGRESS and ERROR_CODE_SET until the next
+                // Tcl_ResetResult; the next outermost evaluation resets them.
+                self.publish_error_episode(!self.uses_c84_global_error_info());
             }
         }
         if scope.currency().ensure_current_or_refuse().is_err() {

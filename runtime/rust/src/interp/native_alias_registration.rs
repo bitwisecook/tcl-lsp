@@ -137,13 +137,15 @@ impl Interp {
         true
     }
 
+    /// Returns the token C 8.5+ `AliasCreate` publishes as the calling
+    /// interpreter's result; the source interpreter's result is untouched.
     pub(crate) fn complete_original_alias_registration(
         &mut self,
         name: &[u8],
         purpose: NativeNamePurpose,
         registration: &Rc<NativeAliasHeader>,
         generation: Option<u64>,
-    ) -> Result<(), CmdError> {
+    ) -> Result<Option<super::obj::Owned>, CmdError> {
         let recipe = self
             .name_policy_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -158,10 +160,10 @@ impl Interp {
             .map_err(unavailable)?
             .is_none()
         {
-            return Ok(());
+            return Ok(None);
         }
         let Some(generation) = generation else {
-            return Ok(());
+            return Ok(None);
         };
         let scope = NativeOperationScope::enter(self).map_err(CmdError::from_execution_refusal)?;
         self.select_original_alias_registration_order()?;
@@ -189,9 +191,9 @@ impl Interp {
                             .borrow_mut()
                             .install_unique(&selected, generation)
                             .map_err(unavailable)?;
-                        self.set_result(current.checked_ptr()?);
+                        return Ok(Some(super::obj::Owned::retain(current.checked_ptr()?)));
                     }
-                    return Ok(());
+                    return Ok(None);
                 }
                 let token = recipe
                     .alias_registration_collision_token(&bytes)
@@ -244,7 +246,7 @@ impl Interp {
                             .install(&selected, generation)
                             .map_err(unavailable)?;
                     }
-                    return Ok(());
+                    return Ok(None);
                 };
                 prior
             };

@@ -123,6 +123,16 @@ impl Interp {
             },
         )?;
         self.require_variable_name_protocol()?;
+        if level.is_some_and(|level| self.frames.borrow().table(level).is_none()) {
+            // An addressed frame that does not exist cannot donate another
+            // table's variable.
+            self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "addressed variable frame",
+                ),
+            );
+            return Err(crate::frame::VarError::NameProtocolUnavailable);
+        }
         let reached = crate::vars::EnteredVariablePlace::capture(
             self,
             namespace,

@@ -82,8 +82,12 @@ impl OriginalArguments {
     /// Borrow the live original argv for a complete command operation. Leases
     /// leave native sharing/counts unchanged and never revive a retired header.
     pub(crate) fn enter(interpreter: &Interp, argv: &[*mut TclObj]) -> Result<Self, CmdError> {
-        let scope =
-            NativeOperationScope::enter(interpreter).map_err(CmdError::from_execution_refusal)?;
+        let scope = NativeOperationScope::enter(interpreter).map_err(|first| {
+            interpreter.clone().refuse_native_execution(first.clone());
+            CmdError::from_execution_refusal(
+                interpreter.native_execution_refusal().unwrap_or(first),
+            )
+        })?;
         let originals = argv
             .iter()
             .map(|&original| {

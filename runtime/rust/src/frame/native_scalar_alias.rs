@@ -374,7 +374,9 @@ impl VarTable {
             .unwrap_or(true); // Existing neutral software-holder contract.
         let binding = {
             let mut cell = contents.borrow_mut();
-            let binding = cell.binding_id.expect("actual native target entry");
+            // A declared compiled local exists before its first store, as C's
+            // frame-resident Var does, so selecting it as a target binds it.
+            let binding = *cell.binding_id.get_or_insert_with(super::fresh_var_id);
             if acquire && target_reference {
                 cell.native_alias_refs = cell
                     .native_alias_refs

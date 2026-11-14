@@ -8470,6 +8470,12 @@ impl Interp {
     /// Destroy an object during implicit teardown, routing a destructor error to
     /// the `interp bgerror` handler (C's `AfterNRDestructor` → background error).
     fn oo_destroy_bg(&mut self, obj: OoId) {
+        if self.native_execution_refusal().is_some() {
+            // A pending first cause skips the destructor and its background
+            // report; mandatory teardown still completes.
+            let _ = self.oo_destroy(obj);
+            return;
+        }
         let outcome = self.with_preserved_result_checked(|interp| {
             if interp.oo_destroy(obj) == Code::Error {
                 let msg = match interp.completion_result_bytes_checked() {

@@ -1549,21 +1549,23 @@ fn interp_alias_original(
             owner.retire_original_parent_alias(&name, &original_prefix, generation);
             return interp.transport_host_refusal_from(&owner);
         }
-        if let Err(error) = owner.complete_original_alias_registration(
+        let token = match owner.complete_original_alias_registration(
             &original_name,
             tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
             &retained_registration,
             generation,
         ) {
-            owner.report_cmd_error(error);
-            return interp.transport_host_refusal_from(&owner);
-        }
+            Ok(token) => token,
+            Err(error) => {
+                owner.report_cmd_error(error);
+                return interp.transport_host_refusal_from(&owner);
+            }
+        };
         if let Err(error) = arguments.check() {
             return interp.report_cmd_error(error);
         }
-        if recipe != tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4) {
-            let result = obj::Owned::retain(owner.result_obj());
-            interp.set_result(result.as_ptr());
+        if let Some(token) = token {
+            interp.set_result(token.as_ptr());
         }
     } else {
         let installed =
@@ -1749,16 +1751,20 @@ pub(crate) fn child_alias_handle_original(
         owner.retire_original_parent_alias(&name, &prefix, generation);
         return interp.report_cmd_error(error);
     }
+    let mut token = None;
     if let Some(registration) = retained_registration {
-        if let Err(error) = owner.complete_original_alias_registration(
+        token = match owner.complete_original_alias_registration(
             &name,
             tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
             &registration,
             generation,
         ) {
-            owner.report_cmd_error(error);
-            return interp.transport_host_refusal_from(&owner);
-        }
+            Ok(token) => token,
+            Err(error) => {
+                owner.report_cmd_error(error);
+                return interp.transport_host_refusal_from(&owner);
+            }
+        };
         if let Err(error) = arguments.check() {
             return interp.report_cmd_error(error);
         }
@@ -1767,9 +1773,8 @@ pub(crate) fn child_alias_handle_original(
     if recipe.child_alias_returns_original_registration_name() {
         if recipe == tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4) {
             interp.set_result(argv[2]);
-        } else {
-            let result = obj::Owned::retain(owner.result_obj());
-            interp.set_result(result.as_ptr());
+        } else if let Some(token) = token {
+            interp.set_result(token.as_ptr());
         }
     } else {
         interp.set_result_bytes(b"");
