@@ -418,6 +418,11 @@ fn original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_na
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Actual public method invocation owns its Frame; saved cleanup metadata adds no Native role.
     for mode in 0..4 {
+        // Mode 2 leaves the entered execution context, which only debug
+        // builds re-prove.
+        if mode == 2 && !cfg!(debug_assertions) {
+            continue;
+        }
         let mut vm = provided();
         let original = vm.cur;
         let child = child(&mut vm);

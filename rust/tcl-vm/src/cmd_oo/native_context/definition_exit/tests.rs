@@ -403,7 +403,10 @@ fn original_failed_procedure_constructor_keeps_child_state_and_retires_original_
         match mode {
             0 => assert_eq!(completion.unwrap().code, Code::Ok),
             1 => assert_eq!(completion.unwrap_err().to_string(), "FIRST_DEFINITION_BODY"),
-            _ => assert!(completion.is_err()),
+            // Only debug builds re-prove the entered execution context; a release
+            // build stops one tick later with the stale-compile guest error.
+            _ if cfg!(debug_assertions) => assert!(completion.is_err()),
+            _ => assert_eq!(completion.unwrap().code, Code::Error),
         }
         assert_eq!(vm.st_of(child).unwrap().oo.objects.len(), child_objects);
         restored(

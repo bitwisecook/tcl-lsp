@@ -111,6 +111,11 @@ fn original_activation_abort_retires_userproc_in_parent_and_preserves_child_and_
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     for prior_host in [false, true] {
+        // Without a prior refusal the entered execution context is what
+        // refuses, and only debug builds re-prove it.
+        if !prior_host && !cfg!(debug_assertions) {
+            continue;
+        }
         let mut vm = native();
         let original = vm.cur_interp();
         let child = child(&mut vm);

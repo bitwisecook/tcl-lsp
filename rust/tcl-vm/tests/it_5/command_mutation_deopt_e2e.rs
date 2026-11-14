@@ -3660,7 +3660,7 @@ fn proc_reoptimises_after_running_plain_under_a_removed_step_trace() {
 }
 
 /// [`proc_recompiles_against_a_replaced_builtin_and_its_restoration`] for a
-/// cached TclOO method body.
+/// cached `TclOO` method body.
 #[test]
 fn tcloo_method_recompiles_against_a_replaced_builtin_and_its_restoration() {
     let (mut vm, _output) = vm();

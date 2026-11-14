@@ -227,6 +227,23 @@ pub(super) fn source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     reached
 }
 
+/// C matches the first word against an exact option table at the counts it
+/// accepts, so a miss there is `bad option`; any other layout is wrong # args.
+fn invalid_source_layout(
+    vm: &mut Vm,
+    grammar: tcl_registry::source_file::SourceFileGrammar,
+    count: usize,
+    first: Option<&[u8]>,
+) -> Completion<Value> {
+    if let (Some(table), Some(first)) = (grammar.option_table(count), first)
+        && let Err(error) = tcl_cmd_core::prefix::OptionTable::exact_only("option", table)
+            .index_of_in(first, vm.runtime_version())
+    {
+        return completion_from_cmd_error(vm, error);
+    }
+    native_wrong_args(vm, grammar.synopsis())
+}
+
 fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> Completion<Value> {
     let dialect = vm.native_invocation_dialect();
     let native_grammar = dialect.source_file_grammar();
@@ -267,14 +284,7 @@ fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> 
     let tcl_registry::source_file::SourceFileSelection::Selected(selected) =
         grammar.select_original(args.len(), first.as_deref())
     else {
-        if let (Some(table), Some(first)) = (grammar.option_table(args.len()), first.as_deref()) {
-            let lookup = tcl_cmd_core::prefix::OptionTable::exact_only("option", table)
-                .index_of_in(first, vm.runtime_version());
-            if let Err(error) = lookup {
-                return completion_from_cmd_error(vm, error);
-            }
-        }
-        return native_wrong_args(vm, grammar.synopsis());
+        return invalid_source_layout(vm, grammar, args.len(), first.as_deref());
     };
     let prepared = tcl_cmd_core::encoding::prepare_source_file(
         &mut SourceOps {
