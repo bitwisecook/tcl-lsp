@@ -366,6 +366,14 @@ fn loop_exit_is_executable(
     false
 }
 
+/// Namespace storage its writer names qualified (`::g`, `ns::v`), which
+/// code outside the module may read. A frame's own unqualified store, the
+/// global frame's `set g 1` included, answers to the module's reads alone.
+fn written_namespace_storage(cell_name: &crate::var_resolve::VariableCellKey, var: &str) -> bool {
+    cell_name.namespace_membership_for_advice().is_some()
+        && tcl_syntax::naming::is_qualified(var.as_bytes())
+}
+
 /// Scope facts that make a store observable outside its local SSA chain.
 struct DeadStoreVisibility<'a> {
     scope_aliases: &'a HashSet<String>,
@@ -382,7 +390,7 @@ fn dead_store_has_visible_or_synthetic_effects(
     visibility: &DeadStoreVisibility<'_>,
 ) -> bool {
     // Globals (``::``-prefixed) are externally consumed.
-    if cell_name.namespace_membership_for_advice().is_some() {
+    if written_namespace_storage(cell_name, var) {
         return true;
     }
     // Interpreter-provided special variables (``auto_path``, ``env``,
@@ -1279,7 +1287,7 @@ is renamed or deleted in this file."
             let var = fu.ssa.var_name(symbol);
             // Namespace storage is visible beyond this unit. Local keys with
             // qualified-looking labels do not acquire namespace membership.
-            if cell_name.namespace_membership_for_advice().is_some() {
+            if written_namespace_storage(cell_name, var) {
                 continue;
             }
             if scope_aliases.contains(var) {
