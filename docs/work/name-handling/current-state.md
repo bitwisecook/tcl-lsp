@@ -22,7 +22,7 @@ The dominant failure shape is an analysis that returns nothing where the test ex
 - One dynamic word in a command leaves its role set incomplete, and consumers then drop the whole command's roles.
 - Fixtures built from the profile-less default registry no longer see an authored `proc` as a procedure.
 
-Semantic tokens: 74 token tests failed in `tcl-lsp-core` and `tcl-lsp-db`, and 10 in the server e2e suite. At `f3a35fed` plus the self-dispatch change, 41 fail in `tcl-lsp-core` and 5 in the server e2e suite; no other `tcl-lsp-core` test changed result. Faults fixed, all in the token walk unless marked:
+Semantic tokens: 74 token tests failed in `tcl-lsp-core` and `tcl-lsp-db`, and 10 in the server e2e suite. At `df7dccbc`, 38 fail in `tcl-lsp-core` and 5 in the server e2e suite; no other `tcl-lsp-core`, `tcl-compiler` or `tcl-registry` test changed result. Faults fixed, all in the token walk unless marked:
 
 - `registry_overrides` returned before its per-word schema queries when a dynamic word left the role set incomplete, so `switch $x {…}` lost its case list and `return -options $o` its option. An incomplete command now also takes display roles from its written spellings (`unset arr($i)`, a regexp pattern with a substitution, `uplevel $level {…}`).
 - The case-list walk read the enclosing context's operand instead of the argument's own, so a top-level case list was never entered on a release profile.
@@ -37,7 +37,7 @@ Semantic tokens: 74 token tests failed in `tcl-lsp-core` and `tcl-lsp-db`, and 1
 
 Open token faults and their cause:
 
-- Object handles (`set p [Pin new]; $p configure`, collections, widget paths, snit components), about 20 tests: `tcl_compiler::object_types::object_handle_classes` returns no handle for these inputs under a profiled or a standalone unit, and 20 `object_types` tests fail in `tcl-compiler` itself. A candidate-typing patch in `type_infer::command_word_result_type` changed no compiler test, so the refusing step is not yet located.
+- Object handles, about 15 tests. A nested `[Class new]` word was typed only from a bounded construction proof; it is now a candidate of a class the unit declares, which types `set p [Pin new]` in a profiled unit. Still untyped: collections (`dict set Pins $k [Pin new]`), loop variables over them, widget paths and snit components. The 20 failing `object_types` tests in `tcl-compiler` build a standalone unit, whose class roster is empty (`class_roster.selected_result declared=0` under `TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS`); they need a profiled fixture or a standalone roster.
 - Receiver receipts (`semantic_tokens::receiver_source`, 7 tests) and snit or itcl implicit receivers (`$self helper`): the compiler answers only for a receiver its execution entered. Hover and definition share that lookup (`receiver_identity::method_at_command`).
 - The four `large_file_*` promptness tests and `test_issue_898_default_library_modifier` in the server e2e suite.
 - `st_irules_event_fallback_survives_generic_tcl_registry` contradicts `event_declarations_read_the_documents_own_registry`; one of the two expectations has to go.
