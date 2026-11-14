@@ -395,16 +395,16 @@ fn original_call_report_retains_original_name_until_checked_presentation_and_fir
                 obj::obj_type_ptr(original.as_ptr()),
                 &REPORT_NAME as *const obj::TclObjType
             );
+            // Presentation here runs outside any entered operation, so a
+            // changed and restored context leaves nothing stale to refuse.
             let reached = interpreter.native_object_string_bytes(report.as_ptr());
-            assert_eq!(reached.is_ok(), mode == 0);
+            assert_eq!(reached.is_ok(), mode != 1);
             assert_eq!(UPDATES.with(Cell::get), 1);
             assert!(obj::has_string_rep(original.as_ptr()));
             if mode == 1 {
                 assert!(
                     matches!(interpreter.native_execution_refusal(),Some(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(first)) if first.reason=="first original call report presentation")
                 );
-            } else if mode == 2 {
-                assert!(matches!(interpreter.native_execution_refusal(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("stale entered native operation")))));
             } else {
                 assert!(interpreter.native_execution_refusal().is_none());
             }

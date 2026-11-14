@@ -441,10 +441,13 @@ fn original_search_chain_and_formal_availability_keep_their_selected_physical_ro
         let mut interpreter = native(profile);
         let Some(protocol) = interpreter.array_search_protocol() else {
             assert_eq!(profile, "jim");
-            assert!(interpreter
+            // Jim selects its own compiled-variable recipe, which has no
+            // indexed formal locals.
+            assert!(!interpreter
                 .native_invocation_dialect()
                 .native_compiled_variable_protocol()
-                .is_none());
+                .unwrap()
+                .has_indexed_locals());
             continue;
         };
         let (array, target) = array(&mut interpreter);
@@ -484,10 +487,16 @@ fn original_search_chain_and_formal_availability_keep_their_selected_physical_ro
             bytes: b"s-1-a",
             cache: protocol.parse(b"s-1-a").ok(),
         };
-        let completed = interpreter
-            .array_search_on_original(&target, "donesearch", b"a", Some(&operand), protocol)
-            .unwrap()
-            .unwrap();
+        let completed = search_with_original_target(
+            &mut interpreter,
+            &target,
+            "donesearch",
+            b"a",
+            Some(&operand),
+            protocol,
+        )
+        .unwrap()
+        .unwrap();
         crate::interp::drop_fresh(completed);
         assert_eq!(
             unsafe { (*result).ref_count },

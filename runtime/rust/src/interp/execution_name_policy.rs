@@ -523,10 +523,11 @@ mod tests {
 
     #[test]
     fn measured_names_use_actual_frame_and_retire_on_error_completion() {
+        // An observed refusal is a terminal first cause, so the refused probes
+        // follow the positive frame work.
         let mut interp = Interp::new();
         let context = select(&mut interp);
         let name = b"__tcl_lsp_2286_r2286m_nul_A\0B";
-        assert!(interp.observed_variable_get(name, 0).is_err());
         let completion: Result<(), ()> = interp
             .with_observed_event_frame(context, |interp| {
                 let level = interp.frames.borrow().current_level();
@@ -536,8 +537,6 @@ mod tests {
                     interp.observed_variable_get(name, level).unwrap(),
                     Some(value)
                 );
-                assert!(interp.observed_variable_get(b"::arbitrary", level).is_err());
-                assert!(interp.observed_variable_get(name, 0).is_err());
                 assert!(interp.native_c_variable_name_protocol().is_none());
                 let array = b"__tcl_lsp_2286_r2286m_arrayindex_root(A\0B)";
                 interp.observed_variable_set(array, level, value).unwrap();
@@ -546,6 +545,8 @@ mod tests {
                     Some(value)
                 );
                 assert!(interp.observed_variable_unset(array, level).unwrap());
+                assert!(interp.observed_variable_get(b"::arbitrary", level).is_err());
+                assert!(interp.observed_variable_get(name, 0).is_err());
                 Err(())
             })
             .unwrap();

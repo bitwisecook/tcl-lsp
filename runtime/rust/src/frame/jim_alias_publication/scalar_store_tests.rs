@@ -89,7 +89,7 @@ fn assert_first(interpreter: &Interp, mode: u8) {
             first,
             NativeExecutionError::ValueAccessRefusal(
                 NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "entered native operation configuration changed"
+                    "stale entered native operation"
                 )
             )
         ),
@@ -211,7 +211,11 @@ fn original_jim_cached_scalar_store_retires_visible_old_role_before_assignment_a
 ) {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    for mode in [0, 1, 2, 3, 4] {
+    // Mode 2 changes and restores the context, which only debug re-proves.
+    for mode in [0, 1, 2, 3, 4]
+        .into_iter()
+        .filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY)
+    {
         let mut interpreter = native();
         interpreter.frames.borrow_mut().push(GLOBAL);
         let old = Owned::fresh(obj::alloc_typed(&OLD_SCALAR, 0));
@@ -268,7 +272,10 @@ fn original_jim_cached_scalar_store_retires_visible_old_role_before_assignment_a
 fn original_jim_variable_cache_adoption_preserves_callback_primary_and_stops_before_scalar_store() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    for mode in [0, 1, 2, 3] {
+    for mode in [0, 1, 2, 3]
+        .into_iter()
+        .filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY)
+    {
         let mut interpreter = native();
         interpreter.frames.borrow_mut().push(GLOBAL);
         let initial = text(b"initial");

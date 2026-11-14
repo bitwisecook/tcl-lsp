@@ -1159,6 +1159,9 @@ mod completion_capture_tests {
         // Real extension getter during capture, under the actual child scope;
         // original provider observations remain independent.
         run_original_capture(1);
-        run_original_capture(2);
+        // A changed and restored context is re-proved only in debug builds.
+        if crate::VERIFY_CURRENCY {
+            run_original_capture(2);
+        }
     }
 }

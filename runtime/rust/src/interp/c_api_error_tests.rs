@@ -220,7 +220,11 @@ fn original_error_snapshot_restoration_retires_native_options_after_full_state_p
                     interpreter.eval_str(b"error SNAPSHOT_ERROR {} {SNAPSHOT CODE}"),
                     Code::Error
                 );
-                assert!(interpreter.exc.borrow().already_logged);
+                // The outer eval clears ERR_ALREADY_LOGGED as it returns
+                // (TclEvalEx `posterror`), so the snapshot's logged state is set
+                // here for restoration to republish.
+                assert!(!interpreter.exc.borrow().already_logged);
+                interpreter.exc.borrow_mut().already_logged = true;
                 let snapshot = interpreter.snapshot_error();
                 let result = interpreter.get_obj_result();
                 let scope =

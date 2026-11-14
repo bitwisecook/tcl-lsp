@@ -128,11 +128,11 @@ fn delete_base(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
     }
     code
 }
-fn current_and_clean(interpreter: &Interp, namespace: NsId, activation: u64) {
+fn current_and_clean(interpreter: &Interp, namespace: NsId, activation: u64, active: usize) {
     assert!(OUTSIDE.with(Cell::get));
     assert_eq!(FREES.with(Cell::get), 1);
     assert_eq!(FREE_COUNT.with(Cell::get), 0);
-    assert_eq!(ACTIVE.with(Cell::get), 0);
+    assert_eq!(ACTIVE.with(Cell::get), active);
     assert!(interpreter.oo.borrow().call_stack.is_empty());
     assert!(!interpreter.oo.borrow().filter_handling);
     assert!(interpreter.oo.borrow().fwd_usage.is_none());
@@ -189,7 +189,7 @@ fn active_original_method_frames_retire_all_reached_records_outside_oo_borrow() 
                         if mode == 0 { Code::Ok } else { Code::Error },
                         "{version}/{forward}/{mode}"
                     );
-                    current_and_clean(&interpreter, namespace, activation);
+                    current_and_clean(&interpreter, namespace, activation, 0);
                     first(&interpreter, mode);
                     if mode == 0 {
                         assert_eq!(interpreter.result_bytes(), b"ACTIVE");
@@ -206,7 +206,8 @@ fn active_eval_name_retirement_preserves_mandatory_frame_and_namespace_restorati
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // A private real cached-name role exercises the genuine eval frame's final owner.
-    for mode in 0..3 {
+    // Mode 2 changes and restores the context, which only debug re-proves.
+    for mode in (0..3).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
         let (mut interpreter, _reset) = native("tcl8.6");
         let target = interpreter.oo_resolve_object(b"FrameObject");
         let retired = {
@@ -223,7 +224,10 @@ fn active_eval_name_retirement_preserves_mandatory_frame_and_namespace_restorati
             .oo_builtin_method(target, b"eval", &[script.as_ptr()], true, None)
             .unwrap();
         assert_eq!(code, if mode == 0 { Code::Ok } else { Code::Error });
-        current_and_clean(&interpreter, namespace, activation);
+        // ObjectRenamedTrace deletes the namespace, whose earlyDeleteProc
+        // (ObjectNamespaceDeleted) squelches the cached name while the eval
+        // call context is still active.
+        current_and_clean(&interpreter, namespace, activation, 1);
         first(&interpreter, mode);
         assert!(!interpreter.oo.borrow().objects.contains_key(&target));
     }

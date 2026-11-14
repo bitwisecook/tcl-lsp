@@ -997,7 +997,9 @@ mod tests {
             assert_eq!(answer, 17);
             assert!(obj::obj_type_ptr(value).is_null());
             assert_eq!(interp.result_bytes(), b"keep result");
-            assert_eq!(interp.error_code(), b"KEEP CODE");
+            // The pending host cause refuses checked guest reads; the stored
+            // code is unchanged.
+            assert_eq!(interp.snapshot_error().code_bytes(), b"KEEP CODE");
             assert!(interp.host_refusal_pending());
             release(value);
         });

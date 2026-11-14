@@ -403,7 +403,8 @@ fn original_namespace_variable_cleanup_retains_the_actual_table_through_refusal_
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-        for mode in 0..4 {
+        // Mode 2 changes and restores the context, which only debug re-proves.
+        for mode in (0..4).filter(|&mode| mode != 2 || crate::VERIFY_CURRENCY) {
             let mut interpreter = native(profile);
             let old = Owned::fresh(obj::alloc_typed(&OLD, 0));
             let memory = obj::NativeObjectLifetime::retain(old.as_ptr());

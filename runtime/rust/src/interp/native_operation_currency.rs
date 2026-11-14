@@ -765,8 +765,10 @@ mod tests {
     fn original_observer_refusal_keeps_reached_store_and_stops_later_observers() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        // Both callbacks are genuine physical registrations; the first Host
-        // cause does not permit trace-error rendering or a later callback.
+        // Both callbacks are genuine physical registrations. A guest trace
+        // error stops later traces, as TclCallVarTraces does. Debug re-proves
+        // currency, so the stale context refuses before trace-error rendering;
+        // release continues against the changed world (debug-and-release-validation.md).
         let mut interpreter = original();
         let name = obj::Owned::fresh(obj::new_string_bytes(b"x"));
         let later = Rc::new(Cell::new(0));
@@ -795,13 +797,18 @@ mod tests {
             .unwrap();
         let value = obj::Owned::fresh(obj::new_string_bytes(b"reached\0store"));
         let entry = NativeOperationScope::enter(&interpreter).unwrap();
+        let refusal = crate::VERIFY_CURRENCY.then(stale);
         assert_eq!(
             interpreter.var_set(b"x", value.as_ptr()),
-            Err(VarError::TraceError)
+            Err(if refusal.is_some() {
+                VarError::NameProtocolUnavailable
+            } else {
+                VarError::TraceError
+            })
         );
         assert_eq!(first.get(), 1);
         assert_eq!(later.get(), 0);
-        assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
+        assert_eq!(interpreter.native_execution_refusal(), refusal);
         assert_eq!(
             unsafe { (*value.as_ptr()).ref_count },
             2,
@@ -810,7 +817,7 @@ mod tests {
         assert!(interpreter.active_var_trace_scopes.borrow().is_empty());
         drop(entry);
         assert!(interpreter.entered_native_operations.borrow().is_empty());
-        assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
+        assert_eq!(interpreter.native_execution_refusal(), refusal);
     }
 
     #[test]

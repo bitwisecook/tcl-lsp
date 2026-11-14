@@ -80,6 +80,8 @@ extern "C" fn retire(original: *mut TclObj) {
     assert!(interpreter.namespaces.try_borrow_mut().is_ok());
     assert!(interpreter.frames.try_borrow_mut().is_ok());
     let holder = HOLDER.with(Cell::get);
+    // Tcl_DeleteCommandFromToken runs deleteProc before Tcl_DeleteHashEntry,
+    // so a C payload retires while its slot is still bound.
     EMPTY.with(|value| {
         value.set(
             interpreter
@@ -170,7 +172,7 @@ fn original_proc_binding_retires_resources_outside_table_borrow_while_query_view
                 assert_eq!(interpreter.delete_command_generation(generation), mode == 0);
                 assert_eq!(FREES.with(Cell::get), 1);
                 assert_eq!(COUNTS.with(|value| value.borrow().clone()), [0]);
-                assert!(EMPTY.with(Cell::get));
+                assert!(!EMPTY.with(Cell::get));
                 assert!(owner.native_procedure_role_ledger().is_retired());
                 assert_eq!(owner.native_procedure_role_ledger().references(), 0);
                 assert!(query.declaration().body.checked_ptr().is_err());
@@ -207,7 +209,7 @@ fn original_proc_replacement_checks_retirement_and_holder_before_incoming_adopti
                     Command::Builtin(builtin),
                 );
                 assert_eq!(FREES.with(Cell::get), 1);
-                assert!(EMPTY.with(Cell::get));
+                assert!(!EMPTY.with(Cell::get));
                 if mode == 0 {
                     assert!(matches!(
                         interpreter.namespaces().command_in(holder, b"retiring"),
@@ -315,7 +317,7 @@ fn original_ensemble_replacement_uses_shared_retirement_before_token_activation(
                 },
             );
             assert_eq!(FREES.with(Cell::get), 1);
-            assert!(EMPTY.with(Cell::get));
+            assert!(!EMPTY.with(Cell::get));
             assert_eq!(
                 matches!(
                     interpreter.namespaces().command_in(GLOBAL, b"retiring"),

@@ -1600,10 +1600,12 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     struct RetireChangingContext {
         interpreter: crate::interp::WeakInterp,
         calls: Rc<std::cell::Cell<usize>>,
     }
+    #[cfg(debug_assertions)]
     impl HostCommand for RetireChangingContext {
         fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
             Ok(Value::Empty.into())
@@ -1623,6 +1625,8 @@ mod tests {
         }
     }
 
+    // A changed and restored context is re-proved only in debug builds.
+    #[cfg(debug_assertions)]
     #[test]
     fn host_retirement_context_change_stops_later_definition_and_preserves_original_generation() {
         // naming.embedding.original-host-publication-and-fact-transport
@@ -1642,21 +1646,19 @@ mod tests {
         let original = engine.interp.resolve_cmd_token(b"retiring");
         engine.interp.set_result_bytes(b"SEEDED RESULT");
         let result = engine.interp.get_obj_result();
+        let stale = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "stale entered native operation",
+            ),
+        );
         assert!(matches!(
             engine.define_command("retiring", Rc::new(Constant)),
-            Err(EngineError::ExecutionRefusal(_))
+            Err(EngineError::ExecutionFailure(cause)) if *cause == stale
         ));
         assert_eq!(calls.get(), 1);
         assert_eq!(engine.interp.resolve_cmd_token(b"retiring"), original);
         assert_eq!(engine.interp.get_obj_result(), result);
-        assert_eq!(
-            engine.interp.native_execution_refusal(),
-            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
-                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                    "stale entered native operation"
-                )
-            ))
-        );
+        assert_eq!(engine.interp.native_execution_refusal(), Some(stale));
     }
 
     #[test]

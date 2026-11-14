@@ -79,7 +79,9 @@ fn effect(interpreter: &mut Interp) {
         4 => {
             assert_eq!(interpreter.eval_str(b"unset a"), Code::Ok);
             let value = text(b"REBORN");
-            interpreter.var_set(b"a(k)", value.as_ptr()).unwrap();
+            interpreter
+                .var_set_elem(b"a", b"k", value.as_ptr())
+                .unwrap();
         }
         5 => {
             assert_eq!(interpreter.eval_str(b"upvar #0 ::b alias"), Code::Ok);
@@ -207,7 +209,9 @@ fn original_trace_member_creation_retires_searches_outside_storage_before_regist
             let mut interpreter = native(profile);
             interpreter.frames.borrow_mut().push(GLOBAL);
             let value = text(b"V");
-            interpreter.var_set(b"a(k)", value.as_ptr()).unwrap();
+            interpreter
+                .var_set_elem(b"a", b"k", value.as_ptr())
+                .unwrap();
             let allocation = search(&interpreter, false);
             let _cleanup = arm(&interpreter, mode);
             let code = interpreter.eval_str(b"trace add variable a(new) write {}");

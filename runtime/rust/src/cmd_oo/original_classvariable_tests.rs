@@ -252,8 +252,16 @@ fn selected_classvariable_links_original_names_after_legal_method_metadata_chang
     for version in ["tcl9.0", "tcl9.1"] {
         let mut interpreter = native(version, false);
         let namespace = class_namespace(&interpreter);
+        // CleanupVar expunges an undefined class variable once its method
+        // link retires, so the method assigns each linked name.
+        assert_eq!(
+            interpreter.eval_str(
+                b"oo::define ClassVariableClass method link {} {classvariableOriginalWorker; set first 1; set second 2; set later 3}"
+            ),
+            Code::Ok
+        );
         MODE.with(|selected| selected.set(4));
-        assert_eq!(interpreter.eval_str(b"original probe"), Code::Ok);
+        assert_eq!(interpreter.eval_str(b"original link"), Code::Ok);
         assert_eq!(WORKER_CODE.with(Cell::get), Code::Ok);
         assert_eq!(
             UPDATES.with(|updates| updates.borrow().clone()),

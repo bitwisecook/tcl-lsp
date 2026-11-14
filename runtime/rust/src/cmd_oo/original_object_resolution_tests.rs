@@ -270,12 +270,13 @@ fn original_jim_alias_lookup_uses_the_stored_list_and_keeps_absent_context_termi
     // Jim alias storage is the actual selected owner; this authored OO carrier is not native Jim TclOO availability.
     for retire in [false, true] {
         let mut interpreter = native("jim");
-        // A distinct authored record does not reuse the unavailable stock root's
-        // registry identity. It supplies no Jim-native TclOO invocation purpose.
-        let class = interpreter.oo.borrow().object_root.unwrap();
+        // Jim has no stock TclOO root; authored class and object records
+        // supply no Jim-native TclOO invocation purpose.
         let creation = interpreter.oo_next_id();
         let target = {
             let mut state = interpreter.oo.borrow_mut();
+            let class = state.allocate(b"::portableClass".to_vec());
+            state.classes.insert(class, Class::default());
             let target = state.allocate(b"::portableTarget".to_vec());
             state
                 .objects
