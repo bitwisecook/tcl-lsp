@@ -18733,6 +18733,30 @@ fn i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head() {
     }
 }
 
+/// A braced `expr` in value position names its nested commands through the
+/// command the CFG retains for the assignment, so a call the module knows
+/// writes no computed name and the function's other values stand (#2454). An
+/// unseen nested command still may write any name.
+#[test]
+fn i230_keeps_values_across_a_braced_expr_with_a_known_nested_call() {
+    for body in [
+        "set n [expr {[string length $s] * 2}]",
+        "set n [expr {[string length abc]}]",
+        "set n [expr {[llength $s] + 1}]",
+    ] {
+        let src = format!(
+            "proc p {{}} {{\n set s abc\n {body}\n puts $n\n if {{$s eq \"abc\"}} {{puts yes}} else {{puts no}}\n}}\n"
+        );
+        let (whole, per_item) = i230_on_both_paths(&src);
+        assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+        assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+        assert_eq!(per_item, whole, "{src}");
+    }
+    assert_no_i230(&[
+        "proc p {} {\n set g 5\n set n [expr {[foo]}]\n puts $n\n if {$g} {puts a} else {puts b}\n}\n",
+    ]);
+}
+
 /// A command the module cannot see runs inside a body that is no body of the
 /// frame the substitution is written in — a lambda's, a `namespace eval` or
 /// `uplevel` body, the text a `subst` substitutes, an expression word of a

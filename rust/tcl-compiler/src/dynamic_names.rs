@@ -623,8 +623,13 @@ pub fn dynamic_name_barrier_in(
         if !executable(id) {
             continue;
         }
-        for stmt in &block.statements {
-            barrier = barrier.union(statement_barrier_for_cfg(stmt, cfg, registry, config));
+        for (index, stmt) in block.statements.iter().enumerate() {
+            barrier = barrier.union(statement_barrier_for_cfg(
+                stmt,
+                (cfg, *id, index),
+                registry,
+                config,
+            ));
         }
         if let Some(terminator) = &block.terminator {
             barrier = barrier.union(terminator_barrier_for_cfg(
@@ -644,31 +649,41 @@ pub fn statement_barrier(
     declared: &DeclaredFrameEffects,
     config: LexerConfig,
 ) -> DynamicNameBarrier {
-    statement_barrier_with_commands(stmt, Commands::standalone(registry, declared), config)
+    statement_barrier_with_commands(stmt, None, Commands::standalone(registry, declared), config)
 }
 
-/// Computed-name facts under the CFG's retained metadata owner. Missing or
-/// foreign supplied metadata cannot reopen catalogue compatibility.
+/// Computed-name facts under the CFG's retained metadata owner, for the
+/// statement at `index` of `block`. Missing or foreign supplied metadata
+/// cannot reopen catalogue compatibility.
 #[must_use]
 pub fn statement_barrier_for_cfg(
     stmt: &Statement,
-    cfg: &CfgFunction,
+    (cfg, block, index): (&CfgFunction, crate::cfg::BlockId, usize),
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> DynamicNameBarrier {
-    statement_barrier_with_commands(stmt, Commands::for_cfg(cfg, registry, config), config)
+    statement_barrier_with_commands(
+        stmt,
+        cfg.source_tokens_at(block, index),
+        Commands::for_cfg(cfg, registry, config),
+        config,
+    )
 }
 
+/// `point` is the source command the CFG retains for `stmt`, which names the
+/// nested commands of an expression the statement carries no tokens for
+/// (`set n [expr {[string length $s]}]`, #2454).
 fn statement_barrier_with_commands(
     stmt: &Statement,
+    point: Option<&crate::ir::CommandTokens>,
     commands: Commands<'_>,
     config: LexerConfig,
 ) -> DynamicNameBarrier {
     let mut barrier = DynamicNameBarrier::default();
-    scan_statement(stmt, commands, &mut barrier, config);
+    scan_statement(stmt, point, commands, &mut barrier, config);
     for script in crate::ir_helpers::nested_bodies(stmt) {
         crate::ir::for_each_statement(script, &mut |inner| {
-            scan_statement(inner, commands, &mut barrier, config);
+            scan_statement(inner, None, commands, &mut barrier, config);
         });
     }
     barrier
@@ -1062,6 +1077,7 @@ fn scan_original_substitutions(
 
 fn scan_statement(
     stmt: &Statement,
+    point: Option<&crate::ir::CommandTokens>,
     commands: Commands<'_>,
     barrier: &mut DynamicNameBarrier,
     config: LexerConfig,
@@ -1109,7 +1125,7 @@ fn scan_statement(
                 scan_original_expression(
                     expr,
                     *expr_base,
-                    stmt.tokens(),
+                    stmt.tokens().or(point),
                     commands,
                     barrier,
                     config,

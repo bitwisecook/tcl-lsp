@@ -2078,7 +2078,8 @@ impl ExistenceRun {
         let mut terminator_clobbers = HashMap::new();
         for (&block_id, block) in &cfg.blocks {
             for (index, statement) in block.statements.iter().enumerate() {
-                let clobber = statement_clobber(statement, ssa, cfg, registry, entry.config);
+                let at = (cfg, block_id, index);
+                let clobber = statement_clobber(statement, ssa, at, registry, entry.config);
                 if !clobber.is_empty() {
                     clobbers.insert((block_id, index), clobber);
                 }
@@ -3223,12 +3224,15 @@ fn linked_elsewhere(
 fn statement_clobber(
     statement: &Statement,
     ssa: &SsaFunction,
-    cfg: &CfgFunction,
+    (cfg, block, index): (&CfgFunction, BlockId, usize),
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Clobber {
     let mut clobber = Clobber::of_names(crate::dynamic_names::statement_barrier_for_cfg(
-        statement, cfg, registry, config,
+        statement,
+        (cfg, block, index),
+        registry,
+        config,
     ));
     if matches!(
         statement,
