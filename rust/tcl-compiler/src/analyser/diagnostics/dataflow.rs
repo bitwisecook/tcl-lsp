@@ -3456,22 +3456,34 @@ is renamed or deleted in this file."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        for branch in fu
-            .diagnostic_value_facts()
+        // The advisory facts, then the execution solver's: what it decides
+        // for erasure (an existence query on the rung) is decided for advice
+        // too. Each branch is judged by its own solve's reach.
+        let advisory = fu.diagnostic_value_facts();
+        let mut reported = HashSet::new();
+        for (branch, executable) in advisory
             .constant_branches()
             .iter()
-            .filter(|branch| branch.kind == crate::sccp::BranchFactKind::Applied)
+            .map(|branch| (branch, advisory.executable_blocks()))
+            .chain(
+                fu.sccp
+                    .constant_branches
+                    .iter()
+                    .map(|branch| (branch, &fu.sccp.executable_blocks)),
+            )
+            .filter(|(branch, _)| branch.kind == crate::sccp::BranchFactKind::Applied)
         {
             // A branch is dead when the not-taken target is
             // unreachable.  SCCP exposes
             // ``executable_blocks`` (the complement); a block
             // is unreachable iff it's in ``cfg.blocks`` but
             // NOT in ``executable_blocks``.
-            if fu.cfg.block_id(&branch.not_taken_target).is_some_and(|id| {
-                fu.diagnostic_value_facts()
-                    .executable_blocks()
-                    .contains(&id)
-            }) {
+            if fu
+                .cfg
+                .block_id(&branch.not_taken_target)
+                .is_some_and(|id| executable.contains(&id))
+                || !reported.insert(branch.block.as_str())
+            {
                 continue;
             }
             // Locate the branch's terminator span.
