@@ -1616,6 +1616,7 @@ The definition-body grammars the registry ships and a pack may name: `TclOO`'s c
 | `snit` | the shipped Snit grammar (15 members) |
 | `snit-widget` | the shipped Snit grammar (15 members) |
 | `itcl` | the shipped Itcl grammar (10 members) |
+| `clay` | the shipped Clay grammar (23 members) |
 
 ### Side-effect targets
 
@@ -1822,7 +1823,6 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `TCLOO_NEXT_CHAIN` | participates in the TclOO next chain |
 | `TCLOO_SELF_DISPATCH` | dispatches on the current TclOO object |
 | `TCLOO_INTROSPECTION` | introspects the current TclOO method context |
-| `TCLOO_RUNTIME_HANDLE_RESULT` | returns a run-time TclOO object or class handle |
 | `BRANCH_SELECTED_BODY` | its bodies run at most once, chosen by a branch |
 | `CATCHABLE_THROW` | throws a catchable error |
 | `BREAKS_LOOP` | breaks out of a loop |
@@ -1843,6 +1843,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `DEFERS_BODY` | stores its script argument instead of running it; unset means the body is treated as executed |
 | `BODY_RUNS_IN_OWN_FRAME` | the script it stores is a definition body that runs in a frame of its own, not a callback |
 | `DEFINITION_BODY_MEMBER_ONLY` | legal only inside a definition body that declares it as a member |
+| `TCLOO_RUNTIME_HANDLE_RESULT` | returns a run-time TclOO object or class handle |
 
 ### Transform conditions
 
@@ -1851,6 +1852,7 @@ The argument-shape proofs a command can require before its taint transform colou
 | Value | Meaning |
 |---|---|
 | `MappingDeletesCrlf` | the call's braced mapping provably deletes every CR and LF (`string map`) |
+| `RegsubQuotesRegexMetacharacters` | a string-returning `regsub -all` backslash-escapes every ARE metacharacter (`regsub`) |
 
 ### Value types
 
