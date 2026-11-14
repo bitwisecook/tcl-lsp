@@ -829,7 +829,8 @@ fn array_local(ctx: &mut CodegenCtx, args: &[String], words: usize) -> bool {
 /// one; the command itself runs here.
 fn variable_locals(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     for name in args.iter().step_by(2) {
-        let tail = name.rsplit("::").next().unwrap_or_default();
+        let tail = tcl_syntax::naming::written_command_tail(name.as_bytes()).len();
+        let tail = &name[name.len() - tail..];
         if tail.is_empty() || split_array_ref(tail).is_some() {
             break;
         }

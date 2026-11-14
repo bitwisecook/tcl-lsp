@@ -418,7 +418,7 @@ fn command_is_namespace_invariant(
     tokens: &CommandTokens,
     summaries: &InliningSummaries<'_>,
 ) -> bool {
-    if command.starts_with("::") {
+    if tcl_syntax::naming::is_absolute(command) {
         return true;
     }
     summaries.selected_body(tokens).is_none()
@@ -588,7 +588,7 @@ fn v3_stmt_eligible(
         | Statement::Incr { name, .. } => {
             // `::`-qualified names (globals) decline — the rename map only
             // covers locals. Array writes (`arr(idx)`) qualify.
-            !name.contains("::")
+            !tcl_syntax::naming::is_qualified(name.as_bytes())
         }
         Statement::Call { .. } => stmt_is_splice_eligible(stmt, callee_qname, summaries, source),
         Statement::ExprEval { .. } => true,
@@ -2542,7 +2542,7 @@ fn collect_local_names(script: &Script) -> HashSet<String> {
 }
 
 fn record_local_base(name: &str, names: &mut HashSet<String>) {
-    if name.contains("::") {
+    if tcl_syntax::naming::is_qualified(name.as_bytes()) {
         return;
     }
     let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);

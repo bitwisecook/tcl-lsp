@@ -484,7 +484,9 @@ pub(crate) fn parse_time_expansion<'w>(
 /// Whether the command word `cmd` names the builtin `name`: its own spelling,
 /// or the global one, which a release compiles alike.
 pub(super) fn names_builtin(cmd: &str, name: &str) -> bool {
-    cmd == name || (cmd.strip_prefix("::") == Some(name) && !name.contains("::"))
+    cmd == name
+        || (tcl_syntax::naming::unroot_rooted_key(cmd) == Some(name)
+            && !tcl_syntax::naming::is_qualified(name.as_bytes()))
 }
 
 /// Evaluate an argument source word after proving it eligible for a direct

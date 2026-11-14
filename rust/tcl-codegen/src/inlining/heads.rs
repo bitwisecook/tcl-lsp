@@ -167,7 +167,8 @@ fn runs_a_command_by_name(
             tokens,
             ..
         } => {
-            (heads && !command.starts_with("::")) || call_substitutes(args, tokens.as_ref(), config)
+            (heads && !tcl_syntax::naming::is_absolute(command))
+                || call_substitutes(args, tokens.as_ref(), config)
         }
         Statement::Return {
             value,
@@ -295,8 +296,8 @@ fn rooted(statement: &mut Statement, depth: u32) {
     let next = depth + 1;
     match statement {
         Statement::Call { command, .. } => {
-            if !command.starts_with("::") {
-                command.insert_str(0, "::");
+            if !tcl_syntax::naming::is_absolute(command) {
+                *command = tcl_syntax::naming::root_unrooted_key(command);
             }
         }
         Statement::Block { body, .. }

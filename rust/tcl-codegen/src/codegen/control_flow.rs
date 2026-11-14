@@ -84,7 +84,7 @@ fn is_inline_local_scalar_name(name: &str) -> bool {
 /// procedure-local scalar (`TclLocalScalar`): no namespace separator anywhere
 /// and no array element.
 fn is_release_local_scalar_name(name: &str) -> bool {
-    !name.contains("::") && !super::values::is_array_ref(name)
+    !tcl_syntax::naming::is_qualified(name.as_bytes()) && !super::values::is_array_ref(name)
 }
 
 /// One word of a command as the release's compiler sees it.
@@ -347,7 +347,7 @@ impl CodegenCtx<'_> {
         command: &str,
         words: &[CompileWord<'_>],
     ) -> Option<u8> {
-        let (sub, rest) = match command.strip_prefix("::").unwrap_or(command) {
+        let (sub, rest) = match tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command) {
             // registry-axis-ok: subcommands — dict's scoping subcommands in codegen; until the native compilation descriptor selects them
             "dict" => {
                 let (sub, rest) = words.split_first()?;
