@@ -655,9 +655,6 @@ pub(super) fn registry_overrides(
     words: &crate::original_invocation::OriginalRegistryWords,
 ) -> FxHashMap<u32, ArgOverride> {
     let mut overrides = FxHashMap::default();
-    let Some(roles) = words.roles.as_deref() else {
-        return overrides;
-    };
     match &words.source {
         crate::original_invocation::OriginalRegistrySource::Selected => {}
         crate::original_invocation::OriginalRegistrySource::ConditionalNativeSource(_)
@@ -694,22 +691,26 @@ pub(super) fn registry_overrides(
             }
         }
     }
-    insert_source_roles(
-        command,
-        roles,
-        &words.arguments,
-        |ordinal| original_argument_token(command, words, ordinal),
-        |ordinal| {
-            let operand = words.operands.get(ordinal)?.as_ref()?;
-            command
-                .argv
-                .iter()
-                .any(|token| token.span == operand.span)
-                .then_some(())?;
-            operand.word.as_ref()
-        },
-        &mut overrides,
-    );
+    // A dynamic word leaves the role set incomplete. The schema queries below
+    // answer per word, so they still colour what the written words determine.
+    if let Some(roles) = words.roles.as_deref() {
+        insert_source_roles(
+            command,
+            roles,
+            &words.arguments,
+            |ordinal| original_argument_token(command, words, ordinal),
+            |ordinal| {
+                let operand = words.operands.get(ordinal)?.as_ref()?;
+                command
+                    .argv
+                    .iter()
+                    .any(|token| token.span == operand.span)
+                    .then_some(())?;
+                operand.word.as_ref()
+            },
+            &mut overrides,
+        );
+    }
     insert_format_overrides(ctx, command, words, &mut overrides);
     insert_pattern_overrides(ctx, command, words, &mut overrides);
     let _ = words.with_source_schema(ctx.generation, |schema| {

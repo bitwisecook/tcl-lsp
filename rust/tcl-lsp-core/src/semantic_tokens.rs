@@ -3602,7 +3602,134 @@ fn command_role_overrides(
         receiver_source::insert_project_method(ctx, seg, providers, &mut overrides);
     }
     original::insert_definition_member_overrides(ctx, seg, &mut overrides);
+    if original.is_none() {
+        insert_generic_option_overrides(seg, &mut overrides);
+    }
     overrides
+}
+
+/// Generic `-option` / option-value highlighting for a command with a
+/// *computed* head not resolved by the registry — a `$obj method …` object
+/// dispatch, a `[Class new] method …`, or a multi-fragment `chartV$node …`
+/// head.
+///
+/// A *registered* command's declared option set is authoritative — `puts -foo`
+/// stays a string because `puts` declares no `-foo`
+/// ([`insert_option_and_subcommand_overrides`]).  A plain bareword head is a
+/// (possibly user-defined) command name and is left to the registry too, so
+/// `mycmd -foo` stays a string.  Only a computed head — where the real option
+/// set lives on a method / ensemble the registry does not model — is treated as
+/// the overwhelmingly-common `-switch value` shape: those pairs are coloured
+/// like any built-in's.
+///
+/// A "clean option" is a single-token [`TokenType::Esc`] word for which
+/// [`is_generic_option_word`] holds — `-<letter>…`, excluding substitution
+/// forms, negative numbers (including the `-inf` / `-nan` special-float
+/// literals), a bare `-`, and `--`.  The single-token check is what excludes
+/// `-$var` / `-{$var}` / `-[cmd]`, which keep their variable / command
+/// highlight.
+///
+/// Tcl's `--` end-of-options marker is honoured: `--` itself is coloured as an
+/// option marker, and scanning stops there — every following word is a
+/// positional operand, even if it reads like `-foo` (`$obj cfg -- -literal`
+/// leaves `-literal` a plain string).
+///
+/// The word immediately following an option is recoloured [`TokenKind::OptionValue`]
+/// when it is a literal (`Esc`/`Str`) that is not itself an option and not
+/// `--` — a `$var` / `[cmd]` value keeps its own highlight, and a following
+/// option stays an option.  Arity is unknown for an undeclared command, so at
+/// most the single adjacent value word is claimed; a boolean option followed by
+/// another option therefore claims no value.
+fn insert_generic_option_overrides(
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    // Only a *computed* head — a `$var` / `[cmd]` substitution or a
+    // multi-fragment word (`chartV$node`) — is treated as a runtime dispatch
+    // (object handle, ensemble) whose `-switch value` pairs are options.  A
+    // plain single-token bareword head is a (possibly user-defined) command
+    // name; deferring to the registry there keeps a bareword call conservative
+    // — `mycmd -foo` stays a string, a user command's `test … -body …` is not
+    // mistaken for tcltest's, and an OO-body member (`property … -get {…}`)
+    // keeps its recursed bodies — exactly as `puts -foo` stays a string.
+    if !head_is_computed(seg) {
+        return;
+    }
+    // The single-token literal (`Esc`) text of word `i`, or `None` for a
+    // substitution / braced / multi-fragment word.
+    let literal_word = |i: usize| -> Option<&str> {
+        (seg.single_token_word.get(i).copied().unwrap_or(false)
+            && seg
+                .argv
+                .get(i)
+                .is_some_and(|t| matches!(t.kind, TokenType::Esc)))
+        .then(|| seg.texts.get(i).map(String::as_str))
+        .flatten()
+    };
+    let mut i = 1;
+    while i < seg.texts.len() {
+        let Some(text) = literal_word(i) else {
+            i += 1;
+            continue;
+        };
+        // `--` ends option processing (Tcl convention). Colour the marker, then
+        // stop — nothing after it is an option.
+        // registry-axis-ok: irreducible — this function only runs for a
+        // computed head with no selected invocation, so there is no
+        // per-command `EndsOptions` row here to read; until never
+        if text == "--" {
+            if let Some(tok) = seg.argv.get(i) {
+                overrides
+                    .entry(tok.span.start())
+                    .or_insert(ArgOverride::Decorator);
+            }
+            break;
+        }
+        if !is_generic_option_word(text) {
+            i += 1;
+            continue;
+        }
+        if let Some(tok) = seg.argv.get(i) {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::Decorator);
+        }
+        // The immediately-following literal word is this option's value when it
+        // is not itself an option and not the `--` marker.  A `$var` / `[cmd]`
+        // value falls through the `Esc | Str` check and keeps its own highlight.
+        let vi = i + 1;
+        if let Some(val_tok) = seg.argv.get(vi)
+            && matches!(val_tok.kind, TokenType::Esc | TokenType::Str)
+            // registry-axis-ok: irreducible — same reason as this function's
+            // other "--" check above: no `CommandSpec` exists for this head;
+            // until never
+            && literal_word(vi).is_none_or(|w| w != "--" && !is_generic_option_word(w))
+        {
+            overrides
+                .entry(val_tok.span.start())
+                .or_insert(ArgOverride::Kind(TokenKind::OptionValue));
+        }
+        i += 1;
+    }
+}
+
+/// Whether a literal word reads as a generic `-option` switch on an unknown
+/// command head: a leading `-` then an ASCII letter, excluding the negative
+/// special-float literals Tcl's parser accepts as numbers (`-inf`, `-Inf`,
+/// `-infinity`, `-nan`, …).  A bare `-`, `--`, and ordinary negative numbers
+/// (`-5`, `-1.6`) are already excluded by the "letter after the dash" rule.
+fn is_generic_option_word(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix('-') else {
+        return false;
+    };
+    if !rest.as_bytes().first().is_some_and(u8::is_ascii_alphabetic) {
+        return false;
+    }
+    // `-inf` / `-infinity` / `-nan` are negative floating-point values, not
+    // options — Tcl's `expr` and numeric commands parse them as numbers.
+    !(rest.eq_ignore_ascii_case("inf")
+        || rest.eq_ignore_ascii_case("infinity")
+        || rest.eq_ignore_ascii_case("nan"))
 }
 
 fn deferred_produced_command_words(
@@ -4223,7 +4350,13 @@ fn emit_arg_token(
             collect_expr(plain_ctx, *tok, entries, depth + 1);
         }
         Some(ArgOverride::CaseList(spec, regexp)) => {
-            collect_case_list(body_ctx, *tok, entries, depth + 1, spec, *regexp);
+            // The written-word check reads this argument's own operand; the
+            // clause bodies keep the command's body context.
+            let list_ctx = ScriptCtx {
+                operand: ctx.operand,
+                ..body_ctx
+            };
+            collect_case_list(list_ctx, *tok, entries, depth + 1, spec, *regexp);
         }
         Some(ArgOverride::KeywordArg) => {
             push_keyword_arg(ctx, *tok, entries);
