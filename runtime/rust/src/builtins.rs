@@ -152,12 +152,12 @@ pub(crate) fn tower_command_names() -> Vec<String> {
     names.extend(
         mathop_names()
             .into_iter()
-            .map(|op| format!("tcl::mathop::{op}")),
+            .map(|op| tcl_syntax::naming::unrooted_member_key("tcl::mathop", op)),
     );
     names.extend(
         mathfunc_names()
             .into_iter()
-            .map(|name| format!("tcl::mathfunc::{name}")),
+            .map(|name| tcl_syntax::naming::unrooted_member_key("tcl::mathfunc", name)),
     );
     names
 }

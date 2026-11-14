@@ -464,6 +464,8 @@ impl Scan<'_, '_> {
     fn variable(&mut self, name: &[u8], rule: LocalRule) -> bool {
         match rule {
             LocalRule::Tail => {
+                // `IndexTailVarIfKnown` declines on the last byte alone, with
+                // or without an opening parenthesis.
                 if name.last() == Some(&b')') {
                     return false;
                 }

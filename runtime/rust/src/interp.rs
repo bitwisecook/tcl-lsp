@@ -7164,14 +7164,14 @@ impl Interp {
         .map_err(|first| self.refuse_native_execution(first))?;
         self.disarm_env_trace();
         for name in tcl_platform::bootstrap::HOST_ARRAYS {
-            self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
+            self.quiet_var_unset_at(tcl_syntax::naming::root_unrooted_key(name).as_bytes(), 0);
             scope
                 .currency()
                 .ensure_current_or_refuse()
                 .map_err(|first| self.refuse_native_execution(first))?;
         }
         for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
-            self.quiet_var_unset_at(format!("::{name}").as_bytes(), 0);
+            self.quiet_var_unset_at(tcl_syntax::naming::root_unrooted_key(name).as_bytes(), 0);
             scope
                 .currency()
                 .ensure_current_or_refuse()
@@ -8893,7 +8893,7 @@ impl Interp {
             .iter()
             .chain(tcl_platform::bootstrap::HOST_PATH_GLOBALS)
         {
-            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+            self.var_unset_at(tcl_syntax::naming::root_unrooted_key(name).as_bytes(), 0);
         }
     }
 
@@ -18170,7 +18170,7 @@ impl Interp {
         // A safe interp has no real library/package paths. The Safe Base may
         // re-virtualise `auto_path` after this scrub.
         for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
-            self.var_unset(format!("::{name}").as_bytes());
+            self.var_unset(tcl_syntax::naming::root_unrooted_key(name).as_bytes());
         }
     }
 

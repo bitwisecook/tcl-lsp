@@ -7555,14 +7555,7 @@ impl Interp {
             .map(|n| n.to_vec())
             .collect();
         // The destination namespace's FQN, for re-pointing copied procs.
-        let dst_qual = {
-            let q = self.namespaces().qualified_name(dst_ns);
-            if q == b"::" {
-                Vec::new()
-            } else {
-                q
-            }
-        };
+        let dst_qual = self.namespaces().qualified_name(dst_ns);
         for n in &names {
             // Bind the resolved command before borrowing mutably (the `Ref` from
             // `namespaces()` must be dropped first).
@@ -7570,9 +7563,7 @@ impl Interp {
             if let Some(Command::Proc(def)) = cmd {
                 // Re-point the copy to the destination namespace, so its body's
                 // `variable`/unqualified names resolve there, not in the source.
-                let mut fqn = dst_qual.clone();
-                fqn.extend_from_slice(b"::");
-                fqn.extend_from_slice(n);
+                let fqn = tcl_syntax::naming::rooted_member_key_bytes(&dst_qual, n);
                 let duplicate = def.duplicate(dst_ns, fqn);
                 scope
                     .currency()
