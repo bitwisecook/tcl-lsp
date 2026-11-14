@@ -781,10 +781,11 @@ impl NativeNameProtocol {
     ) -> Result<NativeNameProjection<'a>, NameProjectionUnavailable> {
         self.command_input(context, original, NativeNamePurpose::RenameDestination)
     }
-    /// Select the `CString` simple name reported by a refused alias rename.
-    /// C8.4 reports the resolved source binding; C8.5+ reports its attempted
-    /// destination. Both inputs must come from the selected binding slots,
-    /// not from a command's display spelling. Jim has no C alias-loop purpose.
+    /// Select the `CString` name reported by a refused alias definition or
+    /// rename. C8.4 reports the alias record's own name (`aliasPtr->namePtr`,
+    /// the name the alias was created with); C8.5+ reports the attempted
+    /// destination's simple name from its selected binding slot. Jim has no C
+    /// alias-loop purpose.
     #[must_use]
     pub fn rename_alias_loop_name<'a>(
         self,

@@ -39,7 +39,7 @@ impl SourceFileGrammar {
         match self {
             Self::Filename => "fileName",
             Self::Encoding => "?-encoding name? fileName",
-            Self::EncodingOrNoPackage => "?-encoding name? fileName | -nopkg fileName",
+            Self::EncodingOrNoPackage => "?-encoding encoding? fileName",
         }
     }
 
@@ -73,15 +73,25 @@ impl SourceFileGrammar {
         SourceFileSelection::Invalid
     }
 
+    /// The exact option table the native handler matches the first word
+    /// against for an argument count it accepts but [`Self::select_original`]
+    /// rejects: a miss there is `bad option`, not `wrong # args`.
+    #[must_use]
+    pub const fn option_table(self, count: usize) -> Option<&'static [&'static str]> {
+        match (self, count) {
+            (Self::Encoding | Self::EncodingOrNoPackage, 3) => Some(&["-encoding"]),
+            (Self::EncodingOrNoPackage, 2) => Some(&["-nopkg"]),
+            _ => None,
+        }
+    }
+
     /// Native wrong-argument usage, without adding unsupported option forms.
     #[must_use]
     pub const fn synopsis(self) -> &'static str {
         match self {
             Self::Filename => "source fileName",
             Self::Encoding => "source ?-encoding name? fileName",
-            Self::EncodingOrNoPackage => {
-                "source ?-encoding name? fileName | source -nopkg fileName"
-            }
+            Self::EncodingOrNoPackage => "source ?-encoding encoding? fileName",
         }
     }
 }

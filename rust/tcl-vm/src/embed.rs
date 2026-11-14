@@ -1148,9 +1148,10 @@ impl Vm {
         self.retain_commands_bytes(&|name| core::str::from_utf8(name).is_ok_and(keep))
     }
 
-    /// Arm the `commands` limit: the body may dispatch at most `limit`
-    /// commands before every further dispatch fails with `command count limit
-    /// exceeded`. `None` disarms it.
+    /// Arm the `commands` limit: the body may run at most `limit` commands,
+    /// counted as C counts them (a command compiled inline as well as each
+    /// dispatch), before the next fails with `command count limit exceeded`.
+    /// `None` disarms it.
     ///
     /// The count is the interp's own ([`Self::commands_run`]), so refill fuel
     /// per invocation with [`Self::reset_command_count`].

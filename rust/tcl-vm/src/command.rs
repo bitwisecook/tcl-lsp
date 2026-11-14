@@ -1220,10 +1220,18 @@ fn check_renamed_alias_loop(
     };
     if loops {
         let reported = vm.actual_native_name_protocol().and_then(|recipe| {
-            let (_, source) = vm.command_slot_parts(old_key)?;
+            let record = match cmd {
+                Command::Alias {
+                    publication_name, ..
+                }
+                | Command::CrossAlias {
+                    publication_name, ..
+                } => publication_name.clone(),
+                _ => vm.command_slot_parts(old_key)?.1,
+            };
             let (_, destination) = vm.command_slot_parts(key)?;
             recipe
-                .rename_alias_loop_name(source.as_bytes(), destination.as_bytes())
+                .rename_alias_loop_name(record.as_bytes(), destination.as_bytes())
                 .map(<[u8]>::to_vec)
         });
         vm.forget_rename_destination(key);

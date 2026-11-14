@@ -903,7 +903,8 @@ fn invoke_default_entered(
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let variable_bytes = mapped.as_deref().unwrap_or(&bytes);
-    let operand = match recipe.object_variable_operand(variable_bytes, namespace.as_bytes()) {
+    let rooted = tcl_syntax::naming::root_unrooted_key_bytes(namespace.as_bytes());
+    let operand = match recipe.object_variable_operand(variable_bytes, &rooted) {
         Some(bytes) => Value::new_native_string_bytes(bytes),
         None => accessor.original.native_lifetime_lease().into_value(),
     };

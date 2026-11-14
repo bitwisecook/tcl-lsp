@@ -643,11 +643,11 @@ impl Vm {
                         "native errorInfo append",
                     ),
                 )?;
-                let receiver = self.native_errors.native_error_info.as_ref().ok_or(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "native private errorInfo result",
-                    ),
-                )?;
+                // An error no result object reached, such as the one a stale
+                // frame raises for itself, starts errorInfo from its own text.
+                let Some(receiver) = self.native_errors.native_error_info.as_ref() else {
+                    return Ok(Some(Value::new_native_string_bytes(bytes.as_slice())));
+                };
                 tcl_cmd_core::native_append::append_counted_bytes(
                     &crate::value::VmAppendObjects,
                     protocol.recipe(),

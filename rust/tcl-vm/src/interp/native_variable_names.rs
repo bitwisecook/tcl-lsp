@@ -686,13 +686,18 @@ impl Vm {
                 return Err(super::err(""));
             }
 
+            // A lookup that would not create the variable reports it missing.
             return Err(self.variable_access_error_input(
                 purpose.diagnostic_verb(),
                 tcl_syntax::naming::NativeVariableInputForm::Separate {
                     root: root_bytes,
                     element,
                 },
-                "parent namespace doesn't exist",
+                if purpose.creates_entries() {
+                    "parent namespace doesn't exist"
+                } else {
+                    "no such variable"
+                },
             ));
         };
         if let VarTableOwner::Frame(level) = binding.owner

@@ -170,7 +170,8 @@ impl OriginalSourceFileOps for SourceOps<'_> {
         let host = self.vm.host_rc();
         let filesystem = host.filesystem();
         self.check()?;
-        Ok(filesystem.map_or(Err(HostError::Unsupported), |fs| fs.open_source_bytes(path)))
+        // C's `Tcl_FSOpenFileChannel` reports ENOENT when no filesystem claims the path.
+        Ok(filesystem.map_or(Err(HostError::NotFound), |fs| fs.open_source_bytes(path)))
     }
     fn lookup_encoding(
         &mut self,
@@ -266,6 +267,13 @@ fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> 
     let tcl_registry::source_file::SourceFileSelection::Selected(selected) =
         grammar.select_original(args.len(), first.as_deref())
     else {
+        if let (Some(table), Some(first)) = (grammar.option_table(args.len()), first.as_deref()) {
+            let lookup = tcl_cmd_core::prefix::OptionTable::exact_only("option", table)
+                .index_of_in(first, vm.runtime_version());
+            if let Err(error) = lookup {
+                return completion_from_cmd_error(vm, error);
+            }
+        }
         return native_wrong_args(vm, grammar.synopsis());
     };
     let prepared = tcl_cmd_core::encoding::prepare_source_file(

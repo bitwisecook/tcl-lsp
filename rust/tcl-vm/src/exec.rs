@@ -3151,7 +3151,9 @@ impl Vm {
         acts: &mut Vec<Frame>,
         message: &'static str,
     ) -> Option<Completion<Value>> {
-        self.settle_completion(acts, err(message))
+        let completion = err(message);
+        self.observe_native_error_result(&completion.result);
+        self.settle_completion(acts, completion)
     }
 
     /// Reject a frozen coroutine through the ordinary settlement/unwind path.

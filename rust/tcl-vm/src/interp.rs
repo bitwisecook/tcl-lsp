@@ -7956,6 +7956,25 @@ impl Vm {
                 .map_or_else(tcl_core_types::NameBytes::default, |slot| {
                     slot.simple.clone()
                 });
+            let record = self.in_interp(src, |vm| match vm.visible_command_at_key(src_key) {
+                Some(
+                    Command::Alias {
+                        publication_name, ..
+                    }
+                    | Command::CrossAlias {
+                        publication_name, ..
+                    },
+                ) => publication_name,
+                _ => tail.clone(),
+            });
+            let reported = self
+                .actual_native_name_protocol()
+                .and_then(|recipe| {
+                    recipe
+                        .rename_alias_loop_name(record.as_bytes(), tail.as_bytes())
+                        .map(<[u8]>::to_vec)
+                })
+                .unwrap_or_else(|| tail.as_bytes().to_vec());
             self.in_interp(src, |vm| {
                 vm.remove_command_exact(src_key);
                 vm.drop_alias_backref(src_key);
@@ -7964,7 +7983,7 @@ impl Vm {
                 return Err(crate::command::completion_from_cmd_error(self, error));
             }
             let mut message = Vec::from(b"cannot define or rename alias \"".as_slice());
-            message.extend_from_slice(tail.as_bytes());
+            message.extend_from_slice(&reported);
             message.extend_from_slice(b"\": would create a loop");
             return Err(err(message));
         }
@@ -10186,15 +10205,30 @@ impl Vm {
                 tcl_registry::command_lookup::CommandLookupOrigin::AliasInvocation,
             )
         } else {
-            self.in_interp(target_interp, |vm| {
-                vm.invoke_command_value_internal_at(
+            // C's `TclTransferResult` carries the target's return options,
+            // `-errorcode` and `-errorinfo` among them, back to the caller.
+            let completion = self.in_interp(target_interp, |vm| {
+                let mut completion = vm.invoke_command_value_internal_at(
                     ROOT_NS,
                     head,
                     tail,
                     usage,
                     tcl_registry::command_lookup::CommandLookupOrigin::AliasInvocation,
-                )
-            })
+                );
+                if completion.code == Code::Error {
+                    completion.options = match vm.completion_options_snapshot(&completion) {
+                        Ok(options) => options,
+                        Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+                    };
+                }
+                completion
+            });
+            if completion.code == Code::Error
+                && let Err(error) = self.restore_completion_error_state(&completion)
+            {
+                return crate::command::completion_from_tcl_error(self, error);
+            }
+            completion
         };
         settle_control_options(self, completion, ControlOptionPolicy::FRESH_FORWARDED)
     }
@@ -17415,12 +17449,9 @@ impl Vm {
             self.resolve_var_from_bytes(root, self.current_level())
         }
         .ok_or_else(|| {
-            self.variable_access_error_at(
-                "read",
-                input,
-                "parent namespace doesn't exist",
-                Site::NameLookup,
-            )
+            // A read creates nothing, so C's lookup reports the variable
+            // missing whether or not its namespace exists.
+            self.variable_access_error_at("read", input, "no such variable", Site::NameLookup)
         })?;
         self.read_selected_variable_result_bytes(root, element, resolved)
     }
@@ -22329,9 +22360,9 @@ impl Vm {
             return Err(refused);
         }
         if !existed && complain {
-            // A name that reached a valueless cell fails at the unset itself.
-            let reached_cell =
-                resolved.is_some_and(|resolved| resolved.elem.is_none() && resolved.id.is_some());
+            // A name that reached a valueless cell, such as an element a trace
+            // created, fails at the unset itself.
+            let reached_cell = resolved.is_some_and(|resolved| resolved.id.is_some());
             return Err(self.variable_access_error_at(
                 "unset",
                 tcl_syntax::naming::NativeVariableInputForm::Combined(name),
