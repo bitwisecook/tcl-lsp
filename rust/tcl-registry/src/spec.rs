@@ -144,6 +144,14 @@ pub enum DefaultFormFirstWord {
     /// `0o…`, `0b…`, optional sign, `_` separators) selects the default
     /// form.
     Integer,
+    /// A first word beginning with `.`, a window path, selects the default
+    /// form: `pack .b` and `place .b -x 0` configure `.b` (Tk 8.4-9.1
+    /// `tkPack.c`, `tkPlace.c`).
+    WindowPath,
+    /// A first word beginning with `.`, or with the `x` or `^` relative
+    /// placement character, selects the default form: `grid .b` and
+    /// `grid x .b` configure their content (Tk 8.4-9.1 `tkGrid.c`).
+    GridContent,
 }
 
 impl DefaultFormFirstWord {
@@ -155,6 +163,7 @@ impl DefaultFormFirstWord {
             return self.matches(word);
         };
         match self {
+            Self::WindowPath | Self::GridContent => self.matches(word),
             Self::Integer => matches!(
                 tcl_syntax::number::parse_whole_with(
                     word,
@@ -194,6 +203,8 @@ impl DefaultFormFirstWord {
                         )
                     })
             }
+            Self::WindowPath => word.starts_with('.'),
+            Self::GridContent => word.starts_with(['.', 'x', '^']),
         }
     }
 }

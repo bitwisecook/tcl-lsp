@@ -327,6 +327,7 @@ pub fn spec() -> CommandSpec {
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
+        default_form_first_word: Some(DefaultFormFirstWord::WindowPath),
         ..CommandSpec::DEFAULT
     }
 }

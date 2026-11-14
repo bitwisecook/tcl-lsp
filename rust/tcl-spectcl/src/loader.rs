@@ -2865,9 +2865,13 @@ const FORMAT_TYPES: &[FormatType] = &[
     FormatType::Regsub,
 ];
 
-/// One variant today, and a table anyway: the DSL word is the variant name,
-/// so a second shape arrives as a table entry rather than a new parser.
-const DEFAULT_FORM_FIRST_WORDS: &[DefaultFormFirstWord] = &[DefaultFormFirstWord::Integer];
+/// The DSL word is the variant name, so each shape is a table entry rather
+/// than a new parser.
+const DEFAULT_FORM_FIRST_WORDS: &[DefaultFormFirstWord] = &[
+    DefaultFormFirstWord::Integer,
+    DefaultFormFirstWord::WindowPath,
+    DefaultFormFirstWord::GridContent,
+];
 
 const PRESENTATIONS: &[ArgPresentation] =
     &[ArgPresentation::BlockScript, ArgPresentation::InlineScript];

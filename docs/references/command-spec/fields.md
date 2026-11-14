@@ -1330,6 +1330,8 @@ The value shapes a non-subcommand first word may take to select a command's defa
 | Value | Meaning |
 |---|---|
 | `Integer` | an integer first word selects the default form |
+| `WindowPath` | a first word beginning with `.` (a window path) selects the default form |
+| `GridContent` | a first word beginning with `.`, `x` or `^` selects the default form |
 
 ### Defined-symbol kinds
 

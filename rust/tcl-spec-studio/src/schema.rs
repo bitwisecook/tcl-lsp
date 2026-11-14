@@ -2609,11 +2609,23 @@ fn custom_catalogues() -> [(&'static str, Value); 7] {
         ),
         (
             "defaultFormFirstWord",
-            json!([custom_variant(
-                "defaultFormFirstWord",
-                "Integer",
-                "an integer first word selects the default form",
-            )]),
+            json!([
+                custom_variant(
+                    "defaultFormFirstWord",
+                    "Integer",
+                    "an integer first word selects the default form",
+                ),
+                custom_variant(
+                    "defaultFormFirstWord",
+                    "WindowPath",
+                    "a first word beginning with `.` (a window path) selects the default form",
+                ),
+                custom_variant(
+                    "defaultFormFirstWord",
+                    "GridContent",
+                    "a first word beginning with `.`, `x` or `^` selects the default form",
+                ),
+            ]),
         ),
         (
             "prefixMatching",

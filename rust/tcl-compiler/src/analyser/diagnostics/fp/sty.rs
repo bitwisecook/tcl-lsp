@@ -62,6 +62,18 @@ fn fp_sty_01_genuine_unknown_subcommand_still_fires() {
         "FP-STY-01 TP: real unknown subcommand must still fire W001; emitted: {:?}",
         codes("grid bogus .x", D)
     );
+    // `x` and `^` select grid's content form only (Tk 8.4-9.1 `tkGrid.c`);
+    // `pack` takes the shortcut for a window path alone (`tkPack.c`).
+    assert!(
+        !fires("grid x .x", D, "W001"),
+        "{:?}",
+        codes("grid x .x", D)
+    );
+    assert!(
+        fires("pack xbogus .x", D, "W001"),
+        "{:?}",
+        codes("pack xbogus .x", D)
+    );
 }
 
 // FP-STY-02 — W306 escaped `\[` / `\$` in quoted regexp patterns
