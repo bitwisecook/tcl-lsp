@@ -6592,8 +6592,10 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
 
 /// Helper: does the analyser emit a W210 for a read of `var` in `src`?
 #[cfg(test)]
+/// Under one release: the lenient span proves no read before a set.
 fn w210_fires_for(src: &str, var: &str) -> bool {
     let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test(src);
     let needle = format!("'{var}'");
     a.result
@@ -9683,21 +9685,21 @@ fn tcloo_create_mandatory_name_is_checked_even_without_a_constructor() {
     // "wrong # args", even though any number of trailing args succeeds.
     let src = |call: &str| format!("oo::class create Widget {{ method bar {{}} {{ }} }}\n{call}\n");
     assert_eq!(
-        e00x_codes_for(&src("Widget create")),
+        e00x_codes_for_in(&src("Widget create"), "tcl8.6"),
         vec!["E002".to_owned()],
         "the mandatory object-name word must still be enforced"
     );
     assert_eq!(
-        e00x_codes_for(&src("Widget create fido")),
+        e00x_codes_for_in(&src("Widget create fido"), "tcl8.6"),
         Vec::<String>::new()
     );
     assert_eq!(
-        e00x_codes_for(&src("Widget create fido 1 2 3 4 5")),
+        e00x_codes_for_in(&src("Widget create fido 1 2 3 4 5"), "tcl8.6"),
         Vec::<String>::new(),
         "the unconstrained default constructor still accepts any trailing args"
     );
     assert_eq!(
-        e00x_codes_for(&src("Widget new")),
+        e00x_codes_for_in(&src("Widget new"), "tcl8.6"),
         Vec::<String>::new(),
         "`new` has no mandatory name word, so it stays unchecked as before"
     );
@@ -9885,9 +9887,18 @@ fn tcloo_next_arity_checked_against_superclass_override() {
              [Derived new] speak x y\n"
         )
     };
-    assert_eq!(e00x_codes_for(&src("next 1")), vec!["E002".to_owned()]);
-    assert_eq!(e00x_codes_for(&src("next 1 2")), Vec::<String>::new());
-    assert_eq!(e00x_codes_for(&src("next 1 2 3")), vec!["E003".to_owned()]);
+    assert_eq!(
+        e00x_codes_for_in(&src("next 1"), "tcl8.6"),
+        vec!["E002".to_owned()]
+    );
+    assert_eq!(
+        e00x_codes_for_in(&src("next 1 2"), "tcl8.6"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        e00x_codes_for_in(&src("next 1 2 3"), "tcl8.6"),
+        vec!["E003".to_owned()]
+    );
 }
 
 #[test]
@@ -9907,11 +9918,11 @@ fn tcloo_nextto_arity_checked_against_named_target() {
         )
     };
     assert_eq!(
-        e00x_codes_for(&src("nextto ::Root 1 2")),
+        e00x_codes_for_in(&src("nextto ::Root 1 2"), "tcl8.6"),
         vec!["E003".to_owned()]
     );
     assert_eq!(
-        e00x_codes_for(&src("nextto ::Root 1")),
+        e00x_codes_for_in(&src("nextto ::Root 1"), "tcl8.6"),
         Vec::<String>::new()
     );
 }
@@ -14860,7 +14871,7 @@ fn const_cmd_head_resolves_in_the_dispatch_namespace_m7() {
 fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
     // Preserve the original indirect invocation without inventing a definition.
     let mut a = Analyser::new();
-    let r = a.analyse("set cmd nosuchcmd\n$cmd\n", "tcl");
+    let r = a.analyse("set cmd nosuchcmd\n$cmd\n", "tcl8.6");
     assert!(
         r.command_invocations
             .iter()
@@ -14868,7 +14879,7 @@ fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
             .all(|i| { i.resolved_command_reference.is_none() })
     );
     let mut a2 = Analyser::new();
-    let r2 = a2.analyse("proc target {} {}\nset cmd [pick]\n$cmd\n", "tcl");
+    let r2 = a2.analyse("proc target {} {}\nset cmd [pick]\n$cmd\n", "tcl8.6");
     assert!(
         r2.command_invocations
             .iter()
@@ -14880,7 +14891,7 @@ fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
     let mut a4 = Analyser::new();
     let r4 = a4.analyse(
         "proc target {} {}\nset suffix arget\nset cmd t$suffix\n$cmd\n",
-        "tcl",
+        "tcl8.6",
     );
     assert!(
         r4.command_invocations
@@ -14896,7 +14907,7 @@ fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
     );
     // An actual builtin slot has no source-owned procedure definition.
     let mut a3 = Analyser::new();
-    let r3 = a3.analyse("set cmd puts\n$cmd hi\n", "tcl");
+    let r3 = a3.analyse("set cmd puts\n$cmd hi\n", "tcl8.6");
     assert!(
         r3.command_invocations
             .iter()
