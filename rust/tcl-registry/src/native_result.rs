@@ -1597,51 +1597,14 @@ impl NativeResultContract {
         .then_some(NativeListMethodProvider::ArithmeticSequence)
     }
 
-    /// Select positions without guessing values, completion or trace behavior.
-    /// Consumers must first prove native identity and the appropriate completion.
-    #[must_use]
-    pub fn select(
+    /// Select the list-producing contracts whose shape needs more than an operand range.
+    fn select_list_result(
         self,
         args: InvocationArguments<'_>,
+        count: usize,
         argument_offset: usize,
     ) -> NativeResultSelection {
-        if self == Self::EmptyString {
-            return NativeResultSelection::EmptyString;
-        }
-        let Some(count) = args.exact_argv_len() else {
-            return NativeResultSelection::Unknown;
-        };
         match self {
-            Self::EmptyString => NativeResultSelection::EmptyString,
-            Self::VariableValue { variable_at, phase } => {
-                let variable_at = argument_offset + usize::from(variable_at);
-                if variable_at < count {
-                    NativeResultSelection::VariableValue { variable_at, phase }
-                } else {
-                    NativeResultSelection::InvalidArguments
-                }
-            }
-            Self::VariableExistence { variable_at } => {
-                let variable_at = argument_offset + usize::from(variable_at);
-                if variable_at.checked_add(1) == Some(count) {
-                    NativeResultSelection::VariableExistence { variable_at }
-                } else {
-                    NativeResultSelection::InvalidArguments
-                }
-            }
-            Self::ListArguments { from } => {
-                let from = argument_offset + usize::from(from);
-                count
-                    .checked_sub(from)
-                    .map_or(NativeResultSelection::InvalidArguments, |len| {
-                        NativeResultSelection::ListArguments { from, len }
-                    })
-            }
-            Self::ListRange {
-                list_at,
-                first_at,
-                last_at,
-            } => select_list_range(count, argument_offset, [list_at, first_at, last_at]),
             Self::ListConcat { from } => {
                 let from = argument_offset + usize::from(from);
                 count
@@ -1689,6 +1652,59 @@ impl NativeResultContract {
                         }
                     })
             }
+            _ => NativeResultSelection::Unknown,
+        }
+    }
+
+    /// Select positions without guessing values, completion or trace behavior.
+    /// Consumers must first prove native identity and the appropriate completion.
+    #[must_use]
+    pub fn select(
+        self,
+        args: InvocationArguments<'_>,
+        argument_offset: usize,
+    ) -> NativeResultSelection {
+        if self == Self::EmptyString {
+            return NativeResultSelection::EmptyString;
+        }
+        let Some(count) = args.exact_argv_len() else {
+            return NativeResultSelection::Unknown;
+        };
+        match self {
+            Self::EmptyString => NativeResultSelection::EmptyString,
+            Self::VariableValue { variable_at, phase } => {
+                let variable_at = argument_offset + usize::from(variable_at);
+                if variable_at < count {
+                    NativeResultSelection::VariableValue { variable_at, phase }
+                } else {
+                    NativeResultSelection::InvalidArguments
+                }
+            }
+            Self::VariableExistence { variable_at } => {
+                let variable_at = argument_offset + usize::from(variable_at);
+                if variable_at.checked_add(1) == Some(count) {
+                    NativeResultSelection::VariableExistence { variable_at }
+                } else {
+                    NativeResultSelection::InvalidArguments
+                }
+            }
+            Self::ListArguments { from } => {
+                let from = argument_offset + usize::from(from);
+                count
+                    .checked_sub(from)
+                    .map_or(NativeResultSelection::InvalidArguments, |len| {
+                        NativeResultSelection::ListArguments { from, len }
+                    })
+            }
+            Self::ListRange {
+                list_at,
+                first_at,
+                last_at,
+            } => select_list_range(count, argument_offset, [list_at, first_at, last_at]),
+            Self::ListConcat { .. }
+            | Self::StringJoin { .. }
+            | Self::ListReverse { .. }
+            | Self::ListRepeat { .. } => self.select_list_result(args, count, argument_offset),
             Self::DictionaryArguments { from } => {
                 let from = argument_offset + usize::from(from);
                 match count.checked_sub(from) {

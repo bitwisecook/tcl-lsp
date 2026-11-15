@@ -81,7 +81,6 @@ mod original_missing_command;
 mod original_source_projection;
 pub(crate) use original_missing_command::OriginalMissingCommandContext;
 mod pre_handler_failure;
-#[cfg(any(test, debug_assertions))]
 mod root_layout_extents;
 mod root_owner_work;
 mod source_arguments;
