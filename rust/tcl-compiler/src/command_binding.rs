@@ -12756,6 +12756,9 @@ impl SourceCommandBindings {
                 && !command_world_closed_on_normal_return(native.target, facts)
                 && !source_command_world::namespace_body_world_closed_on_normal_return(
                     native, facts, outcomes, *context,
+                )
+                && !original_delegated_script::world_closed_on_normal_return(
+                    native, facts, incoming, outcomes, *context,
                 ))
         {
             let modelled = (!reentry

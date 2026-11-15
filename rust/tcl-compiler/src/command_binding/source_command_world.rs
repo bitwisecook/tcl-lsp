@@ -638,6 +638,11 @@ impl OriginalSourceCommandWorld {
         world
     }
 
+    /// Whether the ledger has been withdrawn on this path.
+    pub(super) const fn is_withdrawn(&self) -> bool {
+        self.unavailable
+    }
+
     pub(super) fn withdraw(&mut self) {
         self.unavailable = true;
     }

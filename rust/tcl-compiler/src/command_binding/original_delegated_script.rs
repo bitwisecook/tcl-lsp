@@ -110,6 +110,36 @@ pub(super) fn has_delegated_literal_script(
     literal_script(native, facts, state, context).is_some()
 }
 
+/// Whether the normal return of a delegated literal script leaves a closed
+/// command world. A possible error inside the script is a separate path; it
+/// never clears a world the script itself left unclosed.
+pub(super) fn world_closed_on_normal_return(
+    native: SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    incoming: &ModuleCommandBindings,
+    outcomes: &super::SourceOutcomes,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+    if super::requires_reentry_guard(facts)
+        || !has_delegated_literal_script(native, facts, incoming, context)
+        || !outcomes.abrupt.iter().all(|(route, _)| {
+            matches!(
+                route,
+                Route::Tcl(tcl_registry::completion::CompletionCode::Error)
+            )
+        })
+    {
+        return false;
+    }
+    outcomes.normal.as_deref().is_some_and(|normal| {
+        !normal.unclosed_command_world
+            && super::original_namespace_body::quiet(normal)
+            && !normal.original_command_world.is_withdrawn()
+            && normal.unknown_handler_is_original()
+    })
+}
+
 impl OriginalDelegatedScript {
     pub(super) fn capture(
         native: SourceNativeInvocation<'_>,

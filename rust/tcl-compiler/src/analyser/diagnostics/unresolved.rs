@@ -954,10 +954,7 @@ mod require_ordering_tests {
     /// puts $x
     /// ```
     ///
-    /// No `jimsh` is installed on this host, so Jim is not covered. After
-    /// `[uplevel 1 {namespace current}]` the heads that follow are proved,
-    /// but absence advice is not yet given: the inline `namespace current`
-    /// in the frame `uplevel` selects does not report a closed completion.
+    /// No `jimsh` is installed on this host, so Jim is not covered.
     #[test]
     fn a_braced_literal_script_keeps_the_command_world_and_a_computed_one_does_not() {
         let w123 = |source: &str, release: &str| {
@@ -972,6 +969,9 @@ mod require_ordering_tests {
             for source in [
                 "eval {set x hello}\nnosuch\n",
                 "proc p {} {uplevel 1 {set y 1}; nosuch}\nproc c {} {p}\nc\n",
+                "proc who {} {set r [uplevel 1 {namespace current}]; nosuch}\n\
+                 namespace eval ::N {::who}\n",
+                "eval {puts a; namespace tail a::b}\nnosuch\n",
                 "proc g {} {uplevel #0 {set y 1}; nosuch}\ng\n",
             ] {
                 assert_eq!(w123(source, release), 1, "{release}: {source}");
