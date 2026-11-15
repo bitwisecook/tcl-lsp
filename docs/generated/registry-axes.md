@@ -46,7 +46,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-codegen/src/codegen/native_namespace_upvar_tests.rs:106` | site | a test asserting which registry compiler was selected |
 | irreducible | never | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs:1603` | site | a fixture variable named next, not the next command |
 | irreducible | never | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs:1615` | site | a fixture variable named next, not the next command |
-| irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:2658` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
+| irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs:2659` | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
 | irreducible | never | `rust/tcl-compiler/src/analyser/recovery.rs:272` | site | this whole function is a switch-specific parser-repair heuristic (splicing orphaned pattern/body segments into a switch's argv when the source is missing its opening brace); no registry fact picks which command's *malformed* source this repair applies to more abstractly than its own name, and every other command's malformed source is left unrepaired |
 | irreducible | never | `rust/tcl-compiler/src/command_binding/original_command_table.rs:209` | site | a field label of the command-table trace, not the namespace command |
 | irreducible | never | `rust/tcl-compiler/src/command_binding/root_owner_work.rs:54` | file | work-stage labels of the root owner's trace, not Tcl words |
@@ -91,11 +91,11 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs:255` | site | same primitive-syntax reason |
 | irreducible | never | `rust/tcl-syntax/src/execution_conformance.rs:109` | file | a conformance table's empty-cell marker, not a Tcl word |
 | irreducible | never | `rust/tcl-syntax/src/expr/jim_function_tree.rs:584` | file | expression operators, not commands |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5081` | site | namespace ensemble configuration options |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5114` | site | namespace ensemble configuration options |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5130` | site | namespace ensemble configuration options |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5146` | site | namespace ensemble configuration options |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5160` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5082` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5115` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5131` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5147` | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs:5161` | site | namespace ensemble configuration options |
 | options | the getter's option table marks the normalising flag | `rust/tcl-compiler/src/rendered_properties.rs:376` | site | the HTTP getter's normalising flag |
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs:186` | site | the interp create flag run |
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs:189` | site | the interp create flag run |
@@ -111,14 +111,14 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:271` | site | switch's match-mode options |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:273` | site | switch's match-mode options |
 | special_vars | the snit definition grammar declares its implicit variables | `rust/tcl-compiler/src/analyser/oo.rs:104` | site | snit's implicit type variable in a typemethod body |
-| special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs:12489` | site | the auto_path special variable |
+| special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs:12490` | site | the auto_path special variable |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:354` | site | dict's scoping subcommands in codegen |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:371` | site | dict's scoping subcommands in codegen |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:385` | site | dict's scoping subcommands in codegen |
-| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:4455` | site | a namespace eval wrapper's subcommand |
-| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5036` | site | namespace ensemble create and configure |
-| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5038` | site | namespace ensemble create and configure |
-| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5243` | site | a dict merge value shape |
+| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:4456` | site | a namespace eval wrapper's subcommand |
+| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5037` | site | namespace ensemble create and configure |
+| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5039` | site | namespace ensemble create and configure |
+| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5244` | site | a dict merge value shape |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/lowering/structured.rs:1438` | site | dict's iterating and scoping subcommands |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/lowering/structured.rs:1474` | site | dict's iterating and scoping subcommands |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/lowering/structured.rs:1487` | site | dict's iterating and scoping subcommands |
