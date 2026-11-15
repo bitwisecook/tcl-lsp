@@ -1050,6 +1050,7 @@ mod nested_source_point_controls {
 
     #[test]
     fn nested_namespace_point_uses_the_selected_body_graph_without_normal_or_native_grants() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let source = "namespace eval ::app {source child.tcl}";
         let parent = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
@@ -1071,7 +1072,7 @@ mod nested_source_point_controls {
         assert!(child.all_procs.contains_key("::app::child"));
         assert!(!child.all_procs.contains_key("::child"));
         assert_ne!(point.obligations(), []);
-        let source = "namespace eval ::app {unknown_writer; source child.tcl}";
+        let source = "namespace eval ::app {set ::auto_index(unknown_writer) {source lib.tcl}; unknown_writer; source child.tcl}";
         let parent = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
         assert!(

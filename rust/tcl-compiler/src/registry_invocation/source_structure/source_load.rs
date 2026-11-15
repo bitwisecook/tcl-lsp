@@ -376,8 +376,9 @@ mod source_point_tests {
 
     #[test]
     fn source_point_unavailable_state_never_becomes_a_namespace_seed() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for source in [
-            "unknown_effect; source child.tcl",
+            "set auto_index(unknown_effect) {source lib.tcl}; unknown_effect; source child.tcl",
             "trace add execution source enter callback; source child.tcl",
             "proc source args {}; source child.tcl",
         ] {

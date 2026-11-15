@@ -123,6 +123,21 @@ const SIDE_EFFECTS: &[SideEffect] = &[
     },
 ];
 
+// Run from a script, the default handler's only step is `auto_load` of
+// cmdName (`library/init.tcl`, Tcl 8.4.20 through 9.1.0: auto-exec, history
+// and abbreviation need `[info level] == 1`, `[info script] eq ""` and
+// `tcl_interactive`), after which it raises "invalid command name".
+fn indexed_autoload(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    // With no argument the handler autoloads the empty name.
+    let command = TransitionSubject::from_argument(arguments, 0)
+        .unwrap_or_else(|| TransitionSubject::Literal(String::new()));
+    transitions.push(StateTransition::Package(
+        crate::model::binding::PackageTransition::IndexedAutoload { command },
+    ));
+    transitions
+}
+
 /// Command spec for `unknown`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -173,6 +188,10 @@ pub fn spec() -> CommandSpec {
         // above. Identical in every fetched manpage, Tcl 8.4 through
         // 9.1.
         arity: Arity::at_least(1),
+        state_transitions: Some(StateTransitionDescriptor {
+            resolver: Some(indexed_autoload),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {

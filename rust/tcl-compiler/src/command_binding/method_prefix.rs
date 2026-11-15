@@ -421,11 +421,12 @@ mod tests {
 
     #[test]
     fn deferred_receiver_or_changed_prefix_dependencies_supply_no_registration_receipt() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for source in [
             "oo::class create C {method tick {} {}; method setup {} {set cb [list [self] tick]; after 0 $cb}}",
             "oo::class create C {method tick {} {}; method setup {} {set cb [list [self] tick]; set cb {other tick}; after 0 $cb}}; C create obj; obj setup",
             "oo::class create C {method tick {} {}; method setup {} {set cb [list [self] tick]; oo::define C method tick {} {return NEW}; after 0 $cb}}; C create obj; obj setup",
-            "oo::class create C {method tick {} {}; method setup {} {set cb [list [self] tick]; unresolvedOperation; after 0 $cb}}; C create obj; obj setup",
+            "oo::class create C {method tick {} {}; method setup {} {set cb [list [self] tick]; set ::auto_index(unresolvedOperation) {source lib.tcl}; unresolvedOperation; after 0 $cb}}; C create obj; obj setup",
             "proc list args {return OTHER}; oo::class create C {method tick {} {}; method setup {} {set cb [list [self] tick]; after 0 $cb}}; C create obj; obj setup",
         ] {
             assert!(captured(source).is_empty(), "{source}");

@@ -2100,6 +2100,7 @@ mod tests {
 
     #[test]
     fn scoped_nested_normalisation_keeps_original_world_frame_and_source() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let expression = "expr {[expr {$x * 2}]}";
         for profile_name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let owner = tcl_registry::model::ingress::static_context_for(profile_name);
@@ -2110,7 +2111,10 @@ mod tests {
                 tcl_registry::InvocationDialect::of_profile(profile).expression_parse_context(None);
             for (suffix, allowed) in [
                 ("", true),
-                ("; unknown_future_entry", false),
+                (
+                    "; set ::auto_index(unknown_future_entry) {source lib.tcl}; unknown_future_entry",
+                    false,
+                ),
                 ("; trace add execution expr enter callback", false),
                 (
                     "; rename expr saved; proc expr args {return changed}",
@@ -2180,6 +2184,7 @@ mod tests {
 
     #[test]
     fn selected_nested_normalisation_projects_actual_operand_and_command_source() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let expression = "expr {  [expr {$x * 2}]  }";
         for profile_name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let owner = tcl_registry::model::ingress::static_context_for(profile_name);
@@ -2190,7 +2195,10 @@ mod tests {
                 tcl_registry::InvocationDialect::of_profile(profile).expression_parse_context(None);
             for (suffix, allowed) in [
                 ("", true),
-                ("; unknown_future_entry", false),
+                (
+                    "; set ::auto_index(unknown_future_entry) {source lib.tcl}; unknown_future_entry",
+                    false,
+                ),
                 ("; trace add execution expr enter callback", false),
                 (
                     "; rename expr saved; proc expr args {return changed}",

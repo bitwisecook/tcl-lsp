@@ -2985,6 +2985,7 @@ mod tests {
 
     #[test]
     fn original_generic_precision_does_not_repair_unknown_or_absent_lookup_from_metadata() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         // naming.source.original-registry-header-advice
         // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
         // The whole-function gate separately refuses the preceding mutation.
@@ -2993,7 +2994,7 @@ mod tests {
         let version = tcl_dialect::TclVersion::V9_1;
         let metadata = standalone_factory_metadata(version);
         for source in [
-            "unknown_original_mutation; info patchlevel",
+            "set auto_index(unknown_original_mutation) {source lib.tcl}; unknown_original_mutation; info patchlevel",
             "rename info {}; info patchlevel",
         ] {
             let tokens = original_factory_tokens(source, version, "info patchlevel", "info");

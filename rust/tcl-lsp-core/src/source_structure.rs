@@ -3230,7 +3230,8 @@ mod syntax_compaction_tests {
     fn original_syntax_regions_do_not_promote_conditional_roles_or_declarations() {
         // Implementation contract: naming.source.closed-syntax-script-regions
         // docs/design/analysis/name-resolution-proofs/closed-syntax-script-regions.md
-        let source = "unavailable\nif {1} {  puts advisory  }\nputs [list lexical]\n";
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let source = "set ::auto_index(unavailable) {source lib.tcl}; unavailable\nif {1} {  puts advisory  }\nputs [list lexical]\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let config = analysis.body_lexer_config.unwrap();
         let readonly = SourceStructure::capture(source, Some(&analysis), config).unwrap();

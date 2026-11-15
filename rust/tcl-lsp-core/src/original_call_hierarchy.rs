@@ -1194,7 +1194,8 @@ mod positioned_procedure_advice_tests {
     fn original_call_fallback_does_not_restore_deleted_or_unknown_occupied_headers() {
         for source in [
             "proc ::target args {}; rename ::target {}; proc caller {} {::target value}",
-            "proc ::target args {}; proc caller {} {mystery; ::target value}",
+            // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+            "set ::auto_index(mystery) {source lib.tcl}; proc ::target args {}; proc caller {} {mystery; ::target value}",
         ] {
             let analysis = Analyser::new().analyse(source, "tcl8.6");
             let documents = [OriginalCallDocument {
@@ -1469,7 +1470,8 @@ mod external_procedure_advice_tests {
                 "proc shared_helper args {}",
             ),
             (
-                "mystery; shared_helper retained",
+                // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+                "set ::auto_index(mystery) {source lib.tcl}; mystery; shared_helper retained",
                 "proc shared_helper args {}",
             ),
         ] {

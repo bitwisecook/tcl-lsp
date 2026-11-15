@@ -547,10 +547,12 @@ proc analyze {G} {
 fn fp_obj_09_multi_dispatch_local_no_w307() {
     // FP-OBJ-09: when a single proc dispatches >=2 times on the *same* local var,
     // the user has firmly treated that local as an object handle — W307 must not fire.
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+    let src = format!("set ::auto_index(createTGraph) {{source lib.tcl}}\n{FP_OBJ_09_REPRO}");
     assert!(
-        !fires(FP_OBJ_09_REPRO, D, "W307"),
+        !fires(&src, D, "W307"),
         "FP-OBJ-09: multi-dispatch on same local must NOT fire W307; emitted: {:?}",
-        codes(FP_OBJ_09_REPRO, D)
+        codes(&src, D)
     );
 }
 
@@ -1160,19 +1162,25 @@ fn fp_obj_19_external_class_create_name_no_w123() {
     // `create NAME` idiom still binds command names `c1`/`l1`, so literal
     // dispatch on them must NOT fire W123 (the unknown *class* command `C`/`L`
     // itself still does — that is a separate, correct diagnostic).
-    let src = "C create c1 1 out 0\nc1 configure -c 2\n";
-    // `c1` is not among the unresolved-command sites.
+    // #2427: with no autoload index in view, the undefined `C` runs nothing,
+    // so `c1` is never created and is reported beside `C`.
+    let bare =
+        crate::analyser::Analyser::new().analyse("C create c1 1 out 0\nc1 configure -c 2\n", D);
+    for name in ["C", "c1"] {
+        assert!(
+            bare.unresolved_command_sites.iter().any(|(_, n)| n == name),
+            "{name}: {:?}",
+            bare.unresolved_command_sites,
+        );
+    }
+    // An autoload index entry for `C` may define the class whose `create`
+    // binds `c1`, so `c1` is not an unresolved command.
+    let src = "set ::auto_index(C) {source c.tcl}\nC create c1 1 out 0\nc1 configure -c 2\n";
     let mut a = crate::analyser::Analyser::new();
     let r = a.analyse(src, D);
     assert!(
         !r.unresolved_command_sites.iter().any(|(_, n)| n == "c1"),
         "created instance command `c1` must not be an unresolved command: {:?}",
-        r.unresolved_command_sites,
-    );
-    // The unknown class command `C` is still reported.
-    assert!(
-        r.unresolved_command_sites.iter().any(|(_, n)| n == "C"),
-        "unknown class command `C` must still be reported: {:?}",
         r.unresolved_command_sites,
     );
 }
@@ -1257,10 +1265,11 @@ fn fp_obj_19_uncreated_name_still_w123() {
 
 #[test]
 fn undeclared_external_constructor_words_do_not_publish_command_slots() {
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
     for source in [
-        "C create c1 1 out 0\nset e c1\n$e configure\n",
-        "C create c1 1 out 0 -c 1e-9\nL create l1 1 out 0 -l 10e-6\nC create c2 2 n002 0 -c 1e-9\nforeach elem [list c1 l1 c2] {$elem actOnParam -set 1}\n",
-        "C create c1 1 out 0\nd1 configure\n",
+        "set ::auto_index(C) {source c.tcl}\nC create c1 1 out 0\nset e c1\n$e configure\n",
+        "set ::auto_index(C) {source c.tcl}\nC create c1 1 out 0 -c 1e-9\nL create l1 1 out 0 -l 10e-6\nC create c2 2 n002 0 -c 1e-9\nforeach elem [list c1 l1 c2] {$elem actOnParam -set 1}\n",
+        "set ::auto_index(C) {source c.tcl}\nC create c1 1 out 0\nd1 configure\n",
     ] {
         let result = crate::analyser::Analyser::new().analyse(source, D);
         let unresolved = result
@@ -1270,7 +1279,7 @@ fn undeclared_external_constructor_words_do_not_publish_command_slots() {
             .collect::<Vec<_>>();
         assert_eq!(unresolved, ["C"], "{source}: {unresolved:?}");
     }
-    let source = "L create l1 1 out 0\nl1 configure\n";
+    let source = "set ::auto_index(L) {source l.tcl}\nL create l1 1 out 0\nl1 configure\n";
     let result = crate::analyser::Analyser::new().analyse(source, D);
     assert_eq!(
         result

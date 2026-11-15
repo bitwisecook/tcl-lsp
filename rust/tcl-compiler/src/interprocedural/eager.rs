@@ -34,7 +34,7 @@
 //! read, or a sourced file; from the first such statement, or the first run
 //! of a procedure whose body holds one, any procedure may run.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_lexer::Span;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming, Traits};
@@ -49,6 +49,8 @@ pub(crate) struct EagerInvocations {
     /// Each procedure the load may run by name, with the position of the
     /// first statement that may run it.
     named: HashMap<ProcedureId, u32>,
+    /// Every position of a statement that may run the procedure by name.
+    positions: HashMap<ProcedureId, BTreeSet<u32>>,
     /// The first position from which the load may run a procedure no name
     /// shows.
     unnamed_from: Option<u32>,
@@ -138,6 +140,21 @@ impl EagerInvocations {
                 }
             }
         }
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for (caller, reach) in &bodies {
+                let Some(positions) = load.positions.get(caller).cloned() else {
+                    continue;
+                };
+                for callee in &reach.named {
+                    let known = load.positions.entry(*callee).or_default();
+                    let before = known.len();
+                    known.extend(positions.iter().copied());
+                    changed |= known.len() != before;
+                }
+            }
+        }
         for (caller, reach) in &bodies {
             if reach.unnamed
                 && let Some(position) = load.named.get(caller).copied()
@@ -156,6 +173,7 @@ impl EagerInvocations {
                 .entry(target)
                 .and_modify(|old| *old = (*old).min(position))
                 .or_insert(position);
+            self.positions.entry(target).or_default().insert(position);
         }
         if reach.unnamed {
             self.unnamed_from = Some(self.unnamed_from.map_or(position, |old| old.min(position)));
@@ -168,6 +186,12 @@ impl EagerInvocations {
     #[must_use]
     pub(crate) fn named(&self, qname: &ProcedureId) -> Option<u32> {
         self.named.get(qname).copied()
+    }
+
+    /// Every position at which the load may run `qname` by name, in source
+    /// order; empty where only a callback runs it.
+    pub(crate) fn named_positions(&self, qname: &ProcedureId) -> impl Iterator<Item = u32> + '_ {
+        self.positions.get(qname).into_iter().flatten().copied()
     }
 
     /// The first position at which the load may run `qname` at all: by name,

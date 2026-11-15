@@ -1366,9 +1366,9 @@ mod original_parent_subject_tests {
                     .unwrap();
             assert_eq!(fix.span, invocation.range);
             assert_eq!(fix.new_text, "puts");
-            // The unchanged original unknown command can replace later function
-            // lookup. It cannot donate the following expression's occurrence.
-            assert!(!invocations.iter().any(|invocation| {
+            // #2427: with no autoload index in view the undefined command
+            // defines nothing, so the following expression keeps its occurrence.
+            assert!(invocations.iter().any(|invocation| {
                 invocation.is_mathfunc_call && invocation.name.contains("missing_original_math")
             }));
             // This independent first expression retains the actual math operand

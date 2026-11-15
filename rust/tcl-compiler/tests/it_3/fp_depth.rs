@@ -1080,8 +1080,8 @@ mod obj_depth {
         // on the *same* local is firm evidence the user treats it as an object
         // handle, so W307 is suppressed. (The in-crate FP-OBJ-09 uses a 3-line
         // body; this pins the >=2-dispatch heuristic on a 2-dispatch shape.)
-        let src =
-            "proc f {G} {\n    set TG [createTG $G]\n    $TG node first\n    $TG dispose\n}\n";
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let src = "set ::auto_index(createTG) {source lib.tcl}\nproc f {G} {\n    set TG [createTG $G]\n    $TG node first\n    $TG dispose\n}\n";
         assert!(
             !fires(src, D, "W307"),
             "multi-dispatch on the same local must NOT fire W307; emitted {:?}",

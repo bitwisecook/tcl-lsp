@@ -914,7 +914,8 @@ mod tests {
     }
     #[test]
     fn original_collection_constructor_cannot_clear_unknown_extractor_lookup() {
-        let source = "dict set values key [C new]; [dict get $values key] ping";
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let source = "set ::auto_index(C) {source c.tcl}; dict set values key [C new]; [dict get $values key] ping";
         for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
             let analysis = Analyser::new().analyse(source, dialect);
             let offset = u32::try_from(source.rfind("dict get").unwrap()).unwrap();

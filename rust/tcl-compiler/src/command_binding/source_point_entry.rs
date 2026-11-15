@@ -1249,6 +1249,7 @@ mod tests {
 
     #[test]
     fn inherited_source_selection_retains_names_without_native_compiler_admission() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let point = point();
         let child = crate::analyser::Analyser::new()
             .analyse_with_source_point_entry("source leaf.tcl", "tcl8.6", &point)
@@ -1314,14 +1315,16 @@ mod tests {
             .source_point_entry(&child)
             .is_some()
         );
+        let indexed =
+            "set auto_index(unknown_writer) {source lib.tcl}; unknown_writer; source leaf.tcl";
         let opaque = crate::analyser::Analyser::new()
-            .analyse_with_source_point_entry("unknown_writer; source leaf.tcl", "tcl8.6", &point)
+            .analyse_with_source_point_entry(indexed, "tcl8.6", &point)
             .unwrap();
         assert!(
             crate::registry_invocation::source_structure::original_project_source_load_at(
-                "unknown_writer; source leaf.tcl",
+                indexed,
                 &opaque,
-                16,
+                u32::try_from(indexed.rfind("source leaf.tcl").unwrap()).unwrap(),
             )
             .unwrap()
             .source_point_entry(&opaque)

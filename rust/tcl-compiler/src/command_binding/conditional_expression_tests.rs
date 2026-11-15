@@ -374,10 +374,11 @@ fn conditional_expression_template_retains_grammar_without_actual_entry() {
 
 #[test]
 fn conditional_expression_pool_representation_is_withdrawn_by_shared_getters() {
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
     let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
     for source in [
         "set held 14; llength $held; expr {7 << 1}",
-        "unknown_writer; expr {7 << 1}",
+        "set auto_index(unknown_writer) {source lib.tcl}; unknown_writer; expr {7 << 1}",
     ] {
         let (_, tokens) = original(
             source,

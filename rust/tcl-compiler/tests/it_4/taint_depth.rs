@@ -743,7 +743,8 @@ mod t103_regsub_and_quotes {
         // unseen code may still define it, so neither verdict is proved.
         assert_eq!(
             channel_of_code(
-                "set x [read $fd]\nregexp -- [regex::quote $x] subject",
+                // #2427: an autoload index entry keeps the undefined quote command unbounded.
+                "set ::auto_index(regex::quote) {source lib.tcl}\nset x [read $fd]\nregexp -- [regex::quote $x] subject",
                 D,
                 "T103",
             ),

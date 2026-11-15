@@ -1435,7 +1435,9 @@ impl<'a> CfgBuilder<'a> {
         let namespace = namespace.as_ref();
         // A document-declared command is one the module names: its stated
         // frame effect, not the unknown command's, is what the call brings.
-        if bindings.names_only_a_declared_command(head, namespace) {
+        if bindings.names_only_a_declared_command(head, namespace)
+            || bindings.absent_head_runs_nothing(head, namespace)
+        {
             return false;
         }
         if bindings.has_unnameable_rebinding_subject()
@@ -7943,7 +7945,11 @@ mod tests {
         for (src, host) in [
             ("set cmd puts\n$cmd hi", "${cmd}"),
             ("set suffix _hi\nfoo$suffix", "foo${suffix}"),
-            ("set a 1\nget $a", "get"),
+            // #2427: an autoload index entry keeps an undefined `get` unseen.
+            (
+                "set ::auto_index(get) {source lib.tcl}\nset a 1\nget $a",
+                "get",
+            ),
             ("set f x.tcl\nsource $f", "source"),
         ] {
             let cfg = build_cfg(&lower_module(src), false);
@@ -7954,6 +7960,10 @@ mod tests {
                 "{src}"
             );
         }
+        // With no autoload index in view, the stock `unknown` defines nothing
+        // for an undefined head: the call runs no unseen code (#2427).
+        let cfg = build_cfg(&lower_module("set a 1\nget $a"), false);
+        assert_eq!(calls_in_order(&cfg.top_level), [("get", &[][..])]);
     }
 
     /// A computed head runs whatever its value names, so it is code the module
@@ -8058,7 +8068,11 @@ mod tests {
             "db_query {sql} -barrier -frame own",
             "db_query {sql} -extension -frame own",
         ] {
-            let func = build(stub, "db_query {select 1}");
+            // #2427: an autoload index entry keeps the undeclared `db_query` unseen.
+            let func = build(
+                stub,
+                "set ::auto_index(db_query) {source lib.tcl}; db_query {select 1}",
+            );
             assert!(unseen(&func), "{stub}");
             assert!(func.declared_frame_effects.is_empty(), "{stub}");
         }

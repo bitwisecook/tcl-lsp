@@ -191,6 +191,7 @@ fn append_package(
         PackageTransition::UnknownHandler { handler } => (vec![None], handler.is_some()),
         PackageTransition::Prefer { mode } => (vec![None], mode.is_some()),
         PackageTransition::SourceLoad { .. }
+        | PackageTransition::IndexedAutoload { .. }
         | PackageTransition::DiscoveryDependencyChanged { .. } => (vec![None], true),
     };
     for subject in subjects {

@@ -9903,7 +9903,8 @@ mod logical_variable_scope_owner_tests {
                     Some(1),
                 ),
                 (
-                    "oo::class create C {}\nproc p {} {unknown_mutator; C new}\n",
+                    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+                    "set ::auto_index(unknown_mutator) {source lib.tcl}; oo::class create C {}\nproc p {} {unknown_mutator; C new}\n",
                     "C new",
                     None,
                 ),

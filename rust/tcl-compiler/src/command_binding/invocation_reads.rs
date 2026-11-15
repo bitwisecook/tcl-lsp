@@ -538,7 +538,8 @@ mod tests {
 
     #[test]
     fn opaque_body_keeps_an_explicit_unknown_read_residual() {
-        let source = "proc p {} {missing_dynamic_handler}; p";
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let source = "proc p {} {set ::auto_index(missing_dynamic_handler) {source lib.tcl}; missing_dynamic_handler}; p";
         let (bindings, _) = analyse(source);
         let offset = u32::try_from(source.rfind('p').unwrap()).unwrap();
         let invocation = bindings.invocation_at_source("", offset);

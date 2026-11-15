@@ -1025,7 +1025,7 @@ mod tests {
         // naming.source.original-registered-instance-words
         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         // The original factory remains source advice; no current widget or command is proved.
-        let source = "ttk::treeview .t; unknown; .t bogus";
+        let source = "ttk::treeview .t; eval $script; .t bogus";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let words = source_registered_instance_words_at(source, &analysis, at(source, ".t bogus"))
             .expect("conditional original factory survives unknown source widening");
@@ -1039,7 +1039,7 @@ mod tests {
         assert!(words.obligations().contains(
             &crate::command_binding::SourceCommandTransitionObligation::UnavailableActualLookup
         ));
-        let source = "set lb [listbox .l]; unknown; $lb bogus";
+        let source = "set lb [listbox .l]; eval $script; $lb bogus";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         assert!(
             source_registered_instance_words_at(source, &analysis, at(source, "$lb bogus"))

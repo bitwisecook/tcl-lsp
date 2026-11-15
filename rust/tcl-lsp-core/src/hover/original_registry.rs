@@ -824,7 +824,8 @@ mod tests {
             };
             assert!(at(source, &analysis, needle).is_none(), "{source}");
         }
-        let source = "opaque\nstring length value";
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let source = "set ::auto_index(opaque) {source lib.tcl}; opaque\nstring length value";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         assert!(matches!(
             crate::method_symbol::local_candidate(source, &analysis, 1, 8),
@@ -832,8 +833,8 @@ mod tests {
         ));
         for source in [
             source,
-            "opaque\nproc string args {return custom}\nstring length value",
-            "opaque\nrename string {}\nstring length value",
+            "set ::auto_index(opaque) {source lib.tcl}; opaque\nproc string args {return custom}\nstring length value",
+            "set ::auto_index(opaque) {source lib.tcl}; opaque\nrename string {}\nstring length value",
         ] {
             let analysis = Analyser::new().analyse(source, "tcl8.6");
             let offset = u32::try_from(source.rfind("string length").unwrap()).unwrap();

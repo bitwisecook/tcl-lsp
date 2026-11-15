@@ -234,6 +234,7 @@ fn replaced_handler_cannot_receive_the_stock_append_effect_receipt() {
 
 #[test]
 fn unknown_component_and_observers_cannot_launder_a_string_result_receipt() {
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
     known_name_value_requires_its_own_actual_input_effects();
     representation_sensitive_data_never_borrows_string_effects_as_a_value();
     replaced_handler_cannot_receive_the_stock_append_effect_receipt();
@@ -241,7 +242,7 @@ fn unknown_component_and_observers_cannot_launder_a_string_result_receipt() {
         r#"set name [external_factory]; set greeting "hello, $name"; append greeting !; string length $greeting"#,
         r#"set name world; trace add variable name read external_callback; set greeting "hello, $name"; append greeting !; string length $greeting"#,
         r#"set name world; set greeting "hello, $name"; trace add variable greeting write external_callback; append greeting !; string length $greeting"#,
-        r#"external_callback; set name world; set greeting "hello, $name"; append greeting !; string length $greeting"#,
+        r#"set auto_index(external_callback) {source lib.tcl}; external_callback; set name world; set greeting "hello, $name"; append greeting !; string length $greeting"#,
         r#"set name world; set greeting "hello, $name"; trace add execution append enter external_callback; append greeting !; string length $greeting"#,
     ] {
         let bindings = analyse(source, "tcl9.0");

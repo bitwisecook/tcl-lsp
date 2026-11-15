@@ -2217,7 +2217,8 @@ mod tests {
         for refused_source in [
             "proc set args {return VALUE}; set host_marker VALUE",
             "proc observer args {puts OBS}; trace add variable host_marker write observer; set host_marker VALUE",
-            "unknown_op; set host_marker VALUE",
+            // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+            "set ::auto_index(unknown_op) {source lib.tcl}; unknown_op; set host_marker VALUE",
             "puts VALUE",
         ] {
             let refused = Analyser::new().analyse(refused_source, "tcl8.6");

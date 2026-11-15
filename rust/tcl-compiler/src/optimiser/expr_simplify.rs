@@ -1244,6 +1244,7 @@ mod tests {
 
     #[test]
     fn scoped_standalone_nested_expr_uses_original_normalisation_receipt() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let source = "proc f {x} {expr {[expr {$x * 2}]}}";
         assert!(run_pass_with_mutations(source).iter().any(|optimisation| {
             optimisation.code == DiagCode::O115
@@ -1251,7 +1252,7 @@ mod tests {
                 && optimisation.replacement == "expr {$x * 2}"
         }));
         for suffix in [
-            "; unknown_future_entry",
+            "; set ::auto_index(unknown_future_entry) {source lib.tcl}; unknown_future_entry",
             "; trace add execution expr enter callback",
             "; rename expr saved; proc expr args {return changed}",
         ] {

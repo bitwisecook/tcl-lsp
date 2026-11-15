@@ -5513,9 +5513,10 @@ info exists ::N::v\uD800";
 
     #[test]
     fn original_conditional_variable_receivers_do_not_invent_bare_namespace_targets() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         // Implementation contract: naming.variable.conditional-registry-receiver-geometry
         // docs/design/analysis/name-resolution-proofs/conditional-registry-receiver-geometry.md
-        let source = "unknown_command; namespace eval N {set bare 1; info exists bare}";
+        let source = "set auto_index(unknown_command) {source lib.tcl}; unknown_command; namespace eval N {set bare 1; info exists bare}";
         for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
             let analysis = Analyser::new().analyse(source, profile);
             let image = tcl_lexer::SourceImage::document(source);
@@ -6920,6 +6921,7 @@ mod original_positioned_reference_tests {
     // Implementation contract: naming.variable.trace-source-receiver-purpose
     // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
     fn original_trace_reference_aliases_and_unknown_scope_remain_independent() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         use crate::signature_scan::variable_symbol::{
             OriginalVariableSymbolReceiver, SignatureSourceVariableSlot,
         };
@@ -6937,7 +6939,7 @@ mod original_positioned_reference_tests {
             assert!(
                 matches!(trace.symbol().slot(), SignatureSourceVariableSlot::C { namespace, simple } if namespace.is_root() && simple.as_bytes() == b"shared")
             );
-            let unknown = "unknown_command; namespace eval N {trace info variable bare}; trace info variable ::qualified";
+            let unknown = "set auto_index(unknown_command) {source lib.tcl}; unknown_command; namespace eval N {trace info variable bare}; trace info variable ::qualified";
             let analysis = Analyser::new().analyse(unknown, profile);
             assert!(
                 !analysis

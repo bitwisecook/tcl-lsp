@@ -2038,6 +2038,7 @@ fn apply_transition_fact(
                 PackageTransition::Require { .. }
                 | PackageTransition::Forget { .. }
                 | PackageTransition::SourceLoad { .. }
+                | PackageTransition::IndexedAutoload { .. }
                 | PackageTransition::DiscoveryDependencyChanged { .. } => true,
             };
             if writes {

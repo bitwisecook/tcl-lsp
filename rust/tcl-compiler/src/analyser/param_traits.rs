@@ -3317,6 +3317,7 @@ mod tests {
 
     #[test]
     fn accepted_copies_feed_eval_without_surviving_unknown_or_mutated_values() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         assert_trait(
             &infer(&["body"], "set local $body; eval $local"),
             "body",
@@ -3324,7 +3325,7 @@ mod tests {
         );
         for body in [
             "set local $body; set local ordinary; eval $local",
-            "set local $body; unknown_callback; eval $local",
+            "set local $body; set ::auto_index(unknown_callback) {source lib.tcl}; unknown_callback; eval $local",
             "set local $body; eval {$local}",
         ] {
             assert!(

@@ -200,7 +200,8 @@ fn opaque_callee_names_exclude_actual_loop_stages_and_keep_real_unknown_calls() 
     for (source, expected) in [
         ("proc p {} {foreach x {} {}; puts $x}; error fail", false),
         (
-            "proc p {} {operation sentinel; foreach x {} {}; puts $x}; error fail",
+            // #2427: an autoload index entry keeps `operation` unbounded.
+            "set ::auto_index(operation) {source lib.tcl}; proc p {} {operation sentinel; foreach x {} {}; puts $x}; error fail",
             true,
         ),
     ] {

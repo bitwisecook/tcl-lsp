@@ -4226,7 +4226,8 @@ mod tests {
         for blocked in [
             "interp alias {} Meta {} other; Meta create Made {method go {} {}}",
             "proc Meta args {}; Meta create Made {method go {} {}}",
-            "unknown_effect; Meta create Made {method go {} {}}",
+            // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+            "set ::auto_index(unknown_effect) {source lib.tcl}; unknown_effect; Meta create Made {method go {} {}}",
             "Meta create [set name] {method go {} {}}",
             "Meta create {*}$args",
         ] {
@@ -8174,7 +8175,8 @@ mod source_documentation_tests {
         let mut unavailable = analysis.clone();
         unavailable.resolved_input = None;
         assert!(source_documentation_hover(source, 0, cursor, &unavailable).is_none());
-        let source = "opaque\nputs 7";
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let source = "set ::auto_index(opaque) {source lib.tcl}; opaque\nputs 7";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let hover = source_documentation_hover(source, 1, 1, &analysis).unwrap();
         assert!(hover.value.contains("Source documentation"));

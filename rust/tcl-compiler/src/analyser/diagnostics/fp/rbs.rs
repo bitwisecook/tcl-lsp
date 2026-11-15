@@ -143,7 +143,8 @@ proc f {} {
         "FP-RBS-02 TP: $other (not written by the catch) must still fire W210; emitted: {:?}",
         codes(src, D)
     );
-    let unknown = "proc f {} {if {[catch {operation} err]} {puts $other}}";
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+    let unknown = "set ::auto_index(operation) {source lib.tcl}\nproc f {} {if {[catch {operation} err]} {puts $other}}";
     assert!(!fires(unknown, D, "W210"));
 }
 

@@ -10602,6 +10602,17 @@ mod tests {
         // substitution, not a braced literal.
         let m = lower_to_ir("foreachLine line /etc/hosts [build-body]", &reg());
         let last = m.top_level.statements.last().expect("top-level statement");
+        assert!(matches!(
+            last,
+            crate::ir::Statement::Barrier { command, .. } if command == "foreachLine"
+        ));
+        // #2427: an autoload index entry for `build-body` may rewrite the
+        // command table first, so the call stays runtime-opaque.
+        let m = lower_to_ir(
+            "set ::auto_index(build-body) {source lib.tcl}\nforeachLine line /etc/hosts [build-body]",
+            &reg(),
+        );
+        let last = m.top_level.statements.last().expect("top-level statement");
         assert_runtime_opaque_call(last, &reg(), "foreachLine");
     }
 

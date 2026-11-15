@@ -789,6 +789,7 @@ mod tests {
 
     #[test]
     fn scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let positive =
             scoped_procedure_tokens("proc answer {} {return 42}; proc f {} {return [answer]}");
         let binding = positive.source_binding.as_ref().unwrap();
@@ -815,9 +816,9 @@ mod tests {
         );
         assert!(binding.scoped_procedure_evaluation(&positive).is_none());
         for source in [
-            "proc answer {} {return 42}; proc f {} {return [answer]}; unknown_future_entry",
+            "proc answer {} {return 42}; proc f {} {return [answer]}; set ::auto_index(unknown_future_entry) {source lib.tcl}; unknown_future_entry",
             "proc answer {} {return 42}; proc f {} {return [answer]}; trace add execution answer enter callback",
-            "proc answer {} {unknown_callback; return 42}; proc f {} {return [answer]}",
+            "proc answer {} {set ::auto_index(unknown_callback) {source lib.tcl}; unknown_callback; return 42}; proc f {} {return [answer]}",
         ] {
             let tokens = scoped_procedure_tokens(source);
             assert!(
@@ -837,6 +838,7 @@ mod tests {
 
     #[test]
     fn scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let source = "proc answer {} {return 42}; proc f {} {return [answer]}; return ROOT";
         let tokens = scoped_procedure_tokens(source);
         let binding = tokens.source_binding.as_ref().unwrap();
@@ -877,9 +879,9 @@ mod tests {
         foreign.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(None));
         assert!(binding.scoped_procedure_evaluation(&foreign).is_none());
         for source in [
-            "proc answer {} {return 42}; proc f {} {return [answer]}; unknown_future_entry; return ROOT",
+            "proc answer {} {return 42}; proc f {} {return [answer]}; set ::auto_index(unknown_future_entry) {source lib.tcl}; unknown_future_entry; return ROOT",
             "proc answer {} {return 42}; proc f {} {return [answer]}; trace add execution answer enter callback; return ROOT",
-            "proc answer {} {unknown_callback; return 42}; proc f {} {return [answer]}; return ROOT",
+            "proc answer {} {set ::auto_index(unknown_callback) {source lib.tcl}; unknown_callback; return 42}; proc f {} {return [answer]}; return ROOT",
         ] {
             let tokens = scoped_procedure_tokens(source);
             assert!(

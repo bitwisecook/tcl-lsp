@@ -438,13 +438,14 @@ mod tests {
 
     #[test]
     fn scalar_list_length_needs_input_class_on_every_c_release() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
             for (source, closed) in [
                 ("set items {a b}; llength $items", true),
                 ("proc f {items} {llength $items}", false),
                 (
-                    "set items {a b}; unknown_host $items; llength $items",
+                    "set items {a b}; set ::auto_index(unknown_host) {source lib.tcl}; unknown_host $items; llength $items",
                     false,
                 ),
             ] {
@@ -595,7 +596,8 @@ mod tests {
 
     #[test]
     fn unknown_effects_and_new_object_epochs_do_not_restore_pool_provenance() {
-        let source = "proc run {} {foreach x {a b} {set done YES}}; unknown_host {a b}; set fresh [dict create k 1]; run";
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let source = "proc run {} {foreach x {a b} {set done YES}}; set ::auto_index(unknown_host) {source lib.tcl}; unknown_host {a b}; set fresh [dict create k 1]; run";
         let bindings = analyse(source, false);
         assert!(bindings.final_state.ordinary_literal_pool.is_none());
         let binding = bindings.invocation_at_source(

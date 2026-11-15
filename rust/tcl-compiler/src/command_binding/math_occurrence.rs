@@ -213,9 +213,10 @@ mod tests {
 
     #[test]
     fn replaced_or_unknown_expression_handler_cannot_supply_function_topology() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for prefix in [
             "rename expr original; proc expr args {return custom}; ",
-            "unknownfuture; ",
+            "set auto_index(unknownfuture) {source lib.tcl}; unknownfuture; ",
         ] {
             assert!(
                 authored_calls(&format!("{prefix}expr {{abs(-3)}}"), "tcl9.0").is_empty(),

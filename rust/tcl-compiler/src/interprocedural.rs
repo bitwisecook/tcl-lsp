@@ -1055,24 +1055,26 @@ pub(crate) fn global_instance_classes_with(
         }
     }
     sites.sort_by_key(|(statement, _, _)| statement.span().start());
-    // Callable bodies keep their actual eager horizon. A readonly declaration
+    // Callable bodies keep each actual eager horizon. A readonly declaration
     // can only borrow setup preceding its own source site. Each horizon sees
     // a prefix of the ordered sites, so one ordered pass serves them all.
-    let mut horizons: Vec<(Option<u32>, ProcedureId)> = source_bodies
-        .iter()
-        .map(|(id, procedure)| {
-            let eager = if ir_module.procedures.contains_key(id) {
-                invocations.named(id)
-            } else {
-                Some(procedure.span.start())
-            };
-            (eager, *id)
-        })
-        .collect();
+    let mut horizons: Vec<(Option<u32>, ProcedureId)> = Vec::new();
+    for (id, procedure) in source_bodies {
+        if ir_module.procedures.contains_key(id) {
+            let before = horizons.len();
+            horizons.extend(invocations.named_positions(id).map(|at| (Some(at), *id)));
+            if horizons.len() == before {
+                horizons.push((None, *id));
+            }
+        } else {
+            horizons.push((Some(procedure.span.start()), *id));
+        }
+    }
     horizons.sort_by_key(|(eager, _)| eager.map_or(u64::MAX, u64::from));
     let mut classes = crate::taint::InstanceClassState::new();
     let mut applied = 0;
-    let mut out = HashMap::with_capacity(horizons.len());
+    let mut out: HashMap<ProcedureId, crate::taint::InstanceClassState> =
+        HashMap::with_capacity(horizons.len());
     for (eager, id) in horizons {
         while let Some(&(statement, tokens, direct)) = sites.get(applied)
             && eager.is_none_or(|call| statement.span().start() < call)
@@ -1086,7 +1088,17 @@ pub(crate) fn global_instance_classes_with(
                 classes.retain(|name, class| candidate.get(name) == Some(class));
             }
         }
-        out.insert(id, classes.clone());
+        // A receiver is typed by every invocation that sees it. One that runs
+        // before the constructor fails at the lookup, before any sink, so it
+        // withdraws nothing a later invocation proves; a class that differs
+        // between invocations joins to a mixed set the consumers abstain on.
+        let joined = out.entry(id).or_default();
+        for (name, class) in &classes {
+            joined
+                .entry(name.clone())
+                .or_default()
+                .extend(class.iter().cloned());
+        }
     }
     out
 }
@@ -7463,7 +7475,12 @@ mod tests {
     }
 
     fn assert_authored_call_variant_refusals() {
-        for body in ["unknownCommand; ::helper $x", "$name $x", "::helper"] {
+        // #2427: an autoload index entry keeps `unknownCommand` unbounded.
+        for body in [
+            "set ::auto_index(unknownCommand) {source lib.tcl}; unknownCommand; ::helper $x",
+            "$name $x",
+            "::helper",
+        ] {
             let source =
                 format!("proc ::helper {{v}} {{return $v}}\nproc ::f {{x name}} {{{body}}}");
             let (context, unit) = original_reference_unit(&source);

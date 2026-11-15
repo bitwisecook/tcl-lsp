@@ -465,7 +465,8 @@ mod tests {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for source in [
                 "namespace import tcltest::*\ntest naming-1 description -body {set x 1} -result 1\n",
-                "package require tcltest\nopaque\nnamespace eval ::client {namespace import ::tcltest::*; test naming-1 description -body {set x 1} -result 1\n}\n",
+                // #2427: an autoload index entry keeps `opaque` unbounded.
+                "package require tcltest\nset ::auto_index(opaque) {source lib.tcl}\nopaque\nnamespace eval ::client {namespace import ::tcltest::*; test naming-1 description -body {set x 1} -result 1\n}\n",
             ] {
                 let analysis = Analyser::new().analyse(source, dialect);
                 let offset = source.rfind("test naming-1").unwrap().try_into().unwrap();

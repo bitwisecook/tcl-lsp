@@ -3919,7 +3919,11 @@ mod declared_command_call {
 
     #[test]
     fn an_undeclared_call_still_widens() {
-        let found = codes("putz hi\nputa hi\nproc f {b} { puts $nope }\nf 1\n", D);
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let found = codes(
+            "set ::auto_index(putz) {source lib.tcl}\nputz hi\nputa hi\nproc f {b} { puts $nope }\nf 1\n",
+            D,
+        );
         assert!(!found.iter().any(|c| c == "W210"), "{found:?}");
     }
 }

@@ -6784,7 +6784,8 @@ mod tests {
         // Implementation contract: naming.source.authored-command-transition-advice
         // docs/design/analysis/name-resolution-proofs/authored-command-transition-advice.md
         for version in tcl_dialect::TclVersion::ALL {
-            let source = "pick subject {default {puts before}}; interp alias {} pick {} switch; pick subject {default {puts after}}; interp alias {} pick {}; pick subject {default {puts deleted}}";
+            // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+            let source = "set ::auto_index(pick) {source lib.tcl}; pick subject {default {puts before}}; interp alias {} pick {} switch; pick subject {default {puts after}}; interp alias {} pick {}; pick subject {default {puts deleted}}";
             let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
                 .analyser_profile();
             let context = tcl_registry::model::ingress::context_for_profile(profile);
@@ -6798,9 +6799,9 @@ mod tests {
             let syntax = OriginalSourceRegistryContext::capture(source, input);
             let commands =
                 crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
-            assert!(syntax.words(&commands[0]).is_none());
+            assert!(syntax.words(&commands[1]).is_none());
             let words = syntax
-                .words(&commands[2])
+                .words(&commands[3])
                 .expect("actual authored alias must retain conditional source grammar");
             assert!(matches!(
                 words.source(),
@@ -6813,7 +6814,7 @@ mod tests {
                     .iter()
                     .any(|body| source.get(body.content_span().as_range()) == Some("puts after"))
             );
-            assert!(syntax.words(&commands[4]).is_none());
+            assert!(syntax.words(&commands[5]).is_none());
         }
     }
 
@@ -7165,14 +7166,15 @@ mod tests {
     fn original_conditional_operand_keeps_its_static_word_and_list_lineage() {
         // naming.core.original-command-source-schema
         // docs/design/analysis/name-resolution-proofs/original-command-source-schema.md
-        let source = "unavailable\n::foreach {a b} {1 2} {}\n";
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let source = "set ::auto_index(unavailable) {source lib.tcl}\nunavailable\n::foreach {a b} {1 2} {}\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let commands = crate::segmenter::segment_commands_with_offset_and_config(
             source,
             0,
             analysis.body_lexer_config.unwrap(),
         );
-        let words = source_registry_words(source, &analysis, &commands[1]).unwrap();
+        let words = source_registry_words(source, &analysis, &commands[2]).unwrap();
         assert!(matches!(
             words.source(),
             OriginalRegistrySource::Conditional(_)
@@ -7318,7 +7320,11 @@ mod source_lookup_boundary_tests {
         for (source, preserved) in [
             ("if {1} {puts quiet}\n", true),
             ("if [rename if saved] {puts data}\n", false),
-            ("unavailable\nif {1} {puts advisory}\n", false),
+            // #2427: an autoload index entry keeps `unavailable` unbounded.
+            (
+                "set ::auto_index(unavailable) {source lib.tcl}\nunavailable\nif {1} {puts advisory}\n",
+                false,
+            ),
         ] {
             let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
             let config = analysis.body_lexer_config.unwrap();

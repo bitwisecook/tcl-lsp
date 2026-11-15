@@ -6579,9 +6579,10 @@ mod original_namespace_export_inventory_tests {
 
     #[test]
     fn original_namespace_inventory_keeps_conditional_source_scopes_after_unknown_import() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         // Implementation contract: naming.namespace.original-export-source-advice
         // docs/design/analysis/name-resolution-proofs/namespace-original-export-source-advice.md
-        let source = "unavailable_provider\nnamespace eval C {proc p {} {}; namespace export p}\nnamespace eval B {namespace import ::C::*; namespace export p}\nnamespace eval A {namespace import ::B::*}\n";
+        let source = "set ::auto_index(unavailable_provider) {source lib.tcl}; unavailable_provider\nnamespace eval C {proc p {} {}; namespace export p}\nnamespace eval B {namespace import ::C::*; namespace export p}\nnamespace eval A {namespace import ::B::*}\n";
         let result = Analyser::new().analyse(source, "tcl8.6");
         let exports = result.original_namespace_exports().collect::<Vec<_>>();
         let imports = result.original_namespace_patterns().collect::<Vec<_>>();

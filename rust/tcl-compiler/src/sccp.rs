@@ -6490,17 +6490,18 @@ mod tests {
     fn an_unseen_call_leaves_no_name_with_a_settled_existence() {
         let registry =
             registry().project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for (source, function) in [
             (
-                "set x 1\nfoo\nif {[info exists x]} { puts a } else { puts b }\n",
+                "set ::auto_index(foo) {source lib.tcl}\nset x 1\nfoo\nif {[info exists x]} { puts a } else { puts b }\n",
                 "::top",
             ),
             (
-                "foo\nif {[info exists never_set]} { puts a } else { puts b }\n",
+                "set ::auto_index(foo) {source lib.tcl}\nfoo\nif {[info exists never_set]} { puts a } else { puts b }\n",
                 "::top",
             ),
             (
-                "proc p {} { set x 1; foo; if {[info exists x]} { puts a } else { puts b } }\n",
+                "set ::auto_index(foo) {source lib.tcl}\nproc p {} { set x 1; foo; if {[info exists x]} { puts a } else { puts b } }\n",
                 "::p",
             ),
         ] {
@@ -8036,8 +8037,8 @@ mod tests {
         );
     }
 
-    /// Where the two stances deliberately differ: one command head the
-    /// registry cannot resolve raises the summary's unbounded `dynamic` top,
+    /// Where the two stances deliberately differ: a command head an autoload
+    /// index in view may define raises the summary's unbounded `dynamic` top,
     /// which names no subject. The rewrite stance declines on it (a rewrite
     /// must be certain); the lattice stance keeps folding, or a single
     /// unknown library call would cost a file every constant it has.
@@ -8047,10 +8048,15 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
 
-        let opaque = mutations_for("someUnknownLibraryCall x\n");
+        // #2427: with no autoload index naming it, the stock `unknown` defines
+        // nothing for an unresolved head, so the top stays bounded.
+        assert!(!mutations_for("someUnknownLibraryCall x\n").has_dynamic_mutation());
+        let opaque = mutations_for(
+            "set auto_index(someUnknownLibraryCall) {source lib.tcl}\nsomeUnknownLibraryCall x\n",
+        );
         assert!(
             opaque.has_dynamic_mutation(),
-            "an unresolved head is expected to raise the unbounded top"
+            "an unresolved head an autoload index names raises the unbounded top"
         );
         assert!(
             opaque.observed_binding_is_the_builtin("llength"),

@@ -901,9 +901,10 @@ mod tests {
 
     #[test]
     fn constructor_entry_advice_never_donates_unknown_or_mutated_completion() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for source in [
             "set object [C create c1]; $object ping",
-            "oo::class create C {constructor args {unknown_command}; method ping {} {}}; set object [C create c1]; $object ping",
+            "oo::class create C {constructor args {set ::auto_index(unknown_command) {source lib.tcl}; unknown_command}; method ping {} {}}; set object [C create c1]; $object ping",
             "oo::class create C {constructor args {}; method ping {} {}}; rename ::oo::class old; set object [C create c1]; $object ping",
             "oo::class create C {constructor args {my destroy}; method ping {} {}}; set object [C create c1]; $object ping",
         ] {

@@ -162,10 +162,12 @@ proc f {} {
 fn fp_rch_03_on_ok_reads_body_var() {
     // FP-RCH-03: `on ok` runs after the body completes normally, so the body's
     // SSA versions feed the handler — `$vdata` is defined.
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+    let src = format!("set ::auto_index(getData) {{source lib.tcl}}\n{FP_RCH_03_REPRO}");
     assert!(
-        !fires(FP_RCH_03_REPRO, D, "W210"),
+        !fires(&src, D, "W210"),
         "FP-RCH-03: on-ok reads body-defined var; emitted {:?}",
-        all_codes(FP_RCH_03_REPRO, D)
+        all_codes(&src, D)
     );
 }
 

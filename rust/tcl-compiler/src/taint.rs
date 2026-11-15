@@ -2023,7 +2023,14 @@ fn classify_substitution_taint(
     }) {
         return Err(TaintLattice::tainted());
     }
-    if ctx.source_tokens.is_some() && point_target.is_none() && normal.is_none() {
+    if ctx.source_tokens.is_some()
+        && point_target.is_none()
+        && normal.is_none()
+        && !nested
+            .as_ref()
+            .and_then(|nested| nested.source_binding.as_ref())
+            .is_some_and(|binding| binding.reaches_only_a_catalogued_absent_head(ctx.registry))
+    {
         // Missing word provenance or an explicit unknown target cannot
         // inherit a sanitiser/source/transform from the written name.
         return Err(TaintLattice::tainted());

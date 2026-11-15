@@ -990,6 +990,7 @@ mod tests {
 
     #[test]
     fn original_fixed_function_absence_retains_source_snapshot_without_command_name() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         // naming.expression.original-fixed-function-source-presence
         // docs/design/analysis/name-resolution-proofs/original-fixed-function-source-presence.md
         // Related observed engine purpose: naming.expression.original-implicit-function-slot-presence
@@ -1036,7 +1037,7 @@ mod tests {
             );
             for source in [
                 "expr {Pi([unknown])}",
-                "unknownfuture; expr {Pi()}",
+                "set auto_index(unknownfuture) {source lib.tcl}; unknownfuture; expr {Pi()}",
                 "proc expr args {return ignored}; expr {Pi()}",
             ] {
                 let (_, _, _, _, calls) = functions(source, environment);
@@ -1055,6 +1056,7 @@ mod tests {
 
     #[test]
     fn original_function_lookup_keeps_absence_and_unknown_separate() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         // naming.expression.original-function-navigation
         // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
         // Native dispatch control: naming.expression.original-implicit-function-slot-presence
@@ -1096,7 +1098,7 @@ mod tests {
             assert!(calls[0].original_function_command_name().is_none());
             for source in [
                 "expr {Pi([unknown])}",
-                "unknownfuture; expr {Pi()}",
+                "set auto_index(unknownfuture) {source lib.tcl}; unknownfuture; expr {Pi()}",
                 "rename expr old; proc expr args {return ignored}; expr {Pi()}",
             ] {
                 let (_, _, _, _, calls) = functions(source, name);

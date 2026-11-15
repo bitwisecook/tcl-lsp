@@ -9476,7 +9476,8 @@ fn w307_nested_command_sub_dispatch_counts_for_multidispatch() {
     // command substitution.  The substitution dispatch must be recorded as
     // a var-command site too, so the multi-dispatch (≥2) suppression sees
     // both and stays silent (a single recorded dispatch would fire W307).
-    let src = "set x [getCmd]\nputs [$x foo]\n$x foo\n";
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+    let src = "set ::auto_index(getCmd) {source lib.tcl}\nset x [getCmd]\nputs [$x foo]\n$x foo\n";
     assert_eq!(
         w30x_codes(src).len(),
         0,
@@ -18834,13 +18835,14 @@ fn i230_never_reports_a_condition_over_a_name_a_callback_writes() {
 /// changes nothing.
 #[test]
 fn i230_never_reports_a_condition_across_a_call_the_module_cannot_see() {
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
     assert_no_i230(&[
-        "set g 5\nfoo\nif {$g} {puts a} else {puts b}\n",
-        "set ::g 5\nfoo\nif {$::g} {puts a} else {puts b}\n",
-        "set g 5\nputs [foo]\nif {$g} {puts a} else {puts b}\n",
-        "set g 5\nwhile {[foo]} { puts x }\nif {$g} {puts a} else {puts b}\n",
-        "set g 5\nswitch -glob -- [gets stdin] { q* { foo } }\nif {$g} {puts a} else {puts b}\n",
-        "proc p {} {\n set g 5\n foo\n if {$g} {puts a} else {puts b}\n}\n",
+        "set ::auto_index(foo) {source lib.tcl}\nset g 5\nfoo\nif {$g} {puts a} else {puts b}\n",
+        "set ::auto_index(foo) {source lib.tcl}\nset ::g 5\nfoo\nif {$::g} {puts a} else {puts b}\n",
+        "set ::auto_index(foo) {source lib.tcl}\nset g 5\nputs [foo]\nif {$g} {puts a} else {puts b}\n",
+        "set ::auto_index(foo) {source lib.tcl}\nset g 5\nwhile {[foo]} { puts x }\nif {$g} {puts a} else {puts b}\n",
+        "set ::auto_index(foo) {source lib.tcl}\nset g 5\nswitch -glob -- [gets stdin] { q* { foo } }\nif {$g} {puts a} else {puts b}\n",
+        "set ::auto_index(foo) {source lib.tcl}\nproc p {} {\n set g 5\n foo\n if {$g} {puts a} else {puts b}\n}\n",
     ]);
     let src = "proc foo {} { puts hi }\nset g 5\nfoo\nif {$g} {puts a} else {puts b}\n";
     let (whole, per_item) = i230_on_both_paths(src);
@@ -18948,8 +18950,9 @@ fn i230_keeps_values_across_a_braced_expr_with_a_known_nested_call() {
         assert!(whole[0].contains("always true"), "{src}: {whole:?}");
         assert_eq!(per_item, whole, "{src}");
     }
+    // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
     assert_no_i230(&[
-        "proc p {} {\n set g 5\n set n [expr {[foo]}]\n puts $n\n if {$g} {puts a} else {puts b}\n}\n",
+        "set ::auto_index(foo) {source lib.tcl}\nproc p {} {\n set g 5\n set n [expr {[foo]}]\n puts $n\n if {$g} {puts a} else {puts b}\n}\n",
     ]);
 }
 

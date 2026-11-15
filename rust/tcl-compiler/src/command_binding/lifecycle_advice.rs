@@ -566,6 +566,7 @@ mod tests {
 
     #[test]
     fn actual_lifecycle_coverage_and_unknown_world_cannot_donate_scoped_advice() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let (bindings, tokens, registry) = inventory("; p");
         assert!(SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry).is_none());
         assert_eq!(
@@ -581,7 +582,7 @@ mod tests {
             SourceBodyPhaseReachability::MayEntered
         );
         for suffix in [
-            "; unknown_future_entry",
+            "; set ::auto_index(unknown_future_entry) {source lib.tcl}; unknown_future_entry",
             "; proc ::tcltest::EvalTest args {}",
             "; proc ::tcltest::SetupTest args {}",
         ] {

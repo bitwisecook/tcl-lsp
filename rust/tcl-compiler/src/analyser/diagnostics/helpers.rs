@@ -3295,6 +3295,7 @@ mod exact_cell_diagnostic_tests {
 
     #[test]
     fn dict_literal_fallback_requires_the_original_reaching_value() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let registry = tcl_registry::CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         for (source, expected) in [
@@ -3307,7 +3308,7 @@ mod exact_cell_diagnostic_tests {
                 false,
             ),
             (
-                "proc f {} {set d {present 1}; unknown_writer; dict update d present local {puts $local}}",
+                "proc f {} {set d {present 1}; set ::auto_index(unknown_writer) {source lib.tcl}; unknown_writer; dict update d present local {puts $local}}",
                 false,
             ),
             (

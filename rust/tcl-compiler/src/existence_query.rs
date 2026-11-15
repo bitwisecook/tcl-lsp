@@ -867,6 +867,7 @@ mod tests {
 
     #[test]
     fn original_existence_advice_tracks_selected_alias_and_imported_handlers() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for (prefix, command) in [
                 ("interp alias {} query {} info exists; ", "query u"),
@@ -887,7 +888,7 @@ mod tests {
             for prefix in [
                 "rename info stock_info; proc info args {return 1}; ",
                 "proc query {name} {return 1}; ",
-                "unknown_mutation; ",
+                "set auto_index(unknown_mutation) {source lib.tcl}; unknown_mutation; ",
             ] {
                 let command = if prefix.starts_with("proc query") {
                     "query u"

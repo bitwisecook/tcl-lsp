@@ -1175,6 +1175,7 @@ impl StateTransitions {
                 StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. })
                 | StateTransition::Package(
                     crate::model::binding::PackageTransition::Require { .. }
+                    | crate::model::binding::PackageTransition::IndexedAutoload { .. }
                     | crate::model::binding::PackageTransition::SourceLoad { .. },
                 ) => {
                     return CommandResolutionImpact::Unbounded;
@@ -1519,6 +1520,7 @@ fn transition_package_identity(
         PackageTransition::DiscoveryDependencyChanged { .. }
         | PackageTransition::UnknownHandler { .. }
         | PackageTransition::Prefer { .. }
+        | PackageTransition::IndexedAutoload { .. }
         | PackageTransition::SourceLoad { .. } => false,
     }
 }
@@ -1737,6 +1739,7 @@ fn transition_package_visit(
                 visit(mode);
             }
         }
+        PackageTransition::IndexedAutoload { command } => visit(command),
         PackageTransition::SourceLoad { path } => visit(path),
     }
 }

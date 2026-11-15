@@ -94,6 +94,21 @@ const JIM_PACKAGE_RESOLVER_DEPENDENCIES: &[PackageResolverDependency] = &[
     PackageResolverDependency::Filesystem,
 ];
 
+const AUTOLOAD_INDEX_DEPENDENCIES: &[PackageResolverDependency] = &[
+    PackageResolverDependency::GlobalVariable("::auto_path"),
+    PackageResolverDependency::GlobalVariable("::auto_index"),
+    PackageResolverDependency::WorkingDirectory,
+    PackageResolverDependency::Filesystem,
+];
+
+/// Mutable inputs of the stock `unknown` handler's `auto_load`: the search
+/// path and the global array it caches the read indexes in (`auto_load` and
+/// `auto_load_index` in `library/init.tcl`, Tcl 8.4.20 through 9.1.0).
+#[must_use]
+pub const fn autoload_index_dependencies() -> &'static [PackageResolverDependency] {
+    AUTOLOAD_INDEX_DEPENDENCIES
+}
+
 /// Mutable inputs whose unknown writes revoke a trusted discovery selection.
 /// This declares dependency identity; it does not prove a particular loader
 /// consulted them or establish the loader's implementation provenance.
@@ -383,6 +398,14 @@ pub enum PackageTransition {
     Prefer {
         /// New preference, absent in the query form.
         mode: Option<TransitionSubject>,
+    },
+    /// The stock unresolved-command handler's `auto_load` of `command`. Run
+    /// from a script it can define commands only through the autoload index
+    /// ([`autoload_index_dependencies`]); the auto-exec, history and
+    /// abbreviation steps need an interactive top-level call.
+    IndexedAutoload {
+        /// The unresolved command name.
+        command: TransitionSubject,
     },
     /// A `source`/`load` that can define commands and provide packages
     /// outside any `package` bookkeeping — the widening ingress of the

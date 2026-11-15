@@ -1567,6 +1567,26 @@ mod object_instance_taint_sources {
         );
     }
 
+    /// A caught call before the constructor fails at `.user` with "invalid
+    /// command name" and evaluates nothing; the stock `unknown` defines
+    /// nothing, so the later call still reaches the entry's text (#2427).
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0, with `proc .user` in place
+    /// of the widget: `puts [list first [catch {read_input} msg] $msg]` prints
+    /// `first 1 {invalid command name ".user"}`, then the second `read_input`
+    /// runs the evaluated text.
+    #[test]
+    fn a_caught_early_call_does_not_withdraw_the_receiver_from_a_later_call() {
+        let source = "package require Tk\nproc read_input {} {\n    set value [.user get]\n    eval $value\n}\ncatch {read_input}\nentry .user\nread_input";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert!(
+                dialect_of_code(source, dialect, "T100")
+                    .iter()
+                    .any(|warning| warning.variable == "value"),
+                "{dialect}: the call after the constructor evaluates the entry's text"
+            );
+        }
+    }
+
     #[test]
     fn receiver_rebinding_and_branch_joins_use_reaching_classes() {
         assert!(

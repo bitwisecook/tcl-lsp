@@ -8101,17 +8101,18 @@ mod tests {
 
     #[test]
     fn w125_preserves_actual_occupants_and_unknown_lookup_barriers() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for source in [
             "proc finally {} {}; finally",
             "rename puts finally; finally VALUE",
             "interp alias {} finally {} puts; finally VALUE",
             "namespace eval N {proc finally {} {}; proc p {} {finally}}",
             "namespace eval P {proc finally {} {}}; namespace eval N {namespace path ::P; finally}",
-            "unknown_command; finally",
+            "set auto_index(unknown_command) {source lib.tcl}; unknown_command; finally",
             "proc unknown {args} {}; finally",
             "if {$condition} {proc finally {} {}}; finally",
             "namespace eval N {namespace path $paths; finally}",
-            "finally [unknown_command]",
+            "set ::auto_index(unknown_command) {source lib.tcl}; finally [unknown_command]",
         ] {
             for dialect in ["tcl", "tcl8.6", "tcl9.1"] {
                 assert!(!has_code(source, dialect, "W125"), "{dialect}/{source}");
@@ -8623,6 +8624,7 @@ info exists ::N::v\uD801";
 
     #[test]
     fn original_conditional_variable_reads_preserve_shadow_and_unknown_scope_barriers() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         // Implementation contract: naming.variable.conditional-registry-receiver-geometry
         // docs/design/analysis/name-resolution-proofs/conditional-registry-receiver-geometry.md
         for profile in ["tcl8.6", "tcl9.0", "jimtcl"] {
@@ -8632,7 +8634,7 @@ info exists ::N::v\uD801";
                     "::target",
                 ),
                 (
-                    "unknown_command; namespace eval N {info exists bare}",
+                    "set auto_index(unknown_command) {source lib.tcl}; unknown_command; namespace eval N {info exists bare}",
                     "bare",
                 ),
             ] {

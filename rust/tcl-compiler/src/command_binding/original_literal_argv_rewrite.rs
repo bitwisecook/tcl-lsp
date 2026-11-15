@@ -1628,6 +1628,7 @@ mod tests {
 
     #[test]
     fn original_boolean_inversion_retains_leaf_and_dispatch_owners() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let receipt = |source: &str, candidate: &str| {
             let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
             let config = analysis.body_lexer_config?;
@@ -1664,7 +1665,10 @@ mod tests {
             ("if {!($a == $b)} {}", "$b!=$a"),
             ("if {!($a == 1)} {}", "$a!=2"),
             ("proc expr args {}; expr {!($a == $b)}", "$a!=$b"),
-            ("unknown_mutation; expr {!($a == $b)}", "$a!=$b"),
+            (
+                "set auto_index(unknown_mutation) {source lib.tcl}; unknown_mutation; expr {!($a == $b)}",
+                "$a!=$b",
+            ),
             (
                 "trace add execution expr enter callback; expr {!($a == $b)}",
                 "$a!=$b",
@@ -1672,7 +1676,10 @@ mod tests {
             ("if {!($a < $b)} {}", "$a >= $b"),
             ("if {!($a && $b)} {}", "!$a||!$b"),
             ("proc if args {}; if {!($a eq $b)} {}", "$a ne$b"),
-            ("unknown_mutation; if {!($a eq $b)} {}", "$a ne$b"),
+            (
+                "set auto_index(unknown_mutation) {source lib.tcl}; unknown_mutation; if {!($a eq $b)} {}",
+                "$a ne$b",
+            ),
             (
                 "trace add execution if enter callback; if {!($a eq $b)} {}",
                 "$a ne$b",
@@ -1758,6 +1765,7 @@ mod tests {
 
     #[test]
     fn syntax_expression_gaps_keep_token_data_and_dispatch_guards() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         let receipt = |source: &str, candidate: &str| {
             let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
             let config = analysis.body_lexer_config?;
@@ -1783,7 +1791,10 @@ mod tests {
             ("expr {1 + 2}", "1+3"),
             ("expr {1 +}", "1+"),
             ("proc expr args {}; expr {1 + 2}", "1+2"),
-            ("unknown_mutation; expr {1 + 2}", "1+2"),
+            (
+                "set auto_index(unknown_mutation) {source lib.tcl}; unknown_mutation; expr {1 + 2}",
+                "1+2",
+            ),
             (
                 "trace add execution expr enter callback; expr {1 + 2}",
                 "1+2",

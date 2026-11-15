@@ -1749,11 +1749,12 @@ mod tests {
 
     #[test]
     fn accepted_integer_contents_require_original_source_value_and_selected_recipe() {
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
         for source in [
             "set x 1.0; puts $x",
             "set x [expr {double(1)}]; puts $x",
             "proc f {x} {puts $x}",
-            "set x 21; unknown_host; puts $x",
+            "set x 21; set ::auto_index(unknown_host) {source lib.tcl}; unknown_host; puts $x",
         ] {
             inspect_read(source, "tcl8.6", |read, registry| {
                 assert!(

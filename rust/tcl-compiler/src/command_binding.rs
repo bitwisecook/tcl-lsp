@@ -2013,6 +2013,26 @@ pub struct SourceCommandTarget {
 }
 
 impl SourceInvocationBinding {
+    /// Whether the head finds no command of its own and every target is the
+    /// unresolved-command handler called with it, for a name the registry
+    /// catalogues. Such a command (another dialect's, a vendor's or a
+    /// package's) is the host's to provide, so its catalogued semantics stand
+    /// in for the missing lookup (#2427).
+    pub(crate) fn reaches_only_a_catalogued_absent_head(&self, registry: &CommandRegistry) -> bool {
+        let Some(head) = self.lookup_word.as_deref() else {
+            return false;
+        };
+        self.may_be_absent
+            && (registry.get(head).is_some() || registry.known_in_any_dialect(head))
+            && self.targets.iter().all(|target| {
+                matches!(
+                    target.prepended.first(),
+                    Some(crate::registry_invocation::EffectiveInvocationWord::Literal(word))
+                        if word == head
+                )
+            })
+    }
+
     pub(crate) fn original_logical_prefix_source_input(
         &self,
     ) -> Option<&crate::analyser::ResolvedAnalysisInput> {
@@ -5378,6 +5398,42 @@ impl ModuleCommandBindings {
     /// Whether `::unknown` is still the fresh interpreter's handler (or
     /// absent). A redefined handler is a hook the closed-builtin shortcut
     /// does not model, so it withholds that shortcut.
+    /// Whether `head` is absent from the command table and its dispatch
+    /// reaches only the stock `unknown`, whose autoload defines nothing
+    /// (#2427): the call runs no code the module cannot see.
+    pub(crate) fn absent_head_runs_nothing(
+        &self,
+        head: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> bool {
+        self.definitely_absent(head, namespace)
+            && self.absent_head_reaches_only_stock_autoload(head, namespace)
+    }
+
+    /// Whether `head`, where it is absent, dispatches only to the stock
+    /// `unknown` with no namespace handler in the way, and that handler's
+    /// autoload defines nothing ([`autoload_defines_nothing`]). Every other
+    /// alternative of the head is a terminal target.
+    pub(crate) fn absent_head_reaches_only_stock_autoload(
+        &self,
+        head: &str,
+        namespace: &(impl NamespaceKeyQuery + ?Sized),
+    ) -> bool {
+        let Ok(keys) = self.source_keys_checked(head, namespace) else {
+            return false;
+        };
+        !self.opaque_domain
+            && !self.namespace_unknown_handlers.contains(namespace)
+            && keys.iter().all(|key| {
+                self.binding_alternatives(key).iter().all(|binding| {
+                    matches!(binding, MayBinding::Missing)
+                        || matches!(binding, MayBinding::Target(target) if target.terminal)
+                })
+            })
+            && self.unknown_handler_is_original()
+            && autoload_defines_nothing(self, Some(head))
+    }
+
     fn unknown_handler_is_original(&self) -> bool {
         let root = self
             .native_root_namespace_key()
@@ -11644,6 +11700,13 @@ impl SourceCommandBindings {
             if !pure {
                 Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
             }
+        } else if let Some(crate::registry_invocation::EffectiveInvocationWord::Literal(head)) =
+            effective.first()
+            && incoming.absent_head_reaches_only_stock_autoload(head, &context.namespace_identity())
+        {
+            // The stock handler's autoload defines no command the walk cannot
+            // see, so the command table stays as it was (#2427); the call's
+            // result stays unknown.
         } else {
             // The default `unknown` handler loads at global level, never
             // into a receiver's private namespace; a command the registry
@@ -16614,6 +16677,28 @@ impl ModuleCommandBindings {
         }) {
             Arc::make_mut(&mut self.revoked_loaders)
                 .extend(self.baseline.trusted_loaders.keys().cloned());
+        }
+        if !self.loader_handler_unknown
+            && tcl_registry::model::binding::autoload_index_dependencies()
+                .iter()
+                .filter_map(|dependency| match dependency {
+                    tcl_registry::model::binding::PackageResolverDependency::GlobalVariable(
+                        name,
+                    ) => Some(crate::var_resolve::resolve_place(
+                        name,
+                        &self.source_variables,
+                        false,
+                        registry,
+                    )),
+                    _ => None,
+                })
+                .any(|dependency| {
+                    places
+                        .iter()
+                        .any(|place| crate::place::overlap(place, &dependency))
+                })
+        {
+            self.loader_handler_unknown = true;
         }
         for loader in self.baseline.trusted_loaders.values() {
             if loader.state_dependency_namespaces.is_empty() {
@@ -22378,6 +22463,12 @@ fn apply_package_transition(
             state.mark_opaque_binding_mutation();
             state.loader_handler_unknown = true;
         }
+        PackageTransition::IndexedAutoload { command } => {
+            if !autoload_defines_nothing(state, command.literal()) {
+                state.mark_opaque_binding_mutation();
+                state.loader_handler_unknown = true;
+            }
+        }
         PackageTransition::DiscoveryDependencyChanged { .. } => {
             Arc::make_mut(&mut state.revoked_loaders)
                 .extend(state.baseline.trusted_loaders.keys().cloned());
@@ -22386,6 +22477,41 @@ fn apply_package_transition(
         | PackageTransition::UnknownHandler { handler: None }
         | PackageTransition::Prefer { mode: None } => {}
     }
+}
+
+/// Whether the stock `auto_load` of `command` can define nothing: the walk
+/// starts from an authored entry, nothing it has seen may have changed an
+/// autoload index input ([`tcl_registry::model::binding::autoload_index_dependencies`])
+/// or the loader handlers, and no supplied source module is indexed under the
+/// command's name. The analysis sees no other index, so the call is the
+/// handler's "invalid command name" error and the command table stays known.
+/// A name the registry catalogues (another dialect's, a vendor's or a
+/// package's command) may be provided by the host the document runs in, so it
+/// keeps the unbounded fallback.
+fn autoload_defines_nothing(state: &ModuleCommandBindings, command: Option<&str>) -> bool {
+    if state.loader_handler_unknown
+        || state.baseline.native_entry.is_some()
+        || state.baseline.unknown_entry
+        || command.is_some_and(|command| {
+            state.baseline.registry_owner.as_ref().is_some_and(|owner| {
+                let registry = owner.registry();
+                registry.get(command).is_some() || registry.known_in_any_dialect(command)
+            })
+        })
+    {
+        return false;
+    }
+    let mut indexed = state
+        .baseline
+        .trusted_source_modules
+        .iter()
+        .flat_map(|loader| &loader.autoload);
+    let Some(command) = command else {
+        return indexed.next().is_none();
+    };
+    let rooted = tcl_registry::rooted_command_descriptor_label(command);
+    let (_, tail) = tcl_syntax::naming::key_holder_and_tail(&rooted);
+    !indexed.any(|name| tcl_syntax::naming::key_holder_and_tail(name).1 == tail)
 }
 
 fn apply_package_provision(
@@ -25517,7 +25643,10 @@ mod tests {
 
     #[test]
     fn narrow_proc_binding_projection_excludes_unavailable_body_opacity() {
-        let (cu, reg) = analyse("missing_command argument\nproc retained {} {return ok}");
+        // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        let (cu, reg) = analyse(
+            "set ::auto_index(missing_command) {source lib.tcl}\nmissing_command argument\nproc retained {} {return ok}",
+        );
         let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
 
         assert!(
@@ -26098,43 +26227,39 @@ Animal new",
         }
     }
 
+    /// Run from a script, the stock `unknown` only tries `auto_load` and then
+    /// raises "invalid command name" (`library/init.tcl`, Tcl 8.4.20 through
+    /// 9.1.0). With no autoload index the analysis can see, an unresolved
+    /// dispatch defines nothing and the command table stays known. Writing an
+    /// index input, or a handler whose body is not the stock one, keeps the
+    /// table open.
     #[test]
-    fn direct_unknown_and_unresolved_heads_widen_for_autoload() {
-        for source in [
-            "unknown missing_command",
-            "missing_command argument",
-            "set result [missing_command argument]",
-        ] {
-            let (cu, reg) = analyse(source);
-            assert!(
-                ModuleCommandBindings::analyse(&cu.ir_module, &reg).has_opaque_domain(),
-                "default unknown may autoload a unit that mutates command bindings: {source}"
-            );
+    fn an_unresolved_dispatch_widens_only_through_a_visible_autoload_index() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let opaque = |source: &str| {
+                let reg = CommandRegistry::build_default()
+                    .project_for_profile(tcl_dialect::DialectProfile::find(dialect).unwrap());
+                let cu = CompilationUnit::build_for(source, &reg, false);
+                ModuleCommandBindings::analyse(&cu.ir_module, &reg).has_opaque_domain()
+            };
+            for source in [
+                "unknown missing_command",
+                "missing_command argument",
+                "set result [missing_command argument]",
+                "catch {missing_command argument}\nproc local_command {} {return ok}\nlocal_command",
+                "rename unknown {}\nmissing_command argument",
+                "interp alias {} unknown {} puts\nmissing_command argument",
+            ] {
+                assert!(!opaque(source), "{dialect}: {source}");
+            }
+            for source in [
+                "set auto_index(missing_command) {source lib/missing.tcl}\nmissing_command",
+                "lappend auto_path lib\nmissing_command",
+                "proc unknown {command args} {rename $command saved_command}\nmissing_command",
+            ] {
+                assert!(opaque(source), "{dialect}: {source}");
+            }
         }
-
-        let (cu, reg) = analyse("proc local_command {} {return ok}\nlocal_command");
-        assert!(
-            !ModuleCommandBindings::analyse(&cu.ir_module, &reg).has_opaque_domain(),
-            "a retained local procedure is resolved without the unknown path"
-        );
-
-        for source in [
-            "rename unknown {}\nmissing_command argument",
-            "interp alias {} unknown {} puts\nmissing_command argument",
-        ] {
-            let (cu, reg) = analyse(source);
-            assert!(
-                !ModuleCommandBindings::analyse(&cu.ir_module, &reg).has_opaque_domain(),
-                "a removed or transition-free replacement handler cannot autoload: {source}"
-            );
-        }
-
-        let (cu, reg) =
-            analyse("proc unknown {command args} {rename $command saved_command}\nmissing_command");
-        assert!(
-            ModuleCommandBindings::analyse(&cu.ir_module, &reg).has_opaque_domain(),
-            "a retained dynamic unknown handler body remains opaque"
-        );
     }
 
     #[test]
