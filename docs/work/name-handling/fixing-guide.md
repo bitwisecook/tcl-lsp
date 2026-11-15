@@ -30,7 +30,7 @@ Semantic tokens, hover, completion, document symbols and inlay hints are *displa
 ## Running tests on a small machine
 
 ```bash
-source scripts/dev/agent-build-env.sh      # per-worktree target, incremental on, no debuginfo
+source scripts/dev/agent-build-env.sh      # per-worktree target, incremental test builds, no debuginfo
 export CARGO_PROFILE_TEST_OPT_LEVEL=1 RUST_BACKTRACE=0
 # edit loop: one test binary, filtered
 cargo nextest run -p tcl-compiler --lib -E 'test(/class_factories/)' --no-fail-fast --status-level fail --final-status-level none --failure-output final
@@ -46,7 +46,7 @@ Measured on a 4-core, 15 GB host, `tcl-compiler` library tests (the worst case):
 | `opt-level 0`, incremental on | 5.5 min | 50 s | 49 min |
 | `opt-level 1`, incremental on (use this) | 14 min | 51 s | 10 min |
 
-So keep `opt-level 1` and leave incremental on: an edit-to-test cycle is about a minute and the pre-push suite is a 1 minute rebuild plus its run. `agent-build-env.sh` now turns incremental on; it costs 5 to 10 GB of target directory, depending on how many test binaries the selection builds.
+So keep `opt-level 1` and leave incremental on: an edit-to-test cycle is about a minute and the pre-push suite is a 1 minute rebuild plus its run. `agent-build-env.sh` turns incremental on for test builds only (`cargo xtask`, `clippy` and `check` stay non-incremental, or three caches of the workspace overflow the disk); it costs 5 to 10 GB of target directory, depending on how many test binaries the selection builds. After an incremental cache is deleted, the next rebuild of each crate is a full one.
 
 - Build only the binary you need in the loop: `--lib`, or one `--test it_4`. A nextest `-E` filter alone still builds every test binary of the selected packages.
 - Keep one package selection per target directory (`-p a -p b …`). A different selection resolves different features (`syn`, `tokio`, `hashbrown`, and the workspace's own `test-support`, `html` and `truth-table` features) and rebuilds most of the tree.
@@ -71,7 +71,7 @@ git fetch --depth=50 origin work && git rebase origin/work   # then rerun regist
 git push -u origin work
 ```
 
-`docs/generated/registry-axes.md` conflicts on almost every rebase: take either side, then regenerate. No hardcoded command names in consumers; if `registry-axes` reports an unwaived site, move the fact into the registry.
+`docs/generated/registry-axes.md` records each waived file and its site count, not line numbers, so it changes only when a waiver is added or removed; if it does conflict, take either side, then regenerate. No hardcoded command names in consumers; if `registry-axes` reports an unwaived site, move the fact into the registry.
 
 ## Areas
 

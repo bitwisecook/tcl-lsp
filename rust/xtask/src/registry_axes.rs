@@ -1134,18 +1134,28 @@ fn render_ledger(out: &mut String, lint: &Lint) {
             by_axis.get(axis).copied().unwrap_or(0)
         );
     }
-    let _ = writeln!(out, "\n| Axis | Until | Site | Waiver | Reason |");
-    let _ = writeln!(out, "|---|---|---|---|---|");
+    // A row names the file and how many of its sites share one waiver, never
+    // their lines: an unrelated edit higher in the file must not make the
+    // ledger stale. The gate's own output still names each line.
+    let mut rows: BTreeMap<(&str, &str, &str, &str, &str), usize> = BTreeMap::new();
     for waived in &lint.waived {
+        *rows
+            .entry((
+                waived.axis.as_str(),
+                waived.until.as_str(),
+                waived.site.path.as_str(),
+                if waived.file_level { "file" } else { "site" },
+                waived.reason.as_str(),
+            ))
+            .or_default() += 1;
+    }
+    let _ = writeln!(out, "\n| Axis | Until | File | Sites | Waiver | Reason |");
+    let _ = writeln!(out, "|---|---|---|---|---|---|");
+    for ((axis, until, path, waiver, reason), sites) in rows {
         let _ = writeln!(
             out,
-            "| {} | {} | `{}:{}` | {} | {} |",
-            waived.axis,
-            waived.until,
-            waived.site.path,
-            waived.site.line,
-            if waived.file_level { "file" } else { "site" },
-            waived.reason.replace('|', "\\|"),
+            "| {axis} | {until} | `{path}` | {sites} | {waiver} | {} |",
+            reason.replace('|', "\\|"),
         );
     }
 }
