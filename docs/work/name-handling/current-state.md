@@ -255,6 +255,42 @@ Open, with the cause where it is established:
 
 Working method that held up: an unoptimised incremental build in a second target directory (`CARGO_TARGET_DIR=target-dbg CARGO_INCREMENTAL=1 CARGO_PROFILE_TEST_OPT_LEVEL=0`) rebuilds the crate's tests in about 50 s against 11 minutes for the suite profile. `TCL_LSP_TRACE_JIM_SOURCE_OWNER=1` prints each presence query's `unclosed=` flag, which is the quickest way to see a withheld command world; a refused class relation is almost always a non-empty `uncertain_operations` on the advice graph.
 
+## Analysis performance, 15 November 2026
+
+Structure-only analysis (`Analyser::new().structure_only()`, the semantic-token input) and the full diagnostic analysis of a generated file under `tcl8.6`: `namespace eval ::bench { variable counter 0 }` followed by N procedures of seven lines (`generate_big_tcl` in the server e2e test). One 4-core Linux host, test profile `opt-level 1`, best of three runs. A procedure is six walked commands, so N=600 is about 6,000 lines and 3,600 commands.
+
+| N | Lines | Before | Structure-only | Source walk (realm) | Analyser walk | Per walked command | Peak memory |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 100 | 1,004 | 5.1 s | 1.9 s | 0.8 s | 1.1 s | 3.1 ms | 158 MB |
+| 200 | 2,004 | 11.7 s | 3.9 s | 1.8 s | 2.1 s | 3.3 ms | 269 MB |
+| 400 | 4,004 | 41 s | 8.7 s | 3.7 s | 4.8 s | 3.6 ms | 512 MB |
+| 600 | 6,004 | not measured | 14.4 s | 6.6 s | 7.8 s | 4.0 ms | not measured |
+| 800 | 8,004 | not measured | 20.9 s | 9.0 s | 11.9 s | 4.4 ms | 967 MB |
+
+"Before" is the coordinator's measurement after `d044c28e` (the shared document image and site memo). Doubling N now costs ×2.08, ×2.20 and ×2.42 (the target was at most ×2.4); the target of N=600 under 3 s is **not met**, by about five times. Peak memory at N=200 and N=400 was 345 MB and 780 MB.
+
+Full analysis, one run: N=100 7.2 s, N=200 16.9 s, N=400 43.7 s. The diagnostic emitters are 4.6 s, 10.7 s and 29.3 s of that, and still super-linear.
+
+What changed, each returning what the code it replaced returned (the commit messages give the argument):
+
+- Per-reference queries over the retained bindings read an index instead of every row: declaration layouts by word extent and by sole variable word, variable accesses by owning invocation, implicit math sites and formal components by key range. An index keys on its inventory's allocation through a weak handle and is built on the second query of an unchanged inventory.
+- State forks stopped copying by value: `rebound_names` is copy-on-write, the command table shares its values (a `BTreeSet<MayBinding>` leaf is about 3.5 KB, and every `proc` copied the table), and a join leaves a name alone when the incoming alternatives are already held.
+- The nested-layout visit set no longer hashes each parent's whole lookup world; the Jim stock continuation scan and the first-row self-comparison in `select_declaration_layouts` are gone.
+- A document image keeps its validated text beside its bytes (`SourceImage::try_text`, `has_bytes_of`, `shared_text`), and the analyser holds its source through that buffer, so "is this text the realm's image" compares addresses. `SourceMap::from_image` no longer validates the document per call.
+- Query sites borrow the realm's bindings instead of cloning them.
+
+What remains, in the order it should be taken:
+
+- **The per-command constant.** The profile is flat: about 10,000 `malloc` calls per walked command (a third of the time with their frees and drops), and per command the same text is tokenised about 26 times, its words rebuilt about 96 times, its registry semantics resolved about 71 times, the lookup state cloned about 62 times and a `SourceInvocationBinding` cloned about 26 times. No single site is above 4%. Reaching 1 ms per command needs each walked command to compute its tokens, words, stamped binding and registry facts once and hand them to every consumer (`source_registry_words*`, `stamp_original_tokens`, `retained_original_tokens`, `original_native_compiler_words`, `capture_with_nested_cuts`), not more memos under each consumer.
+- **Per-definition copies that still grow with N.** A `proc` definition still copies the command table's keys and handles, `rebound_names`, the original command world and the allocation counts once each. They need persistent (structure-sharing) maps to become constant.
+- **`original_catalogue_bindings_for_slot`** scans the command table per command head; it now tests the simple name first but is still one pass per lookup.
+- **`extend_conditional_math_invocations`** reads every retained expression per script.
+- **`SourceImage::document`** compares its text with up to four recent images per call when the caller's buffer is not the image's own; the analyser walk now passes the image's buffer, other callers do not.
+- **Full analysis.** `emit_cfg_ssa_diagnostics` builds a compilation unit per analysis; at N=400 a third of the diagnostics phase is `SourceCommandBindings::module_projection`, which joins every point's state into one (each join reads state the size of the document), and the unit build walks the source a second time. Lowering, SSA and SCCP are the rest. This belongs with the dataflow half.
+- The semantic-token walk over the finished analysis was not changed here.
+
+Measuring: a probe test that builds the input and times `analyse` (the task brief's probe, or the same body as a `tcl-compiler` integration test), `TCL_LSP_TRACE_WORKSPACE_SCAN=1` for the `ANALYSER_PHASE` lines, and `gdb -p <pid> -batch -x` with a Python loop that prints `thread apply all bt` and continues for 30 ms. Comparing a function's sampled share times wall-clock at N=200 and N=800 ranks what grows faster than the input. `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget` is within about 7 KB of its stack budget: a field added to `SourceImage` or to the bindings handle shows up there first.
+
 ## Scope and publication
 
 Work is paused at the user's request after finishing the current autoload repair. All parallel investigations are stopped. Source/status checkpoints have been published to work and the periodic publisher is stopped. The final one-shot sync publishes this paused snapshot. The release verdict remains unchanged.
