@@ -7448,12 +7448,10 @@ mod tests {
         // (file, method declared in the file, a method named by a callback
         // prefix inside it). `cat.tcl` is the `after … [namespace code [list
         // my Post $c]]` shape.  `httpd.tcl` carries the `socket -server
-        // [namespace code [list my connect]]` CommandPrefix shape, but it
-        // defines its classes with `::clay::define`, which the analyser records
-        // no class for at all — `all_classes` is empty for that file, so there
-        // is no method to navigate from and the shape is unreachable for
-        // reasons that have nothing to do with callback prefixes, so it is not
-        // asserted here.
+        // [namespace code [list my connect]]` CommandPrefix shape, but its
+        // classes come from `::clay::define`, whose members keep the
+        // `SourceValue` name purpose: the callback scan resolves only
+        // `TclOoMethod` declarations, so that shape is not asserted here.
         let (relative, method) = ("modules/virtchannel_base/cat.tcl", "Post");
         {
             let original = tcl_test_support::fixed_corpus::FixedCorpusSource::read(
