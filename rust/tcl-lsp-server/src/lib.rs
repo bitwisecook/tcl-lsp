@@ -21336,6 +21336,76 @@ impl Backend {
     /// Anything else (a bareword argument, whitespace, a `$var`) resolves to
     /// nothing (an empty set), so no coincidental word links to a sibling
     /// symbol.
+    /// The workspace symbols a release-profile cursor names, for listing
+    /// references across documents: the qualified name of the procedure or
+    /// class declared at the cursor, or the declarations the call at the
+    /// cursor settles to in the workspace index. Binding consumers get nothing.
+    async fn release_workspace_symbols(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        purpose: WorkspaceSymbolPurpose,
+    ) -> WorkspaceSymbolSelection {
+        let current = analysis.body_lexer_config.is_some_and(|config| {
+            analysis
+                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
+        });
+        let Some(offset) = line_col_to_byte_offset(source, pos.line, pos.character)
+            .and_then(|offset| u32::try_from(offset).ok())
+            .filter(|_| current && purpose == WorkspaceSymbolPurpose::ReadonlySourceAdvice)
+        else {
+            return WorkspaceSymbolSelection::Miss;
+        };
+        let covers = |span: tcl_lexer::Span| span.start() <= offset && offset < span.end();
+        let mut names = analysis
+            .original_procedure_declarations()
+            .filter(|record| covers(record.name_input().span()))
+            .map(|record| record.metadata().qualified_name.clone())
+            .chain(
+                analysis
+                    .original_class_declarations()
+                    .filter(|record| covers(record.name_input().span()))
+                    .map(|record| record.metadata().qualified_name.clone()),
+            )
+            .collect::<Vec<_>>();
+        if names.is_empty()
+            && let Some(call) = analysis
+                .command_invocations
+                .iter()
+                .find(|invocation| covers(invocation.range))
+        {
+            names = self
+                .workspace_index
+                .read()
+                .await
+                .linked_declaration_names_of_call(uri.as_str(), call.range);
+        }
+        if names.is_empty() {
+            WorkspaceSymbolSelection::Miss
+        } else {
+            WorkspaceSymbolSelection::Candidates(names)
+        }
+    }
+
+    async fn workspace_symbols_indexed(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &AnalysisResult,
+        pos: Position,
+        purpose: WorkspaceSymbolPurpose,
+    ) -> DocumentSourceResult<WorkspaceSymbolSelection> {
+        if !analysis.allows_lexical_declaration_advice() {
+            return Ok(self
+                .release_workspace_symbols(uri, source, analysis, pos, purpose)
+                .await);
+        }
+        self.resolve_workspace_symbols_indexed_for_purpose(uri, source, analysis, pos, purpose)
+            .await
+    }
+
     async fn resolve_workspace_symbols_indexed_for_purpose(
         &self,
         uri: &Uri,
@@ -21536,10 +21606,12 @@ impl Backend {
         purpose: WorkspaceSymbolPurpose,
     ) -> DocumentSourceResult<WorkspaceSymbolSelection> {
         if !analysis.allows_lexical_declaration_advice() {
-            return Ok(WorkspaceSymbolSelection::Miss);
+            return self
+                .workspace_symbols_indexed(uri, source, analysis, pos, purpose)
+                .await;
         }
         let indexed = self
-            .resolve_workspace_symbols_indexed_for_purpose(uri, source, analysis, pos, purpose)
+            .workspace_symbols_indexed(uri, source, analysis, pos, purpose)
             .await?;
         match indexed {
             WorkspaceSymbolSelection::Candidates(_)
@@ -21622,7 +21694,7 @@ impl Backend {
             .await?;
         let guard = self.rehomed_index_guard().await?;
         let symbols = self
-            .resolve_workspace_symbols_indexed_for_purpose(uri, source, analysis, pos, purpose)
+            .workspace_symbols_indexed(uri, source, analysis, pos, purpose)
             .await?
             .report();
         if !symbols.is_empty() || preflight.is_empty() {
@@ -21639,7 +21711,7 @@ impl Backend {
             .await?;
         let guard = self.rehomed_index_guard().await?;
         let symbols = self
-            .resolve_workspace_symbols_indexed_for_purpose(uri, source, analysis, pos, purpose)
+            .workspace_symbols_indexed(uri, source, analysis, pos, purpose)
             .await?
             .report();
         Ok((guard, symbols))
@@ -21810,16 +21882,37 @@ impl Backend {
             dedup_locations(&mut locations);
             return Ok(locations);
         }
-        let Some(identity) = self
+        let mut locations = match self
             .original_declaration_identity_at(uri, &doc.text, analysis, position)
             .await?
-        else {
-            return Ok(Vec::new());
+        {
+            Some(identity) => self
+                .readonly_original_declaration_reference_report(&identity, uri, include_declaration)
+                .await?
+                .map_or_else(Vec::new, |report| report.locations),
+            None => Vec::new(),
         };
-        Ok(self
-            .readonly_original_declaration_reference_report(&identity, uri, include_declaration)
+        // The report covers what this document's own analysis binds. A call
+        // whose definition lives in another document, and the calls other
+        // documents make to a definition here, are listed from the workspace
+        // index, as on the unversioned profile. A listing only: rename does
+        // not read it.
+        let cross = if locations.is_empty() {
+            self.workspace_resolved_references(
+                uri,
+                &doc.text,
+                analysis,
+                position,
+                include_declaration,
+            )
             .await?
-            .map_or_else(Vec::new, |report| report.locations))
+        } else {
+            self.cross_document_references(uri, &doc.text, analysis, position, include_declaration)
+                .await?
+        };
+        locations.extend(cross);
+        dedup_locations(&mut locations);
+        Ok(locations)
     }
 
     fn reference_range_locations(uri: &Uri, ranges: Vec<CoreLspRange>) -> Vec<Location> {

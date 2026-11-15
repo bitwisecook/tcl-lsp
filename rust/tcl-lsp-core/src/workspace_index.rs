@@ -7041,6 +7041,46 @@ impl WorkspaceIndex {
         self.invocations_settling_to(qualified_name, exclude_uri, true)
     }
 
+    /// The qualified names of the workspace declarations the call written at
+    /// `range` in `uri` settles to in the link-following view. A listing aid
+    /// for find-references on a release profile; rename does not read it.
+    #[must_use]
+    pub fn linked_declaration_names_of_call(&self, uri: &str, range: Span) -> Vec<String> {
+        let Some(document) = self.slots.get(uri).and_then(|slot| self.docs.get(*slot)) else {
+            return Vec::new();
+        };
+        let Some(invocation) = document.invocations.iter().find(|inv| inv.range == range) else {
+            return Vec::new();
+        };
+        let defined = self.defined_command_names(true);
+        let links = self.command_link_map();
+        let wci = WildcardImportIndex::build(self);
+        match self.settle_invocation(invocation, &defined, Some(&links), &wci) {
+            Some(SettledCommandTarget::Authored(name)) => vec![format!("::{name}")],
+            Some(SettledCommandTarget::OriginalSlot(slot, policy)) => {
+                let names = self
+                    .original_procedure_declarations()
+                    .filter(|(_, declaration)| {
+                        declaration.name().slot() == &slot && declaration.name().policy() == policy
+                    })
+                    .map(|(_, declaration)| declaration.metadata().qualified_name.clone())
+                    .chain(
+                        self.original_class_declarations()
+                            .filter(|(_, declaration)| {
+                                declaration.name().slot() == &slot
+                                    && declaration.name().policy() == policy
+                            })
+                            .map(|(_, declaration)| declaration.metadata().qualified_name.clone()),
+                    )
+                    .collect::<Vec<_>>();
+                // Two documents publishing the slot leave the call's owner
+                // unknown; the listing abstains rather than pick one.
+                if names.len() == 1 { names } else { Vec::new() }
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// Shared core of [`Self::invocations_of`] / [`Self::linked_invocations_of`]:
     /// call sites whose settled target is `qualified_name`, excluding
     /// `exclude_uri`.  With `follow_links`, the existence oracle admits linked
