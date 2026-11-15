@@ -34,9 +34,29 @@ use tcl_syntax::value::ValueOps;
 use crate::interp::{Vm, ok};
 use crate::value::Value;
 
+/// `tclIndexObj.c` `prefixImplMap`: C makes `::tcl::prefix` with
+/// `TclMakeEnsemble`, so each member is its own `::tcl::prefix::` command.
+const PREFIX_MEMBERS: &[(&str, crate::command::BuiltinFn)] = &[
+    ("all", prefix_all),
+    ("longest", prefix_longest),
+    ("match", prefix_match),
+];
+
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register_stock_builtin("tcl::prefix", cmd_prefix);
-    vm.register_stock_builtin("::tcl::prefix", cmd_prefix);
+    if vm
+        .name_policy_protocol()
+        .is_some_and(|policy| policy.recipe().is_jim084())
+    {
+        vm.register_stock_builtin("tcl::prefix", cmd_prefix);
+        vm.register_stock_builtin("::tcl::prefix", cmd_prefix);
+        return;
+    }
+    vm.register_stock_namespace_ensemble(
+        "tcl::prefix",
+        "::tcl::prefix",
+        PREFIX_MEMBERS,
+        PREFIX_SUBS,
+    );
 }
 
 fn cmd_prefix(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

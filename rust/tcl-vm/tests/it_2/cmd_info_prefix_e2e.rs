@@ -35,10 +35,7 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::compile_service::BytecodeCompileService;
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::lowering::lower_to_ir;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -96,20 +93,17 @@ fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String
 }
 
 fn run(src: &str) -> (bool, String, String) {
-    let registry =
-        tcl_registry::model::ingress::static_context_for(tcl_vm::test_support::DEFAULT_ENVIRONMENT)
-            .commands();
-    let ir = lower_to_ir(src, registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
-
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = tcl_vm::test_support::native_vm_for(
         tcl_vm::test_support::DEFAULT_ENVIRONMENT,
         Box::new(Capture(Rc::clone(&buf))),
     );
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let completion = vm.run_module(&asm);
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
+        tcl_vm::test_support::profile(tcl_vm::test_support::DEFAULT_ENVIRONMENT),
+    )));
+    let completion = vm
+        .try_eval_source(src)
+        .expect("the interpreter compiles and runs the script");
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
     (
