@@ -1117,46 +1117,6 @@ fn native_c86_assembly(source: &str) -> tcl_bytecode::ModuleAsm {
 }
 
 #[test]
-fn reached_stock_math_integer_fold_retains_implicit_lookup_guard() {
-    let module = native_c86_assembly("set x [expr {abs(-3) + 1}]");
-    assert!(
-        module
-            .top_level
-            .literals
-            .entries()
-            .iter()
-            .any(|value| value == "4")
-    );
-    assert!(
-        module.top_level.command_bindings.iter().any(|binding| {
-            binding.name == "tcl::mathfunc::abs" && binding.identity == "tcl::mathfunc::abs"
-        }),
-        "successful folding must retain its implicit dispatch: {:?}",
-        module.top_level.command_bindings
-    );
-}
-
-#[test]
-fn skipped_lazy_math_call_does_not_install_a_guard() {
-    let module = native_c86_assembly("set x [expr {0 && missing(1)}]");
-    assert!(
-        module
-            .top_level
-            .command_bindings
-            .iter()
-            .all(|binding| { !binding.name.ends_with("mathfunc::missing") })
-    );
-    assert!(
-        module
-            .top_level
-            .literals
-            .entries()
-            .iter()
-            .any(|value| value == "0")
-    );
-}
-
-#[test]
 fn custom_math_handler_does_not_acquire_stock_integer_fold() {
     let module = native_c86_assembly(
         "rename ::tcl::mathfunc::abs saved; interp alias {} ::tcl::mathfunc::abs {} list BOX; set x [expr {abs(-3) + 1}]",

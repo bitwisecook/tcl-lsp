@@ -499,6 +499,61 @@ fn fallthrough_elimination() {
 // Bytecoded commands
 
 #[test]
+fn a_math_function_call_is_invoked_not_folded_in_tcl_8_6() {
+    // A math function is a command a script may redefine, so C never folds a
+    // call of one. tclsh8.6 (8.5, 9.0 and 9.1 agree),
+    // `tcl::unsupported::disassemble script {set x [expr {abs(-3) + 1}]}`:
+    //   push1 "x"; startCommand; push1 "tcl::mathfunc::abs"; push1 "-3";
+    //   invokeStk1 2; push1 "1"; add; storeStk; done
+    let function = top_asm("set x [expr {abs(-3) + 1}]");
+    let ops: Vec<Op> = function.instructions.iter().map(|i| i.op).collect();
+    let call = ops
+        .iter()
+        .position(|op| *op == Op::INVOKE_STK1)
+        .expect("the function is invoked");
+    assert_eq!(ops[call + 2], Op::ADD, "{ops:?}");
+    assert!(
+        function
+            .literals
+            .entries()
+            .iter()
+            .any(|value| value == "tcl::mathfunc::abs")
+    );
+    assert!(
+        function.literals.entries().iter().all(|value| value != "4"),
+        "the sum is computed when the script runs"
+    );
+}
+
+#[test]
+fn a_math_function_behind_a_false_conjunct_is_still_compiled_in_tcl_8_6() {
+    // tclsh8.6, `set x [expr {0 && missing(1)}]`:
+    //   push1 "x"; startCommand; push1 "0"; jumpFalse1; push1
+    //   "tcl::mathfunc::missing"; push1 "1"; invokeStk1 2; jumpFalse1;
+    //   push1 "1"; jump1; push1 "0"; storeStk; done
+    // The call is compiled and jumped over; nothing is folded.
+    let function = top_asm("set x [expr {0 && missing(1)}]");
+    let ops: Vec<Op> = function.instructions.iter().map(|i| i.op).collect();
+    let selected: Vec<Op> = ops
+        .iter()
+        .copied()
+        .filter(|op| matches!(op, Op::JUMP_FALSE1 | Op::INVOKE_STK1 | Op::JUMP1))
+        .collect();
+    assert_eq!(
+        selected,
+        [Op::JUMP_FALSE1, Op::INVOKE_STK1, Op::JUMP_FALSE1, Op::JUMP1],
+        "{ops:?}"
+    );
+    assert!(
+        function
+            .literals
+            .entries()
+            .iter()
+            .any(|value| value == "tcl::mathfunc::missing")
+    );
+}
+
+#[test]
 fn top_level_commands_compile_to_the_instructions_tclsh_8_6_emits() {
     // tclsh8.6: tcl::unsupported::disassemble script {<source>}
     //   set x hello; append x world      -> push1 push1 storeStk pop push1 push1 appendStk done
