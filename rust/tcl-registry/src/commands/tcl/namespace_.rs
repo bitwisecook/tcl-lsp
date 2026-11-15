@@ -576,6 +576,11 @@ const NAMESPACE_READ_SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
+// With accepted arity these never raise: tclsh 8.4.20, 8.6.18, 9.0.4 and
+// 9.1.0 answer 0 from `catch` for `namespace current`, and for `tail`,
+// `qualifiers` and `code` over empty, unbalanced and colon-run operands.
+const OK_COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Ok];
+
 const NAMESPACE_PARENT_SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
         target: SideEffectTarget::InterpState,
@@ -1254,6 +1259,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         side_effects: NAMESPACE_READ_SIDE_EFFECTS,
+        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1272,6 +1278,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         side_effects: NAMESPACE_READ_SIDE_EFFECTS,
+        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1599,6 +1606,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         side_effects: NAMESPACE_READ_SIDE_EFFECTS,
+        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1622,6 +1630,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         side_effects: NAMESPACE_READ_SIDE_EFFECTS,
+        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
     SubCommand {
