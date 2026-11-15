@@ -1839,6 +1839,49 @@ pub fn caller_frame_upvar_params(
     body_source: &str,
     env: TraitScanEnv<'_>,
 ) -> HashSet<String> {
+    caller_frame_upvar_params_over(params, body_source, env, &std::cell::OnceCell::new())
+}
+
+/// One top-level command of a body with its assistance.
+type TopLevelView = (
+    crate::segmenter::SegmentedCommand,
+    Option<Box<crate::registry_invocation::InvocationBodyAssistance>>,
+);
+
+/// Every top-level command of `body_source` with its assistance. The
+/// assistance reads the scan environment and never the parameters, so the
+/// caller-frame scans of one body share it.
+fn top_level_views(body_source: &str, ctx: &ScanCtx<'_, '_>) -> Vec<TopLevelView> {
+    segment_commands_with_offset_and_config(body_source, 0, ctx.config.nested())
+        .into_iter()
+        .map(|seg| {
+            let view = ctx.body_assistance(body_source, &seg);
+            (seg, view)
+        })
+        .collect()
+}
+
+/// [`caller_frame_upvar_params`] and [`caller_frame_literal_targets`] of one
+/// body, reading each top-level command's assistance once.
+#[must_use]
+pub fn caller_frame_facts(
+    params: &[&str],
+    body_source: &str,
+    env: TraitScanEnv<'_>,
+) -> (HashSet<String>, HashMap<String, bool>) {
+    let views = std::cell::OnceCell::new();
+    (
+        caller_frame_upvar_params_over(params, body_source, env, &views),
+        caller_frame_literal_targets_over(body_source, env, &views),
+    )
+}
+
+fn caller_frame_upvar_params_over(
+    params: &[&str],
+    body_source: &str,
+    env: TraitScanEnv<'_>,
+    views: &std::cell::OnceCell<Vec<TopLevelView>>,
+) -> HashSet<String> {
     let mut out = HashSet::new();
     if params.is_empty()
         || body_source.trim().is_empty()
@@ -1867,8 +1910,8 @@ pub fn caller_frame_upvar_params(
                     .map(|body| body.scope().scope_body().content_span().start())
             }),
     };
-    for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config.nested()) {
-        let Some(view) = ctx.body_assistance(body_source, seg) else {
+    for (seg, view) in views.get_or_init(|| top_level_views(body_source, &ctx)) {
+        let Some(view) = view.as_deref() else {
             continue;
         };
         let source = view.conditional_parameter_source_invocation(params);
@@ -1879,7 +1922,7 @@ pub fn caller_frame_upvar_params(
         }) else {
             continue;
         };
-        let Some((level, first)) = selected_alias_layout(&view, selected) else {
+        let Some((level, first)) = selected_alias_layout(view, selected) else {
             continue;
         };
         if !level.is_caller_frame() {
@@ -1942,6 +1985,14 @@ pub fn caller_frame_literal_targets(
     body_source: &str,
     env: TraitScanEnv<'_>,
 ) -> HashMap<String, bool> {
+    caller_frame_literal_targets_over(body_source, env, &std::cell::OnceCell::new())
+}
+
+fn caller_frame_literal_targets_over(
+    body_source: &str,
+    env: TraitScanEnv<'_>,
+    views: &std::cell::OnceCell<Vec<TopLevelView>>,
+) -> HashMap<String, bool> {
     if !env.matches_source(body_source) {
         return HashMap::new();
     }
@@ -1970,14 +2021,14 @@ pub fn caller_frame_literal_targets(
         return targets;
     }
     let mut alias_to_target = HashMap::new();
-    for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config.nested()) {
-        let Some(view) = ctx.body_assistance(body_source, seg) else {
+    for (_, view) in views.get_or_init(|| top_level_views(body_source, &ctx)) {
+        let Some(view) = view.as_deref() else {
             continue;
         };
         let Some(selected) = view.caller_name_template_invocation() else {
             continue;
         };
-        if let Some((level, first)) = selected_alias_layout(&view, selected) {
+        if let Some((level, first)) = selected_alias_layout(view, selected) {
             if !level.is_caller_frame() {
                 continue;
             }
@@ -1999,7 +2050,7 @@ pub fn caller_frame_literal_targets(
             if role != ArgRole::VarWrite {
                 continue;
             }
-            if let Some(name) = written_template_literal(&view, selected, index)
+            if let Some(name) = written_template_literal(view, selected, index)
                 && let Some(caller_name) = alias_to_target.get(&name)
             {
                 targets.insert(caller_name.clone(), true);
