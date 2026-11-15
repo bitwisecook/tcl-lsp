@@ -100,6 +100,8 @@ pub(super) struct SourceContext<'a> {
     pub(super) metadata: tcl_compiler::registry_invocation::InvocationMetadataContext<'a>,
     pub(super) config: LexerConfig,
     variable_lookup: tcl_dialect::VariableLookupPolicy,
+    /// The software source model the module was read under.
+    purpose: tcl_compiler::command_binding::OriginalInvocationSourcePurpose,
     image: &'a tcl_lexer::SourceImage,
     retained: &'a tcl_compiler::command_binding::RetainedSourceModuleBindings,
     module: &'a Module,
@@ -117,9 +119,12 @@ impl<'a> SourceContext<'a> {
         let metadata = tcl_compiler::registry_invocation::InvocationMetadataContext::for_module(
             registry, module,
         )?;
-        if module.original_invocation_source_purpose(registry, metadata)?
-            != tcl_compiler::command_binding::OriginalInvocationSourcePurpose::Logical
-        {
+        let purpose = module.original_invocation_source_purpose(registry, metadata)?;
+        if !matches!(
+            purpose,
+            tcl_compiler::command_binding::OriginalInvocationSourcePurpose::Logical
+                | tcl_compiler::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
+        ) {
             return None;
         }
         let variable_lookup = module
@@ -129,6 +134,7 @@ impl<'a> SourceContext<'a> {
             .variable_lookup_policy();
         Some(Self {
             registry,
+            purpose,
             metadata,
             config: module.lexer_config,
             variable_lookup,
@@ -157,10 +163,11 @@ impl<'a> SourceContext<'a> {
         tokens: &CommandTokens,
     ) -> Option<tcl_compiler::registry_invocation::ResolvedStatementInvocation> {
         self.accepts_tokens(tokens)?;
-        tcl_compiler::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+        tcl_compiler::registry_invocation::original_source_model_operation_invocation_with_metadata_context(
             self.registry,
             self.metadata,
             tokens,
+            self.purpose,
         )
         .filter(|invocation| {
             invocation.facts.arg_roles_complete
@@ -174,8 +181,7 @@ impl<'a> SourceContext<'a> {
             self.metadata.source_analysis_input()?,
             self.registry,
         )?;
-        (binding.original_source_advice_purpose(tokens, metadata, self.registry)?
-            == tcl_compiler::command_binding::OriginalInvocationSourcePurpose::Logical
+        (binding.original_source_advice_purpose(tokens, metadata, self.registry)? == self.purpose
             && binding.invocation_site()?.source.source_image() == self.image
             && binding
                 .original_lexer_config_for_tokens(tokens)?

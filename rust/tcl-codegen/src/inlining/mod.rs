@@ -108,7 +108,14 @@ impl InliningSummaries<'_> {
             tokens,
             self.module,
             self.registry,
-        )?;
+        )
+        .or_else(|| {
+            tcl_compiler::registry_invocation::original_authored_procedure_calls_for_module(
+                tokens,
+                self.module,
+                self.registry,
+            )
+        })?;
         let first = calls.first()?;
         if !first.accepts_arguments()
             || !first.effective_arguments().binding_prefix.is_empty()
