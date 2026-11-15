@@ -14003,7 +14003,11 @@ mod tests {
 
     /// The SSA of `source`'s function `name`, built as a unit builds it.
     fn ssa_of_function(source: &str, name: &str) -> SsaFunction {
-        let reg = CommandRegistry::build_default();
+        // A registry naming no release reads an authored `proc` as a
+        // declaration only, so its body has no statements; these are Tcl 8.6.
+        let reg = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &reg, false);
         cu.function(name).expect("function analysed").ssa.clone()
     }
