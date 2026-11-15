@@ -491,6 +491,20 @@ impl SourceCommandBindings {
             {
                 continue;
             }
+            // Only a call site inside the script is ever added, so an
+            // expression without one is skipped before its rows are compared.
+            let function_calls = expression.tree().function_calls();
+            if !function_calls.iter().any(|(_, start, _)| {
+                expression
+                    .source()
+                    .base()
+                    .checked_add(*start)
+                    .is_some_and(|site| {
+                        original_math_site_within(script, &expression.source().origin, site)
+                    })
+            }) {
+                continue;
+            }
             if !observations.iter().all(|other| other == expression)
                 || !matches!(
                     expression.source().mapping,
@@ -499,7 +513,7 @@ impl SourceCommandBindings {
             {
                 continue;
             }
-            for (function, start, arity) in expression.tree().function_calls() {
+            for (function, start, arity) in function_calls {
                 let Some(site) = expression.source().base().checked_add(start) else {
                     continue;
                 };
