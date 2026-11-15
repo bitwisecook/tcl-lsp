@@ -89,10 +89,8 @@ fn live_interpreter(dialect: &'static tcl_dialect::DialectProfile) -> Option<tcl
 /// Create the namespace `name` is qualified into. Only a plain path is
 /// created; any other name keeps its static disassembly.
 fn ensure_namespace(vm: &mut tcl_vm::Vm, name: &str) -> bool {
-    let Some((namespace, _)) = name.rsplit_once("::") else {
-        return true;
-    };
-    if namespace.is_empty() {
+    let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(name);
+    if namespace.is_empty() || namespace == "::" {
         return true;
     }
     if !namespace
