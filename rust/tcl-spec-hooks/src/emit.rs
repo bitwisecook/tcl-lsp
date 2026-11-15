@@ -113,6 +113,10 @@ pub enum Emission {
 #[derive(Debug, Default)]
 pub struct Sink {
     emissions: RefCell<Vec<Emission>>,
+    /// The family of the hook now running. A pack's engine holds one command
+    /// per verb name, so a spelling two of its families share reads its shape
+    /// from here.
+    running: std::cell::Cell<Option<HookFamily>>,
 }
 
 impl Sink {
@@ -128,6 +132,12 @@ impl Sink {
     /// answer.
     pub fn clear(&self) {
         self.emissions.borrow_mut().clear();
+    }
+
+    /// Empty the sink for a hook of `family`.
+    pub fn begin(&self, family: HookFamily) {
+        self.clear();
+        self.running.set(Some(family));
     }
 
     fn push(&self, emission: Emission) {
@@ -366,7 +376,7 @@ impl Verb {
         // `invalid` and `abstain` are shared spellings whose *shape* is the
         // family's: the literal-argument validator's flag form, and the
         // constraints family's positional `SLOT MESSAGE`.
-        if self.family == HookFamily::Constraints {
+        if self.sink.running.get().unwrap_or(self.family) == HookFamily::Constraints {
             let emission = match self.name {
                 "invalid" => constraint_emission(arguments)?,
                 "abstain" => Emission::ConstraintAbstain,

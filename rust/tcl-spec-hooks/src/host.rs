@@ -686,7 +686,7 @@ impl<E: Engine> HookHost<E> {
             hook_index,
             pinned,
         )?;
-        sink.clear();
+        sink.begin(family);
         // The `constraints` family's reading verbs answer from this cell,
         // refilled per call exactly as the sink is cleared per call.
         match call.constraints {
