@@ -7013,11 +7013,15 @@ mod tests {
         assert!(!caller_old.alias_observed_vars.contains("x"));
     }
 
+    /// tclsh 8.4.20 through 9.1.0 all return `2` from `caller` once the
+    /// computed `namespace eval` has defined `::n::writer`. A computed script
+    /// may rebind `proc` itself, so lowering publishes no `proc` written after
+    /// it; `caller` is written first so that its own body is retained.
     #[test]
     fn recovered_procedure_without_a_published_summary_is_opaque() {
         let module = lower_module(
-            "namespace eval ::n [list proc writer {} {upvar 1 x y; ::set y 2}]\n\
-             proc caller {} {::n::writer}",
+            "proc caller {} {::n::writer}\n\
+             namespace eval ::n [list proc writer {} {upvar 1 x y; ::set y 2}]",
         );
         assert!(fixture_id_if_present(&module.procedures, "::n::writer").is_none());
         let cfg = build_cfg(&module, false);
