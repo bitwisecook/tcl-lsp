@@ -123,6 +123,8 @@ pub fn spec() -> CommandSpec {
             return_value: "Without varName: the line read, or an empty string at end-of-file or when no full line is yet available on a nonblocking channel. With varName: the character count of the line read, or -1 at end-of-file or on an incomplete nonblocking read.",
         }),
         forms: FORMS,
+        // The handler returns a new string or integer object it built itself.
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         ..CommandSpec::DEFAULT
     }
 }

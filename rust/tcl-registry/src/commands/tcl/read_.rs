@@ -163,6 +163,8 @@ pub fn spec() -> CommandSpec {
             return_value: "The characters read, as a string: everything up to end-of-file in the bare form, or up to numChars characters (fewer if the channel is shorter) in the second form. An empty string when no data is available, including at end-of-file.",
         }),
         forms: FORMS,
+        // The handler returns a new string or integer object it built itself.
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         ..CommandSpec::DEFAULT
     }
 }
