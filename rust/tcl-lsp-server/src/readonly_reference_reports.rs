@@ -191,6 +191,7 @@ struct WorkspaceSymbolPublication<'a> {
     views: &'a [Option<source_views::WorkspaceSymbolSourceView>],
     epochs: (u64, u64),
     diagnostic: &'a super::WorkspaceSymbolDiagnostic,
+    index_moved: std::sync::atomic::AtomicBool,
 }
 
 impl WorkspaceSymbolPublication<'_> {
@@ -233,6 +234,8 @@ impl WorkspaceSymbolPublication<'_> {
                 index,
             ) {
                 self.diagnostic.record("lease.index_snapshot_refused", &[]);
+                self.index_moved
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
                 continue;
             }
             if self
@@ -317,7 +320,17 @@ pub(super) const fn is_source_census(coverage: ReadonlyReferenceCoverage) -> boo
 /// is safe rather than merely unlikely: the answer is withheld as
 /// unavailable, never presented from a stale capture, and the client's next
 /// request captures again.
-const READONLY_CURRENCY_ATTEMPTS: usize = 3;
+pub(super) const READONLY_CURRENCY_ATTEMPTS: usize = 3;
+
+/// What a symbol publication does with a row whose document was indexed
+/// again after the row was captured.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum MovedIndexRows {
+    /// Refuse the attempt so the caller captures again.
+    Recapture,
+    /// Publish the rows that are still current.
+    Omit,
+}
 
 /// Outcome of one final readonly transaction over captured sources.
 pub(super) enum ReadonlyTransaction<T> {
@@ -1279,6 +1292,7 @@ impl Backend {
             &[],
             (inputs_epoch, factory_generation),
             diagnostic,
+            MovedIndexRows::Omit,
         )
         .await
     }
@@ -1290,6 +1304,7 @@ impl Backend {
         views: &[Option<source_views::WorkspaceSymbolSourceView>],
         epochs: (u64, u64),
         diagnostic: &super::WorkspaceSymbolDiagnostic,
+        moved: MovedIndexRows,
     ) -> DocumentSourceResult<
         ReadonlyTransaction<tower_lsp_server::ls_types::WorkspaceSymbolResponse>,
     > {
@@ -1333,6 +1348,7 @@ impl Backend {
             views,
             epochs,
             diagnostic,
+            index_moved: std::sync::atomic::AtomicBool::new(false),
         };
         self.readonly_source_transaction_with_inputs(
             epochs,
@@ -1347,6 +1363,13 @@ impl Backend {
                     return None;
                 };
                 let current = publication.current_rows(state, &index, &view_guards);
+                if moved == MovedIndexRows::Recapture
+                    && publication
+                        .index_moved
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                {
+                    return None;
+                }
                 if current.is_empty() {
                     diagnostic.record("lease.no_current_rows", &[]);
                 }

@@ -32840,14 +32840,19 @@ impl Backend {
         &self,
         query: &str,
     ) -> DocumentSourceResult<ControlFlow<Option<WorkspaceSymbolResponse>>> {
-        self.workspace_symbol_attempt_diagnostic(query, &WorkspaceSymbolDiagnostic::default())
-            .await
+        self.workspace_symbol_attempt_diagnostic(
+            query,
+            &WorkspaceSymbolDiagnostic::default(),
+            readonly_reference_reports::MovedIndexRows::Omit,
+        )
+        .await
     }
 
     async fn workspace_symbol_attempt_diagnostic(
         &self,
         query: &str,
         diagnostic: &WorkspaceSymbolDiagnostic,
+        moved: readonly_reference_reports::MovedIndexRows,
     ) -> DocumentSourceResult<ControlFlow<Option<WorkspaceSymbolResponse>>> {
         let limit = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS;
         let inputs_epoch = self.diag_inputs_epoch();
@@ -32892,6 +32897,7 @@ impl Backend {
                 &symbol_views,
                 (inputs_epoch, factory_generation),
                 diagnostic,
+                moved,
             )
             .await;
         diagnostic.record_transaction(&result, all.len());
@@ -37120,8 +37126,28 @@ impl LanguageServer for Backend {
         self.edits_settled().await;
         self.wait_for_workspace_scan().await?;
         let query = params.query.as_str();
+        // A document indexed again while its rows were being mapped is
+        // captured again; only the last attempt answers without it.
+        let attempts = std::sync::atomic::AtomicUsize::new(0);
         let result = readonly_reference_reports::retry_readonly_attempt(None, || {
-            self.workspace_symbol_attempt_diagnostic(query, &diagnostic)
+            let attempt = attempts.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let moved = if attempt + 1 < readonly_reference_reports::READONLY_CURRENCY_ATTEMPTS {
+                readonly_reference_reports::MovedIndexRows::Recapture
+            } else {
+                readonly_reference_reports::MovedIndexRows::Omit
+            };
+            let diagnostic = &diagnostic;
+            async move {
+                if attempt != 0 {
+                    let _ = crate::rt::timeout(
+                        readonly_reference_reports::source_views::SOURCE_VIEW_CONTENTION_BACKOFF,
+                        self.live_publication_advanced.notified(),
+                    )
+                    .await;
+                }
+                self.workspace_symbol_attempt_diagnostic(query, diagnostic, moved)
+                    .await
+            }
         })
         .await
         .map_err(Into::into);

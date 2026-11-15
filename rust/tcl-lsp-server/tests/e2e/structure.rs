@@ -178,7 +178,8 @@ fn empty_query_returns_all() {
     });
     assert!(
         BTreeSet::from(["foo_empty_q_aaa".to_owned(), "bar_empty_q_bbb".to_owned()])
-            .is_subset(&names)
+            .is_subset(&names),
+        "{result}"
     );
 }
 

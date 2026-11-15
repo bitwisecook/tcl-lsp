@@ -135,6 +135,7 @@ impl Captured {
                 &self.views,
                 self.epochs,
                 &crate::WorkspaceSymbolDiagnostic::default(),
+                crate::readonly_reference_reports::MovedIndexRows::Omit,
             )
             .await
     }
