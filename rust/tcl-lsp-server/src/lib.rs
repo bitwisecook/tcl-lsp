@@ -31033,47 +31033,41 @@ impl Backend {
     /// the same gate, so none can invalidate the freshly re-homed view between
     /// reconciliation and a definition/reference/rename read.
     async fn rehomed_index_guard(&self) -> DocumentSourceResult<tokio::sync::MutexGuard<'_, ()>> {
-        let Some(settlement) = self.refresh_original_source_view_graph().await? else {
-            let uri = self
-                .workspace_index
-                .read()
-                .await
-                .document_uris()
-                .first()
-                .and_then(|uri| uri.parse().ok())
-                .ok_or_else(|| DocumentSourceUnavailable::InvalidStoredUri {
-                    original: "source-view work has no current physical owner".to_owned(),
-                })?;
-            return Err(DocumentSourceUnavailable::ConditionalAdvice { uri });
-        };
-        let mut guard = self.rehoming_gate.lock().await;
         // The settled views reach the workspace index in the publication that
-        // follows them; wait a bounded time for it rather than refusing.
-        for _ in 1..readonly_reference_reports::source_views::SOURCE_VIEW_CONTENTION_ATTEMPTS {
-            if self.original_source_view_settlement_views_are_indexed(&settlement) {
-                break;
+        // follows them. A settlement taken while another publication is in
+        // flight can name views that publication then replaces; those never
+        // reach the index, so waiting on that settlement cannot succeed. Each
+        // attempt therefore settles again and checks the views it names.
+        let mut retired = "source-view work has no current physical owner";
+        for attempt in 0..readonly_reference_reports::source_views::SOURCE_VIEW_CONTENTION_ATTEMPTS
+        {
+            if attempt != 0 {
+                let _ = crate::rt::timeout(
+                    readonly_reference_reports::source_views::SOURCE_VIEW_CONTENTION_BACKOFF,
+                    self.live_publication_advanced.notified(),
+                )
+                .await;
             }
-            drop(guard);
-            crate::rt::sleep(
-                readonly_reference_reports::source_views::SOURCE_VIEW_CONTENTION_BACKOFF,
-            )
-            .await;
-            guard = self.rehoming_gate.lock().await;
+            let Some(settlement) = self.refresh_original_source_view_graph().await? else {
+                break;
+            };
+            let guard = self.rehoming_gate.lock().await;
+            if self.original_source_view_settlement_views_are_indexed(&settlement) {
+                return Ok(guard);
+            }
+            retired = "source-view settlement retired";
         }
-        if !self.original_source_view_settlement_views_are_indexed(&settlement) {
-            let uri = self
-                .workspace_index
-                .read()
-                .await
-                .document_uris()
-                .first()
-                .and_then(|uri| uri.parse().ok())
-                .ok_or_else(|| DocumentSourceUnavailable::InvalidStoredUri {
-                    original: "source-view settlement retired".to_owned(),
-                })?;
-            return Err(DocumentSourceUnavailable::ConditionalAdvice { uri });
-        }
-        Ok(guard)
+        let uri = self
+            .workspace_index
+            .read()
+            .await
+            .document_uris()
+            .first()
+            .and_then(|uri| uri.parse().ok())
+            .ok_or_else(|| DocumentSourceUnavailable::InvalidStoredUri {
+                original: retired.to_owned(),
+            })?;
+        Err(DocumentSourceUnavailable::ConditionalAdvice { uri })
     }
 
     /// Capture a source for rehoming without calling [`Self::read_document`].
