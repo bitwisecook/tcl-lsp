@@ -433,6 +433,7 @@ impl CfgBuilder<'_> {
             let then_block = self.new_block("if_then");
             let next_dispatch = self.new_block("if_next");
             self.copy_command_boundary(block_name, &dispatch);
+            self.copy_condition_binding(block_name, &dispatch);
 
             let true_target = self.bid(&then_block);
             let false_target = self.bid(&next_dispatch);
