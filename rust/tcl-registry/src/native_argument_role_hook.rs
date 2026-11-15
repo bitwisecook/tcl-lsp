@@ -32,13 +32,18 @@ pub enum NativeArgumentRoleHook {
     Layout(ArgRoleLayoutResolver),
 }
 
+/// What separates the steps of a native hook's identity
+/// (`command::member::field`). It is spelt like Tcl's namespace separator but
+/// names no namespace.
+pub const HOOK_PATH_SEPARATOR: &str = "::";
+
 impl CommandRegistry {
     /// Resolve an exact command/member hook ID in this registry's catalogue.
     /// An exact qualified command takes precedence over a member interpretation,
     /// including when that command has no hook of the requested kind.
     #[must_use]
     pub fn native_argument_role_hook(&self, id: &str) -> Option<NativeArgumentRoleHook> {
-        let (owner, field) = id.rsplit_once("::")?;
+        let (owner, field) = id.rsplit_once(HOOK_PATH_SEPARATOR)?;
         if let Some(command) = self.get(owner) {
             return selected_hook(
                 field,
@@ -46,7 +51,7 @@ impl CommandRegistry {
                 command.arg_role_layout_resolver,
             );
         }
-        let (command, member) = owner.rsplit_once("::")?;
+        let (command, member) = owner.rsplit_once(HOOK_PATH_SEPARATOR)?;
         let member = self
             .get(command)?
             .subcommands

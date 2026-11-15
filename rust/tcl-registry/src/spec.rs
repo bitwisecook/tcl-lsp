@@ -1784,14 +1784,6 @@ pub struct CommandSpec {
     /// the receiving command's head or helper namespace supplies neither.
     pub script_lookup_scope: Option<crate::ScriptLookupScope>,
 
-    /// Which substitutions this call performs over its own argument text, for
-    /// a [`Traits::PERFORMS_SUBSTITUTION`] command whose switches change the
-    /// answer (`subst -novariables`).
-    ///
-    /// `None` means the trait alone describes the command: every kind runs on
-    /// every call. See [`crate::substitution`].
-    pub substitution_resolver: Option<crate::substitution::SubstitutionResolver>,
-
     /// External callback substitutions for deferred executable arguments,
     /// keyed by their argument index. Option values carry the same fact on
     /// [`crate::hover::OptionArg`]; this table covers positional callback
@@ -3018,7 +3010,6 @@ impl CommandSpec {
         command_prefix_resolver: None,
         script_timing_resolver: None,
         script_lookup_scope: None,
-        substitution_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
         return_type_hook: None,

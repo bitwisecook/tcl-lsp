@@ -48,6 +48,11 @@ impl std::fmt::Display for RuleIdentityError {
 
 impl std::error::Error for RuleIdentityError {}
 
+/// What separates the rule from the procedure in a `call` target
+/// (`/Common/lib::helper`). It is spelt like Tcl's namespace separator but
+/// selects a configuration object, not a namespace.
+pub const RULE_PROCEDURE_SEPARATOR: &str = "::";
+
 impl RuleIdentity {
     /// Validate an identity supplied by configuration or a caller.
     ///
@@ -58,7 +63,7 @@ impl RuleIdentity {
         let components: Vec<_> = path.split('/').collect();
         if !path.starts_with('/')
             || components.len() < 3
-            || path.contains("::")
+            || path.contains(RULE_PROCEDURE_SEPARATOR)
             || components[1..]
                 .iter()
                 .any(|part| part.is_empty() || *part == "." || *part == "..")
@@ -106,13 +111,13 @@ impl RuleProcedureTarget {
     pub fn referenced_rule_spelling(target: &str) -> Option<&str> {
         // Implementation contract: naming.consumer.original-rule-reference-candidates
         // docs/design/analysis/name-resolution-proofs/original-rule-reference-candidates.md
-        let (rule, procedure) = target.rsplit_once("::")?;
+        let (rule, procedure) = target.rsplit_once(RULE_PROCEDURE_SEPARATOR)?;
         if rule.is_empty() || procedure.is_empty() || procedure.contains('/') {
             return None;
         }
         if rule.starts_with('/') {
             RuleIdentity::new(rule).ok()?;
-        } else if rule.contains('/') || rule.contains("::") {
+        } else if rule.contains('/') || rule.contains(RULE_PROCEDURE_SEPARATOR) {
             return None;
         }
         Some(rule)
@@ -123,24 +128,28 @@ impl RuleProcedureTarget {
     /// # Errors
     /// Returns an error when identity is absent or the target is malformed.
     pub fn resolve(target: &str, owner: Option<&RuleIdentity>) -> Result<Self, RuleIdentityError> {
-        let (rule, procedure) = if let Some((rule, procedure)) = target.rsplit_once("::") {
-            let path = if rule.starts_with('/') {
-                rule.to_owned()
+        let (rule, procedure) =
+            if let Some((rule, procedure)) = target.rsplit_once(RULE_PROCEDURE_SEPARATOR) {
+                let path = if rule.starts_with('/') {
+                    rule.to_owned()
+                } else {
+                    let owner = owner.ok_or(RuleIdentityError::MissingOwner)?;
+                    if rule.contains('/') || rule.contains(RULE_PROCEDURE_SEPARATOR) {
+                        return Err(RuleIdentityError::InvalidPath);
+                    }
+                    format!("{}/{rule}", owner.partition())
+                };
+                (RuleIdentity::new(path)?, procedure)
             } else {
-                let owner = owner.ok_or(RuleIdentityError::MissingOwner)?;
-                if rule.contains('/') || rule.contains("::") {
-                    return Err(RuleIdentityError::InvalidPath);
-                }
-                format!("{}/{rule}", owner.partition())
+                (
+                    owner.ok_or(RuleIdentityError::MissingOwner)?.clone(),
+                    target,
+                )
             };
-            (RuleIdentity::new(path)?, procedure)
-        } else {
-            (
-                owner.ok_or(RuleIdentityError::MissingOwner)?.clone(),
-                target,
-            )
-        };
-        if procedure.is_empty() || procedure.contains("::") || procedure.contains('/') {
+        if procedure.is_empty()
+            || procedure.contains(RULE_PROCEDURE_SEPARATOR)
+            || procedure.contains('/')
+        {
             return Err(RuleIdentityError::InvalidProcedure);
         }
         Ok(Self {

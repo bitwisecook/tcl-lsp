@@ -170,15 +170,6 @@ impl NativeSubstitutionOptions {
     }
 }
 
-/// Resolver for a substituting command whose switches change which kinds run.
-///
-/// Takes the call's post-name arguments, exactly as
-/// [`ArgRoleResolver`](crate::spec::ArgRoleResolver) does. A resolver that
-/// cannot read the call — a computed switch word, an unrecognised one — must
-/// answer [`SubstitutionKinds::ALL`], because assuming a substitution does not
-/// happen is the answer that loses a real variable read.
-pub type SubstitutionResolver = fn(args: &[&str]) -> SubstitutionKinds;
-
 /// Native template operands selected from the actual frozen argv and option table.
 /// This does not prove implementation identity or the effects of substitutions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

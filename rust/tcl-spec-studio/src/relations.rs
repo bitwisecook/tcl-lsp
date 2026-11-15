@@ -61,6 +61,9 @@ pub const CLUSTERS: &[Cluster] = &[
             "arg_presentation",
             "assigns_variable_at",
             "arg_types",
+            "arg_role_count_resolver",
+            "arg_role_layout_resolver",
+            "variable_receivers",
         ],
     },
     Cluster {
@@ -115,6 +118,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "constraints",
             "setter_constraints",
             "literal_argument_validator",
+            "option_prefix_words",
         ],
     },
     Cluster {
@@ -138,6 +142,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "script_timing",
             "script_timing_resolver",
             "callback_taint_inputs",
+            "script_lookup_scope",
         ],
     },
     Cluster {
@@ -342,6 +347,18 @@ pub const CLUSTERS: &[Cluster] = &[
         why: "Values that name a live resource, and where a command using one \
               is legal.",
         members: &["binds_handle", "remote_method", "context_gate"],
+    },
+    Cluster {
+        name: "Source operands",
+        why: "What a written operand relates to in the source alone: a \
+              configuration object, an index into a container, a path \
+              operation, a channel option. None of them is a runtime fact.",
+        members: &[
+            "source_configuration_reference",
+            "source_index_bounds",
+            "source_path_operation",
+            "channel_configuration",
+        ],
     },
     Cluster {
         name: "Safety",

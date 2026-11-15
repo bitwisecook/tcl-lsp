@@ -6680,9 +6680,8 @@ fn hook_source(stmt: &Stmt) -> Option<HookSource> {
 }
 
 /// What separates the steps of a pack hook's identity (`-native
-/// lsort::sub::const_fold`): owning command, then member, then field. It is
-/// spelt like Tcl's namespace separator but names no namespace.
-pub const HOOK_PATH_SEPARATOR: &str = "::";
+/// lsort::sub::const_fold`): owning command, then member, then field.
+pub use tcl_registry::native_argument_role_hook::HOOK_PATH_SEPARATOR;
 
 /// One step further down a pack hook's identity path.
 #[must_use]

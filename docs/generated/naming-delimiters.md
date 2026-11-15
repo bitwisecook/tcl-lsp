@@ -14,7 +14,5 @@
 | `rust/tcl-compiler/src/analyser/scope.rs` | 3 |
 | `rust/tcl-compiler/src/command_binding/source_declared_method_template.rs` | 1 |
 | `rust/tcl-compiler/src/var_resolve/cell_key.rs` | 1 |
-| `rust/tcl-registry/src/f5/rule_identity.rs` | 6 |
-| `rust/tcl-registry/src/native_argument_role_hook.rs` | 2 |
 
-18 site(s) in 10 file(s).
+10 site(s) in 8 file(s).

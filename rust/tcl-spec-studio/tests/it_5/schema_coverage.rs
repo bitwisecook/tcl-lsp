@@ -29,7 +29,7 @@
 //! [`tcl_spec_studio::schema`]. Adding a field to the registry without adding
 //! it to the schema fails here, naming the field.
 
-use tcl_spec_studio::schema;
+use tcl_spec_studio::{coverage, schema};
 
 /// The registry's spec definitions, read at compile time so the test needs no
 /// filesystem access and cannot go stale against a moved file.
@@ -103,9 +103,23 @@ fn expansion_of(field: &str) -> &'static [&'static str] {
         .map_or(&[], |(_, keys)| *keys)
 }
 
-fn assert_schema_covers(spec_fields: &[String], schema_keys: &[&str], what: &str) {
+/// Whether the studio's coverage ledger states a reason for not surfacing
+/// `field`; such a field has no schema entry to find.
+fn is_excluded(ledger: &[coverage::Field], field: &str) -> bool {
+    ledger
+        .iter()
+        .any(|row| row.name == field && matches!(row.surface, coverage::Surface::Excluded(_)))
+}
+
+fn assert_schema_covers(
+    spec_fields: &[String],
+    schema_keys: &[&str],
+    ledger: &[coverage::Field],
+    what: &str,
+) {
     let missing: Vec<&String> = spec_fields
         .iter()
+        .filter(|f| !is_excluded(ledger, f))
         .filter(|f| {
             let expanded = expansion_of(f);
             if expanded.is_empty() {
@@ -140,14 +154,24 @@ fn assert_schema_covers(spec_fields: &[String], schema_keys: &[&str], what: &str
 fn schema_covers_every_command_spec_field() {
     let spec_fields = default_initialiser_fields(SPEC_SOURCE, "impl CommandSpec {");
     let schema_keys: Vec<&str> = schema::COMMAND_FIELDS.iter().map(|f| f.key).collect();
-    assert_schema_covers(&spec_fields, &schema_keys, "CommandSpec");
+    assert_schema_covers(
+        &spec_fields,
+        &schema_keys,
+        coverage::COMMAND_SPEC,
+        "CommandSpec",
+    );
 }
 
 #[test]
 fn schema_covers_every_subcommand_field() {
     let spec_fields = default_initialiser_fields(SPEC_SOURCE, "impl SubCommand {");
     let schema_keys: Vec<&str> = schema::SUBCOMMAND_FIELDS.iter().map(|f| f.key).collect();
-    assert_schema_covers(&spec_fields, &schema_keys, "SubCommand");
+    assert_schema_covers(
+        &spec_fields,
+        &schema_keys,
+        coverage::SUB_COMMAND,
+        "SubCommand",
+    );
 }
 
 #[test]

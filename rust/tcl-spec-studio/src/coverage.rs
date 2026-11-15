@@ -184,7 +184,6 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         command_prefix_resolver: _,
         script_timing_resolver: _,
         script_lookup_scope: _,
-        substitution_resolver: _,
         callback_taint_inputs: _,
         return_type: _,
         return_type_hook: _,
@@ -347,10 +346,6 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("script_timing_resolver"),
     ),
     f("script_lookup_scope", Surface::Key("script_lookup_scope")),
-    f(
-        "substitution_resolver",
-        Surface::Key("substitution_resolver"),
-    ),
     f("return_type", Surface::Key("return_type")),
     f("return_type_hook", Surface::Key("return_type_hook")),
     f("var_write_typing", Surface::Key("var_write_typing")),

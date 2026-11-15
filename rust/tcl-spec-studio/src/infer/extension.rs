@@ -176,12 +176,21 @@ impl ExtensionImport {
         if self.version.is_none() {
             self.version.clone_from(&probe.version);
         }
-        for name in &probe.commands {
+        // `info commands` reports a global command with its root marker
+        // (tclsh 8.6 and 9.0: `::demo::fixed`), and a spec names it without.
+        // A row the scan already holds keeps its own spelling; a new row takes
+        // the name less that one marker, every other colon as reported.
+        for reported in &probe.commands {
+            let name = tcl_syntax::naming::unroot_rooted_key(reported).unwrap_or(reported);
             let note = format!(
                 "probe: `package require {}` added `{name}` to the shell",
                 probe.package
             );
-            if let Some(row) = self.commands.iter_mut().find(|row| row.name == *name) {
+            if let Some(row) = self
+                .commands
+                .iter_mut()
+                .find(|row| row.name == *reported || row.name == name)
+            {
                 row.sources.push(ExtensionSource::Probe);
                 row.sources.sort();
                 row.notes.push(note);
@@ -706,7 +715,8 @@ mod tests {
             .iter()
             .map(|row| row.name.as_str())
             .collect();
-        assert_eq!(names, [":::::p", "::p", ":p"]);
+        // Exactly one root marker goes; repeated colons are not collapsed.
+        assert_eq!(names, [":::p", ":p", "p"]);
     }
 
     #[test]
