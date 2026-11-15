@@ -2727,6 +2727,33 @@ fn retained_and_recreated_namespace_variables_have_distinct_cells() {
 }
 
 #[test]
+fn compiled_descendant_command_survives_activation_delayed_parent_deletion() {
+    // #1755. Measured on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: from
+    // 8.5 the precompiled relative and absolute references both keep the
+    // retained old child token while the deleting activation is live; 8.4
+    // re-resolves the absolute spelling through the recreated namespace.
+    let src = r"set answer [namespace eval ::N {
+                    namespace eval C {proc q {} {return OLDQ}}
+                    proc p {} {
+                        namespace delete ::N
+                        namespace eval ::N::C {proc q {} {return NEWQ}}
+                        list [C::q] [::N::C::q]
+                    }
+                    p
+                }]
+                list $answer [::N::C::q]";
+    for (release, expected) in [
+        ("tcl8.4", "{OLDQ NEWQ} NEWQ"),
+        ("tcl8.5", "{OLDQ OLDQ} NEWQ"),
+        ("tcl8.6", "{OLDQ OLDQ} NEWQ"),
+        ("tcl9.0", "{OLDQ OLDQ} NEWQ"),
+        ("tcl9.1", "{OLDQ OLDQ} NEWQ"),
+    ] {
+        assert_eq!(run_at(src, release), expected, "{release}");
+    }
+}
+
+#[test]
 fn retained_and_recreated_namespace_variable_traces_are_isolated() {
     // Exact Tcl 9.0.4 oracle. Final teardown of the old token fires only its
     // old trace; its callback sees the same-spelled recreation as live, and
