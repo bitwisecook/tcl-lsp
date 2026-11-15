@@ -12,7 +12,7 @@ Do source rewrite helpers separate actual current handler/geometry advice from i
 
 ## Conclusion
 
-The common rewrite selector consumes actual Analysis, validates the whole source and full configuration, and uses the retained Registry/source traversal to select the corresponding conditional handler. Missing or shadowed targets refuse. Native structure advice does not grant transformation equivalence: expression bracing, branch conversion and dictionary conversion return a no-edit obligation reason until their independent evaluation/control-flow or temporary-cell/observer/store/insertion permissions are supplied. Explicitly selected Logical source advice retains its separate bounded transformation branch; hosted/native missing policy cannot reopen that branch from display text. Source correspondence supplies no Normal, runtime handler or inserted-cell capability. The separate exact-literal-expression bracing issuer can permit one static pure expression operand only after unchanged original argv, selected handler, compiler name effects, observer closure, checked native expression and independent braced-source decode correspondence all agree; structural handler advice alone still cannot issue that permission.
+The common rewrite selector consumes actual Analysis, validates the whole source and full configuration, and uses the retained Registry/source traversal to select the corresponding conditional handler. Missing or shadowed targets refuse. Native structure advice does not grant transformation equivalence: expression bracing and dictionary conversion return a no-edit obligation reason until their independent evaluation or temporary-cell/observer/store/insertion permissions are supplied. Branch conversion keeps its control-flow obligation only where a trace cannot be ruled out: an `if` chain over one scalar and its `switch -exact` form give the same results and differ only in how often the scalar is read, which a read trace observes; a document that establishes a trace, or whose commands the checked source visit does not all cover, is refused. Explicitly selected Logical source advice retains its separate bounded transformation branch; hosted/native missing policy cannot reopen that branch from display text. Source correspondence supplies no Normal, runtime handler or inserted-cell capability. The separate exact-literal-expression bracing issuer can permit one static pure expression operand only after unchanged original argv, selected handler, compiler name effects, observer closure, checked native expression and independent braced-source decode correspondence all agree; structural handler advice alone still cannot issue that permission.
 
 Logical source-rewrite selection preserves current selected effective argv and original operand origins. Captured prefix values remain readonly data and cannot borrow the position of a written clause word.
 
@@ -24,11 +24,15 @@ The source/software assertion definition establishes no execution or Native stor
 
 ## Provider answers
 
-### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
+
+Status: `observed`. Channel: script on standard input of the pinned reference `tclsh`. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
+
+Branch conversion only: [lsp-if-to-switch-preserved-results.md](../../../../evidence/tcl/lsp-if-to-switch-preserved-results.md) and [lsp-if-to-switch-read-count.md](../../../../evidence/tcl/lsp-if-to-switch-read-count.md). Expression bracing and dictionary conversion have no native observation attached.
+
+### jim, bigip
 
 Status: `not-tested`.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
 
 ## Consumer bindings
 

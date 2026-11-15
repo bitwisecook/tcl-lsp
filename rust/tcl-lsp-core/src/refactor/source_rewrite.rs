@@ -144,10 +144,32 @@ pub(super) fn select(
     if !walk.complete() {
         return None;
     }
-    // Selecting a source handler does not establish evaluation equivalence,
-    // replacement dispatch or fresh-cell/insertion permission. Logical
-    // declaration advice retains these obligations exactly as Native advice.
-    Some((command, Some(obligation)))
+    // Selecting a source handler does not establish evaluation equivalence or
+    // fresh-cell/insertion permission; those obligations stand on every
+    // profile. An `if` chain over one scalar and its `switch -exact` form
+    // differ only in how often the scalar is read (once per condition against
+    // once), which a script observes through a read trace and no other way, so
+    // that obligation stands only where a trace cannot be ruled out.
+    let stands = !matches!(obligation, RewriteObligation::ControlFlowEvaluation)
+        || trace_possible(source, analysis, &walk);
+    Some((command, stands.then_some(obligation)))
+}
+
+/// Whether the document establishes a trace, or holds commands the walk
+/// cannot visit and so might.
+fn trace_possible(source: &str, analysis: &AnalysisResult, walk: &FrameWalk<'_>) -> bool {
+    let mut traced = false;
+    let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            traced |= walk.source_traits(source, command).is_some_and(|traits| {
+                traits.contains(tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE)
+            });
+            false
+        },
+    );
+    traced || coverage != crate::executable_regions::PotentialSourceVisit::Complete
 }
 
 fn original_command_at(

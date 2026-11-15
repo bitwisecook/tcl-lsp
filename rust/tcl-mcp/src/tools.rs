@@ -3973,13 +3973,15 @@ choose {puts SAME} elseif {$x eq two} {puts SAME}";
     fn original_code_action_responses_retain_disabled_rewrite_obligations() {
         // Implementation contract: naming.consumer.original-mcp-refactor-context
         // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
-        let source = "if {1} {puts YES} else {puts NO}";
+        // A read trace observes how often the subject is read, so the chain
+        // keeps its control-flow obligation (evidence/tcl/lsp-if-to-switch-read-count.md).
+        let source = "set x a\ntrace add variable x read {incr ::reads;#}\nif {$x eq \"a\"} {puts YES} elseif {$x eq \"b\"} {puts NO}";
         let response = code_actions(&json!({
             "source": source,
             "dialect": "tcl8.6",
-            "start_line": 0,
+            "start_line": 2,
             "start_character": 0,
-            "end_line": 0,
+            "end_line": 2,
             "end_character": 0,
         }));
         let action = response["actions"]
