@@ -101,6 +101,8 @@ mod native_compiled_append;
 pub(crate) mod native_compiled_locals;
 #[cfg(test)]
 mod native_control_expression_tests;
+#[cfg(test)]
+mod native_catch_info_exists_slot_tests;
 mod native_coroutine_names;
 pub(crate) mod native_dictionary;
 #[cfg(test)]
