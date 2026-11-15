@@ -5613,9 +5613,11 @@ mod tests {
     }
 
     /// A static-body `uplevel 0` is an `UpFrame`, not a generic
-    /// barrier, but its body can create a local in the frame whose existence
-    /// query follows. The whole-function existence fold must abstain just as
-    /// it does for `Barrier`.
+    /// barrier, and its body creates a local in the frame whose existence
+    /// query follows. The existence fold must never answer that the local is
+    /// absent. Since the binding walk follows a braced literal `uplevel`
+    /// script into the frame it selects, the query is decided: tclsh 8.4.20,
+    /// 8.6.18, 9.0.4 and 9.1.0 all print `yes` for `puts [f]`.
     #[test]
     fn existence_fold_abstains_for_a_live_upframe() {
         let registry = registry();
@@ -5634,8 +5636,8 @@ mod tests {
             "the regression requires the static uplevel lowering path"
         );
         assert!(
-            f.sccp.constant_branches.is_empty(),
-            "UpFrame may define `created`, so info exists must not fold: {:?}",
+            f.sccp.constant_branches.iter().all(|branch| branch.value),
+            "UpFrame defines `created`, so info exists must not fold to absent: {:?}",
             f.sccp.constant_branches
         );
     }
