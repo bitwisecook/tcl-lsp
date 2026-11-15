@@ -263,8 +263,7 @@ impl ModuleCommandBindings {
             })
         {
             Arc::make_mut(&mut self.bindings)
-                .entry(name)
-                .or_default()
+                .entry_or_default(name)
                 .insert(MayBinding::Unknown);
         }
     }
@@ -400,8 +399,7 @@ impl ModuleCommandBindings {
                 bindings.insert(name.clone(), BTreeSet::from([visible_binding.clone()]));
             } else {
                 bindings
-                    .entry(name.clone())
-                    .or_default()
+                    .entry_or_default(name.clone())
                     .extend([visible_binding, MayBinding::Unknown]);
             }
             self.retain_imported_observer_uncertainty(entry, command, name);

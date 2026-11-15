@@ -269,8 +269,11 @@ impl CommandKeyQuery for String {
 
 /// The primary mutable command map. Legacy string queries address only the
 /// authored domain; actual slots must supply their retained typed identity.
+///
+/// Values are shared: a state fork that writes one name copies the table's
+/// keys and value handles, not every name's alternatives.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SourceCommandTable<V>(rustc_hash::FxHashMap<SourceCommandKey, V>);
+pub(super) struct SourceCommandTable<V>(rustc_hash::FxHashMap<SourceCommandKey, std::sync::Arc<V>>);
 impl<V> Default for SourceCommandTable<V> {
     fn default() -> Self {
         Self(rustc_hash::FxHashMap::default())
@@ -278,25 +281,19 @@ impl<V> Default for SourceCommandTable<V> {
 }
 impl<V> SourceCommandTable<V> {
     pub(super) fn get<Q: CommandKeyQuery + ?Sized>(&self, key: &Q) -> Option<&V> {
-        self.0.get(key.command_key().as_ref())
+        self.0.get(key.command_key().as_ref()).map(AsRef::as_ref)
     }
     pub(super) fn contains_key<Q: CommandKeyQuery + ?Sized>(&self, key: &Q) -> bool {
         self.get(key).is_some()
     }
-    pub(super) fn insert(&mut self, key: impl Into<SourceCommandKey>, value: V) -> Option<V> {
-        self.0.insert(key.into(), value)
-    }
-    pub(super) fn entry(
-        &mut self,
-        key: impl Into<SourceCommandKey>,
-    ) -> std::collections::hash_map::Entry<'_, SourceCommandKey, V> {
-        self.0.entry(key.into())
+    pub(super) fn insert(&mut self, key: impl Into<SourceCommandKey>, value: V) {
+        self.0.insert(key.into(), std::sync::Arc::new(value));
     }
     pub(super) fn iter(&self) -> impl Iterator<Item = (&SourceCommandKey, &V)> {
-        self.0.iter()
+        self.0.iter().map(|(key, value)| (key, value.as_ref()))
     }
     pub(super) fn values(&self) -> impl Iterator<Item = &V> {
-        self.0.values()
+        self.0.values().map(AsRef::as_ref)
     }
     pub(super) fn keys(&self) -> impl Iterator<Item = &SourceCommandKey> {
         self.0.keys()
@@ -308,8 +305,17 @@ impl<V> SourceCommandTable<V> {
         &mut self,
         entries: impl IntoIterator<Item = (K, V)>,
     ) {
-        self.0
-            .extend(entries.into_iter().map(|(key, value)| (key.into(), value)));
+        self.0.extend(
+            entries
+                .into_iter()
+                .map(|(key, value)| (key.into(), std::sync::Arc::new(value))),
+        );
+    }
+}
+impl<V: Clone + Default> SourceCommandTable<V> {
+    /// The value at `key` for writing, inserted empty when absent.
+    pub(super) fn entry_or_default(&mut self, key: impl Into<SourceCommandKey>) -> &mut V {
+        std::sync::Arc::make_mut(self.0.entry(key.into()).or_default())
     }
 }
 impl<K: Into<SourceCommandKey>, V> FromIterator<(K, V)> for SourceCommandTable<V> {
