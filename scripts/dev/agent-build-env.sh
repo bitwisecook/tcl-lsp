@@ -31,7 +31,14 @@
 # This helper pins the build environment for the current worktree:
 #
 #   CARGO_TARGET_DIR         -> <worktree-root>/target  (never shared)
-#   CARGO_INCREMENTAL=0      -> smaller target dir, no incremental-cache races
+#   CARGO_INCREMENTAL=1      -> an edit recompiles the changed part of a crate,
+#                               not the whole crate: about 1 minute from an
+#                               edit in tcl-compiler to its tests, against 11
+#                               without.  Costs about 5 GB of target dir; the
+#                               per-worktree target above keeps the cache
+#                               private, so there is no cross-worktree race.
+#                               Set TCL_LSP_AGENT_INCREMENTAL=0 where disk is
+#                               tighter than time (CI sets it to 0 itself).
 #   CARGO_PROFILE_DEV_DEBUG=0 -> keeps a dev target dir ~3-4 GB, not ~15 GB
 #   CARGO_PROFILE_TEST_DEBUG=0 -> drops the test profile's line tables too, so a
 #                               full local test build fits on a laptop
@@ -53,18 +60,19 @@ agent_build_env__main() {
     fi
 
     local target_dir="${worktree_root}/target"
+    local incremental="${TCL_LSP_AGENT_INCREMENTAL:-1}"
 
     case "${1:-}" in
         --print)
             printf 'export CARGO_TARGET_DIR=%q\n' "${target_dir}"
-            printf 'export CARGO_INCREMENTAL=0\n'
+            printf 'export CARGO_INCREMENTAL=%q\n' "${incremental}"
             printf 'export CARGO_PROFILE_DEV_DEBUG=0\n'
             printf 'export CARGO_PROFILE_TEST_DEBUG=0\n'
             ;;
         --check)
             echo "worktree root:            ${worktree_root}"
             echo "CARGO_TARGET_DIR:         ${target_dir}"
-            echo "CARGO_INCREMENTAL:        0"
+            echo "CARGO_INCREMENTAL:        ${incremental}"
             echo "CARGO_PROFILE_DEV_DEBUG:  0"
             echo "CARGO_PROFILE_TEST_DEBUG: 0"
             if [ -n "${CARGO_TARGET_DIR:-}" ] \
@@ -76,7 +84,7 @@ agent_build_env__main() {
             ;;
         '')
             export CARGO_TARGET_DIR="${target_dir}"
-            export CARGO_INCREMENTAL=0
+            export CARGO_INCREMENTAL="${incremental}"
             export CARGO_PROFILE_DEV_DEBUG=0
             export CARGO_PROFILE_TEST_DEBUG=0
             ;;
