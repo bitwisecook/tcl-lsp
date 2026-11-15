@@ -2489,6 +2489,24 @@ is renamed or deleted in this file."
                         grammar,
                     )
                     .to_owned();
+                    // The existence rung has the last word: a place the solver
+                    // proves bound at this read is not missing, whatever the
+                    // merged alternatives say (an `info exists` fold removes
+                    // the edge the unbound alternative arrives on).
+                    let point = if index == usize::MAX {
+                        ExistencePoint::Exit(block)
+                    } else {
+                        ExistencePoint::Before(block, index)
+                    };
+                    let fact = read_reference.map(|read| fu.existence(read.symbol, point));
+                    if !killed
+                        && matches!(
+                            fact,
+                            Some(FactView::Domain(DomainFact::Existence(Existence::Bound(_))))
+                        )
+                    {
+                        continue;
+                    }
                     if ctx.supp.suppresses(&name)
                         || !killed
                             && exists_guards.iter().any(|(guarded, dominator)| {
