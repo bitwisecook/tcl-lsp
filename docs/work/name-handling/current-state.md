@@ -73,7 +73,7 @@ Other token faults fixed in this pass:
 
 Tests collapsed in the owner: 18 single-assertion tests of `normalise_var_name`, `normalise_qualified_name` and `qualify` became three table-driven tests with the same rows (53 tests to 38 in `naming.rs`).
 
-Token tests: `tcl-lsp-core` library token tests 29 failing (38 at the last snapshot), residual `st_*` tests 4 (6); server token and large-file e2e 2 of 105 (9). `tcl-compiler` and `tcl-irules`: 13,191 run, 2,579 failing, none new.
+Token tests: `tcl-lsp-core` library token tests 27 failing (38 at the last snapshot), residual `st_*` tests 4 (6); server token and large-file e2e 2 of 105 (9). `tcl-compiler` and `tcl-irules`: 13,191 run, 2,579 failing, none new.
 
 Open:
 

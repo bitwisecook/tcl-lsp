@@ -50,7 +50,7 @@ So keep `opt-level 1` and leave incremental on: an edit-to-test cycle is about a
 
 - Build only the binary you need in the loop: `--lib`, or one `--test it_4`. A nextest `-E` filter alone still builds every test binary of the selected packages.
 - Keep one package selection per target directory (`-p a -p b …`). A different selection resolves different features (`syn`, `tokio`, `hashbrown`, and the workspace's own `test-support`, `html` and `truth-table` features) and rebuilds most of the tree.
-- Run one cargo build at a time; two concurrent builds exhaust 15 GB of memory.
+- Run one cargo build at a time; two concurrent builds exhaust 15 GB of memory. With incremental on, a selection that holds both `tcl-compiler` and `tcl-lsp-server` can also be killed (`signal: 9`) when both test crates compile at once: set `CARGO_BUILD_JOBS=2` for that selection.
 - When the disk fills, remove `target/debug/incremental` (it is rebuilt) or `cargo clean -p <crate>`. Do not delete files under `target/` by age: build-script outputs such as `aws-lc-sys` are not tracked by cargo.
 - CI builds tests at `opt-level 0`. Four tests pass at `opt-level 1` and fail at 0 (stack and time budgets): `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget`, the two `phi_undef_memo::nested_if_stages_*` tests and `tcl-irules` `walker::tests::deeply_nested_command_substitution_does_not_crash`. Check a change to recursion depth or a hot loop at `opt-level 0` as well.
 - Install nextest 0.9.148 from `https://get.nexte.st/0.9.148/linux` into `~/.cargo/bin`.

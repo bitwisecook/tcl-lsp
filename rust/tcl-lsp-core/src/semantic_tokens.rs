@@ -7300,13 +7300,12 @@ mod tests {
                 line == 4 && k == TokenKind::Variable as u32 && m == MOD_DECLARATION
             })
         };
-        // Without analysis, `myset` is an unknown command → `arr(key)` at the
-        // call stays a plain string.
-        let plain = decode_semantic(&full_with_cu(
+        // The first-paint tier interprets nothing: `myset` is an unknown
+        // command there and `arr(key)` at the call stays a plain string.
+        let plain = decode_semantic(&coarse(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
-            Some(&cu),
         ));
         assert!(
             !decl_on_call(&plain),
@@ -7440,12 +7439,12 @@ mod tests {
                    dispatch greet hello\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
-        // Without analysis, `greet` is an unknown command's plain string arg.
-        let plain = decode_semantic(&full_with_cu(
+        // The first-paint tier interprets nothing, so `greet` is an unknown
+        // command's plain string argument there.
+        let plain = decode_semantic(&coarse(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
-            Some(&cu),
         ));
         let greet_fn = |toks: &[(u32, u32, u32, u32, u32)]| {
             toks.iter().any(|&(line, col, _, k, _)| {
