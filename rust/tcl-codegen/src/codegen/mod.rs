@@ -955,6 +955,30 @@ impl<'r> CodegenCtx<'r> {
         result
     }
 
+    /// `required` as the site holds it: a pack command the site specialised
+    /// through its `alias_of` is an alias at run time, so the name is held to
+    /// the target the site's alias claim records and never to the pack's own
+    /// registration.
+    fn requirement_through_alias_claim(
+        &self,
+        required: &tcl_runtime_api::CommandBindingIdentity,
+    ) -> tcl_runtime_api::CommandBindingIdentity {
+        self.site_claim_requirements
+            .iter()
+            .find_map(|claim| match claim {
+                tcl_runtime_api::SiteClaim::BuiltinAlias { binding, .. }
+                    if binding.name == required.name
+                        && binding.resolution_namespace == required.resolution_namespace
+                        && binding.namespace_context == required.namespace_context
+                        && binding.guard == required.guard =>
+                {
+                    Some(binding.clone())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| required.clone())
+    }
+
     /// Retain selection at the first operation instruction, before its argv.
     /// Nested operations can share that instruction but have distinct ranges.
     fn retain_native_operation_selection(
@@ -967,8 +991,13 @@ impl<'r> CodegenCtx<'r> {
         }
         // The function inventory summarizes every retained operation premise,
         // including constant-result paths that never call a typed opcode hook.
+        let requirements: Vec<_> = plan
+            .requirements
+            .iter()
+            .map(|required| self.requirement_through_alias_claim(required))
+            .collect();
         self.command_binding_requirements
-            .extend(plan.requirements.iter().cloned());
+            .extend(requirements.iter().cloned());
         let end = self.fresh_label("native_operation_end");
         self.place_label(&end);
         let previous = self.native_operation_origins.insert(
@@ -978,13 +1007,13 @@ impl<'r> CodegenCtx<'r> {
                 operation: plan.operation,
                 guard: plan.guard,
                 compiler_prerequisite: plan.compiler_prerequisite.clone(),
-                requirements: plan.requirements.clone(),
+                requirements: requirements.clone(),
             },
             end.clone(),
         );
         let site = tcl_bytecode::NativeOperationSelectionSite {
             compiler_prerequisite: plan.compiler_prerequisite,
-            requirements: plan.requirements,
+            requirements,
             guard: plan.guard,
             end,
             source: tcl_lexer::SourceImage::from_bytes(

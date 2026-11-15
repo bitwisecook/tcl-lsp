@@ -136,12 +136,28 @@ fn registry_codegen_hook(
             None,
             tokens,
         )?;
+        let hook = admitted.codegen_hook()?;
+        let own = admitted.canonical_registration_name();
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        // A pack command whose hook is its `alias_of` target's own records the
+        // target and the pack facts behind it, as the catalogue path below does.
+        let stamp = tcl_registry::codegen_stamp::CodegenStamp::Codegen(hook);
+        let key = tcl_syntax::naming::unroot_rooted_key(own).unwrap_or(own);
+        let aliased = ctx
+            .registry
+            .resolve_call(key, &arg_refs, ctx.invocation_surface_query())
+            .filter(|resolved| {
+                resolved.spec.name == key
+                    && resolved.codegen_hook == Some(hook)
+                    && resolved.stamp_identity(ctx.registry, stamp) != key
+            })
+            .map(|resolved| ctx.stamped_binding(cmd, &resolved, stamp));
         return Some((
-            admitted.codegen_hook()?,
-            SiteBinding {
-                binding: ctx.command_binding_identity(cmd, admitted.canonical_registration_name()),
+            hook,
+            aliased.unwrap_or_else(|| SiteBinding {
+                binding: ctx.command_binding_identity(cmd, own),
                 claim: None,
-            },
+            }),
         ));
     }
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
