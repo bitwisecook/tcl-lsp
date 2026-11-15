@@ -787,37 +787,51 @@ fn a_package_moving_in_the_graph_changes_what_its_pack_loads() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// A manifest that places nothing does not lift its pack: one that does not
-/// read, and one that names a package the lockfile does not list, leave the
-/// dependency at the floor of a listed package, transitive, so its `alias_of`
-/// and its backing are dropped as a transitive package's are. A dependency
-/// cannot reach the workspace's own rights by writing `package anything`.
+/// A manifest that places nothing does not lift its pack. One that reads and
+/// names a package the lockfile does not list leaves the dependency at the
+/// floor of a listed package, transitive, so its `alias_of` and its backing
+/// are dropped as a transitive package's are. One that does not read selects
+/// nothing: discovery fails closed on unreadable input, as
+/// `discovery::tests::a_directive_that_does_not_read_selects_nothing` and
+/// `unavailable_nested_manifest_cannot_borrow_parent_implicit_scan` pin, so
+/// its pack is not loaded at all (coordinator ruling, 15 November 2026; this
+/// test used to expect that pack at the transitive floor). Either way a
+/// dependency cannot reach the workspace's own rights by writing `package
+/// anything`.
 #[test]
 fn a_manifest_that_places_nothing_does_not_lift_its_pack() {
     use tcl_dialect::model::DependencyTier;
     let root = stage_packages("capability-unplaced", "require direct 1.0.0\n");
-    for manifest in ["not a manifest %%\n", "package anything\nversion 1.0.0\n"] {
-        std::fs::write(root.join("lib/direct-1.0.0/tclpkg.tcl"), manifest).expect("rewrite");
-        let set = load_workspace(&root);
-        let (command, messages) = loaded(&set, "direct");
-        assert_eq!(
-            command.dependency_tier,
-            Some(DependencyTier::Transitive),
-            "{manifest:?}"
-        );
-        assert_eq!(command.spec.alias_of, None, "{manifest:?}");
-        assert_eq!(
-            command.spec.runtime_backing,
-            tcl_registry::RuntimeBacking::None,
-            "{manifest:?}"
-        );
-        assert!(
-            messages
-                .iter()
-                .any(|message| message.contains("a transitive dependency's pack may not declare")),
-            "{manifest:?}: {messages:?}"
-        );
-    }
+    let manifest = root.join("lib/direct-1.0.0/tclpkg.tcl");
+
+    std::fs::write(&manifest, "package anything\nversion 1.0.0\n").expect("rewrite");
+    let set = load_workspace(&root);
+    let (command, messages) = loaded(&set, "direct");
+    assert_eq!(command.dependency_tier, Some(DependencyTier::Transitive));
+    assert_eq!(command.spec.alias_of, None);
+    assert_eq!(
+        command.spec.runtime_backing,
+        tcl_registry::RuntimeBacking::None
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("a transitive dependency's pack may not declare")),
+        "{messages:?}"
+    );
+
+    std::fs::write(&manifest, "not a manifest %%\n").expect("rewrite");
+    let set = load_workspace(&root);
+    assert!(
+        set.packs.iter().all(|pack| pack.name != "direct"),
+        "an unreadable manifest selects no pack: {:#?}",
+        set.notices
+    );
+    // The packages around it load as they did.
+    assert_eq!(
+        loaded(&set, "deep").0.dependency_tier,
+        Some(DependencyTier::Transitive)
+    );
     let _ = std::fs::remove_dir_all(&root);
 }
 
