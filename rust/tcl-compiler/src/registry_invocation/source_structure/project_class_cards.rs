@@ -582,7 +582,8 @@ fn constructor_receiver_class(
         } else {
             call.constructor_shape(analysis)?
         };
-        (lookup_words.len().checked_sub(1)? >= shape.constructor_args_from()).then_some(())?;
+        // The shape counts the effective argv, which an alias prefix lengthens.
+        (call.arguments().len() >= shape.constructor_args_from()).then_some(())?;
         let class = capture_class(call.class_declaration(), analysis)?;
         let final_cards = OriginalProjectClassCards::capture(analysis)?;
         final_cards

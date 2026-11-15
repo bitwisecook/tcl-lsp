@@ -7750,7 +7750,7 @@ mod tests {
         // model — the precise path, not the shape-based fallback.
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = release_reg("tcl9.0");
-        let src = "set chart [ticklecharts::chart new]\n$chart Xaxis -name {v(anode), V} -type value -min 0.4 -splitLine {show True}\n";
+        let src = "package require ticklecharts\nset chart [ticklecharts::chart new]\n$chart Xaxis -name {v(anode), V} -type value -min 0.4 -splitLine {show True}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
             src,
@@ -7932,7 +7932,7 @@ mod tests {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
 
-        let src = "ttk::treeview .tree\n.tree current\n";
+        let src = "package require Tk\nttk::treeview .tree\n.tree current\n";
         for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
             let profile =
                 tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
@@ -7948,7 +7948,7 @@ mod tests {
             ));
             assert_eq!(
                 tokens.iter().any(|&(line, _, _, kind, _)| {
-                    line == 1 && kind == TokenKind::Method as u32
+                    line == 2 && kind == TokenKind::Method as u32
                 }),
                 expected,
                 "ttk::treeview current semantic token under {dialect}: {tokens:?}"

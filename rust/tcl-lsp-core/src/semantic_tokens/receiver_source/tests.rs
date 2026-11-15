@@ -60,9 +60,11 @@ fn method_at(
     ));
     let offset = u32::try_from(source.rfind(needle).unwrap()).unwrap();
     let position = tcl_lexer::LineIndex::new(source).position_at_utf16(offset, source);
-    tokens.iter().any(|&(line, column, _, kind, _)| {
+    // A braced or quoted selector is one token that includes its delimiters.
+    let character = position.character.get();
+    tokens.iter().any(|&(line, column, length, kind, _)| {
         line == position.line
-            && column == position.character.get()
+            && (column..column + length).contains(&character)
             && kind == TokenKind::Method as u32
     })
 }
