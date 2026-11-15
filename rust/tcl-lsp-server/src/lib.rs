@@ -7879,7 +7879,7 @@ async fn run_diagnostics_analyser_path(
             inputs,
             project,
             timing,
-            base,
+            (base, None),
         )
         .await;
     }
@@ -7887,6 +7887,7 @@ async fn run_diagnostics_analyser_path(
     // The authoritative deep pass performs the full publish and reports whether
     // the version settled.  Race it against the fast-tier budget.
     let fast_tier_deadline = crate::rt::Instant::now() + DIAGNOSTICS_FAST_TIER_BUDGET;
+    let gate = FastTierGate::default();
     let deep = run_deep_diagnostics(
         delivery,
         salsa_ctx,
@@ -7894,7 +7895,7 @@ async fn run_diagnostics_analyser_path(
         inputs,
         project,
         timing,
-        base.clone(),
+        (base.clone(), Some(&gate)),
     );
     tokio::pin!(deep);
 
@@ -7916,12 +7917,28 @@ async fn run_diagnostics_analyser_path(
     // fast tier now, from the shared base future the deep pass is already awaiting
     // — one in-flight read, never a second whole-file walk. A cancellation here is
     // harmless: the deep pass observes the same edit and settles it.
-    if let ControlFlow::Continue(analysis) = base.await {
+    //
+    // The deep pass keeps being polled meanwhile. Left parked, a lock acquire
+    // inside it keeps its place in that lock's fair queue; once the lock is
+    // released to it, nothing polls it to take the guard, so the lock stays
+    // assigned to a future that only runs after the fast tier, which itself
+    // needs the document map and the salsa store. That stopped the whole
+    // server with every lock free and every waiter parked (#1657). The gate
+    // keeps the deep publication behind the fast tier instead.
+    let Some(held) = gate.hold() else {
+        // The deep pass is already publishing; it is the authoritative set.
+        return deep.await;
+    };
+    let fast = async move {
+        let _held = held;
+        let ControlFlow::Continue(analysis) = base.await else {
+            return;
+        };
         // Spend the one shot only once there is a real fast tier to publish. A
-        // cancelled base analysis returns below with it still available for
+        // cancelled base analysis returns above with it still available for
         // the scheduler's retry.
         if force_fast_tier && !take_force_diagnostics_fast_tier() {
-            return deep.await;
+            return;
         }
         let fast_receipt = publish_fast_tier(delivery, &analysis, lift_inputs).await;
         // The test seam waits until the actual push reaches the reference
@@ -7931,8 +7948,80 @@ async fn run_diagnostics_analyser_path(
         if force_fast_tier && let Some(receipt) = fast_receipt {
             let _ = receipt.await;
         }
+    };
+    tokio::pin!(fast);
+    tokio::select! {
+        biased;
+        settled = &mut deep => return settled,
+        () = &mut fast => {}
     }
     deep.await
+}
+
+/// Orders the deep publication after the fast tier while both futures are
+/// polled by one task. The deep pass passes the gate before it publishes; the
+/// fast tier holds it until its own publication is delivered or abandoned.
+#[derive(Default)]
+struct FastTierGate {
+    state: std::sync::Mutex<FastTierGateState>,
+    released: tokio::sync::Notify,
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum FastTierGateState {
+    #[default]
+    Open,
+    Held,
+    Passed,
+}
+
+impl FastTierGate {
+    fn state(&self) -> std::sync::MutexGuard<'_, FastTierGateState> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Hold the gate for the fast tier, or `None` once the deep pass has
+    /// already passed it.
+    fn hold(&self) -> Option<FastTierHold<'_>> {
+        let mut state = self.state();
+        if *state == FastTierGateState::Passed {
+            return None;
+        }
+        *state = FastTierGateState::Held;
+        Some(FastTierHold { gate: self })
+    }
+
+    /// Wait while the fast tier holds the gate, then pass it. Awaited with no
+    /// lock held, so the fast tier can always finish.
+    async fn pass(&self) {
+        loop {
+            let released = self.released.notified();
+            tokio::pin!(released);
+            released.as_mut().enable();
+            {
+                let mut state = self.state();
+                if *state != FastTierGateState::Held {
+                    *state = FastTierGateState::Passed;
+                    return;
+                }
+            }
+            released.await;
+        }
+    }
+}
+
+/// The fast tier's hold on a [`FastTierGate`]; releases it when dropped.
+struct FastTierHold<'a> {
+    gate: &'a FastTierGate,
+}
+
+impl Drop for FastTierHold<'_> {
+    fn drop(&mut self) {
+        *self.gate.state() = FastTierGateState::Open;
+        self.gate.released.notify_waiters();
+    }
 }
 
 /// The indexed deep diagnostics pass runs the analyser, compiler checks and
@@ -7945,7 +8034,8 @@ async fn run_diagnostics_analyser_path(
 /// `base` is the per-file analyser walk, supplied by the caller (as a `Shared`
 /// future) rather than started here, so the progressive fast tier can await the
 /// *same* computation instead of issuing a second one; it is simply the first arm
-/// of the `join!`.
+/// of the `join!`. The optional [`FastTierGate`] holds the publication behind a
+/// fast tier the same task is still delivering.
 ///
 /// Returns whether the version **settled** (published or superseded) —
 /// `false` only on a genuine salsa cancellation. A deterministic worker panic
@@ -7960,9 +8050,12 @@ async fn run_deep_diagnostics(
     inputs: &AnalyserPathInputs<'_>,
     project: Option<tcl_lsp_db::Project>,
     timing: PublishTiming<'_>,
-    base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
+    (base, gate): (
+        impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
+        Option<&FastTierGate>,
+    ),
 ) -> bool {
-    let produced = match Box::pin(compute_deep_diagnostic_report(
+    let produced = Box::pin(compute_deep_diagnostic_report(
         delivery.uri,
         delivery.documents,
         salsa_ctx,
@@ -7971,8 +8064,11 @@ async fn run_deep_diagnostics(
         project,
         base,
     ))
-    .await
-    {
+    .await;
+    if let Some(gate) = gate {
+        gate.pass().await;
+    }
+    let produced = match produced {
         ControlFlow::Continue(produced) => produced,
         ControlFlow::Break((settled, reason)) => {
             delivery.diagnostic_pass_unavailable(reason).await;
@@ -59973,6 +60069,79 @@ proc p {} {
             .await
             .is_ok(),
             "`settled` must not still be waiting on the abandoned ticket",
+        );
+    }
+
+    /// The progressive diagnostics path once awaited the fast tier while its
+    /// own deep pass sat unpolled. A lock acquire parked inside the deep pass
+    /// keeps its place in the lock's fair queue, so when the holder released
+    /// the lock it was assigned to that unpolled acquire, and the fast tier,
+    /// waiting for the same lock, could never get it. The lock then read as
+    /// free while every later waiter stayed parked (#1657).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_parked_deep_pass_does_not_strand_the_lock_the_fast_tier_needs_1657() {
+        let short = std::time::Duration::from_millis(200);
+        let lock = tokio::sync::Mutex::new(());
+        let gate = FastTierGate::default();
+        let elsewhere = lock.lock().await;
+        let deep = async {
+            drop(lock.lock().await);
+            gate.pass().await;
+        };
+        tokio::pin!(deep);
+        assert!(
+            crate::rt::timeout(short, &mut deep).await.is_err(),
+            "the deep pass must queue behind the current holder",
+        );
+        let hold = gate
+            .hold()
+            .expect("the deep pass has not reached its publication");
+        drop(elsewhere);
+        assert!(
+            crate::rt::timeout(short, lock.lock()).await.is_err(),
+            "control: with the deep pass unpolled, its queued acquire keeps the released lock",
+        );
+        let lock = &lock;
+        let fast = async move {
+            let _hold = hold;
+            drop(lock.lock().await);
+        };
+        tokio::pin!(fast);
+        let both = async {
+            tokio::select! {
+                biased;
+                () = &mut deep => panic!("the deep pass published before the fast tier"),
+                () = &mut fast => {}
+            }
+            deep.await;
+        };
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), both)
+                .await
+                .is_ok(),
+            "polling the deep pass beside the fast tier must let both finish",
+        );
+    }
+
+    #[tokio::test]
+    async fn the_fast_tier_gate_orders_the_deep_publication_after_the_fast_tier() {
+        let short = std::time::Duration::from_millis(50);
+        let gate = FastTierGate::default();
+        let hold = gate.hold().expect("an untouched gate can be held");
+        let pass = gate.pass();
+        tokio::pin!(pass);
+        assert!(
+            crate::rt::timeout(short, &mut pass).await.is_err(),
+            "the deep pass must wait while the fast tier holds the gate",
+        );
+        drop(hold);
+        assert!(
+            crate::rt::timeout(short, &mut pass).await.is_ok(),
+            "releasing the hold must let the deep pass through",
+        );
+        assert!(
+            gate.hold().is_none(),
+            "once the deep pass is publishing, no fast tier may follow it",
         );
     }
 
