@@ -46,6 +46,37 @@ The server e2e suite is not deterministic on this host: 14 tests that passed in 
 
 Recorded `edit.tokens` (100 edits): 2.1.22 1.47 s and 2.1.24 2.87 s on `darwin-arm64`; 2.2.0 6.48 s on `linux-x86_64`. The platforms differ, so the last step is not a like-for-like comparison.
 
+## Execution area, 15 November 2026
+
+Crates: `tcl-codegen`, `tcl-vm`, `tcl-vm-cli`, `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-cmd-core`, `tcl-cshim`, `tcl-bytecode`, `tcl-runtime-api`, `tcl-spec-hooks` (one nextest selection, all features, `TCL_LSP_REQUIRE_TCLSH=1`, `TCL_LSP_JIMSH` set to the pinned jimsh 0.84-10-g82fb4d0 built by `scripts/dev/ensure-jim-oracle.sh`).
+
+| Tip | Run | Failing |
+| --- | --- | --- |
+| `454068e6` | 5,475 | 482: `tcl-codegen` 324, `tcl-vm` 114, `tcl-cshim` 20, `tcl-engine-tclvm` 18, `tcl-spec-hooks` 5, `tcl-vm-cli` 1 |
+| `9e208e7d` (after the naming port) | 5,469 | 462: `tcl-codegen` 304, the rest unchanged; fixed 20, new 0 |
+
+`runtime/rust` baseline: not yet recorded here.
+
+Fixed:
+
+- `tcl-codegen/tests/it_2/codegen.rs` (35 → 15). Its bytecode-shape tests named Tcl 8.6 but compiled a module lowered with no interpreter. Such a module proves no command (`CodegenCtx::invocation_specialisation_proved` needs a native-admitted operation), so its top level is plain dispatch. `tests/support/vm_compiled.rs` keeps the units a live interpreter of a named release asks `BytecodeCompileService` for; `top_asm` and `proc_asm` read those. Expectations corrected against `tclsh8.6` `tcl::unsupported::disassemble`: top-level `append`, `lappend`, `lindex`, `lreplace`, `string equal`/`compare`, `dict get`/`exists` compile (seven "generic invoke" pins became one table); a folded constant expression is a `PrivateExpressionNumber` literal; `lt`/`gt` are Tcl 9 operators.
+
+Open, with cause:
+
+- **Inlining, about 125 `tcl-codegen` tests** (`inlining::tests` 49, `it_3/inlining` 29, `it_5/inlining_rename` 23, `it_3/inlining_interproc_residual` 19, `frame`/`rename`/`reference` 4). `build_inlinable_map` admits no module under any profile, so this needs a compiler-side decision, not a fixture change:
+  - A `tcl9.0` unit with no native entry has source purpose `AuthoredSimulation`; `SourceContext::for_module` accepts only `Logical`. Admitting it there is not enough: `frame::reads_only_bound_names` asks `original_logical_operation_invocation_with_metadata_context` and `original_logical_procedure_calls_for_module`, which answer only a Logical source, and most bodies classify `Never`.
+  - A plain `tcl` unit is Logical, but `Module::parameter_grammar` is `None` (the profile has no runtime version). If that gate reads the authored naming policy instead, `Procedure::publication` is `None` (no definition identity) and the escape summary carries `HAS_CALL_FALLBACK` for `puts`.
+  - F5 profiles are Logical with a Tcl parameter grammar but have no authored naming policy.
+  - Production reaches the same gate through `inline_reference_bodies`; `inline_module` has no production caller.
+- **Interpreter-less fixtures in the other `tcl-codegen` suites** (`it_2/compiler_analysis_residual` 30, `it_3/optimiser_codegen_residual` 25, `it_5/wasm_codegen` 14, `codegen_depth` 14, `codegen_integration` 8, `it_2/compiler_residual` 9, `compile_service::tests` 16). The bytecode ones take the same `vm_compiled` conversion. Two fixture faults to fix with it: `native_c86_ir` passes `"::"` as the namespace, but the runtime ABI key is unrooted (`""` is the global namespace; `"::"` becomes `::::`), and `native_c86_entry` drops its interpreter while an entry is only a weak observation of a live one. The optimiser and analyser assertions in those files (O-codes, W-codes, IR and CFG shape such as `Statement::Switch`) follow `tcl-compiler` facts.
+- **Live unit against `tclsh8.6`**, found by the conversion; six `it_2/codegen.rs` tests stay on the module path (`module_proc_asm`) until these match:
+  - `break` and `continue` inside a compiled loop: `tclsh8.6` emits `jump4` to the loop's exception range target; the native plan (`NativeInstructionPlan::Break`/`Continue`) always emits the `break`/`continue` instruction, which is what 8.5 does.
+  - `return $arr(key1)` in a procedure: `tclsh8.6` emits `push1 key1; loadArray1`; the unit loads `arr(key1)` by name (`loadStk`).
+  - `string length "hello"` at top level: `tclsh8.6` folds to `push1 "5"`; the unit emits `strlen`.
+  - `proc p {} { set warmup 1; for {missing_command} {0} {} {} }`: `tclsh8.6` gives the init command `startCommand +29 1`; `for_init_unseen_call_keeps_count_two_boundary` expects a count of 2. Not yet decided which is wrong.
+- `tcl-vm` (114), `tcl-cshim` (20), `tcl-engine-tclvm` (18), `tcl-spec-hooks` (5), `tcl-vm-cli` (1): clustered, not yet worked. Largest shared messages: `NativePreflightRequired` admission (about 14), `CommandProtocolUnavailable` (3), single witness differences otherwise.
+- Naming port follow-ups (`inlining/heads.rs` rooting a `:a` head, `names_builtin`/`release_compiles_dict_scope` on `:::set` heads, `variable_locals` element test) and the engine duplicate tests: not started. Classification of the 346 same-named `tcl-vm`/`runtime/rust` test pairs: 122 already read one shared data file, 21 are near-identical with inline vectors (12 of them `tcl-vm/tests/it_3/namespace_surface_e2e.rs` against `runtime/rust/src/cmd_namespace.rs` and `cmd_trace.rs`, plain script/result pairs), 125 are similar, 78 differ.
+
 ## Scope and publication
 
 Work is paused at the user's request after finishing the current autoload repair. All parallel investigations are stopped. Source/status checkpoints have been published to work and the periodic publisher is stopped. The final one-shot sync publishes this paused snapshot. The release verdict remains unchanged.
