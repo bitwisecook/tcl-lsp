@@ -42,7 +42,9 @@ tcl-cli-support = { path = "../tcl-cli-support" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-codegen = { path = "../tcl-codegen" }
-tcl-explorer = { path = "../tcl-explorer" }
+# `live-entry`: `tcl dis` and `tcl explore --show asm` compile through a live
+# interpreter, whose entry admits the native command compilers.
+tcl-explorer = { path = "../tcl-explorer", features = ["live-entry"] }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }

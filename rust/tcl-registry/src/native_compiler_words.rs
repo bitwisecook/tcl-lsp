@@ -43,8 +43,12 @@ pub enum NativeCompilerWordsUnavailable {
 pub enum NativeCompiledListRecipe {
     /// Zero operands push the registered empty string object.
     EmptyString,
-    /// Original operands are evaluated and assembled by the List opcode.
-    DynamicElements,
+    /// Original operands from `from` are evaluated and assembled by the List
+    /// opcode.
+    DynamicElements {
+        /// Index of the first element word in the original vector.
+        from: usize,
+    },
     /// C8.6+ constructs a private constant List from these static members.
     PrivateConstant {
         /// Exact member value bytes, preserving their order and empty values.
@@ -299,7 +303,7 @@ impl<'w> NativeCompilerWords<'w> {
         {
             return Ok(NativeCompiledListRecipe::PrivateConstant { members });
         }
-        Ok(NativeCompiledListRecipe::DynamicElements)
+        Ok(NativeCompiledListRecipe::DynamicElements { from: operand_from })
     }
 
     /// Native compile-time increment amount from a fresh private string object.
@@ -736,7 +740,7 @@ mod tests {
                     if source == b"list" {
                         NativeCompiledListRecipe::EmptyString
                     } else if source == b"list $x" || version <= TclVersion::V8_5 {
-                        NativeCompiledListRecipe::DynamicElements
+                        NativeCompiledListRecipe::DynamicElements { from: 1 }
                     } else {
                         NativeCompiledListRecipe::PrivateConstant {
                             members: vec![b"A\xff".to_vec(), vec![]],

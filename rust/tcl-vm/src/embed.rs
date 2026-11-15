@@ -132,6 +132,14 @@ struct FunctionHandleState {
     owner_nonce: u64,
 }
 
+impl FunctionHandle {
+    /// The bytecode this handle runs.
+    #[must_use]
+    pub fn bytecode(&self) -> Rc<tcl_bytecode::FunctionAsm> {
+        Rc::clone(&self.state.borrow().unit.asm)
+    }
+}
+
 impl std::fmt::Debug for FunctionHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FunctionHandle")
@@ -594,6 +602,26 @@ impl Vm {
             });
         self.host_execution_depth -= 1;
         self.finish_host_compilation(result)
+    }
+
+    /// The bytecode a defined procedure's body compiles to through this
+    /// interpreter's native entry, as on its first call, without running it:
+    /// what C's `tcl::unsupported::disassemble proc` shows.
+    ///
+    /// # Errors
+    /// Returns an error when `name` is not a procedure or its body does not
+    /// compile.
+    pub fn procedure_bytecode(
+        &mut self,
+        name: &str,
+    ) -> Result<Rc<tcl_bytecode::FunctionAsm>, TclError> {
+        let Some(Command::Proc(command)) = self.lookup_command(name) else {
+            return Err(TclError::new(format!("\"{name}\" isn't a procedure")));
+        };
+        self.host_execution_depth += 1;
+        let prepared = self.ensure_proc_traced(command);
+        self.host_execution_depth -= 1;
+        Ok(Rc::clone(&prepared?.body.asm))
     }
 
     /// Define a Tcl procedure from the host, without going through the `proc`

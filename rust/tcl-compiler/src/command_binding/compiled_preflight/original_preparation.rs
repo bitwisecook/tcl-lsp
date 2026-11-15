@@ -115,7 +115,18 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Concat(
                 tcl_registry::native_instruction_plan::NativeConcatInstruction::Operands(operands),
             ) => self.original_operands(words, operands.iter().cloned(), context),
-            NativeInstructionPlan::Concat(_) | NativeInstructionPlan::ClockRead(_) => None,
+            NativeInstructionPlan::List(
+                tcl_registry::native_compiler_words::NativeCompiledListRecipe::DynamicElements {
+                    from,
+                },
+            ) => self.original_operands(
+                words,
+                (*from..words.len()).map(NativeCompilerWordOperand::Original),
+                context,
+            ),
+            NativeInstructionPlan::Concat(_)
+            | NativeInstructionPlan::ClockRead(_)
+            | NativeInstructionPlan::List(_) => None,
             NativeInstructionPlan::FormatStringConcat(recipe) => self.original_operands(
                 words,
                 recipe.pieces.iter().filter_map(|piece| match piece {

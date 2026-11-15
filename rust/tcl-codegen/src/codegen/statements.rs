@@ -2916,7 +2916,6 @@ impl CodegenCtx<'_> {
         let mut operations = Vec::new();
         if !self.append_native_registered_tasks(
             command,
-            plan,
             prepared.version,
             prepared.instruction,
             &mut operations,
@@ -3043,7 +3042,6 @@ impl CodegenCtx<'_> {
     fn append_native_registered_tasks(
         &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
-        plan: &tcl_compiler::native_byte_compilation::NativeByteRegisteredCommand,
         version: tcl_dialect::TclVersion,
         instruction: tcl_registry::native_instruction_plan::NativeInstructionPlan,
         operations: &mut Vec<NativeEmissionTask>,
@@ -3160,7 +3158,7 @@ impl CodegenCtx<'_> {
                 Self::append_native_return_tasks(command, recipe, operations)
             }
             NativeInstructionPlan::List(recipe) => {
-                self.append_native_list_tasks(command, plan, version, recipe, operations)
+                self.append_native_list_tasks(command, version, recipe, operations)
             }
             selected @ (NativeInstructionPlan::Constant { .. }
             | NativeInstructionPlan::DictionaryCreate(_)
@@ -3572,7 +3570,6 @@ impl CodegenCtx<'_> {
     fn append_native_list_tasks(
         &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
-        plan: &tcl_compiler::native_byte_compilation::NativeByteRegisteredCommand,
         version: tcl_dialect::TclVersion,
         recipe: tcl_registry::native_compiler_words::NativeCompiledListRecipe,
         operations: &mut Vec<NativeEmissionTask>,
@@ -3581,17 +3578,12 @@ impl CodegenCtx<'_> {
         use tcl_registry::native_compiler_words::NativeCompiledListRecipe;
         match recipe {
             NativeCompiledListRecipe::EmptyString => operations.push(Task::Literal(Vec::new())),
-            NativeCompiledListRecipe::DynamicElements => {
-                operations.extend(
-                    command.words[plan.operand_from..]
-                        .iter()
-                        .cloned()
-                        .map(Task::Word),
-                );
+            NativeCompiledListRecipe::DynamicElements { from } => {
+                operations.extend(command.words[from..].iter().cloned().map(Task::Word));
                 operations.push(Task::Operation(
                     Op::LIST,
                     vec![Operand::Imm(super::bytecode_imm(
-                        command.words.len() - plan.operand_from,
+                        command.words.len() - from,
                     ))],
                 ));
             }

@@ -37,6 +37,8 @@ pub mod coverage;
 pub mod cst;
 mod environment;
 pub mod formatters;
+#[cfg(feature = "live-entry")]
+pub mod live_entry;
 pub mod render;
 pub mod serialise;
 pub mod view_tree;

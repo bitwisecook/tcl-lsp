@@ -35,8 +35,13 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-spectcl = { path = "../tcl-spectcl" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-codegen = { path = "../tcl-codegen" }
+# `live-entry`: disassemble through a live interpreter (native front-ends only).
+tcl-vm = { path = "../tcl-vm", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[features]
+live-entry = ["dep:tcl-vm"]
 
 [lints]
 workspace = true

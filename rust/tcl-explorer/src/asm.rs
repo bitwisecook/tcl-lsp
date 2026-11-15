@@ -86,6 +86,16 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
     ) else {
         return Value::Null;
     };
+    #[cfg(feature = "live-entry")]
+    let module = {
+        let mut module = module;
+        crate::live_entry::recompile_through_live_entry(
+            source,
+            &result.unit.ir_module,
+            &mut module,
+        );
+        module
+    };
 
     let mut entries: Vec<Value> = Vec::new();
     let mut top = function_explorer(

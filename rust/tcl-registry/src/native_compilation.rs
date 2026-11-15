@@ -2435,6 +2435,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::InfoExists
             | NativeCompilationGrammar::Array { .. }
             | NativeCompilationGrammar::InfoLevel
+            | NativeCompilationGrammar::ArgumentList
             | NativeCompilationGrammar::ArgumentConcatFrom(_)
             | NativeCompilationGrammar::Uplevel
             | NativeCompilationGrammar::GlobalBindings
