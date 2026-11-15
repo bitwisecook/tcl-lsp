@@ -2568,7 +2568,7 @@ impl Interp {
     /// and only a cell of the running procedure's own frame is its to change.
     /// A link or a reference changes nothing by itself; the store through it
     /// selects the cell it reaches and is asked then.
-    fn refuse_confined_receiver(
+    pub(in crate::interp) fn refuse_confined_receiver(
         &self,
         home: &crate::vars::TraceHome,
         purpose: NativeVariableNameLookupPurpose,

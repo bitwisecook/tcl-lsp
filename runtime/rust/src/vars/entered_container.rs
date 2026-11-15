@@ -544,12 +544,27 @@ impl EnteredVariablePlace {
         self.check(interpreter, currency)?;
         Ok(self.trace_home(interpreter))
     }
+    /// Refuse a change a confined interpreter may not make: every removal,
+    /// array creation and store through an entered place passes here, and only
+    /// a place in the running procedure's own frame is its to change.
+    fn refuse_confined(&self, interpreter: &Interp) -> Result<(), JimLinkStoreError> {
+        if !interpreter.stores_confined() {
+            return Ok(());
+        }
+        let frames = interpreter.frames.borrow();
+        if frames.in_proc() && self.place.home == VarHome::Frame(frames.current_level()) {
+            Ok(())
+        } else {
+            Err(VarError::Confined.into())
+        }
+    }
     pub(crate) fn begin_array_destruction(
         &mut self,
         interpreter: &Interp,
         currency: &NativeOperationCurrency,
     ) -> Result<Option<crate::frame::RetainedArrayCell>, JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.refuse_confined(interpreter)?;
         if self.place.elem.is_some() {
             return Ok(None);
         }
@@ -586,6 +601,7 @@ impl EnteredVariablePlace {
         require_defined_root: bool,
     ) -> Result<bool, JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.refuse_confined(interpreter)?;
         let defined = !require_defined_root
             || self.place.elem.is_some()
             || self.exists(interpreter, currency)?;
@@ -759,6 +775,7 @@ impl EnteredVariablePlace {
         currency: &NativeOperationCurrency,
     ) -> Result<(), JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.refuse_confined(interpreter)?;
         self.check_retained_value_role()?;
         if self.place.elem.is_some() {
             return Err(VarError::IsScalar.into());
@@ -786,6 +803,7 @@ impl EnteredVariablePlace {
         currency: &NativeOperationCurrency,
     ) -> Result<CapturedByteStore, JimLinkStoreError> {
         self.check(interpreter, currency)?;
+        self.refuse_confined(interpreter)?;
         if let (Some(array), Some(element)) = (&self.place.array_cell, &self.place.elem) {
             return Ok(CapturedByteStore::Retained(
                 array.capture_receiver(element.clone()),

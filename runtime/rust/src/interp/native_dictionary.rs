@@ -43,6 +43,9 @@ impl Interp {
             Ok(parts) => parts,
             Err(error) => return crate::builtins::var_error(self, name, error),
         };
+        if self.store_escapes(&base) {
+            return self.confined_store_error(name);
+        }
         let selected_result = crate::vars::capture_get_variable_receiver(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),

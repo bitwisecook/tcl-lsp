@@ -222,6 +222,15 @@ impl Interp {
                 element.clone(),
                 true,
             );
+            let capture_result = capture_result.and_then(|captured| {
+                if let Some((_, home)) = &captured {
+                    self.refuse_confined_receiver(
+                        home,
+                        tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::IncrementRead,
+                    )?;
+                }
+                Ok(captured)
+            });
             match capture_result {
                 Ok(Some((receiver, home))) => {
                     super::native_variable_names::OriginalCVariableCapture {

@@ -8887,14 +8887,16 @@ impl Interp {
     /// whose seed every evaluation shares. Reads are unaffected, and an error
     /// is not published to `::errorInfo` and `::errorCode`, which are globals.
     pub fn confine_stores(&mut self) {
-        self.stores_confined.set(true);
         self.disarm_env_trace();
+        // The host's own globals go before the confinement that would refuse
+        // their removal.
         for name in tcl_platform::bootstrap::HOST_ARRAYS
             .iter()
             .chain(tcl_platform::bootstrap::HOST_PATH_GLOBALS)
         {
             self.var_unset_at(tcl_syntax::naming::root_unrooted_key(name).as_bytes(), 0);
         }
+        self.stores_confined.set(true);
     }
 
     /// Whether stores are confined ([`Self::confine_stores`]).

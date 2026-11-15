@@ -232,6 +232,16 @@ impl Interp {
         frame
             .check(self)
             .map_err(|first| self.refuse_native_execution(first))?;
+        // A compiled slot linked outside the activation selects a cell a
+        // confined interpreter may not remove.
+        if let Ok(Some((_, home))) = &capture {
+            if self
+                .refuse_confined_receiver(home, unset_purpose(complain))
+                .is_err()
+            {
+                return Err(self.confined_unset_error(root));
+            }
+        }
         let capture = match capture {
             Ok(capture) => capture.map(|(receiver, home)| OriginalCVariableCapture {
                 receiver,

@@ -2868,6 +2868,14 @@ impl Interp {
                 creates,
             );
             self.check_body_variable_stage(stage)?;
+            // A slot linked outside the activation selects a cell a confined
+            // interpreter may not store to.
+            let captured = captured.and_then(|captured| {
+                if let Some((_, home)) = &captured {
+                    self.refuse_confined_receiver(home, purpose)?;
+                }
+                Ok(captured)
+            });
             let captured = captured
                 .map_err(|error| {
                     let site = if creates && error == crate::frame::VarError::DeletedArray {
