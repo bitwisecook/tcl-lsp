@@ -355,6 +355,8 @@ fn compiler_local_tail(
     Ok(scalar_tail(&value, false))
 }
 
+/// `IndexTailVarIfKnown`: a trailing `)` declines as a possible element
+/// whether or not the name holds a `(`.
 fn scalar_tail(value: &[u8], complete: bool) -> Option<Vec<u8>> {
     if value.last() == Some(&b')') {
         return None;

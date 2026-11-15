@@ -487,6 +487,8 @@ impl Compile<'_> {
             let Ok(names) = tcl_syntax::list::split_list(text) else {
                 return Ok(Outcome::OutLine);
             };
+            // 8.4's `TclIsLocalScalar` rejects `)` by character type, with
+            // or without an opening parenthesis.
             if names.is_empty()
                 || names.iter().any(|name| {
                     tcl_syntax::naming::is_qualified(name.as_bytes()) || name.ends_with(')')
@@ -518,6 +520,7 @@ impl Compile<'_> {
             return Ok(Outcome::OutLine);
         }
         if let Some(variable) = words.get(2) {
+            // The same `TclIsLocalScalar` rule as a `foreach` variable.
             match &variable.simple {
                 Some(name)
                     if !tcl_syntax::naming::is_qualified(name.as_bytes())
