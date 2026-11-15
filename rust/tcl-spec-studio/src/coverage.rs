@@ -373,7 +373,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("default_form_first_word"),
     ),
     f("hover", Surface::Key("hover")),
-    f("documentation_examples", Surface::Key("documentation_examples")),
+    f(
+        "documentation_examples",
+        Surface::Key("documentation_examples"),
+    ),
     f("forms", Surface::Key("forms")),
     f("command_forms", Surface::Key("command_forms")),
     f("semantic_operation", Surface::Key("semantic_operation")),
