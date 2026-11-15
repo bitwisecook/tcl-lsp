@@ -5152,6 +5152,16 @@ pub fn shadowed_builtin_names_for_module_function(
     let mut shadowed = HashSet::new();
     for (id, procedure) in &module.procedures {
         module.procedure_ids.owns(*id).then_some(())?;
+        // An event handler, a lambda and a namespace script are bodies with
+        // no command slot, so they shadow nothing.
+        if matches!(
+            procedure.body_kind,
+            crate::ir::ProcedureBodyKind::Event
+                | crate::ir::ProcedureBodyKind::Lambda
+                | crate::ir::ProcedureBodyKind::NamespaceScript
+        ) {
+            continue;
+        }
         let slot = procedure.publication.as_ref()?.slot();
         if slot.namespace == namespace || slot.namespace.is_root() {
             let tail = slot.simple.try_utf8().ok()?;
@@ -15882,6 +15892,27 @@ mod tests {
             );
         }
     }
+    /// An iRules event handler is a body with no command slot. A unit that
+    /// holds one still answers which builtins its procedures shadow, for the
+    /// file level, the procedure and the handler alike.
+    #[test]
+    fn an_event_handler_body_shadows_no_builtin() {
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc log {args} {}\nwhen HTTP_REQUEST {set x 1}\n",
+            registry,
+            false,
+        );
+        let mut handler = false;
+        for function in unit.all_body_function_units() {
+            let shadowed = shadowed_builtin_names_for_module_function(function, &unit, registry)
+                .unwrap_or_else(|| panic!("{} has no answer", function.name));
+            assert!(shadowed.contains("log"), "{}: {shadowed:?}", function.name);
+            handler |= function.name.contains("HTTP_REQUEST");
+        }
+        assert!(handler, "the handler body is one of the unit's functions");
+    }
+
     #[test]
     fn hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims() {
         // Implementation contract: naming.consumer.hosted-source-taint-descriptor
