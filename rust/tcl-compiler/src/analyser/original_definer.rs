@@ -251,10 +251,20 @@ pub(super) fn constructor_arguments_match(
         .enumerate()
         .zip(arguments.iter().zip(tokens))
         .all(|((index, value), (argument, token))| {
-            call.argument_word(index)
-                .zip(value.literal_bytes())
-                .and_then(|(word, value)| original_argument_projection(word, value))
-                .is_some_and(|(value, original)| value == *argument && original == *token)
+            let Some(word) = call.argument_word(index) else {
+                return false;
+            };
+            match value.literal_bytes() {
+                Some(value) => original_argument_projection(word, value)
+                    .is_some_and(|(value, original)| value == *argument && original == *token),
+                // A substituted word has no value to compare. It is the same
+                // operand when it is the same written word; the recorder
+                // keeps a class named by one under its unresolved spelling.
+                None => {
+                    tcl_lexer::word_span(&SourceMap::from_image(word.image()), *token)
+                        == word.word_span()
+                }
+            }
         })
 }
 
