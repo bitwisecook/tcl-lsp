@@ -3845,7 +3845,10 @@ impl Interp {
                             .expect("actual compiler List literal"),
                     )
                 } else {
-                    debug_assert!(matches!(recipe, NativeCompiledListRecipe::DynamicElements { .. }));
+                    debug_assert!(matches!(
+                        recipe,
+                        NativeCompiledListRecipe::DynamicElements { .. }
+                    ));
                     let values = command.words[1..]
                         .iter()
                         .map(|word| self.body_word(artifact, word, execution))
