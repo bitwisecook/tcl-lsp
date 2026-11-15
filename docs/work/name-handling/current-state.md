@@ -142,6 +142,38 @@ Open, with the cause where it is known. The first three are in the execution wal
 - The optimiser's expression rewrites that substitute a constant for a variable inside an expression (`substitute_expr_constants_for_execution`) are called with no operand receipts and never change the text; O100 into an expression operand therefore never fires. The folds above go through the evaluator instead.
 - `type_propagation::namespaced_scalar_keeps_qualified_symbol_type` and `namespaced_array_element_uses_base_array_symbol_type` write `::ns::x` with no `namespace eval ns`, which tclsh rejects (`parent namespace doesn't exist`); with the namespace created the scalar is typed `String` where the test expects `OVERDEFINED`. Whether a qualified variable in a unit with no other writer is widened is a policy the tests and the code disagree on.
 
+## Compiler analyser and binding half, 15 November 2026
+
+Area: `rust/tcl-compiler` modules `analyser/**`, `command_binding/**`, `unit_scope`, `registry_invocation/**`, `irules_checks`, `signature_scan`, `var_resolve`, `dynamic_names`, `object_types`, `regex_source` and their integration tests. Measured on one 4-core host with `cargo nextest run -p tcl-compiler`, test profile `opt-level 1`.
+
+| Point | Whole crate | This half |
+| --- | --- | --- |
+| Baseline at `454068e6` | 13,082 run, 2,630 fail | 1,152 fail |
+| At `c712e341` | 13,083 run, 2,593 fail | 1,115 fail |
+
+37 tests fixed, none newly failing; each step was checked against the previous failing list over the whole crate. By module, before and after: `analyser::class_factories` 68 to 55, `analyser::diagnostics` 232 to 219, `unit_scope` 39 to 30. Unchanged: `analyser::handlers` 73, `command_binding::tests` 60, `command_binding::source_transition_advice` 45, `registry_invocation` 99, `irules_checks` 42, `analyser::per_item` 25, `object_types` 19.
+
+Fixed:
+
+- **Deleting a procedure un-closed the command world.** The registry declares `rename NAME {}` as a `Delete` transition; the move-completion receipt matched only `Move` and refused an empty destination, so every lookup after a deletion answered Unknown and W123 went silent for the rest of the file. The receipt now completes the delete form for an unobserved procedure, or the release's unresolved-command handler, that no import link refers to.
+- **Object dispatch diagnostics.** The arity check on a proved `$obj method …` dispatch (present on `rust`) is restored, including `forward` shifting. A named receiver (`C create obj; obj m`) reads the binding layer's named-object proof. A profile with no native name protocol falls back to the scoped constructor candidates that completion reads, so a typed handle no longer draws W307 there.
+- **User metaclass creations were never recorded.** Three causes: the recorder refused any call whose source advice carried `UnknownEarlierMutation`; a literal `oo::class create C {method …}` body widened the advice graph because a definition body has no C namespace scope, which refused every later class relation; and the factory's `[list superclass Base {*}$superclasses]` template was read from the argument vector recorded at entry, where the splice had already expanded.
+- **`unit_scope` fixtures** lowered with `Lowerer::with_dialect(..).with_context_registry(..)`, which leaves the module without a `ResolvedAnalysisInput`, so the call-site scan's metadata-owner check refused every statement and recorded nothing. They now lower with `with_resolved_analysis_input` over the command store they scan with. The same fixture shape appears in about 30 other test modules of this crate (`taint`, `compilation_unit`, `optimiser/*`, `cfg_builder/*`, `type_infer`, `registry_invocation/*`); check it first wherever a scan returns nothing.
+
+One expectation changed against the interpreter: `interp alias {} Cat {} Dog create; set d [Cat new]; $d fly` raises `unknown method "fly"` on tclsh 8.6.18 and 9.0.4 (the object is a `Dog` named `::new`), so the test now expects W308.
+
+Open, with the cause where it is established:
+
+- **`namespace import` un-closes the command world** (`unresolved_slot_advice_uses_current_namespace_and_exported_import`, and anything asking for W123 after an import). The import receipt requires the release's import preload command (`auto_import`) to be absent. This needs the owner's decision: either a diagnostic-only closed-world flag that tolerates the stock preload, or the tests rename the preload away as the binding-level tests do. The strict receipt must not change for proof consumers.
+- **Deleting a class or an alias** (`w123_tp_issue_973_class_deleted_via_rename_no_reestablishment`, `…_interp_alias_deleted_…`) still withholds the world: a class deletion destroys instances and subclasses, which the receipt does not model.
+- **Remaining `class_factories` (55).** A metaclass with a string-built prologue, or declared inside `namespace eval`, still has no relation provider for `superclass oo::class` (`user_metaclass_of_class` answers `None`); the member-only shortcut covers only a body with no substitution and only the top-level graph. The computed-name group (`expected ::T::D::class`) needs the literal call-site replay and has not been traced.
+- **Strict-path object receipts** stop at the first runtime error the simulation proves: after `b q 1` (wrong arity) nothing later in the file is entered, so later handles are untyped.
+- **`unit_scope` (30).** Mixed: an extra `unknown: true` on a slot, namespace-relative callee attribution (`::a::run` recorded beside `::a::helper`), and loader-identity assertions.
+- `command_binding::original_command_mutation::tests::original_imported_command_move_keeps_the_wrapper_and_direct_origin` fails at baseline and still fails: `rename auto_import savedPrelude` followed by an import does not yield a completed world.
+- Not yet traced: `analyser::handlers`, `command_binding::tests`, `command_binding::source_transition_advice`, `irules_checks`, `registry_invocation`, `analyser::per_item`, `object_types` (collections and widget paths, as recorded under the token faults above).
+
+Working method that held up: an unoptimised incremental build in a second target directory (`CARGO_TARGET_DIR=target-dbg CARGO_INCREMENTAL=1 CARGO_PROFILE_TEST_OPT_LEVEL=0`) rebuilds the crate's tests in about 50 s against 11 minutes for the suite profile. `TCL_LSP_TRACE_JIM_SOURCE_OWNER=1` prints each presence query's `unclosed=` flag, which is the quickest way to see a withheld command world; a refused class relation is almost always a non-empty `uncertain_operations` on the advice graph.
+
 ## Scope and publication
 
 Work is paused at the user's request after finishing the current autoload repair. All parallel investigations are stopped. Source/status checkpoints have been published to work and the periodic publisher is stopped. The final one-shot sync publishes this paused snapshot. The release verdict remains unchanged.
