@@ -3314,3 +3314,13 @@ its citation and a regression that reads the recorded lines.
 8. **Filing.** This document files returned blocks under
    `experiments/name-handling/f5/` and converted evidence under
    `evidence/tcl/`. Confirm that split, or name the single place wanted.
+9. **`HTTP::header NAME VALUE` after a response.** Not a naming check, but it
+   needs a device. `irules_checks::tests::irule1201_http_after_respond_fires`
+   uses `when HTTP_REQUEST { HTTP::respond 200 content ok; HTTP::header
+   Cache-Control no-cache }` and expects IRULE1201. The registry describes no
+   `HTTP::header` form whose first word is a header name followed by a value,
+   so the command resolves to no subcommand and the check stays silent. Does
+   TMM accept `HTTP::header NAME VALUE` (and as what: a read of `NAME`, an
+   insert, or an error), and does it raise after `HTTP::respond` in the same
+   event? If TMM rejects the form at load, the test's source should use
+   `HTTP::header insert`.
