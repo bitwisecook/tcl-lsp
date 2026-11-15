@@ -111,7 +111,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:271` | site | switch's match-mode options |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:273` | site | switch's match-mode options |
 | special_vars | the snit definition grammar declares its implicit variables | `rust/tcl-compiler/src/analyser/oo.rs:104` | site | snit's implicit type variable in a typemethod body |
-| special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs:12490` | site | the auto_path special variable |
+| special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs:12655` | site | the auto_path special variable |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:354` | site | dict's scoping subcommands in codegen |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:371` | site | dict's scoping subcommands in codegen |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:385` | site | dict's scoping subcommands in codegen |
