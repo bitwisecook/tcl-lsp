@@ -456,6 +456,7 @@ Area: `rust/tcl-compiler/src/analyser/diagnostics/**`, `analyser::handlers`, `an
 | first batch, before rebasing | 13,212 | 2,461 (fixed 26, new 0) |
 | `54c1e160` (first batch rebased over 50 commits of the other sessions) | 13,223 | 2,428 |
 | second batch | 13,221 | 2,420 (fixed 8, new 0) |
+| third batch, rebased onto `0ca9ee04` | 13,223 | 2,403 (one fixed here, new 0; the rest of the drop is the other sessions') |
 
 `it_4 caller_frame_effects::global_aliases_write_the_global_variable` passed at `46775880` and fails at `54c1e160` (`proc p {} {uplevel #0 {::upvar 0 g local; ::set local 1}}` under `tcl8.4`); it reads no name word and arrived with the rebase, so it belongs to the frame-effects change, not to this area.
 
@@ -484,6 +485,7 @@ Fixed:
 - **A read the solver proves bound is not a missing read.** `proc f {} {if {![info exists ns]} {set ns 1}; return $ns}` drew I230 for the folded guard and W210 for the read: `definite_missing_read_spans` took the unbound alternative of the merged read, which arrives on the edge the fold removed. The existence rung now has the last word there, as it has in the return pass. tclsh 8.4.20 to 9.1.0 return 1.
 - **A procedure declared in a child interpreter's script is recorded.** `interp create sandbox; sandbox eval {proc foo {} {}}` recorded no `::@interp@sandbox::foo`: the handler reads its word layout from the words the interpretation retained at the site, and the interpretation never enters a child interpreter's script. At that unreached site the layout is now the written head's in the registry; a computed name stays refused. The literal form `interp eval child {proc foo {} {}}` still records nothing under `tcl8.6` (it does under `tcl`), and the same fallback outside a child script is not taken: it would also record `helper` for `namespace eval ::pki {proc _$suffix {} {proc helper {} {}}}`, which `a_dollar_named_procs_body_has_no_proven_home` refuses, although it fixes `namespace code {proc foo {} {}}` and a `[namespace current]`-named procedure. That needs the walk to know it is inside a refused body.
 - The three `handle_oo_objdefine_records_*` fixtures are one table over the receiver spellings, analysed under Tcl 8.6.
+- **A name a nested command unbinds is not a read of the host statement.** `proc f {} {puts [unset x]}` drew W210 anchored on the whole `puts`: the name operand of the nested `unset` reached the host statement's chain as a use. A `[…]` substitution whose command the registry declares `DESTROYS_VARIABLE` for that name is skipped (`a_nested_unbind_is_an_existence_read`).
 - `unset -nocomplain -nocomplain` no longer expects W217: tclsh 8.4.20, 8.6.18 and 9.0.4 unset the variable named `-nocomplain`.
 
 Open, found while probing, with the owner where it is not this session:
@@ -493,6 +495,8 @@ Open, found while probing, with the owner where it is not this session:
 - `unset x` at file level draws nothing, in a procedure it draws W213. tclsh raises in both. Whether a standalone document's global frame is closed for W213 and W210 is a ruling this session needs (`it_5 checks::unset_nocomplain::unset_undefined_var_fires`).
 - `unset $x` in `proc f {x} {unset $x}` draws W304 and T102 but not W212, while `unset -nocomplain -- $x` draws W212.
 - `namespace import -force -force ::src::*` records an import of `::src::*`; tclsh 8.4.20 to 9.0.4 raise `no namespace specified in import pattern "-force"` and import nothing. The test expects both words as patterns, which is also not what tclsh does.
+- A TclOO, snit or itcl method body draws no read-before-set on any profile, called or not: `oo::class create C {method m {} {return $neverBound}}; C create c; c m` under `tcl8.6` and `tcl` reports nothing, and a class variable set in the constructor and read in a method draws W211 (`variable _x` … `constructor {x} {::set _x $x}`). The three `*_method_body_*_flags_w210` tests also run under the generic `tcl` profile through `codes_for`, and the snit and itcl ones lack `package require` (W120 under a release), so they need the fixture and the method unit. Analyser and binding half.
+- `interp eval child {proc foo {} {}}` (the literal path form): the site is a reached dispatch with no retained words (`analyser.proc.words` absent under `TCL_LSP_TRACE_JIM_SOURCE_OWNER`), so it is reached and unproved, and the child-script fallback does not apply. About eight `handlers::tests` `interp_*` and `safe_interp_*` tests.
 - `proc f {} {for {set i 5} {$i<3} {incr i} {set y $i}; puts $y}` draws no W210 although the loop provably runs zero times (`fp_rbs_18`): the after-loop read has no SSA read reference.
 
 ## Analysis performance, 15 November 2026
