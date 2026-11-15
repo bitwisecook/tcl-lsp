@@ -355,8 +355,22 @@ mod tests {
         OriginalRegistrySource, source_registry_words,
     };
 
-    const SOURCE: &str = include_str!(
-        "../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
+    /// The composed-callback-prefix probe with one added statement. The
+    /// computed `eval` is what withdraws the command world before the
+    /// callback is registered: its script is not known, so it may rebind
+    /// anything. `namespace code` runs nothing and cannot supply that.
+    const SOURCE: &str = concat!(
+        "set ::hook {}\n",
+        "interp alias {} ::makePrefix {} ::list\n",
+        "oo::class create C {\n",
+        "    method tick {fixed} {set ::observed [list tick $fixed]}\n",
+        "    method setup {} {\n",
+        "        eval $::hook\n",
+        "        set cb [namespace code [::makePrefix my tick {a b}]]\n",
+        "        after idle $cb\n",
+        "    }\n",
+        "}\n",
+        "C create object; object setup; update; set ::observed\n",
     );
 
     fn analyse(source: &str, release: &str) -> AnalysisResult {

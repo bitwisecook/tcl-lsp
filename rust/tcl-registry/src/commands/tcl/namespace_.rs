@@ -1252,6 +1252,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // consumer distinguishes capture from same-invocation execution.
         traits: Traits::WRAPS_COMMAND_PREFIX.union(Traits::DEFERS_BODY),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        side_effects: NAMESPACE_READ_SIDE_EFFECTS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
