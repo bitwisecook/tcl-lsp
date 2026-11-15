@@ -1626,3 +1626,49 @@ fn class_navigation_does_not_ignore_info_object_execution_trace() {
             .all(|item| item.name != "::right::C")
     );
 }
+
+/// #1778. `a:`/`p`, `a`/`:p` and `a` -> `:` -> `p` are three commands whose
+/// rendered names collide. tclsh 8.6.18, 9.0.4 and 9.1.0 run each relative
+/// call to its own definition (`A`, `B`, `N`); 8.4 and 8.5 cannot create
+/// the non-global `:p`, so the vector starts at 8.6.
+#[test]
+fn colon_edge_commands_keep_their_own_definitions_and_references() {
+    let src = "namespace eval a: {proc p {} {return A}}\n\
+               namespace eval a {proc :p {} {return B}}\n\
+               namespace eval a {namespace eval : {proc p {} {return N}}}\n\
+               namespace eval a: {p}\n\
+               namespace eval a {:p}\n\
+               namespace eval a {namespace eval : {p}}\n";
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let analysis = Analyser::new().analyse(src, dialect).clone();
+        for (call_line, call_col, def_line, def_col) in
+            [(3, 19, 0, 24), (4, 18, 1, 23), (5, 36, 2, 41)]
+        {
+            let defs = tcl_lsp_core::definition::definition(src, call_line, call_col, &analysis);
+            let starts: Vec<_> = defs
+                .iter()
+                .map(|range| (range.start_line, range.start_character))
+                .collect();
+            assert_eq!(
+                starts,
+                [(def_line, def_col)],
+                "{dialect}: call on line {call_line}"
+            );
+        }
+        assert_eq!(
+            refs_at_dialect(src, dialect, 0, 24),
+            [0, 3],
+            "{dialect}: a:/p"
+        );
+        assert_eq!(
+            refs_at_dialect(src, dialect, 1, 23),
+            [1, 4],
+            "{dialect}: a/:p"
+        );
+        assert_eq!(
+            refs_at_dialect(src, dialect, 2, 41),
+            [2, 5],
+            "{dialect}: a/:/p"
+        );
+    }
+}
