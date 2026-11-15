@@ -3889,7 +3889,8 @@ impl NativeCompilationSpec {
     }
 
     /// The private member command a basic named-invocation compiler names.
-    const fn named_member_slot(self) -> Option<&'static str> {
+    #[must_use]
+    pub const fn named_member_slot(self) -> Option<&'static str> {
         match self.grammar {
             NativeCompilationGrammar::NamedEnsembleInvocation { lookup, .. } => Some(lookup.slot),
             NativeCompilationGrammar::WithImplementationPath { compiler, .. } => {

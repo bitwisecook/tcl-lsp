@@ -1304,6 +1304,7 @@ fn select_target(
         // the runtime certifies that this registration has none.
         if closed_surface_catalogue_dispatch(target, state)
             || state.runtime_compiler_hook(target.identity.as_ref()) == Some(false)
+            || basic_member_invoked_by_its_private_name(target, state, context)
         {
             result.live = true;
             result.admit(NativeCompilationSelection::Generic);
@@ -1379,6 +1380,33 @@ struct RegisteredCompilerSelection {
 /// selects that handler generically after argv.
 ///
 /// [`Family::closed_load_time_resolution`]: tcl_dialect::model::Family::closed_load_time_resolution
+/// A registered member whose compiler is `TclCompileBasicNArgCmd`, reached by
+/// its own private name where the registry resolves no invocation facts (a
+/// nested worker such as `::tcl::binary::encode::hex`). The basic compiler and
+/// its fallback both push the written words and emit `invokeStk`; tclsh
+/// 8.6.18 and 9.0.4 disassemble `::tcl::binary::encode::hex X` to
+/// `push ::tcl::binary::encode::hex; push X; invokeStk1 2`.
+fn basic_member_invoked_by_its_private_name(
+    target: &SourceCommandTarget,
+    state: &ModuleCommandBindings,
+    context: super::SourceExecutionContext<'_>,
+) -> bool {
+    if !target.registry_backed || !target.prepended.is_empty() {
+        return false;
+    }
+    let Some(dialect) = state.baseline.compilation_dialect() else {
+        return false;
+    };
+    context
+        .registry
+        .native_compilation_for_registration(&target.command, dialect)
+        .and_then(tcl_registry::native_compilation::NativeCompilationSpec::named_member_slot)
+        .is_some_and(|slot| {
+            tcl_syntax::naming::unroot_rooted_key(slot).unwrap_or(slot)
+                == tcl_syntax::naming::unroot_rooted_key(&target.command).unwrap_or(&target.command)
+        })
+}
+
 fn closed_surface_catalogue_dispatch(
     target: &SourceCommandTarget,
     state: &ModuleCommandBindings,
