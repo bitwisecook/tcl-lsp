@@ -1164,6 +1164,19 @@ fn original_internal_dispatch(
     }) == Some(true)
 }
 
+/// The analysed class whose body holds `offset`, when its declared member set
+/// is complete. A definition vocabulary that may rewrite or add members (Clay)
+/// records an incomplete set, which answers no dispatch.
+pub(crate) fn declared_class_at(
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<&tcl_compiler::analyser::types::ClassDef> {
+    analysis
+        .all_classes
+        .get(enclosing_class_at(analysis, offset)?)
+        .filter(|class| !class.member_set_incomplete)
+}
+
 /// The declared member a written self-dispatch reaches in the analysed class
 /// whose body holds `offset`: the receiving class, the providing class and
 /// the method. A method body the analysis never entered still belongs to its
@@ -1179,9 +1192,7 @@ pub(crate) fn declared_self_dispatch_at<'a>(
     &'a tcl_compiler::analyser::types::MethodDef,
 )> {
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
-    let receiver = analysis
-        .all_classes
-        .get(enclosing_class_at(analysis, offset)?)?;
+    let receiver = declared_class_at(analysis, offset)?;
     let mut selector = None;
     crate::executable_regions::visit_analysis_executable_commands(
         source,

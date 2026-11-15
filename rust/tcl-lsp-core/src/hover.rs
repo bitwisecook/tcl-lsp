@@ -1416,12 +1416,7 @@ fn declared_class_hover(
             method.params.len(),
         )));
     }
-    let class = analysis
-        .all_classes
-        .get(crate::definition::enclosing_class_at(
-            analysis,
-            cursor_offset,
-        )?)?;
+    let class = crate::definition::declared_class_at(analysis, cursor_offset)?;
     let word =
         crate::source_structure::original_complete_cursor_word(source, analysis, cursor_offset)?
             .static_unicode_value()?;
