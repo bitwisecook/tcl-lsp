@@ -2222,6 +2222,22 @@ impl Analyser {
         Some(replacement)
     }
 
+    /// Whether the written head itself spells a private namespace. A bare
+    /// `exists` written inside `::tcl::dict` reaches `::tcl::dict::exists` by
+    /// ordinary lookup; it names no private namespace and has no public rewrite.
+    fn spells_private_tcl_namespace(
+        input: &crate::analyser::ResolvedAnalysisInput,
+        head: &str,
+    ) -> bool {
+        let context = input.context_registry();
+        tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(
+            head,
+            context.commands(),
+            Some(context.context().authoring_query()),
+        )
+        .is_some()
+    }
+
     /// W143 is selected Registry source advice where a genuine schema exists.
     /// Otherwise the same Registry-owned namespace policy reads the original
     /// static whole head, retaining explicitly unavailable lookup/handler
@@ -2250,7 +2266,10 @@ impl Analyser {
         let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&head) else {
             return;
         };
-        let Ok(literal_head) = std::str::from_utf8(&value) else {
+        let Some(literal_head) = std::str::from_utf8(&value)
+            .ok()
+            .filter(|head| Self::spells_private_tcl_namespace(&input, head))
+        else {
             return;
         };
         let Some((segment, _)) = self
