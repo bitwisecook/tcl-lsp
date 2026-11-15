@@ -5522,6 +5522,14 @@ impl Analyser {
                 true,
                 Some(Span::new(start, end)),
             );
+            // The element is a written variable name of its own, declared
+            // here as a whole-word receiver is.
+            self.record_original_variable_receiver(
+                Span::new(start, end),
+                scope_path,
+                tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined,
+                false,
+            );
             pos = element.next;
         }
     }
@@ -13750,6 +13758,29 @@ mod tests {
                 .as_deref(),
             Some("NAMESPACE")
         );
+    }
+
+    #[test]
+    fn a_whole_word_loop_variable_records_its_declaration_occurrence() {
+        // TP — `foreach name …` declares `name` at the word itself, as
+        // `catch {…} res` declares `res`; the read alone left navigation
+        // from `$name` with no declaration to answer.
+        let source = "foreach name {a b} {puts $name}\nproc p {} {foreach x {1 2} {puts $x}}\n";
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
+            let result = Analyser::new().analyse(source, dialect);
+            for name in ["name", "x"] {
+                let at =
+                    u32::try_from(source.find(&format!("foreach {name}")).unwrap() + 8).unwrap();
+                let span = Span::new(at, at + u32::try_from(name.len()).unwrap());
+                assert!(
+                    result
+                        .original_variable_symbols
+                        .iter()
+                        .any(|occurrence| occurrence.span() == span),
+                    "{dialect}: {name}"
+                );
+            }
+        }
     }
 
     fn assert_no_static_proc_completion(analyser: &mut Analyser) {
