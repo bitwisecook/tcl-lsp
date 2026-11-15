@@ -939,7 +939,11 @@ fn make_fold_ops<'a>(
             .unwrap_or(tcl_dialect::NativeArithmetic::TclBignum),
         env,
         declined: None,
-        tower: if widens_past_a_wide(policy.dialect) || policy.arithmetic.is_some() {
+        tower: if widens_past_a_wide(policy.dialect)
+            || policy
+                .arithmetic
+                .is_some_and(|arithmetic| arithmetic != tcl_dialect::NativeArithmetic::Tcl84Wide)
+        {
             Tower::Widens
         } else {
             Tower::Wide
@@ -1383,7 +1387,31 @@ impl FoldOps<'_> {
     /// Whether `value` is past a tower the target does not widen to
     /// ([`Self::tower`]).
     fn beyond_tower(&self, value: &FoldValue) -> bool {
-        self.tower != Tower::Widens && past_the_wide_tower(value, self.octal, self.numbers)
+        self.tower != Tower::Widens
+            && past_the_wide_tower(value, self.octal, self.numbers)
+            && !self.wide_model_reads(value)
+    }
+
+    /// A beyond-wide integer the selected fixed-width model still reads: an
+    /// 8.4 literal up to 64 bits keeps its low bits.
+    fn wide_model_reads(&self, value: &FoldValue) -> bool {
+        self.arithmetic != tcl_dialect::NativeArithmetic::TclBignum
+            && matches!(
+                strict_number_for_dialect(value, self.octal, self.numbers),
+                Some(TclValue::Big(big))
+                    if tcl_syntax::expr::wide::literal(self.arithmetic, &big).is_ok()
+            )
+    }
+
+    /// An operand or result past a tower the target does not widen to folds
+    /// nothing: tclsh 8.4 raises `floating-point value too large to
+    /// represent` for `1e308 * 10` and `integer value too large to represent`
+    /// for `18446744073709551616`.
+    fn within_tower(&self, values: &[&FoldValue]) -> Result<(), ()> {
+        if values.iter().any(|value| self.beyond_tower(value)) {
+            return Err(());
+        }
+        Ok(())
     }
 
     /// Whether `left % right` is the wide remainder `i64::MIN % -1`: `0` from
@@ -1590,6 +1618,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             try_dispatch_with_backend_protocol,
         };
         let name = function.to_owned();
+        self.within_tower(&args.iter().collect::<Vec<_>>())?;
         if self.native_family == Some(tcl_dialect::model::Family::Jim) {
             let functions = self
                 .invocation_dialect
@@ -1660,13 +1689,18 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         .map_err(|_| ())?
         {
             Num::Int(i) => Ok(FoldValue::Int(i)),
-            Num::Float(f) => Ok(FoldValue::Float(f)),
+            Num::Float(f) => {
+                let value = FoldValue::Float(f);
+                self.within_tower(&[&value])?;
+                Ok(value)
+            }
             Num::Big(never) => match never {},
         }
     }
 
     fn arith(&mut self, op: BinOp, left: FoldValue, right: FoldValue) -> Result<FoldValue, ()> {
         self.check_native_constant_arithmetic(op, &left, &right)?;
+        self.within_tower(&[&left, &right])?;
         if self.tower != Tower::Widens && self.is_trapping_wide_remainder(op, &left, &right) {
             return Err(());
         }
@@ -1684,10 +1718,13 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 .map(FoldValue::Int)
                 .map_err(|_| ());
         }
-        apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())
+        let value = apply_binary(op, a, b).map(FoldValue::from_tcl).ok_or(())?;
+        self.within_tower(&[&value])?;
+        Ok(value)
     }
     fn unary(&mut self, op: UnaryOp, value: FoldValue) -> Result<FoldValue, ()> {
         self.check_native_constant_unary(op, &value)?;
+        self.within_tower(&[&value])?;
         if self.arithmetic != tcl_dialect::NativeArithmetic::TclBignum
             && matches!(op, UnaryOp::Pos | UnaryOp::Neg | UnaryOp::BitNot)
             && let TclValue::Int(value) = self.strict_number(&value).ok_or(())?
@@ -1696,7 +1733,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 .map(FoldValue::Int)
                 .map_err(|_| ());
         }
-        match op {
+        let result = match op {
             // Logical negation *does* take a boolean (`expr {!true}` → 0), so
             // it keeps the boolean-accepting `to_number` coercion. Truthiness
             // of a bare leading-zero operand is dialect-invariant (a run of
@@ -1746,7 +1783,9 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                     TclValue::Float(_) => Err(()),
                 }
             }
-        }
+        }?;
+        self.within_tower(&[&result])?;
+        Ok(result)
     }
 
     fn compare_numeric(
@@ -1765,6 +1804,10 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // `compare_string`, matching Tcl. A leading-zero operand under an
         // unknown dialect is `Ambiguous` → mark the fold unreliable so
         // `eval_tcl_expr` declines entirely rather than pick a dialect.
+        if self.beyond_tower(left) || self.beyond_tower(right) {
+            self.tower = Tower::Breached;
+            return None;
+        }
         let (lo, ro) = (self.classify(left), self.classify(right));
         if matches!(lo, Operand::Ambiguous) || matches!(ro, Operand::Ambiguous) {
             self.decline(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
@@ -1857,6 +1900,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
 
     fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ()> {
         self.check_native_constant_boolean(value)?;
+        self.within_tower(&[value])?;
         // Boolean contexts (`?:`, `&&`, `||`) reject NaN — a domain error in
         // C Tcl ("floating point value is Not a Number"), so the fold
         // declines rather than pick a truth value.
@@ -3923,10 +3967,7 @@ mod tests {
     fn evaluate_expr_integer() {
         let mut env = Env::new();
         env.insert("x".into(), EnvValue::Int(5));
-        assert_eq!(
-            evaluate_expr_with_constants(&parse_expr("$x + 3", None), &env, FoldPolicy::default()),
-            Some(8)
-        );
+        assert_eq!(value_86_env("$x + 3", &env), Some(TclValue::Int(8)));
     }
 
     #[test]
@@ -3960,11 +4001,9 @@ mod tests {
         let mut env = Env::new();
         env.insert("flag".into(), EnvValue::Str("true".into()));
         env.insert("n".into(), EnvValue::Str("42".into()));
-        let value = |text: &str| {
-            evaluate_expr_with_constants(&parse_expr(text, None), &env, FoldPolicy::default())
-        };
-        assert_eq!(value("$flag"), Some(1));
-        assert_eq!(value("$n + 1"), Some(43));
+        let value = |text: &str| value_86_env(text, &env);
+        assert_eq!(value("$flag"), Some(TclValue::Int(1)));
+        assert_eq!(value("$n + 1"), Some(TclValue::Int(43)));
     }
 
     #[test]
@@ -4024,6 +4063,39 @@ mod tests {
         eval_tcl_expr(&parse_expr(expr, None), env)
     }
 
+    /// Fold under Tcl 8.6. A comparison of strings is decided by the
+    /// release's character model, so it has no release-blind answer.
+    fn eval_86(expr: &str) -> Option<TclValue> {
+        eval_release(expr, "tcl8.6")
+    }
+
+    fn eval_release(expr: &str, release: &str) -> Option<TclValue> {
+        eval_tcl_expr_in_dialect(
+            &parse_expr(expr, Some(release)),
+            &Env::new(),
+            tcl_registry::model::ingress::resolve_environment(release).analyser_profile(),
+        )
+    }
+
+    /// The value an expression has over `env` under `policy`. A fold that
+    /// replaces the expression is refused while a variable read leaves a
+    /// conversion behind; the value is what these tests are about.
+    fn value_over(expr: &ExprNode, env: &Env, policy: FoldPolicy) -> Option<TclValue> {
+        analyse_tcl_expr_with_resolved_math_bindings(expr, env, policy, &|_, _| None, None)
+            .map(|evaluation| evaluation.value)
+    }
+
+    /// [`value_over`] under Tcl 8.6.
+    fn value_86_env(expr: &str, env: &Env) -> Option<TclValue> {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        value_over(
+            &parse_expr(expr, Some("tcl8.6")),
+            env,
+            FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile)),
+        )
+    }
+
     #[test]
     fn string_ordering_uses_selected_native_units_and_jim_equality_uses_bytes() {
         for (profile, ordered) in [
@@ -4072,14 +4144,6 @@ mod tests {
         eval_tcl_expr_in_dialect(
             &parse_expr(expr, Some("f5-irules")),
             &env,
-            tcl_dialect::DialectProfile::irules(),
-        )
-    }
-
-    fn eval_irules_env(expr: &str, env: &Env) -> Option<TclValue> {
-        eval_tcl_expr_in_dialect(
-            &parse_expr(expr, Some("f5-irules")),
-            env,
             tcl_dialect::DialectProfile::irules(),
         )
     }
@@ -4135,18 +4199,32 @@ mod tests {
             eval_tcl_expr_with_policy(
                 &parse_expr(expr, Some(dialect)),
                 &env,
-                FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile)),
+                // The `abs` row is about the tower, not about which command
+                // `abs` reaches, so the intrinsic table answers it.
+                FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile))
+                    .with_intrinsic_math(),
             )
         };
+        // The fixed-width model answers a wide shift as tclsh 8.4.20 does:
+        // `puts [expr {1 << 70}]` prints 0, `expr {(1 << 70) == 0}` 1 and
+        // `expr {-(1 << 70)}` 0. A profile naming no release has no model.
+        for (expr, wide) in [("1 << 70", 0), ("(1 << 70) == 0", 1), ("-(1 << 70)", 0)] {
+            for dialect in ["tcl8.4", "f5-irules"] {
+                assert_eq!(
+                    fold(expr, dialect),
+                    Some(TclValue::Int(wide)),
+                    "{dialect}: {expr}"
+                );
+            }
+            assert_eq!(fold(expr, "f5-bigip"), None, "f5-bigip: {expr}");
+            assert!(fold(expr, "tcl8.6").is_some(), "tcl8.6: {expr}");
+        }
         for expr in [
-            "1 << 70",
-            "(1 << 70) == 0",
             "9223372036854775807 + 1",
             "1e308 * 10",
             "1e308 * 10 > 0",
             "1e309 > 0",
             "18446744073709551616 > 0",
-            "-(1 << 70)",
             "abs(1e308 * 10)",
             // A double spelling outside the range raises `ARITH OVERFLOW` /
             // `UNDERFLOW` under tclsh 8.4 (`4.9e-324` as "too large").
@@ -4308,7 +4386,7 @@ mod tests {
             ("1 || 0", 1),
             ("!0", 1),
         ] {
-            assert_eq!(eval_str(expr), Some(TclValue::Int(want)), "expr {{{expr}}}");
+            assert_eq!(eval_86(expr), Some(TclValue::Int(want)), "expr {{{expr}}}");
         }
     }
 
@@ -4328,15 +4406,15 @@ mod tests {
         // Tcl numbers; otherwise as strings. Boolean words are NOT numbers for
         // comparison (tclsh: `expr {"true" == "1"}` → 0), so the comparison
         // must fall back to a string compare rather than coercing `true`→1.
-        assert_eq!(eval_str(r#""true" == "1""#), Some(TclValue::Int(0)));
-        assert_eq!(eval_str(r#""yes" == "1""#), Some(TclValue::Int(0)));
-        assert_eq!(eval_str(r#""true" != "1""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_86(r#""true" == "1""#), Some(TclValue::Int(0)));
+        assert_eq!(eval_86(r#""yes" == "1""#), Some(TclValue::Int(0)));
+        assert_eq!(eval_86(r#""true" != "1""#), Some(TclValue::Int(1)));
         // Genuine numbers still compare numerically (incl. mixed int/float and
         // hex), and non-numeric strings string-compare.
-        assert_eq!(eval_str(r#""5" == "5.0""#), Some(TclValue::Int(1)));
-        assert_eq!(eval_str(r#""0x10" == "16""#), Some(TclValue::Int(1)));
-        assert_eq!(eval_str(r#""foo" == "foo""#), Some(TclValue::Int(1)));
-        assert_eq!(eval_str(r#""foo" == "bar""#), Some(TclValue::Int(0)));
+        assert_eq!(eval_86(r#""5" == "5.0""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_86(r#""0x10" == "16""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_86(r#""foo" == "foo""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_86(r#""foo" == "bar""#), Some(TclValue::Int(0)));
     }
 
     #[test]
@@ -4666,16 +4744,16 @@ mod tests {
         // comparison → 0 — numeric-unordered, NOT a string comparison.
         let mut env = Env::new();
         env.insert("x".to_owned(), EnvValue::Str("NaN".to_owned()));
-        assert_eq!(eval_str_env("$x == 1", &env), Some(TclValue::Int(0)));
-        assert_eq!(eval_str_env("$x != 1", &env), Some(TclValue::Int(1)));
-        assert_eq!(eval_str_env("$x < 1", &env), Some(TclValue::Int(0)));
-        assert_eq!(eval_str_env("$x <= 1", &env), Some(TclValue::Int(0)));
-        assert_eq!(eval_str_env("$x > 1", &env), Some(TclValue::Int(0)));
-        assert_eq!(eval_str_env("$x >= 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(value_86_env("$x == 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(value_86_env("$x != 1", &env), Some(TclValue::Int(1)));
+        assert_eq!(value_86_env("$x < 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(value_86_env("$x <= 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(value_86_env("$x > 1", &env), Some(TclValue::Int(0)));
+        assert_eq!(value_86_env("$x >= 1", &env), Some(TclValue::Int(0)));
         // NaN != NaN numerically… but `eq` is a string comparison, so the
         // spelling matters there instead (both verified against tclsh).
-        assert_eq!(eval_str_env("$x == $x", &env), Some(TclValue::Int(0)));
-        assert_eq!(eval_str_env("$x eq $x", &env), Some(TclValue::Int(1)));
+        assert_eq!(value_86_env("$x == $x", &env), Some(TclValue::Int(0)));
+        assert_eq!(value_86_env("$x eq $x", &env), Some(TclValue::Int(1)));
     }
 
     #[test]
@@ -4706,8 +4784,8 @@ mod tests {
 
     #[test]
     fn string_comparisons() {
-        assert_eq!(eval_str("1 eq 1"), Some(TclValue::Int(1)));
-        assert_eq!(eval_str("1 ne 2"), Some(TclValue::Int(1)));
+        assert_eq!(eval_86("1 eq 1"), Some(TclValue::Int(1)));
+        assert_eq!(eval_86("1 ne 2"), Some(TclValue::Int(1)));
     }
 
     #[test]
@@ -4715,15 +4793,21 @@ mod tests {
         // `eq`/`ne`/`lt`/`gt`/`le`/`ge` compare
         // operands AS strings, so string-only operands fold
         // (an earlier numeric parse returned None for them).
-        assert_eq!(eval_str("\"x\" eq \"y\""), Some(TclValue::Int(0)));
-        assert_eq!(eval_str("\"x\" ne \"y\""), Some(TclValue::Int(1)));
-        assert_eq!(eval_str("\"x\" eq \"x\""), Some(TclValue::Int(1)));
+        assert_eq!(eval_86("\"x\" eq \"y\""), Some(TclValue::Int(0)));
+        assert_eq!(eval_86("\"x\" ne \"y\""), Some(TclValue::Int(1)));
+        assert_eq!(eval_86("\"x\" eq \"x\""), Some(TclValue::Int(1)));
         // Lexical ordering on string operands.
-        assert_eq!(eval_str("\"abc\" lt \"abd\""), Some(TclValue::Int(1)));
-        assert_eq!(eval_str("\"b\" gt \"a\""), Some(TclValue::Int(1)));
+        assert_eq!(
+            eval_release("\"abc\" lt \"abd\"", "tcl9.0"),
+            Some(TclValue::Int(1))
+        );
+        assert_eq!(
+            eval_release("\"b\" gt \"a\"", "tcl9.0"),
+            Some(TclValue::Int(1))
+        );
         // `5 eq 5.0` compares the strings "5" vs "5.0" (→ 0), matching
         // C Tcl 9 — a regression guard for the numeric-looking case.
-        assert_eq!(eval_str("5 eq 5.0"), Some(TclValue::Int(0)));
+        assert_eq!(eval_86("5 eq 5.0"), Some(TclValue::Int(0)));
     }
 
     #[test]
@@ -5004,8 +5088,13 @@ mod tests {
     fn irules_string_op_with_bound_variable() {
         let mut env = Env::new();
         env.insert("name".into(), EnvValue::Str("production".into()));
+        let profile = tcl_dialect::DialectProfile::irules();
         assert_eq!(
-            eval_irules_env(r#"$name contains "prod""#, &env),
+            value_over(
+                &parse_expr(r#"$name contains "prod""#, Some("f5-irules")),
+                &env,
+                FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile)),
+            ),
             Some(TclValue::Int(1))
         );
     }
