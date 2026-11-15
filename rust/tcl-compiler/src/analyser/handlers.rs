@@ -18993,25 +18993,17 @@ mod tests {
 
     // handle_oo_objdefine
 
+    /// `oo::objdefine` records its receiver word: a variable by its name,
+    /// braced or not, and a literal object by its spelling. tclsh 8.6.18 and
+    /// 9.0.4 print `1 2 3` for the three forms over one object.
     #[test]
-    fn handle_oo_objdefine_records_dollar_var() {
-        let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["$obj".to_string()], &[], &[], &[]);
-        assert!(a.objdefined_vars.contains("obj"));
-    }
-
-    #[test]
-    fn handle_oo_objdefine_records_braced_dollar_var() {
-        let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["${obj}".to_string()], &[], &[], &[]);
-        assert!(a.objdefined_vars.contains("obj"));
-    }
-
-    #[test]
-    fn handle_oo_objdefine_records_bare_name() {
-        let mut a = Analyser::new();
-        a.handle_oo_objdefine(&["obj".to_string()], &[], &[], &[]);
-        assert!(a.objdefined_vars.contains("obj"));
+    fn handle_oo_objdefine_records_its_receiver_word() {
+        for receiver in ["$obj", "${obj}", "obj"] {
+            let a = analysed(&format!(
+                "oo::object create obj\nset obj obj\noo::objdefine {receiver} {{method m {{}} {{return 1}}}}\n"
+            ));
+            assert!(a.objdefined_vars.contains("obj"), "{receiver}");
+        }
     }
 
     #[test]
