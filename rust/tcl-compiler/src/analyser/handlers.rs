@@ -10843,16 +10843,12 @@ impl Analyser {
         arg_tokens: &[Token],
         call_off: u32,
     ) -> Option<(ClassFactory, Vec<tcl_lexer::NativeWord>)> {
-        use crate::command_binding::SourceCommandTransitionObligation;
         if let Some(call) = crate::registry_invocation::source_structure::source_constructor_call_at(
             &self.source,
             &self.result,
             call_off,
         ) {
-            if call
-                .obligations()
-                .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
-                || (0..arg_tokens.len()).any(|index| call.written_argument(index) != Some(index))
+            if (0..arg_tokens.len()).any(|index| call.written_argument(index) != Some(index))
                 || !super::original_definer::constructor_arguments_match(&call, args, arg_tokens)
             {
                 return None;
