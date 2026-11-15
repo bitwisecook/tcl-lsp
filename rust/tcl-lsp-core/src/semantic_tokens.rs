@@ -7697,33 +7697,46 @@ mod tests {
         }
     }
 
+    /// A regex literal bound to a variable is retagged at its definition in
+    /// every kind of body the unit lowers on its own: a method, a
+    /// `namespace eval` script and an `apply` lambda. Runs under Tcl 9.0; the
+    /// rule does not differ between releases.
     #[test]
-    fn regex_source_tracks_inside_oo_method_body() {
-        // TclOO method bodies are lowered as their own `FunctionUnit`s, so a
-        // `set re "…"; regexp $re` inside a method highlights the def-site
-        // literal just like one in a proc — end-to-end through the CU overlay.
-        // Root registry calls because TclOO selects the receiver's private
-        // namespace at runtime, where a relative command may be shadowed.
+    fn regex_source_literal_is_retagged_in_every_body_kind() {
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = release_reg("tcl9.0");
-        let src = "oo::class create C {\n  method m {s} {\n    ::set re \".*x\"\n    ::regexp $re $s\n  }\n}\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let toks = decode_semantic(&full_with_cu(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-        ));
-        assert!(
-            toks.iter()
-                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
-            "expected a regex quantifier from the method-body def-site literal; got {toks:?}"
-        );
-        for w in toks.windows(2) {
-            let (l0, c0, len0, _, _) = w[0];
-            let (l1, c1, _, _, _) = w[1];
-            if l0 == l1 {
-                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        for (body, src) in [
+            // Rooted calls: TclOO selects the receiver's private namespace at
+            // run time, where a relative command may be shadowed.
+            (
+                "method",
+                "oo::class create C {\n  method m {s} {\n    ::set re \".*x\"\n    ::regexp $re $s\n  }\n}\n",
+            ),
+            // The subject is bound, so the `regexp` call is reached.
+            (
+                "namespace eval",
+                "namespace eval ::ns {\n  set s subject\n  set re \".*x\"\n  regexp $re $s\n}\n",
+            ),
+            (
+                "apply lambda",
+                "apply {{s} {\n  set re \".*x\"\n  regexp $re $s\n}} foo\n",
+            ),
+        ] {
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            let toks = decode_semantic(&full_with_cu(src, profile, &registry, Some(&cu)));
+            assert!(
+                toks.iter()
+                    .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
+                "{body}: expected a regex quantifier from the definition literal; got {toks:?}"
+            );
+            for w in toks.windows(2) {
+                let (l0, c0, len0, _, _) = w[0];
+                let (l1, c1, _, _, _) = w[1];
+                if l0 == l1 {
+                    assert!(c1 >= c0 + len0, "{body}: overlap; toks={toks:?}");
+                }
             }
         }
     }
@@ -8696,64 +8709,6 @@ mod tests {
         assert_eq!(object_handle_name("$::a:::b", None), Some("::a:::b"));
         assert_eq!(object_handle_name("$foo:::", None), Some("foo:::"));
         assert_eq!(object_handle_name("${x", None), Some("{x"));
-    }
-
-    #[test]
-    fn regex_source_tracks_inside_namespace_eval_body() {
-        // `namespace eval` bodies are lowered as their own synthetic body units,
-        // so a `set re "…"; regexp $re` inside the eval highlights the def-site
-        // literal — end-to-end through the CU overlay, matching a proc body.
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        // The subject is bound, so the `regexp` call is reached.
-        let src = "namespace eval ::ns {\n  set s subject\n  set re \".*x\"\n  regexp $re $s\n}\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let toks = decode_semantic(&full_with_cu(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-        ));
-        assert!(
-            toks.iter()
-                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
-            "expected a regex quantifier from the ns-eval body def-site literal; got {toks:?}"
-        );
-        for w in toks.windows(2) {
-            let (l0, c0, len0, _, _) = w[0];
-            let (l1, c1, _, _, _) = w[1];
-            if l0 == l1 {
-                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
-            }
-        }
-    }
-
-    #[test]
-    fn regex_source_tracks_inside_apply_lambda_body() {
-        // `apply` lambda bodies are synthetic body units too — a def-site regex
-        // literal inside the lambda highlights as a regex.
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let src = "apply {{s} {\n  set re \".*x\"\n  regexp $re $s\n}} foo\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let toks = decode_semantic(&full_with_cu(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-        ));
-        assert!(
-            toks.iter()
-                .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
-            "expected a regex quantifier from the apply lambda body def-site literal; got {toks:?}"
-        );
-        for w in toks.windows(2) {
-            let (l0, c0, len0, _, _) = w[0];
-            let (l1, c1, _, _, _) = w[1];
-            if l0 == l1 {
-                assert!(c1 >= c0 + len0, "overlap; toks={toks:?}");
-            }
-        }
     }
 
     /// Decode a `SemanticTokens` value directly into
