@@ -6152,10 +6152,14 @@ pub(crate) fn clock_reading_value(
     version: TclVersion,
 ) -> Option<u8> {
     use NativeClockReading as Reading;
-    if version != TclVersion::V9_0 {
+    // tclsh 8.6.18 and 9.0.4 disassemble `clock clicks`, `clock microseconds`,
+    // `clock milliseconds` and `clock seconds` to `clockRead 0` to `3`, and
+    // `clock clicks -mic` / `-mil` to `clockRead 1` / `2`.
+    if !matches!(version, TclVersion::V8_6 | TclVersion::V9_0) {
         return None;
     }
     match (reading, shapes) {
+        (Reading::Clicks, []) => Some(0),
         (Reading::Microseconds, []) => Some(1),
         (Reading::Milliseconds, []) => Some(2),
         (Reading::Seconds, []) => Some(3),
@@ -10083,49 +10087,47 @@ mod clock_reading_compiler_tests {
     use tcl_dialect::TclVersion;
 
     #[test]
-    fn c90_clock_reading_selects_only_proven_forms() {
-        for (reading, selector) in [
-            (Reading::Microseconds, 1),
-            (Reading::Milliseconds, 2),
-            (Reading::Seconds, 3),
-        ] {
-            assert_eq!(
-                clock_reading_value(reading, None, &[], TclVersion::V9_0),
-                Some(selector)
-            );
-            assert_eq!(
-                clock_reading_value(reading, None, &[], TclVersion::V9_1),
-                None
-            );
-        }
-        assert_eq!(
-            clock_reading_value(Reading::Clicks, None, &[], TclVersion::V9_0),
-            None
-        );
-        for (word, selector) in [
-            (b"-mic".as_slice(), 1),
-            (b"-mil".as_slice(), 2),
-            (b"-microseconds".as_slice(), 1),
-        ] {
-            assert_eq!(
-                clock_reading_value(
-                    Reading::Clicks,
-                    Some(word),
-                    &[Shape::Literal],
-                    TclVersion::V9_0
-                ),
-                Some(selector)
-            );
-        }
-        for (word, shape) in [
-            (b"-mi".as_slice(), Shape::Literal),
-            (b"-mic".as_slice(), Shape::BackslashLiteral),
-            (b"-other".as_slice(), Shape::Literal),
-        ] {
-            assert_eq!(
-                clock_reading_value(Reading::Clicks, Some(word), &[shape], TclVersion::V9_0),
-                None
-            );
+    fn clock_reading_selects_only_proven_forms_in_tcl_8_6_and_9_0() {
+        for version in [TclVersion::V8_6, TclVersion::V9_0] {
+            for (reading, selector) in [
+                (Reading::Clicks, 0),
+                (Reading::Microseconds, 1),
+                (Reading::Milliseconds, 2),
+                (Reading::Seconds, 3),
+            ] {
+                assert_eq!(
+                    clock_reading_value(reading, None, &[], version),
+                    Some(selector)
+                );
+                assert_eq!(
+                    clock_reading_value(reading, None, &[], TclVersion::V9_1),
+                    None
+                );
+                assert_eq!(
+                    clock_reading_value(reading, None, &[], TclVersion::V8_5),
+                    None
+                );
+            }
+            for (word, selector) in [
+                (b"-mic".as_slice(), 1),
+                (b"-mil".as_slice(), 2),
+                (b"-microseconds".as_slice(), 1),
+            ] {
+                assert_eq!(
+                    clock_reading_value(Reading::Clicks, Some(word), &[Shape::Literal], version),
+                    Some(selector)
+                );
+            }
+            for (word, shape) in [
+                (b"-mi".as_slice(), Shape::Literal),
+                (b"-mic".as_slice(), Shape::BackslashLiteral),
+                (b"-other".as_slice(), Shape::Literal),
+            ] {
+                assert_eq!(
+                    clock_reading_value(Reading::Clicks, Some(word), &[shape], version),
+                    None
+                );
+            }
         }
     }
     #[test]
