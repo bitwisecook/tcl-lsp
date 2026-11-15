@@ -11497,6 +11497,52 @@ impl SourceCommandBindings {
         outcomes
     }
 
+    /// The outcome of a command whose binding is unknown. Kept out of line:
+    /// the caller's frame is on the recursive source walk.
+    #[inline(never)]
+    fn join_unknown_source_binding(
+        &self,
+        incoming: &ModuleCommandBindings,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        context: &SourceExecutionContext<'_>,
+        outcomes: &mut SourceOutcomes,
+    ) {
+        let mut residual = Box::new(incoming.clone());
+        if let Some(frame) = incoming.declared_command_frame_effect(context.registry, effective) {
+            // A declared command (document stub, sidecar or workspace
+            // procedure) is trusted to leave the command world intact; its
+            // frame effect bounds what it does to variables.
+            if frame != tcl_registry::model::DeclaredFrameEffect::Stated(None) {
+                Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
+            }
+        } else if let Some(traits) = incoming.receiver_context_head(
+            context.registry,
+            effective,
+            self.declaration_preview_depth != 0,
+        ) {
+            // A TclOO helper this walk's namespace cannot reach. It reads
+            // the call context or dispatches to the receiver's own methods,
+            // whose bodies are walked in their own right.
+            if !traits.contains(tcl_registry::Traits::PURE) {
+                Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
+            }
+        } else {
+            // The default `unknown` handler loads at global level, never
+            // into a receiver's private namespace; a command the registry
+            // knows is reached instead, with its own effects.
+            let receiver_opacity = residual.receiver_frame_opacity;
+            residual.mark_opaque_binding_mutation();
+            if registry_head(context.registry, effective).is_none() {
+                residual.receiver_frame_opacity = receiver_opacity;
+            }
+            residual.loader_handler_unknown = true;
+        }
+        outcomes.join(&SourceOutcomes::invocation(
+            &residual,
+            tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+        ));
+    }
+
     fn walk_resolved_source_command(
         &mut self,
         input: SourceCommandInput<'_>,
@@ -11522,41 +11568,7 @@ impl SourceCommandBindings {
         };
         let incoming = boxed_source_branch(state);
         if binding.unknown {
-            let mut residual = incoming.clone();
-            if let Some(frame) = incoming.declared_command_frame_effect(context.registry, effective)
-            {
-                // A declared command (document stub, sidecar or workspace
-                // procedure) is trusted to leave the command world intact; its
-                // frame effect bounds what it does to variables.
-                if frame != tcl_registry::model::DeclaredFrameEffect::Stated(None) {
-                    Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
-                }
-            } else if let Some(traits) = incoming.receiver_context_head(
-                context.registry,
-                effective,
-                self.declaration_preview_depth != 0,
-            ) {
-                // A TclOO helper this walk's namespace cannot reach. It reads
-                // the call context or dispatches to the receiver's own methods,
-                // whose bodies are walked in their own right.
-                if !traits.contains(tcl_registry::Traits::PURE) {
-                    Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
-                }
-            } else {
-                // The default `unknown` handler loads at global level, never
-                // into a receiver's private namespace; a command the registry
-                // knows is reached instead, with its own effects.
-                let receiver_opacity = residual.receiver_frame_opacity;
-                residual.mark_opaque_binding_mutation();
-                if registry_head(context.registry, effective).is_none() {
-                    residual.receiver_frame_opacity = receiver_opacity;
-                }
-                residual.loader_handler_unknown = true;
-            }
-            outcomes.join(&SourceOutcomes::invocation(
-                &residual,
-                tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
-            ));
+            self.join_unknown_source_binding(&incoming, effective, context, outcomes);
         }
         if binding.may_be_absent {
             outcomes.add_abrupt(

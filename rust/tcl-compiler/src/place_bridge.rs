@@ -689,81 +689,26 @@ pub fn def_places_at(
 /// Resolve the reads of every command in `script_text` — VAR_READ-role name
 /// args (`array get arr` reads whole array `arr`; `info exists x` reads `x`)
 /// plus a recursive descent of each arg word.
+///
+/// This and [`word_reads`] recurse once per nested `[…]`, so they keep only
+/// the iteration state in their own frames; the per-command and per-word work
+/// sits in helpers that return before the descent.
 fn command_reads(
     script_text: &str,
     ctx: &ResolveContext,
     out: &mut Vec<Place>,
     registry: &CommandRegistry,
 ) {
-    let Some(config) = ctx.read_lexer_config(registry) else {
-        out.push(place::unknown_top());
+    let Some(commands) = nested_script_commands(script_text, ctx, out, registry) else {
         return;
     };
-    let image = tcl_lexer::SourceImage::document(script_text);
-    let Ok(end) = u32::try_from(image.len()) else {
-        out.push(place::unknown_top());
-        return;
-    };
-    let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
-        image.clone(),
-        tcl_lexer::Span::new(0, end),
-        config,
-        tcl_lexer::SourceSegmentationPurpose::NestedScript,
-    ) else {
-        out.push(place::unknown_top());
-        return;
-    };
-    if plan.fatal_tail.is_some() {
-        out.push(place::unknown_top());
-    }
     let dialect = ctx.invocation_dialect.or_else(|| {
         registry
             .profile()
             .map(tcl_registry::InvocationDialect::of_profile)
     });
-    for command in plan.commands {
-        match crate::registry_invocation::standalone_written_source_name_roles(
-            registry,
-            &command.words,
-            dialect,
-        ) {
-            Some(invocation) => {
-                let whole = invocation.facts().traits.contains(Traits::WHOLE_ARRAY_ARG);
-                if invocation.has_unknown_residual()
-                    || invocation
-                        .facts()
-                        .traits
-                        .contains(Traits::PERFORMS_SUBSTITUTION)
-                {
-                    out.push(place::unknown_top());
-                }
-                for &(argument, role) in invocation.roles() {
-                    // Selected value grammars need their own component owner.
-                    // Literal word quoting alone does not make evaluated data inert.
-                    if matches!(role, ArgRole::Expr | ArgRole::Body | ArgRole::CommandPrefix) {
-                        out.push(place::unknown_top());
-                    }
-                    if role != ArgRole::VarRead {
-                        continue;
-                    }
-                    let name = invocation.original_variable_name_operand(argument);
-                    out.push(
-                        name.as_ref()
-                            .filter(|name| !name.as_str().contains('\0'))
-                            .map_or_else(place::unknown_top, |name| {
-                                crate::var_resolve::resolve_literal_access(
-                                    name.as_str(),
-                                    ctx,
-                                    whole,
-                                    registry,
-                                    tcl_registry::TraceOperation::Read,
-                                )
-                            }),
-                    );
-                }
-            }
-            None => out.push(place::unknown_top()),
-        }
+    for command in commands {
+        command_role_reads(&command.words, dialect, ctx, out, registry);
         for word in command.words {
             if word.group().kind != tcl_lexer::WordKind::Braced {
                 if let Some(original) = script_text.get(word.word_span().as_range()) {
@@ -773,6 +718,89 @@ fn command_reads(
                 }
             }
         }
+    }
+}
+
+/// The commands of a nested script, or `None` (with the unknown place
+/// recorded) when it cannot be segmented.
+#[inline(never)]
+fn nested_script_commands(
+    script_text: &str,
+    ctx: &ResolveContext,
+    out: &mut Vec<Place>,
+    registry: &CommandRegistry,
+) -> Option<Vec<tcl_lexer::NativeScriptCommandWords>> {
+    let Some(config) = ctx.read_lexer_config(registry) else {
+        out.push(place::unknown_top());
+        return None;
+    };
+    let image = tcl_lexer::SourceImage::document(script_text);
+    let Ok(end) = u32::try_from(image.len()) else {
+        out.push(place::unknown_top());
+        return None;
+    };
+    let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
+        image.clone(),
+        tcl_lexer::Span::new(0, end),
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    ) else {
+        out.push(place::unknown_top());
+        return None;
+    };
+    if plan.fatal_tail.is_some() {
+        out.push(place::unknown_top());
+    }
+    Some(plan.commands)
+}
+
+/// The reads one command's registry roles name, before its words are entered.
+#[inline(never)]
+fn command_role_reads(
+    words: &[tcl_lexer::NativeWord],
+    dialect: Option<tcl_registry::InvocationDialect>,
+    ctx: &ResolveContext,
+    out: &mut Vec<Place>,
+    registry: &CommandRegistry,
+) {
+    match crate::registry_invocation::standalone_written_source_name_roles(registry, words, dialect)
+    {
+        Some(invocation) => {
+            let whole = invocation.facts().traits.contains(Traits::WHOLE_ARRAY_ARG);
+            if invocation.has_unknown_residual()
+                || invocation
+                    .facts()
+                    .traits
+                    .contains(Traits::PERFORMS_SUBSTITUTION)
+            {
+                out.push(place::unknown_top());
+            }
+            for &(argument, role) in invocation.roles() {
+                // Selected value grammars need their own component owner.
+                // Literal word quoting alone does not make evaluated data inert.
+                if matches!(role, ArgRole::Expr | ArgRole::Body | ArgRole::CommandPrefix) {
+                    out.push(place::unknown_top());
+                }
+                if role != ArgRole::VarRead {
+                    continue;
+                }
+                let name = invocation.original_variable_name_operand(argument);
+                out.push(
+                    name.as_ref()
+                        .filter(|name| !name.as_str().contains('\0'))
+                        .map_or_else(place::unknown_top, |name| {
+                            crate::var_resolve::resolve_literal_access(
+                                name.as_str(),
+                                ctx,
+                                whole,
+                                registry,
+                                tcl_registry::TraceOperation::Read,
+                            )
+                        }),
+                );
+            }
+        }
+        None => out.push(place::unknown_top()),
     }
 }
 
@@ -788,30 +816,43 @@ fn word_reads(text: &str, ctx: &ResolveContext, out: &mut Vec<Place>, registry: 
         out.push(place::unknown_top());
         return;
     };
-    if text.contains('$') {
-        for (reference, braced) in scan_var_ref_forms_braced_with_config(text, config) {
-            let access = if braced {
-                crate::var_resolve::resolve_literal_access(
-                    &reference,
-                    ctx,
-                    false,
-                    registry,
-                    tcl_registry::TraceOperation::Read,
-                )
-            } else {
-                crate::var_resolve::resolve_access(
-                    &reference,
-                    ctx,
-                    false,
-                    registry,
-                    tcl_registry::TraceOperation::Read,
-                )
-            };
-            out.push(access);
-        }
-    }
+    word_variable_reads(text, config, ctx, out, registry);
     for inner in command_subst_texts_with_config(text, config) {
         command_reads(&inner, ctx, out, registry);
+    }
+}
+
+/// The `$`-refs written directly in one word.
+#[inline(never)]
+fn word_variable_reads(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+    ctx: &ResolveContext,
+    out: &mut Vec<Place>,
+    registry: &CommandRegistry,
+) {
+    if !text.contains('$') {
+        return;
+    }
+    for (reference, braced) in scan_var_ref_forms_braced_with_config(text, config) {
+        let access = if braced {
+            crate::var_resolve::resolve_literal_access(
+                &reference,
+                ctx,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            )
+        } else {
+            crate::var_resolve::resolve_access(
+                &reference,
+                ctx,
+                false,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            )
+        };
+        out.push(access);
     }
 }
 
