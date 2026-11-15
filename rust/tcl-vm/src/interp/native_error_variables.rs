@@ -567,17 +567,15 @@ impl Vm {
         {
             return;
         }
-        let original = match self.native_errors.native_error_result.as_ref() {
-            Some(receipt) => {
-                if let Some(original) = receipt.upgrade() {
-                    original
-                } else {
-                    let _ = self.refuse_host_command("native error result lifetime expired".into());
-                    return;
-                }
-            }
-            None => Value::new_native_string_bytes(bytes),
-        };
+        // The remembered result is only an identity to share. Once its object
+        // is released (an error a host command re-raised from an evaluation
+        // of its own) the message bytes are all that is left to start from.
+        let original = self
+            .native_errors
+            .native_error_result
+            .as_ref()
+            .and_then(crate::value::WeakNativeObject::upgrade)
+            .unwrap_or_else(|| Value::new_native_string_bytes(bytes));
         self.native_errors.native_error_info = Some(original);
         self.native_errors.native_error_info_len = bytes.len();
     }
@@ -704,17 +702,15 @@ impl Vm {
         if self.native_errors.native_error_legacy_copy {
             return;
         }
-        let original = match self.native_errors.native_error_result.as_ref() {
-            Some(receipt) => {
-                if let Some(original) = receipt.upgrade() {
-                    original
-                } else {
-                    let _ = self.refuse_host_command("native error result lifetime expired".into());
-                    return;
-                }
-            }
-            None => Value::new_native_string_bytes(bytes),
-        };
+        // The remembered result is only an identity to share. Once its object
+        // is released (an error a host command re-raised from an evaluation
+        // of its own) the message bytes are all that is left to start from.
+        let original = self
+            .native_errors
+            .native_error_result
+            .as_ref()
+            .and_then(crate::value::WeakNativeObject::upgrade)
+            .unwrap_or_else(|| Value::new_native_string_bytes(bytes));
         // Tcl_AddObjErrorInfo owns no private errorInfo header in C8.4;
         // its first real setter stores the current original result globally.
         self.native_errors.native_error_info_len = bytes.len();
