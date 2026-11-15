@@ -913,6 +913,20 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
     ),
     // Options and values (continued)
     (
+        "option_prefix_words",
+        Example {
+            code: "set body [mime::getbody $token -decode]",
+            focuses: &[
+                focus(
+                    0,
+                    "$token",
+                    "the one fixed positional word before the options",
+                ),
+                focus(0, "-decode", "so the option run starts after it"),
+            ],
+        },
+    ),
+    (
         "max_leading_option_words",
         Example {
             code: "namespace export -clear -clear helper",

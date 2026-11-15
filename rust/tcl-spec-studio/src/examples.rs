@@ -74,7 +74,7 @@ mod groups;
 use catalogues::{
     CATALOGUE_ARG_ROLE, CATALOGUE_CONFIGURATION_REFERENCE, CATALOGUE_DEFINITION_BODY,
     CATALOGUE_DIALECT, CATALOGUE_EFFECT, CATALOGUE_HOOK, CATALOGUE_OPTION, CATALOGUE_PREFIX,
-    CATALOGUE_PRESENTATION, CATALOGUE_TAINT, CATALOGUE_TYPE,
+    CATALOGUE_PRESENTATION, CATALOGUE_SCRIPT_LOOKUP_SCOPE, CATALOGUE_TAINT, CATALOGUE_TYPE,
 };
 use fields_behaviour::{FIELD_SCRIPT_TIMING, FIELD_TRAITS, FIELD_VARIABLE_SCOPE};
 use groups::{
@@ -144,6 +144,7 @@ fn catalogue_template(id: &str) -> Option<Example> {
         "loweringHook" | "codegenHook" | "inlineCodegenHook" | "analyserHook"
         | "returnTypeHook" | "semanticOperation" => Some(CATALOGUE_HOOK),
         "definitionBody" => Some(CATALOGUE_DEFINITION_BODY),
+        "scriptLookupScope" => Some(CATALOGUE_SCRIPT_LOOKUP_SCOPE),
         "traits" => Some(FIELD_TRAITS),
         "taintColour" | "taintTransformCondition" | "taintNumericCoercion" => Some(CATALOGUE_TAINT),
         "dialects" => Some(CATALOGUE_DIALECT),
@@ -577,6 +578,235 @@ mod tests {
                 "{} has boilerplate-only arrows",
                 target.name()
             );
+        }
+    }
+
+    /// The words of the command that starts at `text`, ending where an
+    /// unmatched `]` or `}` closes the enclosing substitution or body.
+    fn carrier_command_words(text: &str) -> Vec<String> {
+        let mut depth = 0usize;
+        let mut end = text.len();
+        for (index, byte) in text.bytes().enumerate() {
+            match byte {
+                b'[' | b'{' => depth += 1,
+                b']' | b'}' if depth == 0 => {
+                    end = index;
+                    break;
+                }
+                b']' | b'}' => depth -= 1,
+                _ => {}
+            }
+        }
+        let command = &text[..end];
+        let config = tcl_lexer::LexerConfig::default();
+        tcl_syntax::event_handler::script_commands(command, config)
+            .into_iter()
+            .next()
+            .map_or_else(Vec::new, |parsed| {
+                parsed
+                    .words
+                    .iter()
+                    .map(|tokens| {
+                        let start = tokens.first().map_or(0, |t| t.span.start()) as usize;
+                        let stop = tokens.last().map_or(0, |t| t.span.end()) as usize;
+                        command[start..stop.min(command.len())].to_owned()
+                    })
+                    .collect()
+            })
+    }
+
+    /// Every trait example's carrier resolves, under at least one Tcl
+    /// release from 8.4 to 9.1 (with Tk of the same release ambient), to an
+    /// invocation whose registry facts contain that trait.
+    #[test]
+    fn every_trait_carrier_resolves_to_an_invocation_with_that_trait() {
+        let releases = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];
+        let registries: Vec<_> = releases
+            .iter()
+            .map(|release| {
+                let profile = tcl_dialect::DialectProfile::find(release).expect("Tcl release");
+                let mut registry =
+                    tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+                registry.insert_ambient_package("Tk", &release[3..]);
+                registry
+            })
+            .chain(["f5-irules", "sslictcl"].iter().map(|dialect| {
+                tcl_registry::CommandRegistry::build_default().project_for_profile(
+                    tcl_dialect::DialectProfile::find(dialect).expect("dialect"),
+                )
+            }))
+            .chain(std::iter::once(
+                tcl_registry::CommandRegistry::build_default(),
+            ))
+            .collect();
+
+        let mut errors = Vec::new();
+        for &item in Trait::ALL {
+            let example = item.example();
+            let Some(carrier) = example.carrier else {
+                continue;
+            };
+            let line = example
+                .code
+                .lines()
+                .nth(carrier.line)
+                .expect("carrier line");
+            let start = line.find(carrier.needle).expect("carrier needle");
+            let words = carrier_command_words(&line[start..]);
+            let Some((head, args)) = words.split_first() else {
+                errors.push(format!(
+                    "{}: no command at `{}`",
+                    item.name(),
+                    carrier.needle
+                ));
+                continue;
+            };
+            let args: Vec<&str> = args.iter().map(String::as_str).collect();
+            let flag = tcl_registry::Traits::of(&[item]);
+            let declared = |registry: &tcl_registry::CommandRegistry| {
+                let spec = registry.get(head)?;
+                let sub = args.first().and_then(|word| spec.resolve_subcommand(word));
+                Some(
+                    spec.traits
+                        .union(sub.map_or_else(tcl_registry::Traits::empty, |sub| sub.traits)),
+                )
+            };
+            if registries
+                .iter()
+                .all(|registry| registry.get(head).is_none())
+            {
+                // A widget path, object, class or procedure the example
+                // itself creates carries an instance-level trait; it must
+                // be introduced on an earlier line, never assumed.
+                let name = head.trim_start_matches('$');
+                let name = name.split('(').next().unwrap_or(name);
+                let introduced = example
+                    .code
+                    .lines()
+                    .take(carrier.line)
+                    .any(|earlier| earlier.split_whitespace().any(|word| word.ends_with(name)));
+                if !introduced {
+                    errors.push(format!(
+                        "{}: `{head}` is neither registered nor defined",
+                        item.name()
+                    ));
+                }
+                continue;
+            }
+            let holds_trait = registries.iter().any(|registry| {
+                declared(registry).is_some_and(|traits| traits.contains(flag))
+                    || registry
+                        .resolve_invocation(head, &args, None)
+                        .is_some_and(|invocation| invocation.facts().traits.contains(flag))
+            });
+            if !holds_trait {
+                errors.push(format!("{}: `{head} {}`", item.name(), args.join(" ")));
+            }
+        }
+        assert!(
+            errors.is_empty(),
+            "trait carriers whose resolved invocation lacks the trait:\n{}",
+            errors.join("\n")
+        );
+    }
+
+    fn focus_labelled<'a>(example: &'a Example, prefix: &str) -> &'a Focus {
+        example
+            .focuses
+            .iter()
+            .find(|focus| focus.note.starts_with(prefix))
+            .unwrap_or_else(|| panic!("no focus labelled {prefix}"))
+    }
+
+    /// The `traits` field example must put `PURE` on a command whose own
+    /// `traits` field declares it. `string length` is pure only through its
+    /// subcommand row; `llength` (Tcl 8.4 to 9.1) carries the trait itself.
+    #[test]
+    fn traits_field_pure_arrow_sits_on_a_command_declaring_the_trait() {
+        use tcl_dialect::model::{Family, SurfaceQuery};
+
+        let pure = focus_labelled(&FIELD_TRAITS, "PURE:");
+        let head = pure
+            .needle
+            .trim_start_matches('[')
+            .split_whitespace()
+            .next()
+            .expect("carrier head");
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let spec = registry.get(head).expect("registered carrier");
+        assert!(spec.traits.contains(tcl_registry::Traits::PURE), "{head}");
+        for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
+            let resolved = registry
+                .resolve_invocation(
+                    head,
+                    &["$items"],
+                    Some(SurfaceQuery::core(Family::Tcl, release)),
+                )
+                .unwrap_or_else(|| panic!("Tcl {release} resolves {head}"));
+            assert!(
+                resolved.facts().traits.contains(tcl_registry::Traits::PURE),
+                "Tcl {release} {head} is pure"
+            );
+        }
+        assert!(
+            !pure.note.contains("fold"),
+            "a call with a variable argument is not folded"
+        );
+    }
+
+    /// `switch -integer` is in the option table of Tcl 9.1's `tclCmdMZ.c`
+    /// only; 8.4, 8.5, 8.6 and 9.0 reject it. The example that uses it must
+    /// say which release it describes.
+    #[test]
+    fn numeric_coercion_example_names_the_release_with_switch_integer() {
+        use tcl_dialect::model::{Family, SurfaceQuery};
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let switch = registry.get("switch").expect("switch");
+        for (release, present) in [
+            ("8.4", false),
+            ("8.5", false),
+            ("8.6", false),
+            ("9.0", false),
+            ("9.1", true),
+        ] {
+            assert_eq!(
+                switch
+                    .find_option(
+                        "-integer",
+                        Some(SurfaceQuery::core(Family::Tcl, release)),
+                        None
+                    )
+                    .is_some(),
+                present,
+                "Tcl {release} switch -integer"
+            );
+        }
+        let example = field_template("taint_numeric_coercion").expect("example");
+        let integer = example
+            .focuses
+            .iter()
+            .find(|focus| focus.needle == "-integer")
+            .expect("-integer arrow");
+        assert!(integer.note.contains("9.1"), "{}", integer.note);
+    }
+
+    /// `clock seconds` returns the same value twice within one second in
+    /// every release (Tcl 8.4 to 9.1), so volatility means "may differ",
+    /// never "never repeats".
+    #[test]
+    fn volatile_examples_do_not_claim_a_result_never_repeats() {
+        for key in ["result_stability", "pure", "mutator"] {
+            let example = field_template(key).expect("example");
+            for focus in example.focuses {
+                assert!(
+                    !focus.note.contains("never repeats"),
+                    "{key}: {}",
+                    focus.note
+                );
+                assert!(!focus.note.contains("fold"), "{key}: {}", focus.note);
+                assert!(!focus.note.contains("removable"), "{key}: {}", focus.note);
+            }
         }
     }
 

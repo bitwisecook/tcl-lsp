@@ -102,3 +102,26 @@ pub(super) const CATALOGUE_CONFIGURATION_REFERENCE: Example = Example {
         "DataGroupComparison selects this source operand as a data-group reference",
     )],
 };
+/// `lsort` evaluates its comparator in the calling frame, `after` evaluates
+/// its script with `TCL_EVAL_GLOBAL`, and a variable trace runs in the frame
+/// of the write that fires it (Tcl 8.4 to 9.1).
+pub(super) const CATALOGUE_SCRIPT_LOOKUP_SCOPE: Example = Example {
+    code: "namespace eval app {\n    lsort -command by_size $files\n    after idle refresh\n    trace add variable ::count write recount\n}",
+    focuses: &[
+        focus(
+            1,
+            "by_size",
+            "InvokingFrame: resolved from ::app, the namespace that calls lsort",
+        ),
+        focus(
+            2,
+            "refresh",
+            "GlobalFrame: resolved from :: when the idle callback fires",
+        ),
+        focus(
+            3,
+            "recount",
+            "TriggerFrame: resolved in the frame of whichever write fires the trace",
+        ),
+    ],
+};

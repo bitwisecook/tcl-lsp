@@ -354,6 +354,8 @@ The command's `-flag` switches and the literal values specific argument position
 
 *command and subcommand* — Fixed positional words before the selected invocation's option run.
 
+How many fixed positional words come before the option run. `mime::getbody token ?-decode? …` takes one: the token is never an option, and option scanning starts after it. Zero, the default, means options come first.
+
 ### `closed_value_args` — Closed value arguments
 
 *command and subcommand* — Argument indices whose declared values are an exhaustive legal set (W127).
@@ -364,7 +366,7 @@ Argument positions whose legal values are *exactly* the ones declared under argu
 
 *command and subcommand* — Whether a closed value is accepted as a unique prefix rather than an exact match.
 
-Whether this command's closed argument values accept unique prefixes rather than requiring exact spellings. This is the command-level twin of the subcommand value policy; it is independent of option/subcommand prefix matching.
+Whether closed argument values accept unique prefixes rather than requiring exact spellings — `persist add u` for `uie`. The same key sets the policy on a command and on a subcommand; off means exact spellings only. It is independent of option and subcommand prefix matching.
 
 ### `options` — Options
 
@@ -473,6 +475,8 @@ Open the Reference tab for the full list with a one-line meaning each. When no t
 ### `script_lookup_scope` — Executable lookup frame
 
 *command and subcommand* — Invoking, global or triggering frame at executable entry; independent of timing, operand ownership and command table proof.
+
+Which frame looks up command and variable names when an executable argument finally runs. `InvokingFrame` is the caller's — `lsort -command` resolves its comparator in the namespace that called `lsort`. `GlobalFrame` is `::` — `after` runs its script with `TCL_EVAL_GLOBAL`, so `after 100 tick` inside `namespace eval app` does not find `::app::tick`. `TriggerFrame` is the frame of the operation that fires a trace or `unknown` handler. Leave it unset when you do not know: that is the conservative answer. It says nothing about *when* the script runs; that is Script timing.
 
 ### `native_result` — Native result contract
 
@@ -646,7 +650,7 @@ What must stay *unchanged* for the registry's knowledge about this command to re
 
 *command and subcommand* — Whether repeated calls return the same value, or depend on mutable or volatile state.
 
-Whether calling the command twice with the same arguments yields the same value. `string length` always does; `clock seconds` never does; `info commands` depends on what has been defined in the meantime. Purity says "no side effects"; this says "same answer again" — a command can be pure yet unstable (`clock seconds` changes nothing but never repeats). The optimiser only reuses results it can prove stable.
+Whether calling the command twice with the same arguments yields the same value. `string length` always does; `clock seconds` may not; `info commands` depends on what has been defined in the meantime. Purity says "no side effects"; this says "same answer again" — a command can be pure yet unstable (`clock seconds` changes nothing but its answer advances with the clock). The optimiser only reuses results it can prove stable.
 
 ## Compiler hooks
 
@@ -798,7 +802,7 @@ Argument positions where a value is evaluated as code. Tainted data reaching one
 
 *command only* — Which argument words a call reads as numbers — a T100 numeric-coercion sink.
 
-Which argument words a call reads as *numbers* — `switch -integer`'s subject. Tainted data reaching one is not executed, but Tcl's numeric reading of it (`0x10` is 16, a non-number raises) can subvert the decision taken on it, the same hazard as a tainted operand of a braced `expr`. The shape names the option that turns coercion on, so other calls of the command stay quiet.
+Which argument words a call reads as *numbers* — the subject of Tcl 9.1's `switch -integer`. Tainted data reaching one is not executed, but Tcl's numeric reading of it (`0x10` is 16, a non-number raises) can subvert the decision taken on it, the same hazard as a tainted operand of a braced `expr`. The shape names the option that turns coercion on, so other calls of the command stay quiet.
 
 ### `taint_interp_eval_subcommands` — Cross-interpreter eval subcommands
 
@@ -906,9 +910,17 @@ This is Rust code, so the studio can only carry a reference to it. If your comma
 
 *command and subcommand* — Callback assigning roles from exact evaluated argument count without reading values. Unknown expansion cardinality keeps roles incomplete.
 
+A resolver that assigns argument roles from the number of words alone, never their values — `foreach` makes its last word the body and pairs the rest as variable lists and lists, so three words and five words get different layouts. When `{*}` hides how many words arrive, the roles stay incomplete rather than guessed.
+
+This is Rust code; describe the counting rule in the issue notes and a maintainer writes it.
+
 ### `arg_role_layout_resolver` — Structured argument-layout resolver
 
 *command and subcommand* — Callback assigning roles from structured argv and the selected available option table; unknown operand values remain unknown. Mutually exclusive with value/count callbacks.
+
+A resolver that assigns argument roles from the call's structure and the selected option table — `dict filter` reads a pattern after `key` but a variable pair and a body after `script`. A word whose value is unknown stays unknown. It replaces the value and count resolvers: set only one of the three.
+
+This is Rust code; describe the layout rule in the issue notes and a maintainer writes it.
 
 ### `repeated_args` — Repeated argument layouts
 
@@ -1473,7 +1485,7 @@ Compiler internals: the named per-command translations into the compiler's inter
 
 ### Numeric-coercion shapes
 
-Which argument words a call reads as numbers, so a tainted one is a T100 numeric-coercion sink. Each shape names the option that turns the coercion on — `switch -integer` reads its subject as a wide integer, plain `switch` compares text — so only the calls that coerce are flagged.
+Which argument words a call reads as numbers, so a tainted one is a T100 numeric-coercion sink. Each shape names the option that turns the coercion on — Tcl 9.1's `switch -integer` reads its subject as a wide integer, plain `switch` compares text — so only the calls that coerce are flagged.
 
 | Value | Meaning |
 |---|---|

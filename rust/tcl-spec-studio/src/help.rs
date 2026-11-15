@@ -110,6 +110,24 @@ argument is always the body; everything before it comes in `name value` \
 pairs\" — and a maintainer writes the few lines.",
     ),
     (
+        "arg_role_count_resolver",
+        "A resolver that assigns argument roles from the number of words alone, \
+never their values — `foreach` makes its last word the body and pairs the \
+rest as variable lists and lists, so three words and five words get different \
+layouts. When `{*}` hides how many words arrive, the roles stay incomplete \
+rather than guessed.\n\nThis is Rust code; describe the counting rule in the \
+issue notes and a maintainer writes it.",
+    ),
+    (
+        "arg_role_layout_resolver",
+        "A resolver that assigns argument roles from the call's structure and \
+the selected option table — `dict filter` reads a pattern after `key` but a \
+variable pair and a body after `script`. A word whose value is unknown stays \
+unknown. It replaces the value and count resolvers: set only one of the three.\n\n\
+This is Rust code; describe the layout rule in the issue notes and a \
+maintainer writes it.",
+    ),
+    (
         "arg_role_resolver_roles",
         "The complete set of roles the dynamic argument-role resolver can \
 ever return. This is declarative even though the resolver itself is code. \
@@ -191,6 +209,17 @@ it is not simply a Body role.",
         "The dynamic sibling of the command-prefix positions: a hook for when \
 *which* word is the callback depends on the rest of the call (after options, \
 say). Code, carried by reference — describe the rule in the issue notes.",
+    ),
+    (
+        "script_lookup_scope",
+        "Which frame looks up command and variable names when an executable \
+argument finally runs. `InvokingFrame` is the caller's — `lsort -command` \
+resolves its comparator in the namespace that called `lsort`. `GlobalFrame` \
+is `::` — `after` runs its script with `TCL_EVAL_GLOBAL`, so `after 100 tick` \
+inside `namespace eval app` does not find `::app::tick`. `TriggerFrame` is the \
+frame of the operation that fires a trace or `unknown` handler. Leave it \
+unset when you do not know: that is the conservative answer. It says nothing \
+about *when* the script runs; that is Script timing.",
     ),
     (
         "script_timing_resolver",
@@ -571,10 +600,11 @@ shadowed the command in between. Compiler-proof machinery; leave unset.",
     (
         "result_stability",
         "Whether calling the command twice with the same arguments yields \
-the same value. `string length` always does; `clock seconds` never does; \
+the same value. `string length` always does; `clock seconds` may not; \
 `info commands` depends on what has been defined in the meantime. Purity \
 says \"no side effects\"; this says \"same answer again\" — a command can \
-be pure yet unstable (`clock seconds` changes nothing but never repeats). \
+be pure yet unstable (`clock seconds` changes nothing but its answer \
+advances with the clock). \
 The optimiser only reuses results it can prove stable.",
     ),
     (
@@ -720,9 +750,10 @@ close a position when the real command genuinely accepts nothing else.",
     ),
     (
         "arg_values_accept_prefix",
-        "Whether this command's closed argument values accept unique prefixes \
-rather than requiring exact spellings. This is the command-level twin of \
-the subcommand value policy; it is independent of option/subcommand prefix matching.",
+        "Whether closed argument values accept unique prefixes rather than \
+requiring exact spellings — `persist add u` for `uie`. The same key sets the \
+policy on a command and on a subcommand; off means exact spellings only. It \
+is independent of option and subcommand prefix matching.",
     ),
     (
         "event_requires",
@@ -923,8 +954,8 @@ arguments are executed.",
     ),
     (
         "taint_numeric_coercion",
-        "Which argument words a call reads as *numbers* — `switch -integer`'s \
-subject. Tainted data reaching one is not executed, but Tcl's numeric reading \
+        "Which argument words a call reads as *numbers* — the subject of Tcl 9.1's \
+`switch -integer`. Tainted data reaching one is not executed, but Tcl's numeric reading \
 of it (`0x10` is 16, a non-number raises) can subvert the decision taken on \
 it, the same hazard as a tainted operand of a braced `expr`. The shape names \
 the option that turns coercion on, so other calls of the command stay quiet.",
@@ -1341,12 +1372,6 @@ Writes through the alias then count as writes to the real \
 variable.",
     ),
     (
-        "arg_values_accept_prefix",
-        "Whether this subcommand's closed argument values accept unique \
-prefixes the way keyword tables do — `persist add u` for `uie`. Off means \
-exact spellings only.",
-    ),
-    (
         "credential_arg",
         "The argument position whose value is a secret — a password or key \
 handed to this specific subcommand. A literal there is a hard-coded \
@@ -1406,6 +1431,13 @@ inherits the subcommand's table; setting it to an *empty* table says the \
 operation takes no options at all, which is a different claim — \
 `namespace ensemble exists` needs the second, or it is offered flags that \
 are not options there.",
+    ),
+    (
+        "option_prefix_words",
+        "How many fixed positional words come before the option run. \
+`mime::getbody token ?-decode? …` takes one: the token is never an option, \
+and option scanning starts after it. Zero, the default, means options come \
+first.",
     ),
     (
         "max_leading_option_words",
@@ -1638,7 +1670,7 @@ LF — earns its colour call by call, not once for the command.",
         "Numeric-coercion shapes",
         "Which argument words a call reads as numbers, so a tainted one is a \
 T100 numeric-coercion sink. Each shape names the option that turns the \
-coercion on — `switch -integer` reads its subject as a wide integer, plain \
+coercion on — Tcl 9.1's `switch -integer` reads its subject as a wide integer, plain \
 `switch` compares text — so only the calls that coerce are flagged.",
     ),
     (

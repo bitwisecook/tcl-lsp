@@ -27,7 +27,7 @@ use super::{Example, focus};
 /// Shared with the `traits` picker catalogue (see `catalogue_template`), so
 /// the field and the catalogue introduce traits with the same snippet.
 pub(super) const FIELD_TRAITS: Example = Example {
-    code: "if {$ready} { start }\neval $script\nset n [string length $name]",
+    code: "if {$ready} { start }\neval $script\nset n [llength $items]",
     focuses: &[
         focus(0, "if", "CONTROL_FLOW: reachability follows the branch"),
         focus(
@@ -37,8 +37,8 @@ pub(super) const FIELD_TRAITS: Example = Example {
         ),
         focus(
             2,
-            "[string length $name]",
-            "PURE: the optimiser may fold the call",
+            "[llength $items]",
+            "PURE: the call changes no state, so its result is all it does",
         ),
     ],
 };
@@ -248,6 +248,65 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                     0,
                     "puts stdout",
                     "the resolver places the command prefix after them",
+                ),
+            ],
+        },
+    ),
+    (
+        "arg_role_count_resolver",
+        Example {
+            code: "foreach x $xs { puts $x }\nforeach a $as b $bs { puts $a$b }",
+            focuses: &[
+                focus(
+                    0,
+                    "{ puts $x }",
+                    "three words: the count alone makes the last one the body",
+                ),
+                focus(
+                    1,
+                    "b $bs",
+                    "five words: the count adds a second variable-list and list pair",
+                ),
+            ],
+        },
+    ),
+    (
+        "arg_role_layout_resolver",
+        Example {
+            code: "dict filter $config key port*\ndict filter $config script {k v} {string match port* $k}",
+            focuses: &[
+                focus(
+                    0,
+                    "port*",
+                    "the key layout: the word after the filter type is a pattern",
+                ),
+                focus(
+                    1,
+                    "{k v}",
+                    "the script layout: the same position is a variable pair",
+                ),
+                focus(
+                    1,
+                    "{string match port* $k}",
+                    "and the next word is a body run for each entry",
+                ),
+            ],
+        },
+    ),
+    (
+        "script_lookup_scope",
+        Example {
+            code: "namespace eval app {\n    proc tick {} {}\n    after 100 tick\n}",
+            focuses: &[
+                focus(
+                    2,
+                    "after 100",
+                    "stores the script; Tcl evaluates it with TCL_EVAL_GLOBAL",
+                ),
+                focus(
+                    2,
+                    "tick",
+                    "GlobalFrame: looked up from ::, so ::app::tick is not the command that runs",
                 ),
             ],
         },
@@ -658,7 +717,7 @@ append log $line",
                 focus(
                     0,
                     "[clock seconds]",
-                    "volatile: never repeats, never reused",
+                    "volatile: each call may return a new value, so none is reused",
                 ),
                 focus(
                     2,
@@ -1084,7 +1143,7 @@ append log $line",
                 focus(
                     1,
                     "-integer",
-                    "the subject is read as a wide integer, so a tainted one raises T100",
+                    "Tcl 9.1's integer mode reads the subject as a wide integer, so a tainted one raises T100",
                 ),
                 focus(
                     2,
@@ -1509,7 +1568,7 @@ append log $line",
                 focus(
                     1,
                     "[string length $name]",
-                    "the optimiser may fold or reuse this",
+                    "the optimiser may reuse this result for an identical call",
                 ),
             ],
         },
@@ -1527,7 +1586,7 @@ append log $line",
                 focus(
                     1,
                     "dict get",
-                    "not a mutator: with the result unused it is removable",
+                    "not a mutator: it reads the value and changes no variable",
                 ),
             ],
         },
