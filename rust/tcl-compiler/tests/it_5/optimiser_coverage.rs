@@ -2627,3 +2627,37 @@ fn a_shadowed_append_or_lappend_stops_the_write_chain_fold() {
         "unshadowed control must still fold the lappend chain, got {out:?}",
     );
 }
+
+/// #2129: the script encoding decides a non-ASCII literal's characters. A
+/// file holding the UTF-8 bytes of `É` gives, for `string length` and
+/// `string range "Éabc" 1 2`, 2 and `\x89a` on tclsh 8.6.18 under
+/// `LC_ALL=C` (`encoding system` is `iso8859-1`), 1 and `ab` under
+/// `LC_ALL=C.UTF-8`, and 1 and `ab` on tclsh 9.0.4 under either locale. The
+/// front end decodes UTF-8, so a fold over such a literal is admissible only
+/// from 9.0; ASCII operands fold under every release.
+#[test]
+fn non_ascii_literal_folds_only_where_the_release_reads_source_as_utf8() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let utf8_source = dialect.starts_with("tcl9");
+        let range = optimised("puts [string range \"Éabc\" 1 2]\n", dialect);
+        assert_eq!(
+            range == "puts ab\n",
+            utf8_source,
+            "{dialect}: string range over a non-ASCII literal gave {range:?}",
+        );
+        for src in [
+            "puts [string length \"É\"]\n",
+            "puts [string toupper \"é\"]\n",
+            "proc p {} { set s \"Éa\"; return [string index $s 1] }\n",
+        ] {
+            if !utf8_source {
+                assert_eq!(optimised(src, dialect), src, "{dialect}: {src:?} folded");
+            }
+        }
+        assert_eq!(
+            optimised("puts [string range \"Eabc\" 1 2]\n", dialect),
+            "puts ab\n",
+            "{dialect}: the ASCII control must fold",
+        );
+    }
+}
