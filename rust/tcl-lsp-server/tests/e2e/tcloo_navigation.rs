@@ -161,11 +161,12 @@ fn tn_unrelated_same_named_proc_document_untouched_by_method_rename() {
     let unrelated = unique_uri("tcl");
     lsp.open_ready(&unrelated, "proc make {} { return 2 }\nmake\n");
 
-    let edits = rename_edits(&lsp.rename(&factory, 1, 11, "produce"));
+    let raw = lsp.rename(&factory, 1, 11, "produce");
+    let edits = rename_edits(&raw);
     assert_eq!(
         edit_lines(&edits, &consumer),
         vec![1],
-        "the real consumer must still rename: {edits:?}"
+        "the real consumer must still rename: {edits:?} {raw}"
     );
     assert!(
         edit_lines(&edits, &unrelated).is_empty(),

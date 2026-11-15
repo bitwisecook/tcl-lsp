@@ -32835,6 +32835,102 @@ impl Backend {
 }
 
 impl Backend {
+    /// One whole rename against one workspace snapshot. `plan` receives the
+    /// snapshot token once it is captured.
+    async fn rename_attempt(
+        &self,
+        params: RenameParams,
+        plan: &mut Option<WorkspaceSourcePlanToken>,
+    ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        let conditional_uri = params.text_document_position.text_document.uri.clone();
+        let conditional_uri_generation = self.live_publication_uri_generation(&conditional_uri);
+        if !self
+            .feature_enabled("rename", &params.text_document_position.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
+        self.refresh_stale_complete_host_inventory_for_rename()
+            .await?;
+        let uri = params.text_document_position.text_document.uri.clone();
+        let pos = params.text_document_position.position;
+        let new_name = params.new_name;
+        let Some(doc) = self.read_document(&uri).await? else {
+            return Ok(None);
+        };
+        // Per-dialect cached registry for safety gating — proc renames
+        // refuse to overwrite built-in command names.
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await?;
+        if !self
+            .original_procedure_expression_coverage_is_editable(&uri, &doc.text, &analysis, pos)
+            .await?
+        {
+            return Ok(None);
+        }
+        // Reconcile source-site views before capturing the workspace snapshot
+        // used by rename planning. Any later rehoming/index mutation makes the
+        // exact token fail at publication.
+        self.refresh_source_rehoming().await?;
+        let source_plan = self.capture_workspace_source_plan().await;
+        *plan = Some(source_plan);
+        if let ControlFlow::Break(result) = self
+            .conditional_variable_rename_tier(
+                WorkspaceRenameCaller {
+                    uri: &uri,
+                    source: &doc.text,
+                    analysis: &analysis,
+                    position: pos,
+                },
+                &doc,
+                &new_name,
+                source_plan,
+                conditional_uri_generation,
+            )
+            .await?
+        {
+            return Ok(result);
+        }
+        // The gated tiers, before any ordinary edit is built: the `TclOO`
+        // member safety gate and the workspace namespace-variable rename.
+        if let std::ops::ControlFlow::Break(result) = self
+            .guarded_rename_source_tiers(&uri, &doc, &analysis, pos, &new_name, source_plan)
+            .await?
+        {
+            return result;
+        }
+        // Method rename → cross-file override-family path.
+        if let Some(changes) = self
+            .method_family_rename_tier(&uri, &doc, &analysis, pos, &new_name)
+            .await?
+        {
+            if !self.workspace_source_plan_is_current(source_plan).await {
+                return Ok(None);
+            }
+            return Ok(Some(WorkspaceEdit {
+                changes: Some(changes),
+                document_changes: None,
+                change_annotations: None,
+            }));
+        }
+        self.ordinary_rename_edit(
+            &doc,
+            &registry,
+            RenameContext {
+                uri: &uri,
+                source: &doc.text,
+                analysis: &analysis,
+                pos,
+                new_name: &new_name,
+                registry: &registry,
+            },
+            source_plan,
+        )
+        .await
+    }
+
     #[cfg(test)]
     async fn workspace_symbol_attempt(
         &self,
@@ -37872,92 +37968,26 @@ impl LanguageServer for Backend {
     }
 
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
-        let conditional_uri = params.text_document_position.text_document.uri.clone();
-        let conditional_uri_generation = self.live_publication_uri_generation(&conditional_uri);
-        if !self
-            .feature_enabled("rename", &params.text_document_position.text_document.uri)
-            .await
-        {
-            return Ok(None);
-        }
-        self.refresh_stale_complete_host_inventory_for_rename()
-            .await?;
-        let uri = params.text_document_position.text_document.uri.clone();
-        let pos = params.text_document_position.position;
-        let new_name = params.new_name;
-        let Some(doc) = self.read_document(&uri).await? else {
-            return Ok(None);
-        };
-        // Per-dialect cached registry for safety gating — proc renames
-        // refuse to overwrite built-in command names.
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        let analysis = self
-            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
-            .await?;
-        if !self
-            .original_procedure_expression_coverage_is_editable(&uri, &doc.text, &analysis, pos)
-            .await?
-        {
-            return Ok(None);
-        }
-        // Reconcile source-site views before capturing the workspace snapshot
-        // used by rename planning. Any later rehoming/index mutation makes the
-        // exact token fail at publication.
-        self.refresh_source_rehoming().await?;
-        let source_plan = self.capture_workspace_source_plan().await;
-        if let ControlFlow::Break(result) = self
-            .conditional_variable_rename_tier(
-                WorkspaceRenameCaller {
-                    uri: &uri,
-                    source: &doc.text,
-                    analysis: &analysis,
-                    position: pos,
-                },
-                &doc,
-                &new_name,
-                source_plan,
-                conditional_uri_generation,
-            )
-            .await?
-        {
-            return Ok(result);
-        }
-        // The gated tiers, before any ordinary edit is built: the `TclOO`
-        // member safety gate and the workspace namespace-variable rename.
-        if let std::ops::ControlFlow::Break(result) = self
-            .guarded_rename_source_tiers(&uri, &doc, &analysis, pos, &new_name, source_plan)
-            .await?
-        {
-            return result;
-        }
-        // Method rename → cross-file override-family path.
-        if let Some(changes) = self
-            .method_family_rename_tier(&uri, &doc, &analysis, pos, &new_name)
-            .await?
-        {
-            if !self.workspace_source_plan_is_current(source_plan).await {
-                return Ok(None);
+        // A refusal computed against a workspace snapshot that moved during
+        // the request says nothing about the current workspace: plan again.
+        for attempt in 0..readonly_reference_reports::READONLY_CURRENCY_ATTEMPTS {
+            if attempt != 0 {
+                let _ = crate::rt::timeout(
+                    readonly_reference_reports::source_views::SOURCE_VIEW_CONTENTION_BACKOFF,
+                    self.live_publication_advanced.notified(),
+                )
+                .await;
             }
-            return Ok(Some(WorkspaceEdit {
-                changes: Some(changes),
-                document_changes: None,
-                change_annotations: None,
-            }));
+            let mut plan = None;
+            let result = self.rename_attempt(params.clone(), &mut plan).await?;
+            let Some(plan) = plan else {
+                return Ok(result);
+            };
+            if result.is_some() || self.workspace_source_plan_is_current(plan).await {
+                return Ok(result);
+            }
         }
-        self.ordinary_rename_edit(
-            &doc,
-            &registry,
-            RenameContext {
-                uri: &uri,
-                source: &doc.text,
-                analysis: &analysis,
-                pos,
-                new_name: &new_name,
-                registry: &registry,
-            },
-            source_plan,
-        )
-        .await
+        Ok(None)
     }
 
     /// Project source-reference edits for an explicit host file rename.
