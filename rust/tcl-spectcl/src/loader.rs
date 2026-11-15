@@ -221,6 +221,20 @@ pub struct Notice {
     pub class: VocabularyClass,
     /// Typed literal source position of a rejected property/flag, when known.
     pub subject: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
+    /// Present exactly when the notice reports a word newer than the pack's
+    /// declared vocabulary.
+    pub newer_vocabulary: Option<NewerVocabulary>,
+}
+
+/// A word the pack uses that its declared vocabulary does not have yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewerVocabulary {
+    /// The word as written.
+    pub word: String,
+    /// The first vocabulary that has the word.
+    pub since: &'static str,
+    /// The vocabulary the pack declares.
+    pub declared: String,
 }
 
 impl fmt::Display for Notice {
@@ -295,6 +309,7 @@ impl Log {
     fn say(&mut self, line: u32, message: impl Into<String>) {
         self.notices.push(Notice {
             subject: None,
+            newer_vocabulary: None,
             context: self.context.clone(),
             line,
             message: message.into(),
@@ -307,6 +322,7 @@ impl Log {
     fn say_classified(&mut self, line: u32, class: VocabularyClass, message: impl Into<String>) {
         self.notices.push(Notice {
             subject: None,
+            newer_vocabulary: None,
             context: self.context.clone(),
             line,
             message: message.into(),
@@ -1499,6 +1515,11 @@ fn finish_newer_words(pack: &Pack, log: &mut Log) {
                  vocabulary {declared}; a {declared} loader drops the word — declare \
                  `speclib {name} {since}`"
             ),
+            newer_vocabulary: Some(NewerVocabulary {
+                word,
+                since,
+                declared: declared.clone(),
+            }),
         });
     }
 }
@@ -2086,6 +2107,7 @@ pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Box<Noti
     let reject = |message: String| {
         Box::new(Notice {
             subject: None,
+            newer_vocabulary: None,
             context: "pack".to_owned(),
             line,
             message,

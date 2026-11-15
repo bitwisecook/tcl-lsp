@@ -214,6 +214,7 @@ pub fn retarget_newlines(actions: &mut [CodeAction], line_ending: &str) {
     }
     for action in actions {
         for edit in &mut action.edits {
+            // presentation-ok: line-ending normalisation of the edit being applied.
             if !edit.new_text.contains('\n') && !edit.new_text.contains('\r') {
                 continue;
             }

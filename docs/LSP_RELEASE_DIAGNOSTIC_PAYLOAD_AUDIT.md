@@ -42,11 +42,11 @@ Locations below refer to the source cut above. Later edits may move lines.
 | `compile_service.rs:1124`, called at `1152` | Matches the guest error message to decide which opener a retained malformed-tail term must point at. | Fixed: retain the existing structured cut through text and byte paths, and validate the term using its kind. Message bytes in `FatalTail` are preserved. Focused controls passed. |
 | `analyser/diagnostics/proven.rs:640–645` | Deduplicates written/proven index diagnostics using code, span and message, ignoring their retained subjects. | Fixed in `5738b1a10`: same-access identity requires the shared original invocation owner and typed IndexBounds operand/extent/package metadata. Message/advisory-value changes preserve identity; absent and independently issued subjects refuse. Five focused source-value tests, the joint unit build and production compiler Clippy pass ([receipt](../rust/tcl-compiler/tests/data/index-bounds-subject-identity/README.md)). |
 | `optimiser/manager.rs:98–117`, then `optimiser/helpers/select.rs:50–80` | Sorts by message before stable overlap arbitration. Otherwise tied span/priority/length candidates inherit message order, which can select a different replacement. | Fixed: the canonical key orders by span, code, replacement and hint flag before the message, so the message only orders otherwise identical rewrites. `rewording_a_candidate_does_not_change_the_surviving_replacement` is the wording-change control. |
-| `optimiser/mod.rs:158–174` | `Optimisation` equality and hashing include message. | Separate semantic rewrite identity from whole rendered-row equality where consumers deduplicate; audit each equality use before changing the public comparison. |
+| `optimiser/mod.rs:158–174` | `Optimisation` equality and hashing include message. | Audited: no consumer deduplicates on it; it is whole-value equality for cached reports, where a reworded message must count as a change. The rewrite receipt (`original_report.rs::OptimisationPayload`) now binds the edit without the message. |
 | `tcl-lsp-core/src/code_actions.rs:2399–2410` | Deduplicates context actions by title and replacement strings, omitting edit ranges. | Fixed in `5c702bc06`: operation identity retains kind, complete edits/ranges, command and data while excluding the title. Disabled actions remain visible. Direct operation and source-metadata controls pass; an older T100 producer integration remains separately blocked, as recorded in [provider status](LSP_RELEASE_PROVIDERS.md). |
 | `editors/vscode/src/extension.ts:593` and `extensionBrowser.ts:1236` | The generate-docstring command chooses an action by its English title prefix before checking its server command. | Fixed in `c7261836d`: the Core producer emits `source.generateDocstring`, and desktop/browser adapters use its shared typed selector. Disabled actions are excluded; title changes do not choose an action. Focused Core/TypeScript controls and dependency-current project TypeScript checking pass; broad payload coverage remains open. |
 | `tcl-lsp-core/src/refactor/extract_proc.rs:172–201` | Exported legacy helper derived a rename target by scanning `definition.new_text` for `proc ` and whitespace. | Retired the unused helper and re-export. The live Core action path uses `extract_proc_rename_command_for_analysis`, which selects the generated declaration and name through current source/input owners; absent current analysis omits the optional rename command. Its UTF-16 positive and comment-decoy, stale-source and missing-input controls passed ([receipt](LSP_RELEASE_PROVIDER_EXTRACT_RENAME_RECEIPT_2026-11-04.json)); Core Clippy on the tested cut stopped at a separate pre-alias compiler warning. |
-| `analyser/class_hierarchy.rs:976–1001` | Hierarchy error aggregation uses rendered strings, including `e.message`, as duplicate identity. | Retain the MRO owner's structured error kind and actual class subject before formatting. This is error-list aggregation, not name lookup from a message. |
+| `analyser/class_hierarchy.rs:976–1001` | Hierarchy error aggregation uses rendered strings, including `e.message`, as duplicate identity. | Fixed: `MroError` carries `MroErrorKind` and the class; aggregation compares those fields and `Display` renders the message. |
 
 The incomplete-body fix extracts a private helper so controls can pass a
 real parser-issued cut with only its presentation changed. The malformed-tail
@@ -99,9 +99,8 @@ but no declared typed contract for every family. On the wire,
 coverage/composition gaps to assess against the complete issue contract;
 they are not evidence of another text parser.
 
-No maintained repository-wide presentation-parsing drift gate was identified
-in this scoped review. The inventory above does not substitute for that gate
-or the required serializer, opaque-name and family coverage tests.
+`cargo xtask diagnostic-presentation` is the maintained drift gate; see
+[diagnostic subjects](design/contracts/diagnostic-subjects.md).
 
 The two compiler fixes passed their final compiler-lib no-run and production
 compiler Clippy (`-D warnings`) at frozen base

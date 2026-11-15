@@ -33,3 +33,17 @@ semantic behavior, that equal messages can describe distinct subjects, and
 that absent data cannot recover a name from presentation. Test protocol
 adapters against the same projection. The broader diagnostic-family contract
 is tracked in [#2426](https://github.com/bitwisecook/tcl-lsp/issues/2426).
+
+The same rule holds for the other reports with rendered text. An optimiser
+rewrite receipt authorises the issued edit (code, span, replacement, group,
+hint flag), not its message. Class-linearisation errors are
+`tcl_syntax::mro::MroError` values with a kind and a class, rendered by
+`Display`. A SpecTcl loader notice about newer vocabulary carries
+`Notice::newer_vocabulary`, and a sandbox denial is recorded on the loader's
+evaluation state rather than recovered from the guest error.
+
+`cargo xtask diagnostic-presentation` (in `xtask-check`) fails when
+production Rust or the VS Code adapter calls a text-parsing method on a
+`message`, `description`, `title`, `new_text` or `newText` field. A
+presentation-only read, such as joining punctuation or normalising an edit's
+line endings, carries a `// presentation-ok: <reason>` comment.

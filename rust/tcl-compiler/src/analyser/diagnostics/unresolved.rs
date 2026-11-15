@@ -96,6 +96,7 @@ impl Analyser {
             let Some((_, name)) = widening.iter().find(|(site, _)| *site == diagnostic.span) else {
                 continue;
             };
+            // presentation-ok: joins the widening hint onto the rendered sentence.
             let joint = if diagnostic.message.ends_with('?') {
                 " "
             } else {

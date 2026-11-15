@@ -1163,12 +1163,10 @@ impl PackStore {
             "vocabulary-probe",
             previous,
         );
-        loader::evaluate_pack(&probe).notices.iter().any(|notice| {
-            notice.message.contains(" is SpecTcl ")
-                && notice
-                    .message
-                    .contains(" vocabulary, but this pack declares vocabulary ")
-        })
+        loader::evaluate_pack(&probe)
+            .notices
+            .iter()
+            .any(|notice| notice.newer_vocabulary.is_some())
     }
 
     /// Raise an older pack header before writing a draft rendered with the

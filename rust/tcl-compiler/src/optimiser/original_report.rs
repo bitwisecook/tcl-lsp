@@ -332,10 +332,11 @@ impl std::fmt::Debug for OriginalOptimiserRewriteBatch {
             .finish_non_exhaustive()
     }
 }
+/// The issued edit a receipt authorises. The message is presentation and is
+/// not part of it: rewording a report keeps its authority (#2426).
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OptimisationPayload {
     code: tcl_core_types::DiagCode,
-    message: String,
     span: tcl_lexer::Span,
     replacement: String,
     group: Option<u32>,
@@ -345,7 +346,6 @@ impl From<&Optimisation> for OptimisationPayload {
     fn from(edit: &Optimisation) -> Self {
         Self {
             code: edit.code,
-            message: edit.message.clone(),
             span: edit.span,
             replacement: edit.replacement.clone(),
             group: edit.group,
@@ -584,6 +584,29 @@ mod tests {
             )
             .iter()
             .all(|member| member.original_rewrite_batch().is_none())
+        );
+    }
+    /// Dialect-invariant receipt contract (Tcl 8.4–9.1, no interpreter): the
+    /// identity a receipt authorises is the edit, not its wording.
+    #[test]
+    fn rewording_keeps_the_issued_payload_and_changing_the_edit_does_not() {
+        let issued = Optimisation::new(
+            tcl_core_types::DiagCode::O100,
+            "fold",
+            tcl_lexer::Span::new(6, 7),
+            "6",
+        );
+        let mut reworded = issued.clone();
+        reworded.message = "translated presentation".to_owned();
+        assert_eq!(
+            OptimisationPayload::from(&reworded),
+            OptimisationPayload::from(&issued)
+        );
+        let mut edited = issued.clone();
+        edited.replacement.push('7');
+        assert_ne!(
+            OptimisationPayload::from(&edited),
+            OptimisationPayload::from(&issued)
         );
     }
     #[test]

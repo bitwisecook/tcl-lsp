@@ -631,6 +631,31 @@ fn a_pack_calling_clock_fails_closed_with_the_determinism_notice() {
 }
 
 #[test]
+fn a_caught_denial_still_fails_closed_as_a_determinism_error() {
+    let source = "speclib sly 2.0 {\n    command fine { arity 1 }\n    \
+                  catch {clock seconds}\n    error {unrelated failure}\n}\n";
+    let pack = evaluate_pack(source);
+    assert!(
+        matches!(&pack.load_error, Some(LoadError::Determinism(message))
+            if message.contains("`clock`")),
+        "{:?}",
+        pack.load_error
+    );
+}
+
+#[test]
+fn a_guest_error_quoting_the_denial_text_is_not_a_determinism_error() {
+    let source = "speclib quoting 2.0 {\n    \
+                  error {pack evaluation is deterministic: `clock` is denied}\n}\n";
+    let pack = evaluate_pack(source);
+    assert!(
+        matches!(&pack.load_error, Some(LoadError::EvaluationFailed(_))),
+        "{:?}",
+        pack.load_error
+    );
+}
+
+#[test]
 fn a_budget_blowing_loop_fails_closed_naming_the_axis() {
     let source = "speclib hungry 2.0 {\n    command fine { arity 1 }\n    \
                   set i 0\n    while {1} { set x [llength [list a b $i]]\n incr i }\n}\n";

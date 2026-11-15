@@ -328,7 +328,7 @@ pub struct ClassHierarchy {
     /// ``next`` / ``nextto`` resolution and devirtualisation.
     pub method_providers: HashMap<(String, String), String>,
     /// Hierarchy errors (cycles, inconsistent linearisation).
-    pub errors: Vec<String>,
+    pub errors: Vec<super::MroError>,
 }
 
 impl ClassHierarchy {
@@ -960,7 +960,7 @@ fn unresolved_class_relation_row(class: &str, written: &str) -> String {
 
 struct ClassLinearisationMaps {
     mro_map: HashMap<String, Vec<String>>,
-    errors: Vec<String>,
+    errors: Vec<super::MroError>,
     spine_map: HashMap<String, Vec<String>>,
 }
 
@@ -977,7 +977,7 @@ fn build_class_linearisation_maps(
     let mut errors = errors_pass1;
     for qname in classes.keys() {
         if has_relation_cycle(qname, supers_map, mixins_map) {
-            let error = format!("cycle detected in class relation hierarchy for {qname}");
+            let error = super::MroError::new(super::mro::MroErrorKind::RelationCycle, qname);
             if !errors.contains(&error) {
                 errors.push(error);
             }
@@ -997,8 +997,8 @@ fn build_class_linearisation_maps(
                     mro_map.insert(qname.clone(), mro);
                 }
                 Err(e) => {
-                    if !errors.iter().any(|s| s == &e.message) {
-                        errors.push(e.message);
+                    if !errors.contains(&e) {
+                        errors.push(e);
                     }
                 }
             }
@@ -1329,7 +1329,7 @@ mod tests {
         assert_eq!(h.classes.len(), 0);
         assert_eq!(h.mro_map.len(), 0);
         assert_eq!(h.subclasses.len(), 0);
-        assert_eq!(h.errors, [] as [std::string::String; 0]);
+        assert_eq!(h.errors, [] as [crate::analyser::MroError; 0]);
     }
 
     #[test]
@@ -1442,7 +1442,7 @@ mod tests {
             cls("::B", &["::A"], &[], &[]),
         ]);
         let h = build_class_hierarchy(classes);
-        assert_ne!(h.errors, [] as [std::string::String; 0]);
+        assert_ne!(h.errors, [] as [crate::analyser::MroError; 0]);
         // Cycle classes get single-element MRO fallback.
         assert_eq!(h.mro_map["::A"], vec!["::A"]);
     }
@@ -1454,7 +1454,15 @@ mod tests {
             cls("::B", &[], &["::A"], &[]),
             cls("::C", &[], &["::A"], &[]),
         ]));
-        assert_ne!(cyclic.errors, [] as [std::string::String; 0]);
+        let relation = crate::analyser::mro::MroErrorKind::RelationCycle;
+        let mut cyclic_classes: Vec<_> = cyclic
+            .errors
+            .iter()
+            .filter(|error| error.kind == relation)
+            .map(|error| error.class.as_str())
+            .collect();
+        cyclic_classes.sort_unstable();
+        assert_eq!(cyclic_classes, ["::A", "::B", "::C"]);
 
         let diamond = build_class_hierarchy(map(vec![
             cls("::Root", &[], &[], &[]),
@@ -1462,7 +1470,7 @@ mod tests {
             cls("::Right", &["::Root"], &[], &[]),
             cls("::Leaf", &["::Left", "::Right"], &[], &[]),
         ]));
-        assert_eq!(diamond.errors, [] as [std::string::String; 0]);
+        assert_eq!(diamond.errors, [] as [crate::analyser::MroError; 0]);
     }
 
     #[test]

@@ -789,6 +789,10 @@ struct State {
     eval_notices: Vec<Notice>,
     /// Whether `available?` was used (E-R1).
     target_dependent: bool,
+    /// The first sandbox denial the evaluation raised. A denial is a hard
+    /// determinism error even when the pack catches it, so the failure is
+    /// classified from this record, never from the guest error text.
+    determinism_denial: Option<String>,
     /// The absolute base line of each unit being evaluated, innermost
     /// last; a captured statement's absolute line is `base + relative - 1`.
     base_lines: Vec<u32>,
@@ -926,6 +930,7 @@ fn capture_stmt(word: &str, args: &[String], line: u32) -> Stmt {
 fn eval_notice(context: &str, line: u32, class: VocabularyClass, message: String) -> Notice {
     Notice {
         subject: None,
+        newer_vocabulary: None,
         context: context.to_owned(),
         line,
         message,
@@ -1849,10 +1854,13 @@ fn unknown_handler(state: &Rc<RefCell<State>>) -> UnknownHandler {
     Rc::new(
         move |ctx: &mut PackEvalCtx<'_>, name: &str, args: &[String]| {
             if let Some(axis) = pack_eval::denied_axis(name) {
-                return Err(format!(
-                    "pack evaluation is deterministic: `{name}` is denied by the \
-                     pack sandbox (determinism axis: {axis}) and no partial \
-                     registration is kept (design E §1.2)"
+                return Err(record_denial(
+                    &state,
+                    format!(
+                        "pack evaluation is deterministic: `{name}` is denied by the \
+                         pack sandbox (determinism axis: {axis}) and no partial \
+                         registration is kept (design E §1.2)"
+                    ),
                 ));
             }
             let mut st = state.borrow_mut();
@@ -1862,6 +1870,16 @@ fn unknown_handler(state: &Rc<RefCell<State>>) -> UnknownHandler {
             Ok(None)
         },
     )
+}
+
+/// Keep the first denial on the evaluation state and return its message as
+/// the Tcl error the pack sees.
+fn record_denial(state: &Rc<RefCell<State>>, message: String) -> String {
+    state
+        .borrow_mut()
+        .determinism_denial
+        .get_or_insert_with(|| message.clone());
+    message
 }
 
 // Evaluate
@@ -2072,34 +2090,22 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
         pack.dsl_version.clone_from(&speclib.version);
     }
     pack.target_dependent = state.target_dependent;
-    let error = match failure {
-        PackEvalFailure::Budget(axis) => LoadError::BudgetExhausted(axis),
-        PackEvalFailure::Script(message)
-            if message.contains("pack evaluation is deterministic:") =>
-        {
-            LoadError::Determinism(message.clone())
+    let error = match (failure, &state.determinism_denial) {
+        (PackEvalFailure::Budget(axis), _) => LoadError::BudgetExhausted(axis),
+        (PackEvalFailure::Panic(payload), _) => {
+            LoadError::EvaluationFailed(format!("the evaluation engine crashed: {payload}"))
         }
-        PackEvalFailure::Script(message)
-            if message.contains("tcl::mathfunc::rand")
-                || message.contains("tcl::mathfunc::srand") =>
-        {
-            LoadError::Determinism(format!(
-                "pack evaluation is deterministic: `rand()`/`srand()` are denied \
-                 (determinism axis: randomness) — {message}"
-            ))
-        }
-        PackEvalFailure::Script(message) | PackEvalFailure::Compile(message) => {
+        (_, Some(denial)) => LoadError::Determinism(denial.clone()),
+        (PackEvalFailure::Script(message) | PackEvalFailure::Compile(message), None) => {
             LoadError::EvaluationFailed(message.clone())
         }
-        PackEvalFailure::ScriptBytes(_) | PackEvalFailure::ExecutionRefusal(_) => {
+        (PackEvalFailure::ScriptBytes(_) | PackEvalFailure::ExecutionRefusal(_), None) => {
             LoadError::EvaluationFailed(failure.to_string())
-        }
-        PackEvalFailure::Panic(payload) => {
-            LoadError::EvaluationFailed(format!("the evaluation engine crashed: {payload}"))
         }
     };
     pack.notices.push(Notice {
         subject: None,
+        newer_vocabulary: None,
         context: "pack".to_owned(),
         line: state.speclib.as_ref().map_or(1, |s| s.line),
         class: VocabularyClass::Semantic,
@@ -2303,6 +2309,7 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
         let error = LoadError::Provenance(message.clone());
         pack.notices.push(Notice {
             subject: None,
+            newer_vocabulary: None,
             context: "pack".to_owned(),
             line,
             class: VocabularyClass::Semantic,

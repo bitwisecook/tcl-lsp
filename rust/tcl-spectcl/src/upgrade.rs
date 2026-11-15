@@ -1227,7 +1227,7 @@ fn words_above_declaration(source: &str) -> Vec<String> {
     evaluate_pack(source)
         .notices
         .into_iter()
-        .filter(|notice| notice.message.contains("but this pack declares vocabulary"))
+        .filter(|notice| notice.newer_vocabulary.is_some())
         .map(|notice| format!("{}:{}: {}", notice.context, notice.line, notice.message))
         .collect()
 }

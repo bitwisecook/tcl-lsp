@@ -81,15 +81,50 @@ use std::hash::Hash;
 /// are valid in TclOO (e.g. a mixin whose superclass is the
 /// class being mixed into) and silently terminate the DFS at
 /// the revisit point.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MroError {
-    /// Human-readable error message.
-    pub message: String,
+    /// What made the hierarchy unusable.
+    pub kind: MroErrorKind,
+    /// The class whose linearisation failed, as the hierarchy names it.
+    pub class: String,
+}
+
+/// Why a class could not be linearised.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MroErrorKind {
+    /// A superclass cycle with no mixin edge.
+    SuperclassCycle,
+    /// A superclass or mixin relation cycle, found by a hierarchy consumer.
+    RelationCycle,
+    /// The walk exceeded its visit budget.
+    TooComplex,
+}
+
+impl MroError {
+    /// An error of `kind` for `class`.
+    #[must_use]
+    pub fn new(kind: MroErrorKind, class: impl Display) -> Self {
+        Self {
+            kind,
+            class: class.to_string(),
+        }
+    }
 }
 
 impl std::fmt::Display for MroError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.message)
+        let class = &self.class;
+        match self.kind {
+            MroErrorKind::SuperclassCycle => {
+                write!(f, "cycle detected in superclass hierarchy for {class}")
+            }
+            MroErrorKind::RelationCycle => {
+                write!(f, "cycle detected in class relation hierarchy for {class}")
+            }
+            MroErrorKind::TooComplex => {
+                write!(f, "class hierarchy for {class} is too complex to linearise")
+            }
+        }
     }
 }
 
@@ -280,9 +315,7 @@ where
 {
     let class_name = class_name.to_owned();
     if has_super_cycle(&class_name, superclasses_map) {
-        return Err(MroError {
-            message: format!("cycle detected in superclass hierarchy for {class_name}"),
-        });
+        return Err(MroError::new(MroErrorKind::SuperclassCycle, &class_name));
     }
 
     let mut result: Vec<K> = Vec::new();
@@ -301,9 +334,7 @@ where
     };
     tcloo_dfs(&class_name, &mut ctx, false, 0);
     if ctx.aborted {
-        return Err(MroError {
-            message: format!("class hierarchy for {class_name} is too complex to linearise"),
-        });
+        return Err(MroError::new(MroErrorKind::TooComplex, &class_name));
     }
     budget = ctx.budget;
 
@@ -321,9 +352,7 @@ where
     };
     tcloo_dfs(&class_name, &mut ctx, false, 0);
     if ctx.aborted {
-        return Err(MroError {
-            message: format!("class hierarchy for {class_name} is too complex to linearise"),
-        });
+        return Err(MroError::new(MroErrorKind::TooComplex, &class_name));
     }
 
     Ok(result)
@@ -332,18 +361,18 @@ where
 /// Compute MRO for every class in the hierarchy.
 ///
 /// Returns `(mro_map, errors)` where `mro_map` maps each class
-/// name to its linearised MRO and `errors` is a list of error
-/// messages for classes whose hierarchy is inconsistent.
+/// name to its linearised MRO and `errors` lists the classes whose
+/// hierarchy is inconsistent.
 #[must_use]
 pub fn build_mro_map<K>(
     superclasses_map: &HashMap<K, Vec<K>>,
     mixins_map: &HashMap<K, Vec<K>>,
-) -> (HashMap<K, Vec<K>>, Vec<String>)
+) -> (HashMap<K, Vec<K>>, Vec<MroError>)
 where
     K: Clone + Display + Eq + Hash,
 {
     let mut mro_map: HashMap<K, Vec<K>> = HashMap::new();
-    let mut errors: Vec<String> = Vec::new();
+    let mut errors: Vec<MroError> = Vec::new();
     for cls in superclasses_map.keys() {
         if mro_map.contains_key(cls) {
             continue;
@@ -353,7 +382,7 @@ where
                 mro_map.insert(cls.clone(), mro);
             }
             Err(e) => {
-                errors.push(e.message);
+                errors.push(e);
             }
         }
     }
@@ -415,14 +444,14 @@ mod tests {
     fn cycle_raises_mro_error() {
         let s = supers(&[("A", &["B"]), ("B", &["A"])]);
         let err = tcloo_linearise("A", &s, &empty_mixins()).unwrap_err();
-        assert!(err.message.contains("cycle"));
+        assert_eq!(err.kind, MroErrorKind::SuperclassCycle);
     }
 
     #[test]
     fn self_cycle_raises_mro_error() {
         let s = supers(&[("A", &["A"])]);
         let err = tcloo_linearise("A", &s, &empty_mixins()).unwrap_err();
-        assert!(err.message.contains("cycle"));
+        assert_eq!(err.kind, MroErrorKind::SuperclassCycle);
     }
 
     #[test]
@@ -482,7 +511,7 @@ mod tests {
         // "too complex" error. The test completing at all is the assertion.
         let s = stacked_diamonds(40);
         let err = tcloo_linearise("L0", &s, &empty_mixins()).unwrap_err();
-        assert!(err.message.contains("too complex"), "{}", err.message);
+        assert_eq!(err.kind, MroErrorKind::TooComplex, "{err}");
     }
 
     #[test]
@@ -575,7 +604,7 @@ mod tests {
     fn build_mro_map_all_classes() {
         let s = supers(&[("A", &[]), ("B", &["A"]), ("C", &["B"])]);
         let (mro_map, errors) = build_mro_map(&s, &empty_mixins());
-        assert_eq!(errors, [] as [String; 0]);
+        assert_eq!(errors, [] as [MroError; 0]);
         assert_eq!(mro_map["A"], vec!["A"]);
         assert_eq!(mro_map["B"], vec!["B", "A"]);
         assert_eq!(mro_map["C"], vec!["C", "B", "A"]);
@@ -585,7 +614,7 @@ mod tests {
     fn build_mro_map_collects_errors_for_cycles() {
         let s = supers(&[("A", &["B"]), ("B", &["A"]), ("C", &[])]);
         let (mro_map, errors) = build_mro_map(&s, &empty_mixins());
-        assert_ne!(errors, [] as [String; 0]);
+        assert_ne!(errors, [] as [MroError; 0]);
         // C is independent — should still get a clean MRO.
         assert_eq!(mro_map["C"], vec!["C"]);
     }

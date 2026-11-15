@@ -90,6 +90,7 @@ mod catalogue_callers;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
+mod diagnostic_presentation;
 mod dialect_drift;
 mod editor_extensions;
 mod environment;
@@ -428,6 +429,16 @@ enum Command {
         check: bool,
     },
 
+    /// Flag consumers that parse a diagnostic message, fix description or
+    /// replacement text instead of reading the typed payload (#2426).
+    #[command(name = "diagnostic-presentation")]
+    DiagnosticPresentation {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Flag any code use of the retired dialect/registry APIs
     /// (`DialectProfile::by_name` and kin, the string-keyed registry
     /// doors, external `ProfileQueries`) — the zero-reference gate for
@@ -667,6 +678,7 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::SegmentationDrift { check } => Ok(segmentation_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
+        Command::DiagnosticPresentation { check } => Ok(diagnostic_presentation::run(check)),
         Command::ObjectRecipeGate { check } => Ok(object_recipe_gate::run(check)),
         Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
