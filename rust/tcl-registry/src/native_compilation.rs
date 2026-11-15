@@ -4073,6 +4073,12 @@ impl NativeCompilationSpec {
                 | NativeCompilationGrammar::NamespaceCode
                 | NativeCompilationGrammar::NamespaceString(_)
                 | NativeCompilationGrammar::NamespaceWhich
+        ) || matches!(
+            self.grammar,
+            // The ensemble compiler hands the member's compile procedure the
+            // words after the member, as the private name receives them.
+            NativeCompilationGrammar::WithImplementationPath { compiler, .. }
+                if matches!(compiler.grammar, NativeCompilationGrammar::ClockReading(_))
         ) {
             let private = dialect.and_then(|dialect| self.implementation_lookup(dialect));
             if private.is_some_and(|lookup| {

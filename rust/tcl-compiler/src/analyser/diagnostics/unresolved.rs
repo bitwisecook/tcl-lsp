@@ -900,6 +900,37 @@ mod require_ordering_tests {
         }
     }
 
+    /// Absence advice survives a channel read stored and incremented, and a
+    /// clock reading compiled inside a procedure body.
+    ///
+    /// tclsh 8.6.18, 9.0.4 and 9.1.0: `tcl::unsupported::representation
+    /// [gets $f]` and `[read $f]` report a string object with a refcount of
+    /// 1, and `[gets $f line]` an int. tclsh 8.6.18 and 9.0.4 disassemble
+    /// `clock seconds` to `clockRead 3` and `clock clicks -mil` to
+    /// `clockRead 2`; the member word is not an operand of the instruction.
+    #[test]
+    fn a_channel_read_or_compiled_clock_reading_keeps_the_command_world() {
+        for release in ["tcl8.6", "tcl9.0"] {
+            for source in [
+                "set x [gets stdin]\nincr x\nnosuch\n",
+                "set y [read stdin]\nappend y z\nnosuch\n",
+                "proc p {} {clock seconds; nosuch}\np\n",
+                "proc p {} {clock clicks -mil; nosuch}\np\n",
+            ] {
+                let result = crate::analyser::Analyser::new().analyse(source, release);
+                assert_eq!(
+                    result
+                        .diagnostics
+                        .iter()
+                        .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W123)
+                        .count(),
+                    1,
+                    "{release}: {source}"
+                );
+            }
+        }
+    }
+
     /// A catalogued package publishes its export list with its commands, so
     /// a wildcard import brings them in and the bare head keeps its spec.
     ///

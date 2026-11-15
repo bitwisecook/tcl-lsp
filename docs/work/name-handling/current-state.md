@@ -281,6 +281,12 @@ Fixed:
 
 - **A top-level replay inherited the module's final package state** (#2324). `source_binding_timeline` reset the command rows to the entry's but kept `packages`, `revoked_loaders` and `loader_handler_unknown`, so `package require Tk` under a supplied Tk provider counted as already loaded and bound no widget command; every later head in the CFG was an unseen call. The entry's package state is now kept beside its command rows (`original_entry_packages`) and restored with them (`a_top_level_replay_loads_a_supplied_package_from_the_entry_state`, Tcl 8.6).
 
+- **Execution-walk cluster (a proved registry command ending the walk or leaving later commands without lookup state).** Reproducers from the dataflow session, under `tcl8.6`; each cause was a declaration, not the walk:
+  - `set n [llength "a b"]`: only a bare or braced word counted as a pooled literal, so a quoted operand was an object of unknown type whose list-length callback might run anything. A quoted or compound word of text alone is one pushed literal; a word of two or more parts is a fresh string.
+  - `set x [gets stdin]; incr x; puts $x`: `gets` and `read` declared no result kind, so the stored value was of unknown type and `incr`'s numeric conversion went opaque. Both now declare `NativeResultContract::StockResult`.
+  - `clock seconds` in a procedure body: the compile grammar was handed the member word as an operand (`select_for_facts` stripped selector words only for the `info` and `namespace` grammars), so the selection was `Unknown`. The clock-reading grammar now sees the words after the member, as its private name does. Tcl 9.1 still answers `Unknown` here: tclsh 9.1.0 emits `clockRead` for the same six forms, but `clock_reading_value` and its test pin 8.6 and 9.0 only, and the 9.1 operand encoding was not checked.
+  - Still open in this cluster: `eval {…}` and `uplevel` with a literal script (the delegated-script receipt, decided, not started); multi-word `eval`; statements after a proved runtime error (`incr x {$n}`) having no lookup state; `set foo [setter]` getting no selection for the outer `set`.
+
 One expectation changed against the interpreter: `interp alias {} Cat {} Dog create; set d [Cat new]; $d fly` raises `unknown method "fly"` on tclsh 8.6.18 and 9.0.4 (the object is a `Dog` named `::new`), so the test now expects W308.
 
 Open, with the cause where it is established:
