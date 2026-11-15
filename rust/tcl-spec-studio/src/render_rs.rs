@@ -700,6 +700,13 @@ pub(crate) fn dialect_set(values: &[Value]) -> String {
         // identifier — `SpecSurface::f5-tmsh` is not valid Rust, and
         // rendering it silently produced a file that only failed at
         // `cargo build`.
+        if let Some(release) = tcl_spectcl::catalogue::jim_and_later_release(name) {
+            // No named constant: the row is open-ended at one Jim release.
+            parts.push(format!(
+                "core_in(tcl_dialect::model::Family::Jim, &[({release:?}, None)])"
+            ));
+            continue;
+        }
         let Some(constant) = dialect_constant(name) else {
             parts.push(format!("/* unknown dialect {name:?} */"));
             continue;
@@ -708,6 +715,10 @@ pub(crate) fn dialect_set(values: &[Value]) -> String {
     }
     match parts.len() {
         0 => "None".to_owned(),
+        // A lone open-ended row is still a row list.
+        1 if parts[0].starts_with("core_in(") => {
+            format!("surface![SpecSurface::{}]", parts.remove(0))
+        }
         1 => format!("SpecSurface::{}", parts.remove(0)),
         // Several named surfaces compose by listing their rows.
         _ => {
@@ -730,6 +741,7 @@ fn dialect_constant(name: &str) -> Option<&'static str> {
         "tcl9.0" => "TCL90",
         "tcl9.1" => "TCL91",
         "f5-irules" => "IRULES",
+        "jim" => "JIM",
         "f5-iapps" => "IAPPS",
         "tk" => "TK",
         "expect" => "EXPECT",

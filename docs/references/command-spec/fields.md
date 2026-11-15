@@ -1371,6 +1371,7 @@ The EDA shells are not on it: a vendor shell is a base Tcl release plus package-
 | `tcl9.0` | Tcl 9.0 |
 | `tcl9.1` | Tcl 9.1 |
 | `f5-irules` | F5 iRules |
+| `jim` | Jim Tcl |
 | `f5-iapps` | F5 iApps |
 | `tk` | Tk |
 | `expect` | Expect |

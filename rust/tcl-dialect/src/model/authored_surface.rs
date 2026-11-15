@@ -731,6 +731,7 @@ pub const SOURCE_AUTHORING_ENVIRONMENT_SURFACES: &[(&str, &[SpecSurface])] = &[
     ("tcl9.0", SpecSurface::TCL90),
     ("tcl9.1", SpecSurface::TCL91),
     ("f5-irules", SpecSurface::IRULES),
+    ("jim", SpecSurface::JIM),
     ("f5-iapps", SpecSurface::IAPPS),
     ("tk", SpecSurface::TK),
     ("expect", SpecSurface::EXPECT),

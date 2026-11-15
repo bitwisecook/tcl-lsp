@@ -823,6 +823,19 @@ pub fn dialect_surface(name: &str) -> Option<&'static [SpecSurface]> {
         .map(|(_, b)| *b)
 }
 
+/// The Jim release of a `jimX.Y+` dialect word: Jim's core row open-ended at
+/// that release, spelt by analogy with `tclX.Y+`. A bare `jim` (every Jim
+/// release) is a [`DIALECTS`] entry and answers `None` here.
+#[must_use]
+pub fn jim_and_later_release(word: &str) -> Option<&str> {
+    let release = word.strip_suffix('+')?.strip_prefix("jim")?;
+    (!release.is_empty()
+        && release
+            .split('.')
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit())))
+    .then_some(release)
+}
+
 /// The [`Traits`] bit for a catalogue key from [`TRAITS`].
 ///
 /// Resolved against the registry's own flag list, so there is no second table

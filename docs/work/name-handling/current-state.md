@@ -382,7 +382,7 @@ Measuring: a probe test that builds the input and times `analyse` (the task brie
 
 ## iRules, registry, SpecTcl and tooling area, 15 November 2026
 
-Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 52, `tcl-spectcl` 38, `tcl-spec-studio` 12, `tcl-diagram` 17, `tcl-explorer` 16, `tcl-mcp` 7, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
+Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 51, `tcl-spectcl` 38, `tcl-spec-studio` 11, `tcl-diagram` 17, `tcl-explorer` 16, `tcl-mcp` 7, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
 
 Fixed:
 
@@ -424,7 +424,7 @@ Classification of what still fails (first failing assertion, one run):
 | `tcl-spectcl` | `pack_source_e2e` (2: SCCP gives `Const(42)` where the test wants an unentered declaration to stay `Overdefined`), `variable_reference_boundaries::a_live_fold_keeps_declared_effects_and_unclosed_arguments` | 3 | Dataflow |
 | `tcl-spectcl` | `hooks::owned_evaluator` (3: hook cache keeps an entry, a retired evaluator still answers, a colon-suffixed element), `hooks::service::inline` (`LiteralArgumentValidator` abstains), `workspace_packs::a_manifest_that_places_nothing_does_not_lift_its_pack` (a transitive pack's `alias_of` is refused where the test expects it to load) | 5 | this area, open |
 | `tcl-spectcl` | fixed: `i6_security_floor` (two statements on one line), `eda_environment_packs` (snapshot regenerated for `Version`'s order key) | 0 | done |
-| `tcl-spec-studio` | parity debt left: port and round-trip differences (`lsort`, `string is` `subcommand_forms`, `f5-irules/when` not declared, `bpf/!` prelude import, `arg_role_resolver` sample), header/body vocabulary. `regsub -command` renders `-dialects {tcl9.0+ jim}` and the loader drops `jim`: `tcl_dialect::model::authored_surface::SOURCE_AUTHORING_ENVIRONMENT_SURFACES` has no Jim row, and the registry's Jim rows are windowed (`0.84+`), so the DSL needs a windowed Jim spelling, not a bare name | 10 | this area; the Jim spelling needs `tcl-dialect` |
+| `tcl-spec-studio` | parity debt left: port and round-trip differences (`lsort`, `string is` `subcommand_forms`, `f5-irules/when` not declared, `bpf/!` prelude import, `arg_role_resolver` sample), header/body vocabulary. The Jim spelling is settled: a bare `jim` is every Jim release (a row in `SOURCE_AUTHORING_ENVIRONMENT_SURFACES`), `jimX.Y+` the row open-ended at that release (`catalogue::jim_and_later_release`), so `regsub -command` renders `-dialects {tcl9.0+ jim0.84+}` and reloads as declared | 9 | this area |
 | `tcl-spec-studio` | `pack_formatting_uses_the_shared_spectcl_profile`: a `command` block body is not indented | 1 | this area or LSP formatting |
 | `tcl-spec-studio` | `infer::*`: `count: arguments` in a proposed arity, a body's return type not proposed | 2 | this area |
 | `tcl-cli` | `value_transfers_cli`, `explore sccp`, `opt` folds and release spellings | about 35 | Dataflow |

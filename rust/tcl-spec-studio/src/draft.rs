@@ -194,13 +194,26 @@ fn dialects(value: Option<&'static [SpecSurface]>) -> Value {
     match value {
         None => Value::Null,
         // The draft's vocabulary is catalogue dialect names; the registry
-        // owns the one projection from rows onto them.
-        Some(rows) => Value::Array(
-            tcl_registry::model::surface::dialect_names_for_rows(rows)
-                .into_iter()
-                .map(|name| json!(name))
-                .collect(),
-        ),
+        // owns the one projection from rows onto them. That projection names
+        // every Jim row `jim`, so a row open-ended at one Jim release is
+        // spelt `jimX.Y+` here, the form the loader reads back.
+        Some(rows) => {
+            let mut names: Vec<String> = rows
+                .iter()
+                .flat_map(|row| match (row.provider, row.windows) {
+                    (
+                        tcl_dialect::model::SpecProvider::Core(tcl_dialect::model::Family::Jim),
+                        [(from, None)],
+                    ) => vec![format!("jim{from}+")],
+                    _ => tcl_registry::model::surface::dialect_names_for_rows(
+                        std::slice::from_ref(row),
+                    ),
+                })
+                .collect();
+            names.sort_unstable();
+            names.dedup();
+            Value::Array(names.into_iter().map(|name| json!(name)).collect())
+        }
     }
 }
 
@@ -2759,6 +2772,22 @@ pub fn default_subcommand_draft() -> Draft {
 mod tests {
     use super::*;
     use crate::schema;
+
+    /// `regsub -command` is Tcl 9.0 and later, and Jim from 0.84: the draft
+    /// names the open-ended Jim row `jim0.84+`, a bare Jim row `jim`.
+    #[test]
+    fn a_jim_row_open_ended_at_a_release_is_spelt_with_that_release() {
+        use tcl_dialect::model::Family;
+        const REGSUB_COMMAND: &[SpecSurface] = &[
+            SpecSurface::core_in(Family::Tcl, &[("9.0", None)]),
+            SpecSurface::core_in(Family::Jim, &[("0.84", None)]),
+        ];
+        assert_eq!(
+            dialects(Some(REGSUB_COMMAND)),
+            json!(["jim0.84+", "tcl9.0", "tcl9.1"])
+        );
+        assert_eq!(dialects(Some(SpecSurface::JIM)), json!(["jim"]));
+    }
     use tcl_registry::definer::MemberVisibility;
 
     #[test]

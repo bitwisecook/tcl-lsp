@@ -2655,6 +2655,17 @@ fn version_and_later(base: TclVersion) -> &'static [SpecSurface] {
     }
 }
 
+/// The surface of a `jimX.Y+` word ([`catalogue::jim_and_later_release`]).
+fn jim_and_later(word: &str) -> Option<&'static [SpecSurface]> {
+    let release = catalogue::jim_and_later_release(word)?;
+    let window: &'static [tcl_dialect::model::SpecWindow] =
+        Box::leak(Box::new([(leak_str(release), None)]));
+    Some(Box::leak(Box::new([SpecSurface::core_in(
+        tcl_dialect::model::Family::Jim,
+        window,
+    )])))
+}
+
 /// Apply an [`available::Availability`] at a scope that has no
 /// `required_package` field of its own.
 ///
@@ -2693,7 +2704,9 @@ fn parse_dialects(text: &str, line: u32, log: &mut Log) -> Option<&'static [Spec
             "all-tcl" => Some(SpecSurface::ALL_TCL),
             "tcl8.x" => Some(SpecSurface::TCL8X),
             other => match other.strip_suffix('+') {
-                Some(base) => parse_version(base).map(version_and_later),
+                Some(base) => parse_version(base)
+                    .map(version_and_later)
+                    .or_else(|| jim_and_later(other)),
                 None => catalogue::dialect_surface(other),
             },
         };
@@ -10488,6 +10501,29 @@ mod tests {
             Some(SpecSurface::TCL8X)
         );
         assert!(log.notices.is_empty());
+    }
+
+    /// Jim's rows: a bare `jim` is every Jim release, `jimX.Y+` the row
+    /// open-ended at that release, as `regsub -command` declares it beside
+    /// Tcl 9.0 and later.
+    #[test]
+    fn jim_dialect_words_name_every_release_or_one_and_later() {
+        use tcl_dialect::model::Family;
+        const FROM_0_84: &[SpecSurface] = &[SpecSurface::core_in(Family::Jim, &[("0.84", None)])];
+        let mut log = Log::default();
+        assert_eq!(parse_dialects("jim", 1, &mut log), Some(SpecSurface::JIM));
+        assert_eq!(parse_dialects("jim0.84+", 1, &mut log), Some(FROM_0_84));
+        let regsub_command = parse_dialects("tcl9.0+ jim0.84+", 1, &mut log).expect("two rows");
+        assert_eq!(
+            regsub_command,
+            [SpecSurface::TCL90_PLUS, FROM_0_84].concat().as_slice()
+        );
+        assert!(log.notices.is_empty(), "{:?}", log.notices);
+        for unknown in ["jim+", "jim0.+", "jimx+", "jim0.84"] {
+            let mut log = Log::default();
+            assert_eq!(parse_dialects(unknown, 1, &mut log), None, "{unknown}");
+            assert_eq!(log.notices.len(), 1, "{unknown}");
+        }
     }
 
     #[test]
