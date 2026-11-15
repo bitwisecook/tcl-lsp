@@ -6265,7 +6265,6 @@ mod tests {
 
     // Driver.
 
-    use crate::expr_ast::BinOp;
     use crate::ir::Statement;
     use crate::ssa::{SsaBlock, SsaStatement};
     use tcl_lexer::Span;
@@ -6688,57 +6687,12 @@ mod tests {
 
     #[test]
     fn evaluate_def_assign_expr_folds_with_lattice() {
-        // `set x [expr {$a + 3}]` with $a → Const(2) should fold to 5.
-        let mut ssa = bare_ssa();
-        let a = ssa.intern_var("a");
-        let x = ssa.intern_var("x");
-        let mut uses = HashMap::new();
-        uses.insert(a, 1);
-        let mut defs = HashMap::new();
-        defs.insert(x, 1);
-
-        let expr = ExprNode::Binary {
-            op: BinOp::Add,
-            left: Box::new(ExprNode::Var {
-                text: "$a".into(),
-                name: "a".into(),
-                start: 0,
-                end: 2,
-            }),
-            right: Box::new(ExprNode::Literal {
-                text: "3".into(),
-                start: 3,
-                end: 4,
-            }),
-        };
-        let stmt_ssa = SsaStatement {
-            statement: Statement::AssignExpr {
-                span: Span::new(0, 0),
-                name: "x".into(),
-                name_braced: false,
-                expr,
-                command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
-                expr_base: None,
-                fallback_value: "[expr {$a + 3}]".into(),
-            },
-            uses,
-            defs,
-            may_defs: std::collections::HashSet::new(),
-            destruction_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-            name_only_uses: std::collections::HashSet::new(),
-        };
-
-        let mut values = HashMap::new();
-        values.insert((a, 1), LatticeValue::Const(ConstValue::Int(2)));
-
+        // `set x [expr {$a + 3}]` with `a` the constant 2 settles 5.
         assert_eq!(
-            evaluate_fixture_def(
-                &stmt_ssa,
-                &values,
-                &ssa,
-                FoldPolicy::default(),
-                tcl_lexer::LexerConfig::default()
+            settled(
+                "tcl8.6",
+                "proc p {} {set a 2; set x [expr {$a + 3}]; return $x}",
+                "x"
             ),
             LatticeValue::Const(ConstValue::Int(5))
         );
@@ -7158,16 +7112,12 @@ mod tests {
     /// writes `hello world`, byte-exact, and the def takes the store.
     #[test]
     fn evaluate_def_append_call_folds_through_the_cell_update() {
-        let mut ssa = bare_ssa();
-        let stmt = cell_update_call(&mut ssa, "append", &["s", " world", "!"], 1, 2);
-        let s = ssa.var_symbol("s").unwrap();
-        let mut values = HashMap::new();
-        values.insert(
-            (s, 1),
-            LatticeValue::Const(ConstValue::String("hello".into())),
-        );
         assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            settled(
+                "tcl8.6",
+                "proc p {} {set s hello; append s \" world\" !; return $s}",
+                "s"
+            ),
             LatticeValue::Const(ConstValue::String("hello world!".into()))
         );
     }
@@ -7176,22 +7126,12 @@ mod tests {
     /// { again}` keeps its leading space (#2052).
     #[test]
     fn evaluate_def_append_var_piece_reads_the_lattice_exactly() {
-        let mut ssa = bare_ssa();
-        let mut stmt = cell_update_call(&mut ssa, "append", &["s", "$p"], 1, 2);
-        let s = ssa.var_symbol("s").unwrap();
-        let p = ssa.intern_var("p");
-        stmt.uses.insert(p, 1);
-        let mut values = HashMap::new();
-        values.insert(
-            (s, 1),
-            LatticeValue::Const(ConstValue::String("hello".into())),
-        );
-        values.insert(
-            (p, 1),
-            LatticeValue::Const(ConstValue::String(" again".into())),
-        );
         assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            settled(
+                "tcl8.6",
+                "proc p {} {set s hello; set p { again}; append s $p; return $s}",
+                "s"
+            ),
             LatticeValue::Const(ConstValue::String("hello again".into()))
         );
     }
@@ -7201,27 +7141,28 @@ mod tests {
     /// error, so the def widens.
     #[test]
     fn evaluate_def_lappend_call_renders_the_canonical_list() {
-        let mut ssa = bare_ssa();
-        let stmt = cell_update_call(&mut ssa, "lappend", &["l", "c", "d e"], 1, 2);
-        let l = ssa.var_symbol("l").unwrap();
-        let mut values = HashMap::new();
-        values.insert(
-            (l, 1),
-            LatticeValue::Const(ConstValue::String("a b".into())),
-        );
         assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            settled(
+                "tcl8.6",
+                "proc p {} {set l {a b}; lappend l c {d e}; return $l}",
+                "l"
+            ),
             LatticeValue::Const(ConstValue::String("a b c {d e}".into()))
         );
-        values.insert((l, 1), LatticeValue::Const(ConstValue::String("{".into())));
+        // tclsh 8.6.18: `set l "\{"; lappend l c` raises `unmatched open
+        // brace in list`.
         assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            settled(
+                "tcl8.6",
+                "proc p {} {set l \"\\{\"; lappend l c; return $l}",
+                "l"
+            ),
             LatticeValue::Overdefined
         );
-        // An unknown prior stays pending, never a manufactured empty list.
+        // A prior nothing proves is never a manufactured empty list.
         assert_eq!(
-            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
-            LatticeValue::Unknown
+            settled("tcl8.6", "proc p {l} {lappend l c; return $l}", "l"),
+            LatticeValue::Overdefined
         );
     }
 
@@ -7232,48 +7173,16 @@ mod tests {
     /// dictionary.
     #[test]
     fn evaluate_def_dict_incr_writes_the_dictionary() {
-        let mut ssa = bare_ssa();
-        let d = ssa.intern_var("d");
-        let mut uses = HashMap::new();
-        uses.insert(d, 1);
-        let mut defs = HashMap::new();
-        defs.insert(d, 2);
-        let stmt = SsaStatement {
-            statement: Statement::Call {
-                span: Span::new(0, 0),
-                command: "dict".into(),
-                canonical_command: None,
-                args: vec!["incr".into(), "d".into(), "a".into()],
-                defs: vec!["d".into()],
-                reads: Vec::new(),
-                reads_own_defs: true,
-                safe_on_uninit: true,
-                tokens: None,
-                foreach_groups: None,
-            },
-            uses,
-            defs,
-            may_defs: std::collections::HashSet::new(),
-            destruction_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-            name_only_uses: std::collections::HashSet::new(),
-        };
-        let mut values = HashMap::new();
-        values.insert(
-            (d, 1),
-            LatticeValue::Const(ConstValue::String("a 1 b 2".into())),
-        );
         assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            settled(
+                "tcl8.6",
+                "proc p {} {set d {a 1 b 2}; dict incr d a; return $d}",
+                "d"
+            ),
             LatticeValue::Const(ConstValue::String("a 2 b 2".into()))
         );
         assert_eq!(
-            evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
-            LatticeValue::Unknown
-        );
-        values.insert((d, 1), LatticeValue::Overdefined);
-        assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            settled("tcl8.6", "proc p {d} {dict incr d a; return $d}", "d"),
             LatticeValue::Overdefined
         );
     }
@@ -7301,50 +7210,37 @@ mod tests {
     /// value are one distinct input.
     #[test]
     fn evaluate_def_incr_lifts_over_one_finite_input() {
-        let mut ssa = bare_ssa();
-        let stmt = incr_stmt(&mut ssa, "x", Some("10"), 1, 2);
-        let x = ssa.var_symbol("x").unwrap();
-        let mut values = HashMap::new();
-        values.insert(
-            (x, 1),
-            LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]),
+        let ints = |members: [i64; 2]| {
+            LatticeValue::ConstSet(members.into_iter().map(ConstValue::Int).collect())
+        };
+        assert_eq!(
+            settled_at(
+                "tcl8.6",
+                "proc p {c} {if {$c} {set x 1} else {set x 2}; incr x 10; return $x}",
+                "x",
+                2
+            ),
+            ints([11, 12])
         );
         assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::ConstSet(vec![ConstValue::Int(11), ConstValue::Int(12)])
-        );
-
-        let mut ssa = bare_ssa();
-        let mut stmt = incr_stmt(&mut ssa, "x", Some("$a"), 1, 2);
-        let x = ssa.var_symbol("x").unwrap();
-        let a = ssa.intern_var("a");
-        stmt.uses.insert(a, 1);
-        let mut values = HashMap::new();
-        values.insert(
-            (x, 1),
-            LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]),
-        );
-        values.insert(
-            (a, 1),
-            LatticeValue::ConstSet(vec![ConstValue::Int(10), ConstValue::Int(20)]),
-        );
-        assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
+            settled_at(
+                "tcl8.6",
+                "proc p {c} {if {$c} {set x 1; set a 10} else {set x 2; set a 20}; incr x $a; return $x}",
+                "x",
+                2
+            ),
             LatticeValue::Overdefined,
             "two distinct finite inputs are correlated"
         );
         // `incr x $x`: the step reads the target's own version.
-        let mut ssa = bare_ssa();
-        let stmt = incr_stmt(&mut ssa, "x", Some("$x"), 1, 2);
-        let x = ssa.var_symbol("x").unwrap();
-        let mut values = HashMap::new();
-        values.insert(
-            (x, 1),
-            LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]),
-        );
         assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::ConstSet(vec![ConstValue::Int(2), ConstValue::Int(4)])
+            settled_at(
+                "tcl8.6",
+                "proc p {c} {if {$c} {set x 1} else {set x 2}; incr x $x; return $x}",
+                "x",
+                2
+            ),
+            ints([2, 4])
         );
     }
 
@@ -7357,57 +7253,26 @@ mod tests {
     /// boundary, which no model computes.
     #[test]
     fn evaluate_def_incr_reads_the_base_under_the_targets_release() {
-        let mut ssa = bare_ssa();
-        let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
-        let x = ssa.var_symbol("x").unwrap();
-        let under = |dialect: &str, base: LatticeValue| {
-            let folds = folds_for(dialect);
-            let mut values = HashMap::new();
-            values.insert((x, 1), base);
-            evaluate_fixture_def_with_folds(
-                &stmt,
-                &values,
-                &ssa,
-                FoldPolicy::from_registry(folds.registry),
-                Some(folds),
-                tcl_lexer::LexerConfig::default(),
-            )
+        let under = |dialect: &str, base: &str| {
+            settled_body(dialect, &format!("set x {base}; incr x"), "x")
         };
-        let zero = || LatticeValue::Const(ConstValue::String("010".into()));
-        assert_eq!(
-            under("tcl8.4", zero()),
-            LatticeValue::Const(ConstValue::Int(9))
-        );
-        assert_eq!(
-            under("tcl8.6", zero()),
-            LatticeValue::Const(ConstValue::Int(9))
-        );
-        assert_eq!(
-            under("tcl9.0", zero()),
-            LatticeValue::Const(ConstValue::Int(11))
-        );
-        assert_eq!(
-            under("f5-irules", zero()),
-            LatticeValue::Const(ConstValue::Int(9))
-        );
-        assert_eq!(under("tcl", zero()), LatticeValue::Overdefined);
+        let int = |value: i64| LatticeValue::Const(ConstValue::Int(value));
+        assert_eq!(under("tcl8.4", "010"), int(9));
+        assert_eq!(under("tcl8.6", "010"), int(9));
+        assert_eq!(under("tcl9.0", "010"), int(11));
+        assert_eq!(under("f5-irules", "010"), int(9));
+        assert_eq!(under("tcl", "010"), LatticeValue::Overdefined);
 
-        let max = || LatticeValue::Const(ConstValue::Int(i64::MAX));
+        let max = "9223372036854775807";
         assert_eq!(
-            under("tcl8.6", max()),
+            under("tcl8.6", max),
             LatticeValue::Const(ConstValue::String("9223372036854775808".into()))
         );
-        assert_eq!(under("tcl8.4", max()), LatticeValue::Overdefined);
-        assert_eq!(under("f5-irules", max()), LatticeValue::Overdefined);
-        assert_eq!(under("tcl", max()), LatticeValue::Overdefined);
-        let mut values = HashMap::new();
+        assert_eq!(under("tcl8.4", max), LatticeValue::Overdefined);
+        assert_eq!(under("f5-irules", max), LatticeValue::Overdefined);
+        assert_eq!(under("tcl", max), LatticeValue::Overdefined);
         // A whitespace-padded step is an integer in every release.
-        let padded = incr_stmt(&mut ssa, "x", Some(" 5"), 1, 2);
-        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
-        assert_eq!(
-            evaluate_pristine(&padded, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::Const(ConstValue::Int(6))
-        );
+        assert_eq!(settled_body("tcl8.6", "set x 1; incr x { 5}", "x"), int(6));
     }
 
     /// `set x [incr n]`: the host statement's uses do not hold `n` (its read
@@ -7442,23 +7307,20 @@ mod tests {
     /// (`EffectFreeOnly`), so its host widens.
     #[test]
     fn evaluate_def_set_read_in_value_position_folds() {
-        let mut ssa = bare_ssa();
-        let x = ssa.intern_var("x");
-        let mut read = assign_value_stmt(&mut ssa, "r", "[set x]", 1);
-        read.uses.insert(x, 1);
-        let mut write = assign_value_stmt(&mut ssa, "r", "[set x 10]", 1);
-        write.uses.insert(x, 1);
-        let mut values = HashMap::new();
-        values.insert(
-            (x, 1),
-            LatticeValue::Const(ConstValue::String("hello".into())),
-        );
         assert_eq!(
-            evaluate_pristine(&read, &values, &ssa, FoldPolicy::default()),
+            settled(
+                "tcl8.6",
+                "proc p {} {set x hello; set r [set x]; return $r}",
+                "r"
+            ),
             LatticeValue::Const(ConstValue::String("hello".into()))
         );
         assert_eq!(
-            evaluate_pristine(&write, &values, &ssa, FoldPolicy::default()),
+            settled(
+                "tcl8.6",
+                "proc p {} {set x hello; set r [set x 10]; return $r}",
+                "r"
+            ),
             LatticeValue::Overdefined
         );
     }
@@ -7469,20 +7331,17 @@ mod tests {
     /// read (tclsh 8.4 to 9.1 print `a` and a tab, `a\`, and `$x`).
     #[test]
     fn string_range_in_value_position_reads_cooked_escapes() {
-        let mut ssa = bare_ssa();
-        let xy = ssa.intern_var("xy");
-        let quoted = assign_value_stmt(&mut ssa, "r", "[string range \"a\\tb\" 0 1]", 1);
-        let braced = assign_value_stmt(&mut ssa, "r", "[string range {a\\tb} 0 1]", 1);
-        let mut dollar = assign_value_stmt(&mut ssa, "r", "[string range {$xy} 0 1]", 1);
-        dollar.uses.insert(xy, 1);
         let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
-        let mut values = HashMap::new();
-        values.insert((xy, 1), text("abc"));
-        let fold =
-            |stmt: &SsaStatement| evaluate_pristine(stmt, &values, &ssa, FoldPolicy::default());
-        assert_eq!(fold(&quoted), text("a\t"));
-        assert_eq!(fold(&braced), text("a\\"));
-        assert_eq!(fold(&dollar), text("$x"), "the braced word is text");
+        let fold = |word: &str| {
+            settled(
+                "tcl8.6",
+                &format!("proc p {{}} {{set xy abc; set r [string range {word} 0 1]; return $r}}"),
+                "r",
+            )
+        };
+        assert_eq!(fold("\"a\\tb\""), text("a\t"));
+        assert_eq!(fold("{a\\tb}"), text("a\\"));
+        assert_eq!(fold("{$xy}"), text("$x"), "the braced word is text");
     }
 
     /// `[string range …]` in value position runs the registry's route: the
@@ -7491,19 +7350,8 @@ mod tests {
     /// `ijkl`), and the lenient `tcl` profile, naming no release, declines.
     #[test]
     fn evaluate_def_assign_value_folds_string_range_under_the_release() {
-        let mut ssa = bare_ssa();
-        let stmt = assign_value_stmt(&mut ssa, "s", "[string range abcdefghijkl 010 end]", 1);
-        let under = |dialect: &str| {
-            let folds = folds_for(dialect);
-            evaluate_fixture_def_with_folds(
-                &stmt,
-                &HashMap::new(),
-                &ssa,
-                FoldPolicy::from_registry(folds.registry),
-                Some(folds),
-                tcl_lexer::LexerConfig::default(),
-            )
-        };
+        let under =
+            |dialect: &str| settled_body(dialect, "set s [string range abcdefghijkl 010 end]", "s");
         assert_eq!(
             under("tcl8.6"),
             LatticeValue::Const(ConstValue::String("ijkl".into()))
@@ -7517,9 +7365,8 @@ mod tests {
             LatticeValue::Const(ConstValue::String("ijkl".into()))
         );
         assert_eq!(under("tcl"), LatticeValue::Overdefined);
-        let plain = assign_value_stmt(&mut ssa, "t", "[string range { a } 0 end]", 1);
         assert_eq!(
-            evaluate_pristine(&plain, &HashMap::new(), &ssa, FoldPolicy::default()),
+            settled_body("tcl8.6", "set t [string range { a } 0 end]", "t"),
             LatticeValue::Const(ConstValue::String(" a ".into()))
         );
     }
@@ -7884,14 +7731,10 @@ mod tests {
     fn evaluate_def_foreach_multi_var_binds_each_its_elements() {
         // Two binders over one list: each takes the elements it is
         // assigned, so over `a b` the first binder, `v`, holds `a`.
-        let mut ssa = bare_ssa();
-        let mut stmt = foreach_stmt(&mut ssa, "v", "a b", 1);
-        let Statement::Call { defs, .. } = &mut stmt.statement else {
-            panic!();
-        };
-        defs.push("w".into());
-        let result = evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
-        assert_eq!(result, LatticeValue::Const(ConstValue::String("a".into())));
+        assert_eq!(
+            settled("tcl8.6", "proc p {} {foreach {v w} {a b} {puts $v$w}}", "v"),
+            LatticeValue::Const(ConstValue::String("a".into()))
+        );
     }
 
     // AssignValue + command-substitution folding.
@@ -8832,6 +8675,55 @@ p
 
     /// The values the solver gives the last definitions of `names` in the
     /// function `name` of `source`.
+    /// The lattice value of `name`'s last definition in `::p` of `source`
+    /// under `dialect`. A statement the lowering did not write has no source
+    /// metadata, so these read the value a real unit settles.
+    fn settled(dialect: &str, source: &str, name: &str) -> LatticeValue {
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, dialect,
+        );
+        last_value(unit.function("::p").expect("::p is analysed"), name)
+    }
+
+    /// The lattice value of version `version` of `name` in `::p` of `source`
+    /// under `dialect`, for a name a later arm or merge defines again.
+    fn settled_at(dialect: &str, source: &str, name: &str, version: u32) -> LatticeValue {
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, dialect,
+        );
+        let function = unit.function("::p").expect("::p is analysed");
+        let symbol = function
+            .ssa
+            .var_symbol(name)
+            .expect("the variable is an SSA symbol");
+        function
+            .sccp
+            .values
+            .get(&(symbol, version))
+            .cloned()
+            .expect("the version is defined")
+    }
+
+    /// [`settled`] for a body: a procedure in a Tcl release, an event handler
+    /// under `f5-irules`, where a procedure is only run through `call`.
+    fn settled_body(dialect: &str, body: &str, name: &str) -> LatticeValue {
+        if dialect != "f5-irules" {
+            return settled(dialect, &format!("proc p {{}} {{{body}}}"), name);
+        }
+        let source = format!("when RULE_INIT {{{body}}}");
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            &source, registry, false, dialect,
+        );
+        last_value(
+            unit.function("::when::RULE_INIT")
+                .expect("the handler is analysed"),
+            name,
+        )
+    }
+
     fn last_values(source: &str, name: &str, names: &[&str]) -> Vec<LatticeValue> {
         let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);

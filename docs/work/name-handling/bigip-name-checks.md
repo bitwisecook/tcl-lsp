@@ -3380,3 +3380,11 @@ its citation and a regression that reads the recorded lines.
    BIGIP-NAME-068. Until it is run,
    `irules_checks::tests::irule1201_http_after_respond_fires` keeps its
    expectation and stays failing.
+10. **Wide shift in an iRule expression.** Not a naming question, filed here
+    because the constant folder now answers it from the 8.4 rule: under
+    `f5-irules`, `expr {1 << 70}` folds to 0, `expr {(1 << 70) == 0}` to 1 and
+    `expr {-(1 << 70)}` to 0, which is what tclsh 8.4.20 prints
+    (`tcl_expr_eval::tests::the_old_folder_stays_within_the_targets_tower`).
+    Run `when RULE_INIT { log local0. "[expr {1 << 70}] [expr {(1 << 70) == 0}] [expr {-(1 << 70)}]" }`
+    on TMM; anything other than `0 1 0` means the F5 profile needs its own
+    arithmetic model.
