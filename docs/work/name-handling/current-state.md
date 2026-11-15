@@ -354,6 +354,48 @@ Open, with the cause where it is established:
 
 Working method that held up: an unoptimised incremental build in a second target directory (`CARGO_TARGET_DIR=target-dbg CARGO_INCREMENTAL=1 CARGO_PROFILE_TEST_OPT_LEVEL=0`) rebuilds the crate's tests in about 50 s against 11 minutes for the suite profile. `TCL_LSP_TRACE_JIM_SOURCE_OWNER=1` prints each presence query's `unclosed=` flag, which is the quickest way to see a withheld command world; a refused class relation is almost always a non-empty `uncertain_operations` on the advice graph.
 
+## Value transfers, escape, shimmer and types area, 15 November 2026
+
+Area: `tcl-compiler` integration tests `value_transfer_witnesses`, `var_escape_*`, `core_analyses`, `intervals`, `type_propagation`, `caller_frame_effects` and library tests `shimmer`, `type_infer`, `dynamic_names`, `native_integer_proof`, `cfg_builder::upvar_info`, `cfg_builder::global_write_info`, `unit_scope`.
+
+Baseline at `46775880`, `cargo nextest run -p tcl-compiler -p tcl-irules -p tcl-lsp-core -p tcl-lsp-server` filtered to the compiler and iRules packages, test profile `opt-level 1`: 13,211 run, 2,487 failing; 391 of them in this area.
+
+| Group | Failing |
+| --- | --- |
+| `it_2 value_transfer_witnesses` | 110 |
+| `shimmer` | 47 |
+| `cfg_builder::global_write_info` | 34 |
+| `it_2 core_analyses` | 30 |
+| `unit_scope` | 30 |
+| `it_2 var_escape_cfg` | 22 |
+| `cfg_builder::upvar_info` | 21 |
+| `type_infer` | 14 |
+| `it_3 var_escape_residual2`, `it_5 var_escape_cfg_catch` | 14 each |
+| `dynamic_names`, `native_integer_proof` | 13 each |
+| `it_2 intervals`, `it_4 caller_frame_effects`, `it_5 var_escape_cfg_tree_arms` | 7 each |
+| `it_5 var_escape_typeinfer`, `it_3 type_propagation` | 5, 3 |
+
+Nothing in this area is fixed yet. Two fixture hypotheses were tested against the whole group and rejected:
+
+- Reading `FunctionUnit::semantic_values` in the witness harness (`value_at`, `last_value`) instead of `sccp.values`: fixed none of the 110 and broke 4 (`a_cell_update_reads_its_words_as_tcl_substitutes_them`, `a_declared_route_refuses_a_call_outside_its_arity`, `a_pack_direct_route_runs_the_evaluator_it_names`, `const_writes_only_an_absent_place`), where the semantic projection knows less than the execution lattice. The harness already builds every unit under a named release.
+- Building the `global_write_info` fixtures as real Tcl 8.6 units (`CompilationUnit::build_for_dialect`) instead of a profile-less registry spliced into a Tcl 8.6 context: the same 34 tests fail. The hand-lowered fixture is still wrong (its `ModuleCommandBindings` selects no name policy at all), but the failing tests fail for the causes below under a real unit too.
+
+Causes established, each read from a real Tcl 8.6 unit. All sit in the execution walk (`command_binding`), which the summaries of this area only consume:
+
+- A literal script body run by `uplevel` or `eval` withdraws the command world. `proc ::setter {} { uplevel #0 { set x 99 } }; ::setter` (tclsh 8.4 to 9.1: `x` is 99): under `TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE=1` the body's `set` is selected with `mode=BytecodeObject admission=Some(Unknown)`, its preflight reports `possible_error=true`, and the `uplevel` site finishes with `operations=["withdraw"]`. After that `ModuleCommandBindings::target_resolution_may_be_unknown` is true for every plain call of the module (`source_keys_checked` returns `Namespace`, because the withdrawn world has no selected policy), so `own_body_global_writes` and the caller-frame summary are opaque for every procedure. Decides most of `global_write_info` (34) and the `uplevel` tests of `upvar_info` (about 15). Reported to the analyser session with the fixture.
+- A command applied to a value the walk has not proved ends the walk for the body. `proc f {lst} { set x [llength $lst]; lindex $x 0 }` with no caller lowers both statements with `<caller-frame-opaque>` ("set upvar-aliases a dynamic caller variable") and `<unseen-call>`; with `f {a b}` added the body lowers as `AssignValue`, `lst#0` is `a b` and `x#1` is 2. `expr {$a + $b}`, `string length $p`, `puts $p` and `set q $p` over a parameter are entered without a caller. The dataflow section records the same fault for a quoted literal operand. Decides the `shimmer` tests whose fixture is an uncalled procedure over a list parameter, and the `native_integer_proof` and `type_infer` fixtures of that shape.
+- A write to an element with a computed key raises the whole-frame barrier. `proc f {i} { set a($i) 1; return ok }` and `incr a($i)` under Tcl 8.6 give `<caller-frame-opaque>` ("writes a source-opaque variable name"): `ModuleCommandBindings::variable_write_projection` reports `opaque_variable_frame` although the array root `a` is literal. `set fixed {*}$n` does the same. Decides `dynamic_names::a_spelled_out_set_stays_clear_under_every_dialect`, `a_spelled_out_incr_stays_clear_under_every_dialect` and `an_expansion_after_a_fixed_name_does_not_make_the_name_dynamic`.
+- A statement after a proved error poisons the function. `proc p {} {set n 3; set x 1; incr x {$n}; return $x}` under Tcl 8.4 and 8.6 gives `Overdefined` for `n#1` and `x#1`, a use of `n` on the `incr`, no explanation, and no function-wide symbol for `x`; without the trailing `return $x` the same body gives 3, 1 and `evaluated: error after 0 stores`, and the `tcl` profile gives that answer with the `return` present. This decides `a_braced_increment_amount_is_its_text`; 18 witnesses panic with `the variable`, and the dataflow section puts 15 of them on iRules procedure bodies, which was not rechecked here.
+- The alias summaries of `global_write_info` assert a module-wide may-state that the walk no longer provides: an alias installed by a procedure nothing calls (`proc ::n::install {} { interp alias {} g {} upvar #0 }; proc ::p {} { g x local; set local 1 }`) or a name bound at one earlier point (`interp alias {} g {} upvar #0; rename g h; proc ::old_name {} { g y local; set local 1 }`) gives an opaque summary, where the tests expect the name. With the installer called before `::p` is defined the summary is `{x}`. Whether a summary answers for bindings no execution installed is a decision for the coordinator: tclsh raises `invalid command name "g"` for the first source as written.
+- `catch {error boom} m; puts "<$m>"` under Tcl 8.6 leaves `m` with its entry version only (`m#0`, `Overdefined`); the witnesses expect a definition that holds `boom`. `set a [incr n]` in a procedure leaves `a#1` and `n#2` `Overdefined`. Not traced further.
+
+Not yet classified: `core_analyses`, `intervals`, the five `var_escape_*` files, `caller_frame_effects`, `unit_scope` and the `type_infer` object-typing tests.
+
+Working notes for this area:
+
+- A probe is the fastest way to classify: build the unit and print each function's SSA statements, lattice values, explanations and the two summaries. It costs one rebuild; every later fixture and dialect is free. The command-table trace above needs no rebuild at all.
+- `tcl-compiler` rebuilds in 10 to 12 minutes after any edit to the library, test modules included, with incremental on; a selection that also holds a dependant of the compiler rebuilds the plain library as well and doubles that. Iterate with `-p tcl-compiler --lib` or one `--test`, and keep the wider selection for the pre-push run.
+
 ## Analysis performance, 15 November 2026
 
 Structure-only analysis (`Analyser::new().structure_only()`, the semantic-token input) of a generated file under `tcl8.6`: `namespace eval ::bench { variable counter 0 }` followed by N procedures of seven lines (`generate_big_tcl` in the server e2e test). One 4-core Linux host, test profile `opt-level 1`, best of three runs. A procedure is six walked commands, so N=600 is about 6,000 lines and 3,600 commands.
