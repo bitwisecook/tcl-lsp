@@ -648,10 +648,8 @@ fn evaluate_completion_using(
     };
     let value = from_vm_value_using(vm, original, &completion.result)?;
     Ok(if code == CompletionCode::Return {
-        HostOutcome::returning(
-            value,
-            from_vm_value_using(vm, original, &completion.options)?,
-        )
+        let options = vm.host_return_options(completion);
+        HostOutcome::returning(value, from_vm_value_using(vm, original, &options)?)
     } else {
         HostOutcome::completing(code, value)
     })

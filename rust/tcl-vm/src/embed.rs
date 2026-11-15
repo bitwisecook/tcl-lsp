@@ -1044,6 +1044,26 @@ impl Vm {
         self.finish_embedding_result(result)
     }
 
+    /// The options of a `return` completion as a host command hands them on:
+    /// a merged return keeps its `-code` and `-level` beside the dictionary,
+    /// and the host is given them together, so the procedure that called the
+    /// host command ends as the `return` said.
+    #[must_use]
+    pub fn host_return_options(&self, completion: &Completion<Value>) -> Value {
+        match completion.option_origin {
+            tcl_core_types::CompletionOptionOrigin::MergedReturnOptions { code, level } => {
+                let mut merged = format!("-code {code} -level {level}").into_bytes();
+                let carried = completion.options.string_bytes();
+                if !carried.is_empty() {
+                    merged.push(b' ');
+                    merged.extend_from_slice(&carried);
+                }
+                Value::from_string_bytes(merged)
+            }
+            _ => completion.options.clone(),
+        }
+    }
+
     /// The return options of `completion`, as C's `Tcl_GetReturnOptions`
     /// reports them: an error's carry `-errorinfo` and `-errorcode`. A host
     /// refusal leaves the completion's own options.
