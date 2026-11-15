@@ -1028,6 +1028,9 @@ fn finalize_function(
     ctx.fold_tail_return_to_done();
     ctx.strip_unused_start_cmd();
     ctx.fixup_top_level_start_cmd();
+    if ctx.native_entry.is_some() {
+        super::super::native_compiler_pass::place_command_starts(ctx);
+    }
     ctx.fold_const_push_pop_nops();
     ctx.dedup_push_literals();
     ctx.strip_nodedup_tags();

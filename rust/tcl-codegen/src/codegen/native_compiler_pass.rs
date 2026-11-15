@@ -22,7 +22,9 @@ use tcl_registry::native_compiler_pass::{
     NativeCompilerPassHazard as Hazard, native_compiler_replays,
 };
 
+use super::statements::SC_GENERIC_TAG;
 use super::{CodegenCtx, Op};
+use tcl_bytecode::Operand;
 
 fn hazard(op: Op) -> Option<Hazard> {
     Some(match op {
@@ -109,6 +111,178 @@ pub(super) fn omit_command_markers(ctx: &mut CodegenCtx<'_>) {
             }
         }
     }
+}
+
+/// Place command markers where C's `CompileCmdCompileProc` puts
+/// `INST_START_CMD` (tclCompile.c `atCmdStart`, 8.5.19 through 9.1.0): one
+/// before each command it compiles, none for a command it invokes, none at
+/// the start of the bytecode, and none straight after another marker, whose
+/// count grows instead. The compact second pass (`atCmdStart == 2`) emits
+/// none at all.
+///
+/// A marker that C omits gives its replay metadata to the next instruction,
+/// which the VM checks as the same source boundary. Where that instruction
+/// already owns another command's metadata the marker stays.
+pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
+    collapse_repeated_starts(ctx);
+    let mut index = 0;
+    while index < ctx.instructions.len() {
+        let instruction = &ctx.instructions[index];
+        let selection =
+            instruction.op == Op::NOP && instruction.native_compiler_selection.is_some();
+        if instruction.op != Op::START_CMD && !selection {
+            index += 1;
+            continue;
+        }
+        let generic = instruction.op == Op::START_CMD
+            && instruction.comment == SC_GENERIC_TAG
+            && instruction.native_compiler_selection.is_none()
+            && instruction.native_operation_selections.is_empty();
+        let inline_replay = instruction.source_command_boundary.is_inline_replay();
+        let follows_start = index > 0 && ctx.instructions[index - 1].op == Op::START_CMD;
+        if !ctx.compact_compiler_pass && !generic && !follows_start && index > 0 {
+            if selection {
+                materialise_start(&mut ctx.instructions[index]);
+            }
+            index += 1;
+            continue;
+        }
+        // The preceding marker's replay covers an inline command that starts
+        // at the same instruction, so nothing is lost by dropping it there.
+        let merged = !ctx.compact_compiler_pass && !generic && follows_start;
+        let covered = inline_replay
+            && merged
+            && ctx.instructions[index]
+                .native_operation_selections
+                .is_empty();
+        if !covered && !receives_marker(&ctx.instructions, index) {
+            if selection && !ctx.compact_compiler_pass && index > 0 && !follows_start {
+                materialise_start(&mut ctx.instructions[index]);
+            }
+            index += 1;
+            continue;
+        }
+        let marker = ctx.instructions.remove(index);
+        for position in ctx.label_positions.values_mut() {
+            if *position > index {
+                *position -= 1;
+            }
+        }
+        let same_command =
+            ctx.instructions[index - usize::from(merged)].source_cmd_text == marker.source_cmd_text;
+        if merged && !same_command {
+            let count = start_count(&marker);
+            if let Some(Operand::Imm(previous)) = ctx.instructions[index - 1].operands.get_mut(1) {
+                *previous += count;
+            }
+        }
+        if !covered {
+            give_marker(marker, &mut ctx.instructions[index]);
+        }
+    }
+}
+
+/// A compiled statement's wrapper and the command's own marker, or its
+/// selection, start the same source command at the same instruction; C has
+/// one marker there, which carries the selection with the same replay text.
+fn collapse_repeated_starts(ctx: &mut CodegenCtx<'_>) {
+    let mut index = 1;
+    while index < ctx.instructions.len() {
+        let previous = &ctx.instructions[index - 1];
+        let marker = &ctx.instructions[index];
+        let own_selection = marker.op == Op::NOP
+            && marker.native_compiler_selection.is_some()
+            && previous.native_compiler_selection.is_none();
+        let repeated = previous.op == Op::START_CMD
+            && (marker.op == Op::START_CMD || own_selection)
+            && marker.source_command_boundary == previous.source_command_boundary
+            && marker.source_cmd_text == previous.source_cmd_text
+            && marker.source_command_namespace == previous.source_command_namespace
+            && marker.source_command_namespace_context == previous.source_command_namespace_context
+            && (own_selection || marker.native_compiler_selection.is_none())
+            && marker.entered_command.is_none()
+            && marker.completion_option_scope.is_none();
+        if !repeated {
+            index += 1;
+            continue;
+        }
+        let mut marker = ctx.instructions.remove(index);
+        ctx.instructions[index - 1]
+            .native_operation_selections
+            .append(&mut marker.native_operation_selections);
+        if marker.native_compiler_selection.is_some() {
+            ctx.instructions[index - 1].native_compiler_selection =
+                marker.native_compiler_selection;
+        }
+        if marker.comment == SC_GENERIC_TAG {
+            ctx.instructions[index - 1].comment = marker.comment;
+        }
+        ctx.instructions[index - 1].no_fold |= marker.no_fold;
+        for position in ctx.label_positions.values_mut() {
+            if *position > index {
+                *position -= 1;
+            }
+        }
+    }
+}
+
+fn start_count(marker: &tcl_bytecode::Instruction) -> i32 {
+    match marker.operands.get(1) {
+        Some(Operand::Imm(count)) if marker.op == Op::START_CMD => *count,
+        _ => 1,
+    }
+}
+
+fn materialise_start(instruction: &mut tcl_bytecode::Instruction) {
+    let end = instruction
+        .native_compiler_selection
+        .as_ref()
+        .expect("selection marker")
+        .end
+        .clone();
+    instruction.op = Op::START_CMD;
+    instruction.operands = vec![Operand::Label(end), Operand::Imm(1)];
+}
+
+/// Whether the instruction after `index` can carry the marker's replay
+/// metadata as the same source command.
+fn receives_marker(instructions: &[tcl_bytecode::Instruction], index: usize) -> bool {
+    let marker = &instructions[index];
+    let Some(next) = instructions.get(index + 1) else {
+        return false;
+    };
+    !marker.source_command_boundary.is_inline_replay()
+        && next.op != Op::START_CMD
+        && !(next.op == Op::NOP && next.native_compiler_selection.is_some())
+        && (marker.native_compiler_selection.is_none() || next.native_compiler_selection.is_none())
+        && (marker.entered_command.is_none() || next.entered_command.is_none())
+        && (marker.completion_option_scope.is_none() || next.completion_option_scope.is_none())
+        && (!marker.source_command_boundary.is_start()
+            || (!next.source_command_boundary.is_start()
+                && !next.source_command_boundary.is_inline_replay()))
+        && next.source_cmd_text == marker.source_cmd_text
+        && next.source_command_namespace == marker.source_command_namespace
+        && next.source_command_namespace_context == marker.source_command_namespace_context
+}
+
+fn give_marker(mut marker: tcl_bytecode::Instruction, next: &mut tcl_bytecode::Instruction) {
+    marker
+        .native_operation_selections
+        .append(&mut next.native_operation_selections);
+    next.native_operation_selections = marker.native_operation_selections;
+    if marker.native_compiler_selection.is_some() {
+        next.native_compiler_selection = marker.native_compiler_selection;
+    }
+    if marker.entered_command.is_some() {
+        next.entered_command = marker.entered_command;
+    }
+    if marker.completion_option_scope.is_some() {
+        next.completion_option_scope = marker.completion_option_scope;
+    }
+    if marker.source_command_boundary.is_start() {
+        next.source_command_boundary = marker.source_command_boundary;
+    }
+    next.no_fold |= marker.no_fold;
 }
 
 #[cfg(test)]

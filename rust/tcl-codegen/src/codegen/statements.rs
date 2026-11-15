@@ -358,7 +358,7 @@ impl CodegenCtx<'_> {
             self.seen_generic_invoke = true;
             // Tag this startCommand as wrapping a generic invoke
             if let Some(idx) = sc_idx
-                && !self.is_proc
+                && (!self.is_proc || self.native_entry.is_some())
             {
                 SC_GENERIC_TAG.clone_into(&mut self.instructions[idx].comment);
             }
