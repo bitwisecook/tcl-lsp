@@ -118,7 +118,7 @@ fn every_command_in_every_dialect_renders() {
                 "{dialect}/{name}: the copyright banner must lead every rendered file"
             );
             assert!(
-                source.contains("use crate::render_sweep::prelude::*;"),
+                source.contains("use crate::prelude::*;"),
                 "{dialect}/{name}: the prelude import is missing"
             );
             assert!(

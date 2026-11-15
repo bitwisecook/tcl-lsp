@@ -1046,9 +1046,13 @@ mod tests {
     /// of evidence, and states nothing a command's own body does not show.
     #[test]
     fn an_import_carries_the_bodys_facts_as_proposals() {
+        // `proc demo::answer` needs its namespace first: without the
+        // `namespace eval`, Tcl 8.4.20, 8.6.18 and 9.0.4 all answer `can't
+        // create procedure "demo::answer": unknown namespace`.
         let import = import_package(
             &file(
                 "package provide demo 1.0\n\
+                 namespace eval demo {}\n\
                  proc demo::answer {x} { return 42 }\n\
                  proc demo::note {x} { set ::last $x }\n\
                  proc demo::twice {cb x} { $cb [$cb $x] }\n",

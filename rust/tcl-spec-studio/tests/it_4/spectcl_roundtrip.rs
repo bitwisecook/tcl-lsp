@@ -341,6 +341,32 @@ fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool 
     implied == shipped_roles && !prefixes.is_empty()
 }
 
+/// Whether two subcommands' nested rows differ only in a nested
+/// `native_compilation`, the excluded contract the renderer reports as
+/// `nested_native_compilation` and a pack cannot author.
+fn only_nested_native_compilation(rendered: &Value, shipped: &Value) -> bool {
+    let rows = |value: &Value| -> Vec<Value> {
+        value
+            .get("sub_subcommands")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|mut row| {
+                if let Some(row) = row.as_object_mut() {
+                    row.insert("native_compilation".to_owned(), Value::Null);
+                }
+                row
+            })
+            .collect()
+    };
+    let shipped_rows = shipped
+        .get("sub_subcommands")
+        .and_then(Value::as_array)
+        .is_some_and(|rows| rows.iter().any(|row| !row["native_compilation"].is_null()));
+    shipped_rows && rows(rendered) == rows(shipped)
+}
+
 /// Arity windows survive render → load → re-seed.
 ///
 /// The whole-surface trip above cannot cover them: every shipped spec has
@@ -863,9 +889,16 @@ fn native_resolver_capabilities_survive_the_round_trip() {
     let trip = round_trip(&shipped);
 
     assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    // `binary scan` reads its roles off the argument count, so the resolver
+    // it ships is the count-aware one.
     assert_eq!(
-        trip.text.matches("arg_role_resolver -native").count(),
-        1,
+        [
+            "arg_role_count_resolver -native binary::scan::arg_role_count_resolver",
+            "arg_role_resolver -native",
+            "arg_role_layout_resolver -native",
+        ]
+        .map(|row| trip.text.matches(row).count()),
+        [1, 0, 0],
         "only binary scan owns a native role resolver:\n{}",
         trip.text
     );
@@ -1008,10 +1041,11 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
             let reported: BTreeSet<&str> = losses.iter().map(|loss| loss.key.as_str()).collect();
             for diff in &found {
                 let field = field_of(&diff.key);
-                // Three ways a difference is legitimate: the field is in the
+                // Four ways a difference is legitimate: the field is in the
                 // renderer's own gap register, the renderer said at render
-                // time that it could not carry it, or it is the implied
-                // command-prefix role.
+                // time that it could not carry it, it is the implied
+                // command-prefix role, or it is a nested row's excluded
+                // native compilation.
                 let documented = render_spectcl::gap(field)
                     .map(|gap| format!("{field} ({:?})", gap.kind))
                     .or_else(|| {
@@ -1025,6 +1059,14 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
                                 .zip(at_level(&diff.key, shipped))
                                 .is_some_and(|(a, b)| only_implied_command_prefix_roles(a, b)))
                         .then(|| "arg_roles (implied by -appends)".to_owned())
+                    })
+                    .or_else(|| {
+                        (field == "sub_subcommands"
+                            && reported.contains("nested_native_compilation")
+                            && at_level(&diff.key, reloaded)
+                                .zip(at_level(&diff.key, shipped))
+                                .is_some_and(|(a, b)| only_nested_native_compilation(a, b)))
+                        .then(|| "sub_subcommands (nested native_compilation, Excluded)".to_owned())
                     });
                 match documented {
                     Some(bucket) => {
@@ -1116,6 +1158,9 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
 /// command drafts as the shipped name again — the identity the round trip
 /// relies on. The shipped commands only ever *name* these grammars, so this
 /// is what exercises the class families' inline spelling.
+///
+/// The exception is a grammar with native object-method operations, which
+/// only its shipped name carries.
 #[test]
 fn every_shipped_grammar_spelt_inline_reloads_as_itself() {
     for (name, grammar) in tcl_spectcl::SHIPPED_DEFINITION_BODIES {
@@ -1123,7 +1168,31 @@ fn every_shipped_grammar_spelt_inline_reloads_as_itself() {
         let mut command = draft::default_command_draft();
         command.insert("name".to_owned(), Value::from("probe::definer"));
         command.insert("definition_body".to_owned(), block.clone());
-        let text = render_spectcl::render_pack(&[command], "probe");
+        let (text, losses) = render_spectcl::render_pack_reporting(&[command], "probe");
+        // A pack cannot author an audited native object-method operation (the
+        // loader's `builtin_object_method` row has no word for one), so a
+        // grammar carrying any is preserved by its shipped name alone: spelt
+        // inline it is omitted and reported, never written thinner.
+        if grammar
+            .builtin_object_methods
+            .iter()
+            .any(|method| method.operation.is_some())
+        {
+            assert!(
+                !text.contains("definition_body {"),
+                "{name} carries native operations and is not written inline:\n{text}"
+            );
+            assert_eq!(
+                losses
+                    .iter()
+                    .map(|loss| loss.key.as_str())
+                    .collect::<Vec<_>>(),
+                ["definition_body"],
+                "{name}: the omitted block is the one reported loss:\n{text}"
+            );
+            continue;
+        }
+        assert!(losses.is_empty(), "{name} renders whole: {losses:?}");
         assert!(
             text.contains("definition_body {"),
             "{name} is written inline:\n{text}"
@@ -1209,7 +1278,7 @@ fn the_twelve_port_fixtures_render_and_reload_as_themselves() {
             .iter()
             .map(|command| draft::from_command_spec(command.spec))
             .collect();
-        let rendered = render_spectcl::render_pack(&drafts, &hand.name);
+        let (rendered, losses) = render_spectcl::render_pack_reporting(&drafts, &hand.name);
         let reloaded = spectcl::evaluate_pack(&rendered);
 
         let hand_lines = source.lines().count();
@@ -1239,7 +1308,9 @@ fn the_twelve_port_fixtures_render_and_reload_as_themselves() {
             let _ = writeln!(report, "  {name}: {} differing field(s)", found.len());
             for diff in &found {
                 let field = field_of(&diff.key);
-                let documented = render_spectcl::gap(field).is_some();
+                // A gap the register names, or a loss the render reported.
+                let documented = render_spectcl::gap(field).is_some()
+                    || losses.iter().any(|loss| loss.key == field);
                 let _ = writeln!(
                     report,
                     "    {} {}\n        rendered: {}\n        hand    : {}",

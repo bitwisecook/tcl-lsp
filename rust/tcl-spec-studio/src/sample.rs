@@ -1387,20 +1387,25 @@ mod tests {
     #[test]
     fn a_shipped_command_reports_its_own_declaration() {
         bench_on(PACK, |bench| {
-            let report = bench.analyse("set x 1\n");
-            let tokens = report["tokens"].as_array().expect("tokens");
-            assert_eq!(tokens[0]["origin"], json!("builtin"));
-            let roles: Vec<&str> = tokens[1]["roles"]
-                .as_array()
-                .expect("roles")
-                .iter()
-                .filter_map(|r| r["role"].as_str())
-                .collect();
-            assert!(roles.contains(&"VarWrite"), "{roles:?}");
-            // `set` computes its roles dynamically (a one-argument `set` reads
-            // the variable, a two-argument one writes it), and the report says
-            // so rather than pointing at a static table that is not there.
-            assert_eq!(tokens[1]["field"], json!("arg_role_resolver"));
+            // `set x 1` selects the write form, whose role table pins the
+            // name; `read` computes its roles from the invocation, and the
+            // report says so rather than pointing at a table that is not there.
+            for (source, role, field) in [
+                ("set x 1\n", "VarWrite", "arg_roles"),
+                ("read stdin 5\n", "Channel", "arg_role_resolver"),
+            ] {
+                let report = bench.analyse(source);
+                let tokens = report["tokens"].as_array().expect("tokens");
+                assert_eq!(tokens[0]["origin"], json!("builtin"), "{source}");
+                let roles: Vec<&str> = tokens[1]["roles"]
+                    .as_array()
+                    .expect("roles")
+                    .iter()
+                    .filter_map(|r| r["role"].as_str())
+                    .collect();
+                assert_eq!(roles, [role], "{source}");
+                assert_eq!(tokens[1]["field"], json!(field), "{source}");
+            }
         });
     }
 

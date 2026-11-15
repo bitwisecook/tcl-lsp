@@ -323,6 +323,7 @@ const PORTS: &[Port] = &[
                      `string length`; unrenderable for the same reason",
                 ),
                 ("length", "successful_handler", SUCCESSFUL_HANDLER),
+                ("is", "__unrenderable", NATIVE_COMPILATION),
                 (
                     "map",
                     "__unrenderable",

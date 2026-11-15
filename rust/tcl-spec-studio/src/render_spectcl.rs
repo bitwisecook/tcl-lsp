@@ -107,6 +107,8 @@ pub const DSL_VERSION: &str = tcl_spectcl::NEWEST_VOCABULARY_VERSION;
 
 const AVAILABILITY_VERSION: &str = "2.0";
 const RESOLVER_CAPABILITIES_VERSION: &str = "2.1";
+const POSITIONAL_ARITY_VERSION: &str = "2.1";
+const SCRIPT_LOOKUP_SCOPE_VERSION: &str = "2.0";
 
 /// Column the renderer tries to keep rows inside before continuing a row with
 /// a `\`, matching the ports' own wrapping.
@@ -1123,7 +1125,7 @@ fn unwrap_some(text: &str) -> Option<&str> {
 /// [`crate::render_rs::dialect_set`] writes the readable aggregates
 /// (`SpecSurface::ALL_TCL_AND_IRULES`); this reads them back so
 /// an option constraint keeps its gate.
-fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
+fn dialect_names(expr: &str) -> Option<Vec<String>> {
     const CONSTANTS: &[(&str, &[&str])] = &[
         (
             "ALL_TCL",
@@ -1146,6 +1148,7 @@ fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
         ("BIGIP", &["f5-bigip"]),
         ("SPECTCL", &["spectcl"]),
         ("SSLICTCL", &["sslictcl"]),
+        ("JIM", &["jim"]),
     ];
     // A row list is `SpecSurface::CONST` or `surface![CONST, CONST…]`.
     let inner = expr
@@ -1153,17 +1156,37 @@ fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
         .strip_prefix("surface![")
         .and_then(|rest| rest.strip_suffix(']'))
         .unwrap_or(expr);
-    let mut names: Vec<&'static str> = Vec::new();
-    for part in inner.split(',') {
-        let key = tcl_spectcl::catalogue::rust_path_leaf(part.trim());
+    let mut names: Vec<String> = Vec::new();
+    for part in split_top(inner, ',') {
+        if let Some(word) = open_jim_row_word(part) {
+            if !names.contains(&word) {
+                names.push(word);
+            }
+            continue;
+        }
+        let key = tcl_spectcl::catalogue::rust_path_leaf(part);
         let (_, members) = CONSTANTS.iter().find(|(name, _)| *name == key)?;
         for member in *members {
-            if !names.contains(member) {
-                names.push(member);
+            if !names.iter().any(|name| name == member) {
+                names.push((*member).to_owned());
             }
         }
     }
     (!names.is_empty()).then_some(names)
+}
+
+/// The `jimX.Y+` word of a Jim core row open-ended at one release, the row
+/// [`crate::render_rs::dialect_set`] writes for that word.
+fn open_jim_row_word(row: &str) -> Option<String> {
+    let arguments = row.split_once("core_in(")?.1.strip_suffix(')')?;
+    let [family, intervals] = split_top(arguments, ',').try_into().ok()?;
+    if tcl_spectcl::catalogue::rust_path_leaf(family) != "Jim" {
+        return None;
+    }
+    let interval = between(intervals, "&[(", ")]")?;
+    let [release, end] = split_top(interval, ',').try_into().ok()?;
+    let release = between(release, "\"", "\"")?;
+    (end == "None").then(|| format!("jim{release}+"))
 }
 
 /// `var_write_typing`'s four spellings, from its rendered Rust expression.
@@ -1518,6 +1541,7 @@ fn option_effect_family_rows(expr: &str) -> Option<Vec<Vec<String>>> {
         ];
         if let Some(inner) = unwrap_some(fields.get("surface")?) {
             let members = dialect_names(inner)?;
+            let members: Vec<&str> = members.iter().map(String::as_str).collect();
             // `-introduced V` is the one gate a family may declare — the
             // lowest release the surface admits, on the family's own (Tcl
             // core) axis; anything else the loader could not have produced.
@@ -1610,6 +1634,7 @@ fn option_conflict_rows(expr: &str, availability: bool) -> Option<Vec<Vec<String
         row.push(terms);
         if let Some(inner) = unwrap_some(fields.get("surface")?) {
             let members = dialect_names(inner)?;
+            let members: Vec<&str> = members.iter().map(String::as_str).collect();
             if let Some(spelling) = availability.then(|| available_flag(&members)).flatten() {
                 row.push("-available".to_owned());
                 row.push(spelling);
@@ -1746,9 +1771,16 @@ struct Ctx<'a> {
     /// Whether the declared vocabulary can carry the complete role set of an
     /// argument-role resolver.
     resolver_capabilities: bool,
+    /// The vocabulary the pack's `speclib` header declares.
+    vocabulary: &'a str,
 }
 
 impl Ctx<'_> {
+    /// Whether the declared vocabulary has the words `since` introduced.
+    fn speaks(&self, since: &str) -> bool {
+        !tcl_registry::version::compare(self.vocabulary, since).is_lt()
+    }
+
     /// Whether `draft`'s `key` differs from the default a fresh spec has.
     fn set(&self, draft: &Draft, key: &str) -> bool {
         let value = draft.get(key);
@@ -2204,7 +2236,36 @@ fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     if !ctx.set(draft, "arity") {
         return;
     }
-    out.line(&format!("arity {}", arity_word(&draft["arity"])));
+    let word = arity_word(&draft["arity"]);
+    match word.strip_suffix(" -positionals") {
+        // An older loader drops the word, so the row is written as that
+        // loader reads it and the lost counting basis is recorded.
+        Some(counted) if !ctx.speaks(POSITIONAL_ARITY_VERSION) => {
+            out.line(&format!("arity {counted}"));
+            let reason = format!("requires SpecTcl {POSITIONAL_ARITY_VERSION} vocabulary");
+            out.comment(&format!("TODO(spectcl): `arity -positionals` {reason}."));
+            out.losses.push(Loss {
+                key: "arity".to_owned(),
+                reason,
+            });
+        }
+        _ => out.line(&format!("arity {word}")),
+    }
+}
+
+/// `script_lookup_scope`, or its `TODO` under a vocabulary that predates it.
+fn script_lookup_scope_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if ctx.speaks(SCRIPT_LOOKUP_SCOPE_VERSION) {
+        enum_word(out, ctx, draft, "script_lookup_scope");
+    } else {
+        vocabulary_todo(
+            out,
+            ctx,
+            draft,
+            "script_lookup_scope",
+            SCRIPT_LOOKUP_SCOPE_VERSION,
+        );
+    }
 }
 
 /// An arity draft value as the DSL's `RANGE ?-step N? ?-also N? ?-positionals?` words.
@@ -2312,6 +2373,23 @@ fn arg_row_statements(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             .find(|entry| entry["index"].as_u64() == Some(index))
             .cloned()
     };
+
+    // An `arg` row names one role, and the loader keeps the first a position
+    // is given, so a position the table gives two is written thinner.
+    if order.iter().any(|index| {
+        roles
+            .iter()
+            .filter(|entry| entry["index"].as_u64() == Some(*index))
+            .count()
+            > 1
+    }) {
+        let reason = "a position carries more than one role; an `arg` row names one".to_owned();
+        out.comment(&format!("TODO(spectcl): `arg_roles`: {reason}."));
+        out.losses.push(Loss {
+            key: "arg_roles".to_owned(),
+            reason,
+        });
+    }
 
     for index in order {
         let mut row = vec!["arg".to_owned(), index.to_string()];
@@ -2772,7 +2850,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     );
     enum_word(out, ctx, draft, "inferred_storage_type");
     enum_word(out, ctx, draft, "body_kind");
-    enum_word(out, ctx, draft, "script_lookup_scope");
+    script_lookup_scope_row(out, ctx, draft);
     enum_word(out, ctx, draft, "irules_source_flow");
     gap_todo(out, ctx, draft, "body_interpreter");
     gap_todo(out, ctx, draft, "body_execution");
@@ -3209,6 +3287,21 @@ fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key: &str) {
             out.indented(|out| todo(out, "refine"));
         }
         out.line("}");
+    }
+    thinned_refinements(out, draft, key);
+}
+
+/// A form's opaque halves (its completion, effect and transition descriptors)
+/// have no draft value to write, so the rendered forms are thinner than the
+/// source's and the table says so.
+fn thinned_refinements(out: &mut Out, draft: &Draft, key: &str) {
+    if unrecovered(draft, key) {
+        let reason = "a refinement carries descriptors a draft does not hold".to_owned();
+        out.comment(&format!("TODO(spectcl): `{key}`: {reason}."));
+        out.losses.push(Loss {
+            key: key.to_owned(),
+            reason,
+        });
     }
 }
 
@@ -3839,6 +3932,7 @@ fn object_class_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         tables: ctx.tables,
         availability: ctx.availability,
         resolver_capabilities: ctx.resolver_capabilities,
+        vocabulary: ctx.vocabulary,
     };
     let mut body = Out::at(out.indent + 1);
     for method in methods {
@@ -3871,6 +3965,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         tables: parent.tables,
         availability: parent.availability,
         resolver_capabilities: parent.resolver_capabilities,
+        vocabulary: parent.vocabulary,
     };
     let ctx = &mut ctx;
 
@@ -3925,7 +4020,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     );
     enum_word(out_body, ctx, sub, "inferred_storage_type");
     enum_word(out_body, ctx, sub, "body_kind");
-    enum_word(out_body, ctx, sub, "script_lookup_scope");
+    script_lookup_scope_row(out_body, ctx, sub);
     gap_todo(out_body, ctx, sub, "body_interpreter");
     gap_todo(out_body, ctx, sub, "body_execution");
     gap_todo(out_body, ctx, sub, "native_compilation");
@@ -4225,6 +4320,7 @@ fn render_pack_reporting_impl(
                 tables: &mut tables,
                 availability,
                 resolver_capabilities,
+                vocabulary: dsl_version,
             };
             command_body(&mut body, &mut ctx, draft);
         }
@@ -5185,6 +5281,46 @@ mod tests {
         assert_eq!(
             rows[0].join(" "),
             "option_conflict {-glob -regexp} -dialects {all-tcl f5-irules}"
+        );
+    }
+
+    #[test]
+    fn a_rendered_surface_reads_back_as_the_members_it_was_written_from() {
+        for members in [
+            vec!["tcl8.6", "tcl9.0", "tcl9.1"],
+            vec![
+                "tcl8.4",
+                "tcl8.5",
+                "tcl8.6",
+                "tcl9.0",
+                "tcl9.1",
+                "f5-irules",
+            ],
+            vec!["jim"],
+            vec!["jim0.84+"],
+            vec!["tcl9.0", "tcl9.1", "jim0.84+"],
+        ] {
+            let values: Vec<Value> = members.iter().map(|member| Value::from(*member)).collect();
+            let rendered = crate::render_rs::dialect_set(&values);
+            assert_eq!(
+                dialect_names(&rendered).as_deref(),
+                Some(
+                    members
+                        .iter()
+                        .map(|m| (*m).to_owned())
+                        .collect::<Vec<_>>()
+                        .as_slice()
+                ),
+                "{rendered}"
+            );
+        }
+        // An interval that closes is not the open-ended row.
+        assert!(
+            dialect_names(
+                "surface![SpecSurface::core_in(tcl_dialect::model::Family::Jim, \
+                 &[(\"0.79\", Some(\"0.84\"))])]"
+            )
+            .is_none()
         );
     }
 

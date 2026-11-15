@@ -767,7 +767,7 @@ mod tests {
         let row = |name: &str| import.commands.iter().find(|r| r.name == name).expect(name);
         assert_eq!(
             row("pkga_eq").draft["arity"],
-            json!({"min": 2, "max": 2, "step": 0, "also_exact": null})
+            json!({"count": "arguments", "min": 2, "max": 2, "step": 0, "also_exact": null})
         );
         assert_eq!(row("pkga_count").draft["arity"]["max"], json!(0));
         assert_eq!(row("pkga_calc").draft["arity"]["min"], json!(1));

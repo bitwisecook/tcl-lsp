@@ -42,8 +42,10 @@ command upvar {
     #  -layout ScriptInSelectedFrame`.)
     frame_effect -level-word Upvar -layout AliasPairs
 
-    # The local name in each otherVar/myVar pair is a VarWrite position;
-    # the optional leading level word is selected by argument-count parity.
+    # In each otherVar/myVar pair, otherVar names the cell in the selected
+    # frame and the local name is a VarWrite position; the optional leading
+    # level word is selected by argument-count parity.
+    repeat VarCell -from 0 -stride 2 -exclude-trailing 1 -optional-leading
     repeat VarWrite -from 1 -stride 2 -optional-leading
 
     lowering_hook -native Upvar
