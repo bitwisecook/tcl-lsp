@@ -72,35 +72,7 @@ impl OriginalCommandMove {
         {
             return None;
         }
-        let transitions = facts.state_transitions.declared()?;
-        let mut bindings = transitions.command_bindings();
-        let first = bindings.next()?;
-        if bindings.next().is_some() {
-            return None;
-        }
-        // The registry states the delete form (`rename NAME {}`) as its own
-        // transition; the move form names a destination operand.
-        let (from, to) = match first {
-            CommandBindingTransition::Move { from, to } => (from, Some(to)),
-            CommandBindingTransition::Delete {
-                interpreter: None,
-                name,
-            } => (name, None),
-            _ => return None,
-        };
-        if transitions
-            .facts()
-            .iter()
-            .any(|fact| match &fact.transition {
-                StateTransition::CommandBinding(transition) => transition != first,
-                StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure {
-                    namespace: tcl_registry::NamespaceTransitionTarget::Named(subject),
-                }) => to.is_none_or(|to| subject.argument_index() != to.argument_index()),
-                _ => true,
-            })
-        {
-            return None;
-        }
+        let (from, to) = Self::declared_operands(facts)?;
         let from = super::original_command_table::original_operand(native, from, state, context)?;
         if !matches!(
             from.policy().recipe(),
@@ -171,6 +143,45 @@ impl OriginalCommandMove {
             target,
             imported_origin,
         })
+    }
+
+    /// The one declared command-binding transition's operands. The registry
+    /// states the delete form (`rename NAME {}`) as its own transition; the
+    /// move form names a destination operand.
+    fn declared_operands(
+        facts: &InvocationFacts,
+    ) -> Option<(
+        &tcl_registry::TransitionSubject,
+        Option<&tcl_registry::TransitionSubject>,
+    )> {
+        let transitions = facts.state_transitions.declared()?;
+        let mut bindings = transitions.command_bindings();
+        let first = bindings.next()?;
+        if bindings.next().is_some() {
+            return None;
+        }
+        let (from, to) = match first {
+            CommandBindingTransition::Move { from, to } => (from, Some(to)),
+            CommandBindingTransition::Delete {
+                interpreter: None,
+                name,
+            } => (name, None),
+            _ => return None,
+        };
+        if transitions
+            .facts()
+            .iter()
+            .any(|fact| match &fact.transition {
+                StateTransition::CommandBinding(transition) => transition != first,
+                StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure {
+                    namespace: tcl_registry::NamespaceTransitionTarget::Named(subject),
+                }) => to.is_none_or(|to| subject.argument_index() != to.argument_index()),
+                _ => true,
+            })
+        {
+            return None;
+        }
+        Some((from, to))
     }
 
     /// Deleting a procedure's own slot runs no delete callback and leaves

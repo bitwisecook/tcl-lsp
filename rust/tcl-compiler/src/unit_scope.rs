@@ -3537,10 +3537,13 @@ mod tests {
             crate::environment_ingress::context_for_profile(profile)
                 .with_command_store(registry.snapshot().shared_registry()),
         );
+        let config = tcl_lexer::LexerConfig::default();
         crate::lowering::lower_to_ir_with(
-            crate::lowering::Lowerer::with_config(registry, tcl_lexer::LexerConfig::default())
+            crate::lowering::Lowerer::with_config(registry, config)
                 .with_dialect(Some(profile))
-                .with_context_registry(context),
+                .with_resolved_analysis_input(crate::analyser::ResolvedAnalysisInput::new(
+                    profile, profile, context, config,
+                )),
             source,
         )
     }
@@ -4300,13 +4303,23 @@ mod tests {
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> CallSiteEvidence {
         let reg = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
+        // The scan authenticates each statement against the module's own
+        // resolved input, so the fixture lowers under one, over the same
+        // command store it scans with.
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            dialect,
+            dialect,
+            std::sync::Arc::new(
+                crate::environment_ingress::context_for_profile(dialect)
+                    .with_command_store(reg.snapshot().shared_registry()),
+            ),
+            config,
+        );
         let ir = crate::lowering::lower_to_ir_with(
-            crate::lowering::Lowerer::with_config(
-                reg,
-                tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
-            )
-            .with_dialect(Some(dialect))
-            .with_context_registry(crate::environment_ingress::context_for_profile(dialect)),
+            crate::lowering::Lowerer::with_config(reg, config)
+                .with_dialect(Some(dialect))
+                .with_resolved_analysis_input(input),
             src,
         );
         let cfg_module = crate::cfg_builder::build_cfg(&ir, false);
