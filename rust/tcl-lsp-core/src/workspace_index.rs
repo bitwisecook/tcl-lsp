@@ -7261,6 +7261,53 @@ impl WorkspaceIndex {
             .then(|| target.clone())
     }
 
+    /// Whether exactly one workspace declaration publishes this slot and no
+    /// `rename`, `interp alias` or `namespace import` in any document names it
+    /// as its link or its target.
+    fn original_target_is_unrebound(&self, target: &SettledCommandTarget) -> bool {
+        let SettledCommandTarget::OriginalSlot(slot, policy) = target else {
+            return false;
+        };
+        let mut publications = 0usize;
+        for document in &self.docs {
+            if let Some(world) = &document.original_command_world {
+                publications += world
+                    .declarations()
+                    .filter(|publication| {
+                        publication.slot() == slot && publication.policy() == *policy
+                    })
+                    .count();
+            } else {
+                publications += document
+                    .original_procedure_source_candidates()
+                    .into_iter()
+                    .filter(|(_, candidate, candidate_policy)| {
+                        *candidate == slot && candidate_policy == policy
+                    })
+                    .count();
+                publications += document
+                    .original_class_source_candidates()
+                    .into_iter()
+                    .filter(|(_, candidate, candidate_policy, _)| {
+                        *candidate == slot && candidate_policy == policy
+                    })
+                    .count();
+            }
+        }
+        if publications != 1 {
+            return false;
+        }
+        let Ok(name) = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(slot))
+        else {
+            return false;
+        };
+        let name = unroot_rooted_key(&name).unwrap_or(&name);
+        !self.command_links().any(|link| {
+            unroot_rooted_key(&link.linked_qname).unwrap_or(&link.linked_qname) == name
+                || unroot_rooted_key(&link.target_qname).unwrap_or(&link.target_qname) == name
+        })
+    }
+
     /// The command `inv` settles to, `::`-stripped, or `None` when nothing in
     /// the workspace resolves it: the first of its candidates defined
     /// anywhere in the workspace, chased along `links` (when supplied) to its
@@ -7302,6 +7349,19 @@ impl WorkspaceIndex {
             && lookup.policy().authority() == tcl_syntax::naming::NamePolicyAuthority::Native
         {
             return self.original_assistance_target(lookup, links.is_some());
+        }
+        // A release-profile call the document's own analysis did not bind
+        // settles to the workspace definition its lookup selects: the current
+        // namespace, then the global one, or the exact qualified name. The
+        // link-following view lists references and may answer whenever that
+        // selection is unanimous. The direct view feeds rename, so it answers
+        // only for a single definition nothing visible can rebind.
+        if let Some(lookup) = inv.original_lookup.as_ref()
+            && inv.logical_source_domain == Some(false)
+        {
+            let target = self.original_assistance_target(lookup, links.is_some())?;
+            return (links.is_some() || self.original_target_is_unrebound(&target))
+                .then_some(target);
         }
         if inv.original_name_input.is_some() || inv.logical_source_domain != Some(false) {
             return None;
