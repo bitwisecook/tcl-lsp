@@ -233,18 +233,23 @@ impl ConditionalLogicalScalarStore {
 
     pub(crate) fn definition_place(&self, registry: &CommandRegistry) -> Option<Place> {
         let after = &self.after;
+        // A hosted F5 rule's advisory walk runs under its authored naming
+        // simulation and handler context; the cell must still be the
+        // handler's own activation.
+        let hosted = self.input.has_hosted_source_name_context();
         if self.before.namespace_identity != after.namespace_identity
             || !matches!(
                 after.namespace_identity,
                 Some(crate::command_binding::SourceNamespaceKey::Authored(_))
             )
-            || !self.input.has_logical_source_name_context()
+            || !(self.input.has_logical_source_name_context() || hosted)
             || self.before.interpreter.is_some()
             || self.before.execution.is_some()
             || after.interpreter.is_some()
             || after.execution.is_some()
-            || after.execution_name_policy.is_some()
-            || after.hosted_execution_context.is_some()
+            || (!hosted
+                && (after.execution_name_policy.is_some()
+                    || after.hosted_execution_context.is_some()))
             || self.before.dynamic_bindings
             || self.before.dynamic_traces
             || after.dynamic_bindings
@@ -284,6 +289,7 @@ impl ConditionalLogicalScalarStore {
             CellOwner::Activation(activation) => {
                 after.activation.as_ref() == Some(activation) && cell.storage_domain.is_none()
             }
+            CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) if hosted => false,
             CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) => {
                 after.namespace_footprint(&place) == after.namespace_identity
                     && matches!(
@@ -444,12 +450,15 @@ impl PointResolveContexts {
             .source_binding
             .as_ref()?
             .original_invocation_metadata_for_input(tokens, &store.input, registry)?;
-        (tokens
+        let purpose = tokens
             .source_binding
             .as_ref()?
-            .original_invocation_source_purpose(tokens, metadata, registry)?
-            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
-            .then_some(())?;
+            .original_invocation_source_purpose(tokens, metadata, registry)?;
+        (purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+            || (purpose
+                == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
+                && store.input.has_hosted_source_name_context()))
+        .then_some(())?;
         store.definition_place(registry)?;
         Some(store)
     }

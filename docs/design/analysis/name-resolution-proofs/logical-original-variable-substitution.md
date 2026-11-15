@@ -18,6 +18,11 @@ logical_original_substitution_access requires the shared positive logical_entry 
 
 Current pure original Logical substitution selection. Three fixed controls compare existing symbolic storage, observer/dynamic uncertainty and missing/Native/stale/foreign ownership. Chosen incoming symbolic values are explicit model fixtures. All seven providers are not tested; original native variable observations and Compiler diagnostic producer controls retain independent questions/receipts.
 
+A hosted F5 rule's advisory walk of a handler body reads a source substitution
+the same way (`hosted_original_substitution_access`) through `hosted_entry`,
+only while the walk is advisory: the rule load itself and every other resolver
+keep their own path.
+
 ## Provider answers
 
 ### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip

@@ -160,8 +160,9 @@ pub use source_remote_first_operand::{
 };
 mod hosted_structure;
 pub(crate) use hosted_structure::{
-    SourceStructuredInvocation, original_hosted_structured_invocation,
-    original_logical_source_structured_invocation, original_native_source_structured_invocation,
+    SourceStructuredInvocation, original_hosted_scalar_store_facts,
+    original_hosted_structured_invocation, original_logical_source_structured_invocation,
+    original_native_source_structured_invocation,
 };
 mod logical_frame;
 pub(crate) use logical_frame::{

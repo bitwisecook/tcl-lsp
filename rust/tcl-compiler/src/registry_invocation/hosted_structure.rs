@@ -132,7 +132,22 @@ pub(crate) fn original_hosted_structured_invocation(
                 hook,
                 tcl_registry::hooks::LoweringHookId::If
                     | tcl_registry::hooks::LoweringHookId::Switch
+                    | tcl_registry::hooks::LoweringHookId::Set
             ) || schema.facts().arity_accepts_frozen_arguments() != Some(true)
+            {
+                return None;
+            }
+            // A handler's scalar store lowers only for a frame-local literal
+            // name; a qualified one (`static::`, `::`) stays the hosted call
+            // its namespace and event checks read.
+            if hook == tcl_registry::hooks::LoweringHookId::Set
+                && !words
+                    .arguments()
+                    .first()
+                    .and_then(|word| word.literal_bytes())
+                    .is_some_and(
+                        tcl_syntax::naming::source_variable_name_is_frame_local_for_all_policies,
+                    )
             {
                 return None;
             }
@@ -150,6 +165,38 @@ pub(crate) fn original_hosted_structured_invocation(
             case_bodies,
         },
     )))
+}
+
+/// Registry facts of a hosted handler's literal scalar store, selected from
+/// the hosted source metadata alone. Advice only: no handler target, native
+/// dispatch or completion is issued.
+pub(crate) fn original_hosted_scalar_store_facts(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<tcl_registry::InvocationFacts> {
+    let input = context.source_analysis_input()?;
+    let metadata =
+        super::source_taint::original_hosted_source_registry_metadata(registry, context, tokens)?;
+    if metadata
+        .shape()
+        .original_words()
+        .iter()
+        .any(|word| word.group().expand)
+    {
+        return None;
+    }
+    let words = super::source_structure::original_vendor_registry_words(
+        input.borrowed_context_registry(),
+        tokens,
+        metadata,
+    )?;
+    words
+        .with_source_schema(input.borrowed_context_registry(), |schema| {
+            let facts = schema.facts();
+            (facts.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Set)).then_some(facts)
+        })
+        .flatten()
 }
 
 pub(crate) fn original_native_source_structured_invocation(

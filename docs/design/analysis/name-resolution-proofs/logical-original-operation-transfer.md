@@ -24,6 +24,20 @@ consumer can obtain that interpretation.
 
 Fixed source/API controls test static selected move/delete/scalar-head outcomes, captured alias composition and quiet scalar transfer with observer/foreign/missing-owner refusal. All seven providers are not tested. No C/Jim/BIG-IP interpreter stores or commands are executed by this proof; genuine full-source Logical W123 diagnostics are separate from Native head admission. Conditional original Unicode source heads and qualified definer aliases share the selected symbolic move/delete continuation. Native abrupt-edge classification and current runtime publication remain independent. Two additional software definitions retain conditional source-model continuation only. Native, worker, unknown or same-display foreign namespace, stale generations, changed configuration and missing full input refuse. No actual cell/store, physical frame, native naming/compiled recipe, Handler or Normal receipt follows. Three current query controls grant no Native execution target, handler envelope, compiler admission, evaluated argv, physical frame, cell contents or Normal completion. They are current source/API definitions without attached assertion results or original-provider observations.
 
+## Hosted F5 advisory walk
+
+A hosted F5 rule's handler bodies are walked only as advice, under the rule
+load's authored Tcl 8.4 naming simulation. In that walk a literal `set` takes
+the same quiet scalar store (`hosted_scalar_transfer`) through `hosted_entry`,
+the hosted twin of `logical_entry`: the retained hosted input, the
+authored-simulation name policy and the handler context the rule load installs.
+The store reaches only the handler's own event-frame activation cell
+(`hosted_cell_is_local`). The conditional scalar-store receipt admits the
+`AuthoredSimulation` purpose for hosted input, with its facts from the hosted
+registry metadata (`original_hosted_scalar_store_facts`) and a closed hosted
+lookup (`closed_hosted_source_lookup`). None of these enters the handler or
+issues a Native handler, completion, runtime context or physical store.
+
 ## Provider answers
 
 ### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
@@ -55,6 +69,9 @@ This original-source implementation contract supplies no native process, reached
 - [rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs), `command_binding::logical_dispatch_purpose_tests::original_logical_root_and_nested_dispatch_keep_conditional_targets_and_original_owners` (linked): The four fixed root/nested sources retain the same Registry-backed targets, literal require prefixes, original offset/image and Native/handler/compiler/variable-policy/execution negatives. Root cases query actual point-owned Conditional dispatch; nested cases use authentic Lowerer-stamped original declaration tokens and explicitly retain raw unknown/empty targets, absent lookup and no runtime Conditional or Reached authority. This source definition has no attached matching current owned assertion result.
 - [rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs), `command_binding::logical_dispatch_purpose_tests::original_logical_dispatch_condition_requires_exact_retained_input_and_availability` (linked): Finite source-defined control: original logical dispatch condition requires exact retained input and availability. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs), `command_binding::logical_dispatch_purpose_tests::original_native_and_explicit_standalone_dispatch_keep_their_reached_purpose` (linked): Finite source-defined control: original native and explicit standalone dispatch keep their reached purpose. Live VM capture checks the software owner; no external provider row is inferred. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
+
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs), `hosted_scalar_transfer`: Quiet scalar store of a hosted F5 rule's advisory handler walk, in the handler's event-frame activation cell only; no entered handler, Native or Normal receipt.
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `hosted_entry`: The hosted input, authored-simulation policy and rule-load handler context replace the Logical input; every other source-correspondence check is kept.
 
 ## Evidence
 

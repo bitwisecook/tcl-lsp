@@ -50,6 +50,28 @@ pub(super) fn logical_original_substitution_access(
     // naming.source.logical-original-variable-substitution
     // docs/design/analysis/name-resolution-proofs/logical-original-variable-substitution.md
     let input = super::logical_definition::logical_entry(state, context)?;
+    original_source_model_substitution_access(input, original, arena, state, context)
+}
+
+/// [`logical_original_substitution_access`] in a hosted F5 rule's advisory
+/// walk of a handler body, under the authored naming simulation.
+pub(super) fn hosted_original_substitution_access(
+    original: Option<&(&str, crate::ir::SourceSite)>,
+    arena: Option<&tcl_lexer::ExecutablePartArena>,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<Place> {
+    let input = super::logical_definition::hosted_entry(state, context)?;
+    original_source_model_substitution_access(input, original, arena, state, context)
+}
+
+fn original_source_model_substitution_access(
+    input: &crate::analyser::ResolvedAnalysisInput,
+    original: Option<&(&str, crate::ir::SourceSite)>,
+    arena: Option<&tcl_lexer::ExecutablePartArena>,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<Place> {
     let (spelling, site) = original?;
     let arena = arena?;
     let origin = state.current_source_origin.as_ref()?;

@@ -296,6 +296,56 @@ fn i230_still_fires_on_a_plain_tcl_constant_condition() {
     assert!(fires(src, TCL, "I230"), "codes: {:?}", codes(src, TCL));
 }
 
+// A `when` handler's own `set` reaches the advisory value lattice (#2528).
+// `f5-irules` runs the F5 Tcl 8.4 core: the rule loader installs its
+// expression parser explicitly, as the iRule harness does on its VM, and the
+// handler body stays advice: its literal store and prepared condition are
+// retained from the advisory walk, never an entered execution.
+
+/// TP: a handler's literal `set` makes its numeric condition constant, in
+/// either direction, under `f5-irules` (Tcl 8.4 core).
+#[test]
+fn i230_fires_on_a_constant_numeric_condition_in_an_irules_handler() {
+    for (condition, verdict) in [("$x == 1", "always true"), ("$x == 2", "always false")] {
+        let src = format!(
+            "when HTTP_REQUEST {{\n    set x 1\n    if {{{condition}}} {{ HTTP::respond 200 content one }} else {{ HTTP::respond 200 content two }}\n}}\n"
+        );
+        let diagnostics = Analyser::new().analyse(&src, IRULES).diagnostics;
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code.to_string() == "I230" && d.message.contains(verdict)),
+            "{condition}: {:?}",
+            codes(&src, IRULES)
+        );
+    }
+}
+
+/// Whether `src` draws W220 on its assignment to `local` under `f5-irules`.
+fn dead_local_store(src: &str) -> bool {
+    Analyser::new()
+        .analyse(src, IRULES)
+        .diagnostics
+        .iter()
+        .any(|d| d.code.to_string() == "W220" && d.message.contains("'local'"))
+}
+
+/// TP: a handler store overwritten before any read is a dead store under
+/// `f5-irules` (Tcl 8.4 core).
+#[test]
+fn w220_fires_on_a_dead_store_in_an_irules_handler() {
+    let src = "when HTTP_REQUEST {\n    set local 1\n    set local 2\n    set reply $local\n}\n";
+    assert!(dead_local_store(src), "codes: {:?}", codes(src, IRULES));
+}
+
+/// TN: the same handler reading the first value before overwriting it has no
+/// dead store under `f5-irules` (Tcl 8.4 core).
+#[test]
+fn w220_stays_silent_on_a_read_store_in_an_irules_handler() {
+    let src = "when HTTP_REQUEST {\n    set local 1\n    set reply $local\n    set local 2\n    set reply \"$reply $local\"\n}\n";
+    assert!(!dead_local_store(src), "codes: {:?}", codes(src, IRULES));
+}
+
 // N5 — the F5 `if` else/elseif single-newline lookahead
 // (`docs/design/f5/bigip-irule-parser-measurements.md` §2 N5, measured on TMM
 // in a cli script reproducing the parser).

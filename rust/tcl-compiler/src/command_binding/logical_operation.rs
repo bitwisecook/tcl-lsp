@@ -46,7 +46,8 @@ pub(super) fn transfer(
 ) -> Option<SourceOutcomes> {
     // naming.source.logical-original-operation-transfer
     // docs/design/analysis/name-resolution-proofs/logical-original-operation-transfer.md
-    let original = LogicalOriginalInvocation::capture(words, target, offset, state, context)?;
+    let original =
+        LogicalOriginalInvocation::capture(words, target, offset, state, context, false)?;
     let input = super::logical_definition::logical_entry(state, context)?.clone();
     let actual = input.context_registry();
     let arguments = original
@@ -88,6 +89,69 @@ pub(super) fn transfer(
     Some(SourceOutcomes::normal(state))
 }
 
+/// A hosted F5 rule's advisory walk of a handler body: a literal `set` is the
+/// quiet scalar store of the authored Tcl 8.4 simulation, in the handler's own
+/// event frame. Like [`transfer`], this issues no Native handler, completion
+/// or entered-execution certificate.
+pub(super) fn hosted_scalar_transfer(
+    words: &[crate::ir::WordExpr],
+    target: &SourceCommandTarget,
+    offset: u32,
+    state: &mut ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<SourceOutcomes> {
+    let original = LogicalOriginalInvocation::capture(words, target, offset, state, context, true)?;
+    let input = super::logical_definition::hosted_entry(state, context)?.clone();
+    let actual = input.context_registry();
+    let arguments = original
+        .arguments
+        .iter()
+        .map(|value| tcl_registry::InvocationWord::Literal(value))
+        .collect::<Vec<_>>();
+    let resolution =
+        tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+            actual.commands(),
+            Some(actual.context()),
+            tcl_registry::InvocationWords::structured(
+                tcl_registry::InvocationWord::Literal(&original.target.command),
+                &arguments,
+            )
+            .with_dialect(super::source_analysis_entry::source_input_dialect(&input)),
+            context.realm(),
+        );
+    let facts = resolution.resolved()?.facts();
+    if facts.operation != SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+        || facts.arity_accepts_frozen_arguments() != Some(true)
+        || facts.frame_effect.is_some()
+    {
+        return None;
+    }
+    scalar_store(&original, &facts, state, offset, context, true)?;
+    Some(SourceOutcomes::normal(state))
+}
+
+/// The quiet scalar-store facts of a source-model `set`: the Logical
+/// operation's, or for a hosted F5 rule the hosted metadata's.
+fn source_model_store_facts(
+    hosted: bool,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<InvocationFacts> {
+    let facts = if hosted {
+        crate::registry_invocation::original_hosted_scalar_store_facts(registry, metadata, tokens)?
+    } else {
+        *crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+            registry, metadata, tokens,
+        )?
+        .facts
+    };
+    (facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+        && facts.arity_accepts_frozen_arguments() == Some(true)
+        && facts.frame_effect.is_none())
+    .then_some(facts)
+}
+
 impl super::SourceInvocationBinding {
     /// Quiet Logical store from its exact retained original source phase.
     /// A public address-phase report cannot replace this snapshot. All scalar,
@@ -118,28 +182,35 @@ impl super::SourceInvocationBinding {
     ) -> Option<crate::variable_bindings::ConditionalLogicalScalarStore> {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::command_binding::OriginalInvocationSourcePurpose as Purpose;
         let input = metadata.source_analysis_input()?;
-        (self.original_invocation_source_purpose(tokens, metadata, registry)?
-            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
-            .then_some(())?;
+        let purpose = self.original_invocation_source_purpose(tokens, metadata, registry)?;
+        // A hosted F5 rule's handler bodies are advice under the authored
+        // simulation; their stores take the same receipt as Logical ones.
+        let hosted = match purpose {
+            Purpose::Logical => false,
+            Purpose::AuthoredSimulation if input.has_hosted_source_name_context() => true,
+            _ => return None,
+        };
         let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
-        (self.original_invocation_source_purpose(tokens, metadata, registry)?
-            == crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+        (self.original_invocation_source_purpose(tokens, metadata, registry)? == purpose)
             .then_some(())?;
         let point_input = metadata.source_analysis_input()?;
-        let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
-            registry, metadata, tokens,
-        )?;
-        if invocation.facts.operation
-            != SemanticOperationId::StructuredLowering(LoweringHookId::Set)
-            || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
-            || invocation.facts.frame_effect.is_some()
-        {
-            return None;
-        }
+        let facts = source_model_store_facts(hosted, registry, metadata, tokens)?;
         let advice = self.original_conditional_operand_layout_advice(tokens, registry)?;
-        if !advice.closed_logical_source_lookup()
-            || advice.snapshot.state.logical_source_name_advice_input() != Some(point_input)
+        let (closed, advised_input) = if hosted {
+            (
+                advice.closed_hosted_source_lookup(),
+                advice.snapshot.state.baseline.vendor_source_input.as_ref(),
+            )
+        } else {
+            (
+                advice.closed_logical_source_lookup(),
+                advice.snapshot.state.logical_source_name_advice_input(),
+            )
+        };
+        if !closed
+            || advised_input != Some(point_input)
             || advice.snapshot.state.source_variables.as_ref() != before
         {
             return None;
@@ -147,7 +218,17 @@ impl super::SourceInvocationBinding {
         let [target] = advice.targets.as_slice() else {
             return None;
         };
-        let mut options = super::SourceAnalysisOptions::for_logical_source(point_input)?;
+        let hosted_entry = if hosted {
+            Some(super::SourceAnalysisEntry::for_fresh_hosted_source(
+                point_input,
+            )?)
+        } else {
+            None
+        };
+        let mut options = match &hosted_entry {
+            Some(entry) => entry.options(),
+            None => super::SourceAnalysisOptions::for_logical_source(point_input)?,
+        };
         options.invocation_realm = advice.realm();
         let frame = advice.snapshot.state.variable_frame.clone();
         let namespace = before.namespace.clone();
@@ -168,6 +249,7 @@ impl super::SourceInvocationBinding {
             advice.site.offset,
             &state,
             context,
+            hosted,
         )?;
         let [name, value] = original.arguments.as_slice() else {
             return None;
@@ -176,10 +258,11 @@ impl super::SourceInvocationBinding {
             .set_contents_write_source(Some(Arc::clone(&advice.site.source)));
         scalar_store(
             &original,
-            &invocation.facts,
+            &facts,
             &mut state,
             advice.site.offset,
             context,
+            hosted,
         )?;
         crate::variable_bindings::ConditionalLogicalScalarStore::retain(
             before,
@@ -200,15 +283,22 @@ impl LogicalOriginalInvocation {
         offset: u32,
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
+        hosted: bool,
     ) -> Option<Self> {
         if !target.registry_backed
             || !matches!(target.kind, BindingKind::Builtin | BindingKind::Alias)
         {
             return None;
         }
-        let original = super::logical_definition::original_static_invocation_words(
-            words, offset, state, context,
-        )?;
+        let original = if hosted {
+            super::logical_definition::original_hosted_static_invocation_words(
+                words, offset, state, context,
+            )
+        } else {
+            super::logical_definition::original_static_invocation_words(
+                words, offset, state, context,
+            )
+        }?;
         let values = original
             .iter()
             .map(super::logical_definition::static_value)
@@ -343,7 +433,7 @@ fn variable_continuation(
     context: SourceExecutionContext<'_>,
 ) -> Option<()> {
     if (facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set)
-        && scalar_store(original, facts, state, offset, context).is_some())
+        && scalar_store(original, facts, state, offset, context, false).is_some())
         || readonly_continuation(original, facts, transitions, state, context)
     {
         return Some(());
@@ -581,6 +671,7 @@ fn scalar_store(
     state: &mut ModuleCommandBindings,
     offset: u32,
     context: SourceExecutionContext<'_>,
+    hosted: bool,
 ) -> Option<()> {
     let [name, value] = original.arguments.as_slice() else {
         return None;
@@ -612,7 +703,11 @@ fn scalar_store(
         || access.observed
         || access.kind != crate::place::PlaceKind::Scalar
         || access.index.is_some()
-        || !logical_cell_is_local(&access, state, context)
+        || !(if hosted {
+            hosted_cell_is_local(&access, state, context)
+        } else {
+            logical_cell_is_local(&access, state, context)
+        })
         || state.source_variables.root_contents_kind(&access)
             == Some(crate::var_resolve::RootContentsKind::Array)
         || state.source_variables.store_would_error(&access)
@@ -673,6 +768,43 @@ pub(super) fn logical_cell_is_local(
         }
         _ => false,
     }
+}
+
+/// [`logical_cell_is_local`] in a hosted rule's advisory walk: only the
+/// handler's own event-frame activation cell, under the authored simulation.
+pub(super) fn hosted_cell_is_local(
+    access: &crate::place::Place,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    use crate::place::CellOwner;
+    if super::logical_definition::hosted_entry(state, context).is_none() {
+        return false;
+    }
+    let variables = &state.source_variables;
+    let namespace = context.namespace_identity();
+    let Some(cell) = access.cell.as_ref() else {
+        return false;
+    };
+    if !matches!(namespace, SourceNamespaceKey::Authored(_))
+        || variables.namespace_identity.as_ref() != Some(&namespace)
+        || variables.interpreter.is_some()
+        || variables.execution.is_some()
+        || cell.interpreter.is_some()
+        || cell.execution.is_some()
+        || cell.storage_domain.is_some()
+        || cell.generation == crate::place::CellGeneration::Unknown
+        || cell.generation
+            != variables
+                .generations
+                .get(&crate::var_resolve::cell_key(access))
+                .copied()
+                .unwrap_or_default()
+    {
+        return false;
+    }
+    matches!(&cell.owner, CellOwner::Activation(activation)
+        if variables.activation.as_ref() == Some(activation))
 }
 
 fn command_transfer(

@@ -1329,7 +1329,11 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         invalidate_preparation_representations(proof.witness.tree(), state, context);
-        if self.declaration_preview_depth == 0 {
+        // A hosted F5 rule's handler bodies are only ever walked as advice;
+        // their prepared conditions are retained for the advisory solve.
+        if self.declaration_preview_depth == 0
+            || super::logical_definition::hosted_entry(state, context).is_some()
+        {
             let entry = self
                 .expression_preparations
                 .entry(invocation)

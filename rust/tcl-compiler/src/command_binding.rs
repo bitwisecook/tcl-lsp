@@ -2150,6 +2150,23 @@ impl OriginalCompilationLookupAdvice {
     /// Closed command layout in the positively retained Logical source world.
     /// Namespace and original target consensus are independent of a physical
     /// variable frame; this cannot certify native lookup or an entered frame.
+    /// [`Self::closed_logical_source_lookup`] for a hosted F5 rule's advisory
+    /// walk: the retained hosted input, not a Logical one, owns the lookup.
+    pub(crate) fn closed_hosted_source_lookup(&self) -> bool {
+        let state = &self.snapshot.state;
+        state
+            .baseline
+            .vendor_source_input
+            .as_ref()
+            .is_some_and(|input| source_analysis_entry::source_input_dialect(input) == self.dialect)
+            && !self.unknown
+            && !self.may_be_absent
+            && !self.targets.is_empty()
+            && !state.has_opaque_domain()
+            && matches!(&self.namespace, SourceNamespaceKey::Authored(_))
+            && state.namespaces.contains(&self.namespace)
+    }
+
     pub(crate) fn closed_logical_source_lookup(&self) -> bool {
         let state = &self.snapshot.state;
         state
@@ -2572,6 +2589,55 @@ impl SourceInvocationBinding {
                 self.original_logical_source_operand_layout_advice(tokens, registry),
             )
         })
+        .or_else(|| {
+            trace_rbs_operand_option(
+                "root.hosted",
+                self.original_hosted_source_operand_layout_advice(tokens, registry),
+            )
+        })
+    }
+
+    /// Source roles from the captured post-operand hosted lookup world: the
+    /// advisory walk of a hosted F5 rule, never an entered handler.
+    fn original_hosted_source_operand_layout_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<OriginalCompilationLookupAdvice> {
+        if self.compiler_lookup_state.is_some() || self.declaration_layout_observations.is_some() {
+            return None;
+        }
+        let metadata = self
+            .original_source_metadata_for_advice(tokens, registry)
+            .ok()??;
+        let input = metadata.source_analysis_input()?;
+        input.has_hosted_source_name_context().then_some(())?;
+        self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        let snapshot = self.lookup_state.as_ref()?;
+        let state = &snapshot.state;
+        if state.baseline.vendor_source_input.as_ref() != Some(input)
+            || self.variable_context.as_ref() != state.source_variables.as_ref()
+            || self.variable_frame != state.variable_frame
+            || self.lookup_namespace != self.lookup_namespace_key.display().unwrap_or_default()
+            || self.unknown
+            || self.may_be_absent
+        {
+            return None;
+        }
+        let variables = &state.source_variables;
+        variables
+            .namespace_identity
+            .as_ref()
+            .is_some_and(|namespace| namespace == &self.lookup_namespace_key)
+            .then_some(())?;
+        let advice = original_site_operand_layout_advice(
+            self.invocation_site()?,
+            tokens,
+            snapshot,
+            &self.lookup_namespace_key,
+            self.original_lexer_config_for_tokens(tokens)?,
+        )?;
+        (advice.closed_hosted_source_lookup() && advice.targets == self.targets).then_some(advice)
     }
 
     /// Source roles from the captured post-operand Logical lookup world.
@@ -11980,6 +12046,29 @@ impl SourceCommandBindings {
         }
     }
 
+    /// A source-model read: Logical source, or a hosted F5 rule's advisory
+    /// walk of a handler body.
+    fn source_model_substitution_access(
+        &self,
+        original: Option<&(&str, crate::ir::SourceSite)>,
+        arena: Option<&tcl_lexer::ExecutablePartArena>,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<crate::place::Place> {
+        original_variable_compilation::logical_original_substitution_access(
+            original, arena, state, context,
+        )
+        .or_else(|| {
+            (self.declaration_preview_depth > 0)
+                .then(|| {
+                    original_variable_compilation::hosted_original_substitution_access(
+                        original, arena, state, context,
+                    )
+                })
+                .flatten()
+        })
+    }
+
     fn observe_variable_substitution(
         &mut self,
         spelling: &str,
@@ -12032,7 +12121,7 @@ impl SourceCommandBindings {
         if let Some(continuing) = outcomes.normal.take() {
             *state = *continuing;
             let spelling = original.as_ref().map_or(spelling, |(original, _)| original);
-            let logical = original_variable_compilation::logical_original_substitution_access(
+            let logical = self.source_model_substitution_access(
                 original.as_ref(),
                 arena.as_ref(),
                 state,
@@ -12381,6 +12470,17 @@ impl SourceCommandBindings {
             context,
         ) {
             return *outcomes;
+        }
+        if self.declaration_preview_depth > 0
+            && let Some(outcomes) = logical_operation::hosted_scalar_transfer(
+                words,
+                target,
+                segment.span.start(),
+                state,
+                *context,
+            )
+        {
+            return outcomes;
         }
         let incoming = boxed_source_branch(state);
         let prepared = match prepare_source_native_invocation(

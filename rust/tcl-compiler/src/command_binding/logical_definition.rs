@@ -265,6 +265,51 @@ fn selected_target(
 
 /// Capture one complete quiet original vector in the retained Logical domain.
 /// Authored model operands grant neither Native values nor execution receipts.
+/// The hosted F5 rule's advisory walk under its authored Tcl 8.4 naming
+/// simulation: the [`logical_entry`] checks, with the hosted input, the
+/// authored-simulation name policy and the hosted handler context the rule
+/// load installs. It issues no entered handler or Native execution.
+pub(super) fn hosted_entry<'a>(
+    state: &'a ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<&'a ResolvedAnalysisInput> {
+    let input = state.baseline.vendor_source_input.as_ref()?;
+    let simulation = state
+        .baseline
+        .execution_name_policy
+        .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        .and_then(|policy| {
+            state
+                .baseline
+                .dialect?
+                .authored_logical_name_simulation(policy)
+        });
+    if !input.has_hosted_source_name_context()
+        || simulation.is_none()
+        || input.lexer_config() != context.config
+        || state.baseline.native_entry.is_some()
+        || state.baseline.unknown_entry
+        || state.has_opaque_domain()
+        || !state.command_observers.is_quiet()
+        || !state.source_variables.namespace_known
+        || !matches!(
+            context.namespace_identity(),
+            SourceNamespaceKey::Authored(_)
+        )
+        || !state.namespaces.contains(&context.namespace_identity())
+        || input
+            .context_registry()
+            .commands()
+            .snapshot()
+            .semantic_key()
+            != context.registry.snapshot().semantic_key()
+        || state.baseline.dialect != Some(super::source_analysis_entry::source_input_dialect(input))
+    {
+        return None;
+    }
+    Some(input)
+}
+
 pub(super) fn original_invocation_words(
     words: &[crate::ir::WordExpr],
     offset: u32,
@@ -272,6 +317,15 @@ pub(super) fn original_invocation_words(
     context: SourceExecutionContext<'_>,
 ) -> Option<Vec<NativeWord>> {
     logical_entry(state, context)?;
+    original_entry_words(words, offset, state, context)
+}
+
+fn original_entry_words(
+    words: &[crate::ir::WordExpr],
+    offset: u32,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<Vec<NativeWord>> {
     let origin = state.current_source_origin.as_ref()?;
     if origin.source_image().channel() != SourceChannel::Document
         || !matches!(origin.kind(), super::SourceOriginKind::Authored(_))
@@ -297,6 +351,21 @@ pub(super) fn original_static_invocation_words(
     context: SourceExecutionContext<'_>,
 ) -> Option<Vec<NativeWord>> {
     let original = original_invocation_words(words, offset, state, context)?;
+    original
+        .iter()
+        .all(|word| static_value(word).is_some())
+        .then_some(original)
+}
+
+/// [`original_static_invocation_words`] in a hosted rule's advisory walk.
+pub(super) fn original_hosted_static_invocation_words(
+    words: &[crate::ir::WordExpr],
+    offset: u32,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<Vec<NativeWord>> {
+    hosted_entry(state, context)?;
+    let original = original_entry_words(words, offset, state, context)?;
     original
         .iter()
         .all(|word| static_value(word).is_some())
