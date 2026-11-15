@@ -65,8 +65,16 @@ impl OriginalTokenRoles {
             return roles;
         };
         roles.capture_vendor_names(&image, analysis);
+        // A vendor unit lists each procedure natively as well; there the
+        // vendor row alone decides whether the name can be coloured.
+        let vendor_names: FxHashSet<u32> = analysis
+            .original_vendor_procedure_declarations()
+            .map(|declaration| declaration.name_input().span().start())
+            .collect();
         for declaration in analysis.original_procedure_declarations() {
-            roles.name(&image, declaration.name_input(), ArgOverride::ProcNameDef);
+            if !vendor_names.contains(&declaration.name_input().span().start()) {
+                roles.name(&image, declaration.name_input(), ArgOverride::ProcNameDef);
+            }
         }
         roles.capture_counted_classes(&image, config, analysis);
         for declaration in analysis.original_class_declarations() {
