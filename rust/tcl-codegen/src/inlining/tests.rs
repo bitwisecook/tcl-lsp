@@ -1560,6 +1560,17 @@ fn a_body_whose_substituted_command_names_a_variable_stays_a_call() {
         "proc ::g {} { return [namespace current] }\ng",
         "g"
     ));
+    // The same command through a store: tclsh 8.4 to 9.1 answer `::n` for
+    // `namespace eval n {proc g {} {set n [namespace current]; return $n}}`
+    // called as `n::g` from the global namespace, and a splice would say `::`.
+    assert!(!spliced(
+        "proc ::g {} { set n [namespace current]\n puts $n }\ng",
+        "g"
+    ));
+    assert!(spliced(
+        "proc ::g {x} { set n [string length $x]\n puts $n }\ng 1",
+        "g"
+    ));
     // A command that works on its values writes a variable when a switch says so.
     assert!(!spliced(
         "proc ::g {s} { return [string is integer -failindex bad $s] }\ng 1",

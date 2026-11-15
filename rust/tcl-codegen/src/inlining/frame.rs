@@ -507,7 +507,24 @@ impl Frame<'_> {
         for call in calls {
             let child = call.tokens.as_ref()?;
             let invocation = self.source.invocation(child)?;
+            // A pure command may still answer from where it runs: `namespace
+            // current` spliced into a caller names the caller's namespace.
             if !invocation.facts.evaluates_purely()
+                || invocation
+                    .facts
+                    .effects
+                    .legacy()
+                    .side_effects
+                    .iter()
+                    .any(|effect| {
+                        use tcl_registry::side_effects::SideEffectTarget;
+                        // A variable, or whatever an expression reads, is the
+                        // name walk's; any other state is where the body runs.
+                        !matches!(
+                            effect.target,
+                            SideEffectTarget::Variable | SideEffectTarget::Unknown
+                        ) && (effect.reads || effect.writes)
+                    })
                 || invocation.facts.arg_roles.iter().any(|(_, role)| {
                     role.names_variable()
                         || matches!(
