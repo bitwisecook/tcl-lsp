@@ -13929,6 +13929,60 @@ mod tests {
         );
     }
 
+    /// Classic `entry` and `spinbox` share `tkEntry.c` in Tk 8.4, 8.5, 8.6,
+    /// 9.0 and 9.1. Each declares `-vcmd` / `-invcmd` as `TK_OPTION_SYNONYM`s
+    /// of the validation options, and `ExpandPercents` gives the spinbox
+    /// `-command` (`VALIDATE_BUTTON`) only `%s` (current text), `%d` (arrow
+    /// direction) and `%W`.
+    #[test]
+    fn classic_entry_callback_synonyms_and_spinbox_command_carry_user_text() {
+        use crate::CallbackTaintInput;
+
+        let validation = [
+            CallbackTaintInput::TK_PROPOSED_VALUE,
+            CallbackTaintInput::TK_CURRENT_VALUE,
+            CallbackTaintInput::TK_EDIT_TEXT,
+        ];
+        for (tcl, tk) in [
+            ("tcl8.4", "8.4"),
+            ("tcl8.5", "8.5"),
+            ("tcl8.6", "8.6"),
+            ("tcl9.0", "9.0"),
+            ("tcl9.1", "9.1"),
+        ] {
+            let mut reg = CommandRegistry::build_default()
+                .project_for_profile(tcl_dialect::DialectProfile::find(tcl).unwrap());
+            reg.insert_ambient_package("Tk", tk);
+            for command in ["entry", "spinbox"] {
+                for option in ["-vcmd", "-invcmd"] {
+                    let words = [".w", option, "{eval %P}"];
+                    assert_eq!(
+                        reg.callback_taint_inputs(command, &words, 2, None),
+                        &validation,
+                        "Tk {tk} {command} {option} is a synonym of a validation callback"
+                    );
+                    let method = ["configure", option, "{eval %P}"];
+                    assert_eq!(
+                        reg.instance_callback_taint_inputs(command, ".w", &method, 2, None),
+                        &validation,
+                        "Tk {tk} {command} configure {option}"
+                    );
+                }
+            }
+            let command = [".w", "-command", "{eval %s}"];
+            assert_eq!(
+                reg.callback_taint_inputs("spinbox", &command, 2, None),
+                &[CallbackTaintInput::TK_CURRENT_VALUE],
+                "Tk {tk} spinbox -command receives the editable text as %s"
+            );
+            assert!(
+                reg.callback_taint_inputs("ttk::spinbox", &command, 2, None)
+                    .is_empty(),
+                "Tk {tk} ttk::spinbox runs -command with `uplevel #0`, no % substitution"
+            );
+        }
+    }
+
     /// The registry states which stored scripts are callbacks — the words a
     /// consumer must treat as run later, outside the registering frame — and
     /// which are a definition's body or run now.

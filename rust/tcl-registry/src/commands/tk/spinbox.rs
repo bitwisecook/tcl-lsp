@@ -20,6 +20,10 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
+/// Tk substitutes `%s`, the spinbox's current (user-editable) text, into
+/// `-command` before an arrow press runs it; `%d` and `%W` are bookkeeping.
+const BUTTON_USER_INPUTS: &[CallbackTaintInput] = &[CallbackTaintInput::TK_CURRENT_VALUE];
+
 const VALIDATION_USER_INPUTS: &[CallbackTaintInput] = &[
     CallbackTaintInput::TK_PROPOSED_VALUE,
     CallbackTaintInput::TK_CURRENT_VALUE,
@@ -184,7 +188,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::deferred_script(),
+        value: OptionValue::deferred_tainted_script(BUTTON_USER_INPUTS),
         detail: "Tcl command to invoke when the value is changed via the arrows.",
         surface: None,
         aliases: &[],
@@ -207,7 +211,7 @@ const OPTIONS: &[OptionSpec] = &[
         value: OptionValue::deferred_tainted_script(VALIDATION_USER_INPUTS),
         detail: "Script to evaluate when validation is triggered.",
         surface: None,
-        aliases: &[],
+        aliases: &["-vcmd"],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
         effect: None,
@@ -217,7 +221,7 @@ const OPTIONS: &[OptionSpec] = &[
         value: OptionValue::deferred_tainted_script(VALIDATION_USER_INPUTS),
         detail: "Script to evaluate when validation fails.",
         surface: None,
-        aliases: &[],
+        aliases: &["-invcmd"],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
         effect: None,
