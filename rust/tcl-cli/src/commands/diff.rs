@@ -346,9 +346,47 @@ fn cfg_layer_payload(result: &tcl_explorer::ExplorerResult, line_index: &LineInd
             tcl_explorer::serialise::serialise_cfg_post_ssa(result, line_index, &result.source),
         ),
     ] {
+        let mut view = view;
+        without_module_history(
+            &mut view,
+            &result.unit.ir_module.procedure_ids.reporting_scope(),
+        );
         payload.insert(key.to_owned(), value_to_json(&view));
     }
     Json::Object(payload).dumps_indent2()
+}
+
+/// A body key names its module by a process-history number, which differs
+/// between the two sides of one diff whatever they hold. The layer compares
+/// structure, so each side's keys are rewritten against its own module.
+fn without_module_history(value: &mut serde_json::Value, scope: &str) {
+    match value {
+        serde_json::Value::String(text) => {
+            let module = scope.split_once(':').map_or(scope, |(_, module)| module);
+            for (kind, own) in [
+                ("module", scope.to_owned()),
+                ("body", format!("body:{module}")),
+            ] {
+                if let Some(rest) = text.strip_prefix(&own)
+                    && rest.starts_with(':')
+                {
+                    *text = format!("{kind}{rest}");
+                    break;
+                }
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                without_module_history(item, scope);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for item in map.values_mut() {
+                without_module_history(item, scope);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Convert a `serde_json::Value` (the explorer serialisers' output) into the

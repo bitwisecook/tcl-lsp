@@ -1622,7 +1622,8 @@ fn spec_import_describes_a_c_extension_from_its_source() {
 }
 
 /// A source directory holding several extensions is several descriptions, one
-/// per entry point: with none named the import describes nothing and says which
+/// per entry point (the C-shim fixture directory holds three: `doors`, `pkga`
+/// and the index-cache probe): with none named the import describes nothing and says which
 /// entry points there are, rather than describe one of them, or a mixture, as
 /// though it were the whole (negative); naming the other describes its own
 /// commands and package; and a prefix the sources do not define is refused
@@ -1636,8 +1637,9 @@ fn spec_import_describes_one_extension_per_entry_point() {
     assert!(stdout.is_empty(), "nothing is described:\n{stdout}");
     assert!(
         stderr.contains(
-            "the sources hold 2 extensions, one per entry point: Doors_Init (doors.c:261), \
-             Pkga_Init (pkga.c:303); describe one at a time with --entry PREFIX"
+            "the sources hold 3 extensions, one per entry point: Doors_Init (doors.c:261), \
+             IndexCache_Init (index_cache.c:18), Pkga_Init (pkga.c:303); describe one at a \
+             time with --entry PREFIX"
         ),
         "{stderr}"
     );
@@ -1660,7 +1662,8 @@ fn spec_import_describes_one_extension_per_entry_point() {
     assert!(
         stderr.contains(
             "--entry Nosuch: the sources define no Nosuch_Init; their entry points are \
-             Doors_Init (doors.c:261), Pkga_Init (pkga.c:303)"
+             Doors_Init (doors.c:261), IndexCache_Init (index_cache.c:18), Pkga_Init \
+             (pkga.c:303)"
         ),
         "{stderr}"
     );
