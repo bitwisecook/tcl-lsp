@@ -458,86 +458,69 @@ const CASES: &[(&str, i64, &str, &str)] = &[
         "second",
         "P Q",
     ),
-];
-
-/// Where this host's error code is not C Tcl's, and why: the script, its code and
-/// result (which agree), the `-errorcode` C Tcl gave, the one given here and the
-/// reason. Each is a gap of the engine and not of the shim; when one closes, the
-/// row moves to [`CASES`].
-const DIVERGENCES: &[(&str, i64, &str, &str, &str, &str)] = &[
+    // Variable errors: the `-errorcode` is the one C Tcl gives.
     (
         "doors_get nosuch",
         1,
         "can't read \"nosuch\": no such variable",
         "TCL LOOKUP VARNAME nosuch",
-        "NONE",
-        "the VM's `set` of a variable that is not there raises no `-errorcode`",
     ),
     (
         "doors_set a k v; doors_get a nosuch",
         1,
         "can't read \"a(nosuch)\": no such element in array",
         "TCL READ VARNAME",
-        "NONE",
-        "the same, for an element that is not there",
     ),
     (
         "doors_set a k v; doors_get a",
         1,
         "can't read \"a\": variable is array",
         "TCL READ VARNAME",
-        "NONE",
-        "the same, for an array read as a scalar",
     ),
     (
         "doors_set a k v; doors_set a w",
         1,
         "can't set \"a\": variable is array",
         "TCL WRITE VARNAME",
-        "NONE",
-        "the same, for an array written as a scalar",
     ),
     (
         "set s 1; doors_get s k",
         1,
         "can't read \"s(k)\": variable isn't array",
         "TCL LOOKUP VARNAME s",
-        "NONE",
-        "the same, for a scalar read as an array",
     ),
     (
         "doors_unset nosuch",
         1,
         "can't unset \"nosuch\": no such variable",
         "TCL LOOKUP VARNAME nosuch",
-        "TCL UNSET VARNAME",
-        "the VM's `unset` words its own `-errorcode`, which C Tcl does not",
     ),
     (
         "doors_set a k v; doors_unset a nosuch",
         1,
         "can't unset \"a(nosuch)\": no such element in array",
         "TCL LOOKUP ELEMENT nosuch",
-        "TCL UNSET VARNAME",
-        "the same, for an element that is not there",
-    ),
-    (
-        "doors_global_set nsnone::q 1",
-        1,
-        "can't set \"nsnone::q\": parent namespace doesn't exist",
-        "TCL LOOKUP VARNAME nsnone::q",
-        "NONE",
-        "the VM's `set` raises no `-errorcode` when the parent namespace is not there",
     ),
     (
         "doors_keep nosuch",
         1,
         "can't read \"nosuch\": no such variable",
         "TCL LOOKUP VARNAME nosuch",
-        "NONE",
-        "the VM's `set` of a variable that is not there raises no `-errorcode`",
     ),
 ];
+
+/// Where this host's error code is not C Tcl's, and why: the script, its code and
+/// result (which agree), the `-errorcode` C Tcl gave, the one given here and the
+/// reason. Each is a gap of the engine and not of the shim; when one closes, the
+/// row moves to [`CASES`].
+const DIVERGENCES: &[(&str, i64, &str, &str, &str, &str)] = &[(
+    "doors_global_set nsnone::q 1",
+    1,
+    "can't set \"nsnone::q\": parent namespace doesn't exist",
+    "TCL LOOKUP VARNAME nsnone::q",
+    "TCL LOOKUP VARNAME ::nsnone::q",
+    "the VM names the variable by its rooted key where C Tcl keeps the written name",
+)];
 
 #[test]
 fn every_call_answers_what_c_tcl_answers() {
