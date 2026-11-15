@@ -82,7 +82,7 @@ mod common;
 use common::command_tokens;
 
 use tcl_codegen::codegen::{CodegenCtx, FunctionAsm, Op, Operand, codegen_module};
-use tcl_compiler::cfg_builder::build_cfg;
+use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::var_escape::{
@@ -137,7 +137,7 @@ fn proc_ops(source: &str, qname: &str) -> Vec<Op> {
 fn proc_asm(source: &str, qname: &str) -> FunctionAsm {
     let reg = registry();
     let ir = lower_to_ir(source, &reg);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let mut module = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     let id = fixture_id(&ir.procedures, qname);
     module
@@ -1084,7 +1084,7 @@ fn module_dispatch_emits_proc_and_top_level() {
     // dispatch arm of codegen_module.)
     let reg = registry();
     let ir = lower_to_ir("proc foo {x} { return $x }\nset z 9", &reg);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let m = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     assert!(
         fixture_id_if_present(&m.procedures, "::foo").is_some(),
@@ -1115,7 +1115,7 @@ fn module_dispatch_empty_source_is_just_top_level_done() {
     // The empty-module path: a `::top` with `done` and no procedures.
     let reg = registry();
     let ir = lower_to_ir("", &reg);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let m = codegen_module(&cfg, &ir, &reg).expect("original source namespace");
     assert!(m.procedures.is_empty(), "no procedures for an empty module");
     assert_eq!(m.top_level.name, "::top");

@@ -68,7 +68,7 @@ use tcl_codegen::codegen::{
     Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op, Operand,
 };
 use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};
-use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
+use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::ir::{Module as IrModule, Statement};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
@@ -102,7 +102,7 @@ fn module_via_backend(source: &str) -> (ModuleAsm, IrModule) {
 fn module_inline_via_backend(source: &str) -> ModuleAsm {
     let reg = registry();
     let ir = lower_to_ir(source, &reg);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let mut backend = BytecodeBackend;
     backend
         .lower_module(&cfg, &ir, &reg)
@@ -198,7 +198,7 @@ fn backend_lower_function_proc_flavour_uses_lvt() {
     // A returned parameter loads via loadScalar1 and the LVT has it at slot 0.
     let reg = registry();
     let ir = lower_to_ir("proc id {x} { return $x }", &reg);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let proc_cfg = cfg
         .procedures
         .get(&fixture_id(&cfg.procedures, "::id"))
@@ -220,7 +220,7 @@ fn backend_lower_function_script_flavour_uses_stack() {
     // (storeStk / loadStk) and leaves the LVT empty.
     let reg = registry();
     let ir = lower_to_ir("set x 1", &reg);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let mut backend = BytecodeBackend;
     let fa = backend.lower_function(&cfg.top_level, &[], false, &reg);
     let ops = opcodes(&fa);
@@ -643,7 +643,7 @@ fn try_finally_cfg_chain_present() {
         "proc c {} { try { set x 1 } finally { set x 0 }; return $x }",
         &reg,
     );
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let proc_cfg = cfg
         .procedures
         .get(&fixture_id(&cfg.procedures, "::c"))
