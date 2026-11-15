@@ -604,7 +604,7 @@ fn build_facts_gated(
         facts.global_object_cells = facts
             .any_scope
             .iter()
-            .filter(|(name, _)| name.starts_with("::"))
+            .filter(|(name, _)| tcl_syntax::naming::is_absolute(name))
             .map(|(name, classes)| (name.clone(), classes.clone()))
             .collect();
     }

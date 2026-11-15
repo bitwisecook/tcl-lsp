@@ -839,9 +839,7 @@ fn namespace_target(target: &NamespaceTransitionTarget) -> WorldNamespaceScope {
         // prove unrelated trees disjoint, so only fully-qualified literals
         // become exact scopes here.
         NamespaceTransitionTarget::Named(subject)
-            if subject
-                .literal()
-                .is_some_and(|namespace| namespace.starts_with("::")) =>
+            if subject.literal().is_some_and(crate::naming::is_absolute) =>
         {
             WorldNamespaceScope::named(subject.literal().expect("qualified namespace value"))
         }

@@ -3771,8 +3771,11 @@ fn variable_operand(node: &ExprNode, config: tcl_lexer::LexerConfig) -> Option<S
 
 /// The plain local name a `$x` or `${x}` spelling reads.
 fn variable_name(text: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
-    crate::value_transfer::whole_variable_operand(text, config)
-        .filter(|name| !name.is_empty() && !name.contains("::") && !name.contains('('))
+    crate::value_transfer::whole_variable_operand(text, config).filter(|name| {
+        !name.is_empty()
+            && !tcl_syntax::naming::is_qualified(name.as_bytes())
+            && !name.contains('(')
+    })
 }
 
 /// The value an operand's literal spelling holds: a bare literal's text, a

@@ -334,7 +334,7 @@ impl FoldedPathConstants {
             {
                 return self.global_value_at(target, at);
             }
-            if scope.local && !name.starts_with("::") {
+            if scope.local && !tcl_syntax::naming::is_absolute(name) {
                 let key = (scope.id, name.to_owned());
                 return self
                     .local_at
@@ -344,7 +344,7 @@ impl FoldedPathConstants {
                     .cloned();
             }
             let current = global_key(protocol, &scope.namespace, name);
-            if !scope.namespace.is_empty() && !name.starts_with("::") {
+            if !scope.namespace.is_empty() && !tcl_syntax::naming::is_absolute(name) {
                 if self.members.contains(&(Home::Global, current.clone()))
                     || self.lookup_globals().contains_key(&current)
                 {
@@ -410,7 +410,7 @@ impl<S: std::hash::BuildHasher> PathConstantLookup for HashMap<String, String, S
         self.get(&rooted)
             .or_else(|| {
                 tcl_syntax::naming::unroot_rooted_key(&rooted)
-                    .filter(|bare| !bare.contains("::"))
+                    .filter(|bare| !tcl_syntax::naming::is_qualified(bare.as_bytes()))
                     .and_then(|bare| self.get(bare))
             })
             .cloned()
@@ -455,8 +455,8 @@ fn global_key(protocol: NativeNameProtocol, namespace: &str, name: &str) -> Stri
     match protocol {
         NativeNameProtocol::C(_) => {
             let key = super::qualified_key(namespace, name);
-            if let Some(bare) =
-                tcl_syntax::naming::unroot_rooted_key(&key).filter(|bare| !bare.contains("::"))
+            if let Some(bare) = tcl_syntax::naming::unroot_rooted_key(&key)
+                .filter(|bare| !tcl_syntax::naming::is_qualified(bare.as_bytes()))
             {
                 bare.to_owned()
             } else {
@@ -596,7 +596,7 @@ fn target(
     {
         return Some((alias.home, alias.name.clone(), None));
     }
-    if scope.local && !name.starts_with("::") && !declares {
+    if scope.local && !tcl_syntax::naming::is_absolute(name) && !declares {
         return Some((Home::Local(scope.id), name.to_owned(), None));
     }
     let current = global_key(protocol, &scope.namespace, name);
@@ -606,7 +606,7 @@ fn target(
     }
     if declares
         || root_namespace(&scope.namespace)
-        || name.starts_with("::")
+        || tcl_syntax::naming::is_absolute(name)
         || matches!(protocol, NativeNameProtocol::C(version) if !version.namespace_var_global_fallback())
     {
         return Some((Home::Global, current, None));

@@ -1458,7 +1458,7 @@ fn collect_write_targets(
                 // `set y [incr ::hits]` writes the global `hits` (#2214).
                 if !renamed_aliases.targets.contains_key(target)
                     && !renamed_aliases.opaque_locals.contains(target)
-                    && (target.starts_with("::")
+                    && (tcl_syntax::naming::is_absolute(target)
                         || state.get(target).is_some_and(|f| f.writes_outer_scope()))
                 {
                     insert_outer_name(&mut info.names, target);

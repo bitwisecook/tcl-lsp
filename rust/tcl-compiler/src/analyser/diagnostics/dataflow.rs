@@ -4212,7 +4212,7 @@ is renamed or deleted in this file."
         else {
             return None;
         };
-        if !name.starts_with("::") && event != Some("RULE_INIT") {
+        if !tcl_syntax::naming::is_absolute(name) && event != Some("RULE_INIT") {
             return None;
         }
         let (base, index) = crate::naming::split_array_name(name);
@@ -4222,10 +4222,11 @@ is renamed or deleted in this file."
             return None;
         }
         let span = self.narrow_to_assigned_name(fu.abs_span(statement.span()))?;
-        let replacement = index.map_or_else(
-            || format!("static::{tail}"),
-            |index| format!("static::{tail}({index})"),
-        );
+        let replacement = crate::naming::unrooted_member_key("static", tail);
+        let replacement = match index {
+            Some(index) => format!("{replacement}({index})"),
+            None => replacement,
+        };
         Some(crate::analyser::types::CodeFix {
             span,
             new_text: replacement.clone(),

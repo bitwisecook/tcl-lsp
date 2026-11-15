@@ -281,7 +281,8 @@ impl ModuleCommandBindings {
                     };
                     subject.literal().is_some_and(|head| {
                         !self.has_opaque_domain()
-                            && (head.starts_with("::") || self.source_variables.namespace_known)
+                            && (tcl_syntax::naming::is_absolute(head)
+                                || self.source_variables.namespace_known)
                             && self.command_observer_identities(head, namespace).is_empty()
                     })
                 })

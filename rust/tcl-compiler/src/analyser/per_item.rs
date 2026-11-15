@@ -2430,7 +2430,11 @@ fn body_needs_enclosing_context(body_text: &str) -> bool {
             // argument links to a sub-namespace variable.  Checking the rest of
             // the line is deliberately conservative (it may include a following
             // `;`-separated command), which only over-triggers the fallback.
-            if w == "variable" && words.clone().any(|a| a.contains("::")) {
+            if w == "variable"
+                && words
+                    .clone()
+                    .any(|a| tcl_syntax::naming::is_qualified(a.as_bytes()))
+            {
                 return true;
             }
             // A `namespace import` *inside a body* leaks into the whole-file walk's

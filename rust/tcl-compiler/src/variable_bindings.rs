@@ -2303,7 +2303,7 @@ pub(crate) fn alias_target(
             let Some(namespace) = namespace.literal() else {
                 return place::unknown_top();
             };
-            if !state.namespace_known && !namespace.starts_with("::") {
+            if !state.namespace_known && !tcl_syntax::naming::is_absolute(namespace) {
                 return place::unknown_top();
             }
             if state.namespace_identity.is_some() {
@@ -2389,7 +2389,7 @@ fn selected_frame_target(
         return resolve_literal_place(variable, &selected, false, registry);
     }
 
-    if level.is_global_frame() || variable.starts_with("::") {
+    if level.is_global_frame() || tcl_syntax::naming::is_absolute(variable) {
         return namespace_target(state, "::", Some(variable), registry);
     }
     if level == FrameLevel::Dynamic {
@@ -2643,7 +2643,9 @@ fn namespace_destruction_from_facts(
                 }
                 NamespaceTransitionTarget::Named(subject) => subject
                     .literal()
-                    .filter(|namespace| state.namespace_known || namespace.starts_with("::"))
+                    .filter(|namespace| {
+                        state.namespace_known || tcl_syntax::naming::is_absolute(namespace)
+                    })
                     .map_or_else(place::unknown_top, |namespace| {
                         place::unknown_namespace(tcl_syntax::naming::qualify(
                             &state.namespace,

@@ -3423,7 +3423,7 @@ impl<'a> CfgBuilder<'a> {
                 return false;
             }
             let sub = &raw_args[0];
-            let qual_cmd = format!("::tcl::dict::{sub}");
+            let qual_cmd = crate::naming::rooted_member_key("::tcl::dict", sub);
             // The barrier re-emits `::tcl::dict::for {vars} $dict {body}` — the
             // source `dict for …` tokens with the `for`/`map` subcommand word
             // dropped — so the braced var-list / body push verbatim and the
@@ -3449,7 +3449,7 @@ impl<'a> CfgBuilder<'a> {
 
         let has_qualified_vars = iterators
             .iter()
-            .any(|it| it.vars.iter().any(|v| v.starts_with("::")));
+            .any(|it| it.vars.iter().any(|v| tcl_syntax::naming::is_absolute(v)));
 
         // The original Each compiler owns local declarations, value-script
         // visits and the body range. Flattening it here would reserve body
@@ -4592,7 +4592,7 @@ fn build_cfg_function_with_upvars_inner(
 /// path, where the runtime resolves the word itself.
 fn is_plain_local_destination(word: &str) -> bool {
     !word.is_empty()
-        && !word.contains("::")
+        && !tcl_syntax::naming::is_qualified(word.as_bytes())
         && !word.contains(['$', '[', ']', '(', ')', '{', '}', '\\', ' ', '\t', '\n'])
 }
 

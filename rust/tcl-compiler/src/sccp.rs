@@ -2048,7 +2048,7 @@ impl ExistenceRun {
                 u32::try_from(slot)
                     .is_ok_and(|slot| ssa.source_variable_symbol(Symbol(slot)).is_some())
                     || entry.dynamic_trace
-                    || name.contains("::")
+                    || tcl_syntax::naming::is_qualified(name.as_bytes())
                     || escaping.contains(name.as_str())
                     || escaping.contains(place_base(name))
             })
@@ -3719,7 +3719,7 @@ pub(crate) fn is_externally_mutable(
     escaping: &HashSet<String>,
     has_dynamic_variable_trace: bool,
 ) -> bool {
-    has_dynamic_variable_trace || name.starts_with("::") || escaping.contains(name)
+    has_dynamic_variable_trace || tcl_syntax::naming::is_absolute(name) || escaping.contains(name)
 }
 
 /// Join phi values from edge-executable predecessors for one block. Returns

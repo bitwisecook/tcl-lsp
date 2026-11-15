@@ -172,7 +172,7 @@ impl AdviceGraph {
                 let input = input.logical_input()?;
                 let slot =
                     tcl_syntax::naming::authored_source_command_slot(namespace, input.bytes())?;
-                let qualified = input.bytes().starts_with(b"::")
+                let qualified = tcl_syntax::naming::is_absolute_bytes(input.bytes())
                     || tcl_syntax::naming::qualifier_segments(input.bytes()).len() > 1;
                 Some((qualified.then_some(slot.namespace), slot.simple))
             }

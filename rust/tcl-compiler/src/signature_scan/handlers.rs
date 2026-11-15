@@ -466,7 +466,10 @@ pub(super) fn handle_namespace_import_in_context(
     let mut i = 2 + flag_words;
     while i < texts.len() {
         let pattern_raw = &texts[i];
-        if !pattern_raw.contains("::") || pattern_raw.contains('$') || pattern_raw.contains('[') {
+        if !tcl_syntax::naming::is_qualified(pattern_raw.as_bytes())
+            || pattern_raw.contains('$')
+            || pattern_raw.contains('[')
+        {
             i += 1;
             continue;
         }

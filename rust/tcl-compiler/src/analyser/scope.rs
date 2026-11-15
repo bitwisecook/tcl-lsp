@@ -1273,7 +1273,7 @@ pub fn qualified_name_for_var_decl(root: &Scope, def_span: tcl_lexer::Span) -> O
             // again would double it (`"::::tolComp"`, matching nothing).
             // Only a *bare* tail (the `variable`/`global` convention, or an
             // unqualified literal `set`) needs `ns` prepended.
-            return Some(if v.name.starts_with("::") {
+            return Some(if tcl_syntax::naming::is_absolute(&v.name) {
                 v.name.clone()
             } else {
                 tcl_syntax::naming::rooted_member_key(ns, &v.name)
@@ -1858,7 +1858,7 @@ impl Analyser {
             // Absolute names are exact — the sole candidate is the name itself.
             // `None` means a background scan that skipped the scope walk; leave
             // its (empty) candidate list untouched.
-            if inv.name.starts_with("::") {
+            if tcl_syntax::naming::is_absolute(&inv.name) {
                 inv.resolution_candidates = vec![inv.name.clone()];
                 inv.resolved_user_definition =
                     known_ctx.user_definition_known(&inv.name, inv.range.start());
@@ -1886,8 +1886,8 @@ impl Analyser {
             // local slot is never a built-in; only the true global one
             // ever is).
             if inv.is_mathfunc_call {
-                let mathfunc_suffix = format!("::tcl::mathfunc::{}", inv.name);
-                let ns: String = match resolved.strip_suffix(mathfunc_suffix.as_str()) {
+                let global = tcl_registry::mathfunc::qualified_name(&inv.name);
+                let ns: String = match resolved.strip_suffix(global.as_str()) {
                     Some("") => "::".to_owned(),
                     Some(prefix) => prefix.to_owned(),
                     // The walk always produces this shape for a mathfunc
@@ -1899,10 +1899,9 @@ impl Analyser {
                     }
                 };
                 let path: &[String] = paths.get(&ns).map_or(&[], Vec::as_slice);
-                let rel = format!("tcl::mathfunc::{}", inv.name);
-                let candidates = crate::naming::command_resolution_candidates(&ns, path, &rel);
+                let rel = crate::naming::unroot_rooted_key(&global).unwrap_or(global.as_str());
+                let candidates = crate::naming::command_resolution_candidates(&ns, path, rel);
                 inv.resolution_candidates.clone_from(&candidates);
-                let global = format!("::tcl::mathfunc::{}", inv.name);
                 let call_off = inv.range.start();
                 let winner = candidates.into_iter().find(|c| {
                     known_ctx.known(c, call_off)
@@ -1924,7 +1923,8 @@ impl Analyser {
             // (empty when none was declared), so a call the path would
             // catch settles to the path candidate, exactly as it
             // dispatches at run time.
-            let suffix = format!("::{}", crate::naming::canonical_written_command(&inv.name));
+            let written = crate::naming::canonical_written_command(&inv.name);
+            let suffix = crate::naming::root_unrooted_key(&written);
             let ns: String = match resolved.strip_suffix(suffix.as_str()) {
                 Some("") => "::".to_owned(),
                 Some(prefix) => prefix.to_owned(),
@@ -2641,7 +2641,9 @@ impl Analyser {
         }
 
         // Cross-rule variables — fall back to global scope.
-        if base_owned.starts_with("::") || base_owned.starts_with("static::") {
+        if tcl_syntax::naming::is_absolute(&base_owned)
+            || tcl_syntax::naming::authored_namespace_hint_tail(&base_owned, "static").is_some()
+        {
             if let Some(var) = self.result.global_scope.variables.get_mut(&base_owned) {
                 var.push_reference(read_span);
                 if let Some(e) = element {
@@ -2654,7 +2656,7 @@ impl Analyser {
                     span: read_span,
                 });
             }
-        } else if !base_owned.contains("::")
+        } else if !tcl_syntax::naming::is_qualified(base_owned.as_bytes())
             && self.result.ns_var_global_fallback()
             && scope_at(&self.result.global_scope, &path)
                 .is_some_and(|s| s.kind == ScopeKind::Namespace)

@@ -485,11 +485,10 @@ impl SignatureNamespaceImportSource {
         use tcl_syntax::naming::NativeNamespacePatternSource;
         let source = parts.source.as_ref()?;
         let namespace = match source {
-            NativeNamespacePatternSource::C(path) => crate::naming::root_unrooted_key(
-                &tcl_syntax::naming::checked_namespace_path_utf8(path)
+            NativeNamespacePatternSource::C(path) => {
+                String::from_utf8(tcl_syntax::naming::native_namespace_full_name_bytes(path))
                     .ok()?
-                    .join("::"),
-            ),
+            }
             NativeNamespacePatternSource::Jim(value) => {
                 crate::naming::root_unrooted_key(value.try_utf8().ok()?)
             }

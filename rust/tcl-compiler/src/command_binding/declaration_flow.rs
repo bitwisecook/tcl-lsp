@@ -952,9 +952,8 @@ impl State {
     fn defines_array_or_name(&self, name: &str) -> bool {
         self.defined.contains(name)
             || self.defined.iter().any(|defined| {
-                defined
-                    .strip_prefix(name)
-                    .is_some_and(|element| element.starts_with('(') && element.ends_with(')'))
+                tcl_syntax::naming::split_element_ref(defined)
+                    .is_some_and(|(array, _)| array == name)
             })
     }
 
@@ -4885,7 +4884,10 @@ impl Builder<'_> {
             .defined
             .extend(node.possible_output_writes.iter().cloned());
         for (name, value) in &node.literal_stores {
-            if !name.contains("::") && !name.contains('(') && !state.aliases.contains(name) {
+            if !tcl_syntax::naming::is_qualified(name.as_bytes())
+                && !name.contains('(')
+                && !state.aliases.contains(name)
+            {
                 state.literals.insert(name.clone(), value.clone());
             }
         }

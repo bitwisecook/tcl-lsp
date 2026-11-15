@@ -679,7 +679,7 @@ fn assigned_local_body_literal(
         || name.contains('$')
         || name.contains('[')
         || name.contains('(')
-        || name.contains("::")
+        || tcl_syntax::naming::is_qualified(name.as_bytes())
     {
         return None;
     }
@@ -4315,7 +4315,7 @@ impl<'r> Lowerer<'r> {
 
         // Empty simple names need runtime publication; preserve the original
         // invocation instead of registering a lifted procedure.
-        if proc_name_initial.ends_with("::") {
+        if tcl_syntax::naming::ends_with_separator(proc_name_initial.as_bytes()) {
             return Statement::Barrier {
                 span: seg.span,
                 reason: "empty-simple-name proc".into(),
@@ -5904,9 +5904,9 @@ impl<'r> Lowerer<'r> {
                 if invocation.with_metadata_schema(self.registry, context?, realm, |selected| {
                     selected.authored_source_option_variable_scope_at(index)
                 }) == Some(tcl_registry::VariableScope::Global)
-                    && !name.starts_with("::")
+                    && !tcl_syntax::naming::is_absolute(name)
                 {
-                    Some(format!("::{name}"))
+                    Some(tcl_syntax::naming::root_unrooted_key(name))
                 } else {
                     Some(name.to_owned())
                 }

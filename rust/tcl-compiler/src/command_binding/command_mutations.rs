@@ -132,7 +132,7 @@ impl ModuleCommandBindings {
         namespace: &(impl super::NamespaceKeyQuery + ?Sized),
     ) -> Option<(super::SourceCommandKey, ResolvedCommandTarget)> {
         if self.has_opaque_domain()
-            || (!head.starts_with("::")
+            || (!crate::naming::is_absolute(head)
                 && super::NamespaceKeyQuery::namespace_key(namespace)
                     .native_context()
                     .is_none()

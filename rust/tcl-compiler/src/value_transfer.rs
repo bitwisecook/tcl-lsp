@@ -3301,7 +3301,7 @@ impl<'a> LatticeDriver<'a> {
     fn is_escaping(&self, place: &PlaceRef) -> bool {
         let escaping = &self.context.escaping;
         self.context.has_dynamic_variable_trace
-            || place.name.starts_with("::")
+            || tcl_syntax::naming::is_absolute(&place.name)
             || escaping.contains(&place.name)
     }
 
@@ -5020,11 +5020,13 @@ impl<'a> LatticeDriver<'a> {
             return Err(DeclineReason::Unsupported);
         }
         let place = match &binder.name {
-            BinderName::Declared(name) if !name.contains("::") => place_named(name),
+            BinderName::Declared(name) if !tcl_syntax::naming::is_qualified(name.as_bytes()) => {
+                place_named(name)
+            }
             BinderName::Declared(_) => return Err(DeclineReason::Unsupported),
             BinderName::Operand(id) => inputs.place(*id)?,
         };
-        if place.is_element() || place.name.contains("::") {
+        if place.is_element() || tcl_syntax::naming::is_qualified(place.name.as_bytes()) {
             return Err(DeclineReason::Unsupported);
         }
         if !self.state_owns(&place) {

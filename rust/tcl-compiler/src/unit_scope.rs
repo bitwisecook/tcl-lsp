@@ -896,7 +896,7 @@ fn word_values(
     // A namespace-qualified reference names a variable any body in the
     // module (or another file) may write; this scan models local frames
     // only.
-    if var.contains("::") {
+    if crate::naming::is_qualified(var.as_bytes()) {
         return WordValues::Unknown;
     }
     // A script running in a frame this scan cannot read may have assigned
@@ -1386,7 +1386,7 @@ fn record_standalone_invocation_body_evidence(
         .into_iter()
         .flat_map(role_indices)
         .filter_map(|i| args.get(i).and_then(Option::as_deref))
-        .any(|name| name.starts_with("::"))
+        .any(crate::naming::is_absolute)
         {
             continue;
         }

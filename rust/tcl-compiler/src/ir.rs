@@ -1048,13 +1048,13 @@ impl ExecutionNamespace {
         match self {
             Self::SourceContext(context) => Some(std::borrow::Cow::Borrowed(context)),
             Self::Exact(namespace) => Some(std::borrow::Cow::Owned(SourceNamespaceKey::authored(
-                if head.starts_with("::") {
+                if tcl_syntax::naming::is_absolute(head) {
                     "::"
                 } else {
                     namespace
                 },
             ))),
-            Self::RuntimeSelected if head.starts_with("::") => {
+            Self::RuntimeSelected if tcl_syntax::naming::is_absolute(head) => {
                 Some(std::borrow::Cow::Owned(SourceNamespaceKey::authored("::")))
             }
             Self::RuntimeSelected => None,
@@ -1091,7 +1091,7 @@ impl ExecutionNamespace {
         if matches!(self, Self::SourceContext(_)) {
             return None;
         }
-        if head.starts_with("::") {
+        if tcl_syntax::naming::is_absolute(head) {
             Some("::")
         } else {
             match self {

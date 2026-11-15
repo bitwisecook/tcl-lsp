@@ -184,7 +184,7 @@ fn prefix_receiver(
         return Some((Arc::clone(receiver), None));
     }
     let head = native.invocation.arguments().literal_at(0)?;
-    if head.contains("::")
+    if crate::naming::is_qualified(head.as_bytes())
         || context.registry.method_dispatch_keyword(head)
             != Some(tcl_registry::MethodDispatchKind::SelfDispatch)
         || normal.source_execution_observed(None)

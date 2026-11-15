@@ -4249,7 +4249,9 @@ pub fn defs_of(stmt: &Statement) -> Vec<String> {
 /// suffix heuristic, mirroring the trace fallback below.
 fn barrier_is_loop_list_header(command: &str, registry: Option<&CommandRegistry>) -> bool {
     let Some(registry) = registry else {
-        return command.ends_with("::for") || command.ends_with("::map");
+        let tail = crate::naming::written_command_tail(command.as_bytes());
+        return crate::naming::is_qualified(command.as_bytes())
+            && (tail == b"for" || tail == b"map");
     };
     let segments = crate::naming::qualifier_segments(command.as_bytes());
     let [.., base, sub] = segments.as_slice() else {
@@ -4378,9 +4380,9 @@ fn registry_barrier_defs(
                     let name = crate::naming::element_var_name_braced(s, braced);
                     if reg.option_variable_scope(command, &arg_strs, idx, reg.own_surface_query())
                         == Some(tcl_registry::VariableScope::Global)
-                        && !name.starts_with("::")
+                        && !tcl_syntax::naming::is_absolute(name)
                     {
-                        format!("::{name}")
+                        tcl_syntax::naming::root_unrooted_key(name)
                     } else {
                         name.to_owned()
                     }
@@ -9284,7 +9286,13 @@ fn project_ssa_source_names(walk: &mut RenameWalk<'_>, func: &cfg::Function) {
     }
     for (symbol, mut names) in source_names {
         // Presentation is stable when several written aliases select one cell.
-        names.sort_by_key(|name| (name.contains("::"), name.len(), *name));
+        names.sort_by_key(|name| {
+            (
+                tcl_syntax::naming::is_qualified(name.as_bytes()),
+                name.len(),
+                *name,
+            )
+        });
         let source = names[0];
         let Some(key) = walk.interner.cell_key(symbol) else {
             continue;
@@ -9293,7 +9301,7 @@ fn project_ssa_source_names(walk: &mut RenameWalk<'_>, func: &cfg::Function) {
         let display = &mut walk.interner.names[symbol.0 as usize];
         if !authored
             || (func.name == "::top"
-                && !source.contains("::")
+                && !tcl_syntax::naming::is_qualified(source.as_bytes())
                 && *display == crate::naming::rooted_member_key("::", source))
         {
             display.clone_from(source);

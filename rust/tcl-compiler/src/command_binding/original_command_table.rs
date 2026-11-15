@@ -1850,7 +1850,7 @@ impl ModuleCommandBindings {
             SignatureSourceNameInput::OriginalVariableRoot(_)
             | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
-        let scope = if input.bytes().starts_with(b"::") {
+        let scope = if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
             SignatureNamespaceScope::root(Some(input.policy()))
         } else {
             self.original_namespace_geometry(current, input.policy())?
@@ -1889,7 +1889,7 @@ impl ModuleCommandBindings {
                 return None;
             }
         }
-        let scope = if input.bytes().starts_with(b"::") || current.is_root() {
+        let scope = if tcl_syntax::naming::is_absolute_bytes(input.bytes()) || current.is_root() {
             SignatureNamespaceScope::root(Some(policy))
         } else {
             self.original_command_world
@@ -1910,7 +1910,7 @@ impl ModuleCommandBindings {
                 return Some((key(current.clone()), slot));
             }
         };
-        if holder == scope && !input.bytes().starts_with(b"::") {
+        if holder == scope && !tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
             return Some((key(current.clone()), slot));
         }
         if matches!(&holder, SignatureNamespaceScope::C(path) if path.is_root()) {
@@ -1935,7 +1935,7 @@ impl ModuleCommandBindings {
             SignatureSourceNameInput::OriginalVariableRoot(_)
             | SignatureSourceNameInput::OriginalLogicalListField(_) => return None,
         }
-        let scope = if input.bytes().starts_with(b"::") {
+        let scope = if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
             SignatureNamespaceScope::root(Some(input.policy()))
         } else {
             self.original_namespace_geometry(current, input.policy())?
@@ -2141,7 +2141,7 @@ impl ModuleCommandBindings {
             return None;
         }
         let bytes = name.as_bytes();
-        let scope = if bytes.starts_with(b"::") {
+        let scope = if tcl_syntax::naming::is_absolute_bytes(bytes) {
             SignatureNamespaceScope::root(Some(policy))
         } else {
             query.world().scope(current, policy)?
@@ -2176,7 +2176,7 @@ impl ModuleCommandBindings {
         if query.selected_policy()? != policy || self.has_opaque_domain() {
             return None;
         }
-        let scope = if bytes.starts_with(b"::") {
+        let scope = if tcl_syntax::naming::is_absolute_bytes(bytes) {
             SignatureNamespaceScope::root(Some(policy))
         } else {
             query.world().scope(current, policy)?
@@ -2915,7 +2915,7 @@ impl ModuleCommandBindings {
         if self.unclosed_command_world
             || !input_is_current
             || self.baseline.unknown_entry
-            || (!input.bytes().starts_with(b"::")
+            || (!tcl_syntax::naming::is_absolute_bytes(input.bytes())
                 && matches!(current, SourceNamespaceKey::Authored(_))
                 && !self.source_variables.namespace_known)
         {

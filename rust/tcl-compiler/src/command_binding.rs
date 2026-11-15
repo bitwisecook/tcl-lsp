@@ -15287,7 +15287,7 @@ fn source_binding_projection_in(
         targets: source_binding_targets(state, selection),
         may_be_absent,
         unknown: state.target_may_be_unknown(head, namespace)
-            || (!head.starts_with("::")
+            || (!tcl_syntax::naming::is_absolute(head)
                 && namespace.namespace_key().native_context().is_none()
                 && !state.source_variables.namespace_known
                 && state.receiver_command_lookup_path(head).is_none()),
@@ -16049,7 +16049,7 @@ impl ModuleCommandBindings {
             else {
                 return false;
             };
-            if !name.starts_with("::") && !self.source_variables.namespace_known {
+            if !tcl_syntax::naming::is_absolute(name) && !self.source_variables.namespace_known {
                 return false;
             }
             let name = tcl_syntax::naming::qualify(namespace, name);
@@ -18246,7 +18246,9 @@ impl ModuleCommandBindings {
                 )?;
             return self.original_source_keys_for_paths(paths);
         }
-        if !name.starts_with("::") && self.unknown_lookup_namespaces.contains(namespace.as_ref()) {
+        if !tcl_syntax::naming::is_absolute(name)
+            && self.unknown_lookup_namespaces.contains(namespace.as_ref())
+        {
             return Err(
                 tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
             );
@@ -21235,7 +21237,7 @@ fn qualify_execution_name(
     namespace: &crate::ir_helpers::ExecutionNamespace,
     name: &str,
 ) -> Option<String> {
-    if name.starts_with("::") {
+    if tcl_syntax::naming::is_absolute(name) {
         return Some(tcl_syntax::naming::canonical_written_command(name));
     }
     // An authored source context is the same symbolic namespace as an exact
@@ -21267,7 +21269,7 @@ fn qualified_namespace(parent: &str, child: &str) -> Option<String> {
     // trailing separator. Normalise the written namespace through the shared
     // syntax owner before joining its relative suffix to the constructed key.
     let canonical = nqn(child);
-    if child.starts_with("::") {
+    if tcl_syntax::naming::is_absolute(child) {
         Some(canonical)
     } else {
         Some(tcl_syntax::naming::qualify(

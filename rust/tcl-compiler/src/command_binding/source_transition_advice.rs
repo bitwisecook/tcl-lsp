@@ -1891,7 +1891,7 @@ impl AdviceGraph {
         bytes: &[u8],
     ) -> Option<ByteCommandSlot> {
         let local = tcl_syntax::naming::authored_source_command_slot(namespace, bytes)?;
-        if !bytes.starts_with(b"::")
+        if !tcl_syntax::naming::is_absolute_bytes(bytes)
             && self.unknown_paths.contains(namespace)
             && !self
                 .cells

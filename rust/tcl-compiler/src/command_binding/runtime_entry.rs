@@ -75,7 +75,7 @@ impl ModuleCommandBindings {
         if self.runtime_compiler_hook(Some(identity)) != Some(true) {
             return None;
         }
-        let lookup_key = if head.starts_with("::") {
+        let lookup_key = if tcl_syntax::naming::is_absolute(head) {
             self.native_root_namespace_key()?
         } else {
             namespace.namespace_key().into_owned()

@@ -473,9 +473,8 @@ pub(crate) fn compatibility_variable_spelling(raw: &str) -> String {
     let Some(body) = raw.strip_prefix('$') else {
         return raw.to_owned();
     };
-    if let Some(open) = body.find('(')
-        && body.ends_with(')')
-        && body[open..].contains(['$', '['])
+    if let Some((array, _)) = crate::naming::split_element_ref(body)
+        && body[array.len()..].contains(['$', '['])
     {
         return raw.to_owned();
     }

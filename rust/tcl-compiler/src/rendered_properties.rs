@@ -531,17 +531,7 @@ fn skip_variable_ref(bytes: &[u8], start: usize) -> usize {
         }
         return i;
     }
-    while i < bytes.len() {
-        let b = bytes[i];
-        if b.is_ascii_alphanumeric() || b == b'_' {
-            i += 1;
-        } else if b == b':' && i + 1 < bytes.len() && bytes[i + 1] == b':' {
-            i += 2;
-        } else {
-            break;
-        }
-    }
-    i
+    tcl_core_types::naming::scan_var_name_end(bytes, i)
 }
 
 /// Skip past `[...]` command substitution starting at the `[` byte.

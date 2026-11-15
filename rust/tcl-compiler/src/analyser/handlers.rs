@@ -2478,7 +2478,8 @@ impl Analyser {
             // global namespace, so `proc %` shadows nothing reachable. Detect it
             // by its qualified spelling and treat it like the other namespaced
             // (non-core-global) commands the check already skips.
-            let is_mathop = |n: &str| builtins.contains(&format!("tcl::mathop::{n}"));
+            let is_mathop =
+                |n: &str| builtins.contains(&crate::naming::unrooted_member_key("tcl::mathop", n));
             if let Some(simple) = original_global {
                 (builtins.contains(simple) && !is_mathop(simple)).then(|| simple.to_owned())
             } else if builtins.contains(&normalised_proc) && !is_mathop(&normalised_proc) {
@@ -2490,7 +2491,7 @@ impl Analyser {
             }
         };
         let shadow_name = shadow_name.filter(|name| {
-            !name.contains("::")
+            !tcl_syntax::naming::is_qualified(name.as_bytes())
                 && !overridable_library_procs().contains(name.as_str())
                 && !self.is_package_gated_non_ambient(name)
         });
@@ -6226,7 +6227,7 @@ impl Analyser {
         if base.is_empty() || crate::naming::is_dynamic_word(base) {
             return None;
         }
-        (base.starts_with("::") || level.is_global_frame())
+        (tcl_syntax::naming::is_absolute(base) || level.is_global_frame())
             .then(|| crate::naming::qualify("::", base))
     }
 
@@ -8647,7 +8648,7 @@ impl Analyser {
                 };
                 // Only an absolute name is homed without a namespace model —
                 // see the doc comment.
-                if !resolved.starts_with("::") || !seen.insert(resolved.clone()) {
+                if !tcl_syntax::naming::is_absolute(&resolved) || !seen.insert(resolved.clone()) {
                     continue;
                 }
                 self.materialise_parameterised_class(&resolved, &template);
@@ -10145,7 +10146,7 @@ impl Analyser {
         if !self.result.allows_lexical_declaration_advice() {
             return None;
         }
-        let absolute = if head.starts_with("::") {
+        let absolute = if tcl_syntax::naming::is_absolute(head) {
             crate::naming::qualify("", head)
         } else {
             let (ns, _) = crate::naming::key_holder_and_tail(caller);

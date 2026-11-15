@@ -1307,7 +1307,7 @@ impl Producer<'_> {
                     .iter()
                     .map(|word| {
                         let input = self.input(word)?;
-                        let scope = if input.bytes().starts_with(b"::") {
+                        let scope = if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
                             SignatureNamespaceScope::root(Some(input.policy()))
                         } else {
                             self.caller_scope.clone()?

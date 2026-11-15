@@ -124,7 +124,7 @@ impl ModuleCommandBindings {
     /// Its authored helper path precedes global lookup. No namespace name is
     /// invented; mutation of the receiver-local command world revokes this route.
     pub(super) fn receiver_command_lookup_path(&self, head: &str) -> Option<Vec<String>> {
-        if head.starts_with("::") {
+        if tcl_syntax::naming::is_absolute(head) {
             return None;
         }
         let receiver = self.active_method_receiver(&self.variable_frame)?;
@@ -330,7 +330,7 @@ impl SourceInvocationBinding {
         else {
             return Vec::new();
         };
-        if head.contains("::")
+        if tcl_syntax::naming::is_qualified(head.as_bytes())
             || registry.method_dispatch_keyword(head)
                 != Some(tcl_registry::MethodDispatchKind::SelfDispatch)
             || !matches!(
@@ -387,7 +387,7 @@ impl SourceInvocationBinding {
             .first()?
             .as_registry_word()
             .literal()?;
-        if head.contains("::")
+        if tcl_syntax::naming::is_qualified(head.as_bytes())
             || registry.method_dispatch_keyword(head)
                 != Some(tcl_registry::MethodDispatchKind::SelfDispatch)
             || self.entered_execution_observer.observed()
@@ -445,7 +445,7 @@ impl SourceInvocationBinding {
             .first()?
             .as_registry_word()
             .literal()?;
-        if head.contains("::")
+        if tcl_syntax::naming::is_qualified(head.as_bytes())
             || registry.method_dispatch_keyword(head)
                 != Some(tcl_registry::MethodDispatchKind::SelfDispatch)
             || state.source_step_observed()
@@ -517,7 +517,7 @@ impl SourceCommandBindings {
         };
         if effective.len() > 2
             || !context.registry.is_self_receiver_call(head, argument)
-            || (!head.starts_with("::")
+            || (!tcl_syntax::naming::is_absolute(head)
                 && state
                     .unknown_lookup_namespaces
                     .contains(&context.namespace_identity()))
@@ -760,7 +760,7 @@ fn selected_receiver_for_input(
     }
     let head = effective.first()?.as_registry_word().literal();
     let self_dispatch = head.is_some_and(|head| {
-        !head.contains("::")
+        !tcl_syntax::naming::is_qualified(head.as_bytes())
             && context.registry.method_dispatch_keyword(head)
                 == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
     });

@@ -74,7 +74,7 @@ pub fn subst_nocommands<S: BuildHasher>(
     let mut pieces: Vec<(usize, usize, Cow<'_, str>)> =
         Vec::with_capacity(plan.reads.len() + plan.escapes.len());
     for read in &plan.reads {
-        if read.element.is_some() || read.name.contains("::") {
+        if read.element.is_some() || crate::naming::is_qualified(read.name.as_bytes()) {
             return None;
         }
         let (start, end) = content(read.span)?;

@@ -1126,7 +1126,7 @@ fn retain_global_call_defs(defs: &mut HashSet<String>, call_defs: &[String]) {
     defs.extend(
         call_defs
             .iter()
-            .filter(|name| name.starts_with("::"))
+            .filter(|name| tcl_syntax::naming::is_absolute(name))
             .cloned(),
     );
 }
@@ -1151,7 +1151,7 @@ fn direct_instance_option_writes(
             let initial = global_classes.get(id).cloned().unwrap_or_default();
             let mut defs =
                 crate::ssa::enrich_instance_option_defs_with_initial(cfg, registry, &initial);
-            defs.retain(|name| name.starts_with("::"));
+            defs.retain(|name| tcl_syntax::naming::is_absolute(name));
             for block in cfg.blocks.values() {
                 for statement in &block.statements {
                     let crate::ir::Statement::Call {
@@ -1215,7 +1215,10 @@ fn direct_instance_option_writes(
                     }
                     let lookup = canonical_command.as_deref().unwrap_or(command);
                     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                    for variable in call_defs.iter().filter(|name| name.starts_with("::")) {
+                    for variable in call_defs
+                        .iter()
+                        .filter(|name| tcl_syntax::naming::is_absolute(name))
+                    {
                         if tcl_registry::taint::taints_var_write(
                             registry,
                             lookup,
@@ -3133,7 +3136,7 @@ fn scan_call_statement(
             // `dict set ::cfg ...`) mutates caller-visible state.
             if defs
                 .iter()
-                .any(|n| n.starts_with("::") || facts.global_aliases.contains(n))
+                .any(|n| tcl_syntax::naming::is_absolute(n) || facts.global_aliases.contains(n))
             {
                 facts.writes_global = true;
             }
@@ -3269,7 +3272,7 @@ fn scan_role_code_arguments(
             .map(|(index, _)| *index)
     })
     .filter_map(|index| args.get(index))
-    .any(|name| name.starts_with("::"))
+    .any(|name| tcl_syntax::naming::is_absolute(name))
     {
         return;
     }
@@ -3422,7 +3425,8 @@ fn scan_resolved_aliases(
     }));
     for name in writes.iter().filter(|name| !declarations.contains(*name)) {
         mark_upvar_alias_write(name, facts);
-        facts.writes_global |= name.starts_with("::") || facts.global_aliases.contains(name);
+        facts.writes_global |=
+            tcl_syntax::naming::is_absolute(name) || facts.global_aliases.contains(name);
     }
 }
 
@@ -4224,7 +4228,7 @@ fn scan_control_flow_statement(
 }
 
 fn is_global_or_namespace(name: &str) -> bool {
-    name.starts_with("::") || name.contains("::")
+    tcl_syntax::naming::is_qualified(name.as_bytes())
 }
 
 #[derive(Default)]

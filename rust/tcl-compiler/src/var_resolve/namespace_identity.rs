@@ -193,9 +193,7 @@ impl ResolveContext {
             let object = if let Some(object) = self.namespace_objects.get(current) {
                 object.as_bytes()
             } else if let SourceNamespaceKey::Authored(namespace) = current {
-                authored_object = namespace
-                    .as_bytes()
-                    .strip_prefix(b"::")
+                authored_object = tcl_syntax::naming::unroot_rooted_key_bytes(namespace.as_bytes())
                     .unwrap_or(namespace.as_bytes())
                     .to_vec();
                 authored_object.as_slice()
@@ -212,9 +210,7 @@ impl ResolveContext {
                 self.namespace_objects.get(*key).map_or_else(
                     || match key {
                         SourceNamespaceKey::Authored(namespace) => {
-                            namespace
-                                .as_bytes()
-                                .strip_prefix(b"::")
+                            tcl_syntax::naming::unroot_rooted_key_bytes(namespace.as_bytes())
                                 .unwrap_or(namespace.as_bytes())
                                 == selected.selected()
                         }
@@ -362,17 +358,14 @@ impl ResolveContext {
                 value.as_bytes()
             } else if let SourceNamespaceKey::Authored(scope) = namespace {
                 // This is explicit authored namespace metadata, not a native object issuer.
-                object = scope
-                    .as_bytes()
-                    .strip_prefix(b"::")
+                object = tcl_syntax::naming::unroot_rooted_key_bytes(scope.as_bytes())
                     .unwrap_or(scope.as_bytes())
                     .to_vec();
                 object.as_slice()
             } else {
                 return place::unknown_top();
             };
-            let mut rooted = b"::".to_vec();
-            rooted.extend_from_slice(namespace_object);
+            let rooted = tcl_syntax::naming::root_unrooted_key_bytes(namespace_object);
             (
                 ByteNamespacePath::root(),
                 tcl_syntax::naming::jim_global_variable_key_bytes(&rooted, selected.selected())

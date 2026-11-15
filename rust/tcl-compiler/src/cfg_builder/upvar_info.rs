@@ -2218,7 +2218,7 @@ fn record_constructed_body(
     // is not namespace-invariant: a caller-local `set`/`worker` alias can
     // write or read arbitrary variables. Preserve exact handling only for an
     // explicitly absolute command spelling.
-    if !command.starts_with("::") {
+    if !tcl_syntax::naming::is_absolute(command) {
         info.caller_frame_opaque_writes = true;
         info.caller_frame_opaque_reads = true;
         return true;

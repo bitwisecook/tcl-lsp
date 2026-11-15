@@ -942,13 +942,13 @@ impl SourceInvocationBinding {
                     .state
                     .unknown_lookup_namespaces
                     .contains(&row.namespace)
-                    && !input.bytes().starts_with(b"::")
+                    && !tcl_syntax::naming::is_absolute_bytes(input.bytes())
                 {
                     return None;
                 }
                 original_authored_candidates(row, input, &scope)?
             } else {
-                let current = if input.bytes().starts_with(b"::") {
+                let current = if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
                     row.snapshot.state.native_root_namespace_key()?
                 } else {
                     row.namespace.clone()
@@ -1106,7 +1106,7 @@ fn original_input_scope(
     row: &super::declaration_layout::DeclarationLayoutObservation,
     input: &SignatureSourceNameInput,
 ) -> Option<SignatureNamespaceScope> {
-    if input.bytes().starts_with(b"::") {
+    if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
         return Some(SignatureNamespaceScope::root(Some(input.policy())));
     }
     original_home_scope(binding, row, input.policy())

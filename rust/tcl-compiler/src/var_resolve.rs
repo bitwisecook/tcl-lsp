@@ -1241,7 +1241,7 @@ pub fn restore_execution_frame(parent: &ResolveContext, child: &ResolveContext) 
                 VariableCellKey::Activation { identity, .. } => {
                     parent_activations.contains(identity)
                 }
-                VariableCellKey::Authored(name) => name.starts_with("::"),
+                VariableCellKey::Authored(name) => tcl_syntax::naming::is_absolute(name),
                 _ => false,
             }
     };
@@ -1923,7 +1923,7 @@ impl ResolveContext {
             instance_keys.contains(key)
                 || match key.root() {
                     VariableCellKey::Namespace { .. } | VariableCellKey::RetainedSlot(_) => true,
-                    VariableCellKey::Authored(name) => name.starts_with("::"),
+                    VariableCellKey::Authored(name) => tcl_syntax::naming::is_absolute(name),
                     _ => false,
                 }
         };
@@ -4258,7 +4258,7 @@ fn bind_unaliased_scalar(
                 .and_then(tcl_dialect::DialectProfile::variable_lookup_policy)
         });
     if variable_policy.is_none()
-        && !base.starts_with("::")
+        && !tcl_syntax::naming::is_absolute(base)
         && !ctx.global_frame()
         && (ctx.namespace_scope() || tcl_syntax::naming::is_qualified(base.as_bytes()))
     {
@@ -4271,7 +4271,7 @@ fn bind_unaliased_scalar(
         ctx.namespace_place(base, true, obs)
     } else if ctx.ns_vars.contains(base) {
         ctx.namespace_place(base, false, obs)
-    } else if base.starts_with("::") {
+    } else if tcl_syntax::naming::is_absolute(base) {
         ctx.namespace_place(base, true, obs)
     } else if jim_lookup && !ctx.global_frame() {
         // Jim only treats an initial :: as a global qualifier. Namespace eval

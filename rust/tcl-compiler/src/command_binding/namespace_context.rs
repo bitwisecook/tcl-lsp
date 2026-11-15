@@ -174,10 +174,7 @@ impl SourceNamespaceKey {
 }
 
 fn display_path(path: &ByteNamespacePath) -> Option<String> {
-    let components = tcl_syntax::naming::checked_namespace_path_utf8(path).ok()?;
-    Some(tcl_syntax::naming::root_unrooted_key(
-        &components.join("::"),
-    ))
+    String::from_utf8(tcl_syntax::naming::native_namespace_full_name_bytes(path)).ok()
 }
 
 /// Primary command-table key. A written source spelling cannot impersonate an

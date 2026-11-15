@@ -264,8 +264,7 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
         TokenType::Var => {
             let is_braced = tok.content_offset >= 2;
             if !is_braced
-                && text.contains('(')
-                && text.ends_with(')')
+                && tcl_syntax::naming::split_element_ref(text).is_some()
                 && (text.contains('$') || text.contains('['))
             {
                 return format!("${text}");

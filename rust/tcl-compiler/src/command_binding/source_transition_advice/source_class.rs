@@ -1201,13 +1201,11 @@ impl AdviceInvocationContext<'_> {
         {
             return false;
         }
-        let Some(separator) = bytes.windows(2).rposition(|pair| pair == b"::") else {
+        let Some(separator) = tcl_syntax::naming::written_separator_extent(bytes) else {
             return false;
         };
-        let member = &bytes[separator + 2..];
-        let qualifier = bytes[..separator]
-            .strip_suffix(b":")
-            .unwrap_or(&bytes[..separator]);
+        let member = &bytes[separator.end..];
+        let qualifier = &bytes[..separator.start];
         if member.is_empty() || member.contains(&b':') || qualifier.is_empty() {
             return false;
         }

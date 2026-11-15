@@ -418,7 +418,7 @@ impl ModuleCommandBindings {
         namespace: &(impl super::NamespaceKeyQuery + ?Sized),
     ) -> Option<NativeEnsembleCompilerPrerequisite> {
         let entry = self.baseline.native_entry.as_ref()?;
-        let key = if head.starts_with("::") {
+        let key = if crate::naming::is_absolute(head) {
             self.native_root_namespace_key()?
         } else {
             super::NamespaceKeyQuery::namespace_key(namespace).into_owned()

@@ -449,7 +449,7 @@ impl OriginalLogicalAbsoluteCommandCandidate {
             return None;
         }
         let written = tcl_syntax::word_rules::original_static_word_unicode_value(head)?;
-        if !written.starts_with(b"::") {
+        if !tcl_syntax::naming::is_absolute_bytes(&written) {
             return None;
         }
         let coordinate = AdviceNamingPolicy::logical_slot(&written)?;
@@ -548,7 +548,7 @@ pub(super) fn logical_coordinates(
     namespace: &tcl_core_types::ByteNamespacePath,
     written: &[u8],
 ) -> Option<Vec<ByteCommandSlot>> {
-    if !written.starts_with(b"::") && graph.unknown_paths.contains(namespace) {
+    if !tcl_syntax::naming::is_absolute_bytes(written) && graph.unknown_paths.contains(namespace) {
         return None;
     }
     let mut candidates = tcl_syntax::naming::authored_source_command_candidates(

@@ -616,9 +616,7 @@ impl SubjectPattern {
             Self::NamespacePrefix(prefix) => {
                 prefix.is_empty()
                     || candidate == prefix
-                    || candidate
-                        .strip_prefix(prefix.as_str())
-                        .is_some_and(|rest| rest.starts_with("::"))
+                    || tcl_syntax::naming::authored_namespace_hint_tail(candidate, prefix).is_some()
             }
         }
     }
@@ -2181,7 +2179,9 @@ fn apply_namespace_transition(
                 Some(SubjectPattern::NamespacePrefix(String::new()))
             }
             NamespaceTransitionTarget::Named(subject)
-                if subject.literal().is_some_and(|name| name.starts_with("::")) =>
+                if subject
+                    .literal()
+                    .is_some_and(tcl_syntax::naming::is_absolute) =>
             {
                 Some(SubjectPattern::NamespacePrefix(
                     normalise_name(subject.literal().expect("qualified namespace value"))

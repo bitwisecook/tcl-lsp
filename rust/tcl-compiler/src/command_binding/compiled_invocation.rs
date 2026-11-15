@@ -2227,7 +2227,7 @@ fn select_noop_target(
                 result.unknown = true;
                 return;
             };
-            let namespace_key = if selected.head.starts_with("::") {
+            let namespace_key = if tcl_syntax::naming::is_absolute(selected.head) {
                 state.native_root_namespace_key()
             } else {
                 Some(context.namespace_identity())

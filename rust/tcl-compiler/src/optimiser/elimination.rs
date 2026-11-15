@@ -1248,7 +1248,7 @@ fn dead_store_name_observed(
             false,
             crate::variable_observation_names::VariableProtectionPurpose::ModuleObservation,
         )
-    }) || var.starts_with("::")
+    }) || tcl_syntax::naming::is_absolute(var)
         || ctx.cross_event_vars.contains(var)
         || ctx.cross_event_vars.contains(base)
         // A callback runs at the global frame, so at the top level a name it

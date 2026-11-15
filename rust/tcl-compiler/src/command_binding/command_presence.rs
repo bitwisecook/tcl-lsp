@@ -428,10 +428,10 @@ impl ModuleCommandBindings {
                     let Some(spelling) = key.authored_spelling() else {
                         return false;
                     };
-                    let Some(parent) = spelling.strip_suffix("::") else {
+                    let (parent, tail) = tcl_syntax::naming::key_holder_and_tail(spelling);
+                    if !tail.is_empty() || parent.is_empty() {
                         return false;
-                    };
-                    let parent = if parent.is_empty() { "::" } else { parent };
+                    }
                     self.namespaces.contains(parent)
                         && !self.unknown_lookup_namespaces.contains(parent)
                 })
@@ -452,7 +452,7 @@ impl ModuleCommandBindings {
             && (!matches!(
                 namespace.namespace_key().as_ref(),
                 super::SourceNamespaceKey::Authored(_)
-            ) || word.starts_with("::")
+            ) || tcl_syntax::naming::is_absolute(word)
                 || ((self.source_variables.namespace_known
                     || self.receiver_command_lookup_path(word).is_some())
                     && !self.unknown_lookup_namespaces.contains(namespace)))

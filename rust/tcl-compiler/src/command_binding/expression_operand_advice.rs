@@ -117,7 +117,7 @@ impl SourceInvocationBinding {
                 return None;
             }
             let name = std::str::from_utf8(reference.name).ok()?;
-            if name.contains("::") {
+            if crate::naming::is_qualified(name.as_bytes()) {
                 return None;
             }
             let accesses = child_tokens

@@ -255,7 +255,7 @@ impl VariableCellKey {
             (Self::Authored(name), SourceNamespaceKey::Authored(namespace)) => {
                 let root = name.as_str();
                 if namespace == "::" {
-                    root.starts_with("::")
+                    tcl_syntax::naming::is_absolute(root)
                 } else {
                     root.starts_with(namespace)
                         && root
@@ -334,7 +334,7 @@ impl VariableCellKey {
     pub fn is_namespace_storage(&self) -> bool {
         match self.root() {
             Self::Namespace { .. } => true,
-            Self::Authored(name) => name.starts_with("::"),
+            Self::Authored(name) => tcl_syntax::naming::is_absolute(name),
             Self::RetainedSlot(slot) => {
                 matches!(slot.as_ref(), crate::raw_binding::RawBindingSlotId::Variable(cell) if matches!(cell.owner, crate::place::CellOwner::Namespace(_) | crate::place::CellOwner::NamespaceIdentity(_)))
             }

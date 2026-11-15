@@ -1931,7 +1931,7 @@ impl SourceWorldCapture<'_> {
         )
     }
     fn scope_for(&self, input: &SignatureSourceNameInput) -> Option<SignatureNamespaceScope> {
-        if input.bytes().starts_with(b"::") {
+        if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
             Some(SignatureNamespaceScope::root(Some(self.policy)))
         } else {
             self.selected_scope.clone()
@@ -2676,10 +2676,11 @@ fn scope_is_within(child: &SignatureNamespaceScope, parent: &SignatureNamespaceS
         (SignatureNamespaceScope::Jim(child), SignatureNamespaceScope::Jim(parent)) => {
             child == parent
                 || parent.is_empty()
-                || child
-                    .as_bytes()
-                    .strip_prefix(parent.as_bytes())
-                    .is_some_and(|tail| tail.starts_with(b"::"))
+                || tcl_syntax::naming::authored_namespace_hint_tail_bytes(
+                    child.as_bytes(),
+                    parent.as_bytes(),
+                )
+                .is_some()
         }
         _ => false,
     }
@@ -2691,11 +2692,11 @@ fn slot_is_within(slot: &ByteCommandSlot, scope: &SignatureNamespaceScope) -> bo
         }
         SignatureNamespaceScope::Jim(value) => {
             value.is_empty()
-                || slot
-                    .simple
-                    .as_bytes()
-                    .strip_prefix(value.as_bytes())
-                    .is_some_and(|tail| tail.starts_with(b"::"))
+                || tcl_syntax::naming::authored_namespace_hint_tail_bytes(
+                    slot.simple.as_bytes(),
+                    value.as_bytes(),
+                )
+                .is_some()
         }
         SignatureNamespaceScope::Symbolic(_) => false,
     }
@@ -2898,11 +2899,12 @@ fn source_simple<'a>(
     match scope {
         SignatureNamespaceScope::C(path) if path == &slot.namespace => Some(slot.simple.as_bytes()),
         SignatureNamespaceScope::Jim(value) if value.is_empty() => Some(slot.simple.as_bytes()),
-        SignatureNamespaceScope::Jim(value) => slot
-            .simple
-            .as_bytes()
-            .strip_prefix(value.as_bytes())?
-            .strip_prefix(b"::"),
+        SignatureNamespaceScope::Jim(value) => {
+            tcl_syntax::naming::authored_namespace_hint_tail_bytes(
+                slot.simple.as_bytes(),
+                value.as_bytes(),
+            )
+        }
         _ => None,
     }
 }

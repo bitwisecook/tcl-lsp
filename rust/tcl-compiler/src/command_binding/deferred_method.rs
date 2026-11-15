@@ -2164,7 +2164,8 @@ pub(super) fn original_definition_member_target(
             .support()?;
         lookup.namespace = support.definition_namespace(receiver);
         if member.kind == tcl_registry::definer::MemberKind::FlagKeyed {
-            lookup.implementation = format!("{}::{}", lookup.namespace, member.keyword);
+            lookup.implementation =
+                tcl_syntax::naming::rooted_member_key(lookup.namespace, member.keyword);
         }
     }
     let namespace_key = state.namespace_for_rooted_operand(lookup.namespace)?;

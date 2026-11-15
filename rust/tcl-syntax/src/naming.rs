@@ -71,10 +71,42 @@ pub use import_wrapper_hint::{
 /// Preserves the written remainder; supplies no qualification or cell identity.
 #[must_use]
 pub fn authored_namespace_hint_tail<'a>(name: &'a str, namespace: &str) -> Option<&'a str> {
+    let tail = authored_namespace_hint_tail_bytes(name.as_bytes(), namespace.as_bytes())?;
+    // The tail follows an ASCII `::`, so its start is a character boundary.
+    Some(&name[name.len() - tail.len()..])
+}
+
+/// Counted-byte twin of [`authored_namespace_hint_tail`], for keys that need
+/// not be UTF-8: the bytes of `name` after the literal prefix `namespace` and
+/// exactly one `::`.
+///
+/// Both inputs are constructed keys, compared byte for byte. A constructed key
+/// joins its segments with exactly `::`, and Jim keeps a namespaced command
+/// under the one flat key `ns::name` (`JimQualifyName`, `jim.c`), so the
+/// members of a namespace are the keys that extend its key by one `::`. No
+/// colon run is collapsed and no root marker is added or removed: the tail of
+/// `a:::b` under `a` is `:b`, and `::a::b` is not under `a`. An empty
+/// `namespace` selects nothing, because the root owns every key and has no
+/// prefix to remove.
+///
+/// ```
+/// use tcl_syntax::naming::authored_namespace_hint_tail_bytes;
+/// assert_eq!(authored_namespace_hint_tail_bytes(b"a::b", b"a"), Some(b"b".as_slice()));
+/// assert_eq!(authored_namespace_hint_tail_bytes(b"a::b::c", b"a"), Some(b"b::c".as_slice()));
+/// assert_eq!(authored_namespace_hint_tail_bytes(b"a::", b"a"), Some(b"".as_slice()));
+/// assert_eq!(authored_namespace_hint_tail_bytes(b"ab::c", b"a"), None);
+/// assert_eq!(authored_namespace_hint_tail_bytes(b"a", b"a"), None);
+/// assert_eq!(authored_namespace_hint_tail_bytes(b"::b", b""), None);
+/// ```
+#[must_use]
+pub fn authored_namespace_hint_tail_bytes<'a>(
+    name: &'a [u8],
+    namespace: &[u8],
+) -> Option<&'a [u8]> {
     if namespace.is_empty() {
         return None;
     }
-    name.strip_prefix(namespace)?.strip_prefix("::")
+    name.strip_prefix(namespace)?.strip_prefix(b"::")
 }
 
 mod autoload;
@@ -2325,6 +2357,50 @@ pub fn unattributed_rooted_name_candidates(text: &str) -> impl Iterator<Item = &
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn namespace_hint_tail_is_one_literal_join_after_the_prefix() {
+        use super::{authored_namespace_hint_tail, authored_namespace_hint_tail_bytes};
+        let cases: [(&str, &str, Option<&str>); 14] = [
+            ("a::b", "a", Some("b")),
+            ("a::b::c", "a", Some("b::c")),
+            ("a::b::c", "a::b", Some("c")),
+            ("::a::b", "::a", Some("b")),
+            // An empty tail is the empty-named member.
+            ("a::", "a", Some("")),
+            // Only one join is removed; a longer colon run stays in the tail.
+            ("a:::b", "a", Some(":b")),
+            ("a::::b", "a", Some("::b")),
+            // The prefix is literal: no rooting, no shared-prefix match.
+            ("::a::b", "a", None),
+            ("a::b", "::a", None),
+            ("ab::c", "a", None),
+            ("a:b", "a", None),
+            ("a", "a", None),
+            // The root has no prefix to remove.
+            ("::b", "", None),
+            ("", "", None),
+        ];
+        for (name, namespace, tail) in cases {
+            assert_eq!(
+                authored_namespace_hint_tail(name, namespace),
+                tail,
+                "{name:?} under {namespace:?}"
+            );
+            assert_eq!(
+                authored_namespace_hint_tail_bytes(name.as_bytes(), namespace.as_bytes()),
+                tail.map(str::as_bytes),
+                "{name:?} under {namespace:?}"
+            );
+        }
+        // Counted bytes need not be UTF-8, and a NUL is ordinary data.
+        assert_eq!(
+            authored_namespace_hint_tail_bytes(b"\xff\0::\xfe", b"\xff\0"),
+            Some(b"\xfe".as_slice())
+        );
+        // The string twin returns a slice of its input at a character boundary.
+        assert_eq!(authored_namespace_hint_tail("é::ü", "é"), Some("ü"));
+    }
+
     #[test]
     fn unattributed_alias_hints_preserve_unavailable_value_boundaries() {
         let config = tcl_lexer::LexerConfig::default();

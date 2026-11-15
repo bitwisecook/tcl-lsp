@@ -1082,16 +1082,7 @@ fn text_references_var(text: &str, var: &str, braced_var: tcl_dialect::BracedVar
             continue;
         }
         let start = i;
-        while i < bytes.len() {
-            let b = bytes[i];
-            if b.is_ascii_alphanumeric() || b == b'_' {
-                i += 1;
-            } else if b == b':' && i + 1 < bytes.len() && bytes[i + 1] == b':' {
-                i += 2;
-            } else {
-                break;
-            }
-        }
+        i = tcl_core_types::naming::scan_var_name_end(bytes, start);
         if let Ok(name) = std::str::from_utf8(&bytes[start..i])
             && name == var
         {

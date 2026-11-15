@@ -985,7 +985,10 @@ fn mentions_static_variable(word: &str) -> bool {
 /// still the gate IRULE5001 prescribes, and over-suppressing a hint is the
 /// safe direction.
 fn names_static_variable(name: &str) -> bool {
-    name.trim_start_matches(':').starts_with("static::")
+    tcl_syntax::naming::written_command_parts(name.as_bytes())
+        .qualifiers
+        .first()
+        .is_some_and(|namespace| *namespace == b"static")
 }
 
 /// Possible debug flags from infrequently invoked handlers. Reuse the source

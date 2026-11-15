@@ -2117,7 +2117,9 @@ fn collect_qualified_variable_alias_tails(
             else {
                 continue;
             };
-            if variable.literal().is_some_and(|name| name.contains("::"))
+            if variable
+                .literal()
+                .is_some_and(|name| tcl_syntax::naming::is_qualified(name.as_bytes()))
                 && let Some(local) = alias.local.literal()
             {
                 tails.insert(local.to_owned());

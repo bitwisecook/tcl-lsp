@@ -160,7 +160,7 @@ impl SharingCtx<'_> {
     /// Whether the variable is outside the pass's certainty envelope —
     /// aliased/traced/instance names, `::`-qualified names, array bases.
     fn excluded(&self, name: &str, sym: Symbol) -> bool {
-        name.starts_with("::")
+        tcl_syntax::naming::is_absolute(name)
             || self.excluded_names.contains(name)
             || self.array_syms.contains(&sym)
     }

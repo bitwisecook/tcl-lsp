@@ -2395,9 +2395,9 @@ fn original_namespace_suffix(
     {
         return None;
     }
-    let tail = std::str::from_utf8(arena.bytes(suffix.span)?)
-        .ok()?
-        .strip_prefix("::")?;
+    let tail = tcl_syntax::naming::unroot_rooted_key(
+        std::str::from_utf8(arena.bytes(suffix.span)?).ok()?,
+    )?;
     (!tail.is_empty()).then_some((prefix, tail))
 }
 

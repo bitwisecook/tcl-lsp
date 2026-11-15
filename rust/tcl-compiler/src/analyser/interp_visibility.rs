@@ -236,7 +236,7 @@ impl SourceInterpreterVisibilitySnapshot {
             .ok()?
             .selected()
             .to_vec();
-        (!bytes.windows(2).any(|pair| pair == b"::")).then(|| bytes.into())
+        (!tcl_syntax::naming::is_qualified(&bytes)).then(|| bytes.into())
     }
     fn hide(
         &mut self,

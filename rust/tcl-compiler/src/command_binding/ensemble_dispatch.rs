@@ -161,7 +161,7 @@ impl SourceCommandBindings {
         let (head, prefix) = match selected {
             EnsembleDispatchTarget::Qualified(words) => {
                 let (head, rest) = words.split_first()?;
-                let head = if head.starts_with("::") {
+                let head = if tcl_syntax::naming::is_absolute(head) {
                     head.clone()
                 } else {
                     tcl_syntax::naming::rooted_member_key(&frozen.namespace.display()?, head)

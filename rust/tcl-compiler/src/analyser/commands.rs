@@ -5668,8 +5668,13 @@ impl Analyser {
     /// mis-resolve to an unrelated global command sharing the bare tail name.
     fn record_expr_function_invocations(&mut self, expr_tok: Token, scope_path: &[usize]) {
         for (name, span, argc) in self.expr_function_calls(expr_tok) {
-            let resolved =
-                self.resolve_command_qualified_name(&format!("tcl::mathfunc::{name}"), scope_path);
+            let resolved = self.resolve_command_qualified_name(
+                &crate::naming::unrooted_member_key(
+                    tcl_registry::mathfunc::MATHFUNC_NAMESPACE_RELATIVE,
+                    &name,
+                ),
+                scope_path,
+            );
             self.push_mathfunc_command_reference(name, span, resolved, Some(argc));
         }
     }

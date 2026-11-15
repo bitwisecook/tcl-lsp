@@ -79,12 +79,9 @@ impl SignatureNamespaceScope {
     pub fn display(&self) -> Option<String> {
         match self {
             Self::Symbolic(key) => Some(key.clone()),
-            Self::C(path) => Some(format!(
-                "::{}",
-                tcl_syntax::naming::checked_namespace_path_utf8(path)
-                    .ok()?
-                    .join("::")
-            )),
+            Self::C(path) => {
+                String::from_utf8(tcl_syntax::naming::native_namespace_full_name_bytes(path)).ok()
+            }
             Self::Jim(value) => Some(crate::naming::root_unrooted_key(value.try_utf8().ok()?)),
         }
     }

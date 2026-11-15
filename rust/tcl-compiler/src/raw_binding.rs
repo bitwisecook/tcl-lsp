@@ -880,9 +880,7 @@ impl ResolveContext {
                 {
                     return RawBindingContents::Unknown;
                 }
-                let mut absolute = b"::".to_vec();
-                absolute.extend_from_slice(cell.name.as_bytes());
-                absolute.into()
+                tcl_syntax::naming::root_unrooted_key_bytes(cell.name.as_bytes()).into()
             }
             CellOwner::Namespace(namespace) if self.execution_name_policy.is_none() => {
                 tcl_syntax::naming::qualify(namespace, &target.name).into()
@@ -915,7 +913,7 @@ impl ResolveContext {
     ) {
         for (name, wrapper) in &statics.bindings {
             // Jim absolute names bypass the procedure static table.
-            if name.as_bytes().starts_with(b"::") {
+            if tcl_syntax::naming::is_absolute_bytes(name.as_bytes()) {
                 continue;
             }
             let slot = raw_destination_bytes(name.as_bytes(), self, registry);

@@ -1440,7 +1440,7 @@ fn command_has_execution_trace(
         registry,
         module,
         crate::registry_invocation::InvocationMetadataContext::for_module(registry, module),
-    ) || (!module.traced_commands.is_empty() && command.label().starts_with("::"))
+    ) || (!module.traced_commands.is_empty() && tcl_syntax::naming::is_absolute(command.label()))
         || module.traced_commands.contains(command.label())
 }
 
