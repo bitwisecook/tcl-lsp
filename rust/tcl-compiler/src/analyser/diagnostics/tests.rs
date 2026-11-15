@@ -18757,6 +18757,33 @@ fn i230_keeps_values_across_a_braced_expr_with_a_known_nested_call() {
     ]);
 }
 
+/// A nested call reading an untraced scalar folds in value position: tclsh
+/// 8.4-9.1 print `yes` for each (#2454).
+#[test]
+fn i230_folds_a_nested_call_that_reads_a_variable() {
+    for (value, expected) in [
+        ("[string length $s]", "3"),
+        ("[expr {[string length $s] * 2}]", "6"),
+    ] {
+        for src in [
+            format!(
+                "set s abc\nset n {value}\nif {{$n == {expected}}} {{puts yes}} else {{puts no}}\n"
+            ),
+            format!(
+                "proc p {{}} {{\n set s abc\n set n {value}\n if {{$n == {expected}}} {{puts yes}} else {{puts no}}\n}}\n"
+            ),
+        ] {
+            let (whole, per_item) = i230_on_both_paths(&src);
+            assert_eq!(whole.len(), 1, "{src}: {whole:?}");
+            assert!(whole[0].contains("always true"), "{src}: {whole:?}");
+            assert_eq!(per_item, whole, "{src}");
+        }
+    }
+    assert_no_i230(&[
+        "set s abc\ntrace add variable s read {apply {args {}}}\nset n [string length $s]\nif {$n == 3} {puts yes} else {puts no}\n",
+    ]);
+}
+
 /// A command the module cannot see runs inside a body that is no body of the
 /// frame the substitution is written in — a lambda's, a `namespace eval` or
 /// `uplevel` body, the text a `subst` substitutes, an expression word of a

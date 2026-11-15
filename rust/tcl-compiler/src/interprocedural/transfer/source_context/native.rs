@@ -349,6 +349,16 @@ impl<'a> NativeSummaryContext<'a> {
                 .any(|traced| tail(traced) == tail(name))
     }
 
+    /// A whole scalar read no trace may name: it runs no code, and the
+    /// lattice reads its value at the statement (#2454).
+    fn untraced_scalar_read(&self, word: &WordExpr) -> bool {
+        let WordExpr::Variable { spelling, .. } = word else {
+            return false;
+        };
+        tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, self.config)
+            .is_some_and(|name| !self.may_carry_variable_trace(name))
+    }
+
     pub(in crate::interprocedural::transfer) fn with_value_operation<T>(
         &self,
         tokens: &CommandTokens,
@@ -375,7 +385,11 @@ impl<'a> NativeSummaryContext<'a> {
                     .source_binding
                     .as_ref()?
                     .original_arguments_complete_normally(tokens)
-                || !operation.effective.words.iter().all(literal_word),
+                || !operation
+                    .effective
+                    .words
+                    .iter()
+                    .all(|word| literal_word(word) || self.untraced_scalar_read(word)),
         ) {
             return None;
         }
