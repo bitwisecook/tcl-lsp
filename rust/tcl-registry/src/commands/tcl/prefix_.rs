@@ -31,9 +31,37 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
+/// `tclIndexObj.c` `prefixImplMap`, pinned C Tcl 8.6.18–9.1.0: `all` and
+/// `longest` register `TclCompileBasic2ArgCmd`, `match`
+/// `TclCompileBasicMin2ArgCmd`. tclsh 8.6 and 9.0 compile
+/// `tcl::prefix all {a b} a` to `push ::tcl::prefix::all; push {a b}; push a;
+/// invokeStk1 3`.
+macro_rules! named_prefix_compiler {
+    ($member:literal, $arity:expr $(,)?) => {
+        crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::tcl::prefix",
+                    member: $member,
+                    slot: concat!("::tcl::prefix::", $member),
+                    command: "tcl::prefix",
+                    prepended: &[$member],
+                },
+                implementation_from: tcl_dialect::TclVersion::V8_6,
+                hook_from: tcl_dialect::TclVersion::V8_6,
+                arity: $arity,
+                later_arity: None,
+            },
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }
+    };
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "all",
+        native_compilation: Some(named_prefix_compiler!("all", Arity::exact(2))),
         arity: Arity::exact(2),
         detail: "Return every element of table that begins with string.",
         synopsis: "tcl::prefix all table string",
@@ -46,6 +74,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "longest",
+        native_compilation: Some(named_prefix_compiler!("longest", Arity::exact(2))),
         arity: Arity::exact(2),
         detail: "Return the longest common prefix of every element of table that begins with string.",
         synopsis: "tcl::prefix longest table string",
@@ -58,6 +87,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "match",
+        native_compilation: Some(named_prefix_compiler!("match", Arity::at_least(2))),
         // Positional arity is `table string` only (2); the `-exact`/
         // `-message`/`-error` leading options (and the value word each of
         // the latter two consumes) are skipped by the generic
@@ -117,7 +147,9 @@ pub fn spec() -> CommandSpec {
         name: "tcl::prefix",
         pack_source_sandbox_helper: true,
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
-            grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
