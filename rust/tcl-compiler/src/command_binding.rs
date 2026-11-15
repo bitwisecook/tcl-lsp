@@ -14373,6 +14373,9 @@ impl SourceCommandBindings {
             arity: args.len(),
             closed: false,
         };
+        // Each operand's own read receipt and the representation epoch it was
+        // taken under.
+        let mut receipts = Vec::with_capacity(args.len());
         for argument in args {
             let Some(continuing) = outcomes.normal.take() else {
                 break;
@@ -14382,19 +14385,32 @@ impl SourceCommandBindings {
             if args.len() == 1 {
                 input.closed = operator_result(argument)
                     || source_representation::scalar_math_input_is_closed(argument, &evaluated);
+            } else {
+                receipts.push((
+                    source_representation::scalar_math_input_is_closed(argument, &evaluated),
+                    evaluated
+                        .normal
+                        .as_deref()
+                        .and_then(|normal| normal.source_variables.representation_epoch),
+                ));
             }
             outcomes.join(&evaluated);
         }
         if let Some(continuing) = outcomes.normal.take() {
             *state = *continuing;
             if args.len() != 1 {
-                input.closed = args.iter().all(|argument| {
+                // An operand read before a later operand ran keeps its
+                // receipt only while no representation changed since:
+                // `max($a, $b)` reads both and then converts them.
+                let current = state.source_variables.representation_epoch;
+                input.closed = args.iter().zip(&receipts).all(|(argument, (closed, epoch))| {
                     operator_result(argument)
                         || literal_object_pool::SourceOrdinaryLiteralObject::capture_expression_literal(
                             argument, state,
                         )
                         .is_some()
-                });
+                        || (*closed && epoch.is_some() && *epoch == current)
+                }) && receipts.len() == args.len();
             }
             outcomes.join(&self.walk_math_function(function, input, site, state, context));
         }
