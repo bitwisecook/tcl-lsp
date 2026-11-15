@@ -385,9 +385,19 @@ impl<'a> NativeSummaryContext<'a> {
                     .argument_literal(argument)
                     .is_some_and(|name| !self.may_carry_variable_trace(&name))
             });
+        // A nested command whose only variable roles are reads of literal
+        // names no module trace may name runs no code through them: the
+        // consumer reads each place from the lattice or abstains. A write
+        // role keeps the refusal, since a value position cannot land a store.
+        let plain_reads = normal.variable_roles().iter().all(|&(argument, role)| {
+            role == tcl_registry::ArgRole::VarRead
+                && operation
+                    .argument_literal(argument)
+                    .is_some_and(|name| !self.may_carry_variable_trace(&name))
+        });
         if n17_native_decline(
             "child.roles-arguments-or-literals",
-            (!existence && !normal.variable_roles().is_empty())
+            (!existence && !plain_reads)
                 || !tokens
                     .source_binding
                     .as_ref()?

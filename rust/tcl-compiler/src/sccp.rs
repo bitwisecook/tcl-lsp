@@ -7359,13 +7359,17 @@ mod tests {
     /// (`EffectFreeOnly`), so its host widens.
     #[test]
     fn evaluate_def_set_read_in_value_position_folds() {
+        // tclsh 8.6.18 and 9.0.4 print `<hello> <10 10> <CHANGED>` for a
+        // nested read, a nested write, and a nested read of a place whose
+        // read trace replaces it.
+        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
         assert_eq!(
             settled(
                 "tcl8.6",
                 "proc p {} {set x hello; set r [set x]; return $r}",
                 "r"
             ),
-            LatticeValue::Const(ConstValue::String("hello".into()))
+            text("hello")
         );
         assert_eq!(
             settled(
@@ -7373,6 +7377,18 @@ mod tests {
                 "proc p {} {set x hello; set r [set x 10]; return $r}",
                 "r"
             ),
+            LatticeValue::Overdefined
+        );
+        assert_eq!(
+            settled(
+                "tcl8.6",
+                "proc t args {}\nproc p {} {set x hello; trace add variable x read t; set r [set x]; return $r}",
+                "r"
+            ),
+            LatticeValue::Overdefined
+        );
+        assert_eq!(
+            settled("tcl8.6", "proc p {x} {set r [set x]; return $r}", "r"),
             LatticeValue::Overdefined
         );
     }
