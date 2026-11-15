@@ -305,8 +305,10 @@ pub fn vector_script(vector: &VariableVector) -> String {
                 "namespace eval {} {{\nproc __vecProbe {{}} {{\n{body}}}\n}}",
                 vector.ns,
             );
-            let holder = if vector.ns == "::" { "" } else { &vector.ns };
-            format!("{holder}::__vecProbe\n")
+            format!(
+                "{}\n",
+                crate::naming::rooted_member_key(&vector.ns, "__vecProbe")
+            )
         }
     };
     let _ = writeln!(

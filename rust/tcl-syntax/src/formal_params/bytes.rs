@@ -200,6 +200,7 @@ fn validate_name(name: &[u8]) -> Result<(), ByteFormalParameterError> {
     if name.is_empty() {
         return Err(ByteFormalParameterError::EmptyName);
     }
+    // `TclCreateProc`'s scan: the first offending byte selects the error.
     for index in 0..name.len().saturating_sub(1) {
         if name[index] == b'(' && name.last() == Some(&b')') {
             return Err(ByteFormalParameterError::ArrayElement(name.to_vec()));

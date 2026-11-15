@@ -490,6 +490,7 @@ fn validate_name(name: &str) -> Result<(), FormalParameterError> {
     let bytes = name.as_bytes();
     let final_byte = bytes.len() - 1;
     let mut index = 0;
+    // `TclCreateProc`'s scan: the first offending byte selects the error.
     while index < final_byte {
         if bytes[index] == b'(' && bytes[final_byte] == b')' {
             return Err(FormalParameterError::ArrayElement {

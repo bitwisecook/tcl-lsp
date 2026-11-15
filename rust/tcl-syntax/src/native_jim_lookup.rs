@@ -128,9 +128,7 @@ impl NativeJimLookupProtocol {
     pub fn namespace_current_result(self, original_namespace: &[u8]) -> Vec<u8> {
         // naming.lambda.original-namespace-constructor-and-getter
         // docs/design/analysis/name-resolution-proofs/lambda-original-namespace-constructor-and-getter.md
-        let mut bytes = b"::".to_vec();
-        bytes.extend_from_slice(original_namespace);
-        bytes
+        crate::naming::root_unrooted_key_bytes(original_namespace)
     }
 
     /// Counted target authored by the namespace-upvar helper after its actual
@@ -170,9 +168,7 @@ impl NativeJimLookupProtocol {
     /// This does not recover its command identity or split an alias prefix.
     #[must_use]
     pub fn namespace_origin_result(self, selected: &[u8]) -> Vec<u8> {
-        let mut result = b"::".to_vec();
-        result.extend_from_slice(selected);
-        result
+        crate::naming::root_unrooted_key_bytes(selected)
     }
 
     /// The script helper reports the complete recursive name as counted bytes.
@@ -187,7 +183,7 @@ impl NativeJimLookupProtocol {
     /// Select `Jim_SetVariableLink`'s original-object owner and actual target frame.
     #[must_use]
     pub fn link_target_input(self, original: &[u8]) -> NativeJimLinkTargetInput<'_> {
-        if original.starts_with(b"::") {
+        if crate::naming::is_absolute_bytes(original) {
             let offset = original
                 .iter()
                 .position(|byte| *byte != b':')
@@ -300,7 +296,7 @@ impl NativeJimLookupProtocol {
     /// A bare name has no namespace-shadow invalidation obligation.
     #[must_use]
     pub fn procedure_shadow_tail(self, original: &[u8]) -> Option<&[u8]> {
-        let name = if original.starts_with(b"::") {
+        let name = if crate::naming::is_absolute_bytes(original) {
             &original[original
                 .iter()
                 .position(|byte| *byte != b':')

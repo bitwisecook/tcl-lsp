@@ -33,22 +33,13 @@ pub type StaticCommandSlot = crate::CommandSlot<String, StaticNamespacePath>;
 /// Render a namespace path for Tcl-facing output.
 #[must_use]
 pub fn display_namespace(path: &[String]) -> String {
-    if path.is_empty() {
-        "::".to_owned()
-    } else {
-        format!("::{}", path.join("::"))
-    }
+    tcl_syntax::naming::root_unrooted_key(&path.join("::"))
 }
 
 /// Render a command slot for Tcl-facing output.
 #[must_use]
 pub fn display_command(slot: &StaticCommandSlot) -> String {
-    let namespace = display_namespace(&slot.namespace);
-    if namespace == "::" {
-        format!("::{simple}", simple = slot.simple)
-    } else {
-        format!("{namespace}::{simple}", simple = slot.simple)
-    }
+    tcl_syntax::naming::rooted_member_key(&display_namespace(&slot.namespace), &slot.simple)
 }
 
 /// Produce an injective internal key for string-keyed compatibility maps.
