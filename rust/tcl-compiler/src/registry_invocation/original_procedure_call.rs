@@ -130,6 +130,12 @@ pub fn original_authored_procedure_calls_for_module<'a>(
         return None;
     }
     original_procedure_calls_for_targets(tokens, module, advice.targets(), |procedure| {
+        // The declaration's own formals say which positions have a default
+        // and whether the last is `args`; a name inventory alone would
+        // require every position.
+        if let Some(shape) = original_procedure_formal_count_shape(module, procedure, registry) {
+            return Some(shape);
+        }
         let arguments =
             crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots::from_module(
                 module, procedure,
@@ -437,10 +443,18 @@ pub fn original_procedure_parameters(
     if owners.next().is_some()
         || !retained.matches_module(module, registry)
         || !retained.matches_original_procedure_summary(*id, procedure)
-        || module.original_invocation_source_purpose(
-            registry,
-            super::InvocationMetadataContext::for_module(registry, module)?,
-        ) != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+        || !matches!(
+            module.original_invocation_source_purpose(
+                registry,
+                super::InvocationMetadataContext::for_module(registry, module)?,
+            ),
+            // The declaration's own formal list, read strictly: a release
+            // unit's authored model retains it as a Logical unit does.
+            Some(
+                crate::command_binding::OriginalInvocationSourcePurpose::Logical
+                    | crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
+            )
+        )
     {
         return None;
     }
