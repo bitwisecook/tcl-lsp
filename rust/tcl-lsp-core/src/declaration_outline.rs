@@ -53,6 +53,7 @@ use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
+use tcl_registry::definer::DefinitionBodyGrammar;
 
 /// Nesting cap for the block walk, mirroring the folding walker's own limit:
 /// a hand-written declaration document nests three or four deep, and the cap
@@ -119,11 +120,24 @@ pub fn declarations(source: &str, dialect: &'static DialectProfile) -> Vec<Block
         return Vec::new();
     }
     let registry = crate::registry_for_dialect_profile(dialect);
+    let Some(grammar) = registry.document_grammar() else {
+        return Vec::new();
+    };
     // The profile in hand already carries the document's grammar; resolving
     // its name a second time is the drift the ingress settlement forbids
     // (`docs/design/registry/dialect-profile-model.md` §2.5).
     let config = LexerConfig::from_grammar(dialect.grammar);
-    collect(source, source, 0, 0, registry, &config)
+    collect(
+        source,
+        Region {
+            body: source,
+            base_offset: 0,
+            depth: 0,
+        },
+        grammar,
+        registry,
+        &config,
+    )
 }
 
 /// Whether this exact current analysis selected a declaration-document grammar.
@@ -311,6 +325,7 @@ fn body_slice<'a>(original: &'a str, token: &tcl_lexer::Token) -> Option<(&'a st
 /// One statement's block facts, when it opens one: its grammar and the
 /// argument indices holding its name and its body.
 struct BlockShape {
+    grammar: &'static DefinitionBodyGrammar,
     name_index: Option<usize>,
     body_index: usize,
 }
@@ -318,9 +333,12 @@ struct BlockShape {
 fn block_shape(
     head: &str,
     args: &[&str],
+    parent: &'static DefinitionBodyGrammar,
     registry: &'static CommandRegistry,
 ) -> Option<BlockShape> {
-    crate::oo_body::outer_definition_grammar(head, args, registry)?;
+    // A block keyword is a member of the enclosing document grammar, not a
+    // global command, so it is read through that relation.
+    let grammar = registry.authored_document_member_grammar(parent, head)?;
     let body_index = *registry
         .arg_indices_for_role(head, args, ArgRole::Body)
         .first()?;
@@ -329,26 +347,38 @@ fn block_shape(
         .first()
         .copied();
     Some(BlockShape {
+        grammar,
         name_index,
         body_index,
     })
 }
 
-fn collect(
-    original: &str,
-    body: &str,
+#[derive(Clone, Copy)]
+struct Region<'a> {
+    body: &'a str,
     base_offset: u32,
     depth: u32,
+}
+
+fn collect(
+    original: &str,
+    region: Region<'_>,
+    parent: &'static DefinitionBodyGrammar,
     registry: &'static CommandRegistry,
     config: &LexerConfig,
 ) -> Vec<BlockDeclaration> {
+    let Region {
+        body,
+        base_offset,
+        depth,
+    } = region;
     if depth >= MAX_BLOCK_DEPTH {
         return Vec::new();
     }
     let mut out = Vec::new();
     for cmd in segment_commands_with_offset_and_config(body, base_offset, config.at_depth(depth)) {
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
-        let Some(shape) = block_shape(cmd.name(), &args, registry) else {
+        let Some(shape) = block_shape(cmd.name(), &args, parent, registry) else {
             continue;
         };
         let tokens = cmd.arg_tokens();
@@ -359,7 +389,17 @@ fn collect(
             continue;
         }
         let children = body_slice(original, &body_token).map_or_else(Vec::new, |(inner, start)| {
-            collect(original, inner, start, depth + 1, registry, config)
+            collect(
+                original,
+                Region {
+                    body: inner,
+                    base_offset: start,
+                    depth: depth + 1,
+                },
+                shape.grammar,
+                registry,
+                config,
+            )
         });
         let Some(&head_token) = cmd.argv.first() else {
             continue;
