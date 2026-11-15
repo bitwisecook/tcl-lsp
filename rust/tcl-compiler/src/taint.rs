@@ -4462,6 +4462,7 @@ fn retain_callback_replay_report(
     baseline: &[TaintWarning],
     input_var: &str,
     replay_spans: &[(Span, Span, String)],
+    insertions: &CallbackReplayInsertions,
     replay_report: TaintWarningReport,
     out: &mut TaintWarningReport,
 ) {
@@ -4472,6 +4473,7 @@ fn retain_callback_replay_report(
             residual,
             cu,
             replay_spans,
+            insertions,
         ));
     }
     if !was_analysed && unavailable.is_empty() {
@@ -4489,6 +4491,23 @@ fn retain_callback_replay_report(
         TaintReplayAnalysis::Unavailable { unavailable }
     });
     for mut warning in replay_report.warnings {
+        let in_replay = replay_spans.iter().any(|(span, _, _)| {
+            warning.span.start() >= span.start() && warning.span.start() < span.end()
+        });
+        if !in_replay && insertions.shifts(warning.span) {
+            let Some(original) = insertions.original_span(warning.span) else {
+                continue;
+            };
+            warning.span = original;
+            // Source words and fixes were taken from the injected text.
+            warning.source_sink = None;
+            warning.fixes.retain_mut(|fix| {
+                insertions
+                    .original_span(fix.span)
+                    .map(|span| fix.span = span)
+                    .is_some()
+            });
+        }
         // A prefix can call a local procedure. Its sink then lies in the
         // original procedure body even though the synthetic invocation
         // taints its parameter. Keep that new source span intact. Only a
@@ -4526,35 +4545,136 @@ fn retain_callback_replay_report(
 
 type CallbackReplaySpans = Vec<(Span, Span, String)>;
 
-fn append_callback_replays(
+/// Where synthetic replay text was inserted into the original source: the
+/// original offset it precedes and its length in the injected source.
+#[derive(Debug, Default)]
+struct CallbackReplayInsertions(Vec<(u32, u32)>);
+
+impl CallbackReplayInsertions {
+    /// Original offset of an injected offset outside every insertion.
+    fn original_offset(&self, injected: u32, inclusive_end: bool) -> Option<u32> {
+        let mut shift = 0u32;
+        for &(at, len) in &self.0 {
+            let start = at + shift;
+            if injected < start || (inclusive_end && injected == start) {
+                break;
+            }
+            if injected < start + len {
+                return None;
+            }
+            shift += len;
+        }
+        Some(injected - shift)
+    }
+
+    fn original_span(&self, span: Span) -> Option<Span> {
+        let start = self.original_offset(span.start(), false)?;
+        let end = if span.end() > span.start() {
+            self.original_offset(span.end(), true)?
+        } else {
+            start
+        };
+        Some(Span::new(start, end.max(start)))
+    }
+
+    fn shifts(&self, span: Span) -> bool {
+        self.0.first().is_some_and(|&(at, _)| span.start() >= at)
+    }
+}
+
+/// Insert each callback replay immediately before the top-level statement
+/// that registers it. The replay is then analysed in the command world of
+/// its registration point: a later dynamic registration or redefinition
+/// cannot cloud its definition, and earlier user definitions still resolve.
+fn insert_callback_replays(
     source: &str,
+    top_level: &[crate::ir::Statement],
     replays: &[(CallbackReplaySource, Span, String)],
-) -> (String, CallbackReplaySpans) {
+) -> (String, CallbackReplaySpans, CallbackReplayInsertions) {
+    let source_end = u32::try_from(source.len()).unwrap_or(u32::MAX);
+    let anchor = |callback: Span| {
+        top_level
+            .iter()
+            .map(crate::ir::Statement::span)
+            .find(|span| span.start() <= callback.start() && callback.start() < span.end())
+            .map_or(source_end, Span::start)
+            .min(source_end)
+    };
+    let mut ordered: Vec<(u32, &(CallbackReplaySource, Span, String))> = replays
+        .iter()
+        .map(|replay| (anchor(replay.1), replay))
+        .collect();
+    ordered.sort_by_key(|(at, _)| *at);
+
     let mut injected = String::with_capacity(
         source.len()
             + replays
                 .iter()
-                .map(|(source, _, _)| source.definition.len() + 1)
+                .map(|(source, _, _)| source.definition.len() + 2)
                 .sum::<usize>(),
     );
-    injected.push_str(source);
-    let mut replay_spans: Vec<(Span, Span, String)> = Vec::with_capacity(replays.len());
+    let mut replay_spans: CallbackReplaySpans = Vec::with_capacity(replays.len());
+    let mut insertions = CallbackReplayInsertions::default();
+    let mut copied = 0usize;
     // Retained procedure entries share the registration world. Their
     // arbitrary effects belong to their own future executions, so one
     // replay never mutates another replay's incoming command table.
-    for (replay, callback_span, callback_input_label) in replays {
-        injected.push('\n');
+    for (at, (replay, callback_span, callback_input_label)) in ordered {
+        let at_usize = at as usize;
+        injected.push_str(&source[copied..at_usize]);
+        copied = at_usize;
+        let inserted_from = injected.len();
+        if at == source_end && !injected.is_empty() {
+            injected.push('\n');
+        }
         let start = u32::try_from(injected.len()).unwrap_or(u32::MAX);
         injected.push_str(&replay.definition);
         let end = u32::try_from(injected.len()).unwrap_or(u32::MAX);
+        if at != source_end {
+            injected.push('\n');
+        }
+        let len = u32::try_from(injected.len() - inserted_from).unwrap_or(u32::MAX);
+        insertions.0.push((at, len));
         replay_spans.push((
             Span::new(start, end),
             *callback_span,
             callback_input_label.clone(),
         ));
     }
+    injected.push_str(&source[copied..]);
 
-    (injected, replay_spans)
+    (injected, replay_spans, insertions)
+}
+
+/// Build the interprocedural unit that analyses injected callback replays
+/// with the original document's source analysis input.
+fn callback_replay_unit(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    injected: &str,
+) -> Option<crate::compilation_unit::CompilationUnit> {
+    let input =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &cu.ir_module)
+            .and_then(
+                crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
+            )?;
+    Some(
+        crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            injected,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: cu.ir_module.lexer_config,
+                dialect,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            input,
+        )
+        .with_interprocedural(registry, dialect),
+    )
 }
 
 fn taint_callback_substitution_report(
@@ -4601,15 +4721,12 @@ fn taint_callback_substitution_report(
             ));
         }
 
-        let (injected, replay_spans) = append_callback_replays(&cu.source, &replays);
+        let (injected, replay_spans, insertions) =
+            insert_callback_replays(&cu.source, &cu.ir_module.top_level.statements, &replays);
 
         #[cfg(test)]
         CALLBACK_REPLAY_BUILDS.with(|count| count.set(count.get() + 1));
-        let Some(input) = crate::registry_invocation::InvocationMetadataContext::for_module(
-            registry,
-            &cu.ir_module,
-        )
-        .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input) else {
+        let Some(replay_cu) = callback_replay_unit(cu, registry, dialect, &injected) else {
             let residuals = replay_spans
                 .iter()
                 .map(|(_, registration, _)| UnavailableTaintReplay {
@@ -4623,20 +4740,6 @@ fn taint_callback_substitution_report(
             });
             continue;
         };
-        let replay_cu = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
-            &injected,
-            crate::compilation_unit::UnitBuildOptions {
-                registry,
-                defer_top_level: false,
-                config: cu.ir_module.lexer_config,
-                dialect,
-                external_call_sites: None,
-                declared_commands: None,
-            },
-            None,
-            input,
-        )
-        .with_interprocedural(registry, dialect);
         // `input_var` was chosen absent from the complete user source, so
         // seeding both scopes cannot influence the original program.
         let replay_seed = HashMap::from([
@@ -4657,6 +4760,7 @@ fn taint_callback_substitution_report(
             baseline,
             &input_var,
             &replay_spans,
+            &insertions,
             replay_report,
             &mut out,
         );
@@ -4668,6 +4772,7 @@ fn original_callback_replay_residuals(
     residual: &UnavailableTaintReplay,
     cu: &crate::compilation_unit::CompilationUnit,
     replay_spans: &[(Span, Span, String)],
+    insertions: &CallbackReplayInsertions,
 ) -> Vec<UnavailableTaintReplay> {
     let original_end = u32::try_from(cu.source.len()).unwrap_or(u32::MAX);
     let retained = |span| UnavailableTaintReplay {
@@ -4675,8 +4780,11 @@ fn original_callback_replay_residuals(
         reason: residual.reason,
         source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
     };
-    if residual.span.start() <= residual.span.end() && residual.span.end() <= original_end {
-        return vec![retained(residual.span)];
+    if residual.span.start() <= residual.span.end()
+        && let Some(original) = insertions.original_span(residual.span)
+        && original.end() <= original_end
+    {
+        return vec![retained(original)];
     }
     if let Some((_, registration, _)) = replay_spans.iter().find(|(synthetic, _, _)| {
         synthetic.start() <= residual.span.start()
@@ -14251,6 +14359,85 @@ mod tests {
         );
     }
 
+    /// A replay is placed before the statement that registers it, so it is
+    /// analysed in that statement's command world; a later dynamic
+    /// registration cannot hide its definition. Tk 8.4–9.1 `-validatecommand`.
+    #[test]
+    fn callback_replay_is_defined_and_analysed_at_its_registration_point() {
+        let source = "set before 1\n\
+                      entry .one -validatecommand {eval %P}\n\
+                      entry .two -validatecommand [gets stdin]\n\
+                      set after 2";
+        let (cu, registry) = loaded_tk_callback_unit(source);
+        let mut candidates = Vec::new();
+        collect_callback_replay_candidates(
+            &cu,
+            &registry,
+            None,
+            cu.ir_module.lexer_config,
+            &mut candidates,
+        );
+        assert_eq!(
+            candidates.len(),
+            1,
+            "only the static callback is replayable"
+        );
+        let candidate = &candidates[0];
+        let replay = callback_replay_source(
+            &candidate.callback,
+            candidate.inputs,
+            candidate.source_is_command_substitution,
+            "input",
+            "::replay_0",
+            cu.ir_module.lexer_config,
+            candidate.selected_builder.as_ref(),
+        )
+        .expect("static callback");
+        let definition = replay.definition.clone();
+        let (injected, spans, insertions) = insert_callback_replays(
+            &cu.source,
+            &cu.ir_module.top_level.statements,
+            &[(replay, candidate.callback_span, String::new())],
+        );
+        let registration = cu
+            .source
+            .find("entry .one")
+            .expect("registration statement");
+        let before = &cu.source[..registration];
+        assert_eq!(
+            injected,
+            format!("{before}{definition}\n{}", &cu.source[registration..])
+        );
+        let (synthetic, callback_span, _) = &spans[0];
+        assert_eq!(
+            &injected[synthetic.start() as usize..synthetic.end() as usize],
+            definition
+        );
+        assert_eq!(*callback_span, candidate.callback_span);
+        let after = u32::try_from(injected.find("set after").unwrap()).unwrap();
+        let original_after = u32::try_from(cu.source.find("set after").unwrap()).unwrap();
+        assert_eq!(
+            insertions.original_span(Span::new(after, after + 9)),
+            Some(Span::new(original_after, original_after + 9))
+        );
+
+        let replay_cu =
+            callback_replay_unit(&cu, &registry, None, &injected).expect("source input");
+        let replay_unit = replay_cu
+            .analysable_body_function_units()
+            .find(|fu| fu.name == "::replay_0")
+            .expect("the replay definition is a procedure of the replay unit");
+        assert!(
+            replay_unit
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .any(|stmt| matches!(stmt, Statement::Call { command, .. } if command == "eval")),
+            "the replayed callback body is lowered inside its own procedure"
+        );
+    }
+
     #[test]
     fn callback_replays_batch_into_one_extra_interprocedural_build() {
         let source = "entry .one -validatecommand {eval %P}\n\
@@ -16174,6 +16361,31 @@ mod tests {
             Err(UnavailableTaintReplayReason::ProcedureConstructor)
         ));
     }
+    /// Release-independent offset bookkeeping (8.4–9.1).
+    #[test]
+    fn callback_replay_insertions_map_back_to_original_offsets() {
+        let insertions = CallbackReplayInsertions(vec![(4, 3), (10, 5)]);
+        assert_eq!(
+            insertions.original_span(Span::new(0, 4)),
+            Some(Span::new(0, 4))
+        );
+        assert_eq!(insertions.original_span(Span::new(5, 6)), None);
+        assert_eq!(
+            insertions.original_span(Span::new(7, 9)),
+            Some(Span::new(4, 6))
+        );
+        assert_eq!(insertions.original_span(Span::new(13, 14)), None);
+        assert_eq!(
+            insertions.original_span(Span::new(11, 13)),
+            Some(Span::new(8, 10))
+        );
+        assert_eq!(
+            insertions.original_span(Span::new(18, 20)),
+            Some(Span::new(10, 12))
+        );
+        assert!(!insertions.shifts(Span::new(0, 2)));
+        assert!(insertions.shifts(Span::new(7, 8)));
+    }
     #[test]
     fn callback_unavailable_spans_require_bounded_original_correspondence() {
         let context =
@@ -16183,6 +16395,7 @@ mod tests {
         let registration = unit.ir_module.top_level.statements.first().unwrap().span();
         let replay = Span::new(end + 1, end + 21);
         let spans = [(replay, registration, "input".to_owned())];
+        let insertions = CallbackReplayInsertions(vec![(end, 21)]);
         let residual = |span| UnavailableTaintReplay {
             span,
             reason: UnavailableTaintReplayReason::SourceMetadata,
@@ -16190,7 +16403,7 @@ mod tests {
         };
         let original = residual(Span::new(0, end));
         assert_eq!(
-            original_callback_replay_residuals(&original, &unit, &spans)[0].span,
+            original_callback_replay_residuals(&original, &unit, &spans, &insertions)[0].span,
             original.span
         );
         for span in [
@@ -16198,7 +16411,8 @@ mod tests {
             Span::new(end - 1, end + 2),
             Span::new(end + 30, end + 31),
         ] {
-            let mapped = original_callback_replay_residuals(&residual(span), &unit, &spans);
+            let mapped =
+                original_callback_replay_residuals(&residual(span), &unit, &spans, &insertions);
             assert_eq!(mapped.len(), 1);
             assert_eq!(mapped[0].span, registration);
             assert!(
@@ -16210,7 +16424,12 @@ mod tests {
             );
         }
         let out_of_bounds = residual(Span::new(end + 30, end + 31));
-        let unmapped = original_callback_replay_residuals(&out_of_bounds, &unit, &[]);
+        let unmapped = original_callback_replay_residuals(
+            &out_of_bounds,
+            &unit,
+            &[],
+            &CallbackReplayInsertions::default(),
+        );
         assert_eq!(unmapped[0].span, out_of_bounds.span);
         assert!(unmapped[0].source.is_none());
     }
