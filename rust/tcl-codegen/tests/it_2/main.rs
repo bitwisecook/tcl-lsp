@@ -25,6 +25,8 @@
 mod body_identity;
 #[path = "../../../tcl-compiler/tests/support/function_identity.rs"]
 mod function_identity;
+#[path = "../support/vm_compiled.rs"]
+mod vm_compiled;
 
 mod codegen;
 mod codegen_golden;

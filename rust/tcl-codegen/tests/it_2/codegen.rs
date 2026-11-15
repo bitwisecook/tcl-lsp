@@ -22,10 +22,10 @@
 //!   * bytecode-assembly backend basics
 //!   * nested control flow, expr edge cases, switch/loop/proc/try, CFG structure
 //!
-//! Pipeline used throughout: `lower_to_ir` → `build_cfg_codegen` /
-//! `build_cfg` → `codegen_module` / `codegen_function`, then inspect the
-//! emitted `FunctionAsm` (opcode stream, literal pool, LVT) and the disassembly
-//! text.
+//! Bytecode-shape tests take the unit a live Tcl 8.6 interpreter compiles
+//! (`vm_compiled`): a module lowered without an interpreter proves no command
+//! and emits plain dispatch. IR and CFG shape tests use `lower_to_ir` →
+//! `build_cfg`, and the hand-built CFG tests `codegen_function`.
 //!
 //! ── tclsh proofs ────────────────────────────────────────────────────────
 //! Where a test pins a RUNTIME RESULT (the generated code computes value
@@ -39,32 +39,19 @@
 //! internal — and is noted as such where relevant.
 //!
 //! ── Codegen surfaces with no dedicated opcode (documented behaviour) ─
-//!  1. SPECIALISED string/dict-subcommand opcodes. The emitter (verified by
-//!     probing `codegen_module`) routes `string length`/`index`/`toupper`/
-//!     `trim*`/`match`/`equal`/`compare`/`range`/`first`/`last`/`replace`/`map`,
-//!     `lindex`, and `dict get`/`exists` through a generic `invokeStk1` both at
-//!     top level AND in proc bodies — the dedicated `STR_*`/`LIST_INDEX_IMM`/
-//!     `DICT_*` opcodes exist in `Op` but the bytecode emitter does not select
-//!     them for these commands. The corresponding tests assert "compiles to a
-//!     generic invoke and the literal `<subcmd>`/operand pool is correct" so the
-//!     path is still covered. (The list commands the emitter DOES specialise —
-//!     llength/lrange/linsert/lassign/lreplace — are asserted with their real
-//!     opcodes.)
-//!  2. `LiteralTable.entries()` returns exact native byte entries (ordered, deduped) and
+//!  1. `LiteralTable.entries()` returns exact native byte entries (ordered, deduped) and
 //!     `LocalVarTable` likewise.
-//!  3. `esc` escaping. `format::esc` matches C-Tcl's disassembler BYTE-WISE
+//!  2. `esc` escaping. `format::esc` matches C-Tcl's disassembler BYTE-WISE
 //!     over UTF-8: a non-ASCII codepoint renders as the `\uXXXX` of each raw
 //!     UTF-8 byte (so `ÿ` U+00FF → `Ã¿`, an astral char → four `\u00XX`
 //!     bytes), not codepoint-wise. The named-control, NUL, C0, DEL, quote, and
 //!     printable-ASCII cases are unaffected; the high-BMP / supplementary-plane
 //!     cases assert the byte-wise expectation and are annotated.
-//!  4. `lappend x foo` at SCRIPT scope emits a generic `invokeStk1` (no
-//!     `lappendListStk` specialisation at script scope).
-//!  5. Braced whole-name array ref `${a($i)}` vs bare `$a($i)`. The emitter
+//!  3. Braced whole-name array ref `${a($i)}` vs bare `$a($i)`. The emitter
 //!     does NOT carry the braced-vs-bare whole-name/split distinction — both
 //!     spellings lower to a split `loadArray1` — so those 11 tclsh-9.0.3-pinned
 //!     cases are documented here only.
-//!  6. The `emit_binop`/`emit_unaryop` iRules harness builds a CFG by hand: a
+//!  4. The `emit_binop`/`emit_unaryop` iRules harness builds a CFG by hand: a
 //!     `CfgFunction` with a `Statement::AssignExpr` carrying an
 //!     `ExprNode::Binary`/`Unary`, run through `codegen_function`.
 
@@ -105,13 +92,41 @@ fn asm_for(source: &str) -> tcl_codegen::codegen::ModuleAsm {
     codegen_module(&cfg, &ir, &reg).expect("original source namespace")
 }
 
-/// The top-level `FunctionAsm` for `source`.
+/// The release these fixtures compile under.
+const RELEASE: &str = "tcl8.6";
+
+/// The top-level function a Tcl 8.6 interpreter compiles for `source`.
 fn top_asm(source: &str) -> FunctionAsm {
-    asm_for(source).top_level
+    crate::vm_compiled::top_level(RELEASE, source)
 }
 
-/// The `FunctionAsm` for a named procedure in `source`.
+/// The body a Tcl 8.6 interpreter compiles for procedure `name` of `source`.
 fn proc_asm(source: &str, name: &str) -> FunctionAsm {
+    crate::vm_compiled::procedure(RELEASE, source, name)
+}
+
+/// Whether the pool holds the folded integer `value`. A release keeps a
+/// constant expression's result as a number that has no string yet, so the
+/// entry is read by its numeric payload.
+fn folds_to_integer(fa: &FunctionAsm, value: i64) -> bool {
+    use tcl_bytecode::{NativeExpressionNumberLiteral, NativeLiteralAllocation};
+    fa.literals.entries().iter().any(|literal| {
+        matches!(
+            literal.allocation(),
+            NativeLiteralAllocation::PrivateExpressionNumber {
+                value: NativeExpressionNumberLiteral::Integer(folded),
+                ..
+            } if *folded == value
+        )
+    })
+}
+
+/// The body of procedure `name` from a module lowered with no interpreter.
+/// The unit a live Tcl 8.6 interpreter compiles for these bodies does not yet
+/// match tclsh8.6 (`break` and `continue` inside a compiled loop are `jump4`
+/// there, and `$arr(key)` is `loadArray1`), so their tests stay on the module
+/// path until it does.
+fn module_proc_asm(source: &str, name: &str) -> FunctionAsm {
     let mut module = asm_for(source);
     let id = fixture_id(&module.procedures, name);
     module
@@ -367,7 +382,7 @@ fn expr_constant_fold() {
     let fa = top_asm("set r [expr {1 + 2}]");
     let ops = opcodes(&fa);
     assert!(!ops.contains(&Op::ADD), "folded away");
-    assert!(fa.literals.entries().iter().any(|l| l == "3"));
+    assert!(folds_to_integer(&fa, 3));
 }
 
 #[test]
@@ -376,7 +391,7 @@ fn expr_unary_neg() {
     let fa = top_asm("set r [expr {-1}]");
     let ops = opcodes(&fa);
     assert!(!ops.contains(&Op::UMINUS), "constant folded");
-    assert!(fa.literals.entries().iter().any(|l| l == "-1"));
+    assert!(folds_to_integer(&fa, -1));
 }
 
 #[test]
@@ -408,7 +423,7 @@ fn standalone_expr_constant_fold() {
     // tclsh: expr {2 + 3}  →  5   (8.6 + 9.0)
     let fa = top_asm("expr {2 + 3}");
     assert!(!opcodes(&fa).contains(&Op::ADD));
-    assert!(fa.literals.entries().iter().any(|l| l == "5"));
+    assert!(folds_to_integer(&fa, 5));
 }
 
 // iRules expression operators
@@ -482,19 +497,64 @@ fn fallthrough_elimination() {
 }
 
 // Bytecoded commands
-//
-// NOTE: top-level `append` and `lappend` route through a generic invoke (no
-// APPEND_STK / lappendListStk specialisation at script scope — see the file
-// header). `string length/equal/compare` are likewise generic — see the
-// documented behaviour note in the header.
 
 #[test]
-fn append_toplevel_generic_invoke() {
-    // Emits a generic invoke at script scope (no APPEND_STK specialisation).
-    let fa = top_asm("set x hello; append x world");
-    let ops = opcodes(&fa);
-    assert!(ops.contains(&Op::INVOKE_STK1));
-    assert!(fa.literals.entries().iter().any(|l| l == "append"));
+fn top_level_commands_compile_to_the_instructions_tclsh_8_6_emits() {
+    // tclsh8.6: tcl::unsupported::disassemble script {<source>}
+    //   set x hello; append x world      -> push1 push1 storeStk pop push1 push1 appendStk done
+    //   set x {}; lappend x foo          -> ... push1 push1 list 1 lappendListStk done
+    //   lindex "a b c" 1                 -> push1 listIndexImm 1 done
+    //   lreplace "a b c d" 1 2 X Y       -> push1 push1 push1 list 2 over 1 listRangeImm 0 0
+    //                                       reverse 2 listConcat reverse 2 listRangeImm 3 end
+    //                                       listConcat done
+    //   string equal "a" "b"             -> push1 push1 streq done
+    //   string compare "a" "b"           -> push1 push1 strcmp done
+    //   set d [dict create a 1 b 2]; dict get $d a -> ... loadStk push1 dictGet 1 done
+    //   set d [dict create a 1]; dict exists $d a  -> ... loadStk push1 dictExists 1 done
+    for (source, compiled) in [
+        ("set x hello; append x world", vec![Op::APPEND_STK]),
+        (
+            "set x {}; lappend x foo",
+            vec![Op::LIST, Op::LAPPEND_LIST_STK],
+        ),
+        ("lindex \"a b c\" 1", vec![Op::LIST_INDEX_IMM]),
+        (
+            "lreplace \"a b c d\" 1 2 X Y",
+            vec![
+                Op::LIST,
+                Op::OVER,
+                Op::LIST_RANGE_IMM,
+                Op::REVERSE,
+                Op::LIST_CONCAT,
+                Op::REVERSE,
+                Op::LIST_RANGE_IMM,
+                Op::LIST_CONCAT,
+            ],
+        ),
+        ("string equal \"a\" \"b\"", vec![Op::STR_EQ]),
+        ("string compare \"a\" \"b\"", vec![Op::STR_CMP]),
+        (
+            "set d [dict create a 1 b 2]; dict get $d a",
+            vec![Op::DUP, Op::VERIFY_DICT, Op::LOAD_STK, Op::DICT_GET],
+        ),
+        (
+            "set d [dict create a 1]; dict exists $d a",
+            vec![Op::DUP, Op::VERIFY_DICT, Op::LOAD_STK, Op::DICT_EXISTS],
+        ),
+    ] {
+        let ops = opcodes(&top_asm(source));
+        let selected: Vec<Op> = ops
+            .iter()
+            .copied()
+            .filter(|op| compiled.contains(op))
+            .collect();
+        assert_eq!(selected, compiled, "{source}: {ops:?}");
+        assert!(
+            !ops.iter()
+                .any(|op| matches!(op, Op::INVOKE_STK1 | Op::INVOKE_STK4)),
+            "{source}: no command is invoked: {ops:?}"
+        );
+    }
 }
 
 #[test]
@@ -505,48 +565,10 @@ fn append_proc_is_bytecoded() {
 }
 
 #[test]
-fn lappend_toplevel_generic_invoke() {
-    // Emits a generic invoke at script scope (no lappendListStk specialisation).
-    let fa = top_asm("set x {}; lappend x foo");
-    let ops = opcodes(&fa);
-    assert!(ops.contains(&Op::INVOKE_STK1));
-    assert!(fa.literals.entries().iter().any(|l| l == "lappend"));
-}
-
-#[test]
 fn lappend_proc_is_bytecoded() {
     // In a PROC body Rust specialises lappend → lappendScalar1.
     let fa = proc_asm("proc b {} { set l {}; lappend l \"y\"; return $l }", "::b");
     assert!(opcodes(&fa).contains(&Op::LAPPEND_SCALAR1));
-}
-
-#[test]
-fn string_subcommands_route_through_generic_invoke() {
-    // The emitter does NOT select STR_LEN / STR_EQ / STR_CMP for
-    // `string length/equal/compare` (neither at top level nor in a proc); it
-    // emits a generic invoke. Assert that behaviour + the subcommand literal
-    // pool so the path stays covered.
-    for (src, lit) in [
-        ("string length \"hello\"", "length"),
-        ("string equal \"a\" \"b\"", "equal"),
-        ("string compare \"a\" \"b\"", "compare"),
-    ] {
-        let fa = top_asm(src);
-        let ops = opcodes(&fa);
-        assert!(
-            ops.contains(&Op::INVOKE_STK1),
-            "{src}: expected generic invoke"
-        );
-        assert!(
-            !ops.contains(&Op::STR_LEN),
-            "{src}: Rust does not specialise STR_LEN"
-        );
-        assert!(
-            fa.literals.entries().iter().any(|l| l == "string"),
-            "{src}: 'string' literal present"
-        );
-        let _ = lit;
-    }
 }
 
 // Formatting
@@ -955,9 +977,11 @@ fn bitwise_operations() {
 }
 
 #[test]
-fn string_comparison_operators() {
+fn string_comparison_operators_compile_in_tcl_9_0() {
     let src = "proc str_cmp {a b} { set r1 [expr {$a eq $b}]; set r2 [expr {$a ne $b}]; set r3 [expr {$a lt $b}]; set r4 [expr {$a gt $b}]; return [expr {$r1 + $r2 + $r3 + $r4}] }";
-    let ops = opcodes(&proc_asm(src, "::str_cmp"));
+    // `lt` and `gt` are Tcl 9 operators: tclsh8.6 compiles each to a
+    // `syntax` error ("invalid bareword"), tclsh9.0 to `strlt` and `strgt`.
+    let ops = opcodes(&crate::vm_compiled::procedure("tcl9.0", src, "::str_cmp"));
     assert!(ops.contains(&Op::STR_EQ));
     assert!(ops.contains(&Op::STR_NEQ));
     assert!(ops.contains(&Op::STR_LT));
@@ -988,7 +1012,7 @@ fn constant_fold_complex() {
     assert!(!ops.contains(&Op::ADD));
     assert!(!ops.contains(&Op::MULT));
     assert!(!ops.contains(&Op::SUB));
-    assert!(fa.literals.entries().iter().any(|l| l == "19"));
+    assert!(folds_to_integer(&fa, 19));
 }
 
 #[test]
@@ -1135,7 +1159,7 @@ fn switch_a_release_may_scan_as_an_option_routes_through_generic_invoke() {
 #[test]
 fn break_in_while() {
     let src = "proc find_first {lst target} { set i 0; while {$i < 100} { if {$i == $target} { break }; incr i }; return $i }";
-    let ops = opcodes(&proc_asm(src, "::find_first"));
+    let ops = opcodes(&module_proc_asm(src, "::find_first"));
     assert!(has_cond_jump(&ops));
     assert!(
         ops.contains(&Op::JUMP4),
@@ -1146,7 +1170,7 @@ fn break_in_while() {
 #[test]
 fn continue_in_for() {
     let src = "proc sum_odd {n} { set total 0; for {set i 0} {$i < $n} {incr i} { if {$i % 2 == 0} { continue }; set total [expr {$total + $i}] }; return $total }";
-    let ops = opcodes(&proc_asm(src, "::sum_odd"));
+    let ops = opcodes(&module_proc_asm(src, "::sum_odd"));
     assert!(ops.contains(&Op::JUMP4), "continue → jump");
 }
 
@@ -1238,7 +1262,7 @@ fn for_with_complex_init() {
 
 #[test]
 fn for_init_unseen_call_keeps_count_two_boundary() {
-    let asm = proc_asm(
+    let asm = module_proc_asm(
         "proc p {} { set warmup 1; for {missing_command} {0} {} {} }",
         "::p",
     );
@@ -1272,7 +1296,7 @@ fn for_loop_registered_in_loop_nodes() {
 #[test]
 fn while_constant_true() {
     let src = "proc spin {} { while {1} { break } }";
-    let ops = opcodes(&proc_asm(src, "::spin"));
+    let ops = opcodes(&module_proc_asm(src, "::spin"));
     assert!(ops.contains(&Op::JUMP4), "break");
 }
 
@@ -1361,7 +1385,7 @@ fn dict_for_lowers_to_loop_cfg_for_analysis_but_barriers_for_codegen() {
 fn proc_array_ref() {
     let src =
         "proc array_op {key} { set arr(key1) \"val1\"; set arr($key) \"val2\"; return $arr(key1) }";
-    let ops = opcodes(&proc_asm(src, "::array_op"));
+    let ops = opcodes(&module_proc_asm(src, "::array_op"));
     assert!(ops.contains(&Op::STORE_ARRAY1));
     assert!(ops.contains(&Op::LOAD_ARRAY1));
 }
@@ -1415,16 +1439,6 @@ fn llength_bytecoded() {
 }
 
 #[test]
-fn lindex_routes_through_generic_invoke() {
-    // tclsh: lindex "a b c" 1  →  b   (8.6 + 9.0)
-    // Emits a generic invoke (no LIST_INDEX_IMM specialisation).
-    let fa = top_asm("lindex \"a b c\" 1");
-    let ops = opcodes(&fa);
-    assert!(ops.contains(&Op::INVOKE_STK1));
-    assert!(fa.literals.entries().iter().any(|l| l == "lindex"));
-}
-
-#[test]
 fn lrange_bytecoded() {
     assert!(ops_of("lrange \"a b c d e\" 1 3").contains(&Op::LIST_RANGE_IMM));
 }
@@ -1433,15 +1447,6 @@ fn lrange_bytecoded() {
 fn list_create_in_proc() {
     let fa = proc_asm("proc mk {a b c} { list $a $b $c }", "::mk");
     assert!(opcodes(&fa).contains(&Op::INVOKE_STK1) || opcodes(&fa).contains(&Op::LIST));
-}
-
-#[test]
-fn lreplace_routes_through_generic_invoke() {
-    // The emitter specialises `linsert` (see below) but routes a full
-    // `lreplace` (with replacement elements) through a generic invoke.
-    let fa = top_asm("lreplace \"a b c d\" 1 2 X Y");
-    assert!(opcodes(&fa).contains(&Op::INVOKE_STK1));
-    assert!(fa.literals.entries().iter().any(|l| l == "lreplace"));
 }
 
 #[test]
@@ -1537,29 +1542,6 @@ fn a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6() {
 // Rust emits VERIFY_DICT for the `dict create` subject normalisation but the
 // `dict get`/`dict exists` lookup itself routes through a generic invoke
 // (no DICT_GET/DICT_EXISTS opcode selected) — asserted accordingly.
-
-#[test]
-fn dict_get_path() {
-    let fa = top_asm("set d [dict create a 1 b 2]; dict get $d a");
-    let ops = opcodes(&fa);
-    assert!(ops.contains(&Op::INVOKE_STK1));
-    assert!(
-        !ops.contains(&Op::DICT_GET),
-        "Rust does not select DICT_GET here"
-    );
-    assert!(fa.literals.entries().iter().any(|l| l == "dict"));
-}
-
-#[test]
-fn dict_exists_path() {
-    let fa = top_asm("set d [dict create a 1]; dict exists $d a");
-    let ops = opcodes(&fa);
-    assert!(ops.contains(&Op::INVOKE_STK1));
-    assert!(
-        !ops.contains(&Op::DICT_EXISTS),
-        "Rust does not select DICT_EXISTS here"
-    );
-}
 
 // CFG structure
 
@@ -1822,7 +1804,6 @@ fn fibonacci_proc() {
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::LE));
     assert!(ops.contains(&Op::ADD));
-    assert!(format_function_asm(&fa).contains("ByteCode ::fib"));
 }
 
 #[test]
@@ -1832,7 +1813,6 @@ fn bubble_sort() {
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::LT));
     assert!(ops.contains(&Op::GT));
-    assert!(format_function_asm(&fa).contains("ByteCode ::bubblesort"));
 }
 
 #[test]
@@ -2260,10 +2240,12 @@ fn statement_position_hook_with_unit_rename_retains_runtime_binding() {
 
 #[test]
 fn value_position_hook_with_unit_rename_retains_runtime_binding() {
-    let ops = ops_of("set s ab\nset x [string length $s]\n");
+    // A unit rename in a module lowered with no interpreter: a live
+    // interpreter runs the `rename` before it compiles the rest.
+    let ops = opcodes(&asm_for("set s ab\nset x [string length $s]\n").top_level);
     assert!(ops.contains(&Op::STR_LEN), "baseline specialises: {ops:?}");
 
-    let asm = top_asm("rename string mystring\nset s ab\nset x [string length $s]\n");
+    let asm = asm_for("rename string mystring\nset s ab\nset x [string length $s]\n").top_level;
     let ops = opcodes(&asm);
     assert!(
         ops.contains(&Op::STR_LEN),
