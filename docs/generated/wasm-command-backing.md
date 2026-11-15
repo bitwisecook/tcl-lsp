@@ -184,7 +184,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `cd` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `chan` | 9.0 | shipped-builtin | builtin | absent |  |
 | `classvariable` | 9.0 | shipped-builtin | builtin | absent |  |
-| `clock` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `clock` | 9.0 | shipped-builtin | builtin | absent |  |
 | `close` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `concat` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `const` | 9.0 | shipped-builtin | builtin | builtin |  |
@@ -392,7 +392,7 @@ the WASM runtime lacks is a *known gap* when `KNOWN_UNBACKED` in
 | `tcl::mathop::ni` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `tcl::mathop::|` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `tcl::mathop::~` | 9.0 | shipped-builtin | builtin | builtin |  |
-| `tcl::prefix` | 9.0 | shipped-builtin | builtin | builtin |  |
+| `tcl::prefix` | 9.0 | shipped-builtin | builtin | absent |  |
 | `tcl::process` | 9.0 | none | absent | absent |  |
 | `tcl::unsupported::corotype` | 9.0 | shipped-builtin | builtin | builtin |  |
 | `tcl::unsupported::grapheme` | 9.1 | none | absent | absent |  |
