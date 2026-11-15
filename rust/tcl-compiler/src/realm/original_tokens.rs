@@ -26,7 +26,7 @@ use tcl_lexer::{LexerConfig, SourceImage, SourceMap, Token};
 use super::CommandBindingRealm;
 use crate::ir::CommandTokens;
 
-const MAX_RETAINED_COMMANDS: usize = 256;
+const MAX_RETAINED_COMMANDS: usize = 65_536;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct OriginalCommandTokenKey {

@@ -151,7 +151,7 @@ impl Clone for StampedTokenMemo {
     }
 }
 
-const MAX_STAMPED_COMMANDS: usize = 4096;
+const MAX_STAMPED_COMMANDS: usize = 65_536;
 
 // Derived preparation does not change the immutable retained interpretation.
 impl PartialEq for CommandBindingRealm {

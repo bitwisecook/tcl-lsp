@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex};
 use super::CommandBindingRealm;
 use crate::command_binding::SourceInvocationBinding;
 
-const MAX_RETAINED_BINDINGS: usize = 256;
+const MAX_RETAINED_BINDINGS: usize = 65_536;
 
 /// Immutable realm clones share derived point results. A replacement realm,
 /// including one built from changed source, config, Registry or entry, starts

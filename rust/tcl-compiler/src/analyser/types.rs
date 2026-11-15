@@ -2500,7 +2500,7 @@ impl PartialEq for SourceWordsMemo {
 }
 
 impl SourceWordsMemo {
-    const LIMIT: usize = 4096;
+    const LIMIT: usize = 65_536;
 
     pub(crate) fn clear(&mut self) {
         *self

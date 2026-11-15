@@ -70,7 +70,7 @@ struct InvocationProjectionMemo {
 }
 
 /// Bound on retained point projections per completed body inventory.
-const MAX_RETAINED_INVOCATIONS: usize = 4096;
+const MAX_RETAINED_INVOCATIONS: usize = 65_536;
 
 impl InvocationProjectionMemo {
     fn get_or_prepare(
