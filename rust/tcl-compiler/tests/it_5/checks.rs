@@ -957,11 +957,20 @@ mod unset_option_only {
         );
     }
 
+    /// Only the first `-nocomplain` and one `--` are options. tclsh 8.4.20,
+    /// 8.6.18 and 9.0.4: `set -nocomplain 1; unset -nocomplain -nocomplain;
+    /// info exists -nocomplain` is 0, so the second flag is a variable name
+    /// and something is unset; `unset --` and `unset -nocomplain --` return
+    /// the empty string and unset nothing.
     #[test]
-    fn bare_terminator_and_repeated_flags_fire() {
-        assert_eq!(count("unset --", D, "W217"), 1);
-        assert_eq!(count("unset -nocomplain --", D, "W217"), 1);
-        assert_eq!(count("unset -nocomplain -nocomplain", D, "W217"), 1);
+    fn a_terminator_unsets_nothing_and_a_second_flag_is_a_name() {
+        for (src, fires) in [
+            ("unset --", 1),
+            ("unset -nocomplain --", 1),
+            ("unset -nocomplain -nocomplain", 0),
+        ] {
+            assert_eq!(count(src, D, "W217"), fires, "{src}");
+        }
     }
 
     #[test]
