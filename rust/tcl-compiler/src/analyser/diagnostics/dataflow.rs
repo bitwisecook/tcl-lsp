@@ -2427,6 +2427,29 @@ is renamed or deleted in this file."
         })
     }
 
+    /// The existence rung has the last word: a place the solver proves bound
+    /// at a read is not missing, whatever the merged alternatives say (an
+    /// `info exists` fold removes the edge the unbound alternative arrives
+    /// on). `index` is the statement, or `usize::MAX` for the terminator.
+    fn read_is_proven_bound(
+        fu: &crate::compilation_unit::FunctionUnit,
+        read_reference: Option<crate::ssa::SsaReadReference>,
+        block: crate::cfg::BlockId,
+        index: usize,
+    ) -> bool {
+        let point = if index == usize::MAX {
+            ExistencePoint::Exit(block)
+        } else {
+            ExistencePoint::Before(block, index)
+        };
+        read_reference.is_some_and(|read| {
+            matches!(
+                fu.existence(read.symbol, point),
+                FactView::Domain(DomainFact::Existence(Existence::Bound(_)))
+            )
+        })
+    }
+
     /// Potential missing contents require closed original read alternatives,
     /// independently of SSA versions. Unknown worlds and existing array roots
     /// cannot donate an undef finding.
@@ -2489,22 +2512,7 @@ is renamed or deleted in this file."
                         grammar,
                     )
                     .to_owned();
-                    // The existence rung has the last word: a place the solver
-                    // proves bound at this read is not missing, whatever the
-                    // merged alternatives say (an `info exists` fold removes
-                    // the edge the unbound alternative arrives on).
-                    let point = if index == usize::MAX {
-                        ExistencePoint::Exit(block)
-                    } else {
-                        ExistencePoint::Before(block, index)
-                    };
-                    let fact = read_reference.map(|read| fu.existence(read.symbol, point));
-                    if !killed
-                        && matches!(
-                            fact,
-                            Some(FactView::Domain(DomainFact::Existence(Existence::Bound(_))))
-                        )
-                    {
+                    if !killed && Self::read_is_proven_bound(fu, read_reference, block, index) {
                         continue;
                     }
                     if ctx.supp.suppresses(&name)
