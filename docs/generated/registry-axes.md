@@ -100,9 +100,9 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs:186` | site | the interp create flag run |
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs:189` | site | the interp create flag run |
 | options | the option table marks the force flag | `rust/tcl-syntax/src/naming/native.rs:136` | site | the native name policy's force flag |
-| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1754` | site | return's -code/-level options in codegen |
-| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1769` | site | return's -code/-level options in codegen |
-| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1778` | site | return's -code/-level options in codegen |
+| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1756` | site | return's -code/-level options in codegen |
+| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1771` | site | return's -code/-level options in codegen |
+| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs:1780` | site | return's -code/-level options in codegen |
 | options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2830` | site | the hardening edit rewrites subst's own option word |
 | options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs:2836` | site | the hardening edit rewrites subst's own option word |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:261` | site | switch's match-mode options |
@@ -112,9 +112,9 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs:273` | site | switch's match-mode options |
 | special_vars | the snit definition grammar declares its implicit variables | `rust/tcl-compiler/src/analyser/oo.rs:104` | site | snit's implicit type variable in a typemethod body |
 | special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs:12494` | site | the auto_path special variable |
-| subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:352` | site | dict's scoping subcommands in codegen |
-| subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:369` | site | dict's scoping subcommands in codegen |
-| subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:383` | site | dict's scoping subcommands in codegen |
+| subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:354` | site | dict's scoping subcommands in codegen |
+| subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:371` | site | dict's scoping subcommands in codegen |
+| subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs:385` | site | dict's scoping subcommands in codegen |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:4455` | site | a namespace eval wrapper's subcommand |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5036` | site | namespace ensemble create and configure |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs:5038` | site | namespace ensemble create and configure |

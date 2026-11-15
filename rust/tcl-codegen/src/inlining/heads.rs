@@ -57,10 +57,21 @@ pub(super) fn root(mut statements: Vec<Statement>, config: LexerConfig) -> Optio
     {
         return None;
     }
+    let mut spelled = true;
     for statement in &mut statements {
-        rooted(statement, 0);
+        rooted(statement, 0, &mut spelled);
     }
-    Some(statements)
+    spelled.then_some(statements)
+}
+
+/// The relative head `command` spelled from the global namespace, or `None`
+/// when no spelling says it: `:a` rooted is `:::a`, which every release reads
+/// as `::a`.
+fn global_spelling(command: &str) -> Option<String> {
+    use tcl_syntax::naming::{canonical_written_command, root_unrooted_key};
+    let rooted = root_unrooted_key(command);
+    (canonical_written_command(&rooted) == root_unrooted_key(&canonical_written_command(command)))
+        .then_some(rooted)
 }
 
 /// Whether `statements`, the body of a definition, name a command by a word
@@ -283,36 +294,39 @@ fn switch_substitutes(
         || default_body.is_some_and(|body| script_substitutes(body, heads, config, next))
 }
 
-fn rooted_script(script: &mut Script, depth: u32) {
+fn rooted_script(script: &mut Script, depth: u32, spelled: &mut bool) {
     if super::MAX_INLINING_WALK_DEPTH.exceeded(depth) {
         return;
     }
     for statement in &mut script.statements {
-        rooted(statement, depth);
+        rooted(statement, depth, spelled);
     }
 }
 
-fn rooted(statement: &mut Statement, depth: u32) {
+fn rooted(statement: &mut Statement, depth: u32, spelled: &mut bool) {
     let next = depth + 1;
     match statement {
         Statement::Call { command, .. } => {
             if !tcl_syntax::naming::is_absolute(command) {
-                *command = tcl_syntax::naming::root_unrooted_key(command);
+                match global_spelling(command) {
+                    Some(rooted) => *command = rooted,
+                    None => *spelled = false,
+                }
             }
         }
         Statement::Block { body, .. }
         | Statement::UpFrame { body, .. }
         | Statement::While { body, .. }
         | Statement::Foreach { body, .. }
-        | Statement::Catch { body, .. } => rooted_script(body, next),
+        | Statement::Catch { body, .. } => rooted_script(body, next, spelled),
         Statement::If {
             clauses, else_body, ..
         } => {
             for clause in clauses {
-                rooted_script(&mut clause.body, next);
+                rooted_script(&mut clause.body, next, spelled);
             }
             if let Some(body) = else_body {
-                rooted_script(body, next);
+                rooted_script(body, next, spelled);
             }
         }
         Statement::For {
@@ -321,9 +335,9 @@ fn rooted(statement: &mut Statement, depth: u32) {
             body,
             ..
         } => {
-            rooted_script(init, next);
-            rooted_script(step, next);
-            rooted_script(body, next);
+            rooted_script(init, next, spelled);
+            rooted_script(step, next, spelled);
+            rooted_script(body, next, spelled);
         }
         Statement::Try {
             body,
@@ -331,12 +345,12 @@ fn rooted(statement: &mut Statement, depth: u32) {
             finally_body,
             ..
         } => {
-            rooted_script(body, next);
+            rooted_script(body, next, spelled);
             for handler in handlers {
-                rooted_script(&mut handler.body, next);
+                rooted_script(&mut handler.body, next, spelled);
             }
             if let Some(body) = finally_body {
-                rooted_script(body, next);
+                rooted_script(body, next, spelled);
             }
         }
         Statement::Switch {
@@ -344,11 +358,11 @@ fn rooted(statement: &mut Statement, depth: u32) {
         } => {
             for arm in arms {
                 if let Some(body) = &mut arm.body {
-                    rooted_script(body, next);
+                    rooted_script(body, next, spelled);
                 }
             }
             if let Some(body) = default_body {
-                rooted_script(body, next);
+                rooted_script(body, next, spelled);
             }
         }
         _ => {}
@@ -358,6 +372,18 @@ fn rooted(statement: &mut Statement, depth: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_head_with_a_leading_colon_has_no_global_spelling() {
+        // Dialect-invariant, tclsh 8.4, 8.5, 8.6, 9.0 and 9.1:
+        //   proc :a {} {return COLON}; proc a {} {return PLAIN}
+        //   :::a  -> PLAIN        :a  -> COLON
+        assert_eq!(global_spelling("a").as_deref(), Some("::a"));
+        assert_eq!(global_spelling("a::b").as_deref(), Some("::a::b"));
+        assert_eq!(global_spelling("a:b").as_deref(), Some("::a:b"));
+        assert_eq!(global_spelling(":a"), None);
+        assert_eq!(global_spelling(":"), None);
+    }
 
     #[test]
     fn original_head_namespace_scan_keeps_selected_word_and_index_grammar() {

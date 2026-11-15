@@ -831,7 +831,9 @@ fn variable_locals(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     for name in args.iter().step_by(2) {
         let tail = tcl_syntax::naming::written_command_tail(name.as_bytes()).len();
         let tail = &name[name.len() - tail..];
-        if tail.is_empty() || split_array_ref(tail).is_some() {
+        // `IndexTailVarIfKnown` declines a tail that ends in `)`, whatever
+        // precedes it: `a(1)` and `b)` stay with the command, `a(1)x` is a local.
+        if tail.is_empty() || tail.ends_with(')') {
             break;
         }
         ctx.intern_compiled_local(tail);
@@ -1745,6 +1747,29 @@ mod tests {
 
     use super::*;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn variable_declines_a_compiled_local_for_a_tail_ending_in_a_parenthesis() {
+        // tclsh8.6, 9.0 and 9.1, `tcl::unsupported::disassemble proc v`:
+        //   proc v {} {variable a(1)}     -> invokeStk1 (no local)
+        //   proc v {} {variable b) 2}     -> invokeStk1 (no local)
+        //   proc v {} {variable a(1)x 5}  -> variable %v0  # var "a(1)x"
+        //   proc v {} {variable ::n::c}   -> variable %v0  # var "c"
+        let registry = CommandRegistry::build_default();
+        for (name, local) in [
+            ("a(1)", None),
+            ("b)", None),
+            ("a(1)x", Some("a(1)x")),
+            ("::n::c", Some("c")),
+        ] {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            assert!(!variable_locals(&mut ctx, &[name.into()]));
+            match local {
+                Some(local) => assert!(ctx.lvt.find(local).is_some(), "{name}"),
+                None => assert!(ctx.lvt.is_empty(), "{name}"),
+            }
+        }
+    }
 
     #[test]
     fn standalone_local_name_models_preserve_literal_sigils_and_empty_data() {

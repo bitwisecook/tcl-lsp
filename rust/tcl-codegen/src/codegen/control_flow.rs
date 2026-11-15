@@ -347,7 +347,9 @@ impl CodegenCtx<'_> {
         command: &str,
         words: &[CompileWord<'_>],
     ) -> Option<u8> {
-        let (sub, rest) = match tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command) {
+        let written = tcl_syntax::naming::canonical_written_command(command);
+        let (sub, rest) = match tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written)
+        {
             // registry-axis-ok: subcommands — dict's scoping subcommands in codegen; until the native compilation descriptor selects them
             "dict" => {
                 let (sub, rest) = words.split_first()?;

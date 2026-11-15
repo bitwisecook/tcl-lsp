@@ -482,11 +482,15 @@ pub(crate) fn parse_time_expansion<'w>(
 }
 
 /// Whether the command word `cmd` names the builtin `name`: its own spelling,
-/// or the global one, which a release compiles alike.
+/// or a global one, which a release compiles alike. A root marker is any run
+/// of two or more colons, so `:::set` is `::set`.
 pub(super) fn names_builtin(cmd: &str, name: &str) -> bool {
     cmd == name
-        || (tcl_syntax::naming::unroot_rooted_key(cmd) == Some(name)
-            && !tcl_syntax::naming::is_qualified(name.as_bytes()))
+        || (tcl_syntax::naming::is_absolute(cmd)
+            && !tcl_syntax::naming::is_qualified(name.as_bytes())
+            && tcl_syntax::naming::unroot_rooted_key(
+                &tcl_syntax::naming::canonical_written_command(cmd),
+            ) == Some(name))
 }
 
 /// Evaluate an argument source word after proving it eligible for a direct
@@ -3338,6 +3342,21 @@ impl CodegenCtx<'_> {
 mod tests {
     use super::*;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn a_builtin_is_named_by_any_root_marker() {
+        // tclsh8.5, 8.6, 9.0 and 9.1, `tcl::unsupported::disassemble script`:
+        //   set x 1, ::set x 1, :::set x 1, ::::set x 1 -> push push storeStk done
+        // A colon run of two or more is one root marker in every release.
+        for head in ["set", "::set", ":::set", "::::set"] {
+            assert!(names_builtin(head, "set"), "{head}");
+        }
+        for head in [":set", "n::set", "::n::set", "sett"] {
+            assert!(!names_builtin(head, "set"), "{head}");
+        }
+        assert!(names_builtin("tcl::dict::with", "tcl::dict::with"));
+        assert!(!names_builtin("::tcl::dict::with", "tcl::dict::with"));
+    }
 
     fn original_argument_tokens(
         image: &tcl_lexer::SourceImage,
