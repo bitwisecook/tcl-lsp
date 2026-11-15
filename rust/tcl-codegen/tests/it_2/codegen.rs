@@ -1261,18 +1261,25 @@ fn for_with_complex_init() {
 }
 
 #[test]
-fn for_init_unseen_call_keeps_count_two_boundary() {
-    let asm = module_proc_asm(
-        "proc p {} { set warmup 1; for {missing_command} {0} {} {} }",
-        "::p",
-    );
-    assert!(
-        asm.instructions.iter().any(|instruction| {
-            instruction.op == Op::START_CMD && instruction.operands.get(1) == Some(&Operand::Imm(2))
-        }),
-        "the real for-init command must retain its count-two boundary: {:?}",
-        asm.instructions,
-    );
+fn a_for_init_command_starts_one_command_in_every_release() {
+    // tclsh8.5, 8.6, 9.0 and 9.1, `tcl::unsupported::disassemble proc p`: the
+    // only startCommand of this body is the `for`'s, with a count of 1
+    // (8.6: `startCommand +29 1 # next cmd at pc 34, 1 cmds start here`).
+    let source = "proc p {} { set warmup 1; for {missing_command} {0} {} {} }";
+    for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let asm = crate::vm_compiled::procedure(release, source, "::p");
+        let counts: Vec<_> = asm
+            .instructions
+            .iter()
+            .filter(|instruction| instruction.op == Op::START_CMD)
+            .map(|instruction| instruction.operands.get(1).cloned())
+            .collect();
+        assert!(!counts.is_empty(), "{release}: {:?}", asm.instructions);
+        assert!(
+            counts.iter().all(|count| *count == Some(Operand::Imm(1))),
+            "{release}: {counts:?}"
+        );
+    }
 }
 
 #[test]
