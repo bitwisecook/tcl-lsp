@@ -359,6 +359,18 @@ impl SourceImage {
         &self.bytes
     }
 
+    /// The line positions of the recent document image whose own buffer
+    /// `text` is; `None` for any other text. The positions are a function of
+    /// the bytes, so they are the ones a scan of `text` would produce.
+    fn recent_line_index(text: &str) -> Option<LineIndex> {
+        RECENT_DOCUMENTS.with_borrow(|recent| {
+            recent
+                .iter()
+                .find(|image| std::ptr::eq(image.bytes.as_ref(), text.as_bytes()))
+                .and_then(|image| image.line_index().cloned())
+        })
+    }
+
     /// Whether `text` is exactly this image's bytes. Text borrowed from this
     /// image's own buffer answers by address, without reading the bytes.
     #[must_use]
@@ -487,7 +499,11 @@ impl<'src> SourceMap<'src> {
     /// `LineIndex`.
     #[must_use]
     pub fn new(source: &'src str) -> Self {
-        let line_index = LineIndex::new(source);
+        // A consumer that reads a document through its image's own buffer
+        // (see `SourceImage::shared_text`) gets that image's line positions;
+        // any other text is scanned.
+        let line_index =
+            SourceImage::recent_line_index(source).unwrap_or_else(|| LineIndex::new(source));
         Self {
             source: source.as_bytes(),
             channel: SourceChannel::Document,
@@ -1123,6 +1139,12 @@ mod immutable_image_geometry_tests {
             SourceMap::from_image(&image).text(crate::Span::new(0, 3)),
             "set"
         );
+        let lines = SourceImage::document("a\nbé\r\nc");
+        let own = lines.shared_text().unwrap();
+        let (shared, scanned) = (SourceMap::new(&own), SourceMap::new("a\nbé\r\nc"));
+        for offset in 0..=u32::try_from(own.len()).unwrap() {
+            assert_eq!(shared.position_at(offset), scanned.position_at(offset));
+        }
 
         let native = SourceImage::native(b"p\xff".as_slice());
         assert!(native.shared_text().is_none());
