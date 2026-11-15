@@ -2272,7 +2272,7 @@ pub fn namespace_variable_rename_edits(
     cell: &str,
     new_name: &str,
 ) -> Vec<TextEdit> {
-    if !analysis.allows_lexical_declaration_advice() || !is_safe_symbol_name(new_name) {
+    if !is_safe_symbol_name(new_name) {
         return Vec::new();
     }
     let Some(symbol) =
