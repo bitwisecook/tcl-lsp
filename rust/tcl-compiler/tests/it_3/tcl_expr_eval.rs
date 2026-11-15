@@ -58,7 +58,10 @@
 #![allow(clippy::approx_constant)]
 
 use tcl_compiler::expr_parser::parse_expr;
-use tcl_compiler::tcl_expr_eval::{eval_tcl_expr, eval_tcl_expr_in_dialect};
+use tcl_compiler::tcl_expr_eval::{
+    FoldPolicy, analyse_tcl_expr_with_resolved_math_bindings, eval_tcl_expr,
+    eval_tcl_expr_in_dialect, leading_zero_is_octal,
+};
 use tcl_compiler::{Env, EnvValue, TclValue, format_tcl_value};
 
 // Helpers, mirroring `src/tcl_expr_eval.rs`'s `#[cfg(test)] mod tests`.
@@ -89,13 +92,44 @@ fn eval_irules(expr: &str) -> Option<TclValue> {
     )
 }
 
-/// iRules-dialect fold over a caller-supplied environment.
+/// The value an iRules expression has over a caller-supplied environment.
 fn eval_irules_env(expr: &str, env: &Env) -> Option<TclValue> {
-    eval_tcl_expr_in_dialect(
-        &parse_expr(expr, Some("f5-irules")),
+    value_env(expr, env, "f5-irules")
+}
+
+/// The value an expression has over `env` under the named dialect. A fold
+/// that replaces the expression is refused while a variable read leaves a
+/// string conversion behind; the value is what these tests are about.
+fn value_env(expr: &str, env: &Env, dialect: &str) -> Option<TclValue> {
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+    analyse_tcl_expr_with_resolved_math_bindings(
+        &parse_expr(expr, Some(dialect)),
         env,
-        tcl_dialect::DialectProfile::irules(),
+        FoldPolicy::for_profile(leading_zero_is_octal(profile), Some(profile)),
+        &|_, _| None,
+        None,
     )
+    .map(|evaluation| evaluation.value)
+}
+
+/// [`value_env`] under Tcl 8.6.
+fn value_86_env(expr: &str, env: &Env) -> Option<TclValue> {
+    value_env(expr, env, "tcl8.6")
+}
+
+/// Fold under a named release, parsing under it too.
+fn eval_release(expr: &str, release: &str) -> Option<TclValue> {
+    eval_tcl_expr_in_dialect(
+        &parse_expr(expr, Some(release)),
+        &Env::new(),
+        tcl_registry::model::ingress::resolve_environment(release).analyser_profile(),
+    )
+}
+
+/// Fold under Tcl 8.6. A comparison of strings is decided by the release's
+/// character model, so it has no release-blind answer.
+fn eval_86(expr: &str) -> Option<TclValue> {
+    eval_release(expr, "tcl8.6")
 }
 
 /// Fold under a named dialect (resolves the 8.x-octal vs 9.0-decimal
@@ -150,13 +184,20 @@ fn literal_floats_and_scientific() {
 
 #[test]
 fn literal_boolean_words_fold_to_0_or_1() {
-    // tclsh boolean context: true/yes/on=1, false/no/off=0.
-    assert_eq!(eval_str("true"), Some(int(1)));
-    assert_eq!(eval_str("false"), Some(int(0)));
-    assert_eq!(eval_str("yes"), Some(int(1)));
-    assert_eq!(eval_str("no"), Some(int(0)));
-    assert_eq!(eval_str("on"), Some(int(1)));
-    assert_eq!(eval_str("off"), Some(int(0)));
+    // A boolean word is 0 or 1 where a truth value is read. tclsh 8.6.18:
+    // `expr {!true}`=0, `expr {!no}`=1, `expr {true && 1}`=1,
+    // `expr {yes || 0}`=1, `expr {on ? 7 : 8}`=7, `expr {off ? 7 : 8}`=8.
+    assert_eq!(eval_86("!true"), Some(int(0)));
+    assert_eq!(eval_86("!no"), Some(int(1)));
+    assert_eq!(eval_86("true && 1"), Some(int(1)));
+    assert_eq!(eval_86("yes || 0"), Some(int(1)));
+    assert_eq!(eval_86("on ? 7 : 8"), Some(int(7)));
+    assert_eq!(eval_86("off ? 7 : 8"), Some(int(8)));
+    // Alone it is the word itself, not a number: tclsh 8.6.18 `expr {true}`
+    // is `true` and `expr {yes}` is `yes`, so there is no numeric fold.
+    for word in ["true", "false", "yes", "no", "on", "off"] {
+        assert_eq!(eval_86(word), None, "{word}");
+    }
 }
 
 // Arithmetic
@@ -356,8 +397,8 @@ fn comparisons_mixed_int_float() {
 #[test]
 fn comparisons_word_eq_ne_on_numbers() {
     // tclsh: `5 eq 5`=1, `5 ne 6`=1 (string compare of canonical reps).
-    assert_eq!(eval_str("5 eq 5"), Some(int(1)));
-    assert_eq!(eval_str("5 ne 6"), Some(int(1)));
+    assert_eq!(eval_86("5 eq 5"), Some(int(1)));
+    assert_eq!(eval_86("5 ne 6"), Some(int(1)));
 }
 
 // Logical
@@ -763,29 +804,34 @@ fn format_tcl_value_specials_and_large() {
 fn word_string_compare_eq_ne() {
     // tclsh: "x" eq "x"=1  "x" eq "y"=0  "abc" eq "abc"=1  "x" ne "y"=1
     //        "x" ne "x"=0
-    assert_eq!(eval_str(r#""x" eq "x""#), Some(int(1)));
-    assert_eq!(eval_str(r#""x" eq "y""#), Some(int(0)));
-    assert_eq!(eval_str(r#""abc" eq "abc""#), Some(int(1)));
-    assert_eq!(eval_str(r#""x" ne "y""#), Some(int(1)));
-    assert_eq!(eval_str(r#""x" ne "x""#), Some(int(0)));
+    assert_eq!(eval_86(r#""x" eq "x""#), Some(int(1)));
+    assert_eq!(eval_86(r#""x" eq "y""#), Some(int(0)));
+    assert_eq!(eval_86(r#""abc" eq "abc""#), Some(int(1)));
+    assert_eq!(eval_86(r#""x" ne "y""#), Some(int(1)));
+    assert_eq!(eval_86(r#""x" ne "x""#), Some(int(0)));
 }
 
 #[test]
 fn word_string_compare_ordering() {
-    // tclsh: "a" lt "b"=1  "b" gt "a"=1  "a" le "a"=1  "b" ge "b"=1
-    assert_eq!(eval_str(r#""a" lt "b""#), Some(int(1)));
-    assert_eq!(eval_str(r#""b" gt "a""#), Some(int(1)));
-    assert_eq!(eval_str(r#""a" le "a""#), Some(int(1)));
-    assert_eq!(eval_str(r#""b" ge "b""#), Some(int(1)));
+    // The string orderings arrive in 9.0 (TIP 461). tclsh 9.0.4: "a" lt "b"=1
+    // "b" gt "a"=1  "a" le "a"=1  "b" ge "b"=1. tclsh 8.6.18 raises
+    // `invalid bareword "lt"`, so 8.6 has no value.
+    for release in ["tcl9.0", "tcl9.1"] {
+        assert_eq!(eval_release(r#""a" lt "b""#, release), Some(int(1)));
+        assert_eq!(eval_release(r#""b" gt "a""#, release), Some(int(1)));
+        assert_eq!(eval_release(r#""a" le "a""#, release), Some(int(1)));
+        assert_eq!(eval_release(r#""b" ge "b""#, release), Some(int(1)));
+    }
+    assert_eq!(eval_86(r#""a" lt "b""#), None);
 }
 
 #[test]
 fn word_eq_is_string_compare_not_numeric() {
     // tclsh: `eq` compares the *strings*, so 5 eq 5.0 → 0 ("5" vs "5.0"),
     // even though they're numerically equal. 5 eq 5=1, `5 eq "5"`=1.
-    assert_eq!(eval_str("5 eq 5"), Some(int(1)));
-    assert_eq!(eval_str("5 eq 5.0"), Some(int(0)));
-    assert_eq!(eval_str(r#"5 eq "5""#), Some(int(1)));
+    assert_eq!(eval_86("5 eq 5"), Some(int(1)));
+    assert_eq!(eval_86("5 eq 5.0"), Some(int(0)));
+    assert_eq!(eval_86(r#"5 eq "5""#), Some(int(1)));
 }
 
 // Polymorphic equality folding
@@ -794,25 +840,25 @@ fn word_eq_is_string_compare_not_numeric() {
 #[test]
 fn polymorphic_equality_string_operands_fold() {
     // tclsh: "foo"=="foo"=1  "foo"=="bar"=0  "foo"!="bar"=1  "foo"!="foo"=0
-    assert_eq!(eval_str(r#""foo" == "foo""#), Some(int(1)));
-    assert_eq!(eval_str(r#""foo" == "bar""#), Some(int(0)));
-    assert_eq!(eval_str(r#""foo" != "bar""#), Some(int(1)));
-    assert_eq!(eval_str(r#""foo" != "foo""#), Some(int(0)));
+    assert_eq!(eval_86(r#""foo" == "foo""#), Some(int(1)));
+    assert_eq!(eval_86(r#""foo" == "bar""#), Some(int(0)));
+    assert_eq!(eval_86(r#""foo" != "bar""#), Some(int(1)));
+    assert_eq!(eval_86(r#""foo" != "foo""#), Some(int(0)));
 }
 
 #[test]
 fn polymorphic_equality_mixed_operand_with_var() {
     // tclsh string compare via a bound variable: $x=="foo" etc.
     assert_eq!(
-        eval_str_env(r#"$x == "foo""#, &env_str("x", "foo")),
+        value_86_env(r#"$x == "foo""#, &env_str("x", "foo")),
         Some(int(1))
     );
     assert_eq!(
-        eval_str_env(r#"$x == "foo""#, &env_str("x", "bar")),
+        value_86_env(r#"$x == "foo""#, &env_str("x", "bar")),
         Some(int(0))
     );
     assert_eq!(
-        eval_str_env(r#"$x != "foo""#, &env_str("x", "bar")),
+        value_86_env(r#"$x != "foo""#, &env_str("x", "bar")),
         Some(int(1))
     );
 }
@@ -831,11 +877,11 @@ fn polymorphic_equality_both_numeric_uses_numeric_compare() {
 fn polymorphic_equality_boolean_words_compare_as_strings() {
     // tclsh: bareword booleans are NOT numbers for `==`/`!=`, so they string
     // compare: true==1=0  1==true=0  true==true=1  false==0=0.
-    assert_eq!(eval_str(r#""true" == "1""#), Some(int(0)));
-    assert_eq!(eval_str("true == 1"), Some(int(0)));
-    assert_eq!(eval_str(r#"1 == "true""#), Some(int(0)));
-    assert_eq!(eval_str(r#""true" == "true""#), Some(int(1)));
-    assert_eq!(eval_str("false == 0"), Some(int(0)));
+    assert_eq!(eval_86(r#""true" == "1""#), Some(int(0)));
+    assert_eq!(eval_86("true == 1"), Some(int(0)));
+    assert_eq!(eval_86(r#"1 == "true""#), Some(int(0)));
+    assert_eq!(eval_86(r#""true" == "true""#), Some(int(1)));
+    assert_eq!(eval_86("false == 0"), Some(int(0)));
 }
 
 #[test]
