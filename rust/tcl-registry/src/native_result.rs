@@ -986,11 +986,11 @@ impl NativeResultSelection {
             repetitions, len, ..
         } = self
         {
-            let total = repetitions.saturating_mul(len);
             // `Tcl_NewListObj(totalElems, NULL)` (8.5–9.0 Tcl_LrepeatObjCmd,
             // tclCmdIL.c) has no list rep when empty; 9.1 Tcl_ListObjRepeat
             // (tclListTypes.c) builds `lrepeatType` at LREPEAT_LENGTH_THRESHOLD.
             const ABSTRACT_FROM_9_1: usize = 100;
+            let total = repetitions.saturating_mul(len);
             let fresh = total > 0
                 && dialect.family() == Some(tcl_dialect::model::Family::Tcl)
                 && dialect.tcl_version.is_some_and(|version| {
