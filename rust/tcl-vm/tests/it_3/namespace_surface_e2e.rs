@@ -2727,6 +2727,78 @@ fn retained_and_recreated_namespace_variables_have_distinct_cells() {
 }
 
 #[test]
+fn colon_edge_command_tokens_stay_distinct() {
+    // #1778. `a:`/`p`, `a`/`:p` and `a` -> `:` -> `p` are three distinct
+    // commands whose rendered names collide. Measured on tclsh 8.4.20,
+    // 8.5.19, 8.6.18, 9.0.4 and 9.1.0: before 8.6 a non-global `:p` cannot be
+    // created; from 8.6 each relative spelling reaches its own token, the
+    // absolute `::a:::::p` resolves to none of them, and deleting `a:` leaves
+    // the other two.
+    let src = r#"set r {}
+foreach s {
+    {namespace eval a: {proc p {} {return from-a-colon}}}
+    {namespace eval a {proc :p {} {return from-colon-p}}}
+    {namespace eval a {namespace eval : {proc p {} {return nested}}}}
+    {namespace eval a: {p}}
+    {namespace eval a {:p}}
+    {namespace eval a {namespace eval : {p}}}
+    {::a:::::p}
+    {namespace delete a:}
+    {namespace eval a {:p}}
+    {namespace eval a {namespace eval : {p}}}
+} {
+    lappend r [list [catch $s m] [expr {[string match {*invalid command*} $m] ? "invalid" : $m}]]
+}
+set r"#;
+    let legacy = r#"{0 {}} {1 {can't create procedure ":p" in non-global namespace with name starting with ":"}} {0 {}} {1 invalid} {1 invalid} {1 invalid} {0 nested} {0 {}} {1 invalid} {1 invalid}"#;
+    let modern = r"{0 {}} {0 {}} {0 {}} {0 from-a-colon} {0 from-colon-p} {0 nested} {1 invalid} {0 {}} {0 from-colon-p} {0 nested}";
+    for (release, expected) in [
+        ("tcl8.4", legacy),
+        ("tcl8.5", legacy),
+        ("tcl8.6", modern),
+        ("tcl9.0", modern),
+        ("tcl9.1", modern),
+    ] {
+        assert_eq!(run_at(src, release), expected, "{release}");
+    }
+}
+
+#[test]
+fn colon_edge_rename_trace_and_recreation_keep_their_own_tokens() {
+    // #1778. Renaming `a`/`:p` leaves `a:`/`p` and its trace alone; deleting
+    // `a:` fires only that command's trace, and recreating `a:`/`p` does not
+    // disturb the renamed `a`/`:q`. tclsh 8.6.18, 9.0.4 and 9.1.0 agree;
+    // 8.4 and 8.5 cannot create the non-global `:p` at all.
+    let src = r#"set r {}
+set ::log {}
+proc rec {args} {lappend ::log [lindex $args end]}
+foreach s {
+    {namespace eval a: {proc p {} {return A}}}
+    {namespace eval a {proc :p {} {return B}}}
+    {namespace eval a: {trace add command p delete rec}}
+    {namespace eval a {rename :p :q}}
+    {namespace eval a: {p}}
+    {namespace eval a {:q}}
+    {namespace eval a {:p}}
+    {namespace delete a:}
+    {set ::log}
+    {namespace eval a: {proc p {} {return C}}}
+    {namespace eval a: {p}}
+    {namespace eval a {:q}}
+} {
+    lappend r [list [catch $s m] [expr {[string match {*invalid command*} $m] ? "invalid" : $m}]]
+}
+set r"#;
+    for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert_eq!(
+            run_at(src, release),
+            r"{0 {}} {0 {}} {0 {}} {0 {}} {0 A} {0 B} {1 invalid} {0 {}} {0 delete} {0 {}} {0 C} {0 B}",
+            "{release}"
+        );
+    }
+}
+
+#[test]
 fn compiled_descendant_command_survives_activation_delayed_parent_deletion() {
     // #1755. Measured on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: from
     // 8.5 the precompiled relative and absolute references both keep the
