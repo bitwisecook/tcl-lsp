@@ -124,8 +124,7 @@ fn folds_to_integer(fa: &FunctionAsm, value: i64) -> bool {
 /// The body of procedure `name` from a module lowered with no interpreter.
 /// The unit a live Tcl 8.6 interpreter compiles for these bodies does not yet
 /// match tclsh8.6 (`break` and `continue` inside a compiled loop are `jump4`
-/// there, and `$arr(key)` is `loadArray1`), so their tests stay on the module
-/// path until it does.
+/// there), so their tests stay on the module path until it does.
 fn module_proc_asm(source: &str, name: &str) -> FunctionAsm {
     let mut module = asm_for(source);
     let id = fixture_id(&module.procedures, name);
@@ -1445,9 +1444,10 @@ fn dict_for_lowers_to_loop_cfg_for_analysis_but_barriers_for_codegen() {
 
 #[test]
 fn proc_array_ref() {
+    // tclsh8.6: `return $arr(key1)` is `push1 "key1"; loadArray1 %v1`.
     let src =
         "proc array_op {key} { set arr(key1) \"val1\"; set arr($key) \"val2\"; return $arr(key1) }";
-    let ops = opcodes(&module_proc_asm(src, "::array_op"));
+    let ops = opcodes(&proc_asm(src, "::array_op"));
     assert!(ops.contains(&Op::STORE_ARRAY1));
     assert!(ops.contains(&Op::LOAD_ARRAY1));
 }

@@ -336,6 +336,14 @@ impl CodegenCtx<'_> {
             // substitution leaves it alone; `emit_value` would interpolate
             // `a [id 9] b` into `a RAN b`.
             self.push_lit_verbatim(val);
+        } else if let Some(tcl_compiler::ir::WordExpr::Variable { spelling, .. }) = value_word
+            && value_word
+                .as_ref()
+                .is_some_and(|word| val == word.legacy_text())
+            && self.emit_variable_reference(spelling)
+        {
+            // The written reference: `$arr(key)` is an element load, where
+            // the value's `${arr(key)}` spelling names a whole variable.
         } else {
             self.emit_value(val, true);
         }
