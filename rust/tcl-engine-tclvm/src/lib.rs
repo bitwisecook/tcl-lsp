@@ -880,6 +880,24 @@ impl CommandRegistrar for VmRegistrar<'_> {
     }
 }
 
+/// A host outcome as the completion the VM receives. Only a `Return` has a
+/// use for options, as in C Tcl, where `catch` of any other code reports its
+/// own.
+fn host_outcome_completion(
+    outcome: HostOutcome,
+) -> Completion<tcl_engine_api::OriginalObjectResult> {
+    let options = if outcome.code == tcl_engine_api::CompletionCode::Return {
+        outcome.options
+    } else {
+        Value::Empty
+    };
+    Completion::new(
+        to_vm_code(outcome.code),
+        tcl_engine_api::OriginalObjectResult::Value(outcome.value),
+        tcl_engine_api::OriginalObjectResult::Value(options),
+    )
+}
+
 /// Register a host command through the VM's checked publication owner.
 pub fn register_host_command(vm: &mut Vm, name: &str, command: Rc<dyn HostCommand>) {
     if let Err(error) = define_host_command(
@@ -1003,20 +1021,7 @@ impl HostCommandShim {
             } else {
                 self.command
                     .invoke_with_registrar(&mut registrar, &arguments)
-                    .map(|outcome| {
-                        // Only a `Return` has a use for options, as in C Tcl,
-                        // where `catch` of any other code reports its own.
-                        let options = if outcome.code == tcl_engine_api::CompletionCode::Return {
-                            outcome.options
-                        } else {
-                            Value::Empty
-                        };
-                        Completion::new(
-                            to_vm_code(outcome.code),
-                            tcl_engine_api::OriginalObjectResult::Value(outcome.value),
-                            tcl_engine_api::OriginalObjectResult::Value(options),
-                        )
-                    })
+                    .map(host_outcome_completion)
             };
             if let Err(error) = &outcome {
                 retain_engine_failure(registrar.vm, original, error);
