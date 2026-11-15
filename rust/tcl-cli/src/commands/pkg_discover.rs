@@ -993,10 +993,24 @@ mod tests {
     fn original_package_requirement_values_keep_actual_option_ordinals_and_unknowns() {
         // Implementation contract: naming.package.original-manifest-source-advice
         // docs/design/analysis/name-resolution-proofs/original-package-manifest-source-advice.md
-        let source = r"package require -exact json {1.2} {2.0} $unknown";
-        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        // `-exact` takes one version: with more, Tcl 8.5.19, 8.6.18 and 9.0.4
+        // answer `wrong # args: should be "package require ?-exact? package
+        // ?requirement ...?"`. So the option's ordinal and the several
+        // requirements are two documents, both under Tcl 8.6.
+        let exact = r"package require -exact json {1.2}";
+        let analysis = Analyser::new().analyse(exact, "tcl8.6");
         let raw = analysis.package_requires.first().unwrap();
         assert!(raw.exact);
+        assert_eq!(raw.original_requirements.len(), 1);
+        assert_eq!(
+            raw.original_requirements[0].as_ref().unwrap().bytes(),
+            b"1.2"
+        );
+
+        let source = r"package require json {1.2} {2.0} $unknown";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let raw = analysis.package_requires.first().unwrap();
+        assert!(!raw.exact);
         assert_eq!(raw.original_requirements.len(), 3);
         assert_eq!(
             raw.original_requirements[0].as_ref().unwrap().bytes(),

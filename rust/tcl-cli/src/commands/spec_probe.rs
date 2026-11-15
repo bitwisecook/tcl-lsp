@@ -268,9 +268,13 @@ mod tests {
         let outcome = tcl_test_support::run_script(interpreter, script.as_bytes())
             .expect("original package inventory");
         std::fs::remove_dir_all(&directory).expect("remove fixture");
-        let text = outcome
-            .strict_text()
-            .expect("original UTF-8 inventory protocol");
+        // The protocol's last line ends in a tab (its empty third field), so
+        // the output is read whole: `strict_text` trims it away.
+        assert!(
+            outcome.success() && outcome.stderr.is_empty(),
+            "{outcome:?}"
+        );
+        let text = String::from_utf8(outcome.stdout).expect("original UTF-8 inventory protocol");
         let report = parse_output(&text);
         assert!(report.finished(), "{text}");
         report
