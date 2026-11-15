@@ -656,6 +656,18 @@ struct EnteredCommand {
     execution_traces: SelectedNativeExecutionTraces,
 }
 
+/// The interpreter's reference to a traced command's result, given up
+/// without releasing an object the completion still carries unowned.
+struct HeldResult(Option<Value>);
+
+impl Drop for HeldResult {
+    fn drop(&mut self) {
+        if let Some(result) = self.0.take() {
+            drop(result.into_native_unowned_lifetime());
+        }
+    }
+}
+
 struct EnteredNativeOperation {
     site: (usize, usize),
     start: usize,
@@ -10241,6 +10253,10 @@ impl Vm {
         // at entry, a leave trace added by an enter callback or by the command
         // body joins the current invocation. Removal, deletion and relocation
         // are observed through the sidecar at settlement.
+        // C's interpreter holds its own reference to the result while leave
+        // traces run. The completion may carry it unowned, where the first
+        // reference a callback takes and drops would release it.
+        let _held = HeldResult(Some(c.result.clone()));
         let mut trace_result = c.result.clone();
         if let Some(owner) = &ctx.leave_owner
             && let Some(key) = owner.key()
