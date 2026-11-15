@@ -1246,7 +1246,7 @@ impl Builder<'_> {
                         self.literals
                             .register_private_constant_list(members, self.stamp.source_protocol),
                     ),
-                    NativeCompiledListRecipe::DynamicElements => None,
+                    NativeCompiledListRecipe::DynamicElements { .. } => None,
                 };
                 Operation::List(recipe, index)
             }
@@ -1746,7 +1746,7 @@ impl Builder<'_> {
                                     NativeVariableWordOperand::DynamicWord
                                 ))
                     }
-                    Operation::List(NativeCompiledListRecipe::DynamicElements, _) => index > 0,
+                    Operation::List(NativeCompiledListRecipe::DynamicElements { .. }, _) => index > 0,
                     Operation::Concat { operands, .. } | Operation::FormatStringConcat { operands, .. } => operands.iter().any(|operand| matches!(operand, NamespaceOperand::Original(word) if index == *word)),
                     Operation::Switch(switch) => matches!(
                         switch.recipe.subject,
@@ -3845,7 +3845,7 @@ impl Interp {
                             .expect("actual compiler List literal"),
                     )
                 } else {
-                    debug_assert!(matches!(recipe, NativeCompiledListRecipe::DynamicElements));
+                    debug_assert!(matches!(recipe, NativeCompiledListRecipe::DynamicElements { .. }));
                     let values = command.words[1..]
                         .iter()
                         .map(|word| self.body_word(artifact, word, execution))

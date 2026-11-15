@@ -97,6 +97,26 @@ impl CompilerTraversal<'_> {
         )
     }
 
+    fn original_upvar_preparations(
+        &mut self,
+        words: &[WordExpr],
+        recipe: &tcl_registry::native_upvar_compilation::NativeUpvarInstruction,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        if let Some(level) = &recipe.level
+            && let Some(failure) = self.original_operand(words, level, context)
+        {
+            return Some(failure);
+        }
+        for binding in &recipe.bindings {
+            if let Some(failure) = self.original_operand(words, &binding.other, context) {
+                return Some(failure);
+            }
+            self.declare_source_local(Some(&binding.local));
+        }
+        None
+    }
+
     fn original_non_control_compilation(
         &mut self,
         words: &[WordExpr],
@@ -139,17 +159,8 @@ impl CompilerTraversal<'_> {
                 self.original_namespace_preparations(words, recipe, context)
             }
             NativeInstructionPlan::Upvar(recipe) => {
-                if let Some(level) = &recipe.level
-                    && let Some(failure) = self.original_operand(words, level, context)
-                { return Some(failure); }
-                for binding in &recipe.bindings {
-                    if let Some(failure) = self.original_operand(words, &binding.other, context) {
-                        return Some(failure);
-                    }
-                    self.declare_source_local(Some(&binding.local));
-                }
-                None
-            },
+                self.original_upvar_preparations(words, recipe, context)
+            }
             NativeInstructionPlan::InfoExists(recipe) => {
                 match (&recipe.receiver, &recipe.operand) {
                     (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::Original(target), NativeCompilerWordOperand::Original(word)) => {
