@@ -568,6 +568,14 @@ const NAMESPACE_EVAL_SOURCE_LEGACY_COVERAGE: &[TransitionEffectCoverage] =
         domains: &[WorldStateDomain::InterpreterPolicy],
     }];
 
+// A subcommand with no hint of its own inherits the parent's writes. These
+// only read the current namespace or reshape a name, and call nothing back.
+const NAMESPACE_READ_SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::NamespaceState,
+    reads: true,
+    ..SideEffect::DEFAULT
+}];
+
 const NAMESPACE_PARENT_SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
         target: SideEffectTarget::InterpState,
@@ -1260,6 +1268,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        side_effects: NAMESPACE_READ_SIDE_EFFECTS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1585,6 +1595,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        side_effects: NAMESPACE_READ_SIDE_EFFECTS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1606,6 +1618,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
+        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        side_effects: NAMESPACE_READ_SIDE_EFFECTS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
