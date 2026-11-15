@@ -28,6 +28,7 @@
 //! dynamic target and caller-frame obligations remain opaque.
 
 mod source_may;
+use super::frame_effects::FrameContext;
 pub(crate) use source_may::OriginalSourceCallMayWrites;
 
 use std::collections::{BTreeSet, HashMap};
@@ -383,21 +384,28 @@ pub(crate) fn detect_global_write_bodies_with_registry(
     module: &Module,
     registry: &tcl_registry::CommandRegistry,
 ) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
-    let bindings = ModuleCommandBindings::analyse(module, registry);
-    let owners = super::OriginalProcedureSummaryOwners::for_module(module, registry);
-    let frames = super::detect_upvar_bodies_with_registry(module, registry);
+    super::frame_effects::detect_frame_effect_bodies(module, registry).global
+}
+
+/// The global-frame projection of [`super::frame_effects`]: each retained
+/// body's own outer-place writes, closed over the owner's call edges, with
+/// the owner's caller-frame summaries for the frames its callees reach.
+pub(super) fn global_frame_summaries(
+    module: &Module,
+    registry: &tcl_registry::CommandRegistry,
+    bindings: &ModuleCommandBindings,
+    owners: &super::OriginalProcedureSummaryOwners,
+    frames: &HashMap<crate::ir::ProcedureId, super::upvar_info::UpvarInfo>,
+    edges: &super::frame_effects::CallEdges,
+) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
     let semantics =
-        GlobalWriteSemantics::from_module(module, registry, &bindings).map(|semantics| {
+        GlobalWriteSemantics::from_module(module, registry, bindings).map(|semantics| {
             GlobalWriteSemantics {
-                caller_frames: Some(CallerFrameWrites {
-                    owners: &owners,
-                    frames: &frames,
-                }),
+                caller_frames: Some(CallerFrameWrites { owners, frames }),
                 ..semantics
             }
         });
     let mut rows = HashMap::new();
-    let mut edges = HashMap::new();
     for (id, procedure) in module.original_source_procedure_bodies() {
         let namespace = procedure
             .body
@@ -421,15 +429,15 @@ pub(crate) fn detect_global_write_bodies_with_registry(
                 ..GlobalWriteInfo::default()
             },
         };
-        let (calls, opaque) = direct_call_targets(&procedure.body, &owners, registry);
-        info.opaque_global_frame |= opaque;
-        edges.insert(*id, calls);
+        info.opaque_global_frame |= edges.get(id).is_none_or(|(_, opaque)| *opaque);
         rows.insert(*id, info);
     }
     loop {
         let prior = rows.clone();
-        for (id, callees) in &edges {
-            let row = rows.get_mut(id).expect("retained body row");
+        for (id, (callees, _)) in edges {
+            let Some(row) = rows.get_mut(id) else {
+                continue;
+            };
             for callee in callees {
                 match prior.get(callee) {
                     Some(facts) => {
@@ -830,7 +838,7 @@ fn collect_global_frame_effects(
     namespace: &str,
     info: &mut GlobalWriteInfo,
 ) {
-    collect_global_frame_effects_in_frame(script, semantics, namespace, false, info);
+    collect_global_frame_effects_in_frame(script, semantics, namespace, FrameContext::Own, info);
 }
 
 /// Continue the global-frame pass under a known selected frame.  A nested
@@ -842,43 +850,40 @@ fn collect_global_frame_effects_in_frame(
     script: &Script,
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &str,
-    in_global_frame: bool,
+    frame: FrameContext,
     info: &mut GlobalWriteInfo,
 ) {
+    use tcl_registry::frame_effect::FrameLevel;
     for stmt in &script.statements {
         if !stmt.is_executable_invocation() {
             continue;
         }
         match stmt {
+            // A literal body runs in the frame its level selects from the
+            // enclosing one: `uplevel 0` inside `uplevel #0` still writes
+            // globals, inside `uplevel 1` still the caller. A body that may
+            // run at the global frame (`#0`, or a level nothing static
+            // places) writes its names there; any other frame is not
+            // globally enumerable, but a `#0` nested in it still is.
             Statement::UpFrame {
-                absolute: true,
-                frame_shift: 0,
+                absolute,
+                frame_shift,
                 body,
                 ..
             } => {
-                record_global_upframe_body(body, semantics, info);
-                collect_global_frame_effects_in_frame(body, semantics, "::", true, info);
-                continue;
-            }
-            // Relative level zero preserves the selected frame.  It is a
-            // global-frame script only when its enclosing literal body had
-            // already selected `#0`.
-            Statement::UpFrame {
-                absolute: false,
-                frame_shift: 0,
-                body,
-                ..
-            } if in_global_frame => {
-                record_global_upframe_body(body, semantics, info);
-                collect_global_frame_effects_in_frame(body, semantics, "::", true, info);
-                continue;
-            }
-            Statement::UpFrame { body, .. } => {
-                // A different selected frame is not globally enumerable, but
-                // an absolute `#0` nested inside it still is; keep walking to
-                // find that explicit reset without attributing ordinary body
-                // writes to the global frame.
-                collect_global_frame_effects_in_frame(body, semantics, namespace, false, info);
+                let selected = frame.level(match u32::try_from(*frame_shift) {
+                    Ok(shift) if *absolute => FrameLevel::Absolute(shift),
+                    Ok(shift) => FrameLevel::Relative(shift),
+                    Err(_) => FrameLevel::Dynamic,
+                });
+                if selected.may_be_global() {
+                    record_global_upframe_body(body, semantics, info);
+                    collect_global_frame_effects_in_frame(body, semantics, "::", selected, info);
+                } else {
+                    collect_global_frame_effects_in_frame(
+                        body, semantics, namespace, selected, info,
+                    );
+                }
                 continue;
             }
             Statement::Call { .. } | Statement::Barrier { .. } => record_selected_global_body(
@@ -886,7 +891,7 @@ fn collect_global_frame_effects_in_frame(
                 script.retained_source_tokens_for_statement(stmt),
                 semantics,
                 namespace,
-                in_global_frame,
+                frame,
                 info,
             ),
             _ => {}
@@ -900,13 +905,7 @@ fn collect_global_frame_effects_in_frame(
                 info.opaque_global_frame = true;
                 continue;
             };
-            collect_global_frame_effects_in_frame(
-                body,
-                semantics,
-                &body_namespace,
-                in_global_frame,
-                info,
-            );
+            collect_global_frame_effects_in_frame(body, semantics, &body_namespace, frame, info);
         }
     }
 }
@@ -916,12 +915,11 @@ fn record_selected_global_body(
     tokens: Option<&crate::ir::CommandTokens>,
     semantics: &GlobalWriteSemantics<'_>,
     namespace: &str,
-    in_global_frame: bool,
+    frame: FrameContext,
     info: &mut GlobalWriteInfo,
 ) {
-    use tcl_registry::frame_effect::FrameLevel;
     if semantics.logical_source() {
-        record_original_logical_global_body(tokens, semantics, in_global_frame, info);
+        record_original_logical_global_body(tokens, semantics, frame, info);
         return;
     }
     let registry = semantics.registry;
@@ -939,14 +937,8 @@ fn record_selected_global_body(
                 semantics.metadata,
             )
         };
-        let selected_global = |selection| match selection {
-            ResolvedFrameBodySelection::Current
-            | ResolvedFrameBodySelection::Selected(FrameLevel::Relative(0)) => in_global_frame,
-            ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(0)) => true,
-            ResolvedFrameBodySelection::Selected(
-                FrameLevel::Relative(_) | FrameLevel::Absolute(_) | FrameLevel::Dynamic,
-            ) => false,
-        };
+        let selected_global =
+            |selection: ResolvedFrameBodySelection| frame.select(selection).may_be_global();
         match body {
             ResolvedFrameBody::Readable { source, selection } if selected_global(selection) => {
                 if !record_literal_global_body(&source, semantics, info) {
@@ -967,7 +959,7 @@ fn record_selected_global_body(
 fn record_original_logical_global_body(
     tokens: Option<&crate::ir::CommandTokens>,
     semantics: &GlobalWriteSemantics<'_>,
-    in_global_frame: bool,
+    frame: FrameContext,
     info: &mut GlobalWriteInfo,
 ) {
     use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution};
@@ -1006,15 +998,16 @@ fn record_original_logical_global_body(
         Some(FrameArgumentResolution::Invalid) => return,
         Some(FrameArgumentResolution::Unknown) | None => {
             info.opaque_global_frame |=
-                layout == FrameArgLayout::ScriptInSelectedFrame || in_global_frame;
+                layout == FrameArgLayout::ScriptInSelectedFrame || frame.may_be_global();
             return;
         }
     };
-    let selected_global = if layout == FrameArgLayout::ScriptInCurrentFrame {
-        in_global_frame
+    let selected = if layout == FrameArgLayout::ScriptInCurrentFrame {
+        frame
     } else {
-        level.is_global_frame() || (level.is_current_frame() && in_global_frame)
+        frame.level(level)
     };
+    let selected_global = selected.may_be_global();
     if !selected_global {
         return;
     }
@@ -1027,7 +1020,7 @@ fn record_original_logical_global_body(
         return;
     };
     record_global_upframe_body(&body, semantics, info);
-    collect_global_frame_effects_in_frame(&body, semantics, "::", true, info);
+    collect_global_frame_effects_in_frame(&body, semantics, "::", selected, info);
 }
 
 fn record_global_upframe_body(

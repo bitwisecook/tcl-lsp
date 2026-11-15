@@ -45,7 +45,7 @@ use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 use self::global_write_info::GlobalWriteInfo;
 pub use self::summary_candidates::OriginalProcedureSummaryOwners;
-use self::upvar_info::{FrameTarget, UpvarInfo};
+use self::upvar_info::UpvarInfo;
 
 /// Registry traits by which a command declares that it runs code, or raises a
 /// barrier, where it is invoked. A head that reaches such a command through a
@@ -237,6 +237,7 @@ pub mod cfg_lower;
 #[doc(hidden)]
 pub use cfg_lower::matches_foreach_header;
 mod execution_regions;
+pub(crate) mod frame_effects;
 pub mod global_write_info;
 #[doc(hidden)]
 pub mod summary_candidates;
@@ -3745,16 +3746,6 @@ impl<'a> CfgBuilder<'a> {
 
 // Public API
 
-fn opaque_frame_summary() -> UpvarInfo {
-    UpvarInfo {
-        has_unresolvable_caller_target: true,
-        caller_frame_opaque_writes: true,
-        caller_frame_opaque_reads: true,
-        beyond_caller: std::collections::BTreeSet::from([FrameTarget::Unknown]),
-        ..UpvarInfo::default()
-    }
-}
-
 /// Caller-frame facts retained separately for every genuine source body.
 #[must_use]
 pub fn detect_upvar_procs(module: &Module) -> HashMap<crate::ir::ProcedureId, UpvarInfo> {
@@ -3774,105 +3765,7 @@ pub(crate) fn detect_upvar_bodies_with_registry(
     module: &Module,
     registry: &CommandRegistry,
 ) -> HashMap<crate::ir::ProcedureId, UpvarInfo> {
-    let bindings = ModuleCommandBindings::analyse(module, registry);
-    let owner = module
-        .retained_source_bindings
-        .as_ref()
-        .filter(|owner| owner.matches_module(module, registry));
-    let mut summaries: HashMap<_, _> = module
-        .original_source_procedure_bodies()
-        .map(|(id, procedure)| {
-            let namespace = procedure.body.namespace_context.as_deref();
-            let mut info = if let Some(namespace) = namespace.filter(|_| {
-                module.procedure_ids.owns(*id)
-                    && owner.is_some_and(|owner| {
-                        owner.matches_original_procedure_summary(*id, procedure)
-                    })
-            }) {
-                upvar_info::collect_upvar_targets_with_bindings(
-                    &procedure.body,
-                    &procedure.params,
-                    registry,
-                    &bindings,
-                    namespace,
-                    module,
-                )
-            } else {
-                opaque_frame_summary()
-            };
-            if !info.uplevel_forwarded_calls.is_empty() {
-                info = opaque_frame_summary();
-            }
-            info.param_defaults =
-                upvar_info::name_param_defaults(&info, &procedure.params_raw, module.word_values());
-            info.plain_calls.clear();
-            (*id, info)
-        })
-        .collect();
-    close_beyond_caller_reach(module, registry, &mut summaries);
-    summaries
-}
-
-/// Carry each effect that lands past a callee's direct caller out along the
-/// ordinary calls that reach it, one level per hop, to a fixpoint.
-///
-/// A callee's `Caller(2)` effect lands in the frame of whoever called its
-/// caller, so it becomes the caller's own caller-frame barrier; a
-/// `Caller(n)` further out becomes the caller's `Caller(n - 1)`. Exact
-/// distances only shrink, and [`FrameTarget::Unknown`] — like a call the
-/// edges cannot name — makes the whole caller opaque, so the closure ends.
-fn close_beyond_caller_reach(
-    module: &Module,
-    registry: &CommandRegistry,
-    summaries: &mut HashMap<crate::ir::ProcedureId, UpvarInfo>,
-) {
-    let owners = OriginalProcedureSummaryOwners::for_module(module, registry);
-    let edges: Vec<_> = module
-        .original_source_procedure_bodies()
-        .map(|(id, procedure)| {
-            let (calls, opaque) =
-                global_write_info::direct_call_targets(&procedure.body, &owners, registry);
-            (*id, calls, opaque)
-        })
-        .collect();
-    loop {
-        let prior = summaries.clone();
-        for (id, calls, opaque) in &edges {
-            let mut opaque = *opaque;
-            let mut caller_frame = false;
-            let mut further = std::collections::BTreeSet::new();
-            for callee in calls {
-                let Some(summary) = prior.get(callee) else {
-                    opaque = true;
-                    break;
-                };
-                for target in &summary.beyond_caller {
-                    match target.one_call_nearer() {
-                        None => caller_frame = true,
-                        Some(FrameTarget::Unknown) => opaque = true,
-                        Some(nearer) => {
-                            further.insert(nearer);
-                        }
-                    }
-                }
-            }
-            if opaque {
-                summaries.insert(*id, opaque_frame_summary());
-                continue;
-            }
-            let Some(summary) = summaries.get_mut(id) else {
-                continue;
-            };
-            if caller_frame {
-                summary.caller_frame_opaque_writes = true;
-                summary.caller_frame_opaque_reads = true;
-            }
-            summary.beyond_caller.extend(further);
-        }
-        if *summaries == prior {
-            return;
-        }
-    }
+    frame_effects::detect_caller_frame_bodies(module, registry)
 }
 
 /// The procedures the module's own code can enter: those reachable over the
@@ -4004,9 +3897,10 @@ pub fn prepare_cfg_context_bundle(
     registry: &CommandRegistry,
 ) -> PreparedCfgContext {
     let command_bindings = ModuleCommandBindings::analyse(module, registry);
-    let upvar_procs = detect_upvar_bodies_with_registry(module, registry);
-    let global_write_procs =
-        global_write_info::detect_global_write_bodies_with_registry(module, registry);
+    let frame_effects::FrameEffectSummaries {
+        caller: upvar_procs,
+        global: global_write_procs,
+    } = frame_effects::detect_frame_effect_bodies(module, registry);
     let proc_params = module
         .original_source_procedure_bodies()
         .filter(|(id, procedure)| {

@@ -228,59 +228,8 @@ fn push_caller_side_def(effects: &mut CallerSideEffects, name: &str) {
     }
 }
 
-/// A frame past a procedure's direct caller that its `upvar` / `uplevel`
-/// effects reach.
-///
-/// A **level-1** effect (`upvar 1`, `uplevel 1`) writes the direct caller's
-/// frame and stops there: it is emphatically not transitive through an
-/// ordinary call, because the callee's caller *is* the wrapper
-/// (`detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper`
-/// pins the tclsh transcript). An effect `n` levels out lands `n - 1` levels
-/// out of the direct caller, and [`super::detect_upvar_procs`] carries it one
-/// ordinary call further per hop until it reaches its frame.
-///
-/// On tclsh 9.0.4 and 8.6.16, identically: with
-/// `proc setUp2 {var} {uplevel 2 [list set $var 99]}`,
-/// `proc middle {} {setUp2 answer}` and
-/// `proc outer {} {middle; return $answer}`, `outer` returns `99` — `answer`
-/// is genuinely set in `outer`'s frame by a proc `outer` never calls
-/// directly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum FrameTarget {
-    /// Exactly this many levels out of the procedure's own frame; always
-    /// past the direct caller, so at least 2.
-    Caller(std::num::NonZeroU32),
-    /// A frame no static distance places: `uplevel #3`, a level word nothing
-    /// static can read, or a distance past [`MAX_FRAME_DISTANCE`].
-    Unknown,
-}
-
-/// The furthest exact distance a summary keeps; anything further is
-/// [`FrameTarget::Unknown`], so call-edge closure always terminates.
-pub const MAX_FRAME_DISTANCE: u32 = 32;
-
-impl FrameTarget {
-    /// The target `distance` levels out of a procedure's own frame, when it
-    /// lies past the direct caller.
-    #[must_use]
-    pub fn past_the_caller(distance: u32) -> Option<Self> {
-        match distance {
-            0 | 1 => None,
-            d if d > MAX_FRAME_DISTANCE => Some(Self::Unknown),
-            d => std::num::NonZeroU32::new(d).map(Self::Caller),
-        }
-    }
-
-    /// The same frame seen from the direct caller: one level nearer.
-    /// `None` when it is then the direct caller's own caller-frame effect.
-    #[must_use]
-    pub fn one_call_nearer(self) -> Option<Self> {
-        match self {
-            Self::Caller(distance) => Self::past_the_caller(distance.get() - 1),
-            Self::Unknown => Some(Self::Unknown),
-        }
-    }
-}
+use super::frame_effects::FrameContext;
+pub use super::frame_effects::{FrameTarget, MAX_FRAME_DISTANCE};
 
 impl UpvarInfo {
     /// True if every bucket is empty — no `upvar` declarations in
@@ -1133,55 +1082,6 @@ fn walk_stmt(
     }
 }
 
-/// Variable-frame position of an evaluated body relative to the procedure
-/// whose [`UpvarInfo`] is being built.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FrameContext {
-    Own,
-    DirectCaller,
-    Global,
-    Beyond(FrameTarget),
-}
-
-impl FrameContext {
-    /// The frame `levels` relative levels out of this one. Out of the global
-    /// frame there is no frame to select, so nothing static places it.
-    fn relative(self, levels: u32) -> Self {
-        let distance = match self {
-            Self::Own => 0,
-            Self::DirectCaller => 1,
-            Self::Global if levels == 0 => return Self::Global,
-            Self::Global | Self::Beyond(FrameTarget::Unknown) => {
-                return Self::Beyond(FrameTarget::Unknown);
-            }
-            Self::Beyond(FrameTarget::Caller(distance)) => distance.get(),
-        };
-        match distance.saturating_add(levels) {
-            0 => Self::Own,
-            1 => Self::DirectCaller,
-            further => {
-                Self::Beyond(FrameTarget::past_the_caller(further).unwrap_or(FrameTarget::Unknown))
-            }
-        }
-    }
-}
-
-fn selected_frame_context(
-    current: FrameContext,
-    selection: ResolvedFrameBodySelection,
-) -> FrameContext {
-    match selection {
-        ResolvedFrameBodySelection::Current => current,
-        ResolvedFrameBodySelection::Selected(FrameLevel::Relative(levels)) => {
-            current.relative(levels)
-        }
-        ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(0)) => FrameContext::Global,
-        ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(_) | FrameLevel::Dynamic) => {
-            FrameContext::Beyond(FrameTarget::Unknown)
-        }
-    }
-}
-
 #[derive(Clone, Copy)]
 struct LogicalFrameScan<'a> {
     tokens: &'a CommandTokens,
@@ -1233,7 +1133,7 @@ fn record_logical_alias_pairs(
     info: &mut UpvarInfo,
 ) {
     let (level, start) = selection;
-    match selected_frame_context(context.current, ResolvedFrameBodySelection::Selected(level)) {
+    match FrameContext::select(context.current, ResolvedFrameBodySelection::Selected(level)) {
         FrameContext::Own | FrameContext::Global => return,
         FrameContext::Beyond(target) => {
             widen_beyond_caller(info, target);
@@ -1296,7 +1196,7 @@ fn record_logical_frame_script(
     let selected = if layout == FrameArgLayout::ScriptInCurrentFrame {
         context.current
     } else {
-        selected_frame_context(
+        FrameContext::select(
             context.current,
             ResolvedFrameBodySelection::Selected(selection.0),
         )
@@ -1381,13 +1281,13 @@ fn record_resolved_frame_body(
     );
     match body {
         ResolvedFrameBody::Readable { source, selection } => {
-            let selected = selected_frame_context(current, selection);
+            let selected = FrameContext::select(current, selection);
             record_readable_frame_body(
                 &source, selected, params, registry, bindings, namespace, info, depth,
             );
         }
         ResolvedFrameBody::Opaque { selection } => {
-            match selected_frame_context(current, selection) {
+            match FrameContext::select(current, selection) {
                 // An arbitrary script evaluated directly in the caller can
                 // read, write, or unset any caller cell.
                 FrameContext::DirectCaller => {

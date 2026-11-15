@@ -6,9 +6,13 @@ frame: `upvar` aliases a caller-frame (or global) name into a local, and
 that shows up in the caller's own text, so a single-function analysis would
 fold, forward, or delete values a callee really rewrites.
 
-Two per-procedure summaries model this, both computed once per module in
-`rust/tcl-compiler/src/cfg_builder/` and consulted at every call site by
-`CfgBuilder::apply_upvar_invalidation`:
+Two per-procedure summaries model this. One owner,
+`rust/tcl-compiler/src/cfg_builder/frame_effects.rs`, builds both in one pass
+(`detect_frame_effect_bodies`): one command-binding analysis, one set of call
+edges, and one frame type (`FrameContext`, `FrameTarget`) that both body
+projections select frames with. The caller-frame summary is closed first,
+because the global-frame projection reads it. Every call site consults them
+through `CfgBuilder::apply_upvar_invalidation`:
 
 | Summary | Module | Owns |
 |---|---|---|
@@ -33,7 +37,8 @@ doc for transcripts):
 | `upvar 1 x y` / `upvar x y` | the caller | `UpvarInfo` named binding |
 | `upvar #0 g l` / `uplevel #0 {…}` | the global frame | `GlobalWriteInfo` |
 | `upvar 0 x y` / `uplevel 0 {…}` | the callee's own frame | neither (no cross-frame effect) |
-| `upvar 2 …` / `upvar $lvl …` / `uplevel 2 …` | further out / unknown | `UpvarInfo` opaque widening |
+| `upvar 2 …` / `uplevel 2 …` | exactly that many frames out | `UpvarInfo::beyond_caller` `Caller(n)`, carried out along ordinary calls |
+| `upvar #3 …` / `upvar $lvl …` / `uplevel $lvl …` | a frame nothing static places | `UpvarInfo` `Unknown` (widens the caller) and `GlobalWriteInfo` (it may be `#0`) |
 
 ## The lattice, per name
 

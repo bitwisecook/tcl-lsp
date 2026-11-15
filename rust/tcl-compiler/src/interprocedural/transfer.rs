@@ -405,18 +405,15 @@ impl<'a> ModuleProcedures<'a> {
 
     /// [`Self::new`] with a cycle given at most `rounds` rounds to settle.
     pub(crate) fn with_rounds(inputs: ModuleInputs<'a>, rounds: RecursionLimit) -> Self {
+        let frame_effects = crate::cfg_builder::frame_effects::detect_frame_effect_bodies(
+            inputs.ir,
+            inputs.registry,
+        );
         let procedures = Self {
             ir: inputs.ir,
             procedures: &inputs.ir.procedures,
-            frame_facts: crate::cfg_builder::detect_upvar_bodies_with_registry(
-                inputs.ir,
-                inputs.registry,
-            ),
-            outer_facts:
-                crate::cfg_builder::global_write_info::detect_global_write_bodies_with_registry(
-                    inputs.ir,
-                    inputs.registry,
-                ),
+            frame_facts: frame_effects.caller,
+            outer_facts: frame_effects.global,
             redefined: &inputs.ir.redefined_procedures,
             mutations: inputs.mutations,
             projection: inputs.projection,
@@ -453,18 +450,13 @@ impl<'a> ModuleProcedures<'a> {
         cu: &'a crate::compilation_unit::CompilationUnit,
         registry: &'a CommandRegistry,
     ) -> Self {
+        let frame_effects =
+            crate::cfg_builder::frame_effects::detect_frame_effect_bodies(&cu.ir_module, registry);
         Self {
             ir: &cu.ir_module,
             procedures: &cu.ir_module.procedures,
-            frame_facts: crate::cfg_builder::detect_upvar_bodies_with_registry(
-                &cu.ir_module,
-                registry,
-            ),
-            outer_facts:
-                crate::cfg_builder::global_write_info::detect_global_write_bodies_with_registry(
-                    &cu.ir_module,
-                    registry,
-                ),
+            frame_facts: frame_effects.caller,
+            outer_facts: frame_effects.global,
             redefined: &cu.ir_module.redefined_procedures,
             mutations: &cu.command_mutations,
             projection: &cu.caller_scope.proc_binding_trust,
