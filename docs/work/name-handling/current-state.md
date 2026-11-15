@@ -93,6 +93,8 @@ Open, with cause:
 
 `tcl-lsp-core` outside semantic tokens, `tcl-lsp-db` and `tcl-lsp-server`. Baseline at `454068e6`, one 4-core Linux host, `cargo nextest`, test profile `opt-level 1`: 7,836 run, 1,422 fail (a second identical run failed 1,423). By binary: `tcl-lsp-core` lib 630, `it_2` 27, `it_3` 27, `it_4` 46, `it_5` 89; `tcl-lsp-db` lib 62 and integration 19; `tcl-lsp-server` lib 145, `e2e` 361, `preview_tickets_e2e` 16.
 
+Current totals, same host and settings, after the cross-document references listing: 7,836 run, 1,340 fail; 97 that failed at the baseline pass and 6 that passed at the baseline fail. By binary: `tcl-lsp-core` lib 582, `it_2` 27, `it_3` 26, `it_4` 46, `it_5` 89; `tcl-lsp-db` lib 59 and integration 18; `tcl-lsp-server` lib 137, `e2e` 340, `preview_tickets_e2e` 16. Of the 6, three asserted that a source deleting a procedure leaves the command world incomplete; `f6fbccbf` completes it and the premise is removed from them.
+
 Fixed in `tcl-lsp-core` (47 lib tests; no new failure in `hover`, `definition`, `document_symbols`, `completion`):
 
 - Hover and go-to-definition read the analysed class whose body holds the cursor when the strict receiver lookup has no answer: a self-dispatch (`my m`, `[self] m`, `[self object] m`) in a class the document declares but never instantiates or reopens with `oo::define`, and a member's own declaration name in a reopening block. Display only (`definition::declared_self_dispatch_at`, `declared_class_at`); a class with `member_set_incomplete` (Clay) is not answered. Rename, references and edits do not call it.

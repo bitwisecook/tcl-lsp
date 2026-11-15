@@ -6156,7 +6156,6 @@ mod original_proc_completion_tests {
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         // naming.source.original-procedure-publications
         // docs/design/analysis/name-resolution-proofs/source-original-procedure-publications.md
-        assert!(analysis.original_completed_command_world().is_none());
         let inventory =
             tcl_compiler::registry_invocation::source_structure::source_procedure_publications(
                 source, &analysis,

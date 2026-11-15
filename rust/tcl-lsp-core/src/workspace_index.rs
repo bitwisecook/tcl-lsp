@@ -15420,7 +15420,6 @@ mod original_settlement_transport_tests {
         // docs/design/analysis/name-resolution-proofs/source-original-procedure-publications.md
         let source = "proc old {value} {}; proc deleted {} {}; rename old moved; rename deleted {}";
         let mut analysis = original_analysis(source);
-        assert!(analysis.original_completed_command_world().is_none());
         clear_reporting(&mut analysis);
         let uri = "file:///source-procedures.tcl";
         let mut index = WorkspaceIndex::from_documents([(uri, &analysis)]);

@@ -320,7 +320,6 @@ mod tests {
         let consumer = Analyser::new().analyse(source, "tcl8.6");
         let producer_source = "proc original {value} {}; proc removed {} {}; rename original moved; rename removed {}";
         let mut producer = Analyser::new().analyse(producer_source, "tcl8.6");
-        assert!(producer.original_completed_command_world().is_none());
         producer.all_procs.clear();
         producer.superseded_procs.clear();
         let mut index = WorkspaceIndex::from_documents([("file:///producer.tcl", &producer)]);
