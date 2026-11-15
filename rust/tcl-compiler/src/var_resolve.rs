@@ -565,6 +565,8 @@ pub struct ResolveContext {
     pub namespace_name_protocol: Option<tcl_syntax::naming::NativeNameProtocol>,
     /// Name input issuer retained independently of namespace tokens and string producers.
     pub execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
+    /// Logical expression parser the source entry explicitly installed.
+    pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     /// Actual Jim namespace-object bytes retained from the entry snapshot.
     pub namespace_objects:
         HashMap<crate::command_binding::SourceNamespaceKey, tcl_core_types::NameBytes>,
@@ -1350,6 +1352,7 @@ fn restore_namespace_bindings(restored: &mut ResolveContext, child: &ResolveCont
     restored.namespace_inventory = child.namespace_inventory;
     restored.namespace_name_protocol = child.namespace_name_protocol;
     restored.execution_name_policy = child.execution_name_policy;
+    restored.expression_parser = child.expression_parser;
     restored.hosted_execution_context = child.hosted_execution_context;
     let retained_current = restored.namespace_identity.as_ref().and_then(|key| {
         restored
@@ -1595,6 +1598,7 @@ impl Hash for ResolveContext {
         self.namespace_inventory.hash(state);
         self.namespace_name_protocol.hash(state);
         self.execution_name_policy.hash(state);
+        self.expression_parser.hash(state);
         hash_map(&self.namespace_objects, state);
         self.authored_tmm_static.hash(state);
         self.namespace_known.hash(state);
@@ -1669,6 +1673,7 @@ impl Default for ResolveContext {
             namespace_inventory: NamespaceInventoryClosure::Open,
             namespace_name_protocol: None,
             execution_name_policy: None,
+            expression_parser: None,
             namespace_objects: HashMap::new(),
             authored_tmm_static: None,
             namespace_known: true,
@@ -1936,6 +1941,7 @@ impl ResolveContext {
         selected.namespace_inventory = self.namespace_inventory;
         selected.namespace_name_protocol = self.namespace_name_protocol;
         selected.execution_name_policy = self.execution_name_policy;
+        selected.expression_parser = self.expression_parser;
         selected.hosted_execution_context = self.hosted_execution_context;
         selected
             .namespace_objects
@@ -3498,6 +3504,9 @@ impl ResolveContext {
         }
         if self.execution_name_policy != other.execution_name_policy {
             self.execution_name_policy = None;
+        }
+        if self.expression_parser != other.expression_parser {
+            self.expression_parser = None;
         }
         self.namespace_objects
             .retain(|key, object| other.namespace_objects.get(key) == Some(object));

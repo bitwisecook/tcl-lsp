@@ -366,6 +366,10 @@ pub struct FoldPolicy {
     /// Explicit authored F5 predicate recipe for this fold. It grants no
     /// native C/Jim execution or measured appliance-context capability.
     pub f5_predicates: Option<tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider>,
+    /// Explicitly installed logical expression parser, matching the one the
+    /// source walk prepared its expression witnesses under. Never inferred
+    /// from the dialect.
+    pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     /// What the active dialect counts as a string character: `Some(model)`
     /// folds character counts under that model, `None` declines a fold whose
     /// answer the Tcl 8 and Tcl 9 models disagree on — the same
@@ -448,6 +452,7 @@ impl FoldPolicy {
             native_family: None,
             octal,
             f5_predicates: None,
+            expression_parser: None,
             characters: None,
             numbers: None,
             word_rules: tcl_syntax::word_rules::WordValueRules::TCL,
@@ -475,6 +480,7 @@ impl FoldPolicy {
             f5_predicates: profile
                 .is_some_and(tcl_dialect::DialectProfile::is_irules)
                 .then_some(tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider::F5Trunk),
+            expression_parser: None,
             characters: profile.and_then(tcl_dialect::DialectProfile::character_model),
             numbers: profile.map(|p| NumberSyntax::of_profile(Some(p))),
             word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(profile),
@@ -488,11 +494,23 @@ impl FoldPolicy {
     #[must_use]
     pub fn preparation_context(self) -> Option<tcl_syntax::expr::parser::ExprParseContext> {
         self.invocation_dialect
-            .map(|dialect| dialect.expression_parse_context(self.dialect))
+            .map(|dialect| {
+                dialect.expression_parse_context_with(self.expression_parser, self.dialect)
+            })
             .or_else(|| {
                 self.dialect
                     .map(tcl_syntax::expr::parser::ExprParseContext::for_profile)
             })
+    }
+
+    /// Select the logical expression parser the source entry installed.
+    #[must_use]
+    pub const fn with_expression_parser(
+        mut self,
+        provider: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+    ) -> Self {
+        self.expression_parser = provider;
+        self
     }
 
     /// Preserve native execution policy independently of the catalogue's
@@ -552,6 +570,7 @@ impl FoldPolicy {
                 .profile()
                 .is_some_and(tcl_dialect::DialectProfile::is_irules)
                 .then_some(tcl_syntax::expr::operators::AuthoredF5StringPredicateProvider::F5Trunk),
+            expression_parser: None,
             characters: registry.character_model(),
             numbers: Some(registry.numbers()),
             word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile()),

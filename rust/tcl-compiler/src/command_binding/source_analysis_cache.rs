@@ -96,6 +96,7 @@ impl SourceAnalysisCacheKey {
                 unknown_entry: options.unknown_entry,
                 invocation_dialect: options.invocation_dialect,
                 compiled_variable_provider: options.compiled_variable_provider,
+                expression_parser: options.expression_parser,
                 native_compilation: options.native_compilation,
             },
         })
@@ -168,6 +169,7 @@ impl SourcePointHistoryKey {
             unknown_entry,
             invocation_dialect,
             compiled_variable_provider,
+            expression_parser,
             native_compilation,
         } = entry;
         let same_point = match (&self.point, source_point_entry) {
@@ -193,6 +195,7 @@ impl SourcePointHistoryKey {
             && &self.entry.unknown_entry == unknown_entry
             && &self.entry.invocation_dialect == invocation_dialect
             && &self.entry.compiled_variable_provider == compiled_variable_provider
+            && &self.entry.expression_parser == expression_parser
             && &self.entry.native_compilation == native_compilation
     }
 }
@@ -216,6 +219,7 @@ fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
         unknown_entry,
         invocation_dialect,
         compiled_variable_provider,
+        expression_parser,
         native_compilation,
     } = entry;
     SourceAnalysisEntry {
@@ -236,6 +240,7 @@ fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
         unknown_entry: *unknown_entry,
         invocation_dialect: *invocation_dialect,
         compiled_variable_provider: *compiled_variable_provider,
+        expression_parser: *expression_parser,
         native_compilation: *native_compilation,
     }
 }

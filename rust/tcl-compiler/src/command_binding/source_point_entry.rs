@@ -355,6 +355,7 @@ impl OriginalSourcePointEntry {
         let baseline = &self.payload.snapshot.state.baseline;
         entry.invocation_realm = self.payload.snapshot.realm;
         entry.execution_name_policy = baseline.execution_name_policy;
+        entry.expression_parser = baseline.expression_parser;
         entry
             .logical_source_input
             .clone_from(&baseline.logical_source_input);

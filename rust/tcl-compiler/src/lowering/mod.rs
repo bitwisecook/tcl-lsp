@@ -1101,6 +1101,7 @@ pub struct Lowerer<'r> {
     vendor_source_input: Option<crate::analyser::ResolvedAnalysisInput>,
     compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+    expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     /// Evaluation protocol, independent of the runtime variable frame.
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     native_entry: Option<std::sync::Arc<tcl_runtime_api::NativeCompilationEntry>>,
@@ -1437,6 +1438,7 @@ impl<'r> Lowerer<'r> {
             )),
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             compiled_variable_provider: None,
+            expression_parser: None,
             hosted_execution_context: None,
             execution_name_policy: None,
             metadata_input: None,
@@ -1935,6 +1937,7 @@ impl<'r> Lowerer<'r> {
             unknown_entry: self.unknown_entry,
             invocation_dialect: self.invocation_dialect,
             compiled_variable_provider: self.compiled_variable_provider,
+            expression_parser: self.expression_parser,
             native_compilation: self.native_compilation,
             native_entry: self.native_entry.clone(),
             incoming_formals: self.incoming_formals.clone(),
@@ -2380,6 +2383,7 @@ impl<'r> Lowerer<'r> {
         self.invocation_dialect = options.source_invocation_dialect(self.config);
         self.native_compilation = options.native_compilation;
         self.compiled_variable_provider = options.compiled_variable_provider;
+        self.expression_parser = options.expression_parser;
         self.hosted_execution_context = options.hosted_execution_context;
         self.execution_name_policy = options.execution_name_policy();
         self.logical_source_input = options.logical_source_input.cloned();
@@ -2486,6 +2490,7 @@ impl<'r> Lowerer<'r> {
                 unknown_entry: self.unknown_entry || self.nest_depth > 1,
                 invocation_dialect: self.invocation_dialect,
                 compiled_variable_provider: self.compiled_variable_provider,
+                expression_parser: self.expression_parser,
                 native_entry: self.native_entry.as_deref(),
                 incoming_formals: if self.nest_depth == 1 {
                     &self.incoming_formals

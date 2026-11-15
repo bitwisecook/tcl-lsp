@@ -976,6 +976,7 @@ struct BindingBaseline {
     execution_name_policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
     compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+    expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     invocation_realm: tcl_dialect::model::InvocationRealm,
     unknown_entry: bool,
     native_entry: Option<Arc<tcl_runtime_api::NativeCompilationEntry>>,
@@ -1022,6 +1023,7 @@ impl PartialEq for BindingBaseline {
             && self.native_entry == other.native_entry
             && self.native_compilation == other.native_compilation
             && self.compiled_variable_provider == other.compiled_variable_provider
+            && self.expression_parser == other.expression_parser
             && self.trusted_loaders == other.trusted_loaders
             && self.trusted_source_modules == other.trusted_source_modules
             && self.declared_commands == other.declared_commands
@@ -1103,6 +1105,7 @@ impl BindingBaseline {
             unknown_entry: false,
             native_entry: None,
             compiled_variable_provider: None,
+            expression_parser: None,
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext::default(
             ),
             fingerprint: 0,
@@ -1156,6 +1159,7 @@ impl BindingBaseline {
         self.native_entry.hash(&mut state);
         self.native_compilation.hash(&mut state);
         self.compiled_variable_provider.hash(&mut state);
+        self.expression_parser.hash(&mut state);
         self.invocation_realm.hash(&mut state);
         self.unknown_entry.hash(&mut state);
         self.declared_commands.hash(&mut state);
@@ -5422,6 +5426,7 @@ fn deferred_source_frame(
     } else if let Some(event) = &root.event {
         let mut entry = crate::connection_scope::event_resolve_context(event);
         entry.invocation_dialect = branch.baseline.dialect;
+        entry.expression_parser = branch.baseline.expression_parser;
         entry.source_read_configuration = parent.source_read_configuration;
         entry.namespace_cells = parent.namespace_cells.clone();
         let frame = if entry.dynamic_bindings {
@@ -9153,6 +9158,7 @@ impl SourceCommandBindings {
             logical_source_input: self.final_state.baseline.logical_source_input.as_ref(),
             vendor_source_input: self.final_state.baseline.vendor_source_input.as_ref(),
             compiled_variable_provider: self.final_state.baseline.compiled_variable_provider,
+            expression_parser: self.final_state.baseline.expression_parser,
         };
         let fallback = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned());
         let frame = self
@@ -16765,6 +16771,7 @@ impl ModuleCommandBindings {
         baseline.hosted_execution_context = options.hosted_execution_context;
         baseline.native_compilation = options.native_compilation;
         baseline.compiled_variable_provider = options.compiled_variable_provider;
+        baseline.expression_parser = options.expression_parser;
         baseline.invocation_realm = options.invocation_realm;
         baseline.unknown_entry = options.unknown_entry;
         baseline.native_entry = options.native_entry.cloned().map(Arc::new);
@@ -16820,6 +16827,7 @@ impl ModuleCommandBindings {
         variables.invocation_dialect = state.baseline.dialect;
         variables.source_read_configuration = state.baseline.source_read_config;
         variables.execution_name_policy = state.baseline.execution_name_policy;
+        variables.expression_parser = state.baseline.expression_parser;
         variables.hosted_execution_context = state.baseline.hosted_execution_context;
         variables.namespace_identities = state.namespaces.iter().cloned().collect();
         variables.known_namespaces = state

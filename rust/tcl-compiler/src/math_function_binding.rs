@@ -281,7 +281,10 @@ impl<'a> ExpressionMathBindings<'a> {
             && access.context_alternatives().iter().all(|state| {
                 if state
                     .invocation_dialect
-                    .map(|dialect| dialect.expression_parse_context(policy.dialect))
+                    .map(|dialect| {
+                        dialect
+                            .expression_parse_context_with(state.expression_parser, policy.dialect)
+                    })
                     .as_ref()
                     != Some(context)
                 {

@@ -945,7 +945,8 @@ fn build_full_ssa_artifacts(
         inputs.registry,
         entry.invocation_dialect,
         &inputs.config,
-    );
+    )
+    .with_expression_parser(entry.expression_parser);
     let metadata = inputs.source_metadata_input.and_then(|input| {
         crate::registry_invocation::InvocationMetadataContext::for_source_input(
             inputs.registry,

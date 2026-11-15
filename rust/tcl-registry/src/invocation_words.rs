@@ -309,7 +309,7 @@ pub enum LogicalExpressionQuoteProvider {
 
 /// An embedding host's explicit expression parser and template capability.
 /// It authorizes an authored logical recipe, not native vendor semantics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LogicalExpressionParseProvider {
     /// Tcl 8.4 core parsing with the retained F5 operator and word grammar.
     Tcl84CoreSimulation,
@@ -517,6 +517,43 @@ impl InvocationDialect {
             }
             LogicalExpressionParseProvider::Tcl84CoreSimulation => None,
         }
+    }
+
+    /// This dialect's expression parse context with an explicitly installed
+    /// logical parser recipe. The recipe supplies only the native syntax, and
+    /// only when it validates against `profile` for this dialect's family and
+    /// release; every other axis stays this dialect's own.
+    #[must_use]
+    pub fn expression_parse_context_with(
+        self,
+        provider: Option<LogicalExpressionParseProvider>,
+        profile: Option<&tcl_dialect::DialectProfile>,
+    ) -> tcl_syntax::expr::parser::ExprParseContext {
+        let mut context = self.expression_parse_context(profile);
+        if let Some(syntax) = provider
+            .zip(profile)
+            .and_then(|(provider, profile)| self.logical_expression_syntax(provider, profile))
+        {
+            context.native_syntax = syntax;
+        }
+        context
+    }
+
+    /// The native syntax an explicit logical parser recipe supplies for this
+    /// dialect's family and release under `profile`, when it applies.
+    #[must_use]
+    pub fn logical_expression_syntax(
+        self,
+        provider: LogicalExpressionParseProvider,
+        profile: &tcl_dialect::DialectProfile,
+    ) -> Option<tcl_syntax::expr::parser::NativeExprSyntax> {
+        let canonical = Self::of_profile(profile);
+        (canonical.native_family == self.native_family
+            && canonical.tcl_version == self.tcl_version)
+            .then_some(())?;
+        canonical
+            .logical_expression_parse_context(provider, profile)
+            .map(|context| context.native_syntax)
     }
 
     /// Template variable grammar supplied by an explicit logical parser recipe.
@@ -2000,6 +2037,14 @@ mod tests {
             context.native_syntax,
             tcl_syntax::expr::parser::NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V8_4)
         );
+        assert_eq!(
+            dialect.expression_parse_context_with(Some(provider), Some(profile)),
+            context
+        );
+        assert_eq!(
+            dialect.expression_parse_context_with(None, Some(profile)),
+            dialect.expression_parse_context(Some(profile))
+        );
         assert!(dialect.execution_point().is_none());
         assert!(crate::substitution::TemplateParseErrors::for_dialect(dialect).is_none());
         assert!(
@@ -2013,6 +2058,11 @@ mod tests {
                 crate::InvocationDialect::of_profile(actual)
                     .logical_expression_parse_context(provider, actual)
                     .is_none()
+            );
+            assert_eq!(
+                crate::InvocationDialect::of_profile(actual)
+                    .expression_parse_context_with(Some(provider), Some(actual)),
+                crate::InvocationDialect::of_profile(actual).expression_parse_context(Some(actual))
             );
         }
         assert!(

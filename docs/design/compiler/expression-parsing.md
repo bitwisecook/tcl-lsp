@@ -59,6 +59,16 @@ participates in expression and compilation cache policy. A scoped native host
 activation uses its own parser policy. The native F5 invocation still has no
 C/Jim expression syntax or compiler receipt from this simulation capability.
 
+The compiler carries the same provider on its source entry
+(`SourceAnalysisEntry::expression_parser`). Only a fresh hosted F5 rule load
+(`for_fresh_hosted_source`) installs it, beside the authored naming simulation;
+it travels on `BindingBaseline`, `ResolveContext` and `FoldPolicy`, and the
+source-analysis cache keys on it. The source walk prepares reached expression
+witnesses under `InvocationDialect::expression_parse_context_with`, and
+`FoldPolicy::preparation_context` asks the same question, so a handler's
+condition folds only against a witness prepared under the installed parser.
+Readers that do not carry the provider keep the native context and decline.
+
 Source escape materialisation has a separate capability,
 `LogicalSourceWordProvider::Tcl84CoreSimulation`. Its selector issues only the
 source-byte recipe for the retained F5 escape grammar. It cannot install a

@@ -1282,7 +1282,10 @@ impl SourceCommandBindings {
         // including expression operands of control handlers. Retain their
         // bytes/cell identities while withdrawing unproved representation.
         if let (Some(dialect), Ok(text)) = (state.baseline.dialect, source.try_text()) {
-            let mut syntax = dialect.expression_parse_context(context.registry.profile());
+            let mut syntax = dialect.expression_parse_context_with(
+                state.baseline.expression_parser,
+                context.registry.profile(),
+            );
             syntax.lexer_grammar = context.config.grammar_over(syntax.lexer_grammar);
             if let Some(evaluation) =
                 tcl_registry::conditional_expression::ConditionalExpressionEvaluation::prepare(
@@ -1442,7 +1445,10 @@ impl SourceCommandBindings {
                     return super::opaque_source_invocation(state);
                 };
                 let expression = if let Some(dialect) = state.baseline.dialect {
-                    let mut syntax = dialect.expression_parse_context(context.registry.profile());
+                    let mut syntax = dialect.expression_parse_context_with(
+                        state.baseline.expression_parser,
+                        context.registry.profile(),
+                    );
                     syntax.lexer_grammar = context.config.grammar_over(syntax.lexer_grammar);
                     crate::expr_parser::parse_expr_with_syntax_context(source_text, &syntax)
                 } else {
@@ -1477,7 +1483,10 @@ fn prepare_reached_expression(
     let Ok(source_text) = source.try_text() else {
         return (ExpressionPreparationProof::Unknown, None);
     };
-    let mut parser = dialect.expression_parse_context(context.registry.profile());
+    let mut parser = dialect.expression_parse_context_with(
+        state.baseline.expression_parser,
+        context.registry.profile(),
+    );
     parser.lexer_grammar = context.config.grammar_over(parser.lexer_grammar);
     let table = (!state.opaque_domain)
         .then(|| state.baseline.native_entry.as_ref())

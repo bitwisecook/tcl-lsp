@@ -146,6 +146,8 @@ pub struct SourceAnalysisOptions<'a> {
     /// Explicit authored compiler-local provider, separate from physical engine evidence.
     pub compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+    /// Explicitly installed logical expression parser; never inferred from the dialect.
+    pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     /// Native script evaluation protocol and compiler frame supplied by the entry owner.
     pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
 }
@@ -442,6 +444,8 @@ pub struct SourceAnalysisEntry {
     /// Explicit authored compiler-local provider, separate from physical engine evidence.
     pub compiled_variable_provider:
         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+    /// Explicitly installed logical expression parser; never inferred from the dialect.
+    pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     /// Native script evaluation protocol and compiler frame supplied by the entry owner.
     pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
 }
@@ -499,6 +503,14 @@ impl SourceAnalysisEntry {
             )
         });
         if let Some(policy) = policy {
+            // The loader runs the F5 Tcl 8.4 core simulation's expression
+            // parser, installed here as the iRule harness installs it on its VM.
+            let parser =
+                tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation;
+            entry.expression_parser = entry
+                .invocation_dialect
+                .and_then(|dialect| dialect.logical_expression_syntax(parser, input.unit_profile()))
+                .map(|_| parser);
             entry.unknown_entry = false;
             entry.invocation_realm = tcl_dialect::model::InvocationRealm::RuleLoader;
             entry.execution_name_policy = Some(
@@ -574,6 +586,7 @@ impl SourceAnalysisEntry {
             unknown_entry: self.unknown_entry,
             invocation_dialect: self.invocation_dialect,
             compiled_variable_provider: self.compiled_variable_provider,
+            expression_parser: self.expression_parser,
             native_compilation: self.native_compilation,
         }
     }
