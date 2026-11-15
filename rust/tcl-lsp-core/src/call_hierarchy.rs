@@ -1126,10 +1126,6 @@ pub fn incoming_calls_for_target(
         return Vec::new();
     }
 
-    if !analysis.allows_lexical_declaration_advice() {
-        return Vec::new();
-    }
-
     let line_index = LineIndex::new(source);
     let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
