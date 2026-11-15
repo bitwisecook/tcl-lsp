@@ -80,6 +80,7 @@ mod original_compiler_effects;
 mod original_missing_command;
 mod original_source_projection;
 pub(crate) use original_missing_command::OriginalMissingCommandContext;
+mod point_extents;
 mod pre_handler_failure;
 mod root_layout_extents;
 mod root_owner_work;
@@ -9942,11 +9943,7 @@ impl SourceCommandBindings {
             };
         }
 
-        let point = self
-            .points
-            .iter()
-            .filter(|point| point.offset <= offset && offset <= point.end)
-            .max_by_key(|point| point.offset);
+        let point = self.point_covering(offset);
         point.map_or_else(
             || {
                 let mut proof = source_binding(&self.final_state, head, "::");

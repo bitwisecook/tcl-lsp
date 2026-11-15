@@ -177,6 +177,7 @@ pub(super) struct DerivedIndexSet {
     pub(super) root_layout_extents: super::root_layout_extents::RootLayoutExtentCache,
     pub(super) jim_stock_continuations: super::jim_stock_class::JimStockContinuationMemo,
     pub(super) variable_access_owners: super::variable_access_owners::VariableAccessOwnerCache,
+    pub(super) point_extents: super::point_extents::PointExtentCache,
 }
 
 impl DerivedIndexes {
