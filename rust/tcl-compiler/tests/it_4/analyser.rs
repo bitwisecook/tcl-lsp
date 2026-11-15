@@ -5497,6 +5497,39 @@ mod class_factories {
     );
 
     #[test]
+    fn a_computed_metaclass_name_resolves_through_a_helper_proved_at_its_call() {
+        // TP — the same chain with the helper's first argument read in the
+        // manufacturer's own frame. Each head (`NSNormalize`, `string`,
+        // `regsub`) is the command its source position is proved to
+        // dispatch to, so the name folds on a release profile.
+        //
+        // tclsh 8.6.18, 9.0.4, 9.1.0: after this source,
+        // `info commands ::T::D::*` answers `::T::D::class`, and
+        // `::T::D::class create ::T::W {method go {} {return went}}` then
+        // `[[::T::W new] go]` answers `went`.
+        let src =
+            COMPUTED_METACLASS.replace("[uplevel 1 {namespace current}]", "[namespace current]");
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = analysis(&src, release);
+            assert!(
+                result.all_classes.contains_key("::T::D::class"),
+                "{release}: got {:?}",
+                result.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+        // TN — once the helper is moved, its call position proves nothing.
+        let moved = src.replace(
+            "::T::mkdialect ::T::D\n",
+            "rename ::T::NSNormalize ::T::MovedNormalize\n::T::mkdialect ::T::D\n",
+        );
+        assert!(
+            !analysis(&moved, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class")
+        );
+    }
+
+    #[test]
     fn a_computed_metaclass_name_resolves_through_a_literal_call_site() {
         // TP — the literal argument proves `${ns}::class` is
         // `::T::D::class`, so the metaclass enters the factory index and

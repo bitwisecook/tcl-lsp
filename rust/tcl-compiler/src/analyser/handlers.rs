@@ -9035,16 +9035,27 @@ impl Analyser {
         stop_off: u32,
         env: &mut std::collections::HashMap<String, String>,
     ) -> Option<()> {
+        let previous = self.static_eval_site;
+        let mut applied = Some(());
         for seg in self.direct_statements_in_span(body_span)? {
             if seg.span.start() >= stop_off {
                 break;
             }
+            self.static_eval_site = Some(seg.span);
             if !self.static_statement_falls_through(&seg, 0) {
-                return None;
+                applied = None;
+                break;
             }
-            self.apply_static_provenance_statement(proc_qname, &seg, env, 0)?;
+            if self
+                .apply_static_provenance_statement(proc_qname, &seg, env, 0)
+                .is_none()
+            {
+                applied = None;
+                break;
+            }
         }
-        Some(())
+        self.static_eval_site = previous;
+        applied
     }
 
     /// Whether the typed control-flow command selects `arm` for the current
@@ -9079,7 +9090,8 @@ impl Analyser {
         }
         let hook =
             words.with_source_schema(&context, |schema| schema.semantics.lowering_hook)??;
-        match hook {
+        let previous = self.static_eval_site.replace(arm.controller.span);
+        let selected = match hook {
             tcl_registry::hooks::LoweringHookId::If => {
                 self.if_body_is_selected(proc_qname, arm, env, depth)
             }
@@ -9087,7 +9099,9 @@ impl Analyser {
                 self.switch_body_is_selected(proc_qname, arm, env, depth)
             }
             _ => None,
-        }
+        };
+        self.static_eval_site = previous;
+        selected
     }
 
     /// Resolve typed semantics for either a direct body argument or one body
@@ -9155,7 +9169,11 @@ impl Analyser {
         )?;
         if words.origins().len() != arm.controller.argv.len()
             || words.origins().iter().enumerate().any(|(ordinal, origin)| {
-                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+                // A proved dispatch states the head as its implementation;
+                // with no alias prefix it is still the written head word.
+                use crate::registry_invocation::InvocationWordOrigin as Origin;
+                !(*origin == Origin::Written(ordinal)
+                    || (ordinal == 0 && *origin == Origin::ResolvedHead))
             })
         {
             return None;
@@ -9879,6 +9897,10 @@ impl Analyser {
             unquoted,
             self.file_lexer_config().nested(),
         ) {
+            if !self.result.allows_lexical_declaration_advice() {
+                let seg = self.static_substitution_segment(unquoted)?;
+                return self.static_segment_value(&seg, proc_qname, env, stack, depth);
+            }
             let values: Vec<Option<String>> = args
                 .iter()
                 .map(|arg| self.static_word_value(arg, proc_qname, env, stack, depth))
@@ -9943,35 +9965,10 @@ impl Analyser {
         let context = self.retained_static_source_context()?;
         let registry = context.commands().as_ref();
         if registry.get(head).is_some() {
-            let spec = context.context().resolve_spec(registry, head)?;
             if !self.static_provenance_command_is_trusted(&crate::naming::qualify("::", head)) {
                 return None;
             }
-            let values: Vec<&str> = args
-                .iter()
-                .map(|value| value.as_deref())
-                .collect::<Option<_>>()?;
-            let dialect = self
-                .source_analysis_entry
-                .as_ref()
-                .and_then(|entry| entry.invocation_dialect)
-                .map(|mut dialect| {
-                    dialect.lexer_grammar = self.grammar();
-                    dialect.word_values = self.word_rules();
-                    dialect
-                });
-            if spec.subcommands.is_empty() {
-                return match dialect {
-                    Some(dialect) => spec.run_const_fold_in(&values, dialect),
-                    None => spec.run_const_fold(&values, None),
-                };
-            }
-            let (sub, rest) = values.split_first()?;
-            let subcommand = spec.resolve_subcommand(sub)?;
-            return match dialect {
-                Some(dialect) => subcommand.run_const_fold_in(rest, dialect),
-                None => subcommand.run_const_fold(rest, None),
-            };
+            return self.static_registry_fold(head, args);
         }
 
         let qname = self.resolve_static_proc_name(proc_qname, head)?;
@@ -9984,6 +9981,144 @@ impl Analyser {
         let result = self.static_proc_result(&qname, args, stack, depth + 1);
         stack.pop();
         result
+    }
+
+    /// Fold a registry command whose occupied implementation the caller has
+    /// already established, lexically or at its source position.
+    fn static_registry_fold(&mut self, head: &str, args: &[Option<String>]) -> Option<String> {
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
+        let spec = context.context().resolve_spec(registry, head)?;
+        let values: Vec<&str> = args
+            .iter()
+            .map(|value| value.as_deref())
+            .collect::<Option<_>>()?;
+        let dialect = self
+            .source_analysis_entry
+            .as_ref()
+            .and_then(|entry| entry.invocation_dialect)
+            .map(|mut dialect| {
+                dialect.lexer_grammar = self.grammar();
+                dialect.word_values = self.word_rules();
+                dialect
+            });
+        if spec.subcommands.is_empty() {
+            return match dialect {
+                Some(dialect) => spec.run_const_fold_in(&values, dialect),
+                None => spec.run_const_fold(&values, None),
+            };
+        }
+        let (sub, rest) = values.split_first()?;
+        let subcommand = spec.resolve_subcommand(sub)?;
+        match dialect {
+            Some(dialect) => subcommand.run_const_fold_in(rest, dialect),
+            None => subcommand.run_const_fold(rest, None),
+        }
+    }
+
+    /// The one command of a `[…]` substitution written inside the statement
+    /// under evaluation, at its own source position. Two identical
+    /// substitutions in one statement abstain.
+    fn static_substitution_segment(&self, substitution: &str) -> Option<SegmentedCommand> {
+        let site = self.static_eval_site?;
+        let statement = self
+            .source
+            .get(site.start() as usize..site.end() as usize)?;
+        let mut found = statement.match_indices(substitution);
+        let (at, _) = found.next()?;
+        if found.next().is_some() {
+            return None;
+        }
+        let start = site
+            .start()
+            .checked_add(u32::try_from(at).ok()?)?
+            .checked_add(1)?;
+        let end = start.checked_add(u32::try_from(substitution.len()).ok()?.checked_sub(2)?)?;
+        let mut commands = self.direct_statements_in_span(Span::new(start, end))?;
+        if commands.len() != 1 {
+            return None;
+        }
+        commands.pop()
+    }
+
+    /// Evaluate one command at its source position. The head is the
+    /// procedure or registry builtin that position is proved to dispatch to;
+    /// its spelling selects nothing.
+    fn static_segment_value(
+        &mut self,
+        seg: &SegmentedCommand,
+        proc_qname: &str,
+        env: &std::collections::HashMap<String, String>,
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<String> {
+        if depth > MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let previous = self.static_eval_site.replace(seg.span);
+        let values: Vec<Option<String>> = seg
+            .args()
+            .iter()
+            .map(|arg| self.static_word_value(arg, proc_qname, env, stack, depth))
+            .collect();
+        let result = self.static_positioned_command_value(seg, &values, stack, depth);
+        self.static_eval_site = previous;
+        result
+    }
+
+    fn static_positioned_command_value(
+        &mut self,
+        seg: &SegmentedCommand,
+        args: &[Option<String>],
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<String> {
+        if let Some(proc_def) = self.original_static_procedure_at(seg) {
+            // The position's own lookup proves the implementation, so the
+            // document-wide trust scan of the lexical path is not consulted.
+            let qname = proc_def.qualified_name.clone();
+            if stack.iter().any(|seen| seen == &qname) {
+                return None;
+            }
+            stack.push(qname);
+            let result = self.static_proc_def_result(&proc_def, args, stack, depth + 1);
+            stack.pop();
+            return result;
+        }
+        self.original_static_builtin_at(seg)
+            .then(|| self.static_registry_fold(seg.name(), args))?
+    }
+
+    /// Whether this position is proved to dispatch to the registry builtin
+    /// its head spells, with no alias prefix.
+    fn original_static_builtin_at(&self, segment: &SegmentedCommand) -> bool {
+        let config = self.file_lexer_config();
+        if !self
+            .result
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(&self.source), config)
+        {
+            return false;
+        }
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            ),
+            config,
+            segment,
+        );
+        self.head_identities.stamp_original_tokens(&mut tokens);
+        tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.proved_execution_target())
+            .is_some_and(|target| {
+                target.registry_backed
+                    && target.kind == crate::command_binding::BindingKind::Builtin
+                    && target.prepended.is_empty()
+                    && crate::naming::qualify("::", segment.name()) == target.command
+            })
     }
 
     /// Whether `query` still denotes its declared builtin/procedure for the
@@ -10176,8 +10311,18 @@ impl Analyser {
         if !self.result.allows_lexical_declaration_advice() {
             return None;
         }
-        self.retained_static_source_context()?;
         let proc_def = self.result.all_procs.get(qname)?.clone();
+        self.static_proc_def_result(&proc_def, args, stack, depth)
+    }
+
+    fn static_proc_def_result(
+        &mut self,
+        proc_def: &ProcDef,
+        args: &[Option<String>],
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<String> {
+        self.retained_static_source_context()?;
         if proc_def.params_computed {
             return None;
         }
@@ -10187,6 +10332,7 @@ impl Analyser {
                 env.insert(name, value);
             }
         }
+        let qname = proc_def.qualified_name.as_str();
         match self.static_script_result(qname, proc_def.body_span, &mut env, stack, depth)? {
             StaticScriptOutcome::FallsThrough(value) | StaticScriptOutcome::Returns(value) => {
                 Some(value)
@@ -10202,6 +10348,20 @@ impl Analyser {
         stack: &mut Vec<String>,
         depth: u32,
     ) -> Option<StaticScriptOutcome> {
+        let previous = self.static_eval_site;
+        let outcome = self.static_script_statements(qname, body_span, env, stack, depth);
+        self.static_eval_site = previous;
+        outcome
+    }
+
+    fn static_script_statements(
+        &mut self,
+        qname: &str,
+        body_span: Span,
+        env: &mut std::collections::HashMap<String, String>,
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<StaticScriptOutcome> {
         if depth > MAX_UNKNOWN_BODY_DEPTH {
             return None;
         }
@@ -10210,6 +10370,7 @@ impl Analyser {
         let statements = self.direct_statements_in_span(body_span)?;
         let mut result = String::new();
         for seg in statements {
+            self.static_eval_site = Some(seg.span);
             let raw_args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
             match self.segment_invocation_completion(&seg) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
@@ -10286,7 +10447,11 @@ impl Analyser {
                 .iter()
                 .map(|arg| self.static_word_value(arg, qname, env, stack, depth))
                 .collect();
-            result = self.static_command_value(seg.name(), &values, qname, env, stack, depth)?;
+            result = if self.result.allows_lexical_declaration_advice() {
+                self.static_command_value(seg.name(), &values, qname, env, stack, depth)?
+            } else {
+                self.static_positioned_command_value(&seg, &values, stack, depth)?
+            };
         }
         Some(StaticScriptOutcome::FallsThrough(result))
     }

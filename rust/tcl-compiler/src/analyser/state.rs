@@ -1023,6 +1023,9 @@ pub struct Analyser {
     /// `self.source.len()` at the point [`Self::cached_line_index`] was
     /// built — see that field's doc comment.
     pub(super) cached_line_index_source_len: usize,
+    /// Statement the static provenance evaluator is reading, so a nested
+    /// substitution can be found at its own source position.
+    pub(super) static_eval_site: Option<Span>,
     /// Candidate E002 / E003 arity diagnostics, W004
     /// (dialect-invalid-option) diagnostics, **and** W001 (unknown
     /// subcommand) diagnostics collected during the command walk, as
@@ -1706,6 +1709,7 @@ impl Analyser {
             line_offsets: None,
             cached_line_index: tcl_lexer::LineIndex::new(""),
             cached_line_index_source_len: 0,
+            static_eval_site: None,
             pending_arity: Vec::new(),
             pending_user_call_arity: Vec::new(),
             pending_ctor_arity: Vec::new(),
