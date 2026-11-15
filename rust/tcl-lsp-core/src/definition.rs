@@ -823,6 +823,11 @@ fn instance_method_definition(
             selected.method.name_span,
         )]);
     }
+    if !analysis.allows_lexical_declaration_advice()
+        && let Some((_, _, method)) = declared_self_dispatch_at(source, analysis, cursor)
+    {
+        return Some(vec![span_to_range(source, line_index, method.name_span)]);
+    }
     None
 }
 
@@ -1157,6 +1162,82 @@ fn original_internal_dispatch(
                 .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
         })
     }) == Some(true)
+}
+
+/// The declared member a written self-dispatch reaches in the analysed class
+/// whose body holds `offset`: the receiving class, the providing class and
+/// the method. A method body the analysis never entered still belongs to its
+/// class, so hover and go-to-definition read the class's declared members
+/// there. This names no receiver and grants no edit.
+pub(crate) fn declared_self_dispatch_at<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    offset: u32,
+) -> Option<(
+    &'a tcl_compiler::analyser::types::ClassDef,
+    &'a tcl_compiler::analyser::types::ClassDef,
+    &'a tcl_compiler::analyser::types::MethodDef,
+)> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let receiver = analysis
+        .all_classes
+        .get(enclosing_class_at(analysis, offset)?)?;
+    let mut selector = None;
+    crate::executable_regions::visit_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            if !command
+                .argv
+                .get(1)
+                .is_some_and(|word| word.span.start() <= offset && offset <= word.span.end())
+            {
+                return false;
+            }
+            if original_internal_dispatch(source, analysis, command, &current)
+                || command_head_is_self_receiver(source, analysis, command, &current)
+            {
+                selector = command.texts.get(1).cloned();
+            }
+            selector.is_some()
+        },
+    );
+    let method = selector?;
+    let provider = analysis
+        .class_hierarchy()
+        .method_target(&receiver.qualified_name, &method)?;
+    let provider = analysis.all_classes.get(provider)?;
+    Some((receiver, provider, provider.methods.get(&method)?))
+}
+
+/// Whether this command's head word is a self-receiver substitution
+/// (`[self] m`), read from the head's own descriptor.
+fn command_head_is_self_receiver(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) -> bool {
+    let Some(head) = command.argv.first() else {
+        return false;
+    };
+    let image = tcl_lexer::SourceImage::document(source);
+    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        current.config(),
+        command,
+    );
+    tcl_compiler::registry_invocation::original_native_compiler_words(
+        &image,
+        tokens.words(),
+        head.span.start(),
+        tokens.native_lexer_config(current.config()),
+    )
+    .is_some_and(|words| {
+        words
+            .first()
+            .is_some_and(|head| original_self_receiver_head(source, analysis, head, current))
+    })
 }
 
 /// The selected source head may describe the current object's identity.

@@ -272,9 +272,6 @@ pub fn qualified_symbol_hover(
     defining_analysis: &AnalysisResult,
     qualified: &str,
 ) -> Option<Hover> {
-    if !defining_analysis.allows_lexical_declaration_advice() {
-        return None;
-    }
     if let Some(proc_def) = defining_analysis.all_procs.get(qualified) {
         return Some(Hover::markdown(proc_hover_text(proc_def)));
     }
@@ -456,9 +453,6 @@ pub fn qualified_variable_hover(
     defining_analysis: &AnalysisResult,
     qualified: &str,
 ) -> Option<Hover> {
-    if !defining_analysis.allows_lexical_declaration_advice() {
-        return None;
-    }
     let (qualified, var_def) =
         tcl_compiler::analyser::namespace_variables(&defining_analysis.global_scope)
             .into_iter()
@@ -547,6 +541,7 @@ fn original_hover(
             character,
         );
         original_registry::hover(source, analysis, cursor_offset)
+            .or_else(|| declared_class_hover(source, analysis, cursor_offset))
     })
 }
 
@@ -1324,7 +1319,9 @@ fn source_role_hover(
     }
     match crate::method_symbol::local_candidate(source, analysis, line, character) {
         std::ops::ControlFlow::Break(Some(candidate)) => {
-            return std::ops::ControlFlow::Break(candidate.hover());
+            return std::ops::ControlFlow::Break(
+                declared_member_hover(source, analysis, &candidate).or_else(|| candidate.hover()),
+            );
         }
         std::ops::ControlFlow::Break(None) => {
             // A unique written declaration supplies syntax, not a resolved method.
@@ -1341,7 +1338,8 @@ fn source_role_hover(
                             analysis,
                             ctx.registry?,
                         )
-                    }),
+                    })
+                    .or_else(|| declared_class_hover(source, analysis, cursor_offset)),
             );
         }
         std::ops::ControlFlow::Continue(()) => {}
@@ -1355,6 +1353,79 @@ fn source_role_hover(
         return std::ops::ControlFlow::Break(selected);
     }
     std::ops::ControlFlow::Continue(())
+}
+
+/// The card for a class member whose declaring class this document's analysis
+/// holds: the class's qualified name, the declared parameters and the MRO
+/// note. Display only; the candidate's own card states its purpose.
+fn declared_member_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    candidate: &crate::method_symbol::OriginalMethodCandidate,
+) -> Option<Hover> {
+    candidate.own_object().is_none().then_some(())?;
+    let class = candidate.declaring_class_in(source, analysis)?.metadata();
+    let method = candidate.method();
+    let name = crate::original_oo::method_label(method);
+    let kind = match method.side() {
+        tcl_compiler::analyser::MemberSide::Instance => "method",
+        tcl_compiler::analyser::MemberSide::ClassObject => "classmethod",
+    };
+    let parameters = if method.metadata().params_computed {
+        "unknown parameters".to_owned()
+    } else {
+        format!("{} param(s)", method.metadata().params.len())
+    };
+    let note = oo_method_resolution_note(analysis, &class.qualified_name, &name)
+        .map_or(String::new(), |note| format!("  \n{note}"));
+    let purpose = if candidate.has_call_point_entry() {
+        "Resolved at this call"
+    } else {
+        "Possible source declaration"
+    };
+    Some(Hover::markdown(format!(
+        "**{kind}** `{}` ({parameters}){note}\n\n{purpose}.",
+        tcl_syntax::naming::rooted_member_key(&class.qualified_name, &name)
+    )))
+}
+
+/// The card for a member of the analysed class whose body holds the cursor,
+/// on a release profile where the strict path had no answer: a self-dispatch
+/// selector, or the member's own declaration name. Display only.
+fn declared_class_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+) -> Option<Hover> {
+    if analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    if let Some((receiver, provider, method)) =
+        crate::definition::declared_self_dispatch_at(source, analysis, cursor_offset)
+    {
+        let note = oo_resolution_note_for_provider(
+            analysis,
+            &receiver.qualified_name,
+            &provider.qualified_name,
+            &method.name,
+        )
+        .map_or(String::new(), |note| format!("  \n{note}"));
+        return Some(Hover::markdown(format!(
+            "**method** `{}` ({} param(s)){note}",
+            tcl_syntax::naming::rooted_member_key(&provider.qualified_name, &method.name),
+            method.params.len(),
+        )));
+    }
+    let class = analysis
+        .all_classes
+        .get(crate::definition::enclosing_class_at(
+            analysis,
+            cursor_offset,
+        )?)?;
+    let word =
+        crate::source_structure::original_complete_cursor_word(source, analysis, cursor_offset)?
+            .static_unicode_value()?;
+    member_declaration_hover_text(analysis, class, &word, cursor_offset).map(Hover::markdown)
 }
 
 fn class_and_remaining_hover(
@@ -5350,7 +5421,7 @@ mod tests {
     /// drift from the declaration's own.
     #[test]
     fn qualified_symbol_hover_matches_the_in_document_rendering_1018() {
-        let src = "proc ::math::zzqfrobnicate {val args} { return $val }\noo::class create ::geo::Plane {\n    method fly {} {}\n}\n";
+        let src = "namespace eval ::math {}\nnamespace eval ::geo {}\nproc ::math::zzqfrobnicate {val args} { return $val }\noo::class create ::geo::Plane {\n    method fly {} {}\n}\n";
         let analysis = analyse(src);
 
         let proc_hover =
@@ -6841,7 +6912,7 @@ mod tests {
     fn member_declaration_hover_covers_classmethods_and_properties() {
         // TP — the other two member tables render with their own labels.
         let src = "oo::configurable create C {\n    property size\n    self method make {n} { return $n }\n}\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "tcl9.0");
         let prop = hover(src, 1, 15, &analysis, None).expect("property hover");
         assert!(prop.value.contains("**property**"), "{}", prop.value);
         assert!(prop.value.contains("::C::size"), "{}", prop.value);
