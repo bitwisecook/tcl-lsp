@@ -1470,7 +1470,7 @@ pub(crate) fn canonicalise_class(analysis: &AnalysisResult, at: u32, name: &str)
         let namespace = source_namespace_at(&analysis.global_scope, at)?;
         return resolve_written_class_name_in_scope(name, namespace, &analysis.all_classes);
     }
-    let shadowed = !name.starts_with("::")
+    let shadowed = !tcl_syntax::naming::is_absolute(name)
         && path.iter().any(|namespace| {
             resolve_written_class_name(
                 &tcl_syntax::naming::qualify(namespace, name),

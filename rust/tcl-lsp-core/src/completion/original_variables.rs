@@ -687,7 +687,7 @@ fn accessible_name(
         }
         SignatureSourceVariableSlot::Jim(key) => {
             let current = namespace?.context()?;
-            let input = [b"::".as_slice(), key.as_bytes()].concat();
+            let input = tcl_syntax::naming::root_unrooted_key_bytes(key.as_bytes());
             matches!(protocol.variable_root_geometry(current, &input),
                 NativeVariableRootGeometry::JimAbsolute(ref selected) if selected == key)
             .then(|| input.into())

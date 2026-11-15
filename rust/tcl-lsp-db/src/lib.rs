@@ -4242,10 +4242,10 @@ pub fn world_preserving_procedure_declarations(
     file: SourceFile,
 ) -> Arc<DeclaredSurface> {
     let rooted = |name: &str| {
-        if name.starts_with("::") {
+        if tcl_syntax::naming::is_absolute(name) {
             name.to_owned()
         } else {
-            format!("::{name}")
+            tcl_syntax::naming::root_unrooted_key(name)
         }
     };
     let inferred = tcl_compiler::analyser::utils::workspace_procedure_declarations(
@@ -4330,7 +4330,7 @@ pub fn world_preserving_procedure_stubs(db: &dyn TclDb, file: SourceFile) -> Arc
             // A global procedure is declared under the name a bare call
             // spells; a namespaced one keeps its qualified name.
             let name = tcl_syntax::naming::unroot_rooted_key(identity)
-                .filter(|tail| !tail.contains("::"))
+                .filter(|tail| !tcl_syntax::naming::is_qualified(tail.as_bytes()))
                 .unwrap_or(identity);
             Some(format!("stub {name} {{{}}}", words.join(" ")))
         })

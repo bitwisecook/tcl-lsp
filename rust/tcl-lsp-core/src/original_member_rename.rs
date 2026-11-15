@@ -585,7 +585,7 @@ impl MemberRenameScan<'_, '_> {
         else {
             return Ok(false);
         };
-        if head.contains("::")
+        if tcl_syntax::naming::is_qualified(head.as_bytes())
             || registry.method_dispatch_keyword(head)
                 != Some(tcl_registry::MethodDispatchKind::SelfDispatch)
             || words.len() < 2

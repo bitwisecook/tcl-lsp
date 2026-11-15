@@ -467,7 +467,7 @@ fn record_absolute_namespace_command(
     // Original executable heads (including static expansions) have
     // direct absolute namespace geometry. Mere catalogue roles and
     // callback children need their independent receiver purpose.
-    if input.bytes().starts_with(b"::") {
+    if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
         if let Some(reference) = invocation.resolved_command_reference.as_ref() {
             let slot = reference.original_slot().ok_or_else(|| {
                 plan.refusal(
@@ -538,13 +538,10 @@ fn record_namespace_invocations(
                 ));
             }
             let Some(current) = current.or_else(|| {
-                input
-                    .bytes()
-                    .starts_with(b"::")
-                    .then(NativeNameContext::root)
+                tcl_syntax::naming::is_absolute_bytes(input.bytes()).then(NativeNameContext::root)
             }) else {
                 if slot_may_be_under(slot, symbol)
-                    && input.bytes().windows(2).any(|pair| pair == b"::")
+                    && tcl_syntax::naming::is_qualified(input.bytes())
                 {
                     return Err(plan.refusal(
                         Some(invocation.range),
@@ -565,10 +562,10 @@ fn record_namespace_invocations(
                     "the written command and called slot disagree",
                 )
             })?
-        } else if input.bytes().starts_with(b"::") {
+        } else if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
             NativeNameContext::root()
         } else {
-            if input.bytes().windows(2).any(|pair| pair == b"::")
+            if tcl_syntax::naming::is_qualified(input.bytes())
                 && lookup
                     .candidates()
                     .iter()
@@ -608,7 +605,7 @@ fn record_namespace_aliases(
                         plan.record_alias_target(target.name_input())?;
                     }
                     tcl_registry::AliasTargetLookup::CallerNamespace => {
-                        if target.name_input().bytes().starts_with(b"::") {
+                        if tcl_syntax::naming::is_absolute_bytes(target.name_input().bytes()) {
                             plan.record_alias_target(target.name_input())?;
                         }
                     }
@@ -821,7 +818,7 @@ fn literal_may_name_namespace(
             return true;
         }
         budget -= 1;
-        if value.starts_with(b"::")
+        if tcl_syntax::naming::is_absolute_bytes(&value)
             && tcl_syntax::naming::native_written_namespace_prefix_extent(
                 symbol.policy().recipe(),
                 NativeNameContext::root(),
@@ -992,7 +989,7 @@ fn lexical_roots_may_name_namespace(
         ) else {
             return true;
         };
-        if !bytes.starts_with(b"::") {
+        if !tcl_syntax::naming::is_absolute_bytes(&bytes) {
             return false;
         }
         let combined;
@@ -1061,7 +1058,7 @@ fn word_may_select_namespace(
         let Some(wanted) = symbol.scope().context() else {
             return true;
         };
-        if !value.starts_with(b"::") {
+        if !tcl_syntax::naming::is_absolute_bytes(value) {
             return true;
         }
         return tcl_syntax::naming::native_written_namespace_prefix_extent(
