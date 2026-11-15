@@ -56,10 +56,9 @@ use crate::body_identity;
 #[path = "../support/escape_identity.rs"]
 mod escape_identity;
 use escape_identity::FixtureEscapes;
-use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_compiler::ssa::{Version, build_ssa};
+use tcl_compiler::ssa::Version;
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
 use tcl_compiler::var_escape::{
     EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME, analyse_cfg_function, analyse_var_escape,
@@ -105,10 +104,12 @@ fn escape_ir(src: &str) -> FixtureEscapes {
 /// per-`(name, version)` tag map before it is collapsed into a
 /// `ProcEscapeSummary`.
 fn cfg_result(src: &str) -> CfgEscapeResult {
-    let m = lower_to_ir(src, registry());
-    let cfg = build_cfg_function("::top", &m.top_level, true, registry(), false);
-    let ssa = build_ssa(&cfg, registry());
-    analyse_cfg_function(&cfg, &ssa, std::iter::empty::<String>())
+    let cu = CompilationUnit::build_for(src, registry(), false);
+    analyse_cfg_function(
+        &cu.top_level.cfg,
+        &cu.top_level.ssa,
+        std::iter::empty::<String>(),
+    )
 }
 
 /// Fetch the summary for a proc qname, panicking with the available keys

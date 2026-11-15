@@ -67,10 +67,9 @@
 
 use std::collections::HashMap;
 
-use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_compiler::ssa::{Version, build_ssa};
+use tcl_compiler::ssa::Version;
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
 use tcl_compiler::var_escape::{
     BarrierKind, EscapeReasonKind, EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME,
@@ -190,10 +189,12 @@ fn escape_ir(src: &str) -> EscapeSummaries {
 /// return the raw [`CfgEscapeResult`] (the per-`(name, version)` map before it is
 /// collapsed into a `ProcEscapeSummary`).
 fn cfg_result(src: &str) -> CfgEscapeResult {
-    let m = lower_to_ir(src, registry());
-    let cfg = build_cfg_function("::top", &m.top_level, true, registry(), false);
-    let ssa = build_ssa(&cfg, registry());
-    analyse_cfg_function(&cfg, &ssa, std::iter::empty::<String>())
+    let cu = CompilationUnit::build_for(src, registry(), false);
+    analyse_cfg_function(
+        &cu.top_level.cfg,
+        &cu.top_level.ssa,
+        std::iter::empty::<String>(),
+    )
 }
 
 fn summary<'a>(map: &'a EscapeSummaries, qname: &str) -> &'a ProcEscapeSummary {

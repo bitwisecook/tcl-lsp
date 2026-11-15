@@ -70,6 +70,7 @@
 //! "this write may be observable in a surrounding/other frame".
 
 use tcl_compiler::cfg_builder::build_cfg_function;
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::ssa::build_ssa;
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
@@ -84,6 +85,18 @@ fn registry() -> &'static CommandRegistry {
 /// Drive the low-level [`analyse_cfg_function`] entry point directly on a single
 /// top-level script and return the raw [`CfgEscapeResult`].
 fn cfg_result(src: &str) -> CfgEscapeResult {
+    let cu = CompilationUnit::build_for(src, registry(), false);
+    analyse_cfg_function(
+        &cu.top_level.cfg,
+        &cu.top_level.ssa,
+        std::iter::empty::<String>(),
+    )
+}
+
+/// The same analysis over a CFG built with no module context, which keeps a
+/// literal top-level `catch` as an opaque call: the only route to the
+/// opaque-call handler, since a unit flattens that body.
+fn opaque_catch_result(src: &str) -> CfgEscapeResult {
     let m = lower_to_ir(src, registry());
     let cfg = build_cfg_function("::top", &m.top_level, true, registry(), false);
     let ssa = build_ssa(&cfg, registry());
@@ -98,11 +111,10 @@ fn is_frame(r: &CfgEscapeResult, name: &str) -> bool {
 // bare top-level `set x 1` is a pure local (negative control), but the same
 // write inside a `catch {…}` body is conservatively spilled.
 //
-// Every test here goes through `cfg_result`, which builds `::top`, so the
-// `catch` is a *top-level* one and stays opaque: it is only inlined inside a
-// procedure, where its result variable could have a slot (#2207). The
-// procedure case is covered by `var_escape_residual2`'s
-// `cu_catch_literal_body_threads_its_upvar`.
+// `cfg_result` analyses the top level of a Tcl 8.6 unit, which flattens a
+// literal `catch` body into the script around it; `opaque_catch_result`
+// keeps the body as one opaque call. The procedure case is covered by
+// `var_escape_residual2`'s `cu_catch_literal_body_threads_its_upvar`.
 
 #[test]
 fn bare_set_is_local_control() {
@@ -119,7 +131,7 @@ fn bare_set_is_local_control() {
 fn catch_body_set_escapes_touched_name() {
     // tclsh: `proc f {} { catch {set x 42}; return $x }; f` -> 42 — the catch'd
     // `set` lands in f's frame.
-    let r = cfg_result("catch {set x 1}");
+    let r = opaque_catch_result("catch {set x 1}");
     assert!(
         is_frame(&r, "x"),
         "catch'd set escapes x: {:?}",

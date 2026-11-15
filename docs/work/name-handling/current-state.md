@@ -385,6 +385,7 @@ Area: `tcl-compiler` integration tests `value_transfer_witnesses`, `var_escape_*
 | --- | --- | --- | --- |
 | `46775880` (baseline; 13,211 run with `tcl-irules`) | not counted alone | 2,484 | 391 |
 | `9ea54611` plus this area's second batch | 13,119 | 2,404 | 360 |
+| the escape fixtures on top (escape files only rerun) | | 2,393 | 349 |
 
 Against the baseline list the second point is fixed 80, new 0; 31 of the 80 are in this area and the rest are other areas' fixes that landed between the two points.
 
@@ -395,13 +396,13 @@ Against the baseline list the second point is fixed 80, new 0; 31 of the 80 are 
 | `cfg_builder::global_write_info` | 34 | 28 |
 | `it_2 core_analyses` | 30 | 30 |
 | `unit_scope` | 30 | 26 |
-| `it_2 var_escape_cfg` | 22 | 16 |
+| `it_2 var_escape_cfg` | 22 | 15 |
 | `cfg_builder::upvar_info` | 21 | 18 |
 | `type_infer` | 14 | 13 |
-| `it_3 var_escape_residual2` | 14 | 6 |
-| `it_5 var_escape_cfg_catch` | 14 | 14 |
+| `it_3 var_escape_residual2` | 14 | 5 |
+| `it_5 var_escape_cfg_catch` | 14 | 8 |
 | `dynamic_names`, `native_integer_proof` | 13 each | 13 each |
-| `it_2 intervals`, `it_5 var_escape_cfg_tree_arms` | 7 each | 7 each |
+| `it_2 intervals`, `it_5 var_escape_cfg_tree_arms` | 7 each | 7, 4 |
 | `it_4 caller_frame_effects` | 7 | 6 |
 | `it_5 var_escape_typeinfer`, `it_3 type_propagation` | 5, 3 | 4, 2 |
 
@@ -413,6 +414,7 @@ Fixed in this area:
   - A branch test that runs no command (a variable read, the `foreach` header test, a `switch` arm comparison the builder made) has nothing for the escape scan to read, and was treated as an unread condition. A condition that can run a command still needs its current retained operand, as `original_condition_substitutions_require_the_current_retained_operand` pins.
   - `lower_if` retained no condition site, where `lower_while` and `lower_for` do, so `if {[info exists x]}` never reached the scan.
 - The global-write summary named the wrong variable for a global-frame script that links a name itself: `proc p {} {uplevel #0 {upvar 0 g local; set local 1}}` summarised as writing `local`, and after `set g 0; p` the branch `if {$g == 0}` folded as constant. tclsh 8.4 to 9.1 print 1 for `g`. The fault was hidden while the walk withdrew the command world at every literal `uplevel` body and appeared with `049edf48`; a global-frame body now resolves the links it makes (`upvar 0`, `upvar #0`, `global`) as a procedure body does.
+- The low-level escape fixtures (11): `cfg_result` in `var_escape_cfg`, `var_escape_residual2`, `var_escape_cfg_catch` and `var_escape_cfg_tree_arms` built a CFG with no module context, which retains no source site, so no branch condition could be read. It now analyses the top level of a Tcl 8.6 unit. A unit flattens a literal top-level `catch` body, so the one test of the opaque `catch` call keeps the context-free builder under its own name (`opaque_catch_result`).
 - From the analyser area's `049edf48` (a delegated literal script closes the world), found from this area's fixture: 6 `global_write_info`, 3 `upvar_info` and 1 `type_infer`, measured on the library tests alone before this area's second batch. The 8 `var_escape_residual2` tests (`eval` bodies) passed in the next run, which held both that commit and the escape changes; which of the two decided each was not separated.
 
 Fixture hypotheses tested across a whole group and rejected:
@@ -429,7 +431,7 @@ Open, with the cause. The first four are in the execution walk (`command_binding
 - A statement after a proved error poisons the function: `proc p {} {set n 3; set x 1; incr x {$n}; return $x}` gives `Overdefined` for `n#1` and `x#1` and no function-wide symbol for `x`; without the trailing `return $x`, or under the `tcl` profile, the body answers 3, 1 and `evaluated: error after 0 stores`. `a_braced_increment_amount_is_its_text` and others of the 18 witnesses that panic with `the variable`.
 - The alias tests of `global_write_info` assert a module-wide may-state: an alias installed by a procedure nothing calls, or a name bound at one earlier point and since renamed, still contributes its writes. tclsh raises `invalid command name "g"` for `proc ::n::install {} { interp alias {} g {} upvar #0 }; proc ::p {} { g x local; set local 1 }` as written; with the installer called first the summary is `{x}`. Asked of the coordinator; treated as fixtures to correct unless told otherwise.
 - `proc ::p {} { uplevel 1 { ::set n 1 } }` and `proc p {} { global g; catch {incr g} }` are still `opaque_global_frame` with no withdraw in the trace; not traced.
-- The hand-built escape fixtures (`cfg_result` in `var_escape_cfg`, `var_escape_cfg_catch`, `var_escape_cfg_tree_arms`: `lower_to_ir`, `build_cfg_function`, `build_ssa` with no module context) retain no source sites, so `if {[info exists flag]}` tags nothing there while the unit path tags `flag`. They need a unit-built helper; 14 + 7 + 2 tests.
+- `catch_body_incr_escapes_counter` expects `n` to escape from `catch {incr n 2}` at top level; a unit flattens that body to a typed increment, which escapes nothing. Its premise (an opaque top-level `catch`) holds only for a CFG built with no module context, where the increment is then unread for want of a source site. Left failing rather than moved to the context-free builder.
 - `catch {error boom} m; puts "<$m>"` leaves `m` with its entry version only, and `set a [incr n]` in a procedure leaves `a#1` and `n#2` `Overdefined`. Not traced.
 - Not yet classified: `core_analyses`, `intervals`, the object-typing tests of `type_infer`, and most of the 110 witnesses.
 
