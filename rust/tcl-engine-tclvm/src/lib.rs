@@ -1814,9 +1814,13 @@ fn from_vm_object_value(value: &tcl_vm::Value) -> Result<Value, EngineError> {
     } else {
         // Other primary caches need their own explicit carrier. This view may
         // not convert a stringless object to obtain a convenient representation.
+        // A parsed variable name is a lookup cache over the word's own string
+        // (a literal `a` an earlier `array set a` named), so the string is all
+        // there is to carry.
         if !matches!(
             value.native_object_snapshot().cache,
             tcl_syntax::native_object::NativeObjectCacheSnapshot::None
+                | tcl_syntax::native_object::NativeObjectCacheSnapshot::ParsedVariableName { .. }
         ) {
             return Err(EngineError::ExecutionRefusal(
                 "native object cache carrier is unavailable".into(),
