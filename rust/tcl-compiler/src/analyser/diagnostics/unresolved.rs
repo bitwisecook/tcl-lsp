@@ -972,6 +972,7 @@ mod require_ordering_tests {
                 "proc who {} {set r [uplevel 1 {namespace current}]; nosuch}\n\
                  namespace eval ::N {::who}\n",
                 "eval {puts a; namespace tail a::b}\nnosuch\n",
+                "proc p {} {eval {info level}; nosuch}\np\n",
                 "proc g {} {uplevel #0 {set y 1}; nosuch}\ng\n",
             ] {
                 assert_eq!(w123(source, release), 1, "{release}: {source}");
