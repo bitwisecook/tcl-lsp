@@ -433,7 +433,13 @@ Open, with the cause. The first four are in the execution walk (`command_binding
 - `proc ::p {} { uplevel 1 { ::set n 1 } }` and `proc p {} { global g; catch {incr g} }` are still `opaque_global_frame` with no withdraw in the trace; not traced.
 - `catch_body_incr_escapes_counter` expects `n` to escape from `catch {incr n 2}` at top level; a unit flattens that body to a typed increment, which escapes nothing. Its premise (an opaque top-level `catch`) holds only for a CFG built with no module context, where the increment is then unread for want of a source site. Left failing rather than moved to the context-free builder.
 - `catch {error boom} m; puts "<$m>"` leaves `m` with its entry version only, and `set a [incr n]` in a procedure leaves `a#1` and `n#2` `Overdefined`. Not traced.
-- Not yet classified: `core_analyses`, `intervals`, the object-typing tests of `type_infer`, and most of the 110 witnesses.
+- `core_analyses` (30), read from the failure messages, not each traced:
+  - `sccp.constant_branches` holds the identical record twice for a condition that is a command substitution: `proc p {a} { if {[array exists a]} { puts dead } else { puts runs } }` gives two equal `ConstantBranch` entries for `entry_1`. Five `array_exists_parameter_is_false` tests (`[false, false]` where `[false]` is expected). Sent to the dataflow session.
+  - No W210 where a read is not proved defined: `if {[info exists X]} { puts $X } else { puts $X }`, the `info vars`, `info globals` and `lsearch` idioms, `catch {set _ $X}` and `proc p {} { puts [array get FOO] }`. Eleven `flow_sensitive_narrowing`, `info_vars_narrowing`, `catch_narrowing` and `no_read_before_set` tests; the fixtures read an unset name at file level, which is the code under test.
+  - A qualified or array name has no entry in the type table (`::ns::x`, `::ns::arr`, `a(k)`): four `variable_shape` tests, the same policy question the dataflow section records for `type_propagation`.
+  - The rest are single causes: a global existence check folded to a constant branch, a `foreach` over `[list a b c]` not a constant set, a static `for` loop not feeding a branch fold, an overwritten assignment not a dead store.
+- `intervals` (7): five expect one out-of-range `lindex` finding and get none (a guarded index, a literal-list loop index, a nested position); two cannot find the symbol they ask for (`x₁`, `i interned`). Not traced.
+- Not yet classified: the object-typing tests of `type_infer`, and most of the 110 witnesses.
 
 Working notes for this area:
 
