@@ -104,11 +104,7 @@ impl PartialEq for DeclarationFlowInventory {
             && match (&self.source_seed, &other.source_seed) {
                 (Some(left), Some(right)) => {
                     Arc::ptr_eq(&left.origin, &right.origin)
-                        && match (&left.analysis_owner, &right.analysis_owner) {
-                            (Some(left), Some(right)) => Arc::ptr_eq(left, right),
-                            (None, None) => true,
-                            _ => false,
-                        }
+                        && left.analysis_owner.is_some() == right.analysis_owner.is_some()
                 }
                 (None, None) => true,
                 _ => false,
