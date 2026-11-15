@@ -181,6 +181,9 @@ pub struct StandaloneDocument<'a> {
     pub pack_overlay: u64,
     /// Cross-file call-site evidence, when the surface gathered any.
     pub external_call_sites: Option<&'a CallSiteEvidence>,
+    /// The script encoding the text was decoded with
+    /// ([`DecodeReport::encoding`](crate::source_decode::DecodeReport)).
+    pub script_encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
 /// What [`standalone_findings`] produced.
@@ -281,11 +284,13 @@ pub fn standalone_findings(
         doc.dialect,
         Arc::new(context),
         LexerConfig::for_file_grammar(doc.dialect.grammar),
-    );
+    )
+    .with_script_encoding(doc.script_encoding);
     let mut analyser =
         Analyser::with_disabled_diagnostics(skip.iter().map(ToString::to_string).collect())
             .with_file_path(doc.file_path.map(str::to_owned))
             .with_pack_overlay(doc.pack_overlay)
+            .with_script_encoding(doc.script_encoding)
             .with_resolved_input(input.clone());
     let settings = analyser.source_compilation_settings();
     let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
@@ -677,6 +682,7 @@ mod tests {
                 registry: &registry,
                 pack_overlay: 0,
                 external_call_sites: None,
+                script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             },
             &BTreeSet::new(),
         );
@@ -711,6 +717,7 @@ mod tests {
                     registry: &registry,
                     pack_overlay: 0,
                     external_call_sites: None,
+                    script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
                 },
                 &BTreeSet::new(),
             );
@@ -769,6 +776,7 @@ mod tests {
                 registry: &registry,
                 pack_overlay: 0,
                 external_call_sites: None,
+                script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             },
             &BTreeSet::new(),
         );
@@ -846,6 +854,7 @@ mod tests {
                 registry: &registry,
                 pack_overlay: 0,
                 external_call_sites: None,
+                script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             },
             &BTreeSet::new(),
         );
@@ -932,6 +941,7 @@ mod tests {
                 registry,
                 pack_overlay: u64::MAX,
                 external_call_sites: None,
+                script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             },
             &BTreeSet::new(),
         );
@@ -965,6 +975,7 @@ mod tests {
                 registry,
                 pack_overlay: 0,
                 external_call_sites: None,
+                script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             },
             &BTreeSet::new(),
         );

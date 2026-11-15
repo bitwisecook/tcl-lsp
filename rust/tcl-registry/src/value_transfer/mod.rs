@@ -84,7 +84,9 @@ pub use conditional_list_append::{
 };
 pub use conditional_list_index::ConditionalSourceLiteralListIndex;
 pub use const_ops::{ConstOps, ConstValue, Needs, Representation, TargetSemantics, WorkUnits};
-pub use context::{AnalysisContext, BindingEvidence, BindingIdentity, Budget, EvaluatorGeneration};
+pub use context::{
+    AnalysisContext, BindingEvidence, BindingIdentity, Budget, EvaluatorGeneration, ScriptEncoding,
+};
 pub use declaration::{
     DeclarationScope, DerivedSemantics, ResolvedSemantics, SemanticsDeclaration, SemanticsOrigin,
     resolve_semantics,
@@ -103,7 +105,7 @@ pub use inputs::{
 };
 pub use iteration::{LOOP_ABSORBED, LoopResult, LoopStep};
 pub use lift::{LiftedAnswer, PinnedInputs, evaluate_lifted, finite_inputs};
-pub use literal::{LiteralInputs, evaluate_literal};
+pub use literal::{LiteralInputs, evaluate_literal, with_declared_script_encoding};
 pub use route::{
     CompletionSupport, ContextDependency, DeclaredInput, EvalRoute, EvaluatorCapability,
     EvaluatorOwner, Exactness, HostKind, ImplementationBudget, ImplementationIdentity,

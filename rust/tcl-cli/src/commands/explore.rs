@@ -26,8 +26,8 @@
 use serde_json::Value;
 
 use tcl_cli_support::{
-    OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
-    resolve_use_colour, write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, resolve_use_colour,
+    write_text_output,
 };
 
 use crate::cli::{ColourArgs, InputArgs};
@@ -42,7 +42,7 @@ pub fn run_explore(
     optimisations: tcl_explorer::SemanticOptimisationConfig,
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
 

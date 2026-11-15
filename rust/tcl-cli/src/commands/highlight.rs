@@ -23,7 +23,7 @@
 
 use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, expand_tabs, highlight_ansi,
-    highlight_html, read_input_documents, resolve_use_colour, write_text_output,
+    highlight_html, resolve_use_colour, write_text_output,
 };
 
 use crate::cli::{ColourArgs, InputArgs};
@@ -33,7 +33,7 @@ const DEFAULT_TAB_WIDTH: usize = 4;
 
 /// `tcl highlight` — emit syntax-highlighted source (ANSI or HTML).
 pub fn run_highlight(input: &InputArgs, format: &str, colour: &ColourArgs) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let target = OutputTarget::from_arg(input.output.as_deref());

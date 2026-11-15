@@ -701,6 +701,7 @@ pub fn core_report(row: &Row) -> (String, Report) {
             registry,
             pack_overlay: 0,
             external_call_sites: None,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
         },
         &skip,
     );

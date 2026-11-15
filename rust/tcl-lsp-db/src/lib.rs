@@ -752,6 +752,13 @@ pub struct AnalyserConfig {
     /// Empty — the default — changes nothing.
     #[returns(ref)]
     pub package_provides: Vec<(String, Vec<String>)>,
+    /// The encoding the target reads scripts in (`tclLsp.sourceEncoding`).
+    /// `Auto` — the default — leaves the release to decide, so 8.x folds
+    /// over non-ASCII text decline; a declared encoding is also the one the
+    /// driver decoded the document with.
+    #[default]
+    #[returns(copy)]
+    pub script_encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
 /// Immutable values of the actual selected diagnostic configuration.
@@ -767,6 +774,7 @@ pub struct DiagnosticConfigurationSnapshot {
     spec_pack_key: u64,
     targets: Vec<(String, String)>,
     package_provides: Vec<(String, Vec<String>)>,
+    script_encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
 impl AnalyserConfig {
@@ -786,6 +794,7 @@ impl AnalyserConfig {
             spec_pack_key: self.spec_pack_key(db),
             targets: self.targets(db).clone(),
             package_provides: self.package_provides(db).clone(),
+            script_encoding: self.script_encoding(db),
         }
     }
 }
@@ -804,6 +813,7 @@ fn document_analyser_without_factory_oracle(
         .with_bigip_version(config.bigip_version(db).clone())
         .with_declared_targets(config.targets(db).clone())
         .with_package_provides(config.package_provides(db).clone())
+        .with_script_encoding(config.script_encoding(db))
         .with_file_path(file.path(db).clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone())
         .with_workspace_declared_commands(file.workspace_declared_commands(db).clone())

@@ -317,9 +317,10 @@ pub struct TargetSemantics {
     pub character_model: Option<StringCharacterModel>,
     /// How a code point above `U+00FF` crosses to bytes, when named.
     pub byte_strings: Option<ByteStringEncoding>,
-    /// Whether the target decodes source as UTF-8 — the 9.x answer, and
-    /// the one this front end gives every file. A non-ASCII operand is
-    /// admissible only when the target agrees.
+    /// Whether the analysed text is the text the target reads: from 9.0,
+    /// which decodes source as UTF-8 as this front end does by default, or
+    /// under any release whose script encoding is declared and was used to
+    /// decode the file. A non-ASCII operand is admissible only then.
     pub source_utf8: bool,
     /// Whether a list's first element that starts with `#` is brace-quoted
     /// when the list is rendered, when one release names it: from 8.5
@@ -383,6 +384,9 @@ impl TargetSemantics {
     pub fn for_context(context: &AnalysisContext) -> Self {
         let mut target = Self::of(context.profile);
         target.grammar = context.grammar;
+        if let super::ScriptEncoding::Declared(_) = context.script_encoding {
+            target.source_utf8 = true;
+        }
         target.numerals = target
             .numerals
             .filter(|numbers| *numbers == context.grammar.numbers);
@@ -1872,6 +1876,38 @@ mod tests {
                 ops.admissible_text(&ConstValue::text("cafe")).as_deref(),
                 Ok("cafe"),
                 "{dialect:?}"
+            );
+        }
+    }
+
+    /// A declared script encoding makes the analysed text the text every
+    /// release reads, so 8.x admits the non-ASCII operand it declines under
+    /// `auto` (#2129).
+    #[test]
+    fn a_declared_script_encoding_admits_non_ascii_text_under_every_release() {
+        use crate::value_transfer::ScriptEncoding;
+        let value = ConstValue::text("Ã\u{89}");
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for name in ["utf-8", "iso8859-1"] {
+                let mut declared = context(Some(dialect));
+                declared.script_encoding = ScriptEncoding::parse(name).expect("a script encoding");
+                let mut budget = Budget::evaluation();
+                let mut ops = ConstOps::admit(&declared, &mut budget, Needs::SOURCE_ENCODING)
+                    .expect("admissible");
+                assert_eq!(
+                    ops.admissible_text(&value).as_deref(),
+                    Ok("Ã\u{89}"),
+                    "{dialect} {name}"
+                );
+            }
+        }
+        assert_eq!(ScriptEncoding::parse("auto"), Some(ScriptEncoding::Auto));
+        assert_eq!(ScriptEncoding::parse("unicode"), None);
+        assert_eq!(ScriptEncoding::parse("koi8-r"), None);
+        for name in ScriptEncoding::NAMES {
+            assert_eq!(
+                ScriptEncoding::parse(name).map(ScriptEncoding::as_str),
+                Some(name)
             );
         }
     }

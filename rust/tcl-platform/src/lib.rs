@@ -193,7 +193,7 @@ pub struct ExecOutput {
 /// locale-dependent system encoding.  Keeping that fact on [`Host`] prevents
 /// command adapters from each interpreting `LC_ALL`/`LC_CTYPE`/`LANG` and lets
 /// browser/WASI hosts choose their deterministic UTF-8 default explicitly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SystemEncoding {
     /// UTF-8 (`utf-8` in Tcl's encoding catalogue).
     Utf8,

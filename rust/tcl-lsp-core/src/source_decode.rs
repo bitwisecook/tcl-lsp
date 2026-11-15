@@ -184,6 +184,9 @@ pub struct DecodeReport {
     pub error_count: usize,
     /// Set when the buffer does not look like UTF-8 text at all.
     pub non_text: Option<NonTextEncoding>,
+    /// The encoding that produced the decoded text: `Auto` for the default
+    /// UTF-8 reading, or the declared script encoding it was decoded with.
+    pub encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
 impl DecodeReport {
@@ -247,6 +250,7 @@ pub fn decode_source(bytes: &[u8]) -> (String, DecodeReport) {
                 first_error,
                 error_count,
                 non_text,
+                ..DecodeReport::default()
             },
         );
     };
@@ -256,8 +260,78 @@ pub fn decode_source(bytes: &[u8]) -> (String, DecodeReport) {
             first_error: None,
             error_count: 0,
             non_text,
+            ..DecodeReport::default()
         },
     )
+}
+
+/// The UTF-8 encoding, for matching a declared [`tcl_registry::value_transfer::ScriptEncoding`].
+pub const SCRIPT_UTF8: tcl_cmd_core::encoding::SystemEncoding =
+    tcl_cmd_core::encoding::SystemEncoding::Utf8;
+
+/// Decode source bytes with the declared script encoding
+/// (`tclLsp.sourceEncoding`), so the text is the text the target reads.
+/// `Auto` and a declared `utf-8` take [`decode_source`]'s reading; another
+/// declared encoding converts each byte through the shared codec owner
+/// ([`tcl_cmd_core::encoding::convert_from`]), as Tcl 8's script reader does.
+/// The report records which encoding produced the text.
+#[must_use]
+pub fn decode_source_as(
+    bytes: &[u8],
+    encoding: tcl_registry::value_transfer::ScriptEncoding,
+) -> (String, DecodeReport) {
+    use tcl_cmd_core::encoding::SystemEncoding;
+    use tcl_registry::value_transfer::ScriptEncoding;
+    let (text, report) = match encoding {
+        ScriptEncoding::Auto | ScriptEncoding::Declared(SystemEncoding::Utf8) => {
+            decode_source(bytes)
+        }
+        ScriptEncoding::Declared(declared) => {
+            let converted = tcl_cmd_core::encoding::convert_from(
+                bytes,
+                declared,
+                tcl_dialect::TclVersion::V8_6,
+                tcl_cmd_core::channel::EncodingProfile::Tcl8,
+            );
+            (
+                converted.value,
+                DecodeReport {
+                    non_text: detect_non_text(bytes),
+                    ..DecodeReport::default()
+                },
+            )
+        }
+    };
+    (text, DecodeReport { encoding, ..report })
+}
+
+/// Encode source text back to bytes in the declared script encoding, the
+/// inverse of [`decode_source_as`] for text it produced. `Auto` and `utf-8`
+/// give UTF-8.
+///
+/// # Errors
+///
+/// The first character the declared encoding cannot hold.
+pub fn encode_source_as(
+    text: &str,
+    encoding: tcl_registry::value_transfer::ScriptEncoding,
+) -> Result<Vec<u8>, char> {
+    let tcl_registry::value_transfer::ScriptEncoding::Declared(declared) = encoding else {
+        return Ok(text.as_bytes().to_vec());
+    };
+    let converted = tcl_cmd_core::encoding::convert_to(
+        text,
+        declared,
+        tcl_dialect::TclVersion::V8_6,
+        tcl_cmd_core::channel::EncodingProfile::Strict,
+    );
+    match converted.failure {
+        None => Ok(converted.value),
+        Some(_) => Err(text
+            .chars()
+            .nth(converted.value.len())
+            .unwrap_or(char::REPLACEMENT_CHARACTER)),
+    }
 }
 
 /// Read a source file and decode it through [`decode_source`].
@@ -275,6 +349,19 @@ pub fn decode_source(bytes: &[u8]) -> (String, DecodeReport) {
 /// Propagates the underlying I/O error. Decoding itself never fails.
 pub fn read_source_file(path: &std::path::Path) -> std::io::Result<(String, DecodeReport)> {
     Ok(decode_source(&std::fs::read(path)?))
+}
+
+/// Read a source file and decode it with the declared script encoding
+/// ([`decode_source_as`]).
+///
+/// # Errors
+///
+/// Propagates the underlying I/O error. Decoding itself never fails.
+pub fn read_source_file_as(
+    path: &std::path::Path,
+    encoding: tcl_registry::value_transfer::ScriptEncoding,
+) -> std::io::Result<(String, DecodeReport)> {
+    Ok(decode_source_as(&std::fs::read(path)?, encoding))
 }
 
 /// Recognise a buffer that is not UTF-8 text at all, from its BOM or its NUL

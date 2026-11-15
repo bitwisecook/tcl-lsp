@@ -4533,6 +4533,8 @@ struct DiagInputs {
     /// formatter's `tclLsp.formatting.lineLength`.
     style_line_length: u32,
     non_ascii_mode: NonAsciiMode,
+    /// `tclLsp.sourceEncoding`, for reading saved sources the run compares.
+    script_encoding: tcl_registry::value_transfer::ScriptEncoding,
     documents: Arc<DocumentStore>,
     /// Open-document diagnostic workers, used to invalidate only consumers of
     /// workspace facts changed by this publication.
@@ -7644,7 +7646,7 @@ async fn deep_workspace_diagnostics(
     };
     let mut workspace_sources = workspace_sources;
     if let Err(reason) = workspace_sources
-        .read_saved(inputs.provider_capture.store)
+        .read_saved(inputs.provider_capture.store, inputs.script_encoding)
         .await
     {
         return ControlFlow::Break((true, reason));
@@ -7743,6 +7745,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
             extra_commands: &inputs.extra_commands,
             generic_variable_patterns: inputs.generic_variable_patterns.as_deref(),
             non_ascii_mode: inputs.non_ascii_mode,
+            script_encoding: inputs.script_encoding,
             db_project: &inputs.db_project,
             workspace_index: &inputs.workspace_index,
             rehomed_source_seeds: &inputs.rehomed_source_seeds,
@@ -7781,6 +7784,7 @@ struct AnalyserPathInputs<'a> {
     extra_commands: &'a HashSet<String>,
     generic_variable_patterns: Option<&'a [String]>,
     non_ascii_mode: NonAsciiMode,
+    script_encoding: tcl_registry::value_transfer::ScriptEncoding,
     db_project: &'a Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     workspace_index: &'a Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
     /// The applied source-site seed record; the publish path invalidates
@@ -10389,6 +10393,10 @@ pub struct BackendState {
     /// Tcl wrapper's own requires has nothing to read. Declaring the edge is
     /// the only way to state it.
     package_provides: Mutex<Vec<(String, Vec<String>)>>,
+    /// `tclLsp.sourceEncoding` — the encoding the target reads scripts in.
+    /// Session-wide: closed files are decoded with it, and every analysis
+    /// input carries it, so the two never disagree about a document's text.
+    script_encoding: std::sync::RwLock<tcl_registry::value_transfer::ScriptEncoding>,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
     /// known by the unknown-command (W123) check; mirrored onto the salsa
     /// `AnalyserConfig`.
@@ -11435,6 +11443,9 @@ struct ResourceAnalyserInputs {
     /// `tclLsp.targets` — declared version-target ranges as
     /// `(provider, range)`. Empty leaves range mode off.
     declared_targets: Vec<(String, String)>,
+    /// `tclLsp.sourceEncoding` — session-wide, carried with the rest so every
+    /// analyser a document is built with reads its text the same way.
+    script_encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
 impl ResourceAnalyserInputs {
@@ -11450,6 +11461,7 @@ impl ResourceAnalyserInputs {
             package_provides: config.package_provides(db).clone(),
             bigip_version: config.bigip_version(db).clone(),
             declared_targets: config.targets(db).clone(),
+            script_encoding: config.script_encoding(db),
         }
     }
 
@@ -11460,6 +11472,7 @@ impl ResourceAnalyserInputs {
             .with_package_provides(self.package_provides)
             .with_bigip_version(self.bigip_version)
             .with_declared_targets(self.declared_targets)
+            .with_script_encoding(self.script_encoding)
     }
 }
 
@@ -12050,6 +12063,7 @@ impl Backend {
             workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
             package_prefer_latest_default: Mutex::new(false),
             package_provides: Mutex::new(Vec::new()),
+            script_encoding: std::sync::RwLock::default(),
             extra_commands: Mutex::new(Vec::new()),
             signature_help_disabled_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
@@ -13833,8 +13847,13 @@ impl Backend {
     }
 
     async fn attach_open_disk_decode_report(&self, uri: &Uri, text: &str, version: i32) {
-        let decode_report =
-            Self::decode_report_for_matching_disk_text(&self.store, uri, text).await;
+        let decode_report = Self::decode_report_for_matching_disk_text(
+            &self.store,
+            uri,
+            text,
+            self.declared_script_encoding(),
+        )
+        .await;
         if let Some(decode_report) = decode_report {
             let mut docs = self.documents.lock("did_open").await;
             if let Some(doc) = docs.get_mut(uri)
@@ -14921,6 +14940,11 @@ impl Backend {
         config.set_targets(&mut *db).to(targets);
         let provides = self.package_provides.lock().await.clone();
         config.set_package_provides(&mut *db).to(provides);
+        let encoding = self.declared_script_encoding();
+        config.set_script_encoding(&mut *db).to(encoding);
+        for (_, handle) in self.folder_db_configs.lock().await.iter() {
+            handle.set_script_encoding(&mut *db).to(encoding);
+        }
     }
 
     async fn conditional_foreign_factory_sources(
@@ -16347,7 +16371,8 @@ impl Backend {
             }
             Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: url.clone() }),
         };
-        let (text, decode_report) = tcl_lsp_core::source_decode::decode_source(&bytes);
+        let (text, decode_report) =
+            tcl_lsp_core::source_decode::decode_source_as(&bytes, self.declared_script_encoding());
         // The same selected decoded source and original URI drive the
         // closed-file dialect owner used by indexing and diagnostics. Its
         // document override, source detection and configured fallbacks remain
@@ -16403,13 +16428,15 @@ impl Backend {
         store: &Arc<dyn vfs::SourceStore>,
         uri: &Uri,
         text: &str,
+        encoding: tcl_registry::value_transfer::ScriptEncoding,
     ) -> Option<tcl_lsp_core::source_decode::DecodeReport> {
         let path = uri.to_file_path()?.into_owned();
         let store = Arc::clone(store);
-        let (decoded, report) = crate::rt::spawn_blocking(move || store.read_source(&path))
-            .await
-            .ok()?
-            .ok()?;
+        let (decoded, report) =
+            crate::rt::spawn_blocking(move || store.read_source_as(&path, encoding))
+                .await
+                .ok()?
+                .ok()?;
         (decoded == text).then_some(report)
     }
 
@@ -17281,7 +17308,7 @@ impl Backend {
             let Some(path) = driver.path_admission.path() else {
                 return DiskScanOutcome::Absent(Arc::clone(&driver.path_admission));
             };
-            let (raw, _) = match store.read_source(path) {
+            let (raw, _) = match store.read_source_as(path, driver.analyser.script_encoding) {
                 Ok(source) => source,
                 Err(cause) if Self::source_read_is_absent(store.as_ref(), path, &cause) => {
                     return match driver.path_admission.check_for(&uri, store.as_ref()) {
@@ -17574,8 +17601,13 @@ impl Backend {
         let dialect = self.dialect_for_closed(uri, &text).await;
         // Closed diagnostics are also backed by the exact on-disk text, so the
         // same byte-evidence contract used at `didOpen` applies here.
-        let decode_report =
-            Self::decode_report_for_matching_disk_text(&self.store, uri, &text).await;
+        let decode_report = Self::decode_report_for_matching_disk_text(
+            &self.store,
+            uri,
+            &text,
+            self.declared_script_encoding(),
+        )
+        .await;
         // Bump this URI's closed-run generation and capture it, so a newer close
         // / watched-change refresh supersedes this run at publish time.
         let generation = self.next_closed_diag_generation(uri).await;
@@ -17788,6 +17820,7 @@ impl Backend {
             workspace_scan_max_files: _,
             package_prefer_latest_default: _,
             package_provides: _,
+            script_encoding: _,
             extra_commands: _,
             signature_help_disabled_commands: _,
             spec_pack_paths: _,
@@ -20022,8 +20055,10 @@ impl Backend {
                         return false;
                     };
                     let store = Arc::clone(&self.store);
+                    let encoding = self.declared_script_encoding();
                     let Ok(Ok((text, _))) =
-                        crate::rt::spawn_blocking(move || store.read_source(&path)).await
+                        crate::rt::spawn_blocking(move || store.read_source_as(&path, encoding))
+                            .await
                     else {
                         return false;
                     };
@@ -21099,7 +21134,10 @@ impl Backend {
             let Ok(Ok(bytes)) = crate::rt::spawn_blocking(move || store.read(&path)).await else {
                 return Ok(Vec::new());
             };
-            let (decoded, _) = tcl_lsp_core::source_decode::decode_source(&bytes);
+            let (decoded, _) = tcl_lsp_core::source_decode::decode_source_as(
+                &bytes,
+                self.declared_script_encoding(),
+            );
             if tcl_lexer::normalise_lone_cr(&decoded).as_ref() != source.document.text.as_ref() {
                 return Ok(Vec::new());
             }
@@ -21240,7 +21278,10 @@ impl Backend {
             let Ok(Ok(bytes)) = crate::rt::spawn_blocking(move || store.read(&path)).await else {
                 return Ok(None);
             };
-            let (decoded, _) = tcl_lsp_core::source_decode::decode_source(&bytes);
+            let (decoded, _) = tcl_lsp_core::source_decode::decode_source_as(
+                &bytes,
+                self.declared_script_encoding(),
+            );
             if tcl_lexer::normalise_lone_cr(&decoded).as_ref() != source.document.text.as_ref() {
                 return Ok(None);
             }
@@ -27752,6 +27793,22 @@ impl Backend {
                 rescan_workspace = true;
             }
         }
+        // `tclLsp.sourceEncoding` — closed files are decoded with it, so a
+        // change re-reads every one of them. An unknown name is ignored.
+        if let Some(encoding) = cfg
+            .get("sourceEncoding")
+            .and_then(serde_json::Value::as_str)
+            .and_then(tcl_registry::value_transfer::ScriptEncoding::parse)
+        {
+            let mut guard = self
+                .script_encoding
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if *guard != encoding {
+                *guard = encoding;
+                rescan_workspace = true;
+            }
+        }
         rescan_workspace
     }
 
@@ -28054,6 +28111,7 @@ impl Backend {
             let global_provides = self.package_provides.lock().await.clone();
             let global_bigip = self.bigip_version.lock().await.clone();
             let global_targets = self.declared_targets.lock().await.clone();
+            let encoding = self.declared_script_encoding();
             // Packs are a workspace fact, never a per-folder one, so every
             // folder handle carries the same key the global config does.
             let pack_key = self.spec_packs().await.key;
@@ -28110,7 +28168,7 @@ impl Backend {
                 }
                 // The folder's own live handle first, then its retired one, and
                 // only then a fresh input.
-                if let Some(handle) = reclaimable
+                let handle = if let Some(handle) = reclaimable
                     .remove(folder)
                     .or_else(|| tombstones.remove(folder))
                 {
@@ -28122,13 +28180,14 @@ impl Backend {
                     handle.set_package_provides(&mut *db).to(provides);
                     handle.set_bigip_version(&mut *db).to(bigip);
                     handle.set_targets(&mut *db).to(targets);
-                    next.push((folder.clone(), handle));
+                    handle
                 } else {
-                    let handle = tcl_lsp_db::AnalyserConfig::new(
+                    tcl_lsp_db::AnalyserConfig::new(
                         &*db, disabled, mode, extra, generic, bigip, pack_key, targets, provides,
-                    );
-                    next.push((folder.clone(), handle));
-                }
+                    )
+                };
+                handle.set_script_encoding(&mut *db).to(encoding);
+                next.push((folder.clone(), handle));
             }
             for (folder, handle) in reclaimable {
                 // Release the payload before retiring, so a folder that toggles
@@ -28532,6 +28591,14 @@ impl Backend {
     /// `None` for `uri` answers with the global values alone, for the paths
     /// that analyse without a document in hand (the workspace scan, which
     /// reaches files across every folder, and the disk scanner's batch).
+    /// The session's declared script encoding (`tclLsp.sourceEncoding`).
+    fn declared_script_encoding(&self) -> tcl_registry::value_transfer::ScriptEncoding {
+        *self
+            .script_encoding
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     async fn resource_analyser_inputs(&self, uri: Option<&Uri>) -> ResourceAnalyserInputs {
         let folder = match uri {
             Some(uri) => {
@@ -28553,6 +28620,7 @@ impl Backend {
                 Some(v) => v,
                 None => self.declared_targets.lock().await.clone(),
             },
+            script_encoding: self.declared_script_encoding(),
         }
     }
 
@@ -29030,6 +29098,7 @@ impl Backend {
             generic_variable_patterns,
             style_line_length,
             non_ascii_mode,
+            script_encoding: self.declared_script_encoding(),
             documents: Arc::clone(&self.documents),
             diag_slots: Arc::clone(&self.diag_slots),
             workspace_index: Arc::clone(&self.workspace_index),
@@ -31193,7 +31262,8 @@ impl Backend {
             }
             Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: uri.clone() }),
         };
-        let (text, decode_report) = tcl_lsp_core::source_decode::decode_source(&bytes);
+        let (text, decode_report) =
+            tcl_lsp_core::source_decode::decode_source_as(&bytes, self.declared_script_encoding());
         admission.check_for(uri, self.store.as_ref())?;
         let mut document = DocumentState::new(text, String::new()).with_path_admission(admission);
         document.decode_report = Some(decode_report);
@@ -34072,7 +34142,7 @@ impl Backend {
                 // Shared decoder, for the same reason `scan_disk_file`
                 // uses it: an ill-formed byte must not silently remove the
                 // file from the workspace index.
-                let (raw, _) = match store.read_source(&path) {
+                let (raw, _) = match store.read_source_as(&path, driver.analyser.script_encoding) {
                     Ok(source) => source,
                     Err(cause)
                         if Self::source_read_is_absent(store.as_ref(), &path, &cause) =>
@@ -51273,6 +51343,9 @@ info exists ::N::v\uD800";
             workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
             package_prefer_latest_default: Mutex::new(false),
             package_provides: Mutex::new(Vec::new()),
+            script_encoding: std::sync::RwLock::new(
+                tcl_registry::value_transfer::ScriptEncoding::Auto,
+            ),
             extra_commands: Mutex::new(Vec::new()),
             signature_help_disabled_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
@@ -53089,6 +53162,40 @@ info exists ::N::v\uD800";
     /// The off-lock project read may finish after
     /// a newer publication has retired one of its handles. Its stale result
     /// must not restore evidence onto that tombstone.
+    async fn salsa_script_encoding(
+        backend: &Backend,
+    ) -> tcl_registry::value_transfer::ScriptEncoding {
+        let config = *backend.db_config.lock().await;
+        let db = backend.db.lock().await;
+        config.script_encoding(&*db)
+    }
+
+    #[tokio::test]
+    async fn source_encoding_reaches_the_session_and_the_salsa_config_2129() {
+        use tcl_registry::value_transfer::ScriptEncoding;
+        let backend = test_backend();
+        let declared = |backend: &Backend| backend.declared_script_encoding();
+        assert_eq!(declared(&backend), ScriptEncoding::Auto);
+        let latin1 = ScriptEncoding::parse("iso8859-1").expect("a script encoding");
+        backend
+            .apply_global_config(&serde_json::json!({ "sourceEncoding": "iso8859-1" }))
+            .await
+            .unwrap();
+        assert_eq!(declared(&backend), latin1);
+        assert_eq!(salsa_script_encoding(&backend).await, latin1);
+        backend
+            .apply_global_config(&serde_json::json!({ "sourceEncoding": "koi8-r" }))
+            .await
+            .unwrap();
+        assert_eq!(declared(&backend), latin1, "an unknown name is ignored");
+        backend
+            .apply_global_config(&serde_json::json!({ "sourceEncoding": "auto" }))
+            .await
+            .unwrap();
+        assert_eq!(declared(&backend), ScriptEncoding::Auto);
+        assert_eq!(salsa_script_encoding(&backend).await, ScriptEncoding::Auto);
+    }
+
     #[tokio::test]
     async fn cross_file_evidence_rejects_a_stale_write_revision_1854() {
         let backend = test_backend();
@@ -54379,8 +54486,11 @@ proc p {} {
             package_provides: vec![("ext".to_owned(), vec!["Tk".to_owned()])],
             bigip_version: Some("17.1.0".to_owned()),
             declared_targets: vec![("tcl".to_owned(), "8.6-9.0".to_owned())],
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::parse("iso8859-1")
+                .expect("a script encoding"),
         };
-        let analyser = inputs.apply(Analyser::new());
+        let analyser = inputs.clone().apply(Analyser::new());
+        assert_eq!(analyser.script_encoding, inputs.script_encoding);
         // `package_provides` and `declared_targets` are public on the analyser
         // and asserted directly. `bigip_version` is private, so the field that
         // feeds it is pinned instead by

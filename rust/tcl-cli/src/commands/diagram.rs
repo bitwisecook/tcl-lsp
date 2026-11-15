@@ -26,8 +26,8 @@
 
 use serde_json::Value;
 use tcl_cli_support::{
-    OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, read_input_documents,
-    registry_for_dialect, write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, registry_for_dialect,
+    write_text_output,
 };
 use tcl_diagram as diagram;
 
@@ -35,7 +35,7 @@ use crate::cli::InputArgs;
 
 /// `tcl diagram` — extract control-flow diagram data from the IR.
 pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(dialect.name);

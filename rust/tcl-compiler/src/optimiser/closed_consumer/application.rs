@@ -135,6 +135,7 @@ pub fn select_application_folds(
                 defining_class: None,
                 trusts: &|_| false,
                 lookup_var: &|_| None,
+                script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             };
             if let Some(request) =
                 context.select_retained_call_with_metadata_context(call, &calls, metadata)

@@ -1642,7 +1642,10 @@ impl Builder<'_> {
                     &argument_words,
                     InvocationLayout::Source,
                 );
-                let analysis = AnalysisContext::detached(Some(input.unit_profile()));
+                let analysis = AnalysisContext {
+                    script_encoding: input.script_encoding(),
+                    ..AnalysisContext::detached(Some(input.unit_profile()))
+                };
                 let structure = crate::value_transfer::StructureInputs::new(view, &analysis);
                 let relation =
                     schema.semantics.value.semantics().and_then(|semantics| {

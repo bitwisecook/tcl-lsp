@@ -603,3 +603,37 @@ fn compiler_check_memo_matches_uncached_for_irules_flow_checks() {
         DiagCode::Irule4004
     ));
 }
+
+/// #2129: `AnalyserConfig::script_encoding` is part of the memo key. The
+/// document is the text a declared `iso8859-1` decodes from the UTF-8 bytes
+/// of `É`; under `tcl8.6` the fold declines while the encoding is `auto`
+/// (the system encoding is unknown) and, once the encoding is declared,
+/// folds to what tclsh 8.6.18 prints under `LC_ALL=C` (`89 61`).
+#[test]
+fn a_declared_script_encoding_invalidates_and_admits_the_8x_fold() {
+    use tcl_compiler::compiler_checks::DiagCode;
+    use tcl_registry::value_transfer::ScriptEncoding;
+    let dialect = "tcl8.6";
+    let mut db = TclDatabase::default();
+    let text = "puts [string range \"\u{c3}\u{89}abc\" 1 2]\n";
+    let file = SourceFile::new(&db, text.to_owned(), dialect.to_owned(), None);
+    let config = default_config(&db);
+    let folded = |db: &TclDatabase| {
+        compiler_check_diagnostics(db, file, config)
+            .optimisations
+            .iter()
+            .filter(|o| o.code == DiagCode::O129)
+            .map(|o| o.replacement.clone())
+            .collect::<Vec<_>>()
+    };
+    assert!(folded(&db).is_empty(), "auto must decline under tcl8.6");
+    config
+        .set_script_encoding(&mut db)
+        .to(ScriptEncoding::parse("iso8859-1").expect("a script encoding"));
+    assert_eq!(folded(&db), vec!["\u{89}a".to_owned()]);
+    config.set_script_encoding(&mut db).to(ScriptEncoding::Auto);
+    assert!(
+        folded(&db).is_empty(),
+        "returning to auto must decline again"
+    );
+}

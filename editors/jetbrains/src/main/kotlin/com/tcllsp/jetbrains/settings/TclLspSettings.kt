@@ -44,6 +44,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var dialect: String = DEFAULT_DIALECT
     var extraCommands: String = ""  // comma-separated
     var libraryPaths: String = ""   // comma-separated
+    // `tclLsp.sourceEncoding`: the encoding the target reads scripts in.
+    var sourceEncoding: String = "auto"
     // null means this editor layer inherits config.ini; an explicit empty
     // string clears a previously configured editor override.
     var signatureHelpDisabledCommands: String? = null  // comma-separated built-ins
@@ -388,6 +390,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             "dialect" to dialect,
             "extraCommands" to extraCmds,
             "libraryPaths" to libPaths,
+            "sourceEncoding" to sourceEncoding,
             "features" to mapOf(
                 "hover" to featureHover,
                 "completion" to featureCompletion,

@@ -35,6 +35,7 @@ pub struct ResolvedAnalysisInput {
     pub(super) config: tcl_lexer::LexerConfig,
     vendor_source_policy: Option<tcl_syntax::naming::VendorSourceNamePolicy>,
     workspace_source_modules: Option<Arc<Vec<crate::command_binding::TrustedSourceModuleLoader>>>,
+    script_encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
 impl ResolvedAnalysisInput {
@@ -56,7 +57,25 @@ impl ResolvedAnalysisInput {
             config,
             vendor_source_policy: None,
             workspace_source_modules: None,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
         }
+    }
+
+    /// The encoding the target reads this document's script in, as the
+    /// driver declared it and decoded the text with.
+    #[must_use]
+    pub const fn with_script_encoding(
+        mut self,
+        encoding: tcl_registry::value_transfer::ScriptEncoding,
+    ) -> Self {
+        self.script_encoding = encoding;
+        self
+    }
+
+    /// The declared script encoding; `Auto` when the driver declared none.
+    #[must_use]
+    pub const fn script_encoding(&self) -> tcl_registry::value_transfer::ScriptEncoding {
+        self.script_encoding
     }
 
     /// Project a genuinely extracted body into local source coordinates.
@@ -180,6 +199,7 @@ impl std::fmt::Debug for ResolvedAnalysisInput {
             .field("context", self.context.context())
             .field("config", &self.config)
             .field("vendor_source_policy", &self.vendor_source_policy)
+            .field("script_encoding", &self.script_encoding)
             .finish_non_exhaustive()
     }
 }
@@ -190,6 +210,7 @@ impl PartialEq for ResolvedAnalysisInput {
             && self.unit_profile.cache_key() == other.unit_profile.cache_key()
             && self.config == other.config
             && self.vendor_source_policy == other.vendor_source_policy
+            && self.script_encoding == other.script_encoding
             && Arc::ptr_eq(&self.context, &other.context)
     }
 }
@@ -202,6 +223,7 @@ impl std::hash::Hash for ResolvedAnalysisInput {
         self.unit_profile.cache_key().hash(state);
         self.config.hash(state);
         self.vendor_source_policy.hash(state);
+        self.script_encoding.hash(state);
         Arc::as_ptr(&self.context).hash(state);
     }
 }

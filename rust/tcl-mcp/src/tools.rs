@@ -318,6 +318,7 @@ fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed
             registry: &registry,
             pack_overlay: tcl_spectcl::bundled::packs().key,
             external_call_sites: None,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
         },
         &skip,
     );

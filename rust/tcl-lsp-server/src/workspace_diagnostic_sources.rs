@@ -106,6 +106,7 @@ impl WorkspaceDiagnosticSources {
     pub(super) async fn read_saved(
         &mut self,
         store: &Arc<dyn vfs::SourceStore>,
+        encoding: tcl_registry::value_transfer::ScriptEncoding,
     ) -> Result<(), DiagnosticUnavailable> {
         for selected in &mut self.selected {
             if selected.document.is_some() {
@@ -121,7 +122,7 @@ impl WorkspaceDiagnosticSources {
                 .await
                 .map_err(|_| DiagnosticUnavailable::ProviderError)?
                 .map_err(|_| DiagnosticUnavailable::Context)?;
-            let (text, decoding) = tcl_lsp_core::source_decode::decode_source(&bytes);
+            let (text, decoding) = tcl_lsp_core::source_decode::decode_source_as(&bytes, encoding);
             if tcl_lsp_core::source_decode::should_abstain(Some(&decoding)) {
                 return Err(DiagnosticUnavailable::Context);
             }

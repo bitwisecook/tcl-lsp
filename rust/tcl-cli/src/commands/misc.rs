@@ -34,9 +34,7 @@
 //! `tcl-mcp/diagnostics.json`.
 
 use serde::Serialize;
-use tcl_cli_support::{
-    OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, read_input_documents,
-};
+use tcl_cli_support::{OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii};
 use tcl_compiler::analyser::Analyser;
 use tcl_lexer::LineIndex;
 
@@ -83,7 +81,7 @@ struct LegacyPayload {
 
 /// `tcl find-legacy` — report legacy patterns eligible for modernisation.
 pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
 

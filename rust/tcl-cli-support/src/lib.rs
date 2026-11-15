@@ -44,11 +44,11 @@ pub mod worker;
 pub use highlight::{highlight_ansi, highlight_html};
 pub use input::{
     CliError, InputDocument, combine_sources, combine_texts, combined_effective_dialect,
-    read_input_documents, resolve_dialect,
+    read_input_documents, read_input_documents_as, resolve_dialect,
 };
 pub use output::{
-    OutputTarget, ensure_ascii, expand_tabs, resolve_use_colour, write_binary_output,
-    write_highlighted_output, write_text_output,
+    OutputTarget, encode_source_output, ensure_ascii, expand_tabs, resolve_use_colour,
+    write_binary_output, write_highlighted_output, write_text_output,
 };
 /// The command registry for `dialect`, with project, user, and shipped
 /// `.tclspec` loadables installed.

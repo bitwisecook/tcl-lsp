@@ -267,10 +267,35 @@ impl AnalysisInputs for LiteralInputs<'_> {
     }
 }
 
+thread_local! {
+    static DECLARED_SCRIPT_ENCODING: std::cell::Cell<super::ScriptEncoding> =
+        const { std::cell::Cell::new(super::ScriptEncoding::Auto) };
+}
+
+/// Run `fold` with `encoding` as the declared script encoding of every
+/// [`evaluate_literal`] it reaches. A registry const-fold hook receives only
+/// the release (`VersionedConstFoldFn`), so the caller that knows the
+/// document's declared encoding supplies it around the hook; the previous
+/// value is restored afterwards, so nested and unrelated folds keep theirs.
+pub fn with_declared_script_encoding<R>(
+    encoding: super::ScriptEncoding,
+    fold: impl FnOnce() -> R,
+) -> R {
+    struct Restore(super::ScriptEncoding);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            DECLARED_SCRIPT_ENCODING.set(self.0);
+        }
+    }
+    let _restore = Restore(DECLARED_SCRIPT_ENCODING.replace(encoding));
+    fold()
+}
+
 /// Run a pure route over literal words, as a `const_fold` callback does:
 /// the exact result's text when the route evaluates without stores under
 /// `version`'s profile — or, with no version, under the answer every
-/// modelled release gives — and `None` for every decline.
+/// modelled release gives — and `None` for every decline. The script encoding is the one a
+/// surrounding [`with_declared_script_encoding`] declared, else `Auto`.
 #[must_use]
 pub fn evaluate_literal(
     semantics: &dyn CommandSemantics,
@@ -280,7 +305,8 @@ pub fn evaluate_literal(
     version: Option<TclVersion>,
 ) -> Option<String> {
     let profile = version.and_then(|v| DialectProfile::find(v.dialect_profile_name()));
-    let inputs = LiteralInputs::new(command, subcommand, args, profile);
+    let mut inputs = LiteralInputs::new(command, subcommand, args, profile);
+    inputs.context.script_encoding = DECLARED_SCRIPT_ENCODING.get();
     match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
         EvalAnswer::Evaluated(outcome) if !outcome.has_stores() => match outcome.result {
             ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).ok(),

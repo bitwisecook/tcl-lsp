@@ -29,8 +29,8 @@
 use serde::Serialize;
 use serde_json::{Value, json};
 use tcl_cli_support::{
-    OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, read_input_documents,
-    registry_for_dialect, write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, ensure_ascii, registry_for_dialect,
+    write_text_output,
 };
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef};
 use tcl_lexer::LineIndex;
@@ -159,7 +159,7 @@ fn detect_event_entries(
 /// `tcl symbols` — list every declared symbol (procs, namespaces, variables,
 /// iRules `when` events) across the combined input.
 pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let result = Analyser::new()
@@ -286,7 +286,7 @@ fn graph_analysis(source: &str, profile: &'static tcl_dialect::DialectProfile) -
 
 /// `tcl symbolgraph` — scope hierarchy with proc/variable references.
 pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let analysis = graph_analysis(&source, dialect);
@@ -346,7 +346,7 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
 /// `tcl callgraph` — caller→callee graph across every proc in the input.
 #[allow(clippy::similar_names)] // caller / callee mirror the domain
 pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let analysis = graph_analysis(&source, dialect);
@@ -454,7 +454,7 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 /// `tcl dataflow` — taint warnings, tainted variables, and per-proc
 /// side-effect classification.
 pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let analysis = graph_analysis(&source, dialect);

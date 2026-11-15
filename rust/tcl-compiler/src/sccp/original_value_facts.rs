@@ -2830,6 +2830,7 @@ fn fold_original_substitution_value<S1: std::hash::BuildHasher, S2: std::hash::B
         defining_class: None,
         trusts: &trust,
         lookup_var: &lookup,
+        script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
     }
     .fold_retained_call_with_metadata_context(call, &calls, metadata)
 }
@@ -3629,6 +3630,7 @@ fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>
                 defining_class: f.defining_class,
                 trusts: &trusts,
                 lookup_var: &lookup,
+                script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             })
             .fold_cmd_subst(&stripped[1..stripped.len() - 1])
             {

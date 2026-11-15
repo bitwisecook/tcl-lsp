@@ -153,7 +153,13 @@ impl OriginalBodyCallSource<'_> {
                     &calls,
                     None,
                     Some(self.metadata),
-                    (ctx.dialect, None),
+                    (
+                        ctx.dialect,
+                        None,
+                        self.metadata.source_analysis_input().map_or_default(
+                            crate::analyser::ResolvedAnalysisInput::script_encoding,
+                        ),
+                    ),
                 ) else {
                     continue;
                 };

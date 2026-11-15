@@ -72,6 +72,25 @@ pub fn write_text_output(target: &OutputTarget, text: &str) -> Result<(), CliErr
     }
 }
 
+/// Encode rewritten Tcl source for writing in the script encoding its input
+/// was read with (`--source-encoding`), so a rewrite does not change the
+/// bytes of the text it leaves alone. `auto` and `utf-8` write UTF-8.
+///
+/// # Errors
+///
+/// A character the declared encoding cannot hold.
+pub fn encode_source_output(
+    text: &str,
+    encoding: tcl_registry::value_transfer::ScriptEncoding,
+) -> Result<Vec<u8>, CliError> {
+    tcl_lsp_core::source_decode::encode_source_as(text, encoding).map_err(|ch| {
+        CliError::input(format!(
+            "the rewritten source holds {ch:?}, which {} cannot encode",
+            encoding.as_str()
+        ))
+    })
+}
+
 /// Write raw bytes to the target.
 ///
 /// For stdout the payload is written verbatim — no trailing newline, since the

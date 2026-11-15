@@ -3823,6 +3823,25 @@
             "markdownDescription": "iRulesLX plugin associations, so `ILX::call` / `ILX::notify` can navigate to the `ILXServer.addMethod` that implements a method. Also settable per project in `.tcl-lsp.ini` as `[iruleslx.plugins]` / `[iruleslx.rules]`. See docs/design/f5/iruleslx-remote-methods.md.",
             "order": 9
           },
+          "tclLsp.sourceEncoding": {
+            "scope": "window",
+            "type": "string",
+            "default": "auto",
+            "enum": [
+              "auto",
+              "utf-8",
+              "iso8859-1",
+              "ascii"
+            ],
+            "enumDescriptions": [
+              "Let the target release decide: Tcl 9 reads scripts as UTF-8; Tcl 8.4–8.6 read them in the system encoding, so folds over non-ASCII literals are not made for an 8.x target.",
+              "The target reads scripts as UTF-8 (a UTF-8 locale, or `source -encoding utf-8`).",
+              "The target reads scripts as ISO 8859-1 (the `C` locale, or `source -encoding iso8859-1`).",
+              "The target reads scripts as ASCII."
+            ],
+            "markdownDescription": "The encoding the target Tcl reads your scripts in. Closed files are decoded with it, and values computed from non-ASCII literals (`string length`, `string range`, …) are exact for it under every release. Set your editor's `files.encoding` to match, so open documents are read the same way. See docs/kcs/kcs-howto-declare-the-script-encoding.md.",
+            "order": 4
+          },
           "tclLsp.bigipVersion": {
             "scope": "resource",
             "type": "string",

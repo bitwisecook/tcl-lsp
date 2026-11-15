@@ -141,6 +141,7 @@ class TclLspSettingsPanel {
     private val dialectCombo = JComboBox(dialectSelection.labels.toTypedArray())
     private val extraCommandsField = JBTextField(30)
     private val libraryPathsField = JBTextField(30)
+    private val sourceEncodingCombo = JComboBox(arrayOf("auto", "utf-8", "iso8859-1", "ascii"))
     private val signatureHelpDisabledCommandsField = JBTextField(30)
     private val signatureHelpInheritDisabledCommands = JBCheckBox("Inherit from config.ini")
 
@@ -500,6 +501,8 @@ class TclLspSettingsPanel {
         builder.addWrappedComment("Comma-separated list of additional command names to treat as known.")
         builder.addLabeledComponent(JBLabel("Library paths:"), libraryPathsField)
         builder.addWrappedComment("Comma-separated directories to scan for Tcl packages.")
+        builder.addLabeledComponent(JBLabel("Source encoding:"), sourceEncodingCombo)
+        builder.addWrappedComment("The encoding the target Tcl reads your scripts in. auto: Tcl 9 reads UTF-8, Tcl 8.4–8.6 the system encoding, so values of non-ASCII literals are not computed for 8.x. Match the IDE's file encoding.")
         builder.addLabeledComponent(
             JBLabel("Signature help disabled commands:"),
             signatureHelpDisabledCommandsField,
@@ -763,6 +766,7 @@ class TclLspSettingsPanel {
             dialectSelection.identifierAt(dialectCombo.selectedIndex) != s.dialect ||
             extraCommandsField.text != s.extraCommands ||
             libraryPathsField.text != s.libraryPaths ||
+            sourceEncodingCombo.selectedItem != s.sourceEncoding ||
             signatureHelpDisabledCommandsOverride(
                 signatureHelpInheritDisabledCommands.isSelected,
                 signatureHelpDisabledCommandsField.text,
@@ -1071,6 +1075,7 @@ class TclLspSettingsPanel {
         s.dialect = dialectSelection.identifierAt(dialectCombo.selectedIndex)
         s.extraCommands = extraCommandsField.text
         s.libraryPaths = libraryPathsField.text
+        s.sourceEncoding = sourceEncodingCombo.selectedItem as? String ?: s.sourceEncoding
         s.signatureHelpDisabledCommands = signatureHelpDisabledCommandsOverride(
             signatureHelpInheritDisabledCommands.isSelected,
             signatureHelpDisabledCommandsField.text,
@@ -1428,6 +1433,7 @@ class TclLspSettingsPanel {
         dialectCombo.selectedIndex = dialectSelection.selectedIndex
         extraCommandsField.text = s.extraCommands
         libraryPathsField.text = s.libraryPaths
+        sourceEncodingCombo.selectedItem = s.sourceEncoding
         signatureHelpDisabledCommandsField.text = s.signatureHelpDisabledCommands.orEmpty()
         signatureHelpInheritDisabledCommands.isSelected = s.signatureHelpDisabledCommands == null
         signatureHelpDisabledCommandsField.isEnabled = !signatureHelpInheritDisabledCommands.isSelected

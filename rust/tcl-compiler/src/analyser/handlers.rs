@@ -1084,6 +1084,7 @@ impl Analyser {
         context.grammar = self
             .lexer_config()
             .grammar_over(input.unit_profile().grammar);
+        context.script_encoding = input.script_encoding();
         context.registry_generation = generation.commands().generation();
         context.overlay_generation = generation.commands().overlay_generation();
         let mut inputs = LiteralInputs::new(canonical, None, &words, Some(input.unit_profile()))
@@ -1145,6 +1146,7 @@ impl Analyser {
             defining_class: None,
             trusts: &trusts,
             lookup_var: &|_| None,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
         }
         .fold_original_source_substitution(&operand, &lookup)
     }

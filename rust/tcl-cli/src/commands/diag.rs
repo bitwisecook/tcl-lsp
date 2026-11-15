@@ -26,9 +26,7 @@
 use std::collections::HashSet;
 
 use serde::Serialize;
-use tcl_cli_support::{
-    InputDocument, OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
-};
+use tcl_cli_support::{InputDocument, OutputTarget, registry_for_dialect, write_text_output};
 use tcl_compiler::analyser::Severity;
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
@@ -359,6 +357,7 @@ fn collect_rows(
             registry: &registry,
             pack_overlay: tcl_cli_support::spec_pack_key(dialect.name),
             external_call_sites,
+            script_encoding: document.decode.encoding,
         },
         &skip,
     );
@@ -557,7 +556,7 @@ fn file_text_lines(file: &str, shown: &[DiagItem], hidden: &[SuppressedItem]) ->
 
 /// `tcl diag` / `tcl lint` — report every diagnostic across all inputs.
 pub fn run_diag(input: &InputArgs, diag: &DiagArgs, report: &ReportArgs) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let layers = ConfigLayers::new(invocation_layer(&diag.disable, &diag.enable, "diagnostics"));
 
     let mut files: Vec<FileReport> = Vec::with_capacity(documents.len());
@@ -669,7 +668,7 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs, report: &ReportArgs) -> anyh
 
 /// `tcl validate` — error-severity diagnostics only, fail-fast exit code.
 pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     let layers = ConfigLayers::new(invocation_layer(&diag.disable, &diag.enable, "diagnostics"));
 
     let mut errors: Vec<ValidateError> = Vec::new();

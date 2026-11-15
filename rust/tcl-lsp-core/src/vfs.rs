@@ -645,6 +645,23 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
     fn read_source(&self, path: &Path) -> io::Result<(String, crate::source_decode::DecodeReport)> {
         Ok(crate::source_decode::decode_source(&self.read(path)?))
     }
+
+    /// Read a file through [`crate::source_decode::decode_source_as`], with
+    /// the declared script encoding.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the underlying I/O error. Decoding itself never fails.
+    fn read_source_as(
+        &self,
+        path: &Path,
+        encoding: tcl_registry::value_transfer::ScriptEncoding,
+    ) -> io::Result<(String, crate::source_decode::DecodeReport)> {
+        Ok(crate::source_decode::decode_source_as(
+            &self.read(path)?,
+            encoding,
+        ))
+    }
 }
 
 /// The real filesystem — a direct delegation to `std::fs`.

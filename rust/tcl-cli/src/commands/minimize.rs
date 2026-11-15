@@ -48,7 +48,7 @@ use std::hash::BuildHasher;
 use std::sync::Arc;
 
 use serde::Serialize;
-use tcl_cli_support::{OutputTarget, ensure_ascii, read_input_documents, write_text_output};
+use tcl_cli_support::{OutputTarget, ensure_ascii, read_input_documents_as, write_text_output};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
 use tcl_lexer::{LexerConfig, LineIndex, SourceImage, Utf16Col};
 
@@ -404,7 +404,12 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
     };
     let code = code_arg.to_string_lossy();
     let code = code.as_ref();
-    let documents = read_input_documents(file_inputs, &input.source, !input.no_recursive)?;
+    let documents = read_input_documents_as(
+        file_inputs,
+        &input.source,
+        !input.no_recursive,
+        input.script_encoding(),
+    )?;
     for document in &documents {
         document.require_faithful_source()?;
     }

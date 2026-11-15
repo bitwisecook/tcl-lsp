@@ -1965,3 +1965,59 @@ fn opt_folds_format_g_whatever_tcl_precision_holds() {
         rewrite_behaves_alike(source, series, &tclsh);
     }
 }
+
+/// #2129: `--source-encoding` declares the encoding the target reads the
+/// script in. The file holds the UTF-8 bytes of `É` (`C3 89`) in
+/// `string range "Éabc" 1 2`. Measured: tclsh 8.6.18 under `LC_ALL=C`
+/// (`encoding system` iso8859-1) prints the bytes `89 61`; tclsh 8.6.18 and
+/// 9.0.4 with `source -encoding iso8859-1` give `"\u{89}a"` and with
+/// `source -encoding utf-8` give `ab`. `auto` folds only where the release
+/// reads UTF-8 (9.0, 9.1); a declared encoding folds exactly under every
+/// release, and the rewrite is written back in that encoding.
+#[test]
+fn opt_folds_a_non_ascii_literal_under_the_declared_script_encoding() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("source-encoding-2129");
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let file = dir.join("range.tcl");
+    std::fs::write(&file, b"puts [string range \"\xC3\x89abc\" 1 2]\n").expect("fixture");
+    let first_line = |dialect: &str, encoding: &str| -> Vec<u8> {
+        let output = tcl()
+            .args([
+                "opt",
+                "--dialect",
+                dialect,
+                "--source-encoding",
+                encoding,
+                "--no-colour",
+            ])
+            .arg(&file)
+            .reused_output()
+            .expect("tcl opt runs");
+        assert!(output.status.success(), "{dialect} {encoding}: {output:?}");
+        output
+            .stdout
+            .split(|&byte| byte == b'\n')
+            .next()
+            .unwrap_or_default()
+            .to_vec()
+    };
+    let unchanged = b"puts [string range \"\xC3\x89abc\" 1 2]".to_vec();
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let auto = if dialect.starts_with("tcl9") {
+            b"puts ab".to_vec()
+        } else {
+            unchanged.clone()
+        };
+        assert_eq!(first_line(dialect, "auto"), auto, "{dialect} auto");
+        assert_eq!(
+            first_line(dialect, "iso8859-1"),
+            b"puts \x89a".to_vec(),
+            "{dialect} iso8859-1"
+        );
+        assert_eq!(
+            first_line(dialect, "utf-8"),
+            b"puts ab".to_vec(),
+            "{dialect} utf-8"
+        );
+    }
+}

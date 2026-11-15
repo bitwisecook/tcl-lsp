@@ -1812,7 +1812,10 @@ impl Backend {
                     let Ok(bytes) = self.store.read(path) else {
                         return Ok(ReadonlyTransaction::PublishRefused);
                     };
-                    let (text, _) = tcl_lsp_core::source_decode::decode_source(&bytes);
+                    let (text, _) = tcl_lsp_core::source_decode::decode_source_as(
+                        &bytes,
+                        self.declared_script_encoding(),
+                    );
                     if tcl_lexer::normalise_lone_cr(&text).as_ref() != snapshot.text.as_ref() {
                         return Ok(ReadonlyTransaction::PublishRefused);
                     }

@@ -607,7 +607,7 @@ impl ConfiguredProviderSources {
             ProviderSource::Disk => {
                 let (text, _) = self
                     .store
-                    .read_source(path)
+                    .read_source_as(path, analyser.script_encoding)
                     .map_err(|_| ProviderSourceUnavailable::MissingSource)?;
                 let text: Arc<str> = Arc::from(tcl_lexer::normalise_lone_cr(&text).as_ref());
                 let dialect = self.dialects.dialect(&row.uri, &text, target);

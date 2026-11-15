@@ -325,3 +325,34 @@ fn decode_of_a_large_buffer_stays_linear_and_reports_once() {
     assert_eq!(report.error_count, 1);
     assert_eq!(report.first_error.map(|e| e.byte_offset), Some(offset));
 }
+
+/// #2129: a declared script encoding decodes the bytes as the target's
+/// script reader does. The UTF-8 bytes of `É` are two characters to
+/// tclsh 8.6.18 run under `LC_ALL=C` (`encoding system` iso8859-1) and one
+/// under UTF-8; the report says which encoding produced the text.
+#[test]
+fn a_declared_script_encoding_decodes_as_the_target_reads() {
+    use tcl_registry::value_transfer::ScriptEncoding;
+    let bytes = b"set s \"\xC3\x89\"\n";
+    let (auto, auto_report) = decode_source_as(bytes, ScriptEncoding::Auto);
+    assert_eq!(auto, "set s \"\u{c9}\"\n");
+    assert_eq!(auto_report.encoding, ScriptEncoding::Auto);
+    assert!(auto_report.is_faithful());
+
+    let latin1 = ScriptEncoding::parse("iso8859-1").expect("a script encoding");
+    let (text, report) = decode_source_as(bytes, latin1);
+    assert_eq!(text, "set s \"\u{c3}\u{89}\"\n");
+    assert_eq!(report.encoding, latin1);
+    assert!(report.is_faithful());
+
+    let utf8 = ScriptEncoding::parse("utf-8").expect("a script encoding");
+    let (text, report) = decode_source_as(bytes, utf8);
+    assert_eq!(text, auto);
+    assert_eq!(report.encoding, utf8);
+
+    let (_, report) = decode_source_as(b"\xFF\xFEs\0e\0t\0", latin1);
+    assert!(
+        report.requires_abstention(),
+        "a UTF-16 BOM is not script text"
+    );
+}

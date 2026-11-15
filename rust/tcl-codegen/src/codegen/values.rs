@@ -285,6 +285,7 @@ impl CodegenCtx<'_> {
                     defining_class: None,
                     trusts: &trusts,
                     lookup_var: &lookup,
+                    script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
                 }
                 .fold_cmd_subst_resolved(inner)
             })

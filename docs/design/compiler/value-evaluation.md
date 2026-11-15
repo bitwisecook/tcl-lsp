@@ -417,15 +417,21 @@ by release. A file whose bytes are `set s "<C3 89>"` followed by
 `tclsh8.6` where `encoding system` is `iso8859-1`, **1** on the same three
 under `LC_ALL=C.UTF-8`, and **1** on `tclsh9.0` and `tclsh9.1` under
 either locale: the script encoding follows `encoding system` up to 8.6 and
-is UTF-8 from 9.0. Our front end decodes every source file as UTF-8, which
-is the 9.x answer, so an operand whose source spelling carries a non-ASCII
-byte is currently admissible only when the target names 9.0 or newer;
+is UTF-8 from 9.0. The script encoding is declared by
+`AnalysisContext::script_encoding` (`ScriptEncoding`): `Auto`, the default,
+decodes UTF-8, the 9.x answer, so an operand whose source spelling carries a
+non-ASCII byte is admissible only when the target names 9.0 or newer;
 otherwise the releases disagree on that operand and the operation declines
-with `ReleaseAmbiguous(SourceEncoding)`. `TargetSemantics::source_utf8`
-records this release-derived admission. A workspace-declared encoding and
-its propagation from byte decoding into the target profile remain open in
-#2129; `DecodeReport` currently records UTF-8 integrity, not an independently
-selected target source encoding.
+with `ReleaseAmbiguous(SourceEncoding)`. A declared encoding
+(`tclLsp.sourceEncoding`, the CLI's `--source-encoding`) is the one the
+driver decoded the file with (`source_decode::decode_source_as`, recorded as
+`DecodeReport::encoding`), so the analysed text is the text the target reads
+and every release admits the operand. `TargetSemantics::source_utf8`
+records the admission. The declaration travels on `ResolvedAnalysisInput`
+into every unit build and on `tcl-lsp-db`'s `AnalyserConfig`, so it is part
+of the memo key. A registry const-fold hook receives only the release, so
+`value_transfer::with_declared_script_encoding` supplies the declaration to
+the `evaluate_literal` calls it makes.
 
 `PLATFORM` and `WALL_CLOCK` are never satisfiable on the direct route,
 under any profile. That is how a clock-reading or host-reading core is

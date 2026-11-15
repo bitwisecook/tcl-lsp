@@ -149,6 +149,7 @@ fn large_literals(sizes: &[usize]) {
             defining_class: None,
             trusts: &trusts,
             lookup_var: &lookup,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
         };
         let (folded, fold) = timed(|| engine.fold_cmd_subst(&interior));
         let spec = registry.get("list").expect("list");

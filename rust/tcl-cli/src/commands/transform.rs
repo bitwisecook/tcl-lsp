@@ -24,8 +24,8 @@ use std::path::Path;
 
 use anyhow::Context;
 use tcl_cli_support::{
-    OutputTarget, combine_sources, combine_texts, combined_effective_dialect, read_input_documents,
-    registry_for_dialect, write_highlighted_output, write_text_output,
+    OutputTarget, combine_sources, combine_texts, combined_effective_dialect, registry_for_dialect,
+    write_highlighted_output, write_text_output,
 };
 use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle};
 use tcl_lsp_core::minify::{
@@ -86,7 +86,7 @@ pub fn run_format(
     max_line_length: Option<usize>,
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     for document in &documents {
         document.require_faithful_source()?;
     }
@@ -110,8 +110,35 @@ pub fn run_format(
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(&target, &formatted, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
+    write_source_output(&target, &formatted, use_colour, dialect, input)?;
     Ok(0)
+}
+
+/// Write rewritten Tcl: highlighted for a terminal, otherwise as bytes in the
+/// declared script encoding, so text the rewrite left alone keeps its bytes.
+fn write_source_output(
+    target: &OutputTarget,
+    text: &str,
+    use_colour: bool,
+    dialect: &'static tcl_dialect::DialectProfile,
+    input: &InputArgs,
+) -> anyhow::Result<()> {
+    let encoding = input.script_encoding();
+    let declared_bytes = matches!(
+        encoding,
+        tcl_registry::value_transfer::ScriptEncoding::Declared(declared)
+            if declared != tcl_lsp_core::source_decode::SCRIPT_UTF8
+    );
+    if use_colour || !declared_bytes {
+        write_highlighted_output(target, text, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
+        return Ok(());
+    }
+    let mut bytes = tcl_cli_support::encode_source_output(text, encoding)?;
+    if target.is_stdout() && !bytes.is_empty() && !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
+    tcl_cli_support::write_binary_output(target, &bytes)?;
+    Ok(())
 }
 
 /// `tcl opt` — run the optimiser and emit rewritten Tcl.
@@ -144,7 +171,7 @@ pub fn run_opt(
     enable: &[String],
     colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     for document in &documents {
         document.require_faithful_source()?;
     }
@@ -185,7 +212,8 @@ pub fn run_opt(
             dialect,
             std::sync::Arc::new(context),
             tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        );
+        )
+        .with_script_encoding(document.decode.encoding);
         // The file's stub sidecar declares commands for the optimiser as it
         // does for `tcl diag` (#2366).
         let file_path = document.path.as_deref().map(|p| p.display().to_string());
@@ -252,7 +280,7 @@ pub fn run_opt(
     // own dialect above.
     let dialect = combined_effective_dialect(&documents, explicit_dialect);
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
+    write_source_output(&target, &rendered, use_colour, dialect, input)?;
 
     if !target.is_stdout() {
         tcl_cli_support::errln!(
@@ -322,7 +350,7 @@ pub fn run_minify(
         abbreviations,
         isolated,
     } = options;
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     for document in &documents {
         document.require_faithful_source()?;
     }

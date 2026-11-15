@@ -40,7 +40,7 @@
 //! conversion profile, fail-index and streaming support are separate capabilities.
 
 use tcl_dialect::{ByteStringEncoding, TclVersion};
-use tcl_platform::SystemEncoding;
+pub use tcl_platform::SystemEncoding;
 use tcl_syntax::{
     naming::{NamePolicyAuthority, NativeNameProtocol},
     native_string::NativeStringProtocol,

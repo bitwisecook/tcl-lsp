@@ -154,6 +154,21 @@ pub struct InputArgs {
     )]
     pub dialect: Option<String>,
 
+    /// The encoding the target reads scripts in. `auto` decodes UTF-8 and
+    /// leaves the release to decide: Tcl 9 reads scripts as UTF-8, while Tcl
+    /// 8.4–8.6 read them in the system encoding, so 8.x folds over non-ASCII
+    /// literals decline. A named encoding decodes the inputs with it and
+    /// makes those folds exact under every release.
+    #[arg(
+        long = "source-encoding",
+        value_name = "ENCODING",
+        default_value = "auto",
+        value_parser = clap::builder::PossibleValuesParser::new(
+            tcl_registry::value_transfer::ScriptEncoding::NAMES
+        )
+    )]
+    pub source_encoding: String,
+
     /// Do not recurse into input directories.
     #[arg(long = "no-recursive")]
     pub no_recursive: bool,
@@ -164,6 +179,28 @@ pub struct InputArgs {
 }
 
 impl InputArgs {
+    /// The declared script encoding (`--source-encoding`).
+    #[must_use]
+    pub fn script_encoding(&self) -> tcl_registry::value_transfer::ScriptEncoding {
+        tcl_registry::value_transfer::ScriptEncoding::parse(&self.source_encoding)
+            .unwrap_or_default()
+    }
+
+    /// Read every input file and inline source under the declared encoding.
+    ///
+    /// # Errors
+    /// Returns the input-reading refusal.
+    pub fn read_documents(
+        &self,
+    ) -> Result<Vec<tcl_cli_support::InputDocument>, tcl_cli_support::CliError> {
+        tcl_cli_support::read_input_documents_as(
+            &self.inputs,
+            &self.source,
+            !self.no_recursive,
+            self.script_encoding(),
+        )
+    }
+
     /// Resolve the optional CLI spelling once at the ingest boundary.
     ///
     /// Every verb receives the canonical profile, so aliases such as

@@ -291,6 +291,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — say a library is ambient under one of a pack's environments and not
   another, with an `environment { ambient … }` row and a shared version
   variable.
+- [kcs-howto-declare-the-script-encoding.md](kcs-howto-declare-the-script-encoding.md)
+  — declare the encoding your Tcl reads scripts in (`tclLsp.sourceEncoding`,
+  `--source-encoding`), so values computed from non-ASCII literals are exact
+  for a Tcl 8.x target.
 - [kcs-howto-declare-a-package-a-binary-extension-loads.md](kcs-howto-declare-a-package-a-binary-extension-loads.md)
   — tell the server that a compiled `.dll` / `.so` extension brings Tk (or
   any other package) up from its C `Init`, so the Tk completions, hover and

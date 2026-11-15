@@ -13,6 +13,14 @@ class TclLspSettingsTest {
     }
 
     @Test
+    fun sourceEncodingReachesTheServerAsTheDeclaredName() {
+        val settings = TclLspSettings()
+        assertEquals("auto", settings.toServerSettings()["sourceEncoding"])
+        settings.sourceEncoding = "iso8859-1"
+        assertEquals("iso8859-1", settings.toServerSettings()["sourceEncoding"])
+    }
+
+    @Test
     fun configuredSignatureSuppressionPreservesExplicitEmptyAndCommands() {
         val settings = TclLspSettings()
         settings.signatureHelpDisabledCommands = " set, ::incr "

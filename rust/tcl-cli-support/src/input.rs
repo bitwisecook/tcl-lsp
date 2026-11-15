@@ -23,7 +23,7 @@ use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
 use tcl_dialect::DialectProfile;
-use tcl_lsp_core::source_decode::{DecodeReport, decode_source};
+use tcl_lsp_core::source_decode::{DecodeReport, decode_source_as};
 
 /// Source file extensions the CLI accepts — the registry's single list, shared
 /// with the LSP server's workspace scan and the VS Code activation glob.
@@ -371,6 +371,28 @@ pub fn read_input_documents(
     inline_sources: &[String],
     recursive: bool,
 ) -> Result<Vec<InputDocument>, CliError> {
+    read_input_documents_as(
+        inputs,
+        inline_sources,
+        recursive,
+        tcl_registry::value_transfer::ScriptEncoding::Auto,
+    )
+}
+
+/// [`read_input_documents`] with a declared script encoding
+/// (`--source-encoding`): files and stdin are decoded with it, and every
+/// document's [`DecodeReport::encoding`] records it, so the analysis reads
+/// the text as the target does.
+///
+/// # Errors
+///
+/// As [`read_input_documents`].
+pub fn read_input_documents_as(
+    inputs: &[PathBuf],
+    inline_sources: &[String],
+    recursive: bool,
+    encoding: tcl_registry::value_transfer::ScriptEncoding,
+) -> Result<Vec<InputDocument>, CliError> {
     let mut ordered_files: Vec<PathBuf> = Vec::new();
     let mut package_names: Vec<String> = Vec::new();
 
@@ -421,7 +443,10 @@ pub fn read_input_documents(
             path: None,
             // `--source` text arrived as a `String` already: there were never
             // any bytes for us to mis-decode.
-            decode: DecodeReport::default(),
+            decode: DecodeReport {
+                encoding,
+                ..DecodeReport::default()
+            },
         });
     }
 
@@ -436,7 +461,7 @@ pub fn read_input_documents(
         // broken file is analysed rather than refused), but not a silent
         // one — `decode` carries exactly what was substituted, and
         // the byte-integrity pass turns it into a real finding.
-        let (source, decode) = decode_source(&bytes);
+        let (source, decode) = decode_source_as(&bytes, encoding);
         documents.push(InputDocument {
             label: file_path.display().to_string(),
             source,
@@ -446,17 +471,28 @@ pub fn read_input_documents(
     }
 
     if documents.is_empty() && !std::io::stdin().is_terminal() {
-        let mut buf = String::new();
+        let mut bytes = Vec::new();
         std::io::stdin()
-            .read_to_string(&mut buf)
+            .read_to_end(&mut bytes)
             .map_err(|e| CliError::Io(format!("failed to read stdin: {e}")))?;
+        if matches!(
+            encoding,
+            tcl_registry::value_transfer::ScriptEncoding::Auto
+                | tcl_registry::value_transfer::ScriptEncoding::Declared(
+                    tcl_lsp_core::source_decode::SCRIPT_UTF8
+                )
+        ) && std::str::from_utf8(&bytes).is_err()
+        {
+            return Err(CliError::Io(
+                "failed to read stdin: stream did not contain valid UTF-8".to_owned(),
+            ));
+        }
+        let (source, decode) = decode_source_as(&bytes, encoding);
         documents.push(InputDocument {
             label: "<stdin>".to_owned(),
-            source: buf,
+            source,
             path: None,
-            // `read_to_string` has already refused non-UTF-8 stdin with an
-            // `Io` error above, so anything that reaches here is faithful.
-            decode: DecodeReport::default(),
+            decode,
         });
     }
 

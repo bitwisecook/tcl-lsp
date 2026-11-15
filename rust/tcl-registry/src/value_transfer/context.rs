@@ -62,6 +62,51 @@ pub struct BindingEvidence {
     pub opaque_namespaces: Vec<String>,
 }
 
+/// The encoding the target's script reader decodes a source file with
+/// (`docs/design/compiler/value-evaluation.md` § *`SOURCE_ENCODING`*).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ScriptEncoding {
+    /// Not declared: the release's own reader decides. From 9.0 that is
+    /// UTF-8, which is how the front end decodes every file; before 9.0 it is
+    /// the system encoding, which is unknown here.
+    #[default]
+    Auto,
+    /// Declared: the target reads scripts in this encoding, and the analysed
+    /// text was decoded with the same one, so it is the text the target sees.
+    Declared(tcl_cmd_core::encoding::SystemEncoding),
+}
+
+impl ScriptEncoding {
+    /// The setting's spelling: `auto`, or a Tcl encoding name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Declared(encoding) => encoding.as_str(),
+        }
+    }
+
+    /// Parse a setting value: `auto`, or a Tcl encoding name a script can be
+    /// read in. `None` for anything else.
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        use tcl_cmd_core::encoding::SystemEncoding;
+        if value == "auto" {
+            return Some(Self::Auto);
+        }
+        match tcl_cmd_core::encoding::resolve_encoding(value).ok()? {
+            encoding
+            @ (SystemEncoding::Utf8 | SystemEncoding::Iso88591 | SystemEncoding::Ascii) => {
+                Some(Self::Declared(encoding))
+            }
+            SystemEncoding::Identity | SystemEncoding::Unicode => None,
+        }
+    }
+
+    /// Every value [`Self::parse`] accepts.
+    pub const NAMES: [&'static str; 4] = ["auto", "utf-8", "iso8859-1", "ascii"];
+}
+
 /// The immutable identity every query and evaluation runs under. Produced
 /// once by the composition root; consumed by every memo key.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +140,8 @@ pub struct AnalysisContext {
     pub evaluator_revision: u64,
     /// The precision tier the request runs at.
     pub tier: AnalysisTier,
+    /// The encoding the target reads this script in.
+    pub script_encoding: ScriptEncoding,
 }
 
 impl AnalysisContext {
@@ -126,6 +173,7 @@ impl AnalysisContext {
             seeds_revision: 0,
             evaluator_revision: 0,
             tier: AnalysisTier::Deep,
+            script_encoding: ScriptEncoding::Auto,
         }
     }
 }

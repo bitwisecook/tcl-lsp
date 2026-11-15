@@ -1494,15 +1494,24 @@ pub(crate) fn retained_call_at(
 /// the result itself ([`crate::const_subst::folded_literal_reads_apart`])
 /// abstains: `[list string range $s 0 end-2147483649]` evaluates directly,
 /// its braced literal compiles. `dialect` names the release that reads it.
+/// The declared script encoding of the unit's retained source input.
+fn module_script_encoding(cu: &CompilationUnit) -> tcl_registry::value_transfer::ScriptEncoding {
+    cu.ir_module
+        .source_metadata_input
+        .as_ref()
+        .map_or_default(crate::analyser::ResolvedAnalysisInput::script_encoding)
+}
+
 fn fold_retained_builtin(
     registry: &CommandRegistry,
     call: &crate::word_subst::LiftedCall,
     calls: &[crate::word_subst::LiftedCall],
     defining_class: Option<&str>,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
-    (dialect, constants): (
+    (dialect, constants, script_encoding): (
         Option<&'static tcl_dialect::DialectProfile>,
         Option<&std::collections::HashMap<String, String>>,
+        tcl_registry::value_transfer::ScriptEncoding,
     ),
 ) -> Option<String> {
     let metadata = metadata?;
@@ -1521,6 +1530,7 @@ fn fold_retained_builtin(
         defining_class,
         trusts: &|_| false,
         lookup_var: &lookup,
+        script_encoding,
     }
     .fold_retained_call_with_metadata_context(call, calls, metadata)
     .filter(|value| !crate::const_subst::folded_literal_reads_apart(value, release))
@@ -1607,7 +1617,7 @@ fn visit_oo_frame_folds(
             &calls,
             Some(&frame.defining_class),
             metadata,
-            (ctx.dialect, None),
+            (ctx.dialect, None, module_script_encoding(cu)),
         ) && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
         {
             rewrites.push((call.span, word));
@@ -1664,7 +1674,7 @@ fn try_oo_frame_return_fold(
         &calls,
         Some(&frame.defining_class),
         metadata,
-        (ctx.dialect, None),
+        (ctx.dialect, None, module_script_encoding(cu)),
     ) else {
         return;
     };
@@ -2697,7 +2707,7 @@ fn visit_call_cmd_subst_folds(
             &calls,
             None,
             metadata,
-            (ctx.dialect, Some(constants)),
+            (ctx.dialect, Some(constants), module_script_encoding(cu)),
         ) && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
         {
             let code = call
@@ -2787,6 +2797,7 @@ fn try_o103_proc_fold(
         defining_class: None,
         trusts: &|_| false,
         lookup_var: &|_| None,
+        script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
     }
     .retained_arguments_with_metadata_context(call, calls, actual.as_ref().into())?;
     let plan =
@@ -3041,7 +3052,7 @@ fn visit_string_interpolation_cmd_subs(
     let mut out = String::with_capacity(inside.len());
     let mut last = 0;
     let mut folded_any = false;
-    let lattice = (ctx.dialect, Some(constants));
+    let lattice = (ctx.dialect, Some(constants), module_script_encoding(cu));
     for call in roots {
         let Some(result) = fold_retained_builtin(registry, call, &calls, None, metadata, lattice)
         else {
@@ -6059,7 +6070,19 @@ mod tests {
             .expect("selected builtin independent of native object effects");
         assert!(invocation.facts.effects.requires_world_barrier());
         assert!(
-            fold_retained_builtin(registry, call, &calls, None, metadata, (None, None)).is_none()
+            fold_retained_builtin(
+                registry,
+                call,
+                &calls,
+                None,
+                metadata,
+                (
+                    None,
+                    None,
+                    tcl_registry::value_transfer::ScriptEncoding::Auto
+                )
+            )
+            .is_none()
         );
     }
 
@@ -6210,7 +6233,11 @@ mod tests {
                 &calls,
                 None,
                 Some(current.into()),
-                (None, None)
+                (
+                    None,
+                    None,
+                    tcl_registry::value_transfer::ScriptEncoding::Auto
+                )
             ),
             Some("{key value}".into())
         );
@@ -6219,8 +6246,19 @@ mod tests {
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
         for metadata in [Some((&older).into()), Some(foreign.into()), None] {
             assert!(
-                fold_retained_builtin(registry, outer, &calls, None, metadata, (None, None))
-                    .is_none()
+                fold_retained_builtin(
+                    registry,
+                    outer,
+                    &calls,
+                    None,
+                    metadata,
+                    (
+                        None,
+                        None,
+                        tcl_registry::value_transfer::ScriptEncoding::Auto
+                    )
+                )
+                .is_none()
             );
         }
         let tokens = tokens.clone();

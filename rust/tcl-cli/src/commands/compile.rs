@@ -33,8 +33,8 @@
 //! the `optimise` rewrites), then compiles the rewritten source.
 
 use tcl_cli_support::{
-    OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
-    registry_for_dialect, write_binary_output, write_text_output,
+    OutputTarget, combine_sources, combined_effective_dialect, registry_for_dialect,
+    write_binary_output, write_text_output,
 };
 use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::codegen::format::format_module_asm;
@@ -84,7 +84,7 @@ fn lower_disassembly_document(
 
 /// `tcl dis` — compile source and emit human-readable bytecode disassembly.
 pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     for document in &documents {
         document.require_faithful_source()?;
     }
@@ -120,7 +120,7 @@ pub fn run_compwasm(
     wat_output: Option<&std::path::Path>,
     optimisations: tcl_explorer::SemanticOptimisationConfig,
 ) -> anyhow::Result<u8> {
-    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let documents = input.read_documents()?;
     for document in &documents {
         document.require_faithful_source()?;
     }

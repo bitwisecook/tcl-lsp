@@ -92,7 +92,7 @@ Measured with `scan [string index $s $i] %c` over a literal `a<U+1D11E>b`
 
 Nothing about 8.4/8.5 needs the lossless representation; what is missing there
 is the decode, which keeps the scalar where those releases see four characters
-(#2129). `StringCharacterModel::units` yields each model's characters as runs a
+unless the script encoding is declared (`tclLsp.sourceEncoding`). `StringCharacterModel::units` yields each model's characters as runs a
 Rust string holds: the four byte-characters on 8.4/8.5, one run of two units
 for 8.6's surrogate pair, one run per scalar on 9.x.
 

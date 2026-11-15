@@ -1298,6 +1298,9 @@ impl<'a> LatticeDriver<'a> {
             seeds_revision: 0,
             evaluator_revision: key.map_or(0, |k| k.evaluator_revision),
             tier: key.map_or(AnalysisTier::Deep, |k| k.tier),
+            script_encoding: trace
+                .source_metadata_input
+                .map_or_default(crate::analyser::ResolvedAnalysisInput::script_encoding),
         };
         let mut request = request_budget();
         let iteration = request.iteration();
@@ -4216,6 +4219,7 @@ impl<'a> LatticeDriver<'a> {
             defining_class: f.defining_class,
             trusts: &trusts,
             lookup_var: &lookup,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
         }
         .fold_cmd_subst(inner)?;
         Some((exact_to_lattice(&ExactValue::from_literal(&folded)), None))
@@ -5707,6 +5711,7 @@ fn proven_command_word(
         defining_class: None,
         trusts: &trust,
         lookup_var: &lookup,
+        script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
     }
     .fold_retained_call_with_metadata_context(call, &calls, metadata)
     .map(|text| exact_of_bytes(text.into_bytes()))
@@ -8741,6 +8746,7 @@ fn dict_body_plan_with_metadata_context(
     })?;
     let mut context = AnalysisContext::detached(Some(input.unit_profile()));
     context.grammar = config.grammar_over(input.unit_profile().grammar);
+    context.script_encoding = input.script_encoding();
     context.registry_generation = registry.generation();
     context.overlay_generation = registry.overlay_generation();
     invocation.with_metadata_schema(registry, metadata, realm, |resolved| {
@@ -8877,6 +8883,7 @@ pub(crate) fn source_template_plan(
         .collect::<Vec<_>>();
     let mut selected = AnalysisContext::detached(Some(input.unit_profile()));
     selected.grammar = config.grammar_over(input.unit_profile().grammar);
+    selected.script_encoding = input.script_encoding();
     selected.registry_generation = registry.generation();
     selected.overlay_generation = registry.overlay_generation();
     selected.tier = AnalysisTier::Structure;

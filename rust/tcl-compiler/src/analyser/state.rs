@@ -598,6 +598,9 @@ pub struct Analyser {
     /// `package require`s by [`Self::expand_implied_package_requires`].
     /// Empty — the default — leaves every answer as before.
     pub package_provides: Vec<(String, Vec<String>)>,
+    /// The encoding the target reads this document's script in; see
+    /// [`Self::with_script_encoding`].
+    pub script_encoding: tcl_registry::value_transfer::ScriptEncoding,
     /// The `# tcl-lsp: package NAME provides …` edges declared in this walk's
     /// source —
     /// the same `(package, packages it also loads)` edges
@@ -1655,6 +1658,7 @@ impl Analyser {
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
             declared_targets: Vec::new(),
             package_provides: Vec::new(),
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             directive_provides: Vec::new(),
             range_context: None,
             range_numeral_grammars: Vec::new(),
@@ -1899,6 +1903,19 @@ impl Analyser {
     #[must_use]
     pub fn with_package_provides(mut self, provides: Vec<(String, Vec<String>)>) -> Self {
         self.package_provides = provides;
+        self
+    }
+
+    /// Declare the encoding the target reads this script in
+    /// (`tclLsp.sourceEncoding`). The caller decoded the text with it, so a
+    /// fold over a non-ASCII literal is exact under every release; `Auto`
+    /// leaves 8.x folds over such literals declined.
+    #[must_use]
+    pub const fn with_script_encoding(
+        mut self,
+        encoding: tcl_registry::value_transfer::ScriptEncoding,
+    ) -> Self {
+        self.script_encoding = encoding;
         self
     }
 
@@ -2188,7 +2205,8 @@ impl Analyser {
             self.analysis_context(),
             self.file_lexer_config(),
         )
-        .with_workspace_source_modules(self.workspace_source_modules.clone());
+        .with_workspace_source_modules(self.workspace_source_modules.clone())
+        .with_script_encoding(self.script_encoding);
         match self.vendor_source_name_policy() {
             Some(policy) => input.with_vendor_source_policy(policy),
             None => input,

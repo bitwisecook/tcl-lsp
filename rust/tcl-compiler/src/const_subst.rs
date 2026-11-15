@@ -100,6 +100,10 @@ pub struct ConstSubstCtx<'a> {
     /// variable's proven compile-time value, or `None` to abstain. The
     /// engine queries the exact scalar name selected from the original reference.
     pub lookup_var: &'a dyn Fn(&str) -> Option<String>,
+    /// The declared script encoding of the document, for a fold whose
+    /// metadata context retains no source input (`tclLsp.sourceEncoding`).
+    /// A retained input's own declaration takes precedence.
+    pub script_encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
 /// A registry-resolved constant command substitution.
@@ -174,6 +178,7 @@ pub struct SelectedConstFold {
     facts: Box<tcl_registry::InvocationFacts>,
     values: Vec<String>,
     dialect: tcl_registry::InvocationDialect,
+    script_encoding: tcl_registry::value_transfer::ScriptEncoding,
 }
 
 impl SelectedConstFold {
@@ -211,12 +216,14 @@ impl SelectedConstFold {
     fn run_with(&self, spec: &CommandSpec) -> Option<String> {
         let arguments = self.arguments()?;
 
-        if spec.subcommands.is_empty() {
-            spec.run_const_fold_in(&arguments, self.dialect)
-        } else {
-            spec.subcommand(self.facts.subcommand.canonical_name()?)?
-                .run_const_fold_in(&arguments, self.dialect)
-        }
+        tcl_registry::value_transfer::with_declared_script_encoding(self.script_encoding, || {
+            if spec.subcommands.is_empty() {
+                spec.run_const_fold_in(&arguments, self.dialect)
+            } else {
+                spec.subcommand(self.facts.subcommand.canonical_name()?)?
+                    .run_const_fold_in(&arguments, self.dialect)
+            }
+        })
     }
 }
 
@@ -328,6 +335,10 @@ impl<'a> ConstSubstCtx<'a> {
                 facts: invocation.facts,
                 values: args,
                 dialect,
+                script_encoding: context.source_analysis_input().map_or(
+                    self.script_encoding,
+                    crate::analyser::ResolvedAnalysisInput::script_encoding,
+                ),
             },
         })
     }
@@ -976,6 +987,7 @@ mod tests {
             defining_class: None,
             trusts,
             lookup_var: lookup,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
         }
     }
 
