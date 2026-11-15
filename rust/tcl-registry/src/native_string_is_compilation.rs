@@ -496,6 +496,7 @@ pub fn instruction(
         NativeScalarInstruction {
             operation: NativeScalarOperation::StringIsAscii,
             operands: vec![recipe.subject],
+            literals: vec![None],
         }
     })
 }
@@ -940,6 +941,7 @@ mod tests {
                     Ok(NativeInstructionPlan::Scalar(NativeScalarInstruction {
                         operation: NativeScalarOperation::StringIsAscii,
                         operands: vec![NativeCompilerWordOperand::Original(subject)],
+                        literals: vec![None],
                     })),
                     "{version:?}: {source:?}"
                 );

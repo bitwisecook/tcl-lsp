@@ -82,6 +82,8 @@ pub struct NativeScalarInstruction {
     pub operation: NativeScalarOperation,
     /// Exact original words or original static expansion member receipts.
     pub operands: Vec<NativeCompilerWordOperand>,
+    /// Each operand's value when the compiler knows it (`TclWordKnownAtCompileTime`).
+    pub literals: Vec<Option<Vec<u8>>>,
 }
 
 /// Genuine original private String equality registration.
@@ -208,12 +210,16 @@ pub fn compile_native_scalar(
     }
     let projected = project_native_compiler_words(words, version).ok()?;
     let from = operand_from + usize::from(scope == NativeScalarScope::PublicMember);
+    let operands = projected.get(from..)?;
     Some(NativeScalarInstruction {
         operation,
-        operands: projected
-            .get(from..)?
+        operands: operands
             .iter()
             .map(|operand| operand.operand.clone())
+            .collect(),
+        literals: operands
+            .iter()
+            .map(|operand| operand.literal.clone())
             .collect(),
     })
 }
