@@ -639,12 +639,14 @@ fn walk_statement(
     depth: u32,
     registry: &tcl_registry::CommandRegistry,
 ) {
-    if stmt.is_executable_invocation()
-        && stmt
-            .tokens()
-            .is_some_and(|tokens| tokens.synthetic.is_none())
+    // A typed statement keeps no words of its own; the script retains the
+    // original invocation it was lowered from.
+    let original = stmt
+        .tokens()
+        .or_else(|| script.retained_source_tokens_for_statement(stmt));
+    if stmt.is_executable_invocation() && original.is_some_and(|tokens| tokens.synthetic.is_none())
     {
-        apply_original_substitution_scan(stmt.tokens(), state, registry);
+        apply_original_substitution_scan(original, state, registry);
     } else if statement_needs_original_substitution_inventory(stmt) {
         state.mark_pessimistic();
     }
