@@ -292,169 +292,57 @@ fn original_enclosing_scope(
     None
 }
 
-struct OriginalCapture {
-    symbol: tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
-    reads: Vec<tcl_lexer::Span>,
-    writes: Vec<tcl_lexer::Span>,
-}
-
-fn record_original_capture(
-    context: (&str, &AnalysisResult),
-    input: &tcl_compiler::signature_scan::scope::SignatureSourceNameInput,
-    span: tcl_lexer::Span,
-    write: bool,
-    captures: &mut Vec<OriginalCapture>,
-    unavailable: &impl Fn() -> String,
-) -> Result<(), String> {
-    let (source, analysis) = context;
-    let mut matches = analysis
-        .original_variable_symbols
-        .iter()
-        .filter(|occurrence| {
-            occurrence.span() == span && occurrence.original_name_input() == input
-        });
-    let first = matches.next().ok_or_else(unavailable)?;
-    if !matches.all(|candidate| candidate.symbol() == first.symbol()) {
-        return Err(unavailable());
-    }
-    if !crate::original_name_edit::original_input_matches_source(source, analysis, input, span) {
-        return Err(unavailable());
-    }
-    if first.original_local_alias().is_some() {
-        return Err("carrying an original alias across a new procedure frame needs an independent link contract".to_owned());
-    }
-    let position = captures
-        .iter()
-        .position(|capture| capture.symbol == *first.symbol());
-    let index = position.unwrap_or_else(|| {
-        captures.push(OriginalCapture {
-            symbol: first.symbol().clone(),
-            reads: Vec::new(),
-            writes: Vec::new(),
-        });
-        captures.len() - 1
-    });
-    let rows = if write {
-        &mut captures[index].writes
-    } else {
-        &mut captures[index].reads
-    };
-    if !rows.contains(&span) {
-        rows.push(span);
-    }
-    Ok(())
-}
-
-/// Native source capture classification retains real symbol equality and
-/// selected roles. It never resolves a cell from a reported variable name.
-fn original_extraction_plan(
+/// Refuse an extraction on a release profile where the interpreter can
+/// observe the motion: a trace established anywhere in the document can fire
+/// on a moved name, and a selected command that introspects the current frame
+/// or evaluates a computed script there sees the new procedure frame.
+///
+/// Everything else the shared plan decides. tclsh 8.4.20, 8.5.19, 8.6.18,
+/// 9.0.4 and 9.1.0 ran the rewrites of this module's `tp_*` tests before and
+/// after (`catch {source file} m`; standard output and message compared):
+/// identical in every case.
+fn reject_observable_motion(
     source: &str,
     selected: &[&SegmentedCommand],
     analysis: &AnalysisResult,
-) -> Result<Plan, String> {
-    use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
-    let unavailable =
-        || "the original extraction frame or operand inventory is unavailable".to_owned();
-    let walk = super::FrameWalk::new(source, analysis).ok_or_else(unavailable)?;
-    let image = tcl_lexer::SourceImage::document(source);
-    let config = analysis.body_lexer_config.ok_or_else(unavailable)?;
-    let mut captures: Vec<OriginalCapture> = Vec::new();
-    let mut record = |input: &SignatureSourceNameInput,
-                      span: tcl_lexer::Span,
-                      write: bool|
-     -> Result<(), String> {
-        record_original_capture(
-            (source, analysis),
-            input,
-            span,
-            write,
-            &mut captures,
-            &unavailable,
-        )
-    };
+    walk: &super::FrameWalk<'_>,
+) -> Result<(), String> {
+    use tcl_registry::Traits;
+    let mut traced = false;
+    let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
+        source,
+        analysis,
+        &mut |command, _, _| {
+            traced |= walk
+                .source_traits(source, command)
+                .is_some_and(|traits| traits.contains(Traits::ESTABLISHES_VARIABLE_TRACE));
+            false
+        },
+    );
+    if traced {
+        return Err(
+            "the document establishes a trace, which can observe the moved code".to_owned(),
+        );
+    }
+    if coverage != crate::executable_regions::PotentialSourceVisit::Complete {
+        return Err("the document's commands are not all known, so a trace on the moved code cannot be ruled out".to_owned());
+    }
     for root in selected {
         let mut nested = Vec::new();
         walk.nested_same_frame_commands(source, root, &mut nested);
-        if !walk.complete() {
-            return Err(unavailable());
-        }
-        for command in std::iter::once(*root).chain(&nested) {
-            let structure = walk.structure(source, command).ok_or_else(unavailable)?;
-            if tcl_registry::traits::is_frame_sensitive(structure.facts.traits) {
-                return Err("the selected original command acts on the caller frame".to_owned());
-            }
-            if structure.facts.body_kind != tcl_registry::BodyKind::Plain
-                && structure
-                    .facts
-                    .arg_roles
-                    .iter()
-                    .any(|(_, role)| matches!(role, ArgRole::Body | ArgRole::LambdaLiteral))
-            {
-                return Err(
-                    "the selection contains a distinct original definition or naming frame"
-                        .to_owned(),
-                );
-            }
-            let tokens = walk.tokens(source, command);
-            let binding = tokens.source_binding.as_ref().ok_or_else(unavailable)?;
-            for (written, role) in structure.written_argument_roles() {
-                if !matches!(
-                    role,
-                    ArgRole::VarRead | ArgRole::VarWrite | ArgRole::LoopVarList
-                ) {
-                    continue;
-                }
-                let ordinal = written.checked_add(1).ok_or_else(unavailable)?;
-                let input = binding
-                    .original_written_name_input(&tokens, ordinal)
-                    .ok_or_else(unavailable)?;
-                let span = command.argv.get(ordinal).ok_or_else(unavailable)?.span;
-                if role == ArgRole::LoopVarList {
-                    let children = input
-                        .original_list_elements_with_source_spans()
-                        .ok_or_else(unavailable)?;
-                    for (child, span) in children {
-                        record(&child, span.ok_or_else(unavailable)?, true)?;
-                    }
-                } else {
-                    record(&input, span, role == ArgRole::VarWrite)?;
-                }
-            }
-            for arena in walk.components(source, command).ok_or_else(unavailable)? {
-                for part in arena.all_parts() {
-                    let tcl_lexer::ExecutablePart::Variable { .. } = part.part else {
-                        continue;
-                    };
-                    let root = analysis
-                        .original_variable_root_in_source(&image, config, part.span.start())
-                        .filter(|root| root.part_span() == part.span)
-                        .ok_or_else(unavailable)?;
-                    record(
-                        &SignatureSourceNameInput::OriginalVariableRoot(root.clone()),
-                        part.span,
-                        false,
-                    )?;
-                }
+        for command in std::iter::once(*root).chain(nested.iter()) {
+            let traits = walk
+                .source_traits(source, command)
+                .ok_or_else(|| "the original command's frame effects are unavailable".to_owned())?;
+            if traits.intersects(Traits::CURRENT_FRAME_INTROSPECTION | Traits::DYNAMIC_EVAL_BODY) {
+                return Err(format!(
+                    "the selection uses '{}', which observes or evaluates in the call frame",
+                    command.name()
+                ));
             }
         }
     }
-    let writes = captures
-        .iter()
-        .filter(|capture| !capture.writes.is_empty())
-        .count();
-    let reads = captures
-        .iter()
-        .filter(|capture| !capture.reads.is_empty())
-        .count();
-    if reads != 0 || writes != 0 {
-        return Err(format!(
-            "the original selection captures {reads} read and {writes} written variable identities; moving their frames, observers and caller links is not independently proved"
-        ));
-    }
-    // Empty capture is a real separate case, not proof that inserting a
-    // procedure and calling it preserves the source world's dispatch. The
-    // readonly lookup proposal facade does not supply that insertion contract.
-    Err("the capture-free original selection still needs a proved procedure insertion and command relocation contract".to_owned())
+    Ok(())
 }
 
 /// Build the extraction, or the reason it cannot be built.
@@ -571,12 +459,11 @@ fn plan_extraction(
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> Result<Plan, String> {
-    if !analysis.allows_lexical_declaration_advice() {
-        return original_extraction_plan(source, selected, analysis);
-    }
-
     let walk = super::FrameWalk::new(source, analysis)
         .ok_or_else(|| "the original document context is unavailable".to_owned())?;
+    if !analysis.allows_lexical_declaration_advice() {
+        reject_observable_motion(source, selected, analysis, &walk)?;
+    }
     reject_enclosing_definition_body(source, scope, &walk)?;
     reject_frame_sensitive_selection(source, selected, &walk)?;
     let source_selection = logical_extraction_source_selection(source, analysis, selected, &walk)?;
@@ -1546,15 +1433,17 @@ mod tests {
                 .map_or_else(|| Ok(action.apply(source)), Err)
         };
         let source = "set value TEXT\nputs \"escaped=\\$notavar $value\"\nputs done\n";
-        assert!(
-            outcome(source, "puts \"escaped=\\$notavar $value\"")
-                .unwrap_err()
-                .contains("captures")
-        );
-        let result = logical_outcome(source, "puts \"escaped=\\$notavar $value\"").unwrap();
-        assert!(result.contains("proc extracted_proc {value}"), "{result}");
-        assert!(!result.contains("{notavar value}"), "{result}");
-        assert!(result.contains("escaped=\\$notavar $value"), "{result}");
+        // tclsh 8.4.20–9.1.0 print `escaped=$notavar TEXT` then `done` for
+        // this source and for its rewrite, so a release extracts it as the
+        // unversioned profile does.
+        for result in [
+            outcome(source, "puts \"escaped=\\$notavar $value\"").unwrap(),
+            logical_outcome(source, "puts \"escaped=\\$notavar $value\"").unwrap(),
+        ] {
+            assert!(result.contains("proc extracted_proc {value}"), "{result}");
+            assert!(!result.contains("{notavar value}"), "{result}");
+            assert!(result.contains("escaped=\\$notavar $value"), "{result}");
+        }
         let source = "set {$literal} TEXT\nputs ${$literal}\nputs done\n";
         let result = logical_outcome(source, "puts ${$literal}").unwrap();
         assert!(result.contains("${$literal}"), "{result}");
@@ -1564,6 +1453,50 @@ mod tests {
                 .unwrap_err()
                 .contains("array element read")
         );
+    }
+
+    /// Implementation contract: naming.refactor.original-extraction-motion-boundary
+    /// docs/design/analysis/name-resolution-proofs/refactor-original-extraction-motion-boundary.md
+    ///
+    /// A release refuses the extraction where the interpreter observes the
+    /// motion. tclsh 8.4.20–9.1.0, before and after the rewrite each case
+    /// would produce: `puts [info level]` prints 0 then 1; a write trace whose
+    /// handler prints `[info level]` prints 1 then 2; `eval $script` with
+    /// `set made 1` leaves `made` in the caller before and in the new
+    /// procedure's frame after.
+    #[test]
+    fn a_release_refuses_an_extraction_the_interpreter_can_observe() {
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (source, needle, reason) in [
+                (
+                    "puts [info level]\nputs done\n",
+                    "puts [info level]",
+                    "call frame",
+                ),
+                (
+                    "proc h args {puts [info level]}\nset v 0\ntrace add variable v write h\nset v 1\nputs done\n",
+                    "set v 1",
+                    "trace",
+                ),
+                (
+                    "set script {set made 1}\neval $script\nputs [info exists made]\n",
+                    "eval $script",
+                    "call frame",
+                ),
+            ] {
+                // A selection the walk cannot offer at all is refused too.
+                let Some(action) = at_dialect(source, needle, release) else {
+                    continue;
+                };
+                let refusal = action.disabled.as_deref().unwrap_or_else(|| {
+                    panic!(
+                        "{release}: {needle} must be refused: {}",
+                        action.apply(source)
+                    )
+                });
+                assert!(refusal.contains(reason), "{release}: {needle}: {refusal}");
+            }
+        }
     }
 
     // TP: a pure selection with live-ins and no live-outs.
@@ -2262,34 +2195,6 @@ mod original_extract_tests {
             first_fresh_proc_name(|name| Some(name != "extracted_proc_3")).unwrap(),
             "extracted_proc_3"
         );
-    }
-}
-
-#[cfg(test)]
-mod original_extraction_capture_tests {
-    use super::*;
-    #[test]
-    fn original_extraction_requires_motion_contract_without_reporting_fallback() {
-        // Implementation contract: naming.refactor.original-extraction-motion-boundary
-        // docs/design/analysis/name-resolution-proofs/refactor-original-extraction-motion-boundary.md
-        for source in ["set value VALUE\nputs $value\n", "puts VALUE\n"] {
-            let mut analyser = tcl_compiler::analyser::Analyser::new();
-            let mut analysis = analyser.analyse(source, "tcl8.6").clone();
-            let config = analysis.body_lexer_config.unwrap();
-            let commands = segment_commands_with_offset_and_config(source, 0, config);
-            let selected = commands.iter().collect::<Vec<_>>();
-            let before = original_extraction_plan(source, &selected, &analysis)
-                .err()
-                .unwrap();
-            analysis.all_procs.clear();
-            analysis.global_scope.variables.clear();
-            analysis.dialect = "f5-irules".to_owned();
-            let after = original_extraction_plan(source, &selected, &analysis)
-                .err()
-                .unwrap();
-            assert_eq!(before, after);
-            assert!(after.contains("original"));
-        }
     }
 }
 
