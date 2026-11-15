@@ -3888,6 +3888,17 @@ impl NativeCompilationSpec {
         )
     }
 
+    /// The private member command a basic named-invocation compiler names.
+    const fn named_member_slot(self) -> Option<&'static str> {
+        match self.grammar {
+            NativeCompilationGrammar::NamedEnsembleInvocation { lookup, .. } => Some(lookup.slot),
+            NativeCompilationGrammar::WithImplementationPath { compiler, .. } => {
+                compiler.named_member_slot()
+            }
+            _ => None,
+        }
+    }
+
     /// Whether this actual descriptor is a basic named-invocation compiler.
     /// An ensemble-shaped runtime handler does not change its CPP kind.
     #[must_use]
@@ -4034,7 +4045,22 @@ impl NativeCompilationSpec {
         context: NativeCompilationContext,
     ) -> NativeCompilationSelection {
         if self.is_named_invocation_compiler() {
-            return NativeCompilationSelection::Unknown;
+            // The member invoked by its own private name has no selector to
+            // retain: `TclCompileBasicNArgCmd` pushes the written words and
+            // emits `invokeStk`, and so does the fallback when it declines.
+            // tclsh 8.6.18 and 9.0.4: `::tcl::array::get a` is
+            // `push ::tcl::array::get; push a; invokeStk1 2`.
+            return if facts.argument_offset == 0
+                && self.named_member_slot().is_some_and(|slot| {
+                    words.head_literal().is_some_and(|head| {
+                        tcl_syntax::naming::unroot_rooted_key(head).unwrap_or(head)
+                            == tcl_syntax::naming::unroot_rooted_key(slot).unwrap_or(slot)
+                    })
+                }) {
+                NativeCompilationSelection::Generic
+            } else {
+                NativeCompilationSelection::Unknown
+            };
         }
         let offset = if matches!(
             self.grammar,
