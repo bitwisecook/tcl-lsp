@@ -10782,47 +10782,46 @@ impl Analyser {
         if segs.next().is_some() {
             return None;
         }
-        let source_words = crate::registry_invocation::source_structure::source_registry_words_at(
+        // The registry words confirm the selected list constructor. Their
+        // argument vector is the one recorded when the body was entered,
+        // where a `{*}` splice has already expanded to that call's element
+        // count, so the template itself is read from the written words.
+        let source_words = crate::registry_invocation::source_structure::source_registry_words(
             &self.source,
             &self.result,
-            seg.argv.first()?.span.start(),
+            &seg,
         )?;
         let context = self.result.resolved_input.as_ref()?.context_registry();
-        let layout = source_words.with_source_schema(&context, |schema| {
+        source_words.with_source_schema(&context, |schema| {
             schema.authored_source_list_operand_templates()
         })??;
-        let tokens = seg.arg_tokens();
-        if layout.len() != tokens.len()
-            || source_words.arguments().len() != tokens.len()
-            || source_words.origins().len() != tokens.len().checked_add(1)?
-            || source_words
-                .origins()
-                .iter()
-                .enumerate()
-                .any(|(ordinal, origin)| {
-                    *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
-                })
-        {
+        if source_words.origins().iter().skip(1).any(|origin| {
+            !matches!(
+                origin,
+                crate::registry_invocation::InvocationWordOrigin::Written(_)
+            )
+        }) {
             return None;
         }
-        let mut words = Vec::with_capacity(layout.len());
-        for (ordinal, expanded) in layout {
-            let operand = source_words.operands().get(ordinal)?.as_ref()?;
-            let word = operand.word()?;
-            if word.group().expand != expanded {
-                return None;
-            }
-            let value = if expanded {
-                // The original operand arena excludes its actual expansion
-                // marker; no reconstructed word supplies the formal read.
-                FactoryWord::CallerSplice(original.scalar_parameter_splice(word)?.checked_add(1)?)
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let config = self.file_lexer_config();
+        let mut words = Vec::new();
+        for token in seg.arg_tokens() {
+            let (word, _) = [tcl_lexer::word_span(&sm, *token), token.span]
+                .into_iter()
+                .find_map(|span| {
+                    self.head_identities
+                        .original_written_word_at_span_in_source(&image, span, config)
+                })?;
+            let value = if word.group().expand {
+                FactoryWord::CallerSplice(original.scalar_parameter_splice(&word)?.checked_add(1)?)
             } else {
                 FactoryWord::Literal {
                     text: String::from_utf8(
-                        tcl_syntax::word_rules::original_static_word_unicode_value(word)?,
+                        tcl_syntax::word_rules::original_static_word_unicode_value(&word)?,
                     )
                     .ok()?,
-                    token: *tokens.get(ordinal)?,
+                    token: *token,
                 }
             };
             words.push(value);
