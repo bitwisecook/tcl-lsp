@@ -171,6 +171,37 @@ fn int_x(body: &str) -> String {
 
 // O100 — constant propagation into expressions
 
+/// `body` inside a loop where `$x` and `$y` are both proved integers. tclsh
+/// 8.6: with `a` set to `abc`, `expr {!($a && $b)}` raises `expected boolean
+/// value but got "abc"` and `expr {!$a || !$b}` raises `can't use non-numeric
+/// string as operand of "!"`; `expr {$a && 0}` raises where `0` does not;
+/// `expr {$a ** 2}` and `expr {$a * $a}` name different operators. The
+/// rewrites below are therefore claimed for integer operands only.
+fn int_xy(body: &str) -> String {
+    let tail = if body.contains("set v ") {
+        "\n    puts $v"
+    } else {
+        ""
+    };
+    format!(
+        "proc f {{n}} {{\n  for {{set x 0}} {{$x < $n}} {{incr x}} {{\n    set y [expr {{$x + 1}}]\n    {body}{tail}\n  }}\n}}\n"
+    )
+}
+
+/// `body` inside a procedure whose parameters are the variables it reads. At
+/// file level a read of an unset variable raises `can't read "a": no such
+/// variable` in tclsh before the expression is evaluated.
+fn in_proc(body: &str) -> String {
+    let tail = if body.contains("set v ") {
+        "\n  return $v"
+    } else if body.contains("set ok ") {
+        "\n  return $ok"
+    } else {
+        ""
+    };
+    format!("proc p {{a b c d x s}} {{\n  {body}{tail}\n}}\n")
+}
+
 #[test]
 fn o100_constant_propagation() {
     // A propagated constant either folds the condition (O101) or eliminates the
@@ -1269,15 +1300,15 @@ fn o110_identity_and_annihilator() {
 fn o110_logical_identities() {
     // Logical annihilators/identities do not require an INT proof (boolean
     // context). tclsh sweep: x&&0==0, x||1==1, 0&&x==0, 1||x==1.
-    assert!(optimised("set v [expr {$x && 0}]", TCL).contains("set v 0")); // tclsh: 0
-    assert!(optimised("set v [expr {$x || 1}]", TCL).contains("set v 1")); // tclsh: 1
-    assert!(optimised("set v [expr {0 && $x}]", TCL).contains("set v 0")); // tclsh: 0
-    assert!(optimised("set v [expr {1 || $x}]", TCL).contains("set v 1")); // tclsh: 1
+    assert!(optimised(&int_xy("set v [expr {$x && 0}]"), TCL).contains("set v 0")); // tclsh: 0
+    assert!(optimised(&int_xy("set v [expr {$x || 1}]"), TCL).contains("set v 1")); // tclsh: 1
+    assert!(optimised(&in_proc("set v [expr {0 && $x}]"), TCL).contains("set v 0")); // tclsh: 0
+    assert!(optimised(&in_proc("set v [expr {1 || $x}]"), TCL).contains("set v 1")); // tclsh: 1
     // x&&1, x||0, 1&&x, 0||x simplify (O110) without becoming a constant.
-    assert!(opt_fires("set v [expr {$x && 1}]", TCL, "O110"));
-    assert!(opt_fires("set v [expr {$x || 0}]", TCL, "O110"));
-    assert!(opt_fires("set v [expr {1 && $x}]", TCL, "O110"));
-    assert!(opt_fires("set v [expr {0 || $x}]", TCL, "O110"));
+    assert!(opt_fires(&int_xy("set v [expr {$x && 1}]"), TCL, "O110"));
+    assert!(opt_fires(&int_xy("set v [expr {$x || 0}]"), TCL, "O110"));
+    assert!(opt_fires(&in_proc("set v [expr {1 && $x}]"), TCL, "O110"));
+    assert!(opt_fires(&in_proc("set v [expr {0 || $x}]"), TCL, "O110"));
 }
 
 #[test]
@@ -1323,8 +1354,8 @@ fn o110_self_comparison_tautologies() {
     // tclsh sweep (any defined $x, string or numeric — `<`/`>` use the string
     // fallback): x<x ⇒ 0, x>x ⇒ 0 — false for every value, NaN included, so
     // these fold with no type proof at all.
-    assert!(optimised("set v [expr {$x < $x}]", TCL).contains("set v 0"));
-    assert!(optimised("set v [expr {$x > $x}]", TCL).contains("set v 0"));
+    assert!(optimised(&in_proc("set v [expr {$x < $x}]"), TCL).contains("set v 0"));
+    assert!(optimised(&in_proc("set v [expr {$x > $x}]"), TCL).contains("set v 0"));
 
     // The *reflexive* rows are wrong for a NaN operand — tclsh proves
     // `set x NaN; expr {$x == $x}` ⇒ 0 and `expr {$x != $x}` ⇒ 1, the
@@ -1348,8 +1379,8 @@ fn o110_self_comparison_tautologies() {
     assert!(optimised(&int_x("set v [expr {$x <= $x}]"), TCL).contains("set v 1"));
     assert!(optimised(&int_x("set v [expr {$x >= $x}]"), TCL).contains("set v 1"));
     // String self-comparison. tclsh: x eq x ⇒ 1, x ne x ⇒ 0 (any $x).
-    assert!(optimised("set v [expr {$x eq $x}]", TCL).contains("set v 1"));
-    assert!(optimised("set v [expr {$x ne $x}]", TCL).contains("set v 0"));
+    assert!(optimised(&in_proc("set v [expr {$x eq $x}]"), TCL).contains("set v 1"));
+    assert!(optimised(&in_proc("set v [expr {$x ne $x}]"), TCL).contains("set v 0"));
     // x ^ x ⇒ 0 — needs an INT proof (xor errors on non-numeric strings); the
     // `int_x` wrapper supplies it. tclsh sweep (x≥0): x^x == 0.
     assert!(optimised(&int_x("set v [expr {$x ^ $x}]"), TCL).contains("set v 0"));
@@ -1363,7 +1394,7 @@ fn o110_self_comparison_tautologies() {
     // so folding to 0 would silently swallow that error. Subtraction is
     // arithmetic-only, unlike `==`/`<` (string fallback), so this is not folded.
     assert!(
-        !optimised("set v [expr {$x - $x}]", TCL).contains("set v 0"),
+        !optimised(&in_proc("set v [expr {$x - $x}]"), TCL).contains("set v 0"),
         "untyped $x - $x must not fold to 0 (arithmetic op errors on non-numeric)"
     );
     // …but with a provably-numeric operand the fold IS sound. tclsh sweep (x≥0):
@@ -1374,11 +1405,11 @@ fn o110_self_comparison_tautologies() {
 #[test]
 fn o110_unary_and_not_inversions() {
     // tclsh: !!(bool) collapses (==/!=/< are already boolean).
-    assert!(optimised("set v [expr {!!($a == $b)}]", TCL).contains("$a == $b"));
+    assert!(optimised(&in_proc("set v [expr {!!($a == $b)}]"), TCL).contains("$a == $b"));
     // tclsh sweep: !(a==b) ⇒ a!=b, !(a!=b) ⇒ a==b. `!=` is the exact complement
     // of `==` for every value, NaN included, so these need no type proof.
-    assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("$a != $b"));
-    assert!(optimised("set v [expr {!($a != $b)}]", TCL).contains("$a == $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a == $b)}]"), TCL).contains("$a != $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a != $b)}]"), TCL).contains("$a == $b"));
 
     // The ordered four are NOT their own negations on a NaN operand —
     // tclsh proves `set a NaN; expr {!($a < 1)}` ⇒ 1 while `expr {$a >= 1}`
@@ -1400,12 +1431,12 @@ fn o110_unary_and_not_inversions() {
     assert!(optimised(&int_x("set v [expr {!($x > 1)}]"), TCL).contains("$x <= 1"));
     assert!(optimised(&int_x("set v [expr {!($x <= 1)}]"), TCL).contains("$x > 1"));
     // String comparison inversions. tclsh: !(a eq b) ⇒ a ne b, !(a ne b) ⇒ a eq b.
-    assert!(optimised("set v [expr {!($a eq $b)}]", TCL).contains("$a ne $b"));
-    assert!(optimised("set v [expr {!($a ne $b)}]", TCL).contains("$a eq $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a eq $b)}]"), TCL).contains("$a ne $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a ne $b)}]"), TCL).contains("$a eq $b"));
 
     // Double-not in an `if` condition simplifies (O110). tclsh: !!x ⇒ x (bool ctx).
-    assert!(opt_fires("if {!!$x} { puts yes }", TCL, "O110"));
-    assert!(optimised("if {!!$x} { puts yes }", TCL).contains("if {$x}"));
+    assert!(opt_fires(&int_xy("if {!!$x} { puts yes }"), TCL, "O110"));
+    assert!(optimised(&int_xy("if {!!$x} { puts yes }"), TCL).contains("if {$x}"));
 
     // INT-proven unary folds: ~~x ⇒ x, -(-x) ⇒ x, +x ⇒ x. tclsh sweep (x≥0).
     assert!(optimised(&int_x("set v [expr {~~$x}]"), TCL).contains("set v [expr {$x}]"));
@@ -1422,19 +1453,23 @@ fn o110_unary_and_not_inversions() {
 fn o110_de_morgan() {
     // tclsh sweep (a,b ∈ {0,1,5}): !($a && $b) == !$a || !$b; !($a || $b) ==
     // !$a && !$b; the 4-var chain matches its inversion (tclsh-proven).
-    assert!(optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b"));
-    assert!(optimised("set v [expr {!($a || $b)}]", TCL).contains("!$a && !$b"));
+    assert!(optimised(&int_xy("set v [expr {!($x && $y)}]"), TCL).contains("!$x || !$y"));
+    assert!(optimised(&int_xy("set v [expr {!($x || $y)}]"), TCL).contains("!$x && !$y"));
+    // Operands of unknown type keep the written form: the two sides raise
+    // different errors for a non-boolean string (see `int_xy`).
+    assert!(optimised(&in_proc("set v [expr {!($a && $b)}]"), TCL).contains("!($a && $b)"));
     // De Morgan itself still distributes over the chain; the `$a == $b` half
     // inverts, while the ordered `$c < $d` half keeps its `!` because neither
     // operand is proved non-NaN.
     assert!(
-        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || !($c < $d)")
+        optimised(&in_proc("set v [expr {!($a == $b && $c < $d)}]"), TCL)
+            .contains("$a != $b || !($c < $d)")
     );
 
     // De Morgan inside an `if` condition is carried under O110 or O113 (the
     // if-condition rewrite path is owned by the strength-reduce pass). The
     // rewrite text matches tclsh either way.
-    let in_if = "if {!($x && $y)} { puts yes }";
+    let in_if = &int_xy("if {!($x && $y)} { puts yes }");
     assert!(optimised(in_if, TCL).contains("!$x || !$y"));
     assert!(opt_any_of(in_if, TCL, &["O110", "O113"]));
 }
@@ -1442,19 +1477,27 @@ fn o110_de_morgan() {
 #[test]
 fn o110_ternary_and_double_not() {
     // Constant-condition ternary simplifies (O110). tclsh: 1?a:b==a, 0?a:b==b.
-    assert!(opt_fires("set v [expr {1 ? $a : $b}]", TCL, "O110"));
-    assert!(opt_fires("set v [expr {0 ? $a : $b}]", TCL, "O110"));
+    assert!(opt_fires(
+        &in_proc("set v [expr {1 ? $a : $b}]"),
+        TCL,
+        "O110"
+    ));
+    assert!(opt_fires(
+        &in_proc("set v [expr {0 ? $a : $b}]"),
+        TCL,
+        "O110"
+    ));
     // Double-not in an `if`. (Structural: O110 fires.)
-    assert!(opt_fires("if {!!$x} { puts yes }", TCL, "O110"));
+    assert!(opt_fires(&int_xy("if {!!$x} { puts yes }"), TCL, "O110"));
     // De Morgan inside an `if` is reported under O110/O113.
     assert!(opt_any_of(
-        "if {!($x && $y)} { puts yes }",
+        &int_xy("if {!($x && $y)} { puts yes }"),
         TCL,
         &["O110", "O113"]
     ));
     // Boolean-context ternary `($a > $b) ? 1 : 0` simplifies (O110).
     assert!(opt_fires(
-        "if {($a > $b) ? 1 : 0} { puts yes }",
+        &in_proc("if {($a > $b) ? 1 : 0} { puts yes }"),
         TCL,
         "O110"
     ));
@@ -1589,17 +1632,17 @@ fn o112_nested_via_multipass() {
 #[test]
 fn o113_strength_reduction() {
     // tclsh sweep: x ** 2 == x * x.
-    let p = optimised("if {$x ** 2} {}", TCL);
+    let p = optimised(&int_xy("if {$x ** 2} {}"), TCL);
     assert!(!p.contains("**"));
     assert!(p.contains('*'));
-    assert!(opt_fires("if {$x ** 2} {}", TCL, "O113"));
+    assert!(opt_fires(&int_xy("if {$x ** 2} {}"), TCL, "O113"));
 
     // tclsh sweep (x≥0): x % 8 == x & 7, x % 16 == x & 15, x % 2 == x & 1.
-    let m8 = optimised("if {$x % 8} {}", TCL);
+    let m8 = optimised(&in_proc("if {$x % 8} {}"), TCL);
     assert!(m8.contains('&'));
     assert!(!m8.contains('%'));
-    assert!(optimised("if {$x % 16} {}", TCL).contains("& 15")); // tclsh: x%16 == x&15
-    assert!(optimised("if {$x % 2} {}", TCL).contains("& 1")); // tclsh: x%2 == x&1
+    assert!(optimised(&in_proc("if {$x % 16} {}"), TCL).contains("& 15")); // tclsh: x%16 == x&15
+    assert!(optimised(&in_proc("if {$x % 2} {}"), TCL).contains("& 1")); // tclsh: x%2 == x&1
 
     // Non-power-of-two modulus is not reduced.
     assert!(opt_absent("if {$x % 7} {}", TCL, "O113"));
@@ -1704,10 +1747,22 @@ fn o116_list_folding() {
 #[test]
 fn o117_strlen_zero_check() {
     // tclsh sweep: ([string length $s] == 0) <=> ($s eq ""); != 0 <=> ne "".
-    assert!(opt_fires("if {[string length $s] == 0} {}", TCL, "O117"));
-    assert!(opt_fires("if {[string length $s] != 0} {}", TCL, "O117"));
+    assert!(opt_fires(
+        &in_proc("if {[string length $s] == 0} {}"),
+        TCL,
+        "O117"
+    ));
+    assert!(opt_fires(
+        &in_proc("if {[string length $s] != 0} {}"),
+        TCL,
+        "O117"
+    ));
     // Swapped `0 == [string length $s]` also simplifies.
-    assert!(opt_fires("if {0 == [string length $s]} {}", TCL, "O117"));
+    assert!(opt_fires(
+        &in_proc("if {0 == [string length $s]} {}"),
+        TCL,
+        "O117"
+    ));
 
     // [string length $s] == 5 is NOT simplified.
     assert!(opt_absent("if {[string length $s] == 5} {}", TCL, "O117"));
@@ -1803,20 +1858,20 @@ fn o119_multi_set_packing() {
 #[test]
 fn o120_string_compare_eq_ne() {
     // tclsh sweep: $a == "hello" <=> $a eq "hello" ("hello" is non-numeric).
-    assert!(optimised("if {$a == \"hello\"} {}", TCL).contains("$a eq \"hello\""));
-    assert!(opt_fires("if {$a == \"hello\"} {}", TCL, "O120"));
+    assert!(optimised(&in_proc("if {$a == \"hello\"} {}"), TCL).contains("$a eq \"hello\""));
+    assert!(opt_fires(&in_proc("if {$a == \"hello\"} {}"), TCL, "O120"));
 
     // != inside an expr substitution ⇒ ne. Rust routes this through O110 (expr
     // instcombine) rather than O120; the rewrite text is identical. tclsh sweep:
     // $a != "hello" <=> $a ne "hello".
-    let ne = "set ok [expr {$a != \"hello\"}]";
+    let ne = &in_proc("set ok [expr {$a != \"hello\"}]");
     assert!(optimised(ne, TCL).contains("$a ne \"hello\""));
     assert!(opt_any_of(ne, TCL, &["O120", "O110"]));
 
     // String literal on the left also rewrites. tclsh: "hello" == $a <=> eq.
-    assert!(optimised("if {\"hello\" == $a} {}", TCL).contains("eq"));
+    assert!(optimised(&in_proc("if {\"hello\" == $a} {}"), TCL).contains("eq"));
     // != with a string on the right ⇒ ne.
-    assert!(optimised("if {$x != \"foo\"} {}", TCL).contains("ne"));
+    assert!(optimised(&in_proc("if {$x != \"foo\"} {}"), TCL).contains("ne"));
 
     // Conservative non-rewrites (D5-O120: needs ≥1 provably-non-numeric operand).
     for src in [
@@ -1864,30 +1919,31 @@ fn o120_with_sccp_const_and_mixed() {
 fn demorgan_logic_via_o110() {
     // The De-Morgan logic is the O110 expr rewrite; assert the transforms on
     // `[expr {...}]`. All tclsh-swept above.
-    assert!(optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b"));
-    assert!(optimised("set v [expr {!($a || $b)}]", TCL).contains("!$a && !$b"));
+    assert!(optimised(&int_xy("set v [expr {!($x && $y)}]"), TCL).contains("!$x || !$y"));
+    assert!(optimised(&int_xy("set v [expr {!($x || $y)}]"), TCL).contains("!$x && !$y"));
     // Plain `&&` / `==` / single `!` are NOT De-Morgan candidates (no rewrite to
     // the inverse form fires).
-    assert!(optimised("set v [expr {$a && $b}]", TCL).contains("$a && $b"));
-    assert!(!optimised("set v [expr {$a == $b}]", TCL).contains("||"));
+    assert!(optimised(&in_proc("set v [expr {$a && $b}]"), TCL).contains("$a && $b"));
+    assert!(!optimised(&in_proc("set v [expr {$a == $b}]"), TCL).contains("||"));
 }
 
 #[test]
 fn invert_logic_via_o110() {
     // The inversion logic surfaces as the `!(...)` O110 rewrite. tclsh-swept.
-    assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("$a != $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a == $b)}]"), TCL).contains("$a != $b"));
     // The ordered rows need both operands proved non-NaN.
     assert!(optimised(&int_x("set v [expr {!($x < 1)}]"), TCL).contains("$x >= 1"));
     assert!(optimised(&int_x("set v [expr {!($x >= 1)}]"), TCL).contains("$x < 1"));
-    assert!(optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b"));
-    assert!(optimised("set v [expr {!($a || $b)}]", TCL).contains("!$a && !$b"));
+    assert!(optimised(&int_xy("set v [expr {!($x && $y)}]"), TCL).contains("!$x || !$y"));
+    assert!(optimised(&int_xy("set v [expr {!($x || $y)}]"), TCL).contains("!$x && !$y"));
     // Complex chain: De Morgan distributes and `==` inverts; the ordered half
     // keeps its `!` on untyped operands.
     assert!(
-        optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || !($c < $d)")
+        optimised(&in_proc("set v [expr {!($a == $b && $c < $d)}]"), TCL)
+            .contains("$a != $b || !($c < $d)")
     );
     // Double-not removal in a boolean context. tclsh: !!x in `if` == x.
-    assert!(optimised("if {!!$x} { puts yes }", TCL).contains("if {$x}"));
+    assert!(optimised(&int_xy("if {!!$x} { puts yes }"), TCL).contains("if {$x}"));
 }
 
 /// The `!(x <cmp> y)` inversion is derived from `BinOp::inverse()`
@@ -1899,13 +1955,13 @@ fn invert_logic_via_o110() {
 #[test]
 fn invert_logic_covers_tip461_and_membership_operators() {
     const TCL9: &str = "tcl9.0";
-    assert!(optimised("set v [expr {!($a lt $b)}]", TCL9).contains("$a ge $b"));
-    assert!(optimised("set v [expr {!($a le $b)}]", TCL9).contains("$a gt $b"));
-    assert!(optimised("set v [expr {!($a gt $b)}]", TCL9).contains("$a le $b"));
-    assert!(optimised("set v [expr {!($a ge $b)}]", TCL9).contains("$a lt $b"));
-    assert!(optimised("set v [expr {!($a eq $b)}]", TCL9).contains("$a ne $b"));
-    assert!(optimised("set v [expr {!($a in $b)}]", TCL9).contains("$a ni $b"));
-    assert!(optimised("set v [expr {!($a ni $b)}]", TCL9).contains("$a in $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a lt $b)}]"), TCL9).contains("$a ge $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a le $b)}]"), TCL9).contains("$a gt $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a gt $b)}]"), TCL9).contains("$a le $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a ge $b)}]"), TCL9).contains("$a lt $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a eq $b)}]"), TCL9).contains("$a ne $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a in $b)}]"), TCL9).contains("$a ni $b"));
+    assert!(optimised(&in_proc("set v [expr {!($a ni $b)}]"), TCL9).contains("$a in $b"));
 }
 
 // apply_optimisations / find_optimisations — edge cases
@@ -2385,10 +2441,10 @@ fn pass_interactions() {
     ));
 
     // Strength reduction inside a command substitution expr.
-    assert!(opt_fires("if {$x ** 2} { puts yes }", TCL, "O113"));
+    assert!(opt_fires(&int_xy("if {$x ** 2} { puts yes }"), TCL, "O113"));
     // O117 fires in branch conditions.
     assert!(opt_fires(
-        "if {[string length $s] == 0} { puts empty }",
+        &in_proc("if {[string length $s] == 0} { puts empty }"),
         TCL,
         "O117"
     ));

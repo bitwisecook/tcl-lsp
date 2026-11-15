@@ -213,14 +213,15 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         ) else {
             continue;
         };
-        if !branch_execution_equivalent(ctx, inner, &final_text, &constants, binding_span) {
-            if code == DiagCode::O120 {
-                ctx.report_prepared_expression_candidate(
-                    code,
-                    "String comparison may use eq/ne after preserving shared-operand conversions",
-                    binding_span,
-                );
-            }
+        if !branch_rewrite_proved(
+            ctx,
+            code,
+            (inner, &final_text),
+            &numeric,
+            &constants,
+            binding_span,
+        ) {
+            report_unproved_string_comparison(ctx, code, binding_span);
             continue;
         }
         ctx.report(Optimisation::new(code, message, span, rewrap(&final_text)));
@@ -261,6 +262,41 @@ fn branch_condition_source<'a>(
         inner,
         braced,
     })
+}
+
+fn report_unproved_string_comparison(
+    ctx: &mut PassContext<'_>,
+    code: DiagCode,
+    span: tcl_lexer::Span,
+) {
+    if code == DiagCode::O120 {
+        ctx.report_prepared_expression_candidate(
+            code,
+            "String comparison may use eq/ne after preserving shared-operand conversions",
+            span,
+        );
+    }
+}
+
+fn branch_rewrite_proved(
+    ctx: &PassContext<'_>,
+    code: DiagCode,
+    (original, proposed): (&str, &str),
+    numeric: &OperandTypes,
+    constants: &std::collections::HashMap<String, String>,
+    span: tcl_lexer::Span,
+) -> bool {
+    // The O117 text exists only when the written call is bound to
+    // `string length`, whose result is zero exactly for the empty string;
+    // the operand word is evaluated once on either side.
+    code == DiagCode::O117
+        || branch_execution_equivalent(ctx, original, proposed, constants, span)
+        || super::helpers::expr_simplify::structural_condition_equivalence(
+            &branch_original_expression(ctx, original),
+            proposed,
+            Some(numeric),
+            ctx.dialect,
+        )
 }
 
 fn branch_execution_equivalent(

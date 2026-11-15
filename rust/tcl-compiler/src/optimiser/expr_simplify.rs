@@ -457,6 +457,21 @@ impl OriginalExpressionStatementSource {
     pub(super) fn simplified(&self, expression: &str) -> Option<String> {
         self.replace_word(self.expression_word, expression)
     }
+
+    /// A rewrite whose whole text is a decimal integer replaces the
+    /// substitution: `[expr 0]` and `0` are the same word value.
+    pub(super) fn rewritten(&self, expression: &str) -> Option<String> {
+        let digits = expression.strip_prefix('-').unwrap_or(expression);
+        let canonical = !digits.is_empty()
+            && digits.bytes().all(|byte| byte.is_ascii_digit())
+            && (digits == "0" || !digits.starts_with('0'))
+            && expression != "-0";
+        if canonical {
+            self.folded(expression)
+        } else {
+            self.simplified(expression)
+        }
+    }
 }
 
 /// Fold `set name [expr {…}]` via the standard chain:
@@ -551,12 +566,18 @@ fn try_rewrite_assign_expr(
     let (simplified, inst_changed) =
         instcombine_expr_typed(&rendered_expr, false, numeric, ctx.dialect);
     if inst_changed
-        && ctx
+        && (ctx
             .expression_rewrite_equivalence_at(expr, &simplified, &Env::new(), span)
             .is_ok()
+            || super::helpers::expr_simplify::structural_rewrite_equivalence(
+                expr,
+                &simplified,
+                numeric,
+                ctx.dialect,
+            ))
         && let Some(replacement) = source
             .as_ref()
-            .and_then(|source| source.simplified(&simplified))
+            .and_then(|source| source.rewritten(&simplified))
     {
         ctx.report(Optimisation::new(
             DiagCode::O110,
@@ -575,9 +596,15 @@ fn try_rewrite_assign_expr(
     let (reduced, sred_changed) =
         try_strength_reduce_expr_typed(&rendered_expr, numeric, ctx.dialect);
     if sred_changed
-        && ctx
+        && (ctx
             .expression_rewrite_equivalence_at(expr, &reduced, &Env::new(), span)
             .is_ok()
+            || super::helpers::expr_simplify::structural_rewrite_equivalence(
+                expr,
+                &reduced,
+                numeric,
+                ctx.dialect,
+            ))
         && let Some(replacement) = source
             .as_ref()
             .and_then(|source| source.simplified(&reduced))
@@ -636,12 +663,18 @@ fn try_rewrite_return_expr(
     let rendered = crate::expr_ast::render_expr(expr);
     let (simplified, inst_changed) = instcombine_expr_typed(&rendered, false, numeric, ctx.dialect);
     if inst_changed
-        && ctx
+        && (ctx
             .expression_rewrite_equivalence_at(expr, &simplified, &Env::new(), span)
             .is_ok()
+            || super::helpers::expr_simplify::structural_rewrite_equivalence(
+                expr,
+                &simplified,
+                numeric,
+                ctx.dialect,
+            ))
         && let Some(replacement) = source
             .as_ref()
-            .and_then(|source| source.simplified(&simplified))
+            .and_then(|source| source.rewritten(&simplified))
     {
         ctx.report(Optimisation::new(
             DiagCode::O110,
@@ -659,9 +692,15 @@ fn try_rewrite_return_expr(
     }
     let (reduced, sred_changed) = try_strength_reduce_expr_typed(&rendered, numeric, ctx.dialect);
     if sred_changed
-        && ctx
+        && (ctx
             .expression_rewrite_equivalence_at(expr, &reduced, &Env::new(), span)
             .is_ok()
+            || super::helpers::expr_simplify::structural_rewrite_equivalence(
+                expr,
+                &reduced,
+                numeric,
+                ctx.dialect,
+            ))
         && let Some(replacement) = source
             .as_ref()
             .and_then(|source| source.simplified(&reduced))
