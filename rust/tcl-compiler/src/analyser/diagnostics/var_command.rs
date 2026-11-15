@@ -239,13 +239,14 @@ impl Analyser {
         })
     }
 
-    /// An absent method name can be diagnosed only from the immutable method
-    /// inventory captured by the actual instance receipt. A name in that
-    /// inventory supplies no visibility, arity, or dispatch implementation proof.
+    /// An absent method name is diagnosed from the immutable method inventory
+    /// captured by the actual instance receipt. A present one is held to the
+    /// declaring class's own formals ([`Self::method_arity_diagnostic`]).
     fn w308_for_object_var(
         &self,
         site: &crate::analyser::state::VarCommandSite,
         instance: &crate::command_binding::SourceObjectInstanceProof,
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
     ) -> Option<super::types::Diagnostic> {
         let class = &instance.class_target().command;
         let Some(method) = site.method_name.as_ref() else {
@@ -260,10 +261,13 @@ impl Analyser {
             .recipe()
             .oo_method_input(input.bytes())
             .ok()?;
-        if instance.instance_method_names()?.contains(input.bytes())
-            || !Self::method_word_is_literal(method)
-            || self.disabled_diagnostics.contains("W308")
-        {
+        if !Self::method_word_is_literal(method) {
+            return None;
+        }
+        if instance.instance_method_names()?.contains(input.bytes()) {
+            return self.method_arity_diagnostic(site, method, class, hierarchy?);
+        }
+        if self.disabled_diagnostics.contains("W308") {
             return None;
         }
         // The receipt includes private names only to avoid false absence
@@ -274,6 +278,152 @@ impl Analyser {
             format!("Unknown method '{method}' on class '{class}'"),
             Severity::Warning,
         ))
+    }
+
+    /// The classes a profile without a native name protocol holds for a
+    /// whole-variable receiver: the scoped constructor candidates completion
+    /// reads. They union every assignment in the scope and carry no
+    /// allocation proof, so they never reach a release profile's strict path.
+    fn logical_receiver_classes(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+    ) -> Option<Vec<String>> {
+        if site.receiver != crate::analyser::state::DispatchReceiver::Variable {
+            return None;
+        }
+        let head = self.original_dispatch_word(site.cmd_span)?;
+        let mut classes = self
+            .result
+            .logical_source_receiver_class_candidates(&head, self.registry.as_deref()?)?
+            .classes()
+            .cloned()
+            .collect::<Vec<_>>();
+        classes.sort();
+        Some(classes)
+    }
+
+    /// A method no candidate class provides draws W308; with one candidate a
+    /// provided method is held to its formals. Tcl raises `unknown method`
+    /// and `wrong # args` for these on every release with `TclOO`.
+    fn w308_for_logical_object_var(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        classes: &[String],
+        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+    ) -> Option<super::types::Diagnostic> {
+        let Some(method) = site.method_name.as_ref() else {
+            return self.e001_for_bare_object_dispatch(site, &classes.iter().cloned().collect());
+        };
+        if !Self::method_word_is_literal(method) || self.site_in_child_interp(site.cmd_span.start())
+        {
+            return None;
+        }
+        let reach = site.receiver.method_reach();
+        if classes.iter().any(|class| {
+            self.validate_method_on_class(
+                class,
+                method,
+                self.result.all_classes.get(class),
+                hierarchy,
+                reach,
+            )
+        }) {
+            let [class] = classes else {
+                return None;
+            };
+            return self.method_arity_diagnostic(site, method, class, hierarchy?);
+        }
+        if self.disabled_diagnostics.contains("W308") {
+            return None;
+        }
+        let names = classes.iter().map(String::as_str).collect::<Vec<_>>();
+        Some(self.w308_diagnostic(method, &names.join(" | "), &names, hierarchy, site.into()))
+    }
+
+    /// Hold a proved `$obj method …` dispatch's argument count to the
+    /// providing class's own method definition; a method binds its
+    /// arguments exactly as a procedure does (tclsh 8.6.18 and 9.0.4:
+    /// `wrong # args: should be "::oo::Obj12 bar x y"`).
+    ///
+    /// A `forward NAME TARGET ?ARG…?` takes its target's arity shifted by
+    /// the prepended arguments. `forward NAME my OTHER ?ARG…?` re-dispatches
+    /// on the same instance, so `OTHER` resolves through the receiver's
+    /// method resolution order; a bare method name is not a command and is
+    /// left alone, as is a target neither this file nor the registry
+    /// describes.
+    fn method_arity_diagnostic(
+        &self,
+        site: &crate::analyser::state::VarCommandSite,
+        method_name: &str,
+        receiver_class: &str,
+        hierarchy: &super::class_hierarchy::ClassHierarchy,
+    ) -> Option<super::types::Diagnostic> {
+        const MAX_HOPS: u8 = 8;
+        if site.has_expand {
+            return None;
+        }
+        let providing_class = hierarchy.method_target(receiver_class, method_name)?;
+        let class_def = self.result.all_classes.get(providing_class)?;
+        // Only an instance method is reachable from an instance: a class
+        // method is called on the class object.
+        let mut method_def = class_def.methods.get(method_name)?;
+        let mut prepended_total: u16 = 0;
+        let mut arity = None;
+        for _ in 0..MAX_HOPS {
+            if method_def.kind != "forward" {
+                arity = Some(method_def.arity());
+                break;
+            }
+            let (target, prepended) = method_def.forward_target.as_ref()?;
+            if self.registry.as_deref().is_some_and(|registry| {
+                registry.method_dispatch_keyword(target)
+                    == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+            }) {
+                let (next_method, rest) = prepended.split_first()?;
+                let next_provider = hierarchy.method_target(receiver_class, next_method)?;
+                method_def = self
+                    .result
+                    .all_classes
+                    .get(next_provider)
+                    .and_then(|class| class.methods.get(next_method))?;
+                prepended_total =
+                    prepended_total.saturating_add(u16::try_from(rest.len()).unwrap_or(u16::MAX));
+                continue;
+            }
+            prepended_total =
+                prepended_total.saturating_add(u16::try_from(prepended.len()).unwrap_or(u16::MAX));
+            if !self.command_slot_is_present(target, site.cmd_span.start()) {
+                return None;
+            }
+            arity = self
+                .result
+                .all_procs
+                .get(target)
+                .or_else(|| self.result.all_procs.get(&format!("::{target}")))
+                .map(super::types::ProcDef::arity)
+                .or_else(|| {
+                    if tcl_syntax::naming::is_qualified(target.as_bytes()) {
+                        return None;
+                    }
+                    self.registry
+                        .as_deref()
+                        .and_then(|registry| registry.get(target))
+                        .map(|spec| spec.arity)
+                });
+            break;
+        }
+        let arity = super::validity::shift_arity(arity?, prepended_total);
+        // `argc` counts the method-name word too.
+        let nargs = site.argc.saturating_sub(1);
+        super::validity::arity_verdict(
+            &format!("{} {method_name}", site.var_name),
+            arity,
+            nargs,
+            false,
+            site.cmd_span,
+            None,
+            None,
+        )
     }
 
     /// Build the W308 (unknown method) diagnostic: anchored on the method
@@ -491,13 +641,23 @@ impl Analyser {
 
     /// The source-owned allocation and current dispatch receipt. Aggregate
     /// type labels and bare instance-name assistance supply no runtime proof.
+    /// A named receiver (`C create obj; obj m`) has no variable read; its
+    /// receipt is the object command selected at the dispatch itself.
     fn live_instance_at_dispatch(
         &self,
         site: &crate::analyser::state::VarCommandSite,
-    ) -> Option<&crate::command_binding::SourceObjectInstanceProof> {
+    ) -> Option<crate::command_binding::SourceObjectInstanceProof> {
+        if site.receiver == crate::analyser::state::DispatchReceiver::InstanceCommand {
+            return self
+                .head_identities
+                .invocation_at_source("", site.cmd_span.start())
+                .named_object_instance_at_dispatch()
+                .cloned();
+        }
         self.result
             .object_handle_facts
             .instance_in_scope(site.cmd_span.start(), &site.var_name)
+            .cloned()
     }
 
     /// Command lookup at the actual dispatch point, including namespace,
@@ -1051,7 +1211,10 @@ impl Analyser {
         }
 
         if let Some(instance) = self.live_instance_at_dispatch(site) {
-            return self.w308_for_object_var(site, instance);
+            return self.w308_for_object_var(site, &instance, hierarchy);
+        }
+        if let Some(classes) = self.logical_receiver_classes(site) {
+            return self.w308_for_logical_object_var(site, &classes, hierarchy);
         }
 
         (!self.w307_site_suppressed(site, w307_ctx)).then(|| {

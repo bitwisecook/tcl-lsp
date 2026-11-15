@@ -9136,21 +9136,27 @@ fn w308_tp_an_interp_alias_of_a_class_types_its_constructor_1049() {
 }
 
 #[test]
-fn w308_tn_an_alias_with_prepended_args_is_declined_1049() {
-    // TN — `interp alias {} Cat {} Dog create` prepends words, so `Cat new`
-    // is really `Dog create new`, not the constructor call the plain alias
-    // would make. The hop declines rather than mistyping.
+fn w308_tp_an_alias_with_a_prepended_create_still_makes_its_class_1049() {
+    // `interp alias {} Cat {} Dog create` prepends a word, so `Cat new` is
+    // `Dog create new`: an object command named `new`, of class `Dog`.
     //
-    // Oracle (tclsh8.6.14 / tclsh9.0.4): with that alias, `Cat new` runs
-    // `Dog create new` — it creates an *object command named `new`*, and the
-    // value is `::new`, not a fresh anonymous handle.
+    // tclsh 8.6.18 and 9.0.4:
+    //   oo::class create Dog { method bark {} { return woof } }
+    //   interp alias {} Cat {} Dog create
+    //   set d [Cat new]            ;# d is ::new, [info object class $d] is ::Dog
+    //   $d fly                     ;# unknown method "fly": must be bark or destroy
     let src = "oo::class create Dog { method bark {} { return woof } }\ninterp alias {} Cat {} Dog create\nset d [Cat new]\n$d fly\n";
-    let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl");
+    let r = Analyser::new().analyse(src, "tcl");
+    let w308 = r
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == DiagCode::W308)
+        .map(|d| d.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(w308.len(), 1, "{:?}", r.diagnostics);
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == DiagCode::W308),
-        "a prepended-args alias must not be typed as a plain constructor; got {:?}",
-        r.diagnostics,
+        w308[0].contains("'fly'") && w308[0].contains("::Dog"),
+        "{w308:?}"
     );
 }
 
