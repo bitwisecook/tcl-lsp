@@ -11884,6 +11884,40 @@ fn w210_empty_dict_with_return_fires_but_known_key_silent() {
     );
 }
 
+/// `dict with` binds the keys of the value that reaches it, after same-block
+/// keyed updates. tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1.0 raise `can't read
+/// "a": no such variable` for the `dict unset` shapes, at top level and in a
+/// proc, and print `1` when `dict set d b 2` leaves `a` bound.
+#[test]
+fn w210_dict_with_reads_the_value_after_keyed_updates() {
+    let unbound = [
+        "set d {a 1}\ndict unset d a\ndict with d {puts $a}\n",
+        "proc p {} { set d {a 1}\n dict unset d a\n dict with d {puts $a} }\n",
+        "set d {a 1}\ndict unset d a\ndict set d b 2\ndict with d {puts $a}\n",
+    ];
+    let bound = [
+        "set d {a 1}\ndict set d b 2\ndict with d {puts $a}\n",
+        "proc p {} { set d {a 1}\n dict set d b 2\n dict with d {puts $a} }\n",
+        "set d {a 1}\ndict set d b 2\ndict unset d b\ndict with d {puts $a}\n",
+    ];
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for src in unbound {
+            let got = w210_codes_in_dialect(src, dialect);
+            assert!(
+                got.iter().any(|m| m.contains("'a'")),
+                "{dialect}: `a` was removed before `dict with`: {src:?}; got {got:?}"
+            );
+        }
+        for src in bound {
+            let got = w210_codes_in_dialect(src, dialect);
+            assert!(
+                got.is_empty(),
+                "{dialect}: `a` is still bound: {src:?}; got {got:?}"
+            );
+        }
+    }
+}
+
 /// The `dict with` / `dict update` key harvest reads the registry's body
 /// plan. A key path descends before the keys bind: `dict with d a
 /// {}` over `{a {x 1}}` binds `x`, not `a` (tclsh 8.5 to 9.1 return `1`,

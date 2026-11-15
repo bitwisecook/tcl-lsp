@@ -7577,6 +7577,81 @@ pub(crate) fn typed_incr_creates_absent(registry: &CommandRegistry) -> bool {
         })
 }
 
+/// The dictionary a keyed update of one variable stores (`dict set`,
+/// `unset`, `incr`, `append`, `lappend`), when every word of `head args…` is
+/// literal and `prior` proves the variable's value before the call: the
+/// registry's declared semantics evaluate the update over the prior value.
+/// `None` where the call reads no prior of its one written variable, the
+/// prior is unknown, the evaluation declines or does not complete normally,
+/// or the route does not construct a dictionary; a string or list update's
+/// value has its own representation-aware owner.
+pub(crate) fn literal_keyed_update(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[&str],
+    prior: impl FnOnce(&str) -> Option<String>,
+) -> Option<String> {
+    let words: Vec<InvocationWord<'_>> =
+        args.iter().copied().map(InvocationWord::Literal).collect();
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let semantics = resolved.semantics.value.semantics()?;
+    let view = view_of(&resolved, args, &words, InvocationLayout::Source);
+    let mut written = view.operands_with_role(ArgRole::VarWrite);
+    let target = written.next()?;
+    if written.next().is_some() {
+        return None;
+    }
+    let (subcommand, operands) = match (view.subcommand, view.argument_offset) {
+        (None, 0) => (None, args),
+        (Some(subcommand), 1) => (Some(subcommand), args.get(1..)?),
+        _ => return None,
+    };
+    let mut inputs = tcl_registry::value_transfer::LiteralInputs::new(
+        resolved.canonical_command,
+        subcommand,
+        operands,
+        registry.profile(),
+    );
+    for (index, operand) in view.operands.iter().enumerate() {
+        if let Some(role) = operand.role {
+            inputs = inputs.with_role(OperandId(index), role);
+        }
+    }
+    if semantics.incoming_targets(&inputs) != [TargetId(target)] {
+        return None;
+    }
+    let name = args.get(target.0)?;
+    let inputs = inputs.with_prior(name, ExactValue::text(prior(name)?));
+    let EvalAnswer::Evaluated(outcome) = semantics.evaluate(&inputs, &mut Budget::evaluation())
+    else {
+        return None;
+    };
+    if outcome.completion != CompletionOutcome::Normal || !outcome.nested_writes.is_empty() {
+        return None;
+    }
+    let mut value = None;
+    for store in outcome.ordered_stores {
+        match store {
+            StoreOutcome::Write {
+                target: at,
+                value: stored,
+            } if at == TargetId(target)
+                && stored.representation == RepresentationEvidence::Constructed(TclType::Dict) =>
+            {
+                value = Some(String::from_utf8(stored.bytes).ok()?);
+            }
+            StoreOutcome::Preserve { .. } => {}
+            _ => return None,
+        }
+    }
+    value
+}
+
 /// The cell update a `head args…` call resolves to under `registry`, when
 /// its declared plan is one: the operation and its target operand. The one
 /// question every consumer of the write-chain shape asks (the chain fold,

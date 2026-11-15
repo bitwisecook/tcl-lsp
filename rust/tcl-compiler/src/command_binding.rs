@@ -308,10 +308,10 @@ mod constructor_execution;
 mod deferred_forward;
 mod deferred_method;
 mod dictionary_scope;
-mod dictionary_store;
 mod evaluated_word;
 mod expression_preparation;
 mod interpreter_manufacture;
+mod keyed_update_store;
 #[cfg(test)]
 mod logical_dispatch_purpose_tests;
 pub(crate) mod named_manufacture;
@@ -5779,7 +5779,7 @@ fn finish_source_native_results(
     let numeric_operands = std::mem::take(&mut receipts.numeric_operands);
     numeric_operand_cache::finish_indices(outcomes, numeric_operands, context.registry);
     container_coercion::finish(outcomes, coercion.map(|receipt| *receipt), context);
-    dictionary_store::retain_dictionary_store(outcomes, native, facts, incoming, context);
+    keyed_update_store::retain_keyed_update_store(outcomes, native, facts, incoming, context);
     source_representation::retain_created_result(
         outcomes,
         native,
