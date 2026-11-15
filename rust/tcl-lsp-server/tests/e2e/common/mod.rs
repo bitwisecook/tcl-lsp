@@ -504,6 +504,9 @@ pub struct Lsp {
     initialize_result: Value,
 }
 
+/// The server's test seam that holds the startup pack reload.
+const STARTUP_RELOAD_HOLD_ENV: &str = "TCL_LSP_TEST_STARTUP_RELOAD_HOLD_MS";
+
 impl Lsp {
     /// Spawn + initialise a server whose `workspace/configuration` reply enables
     /// only linked editing — the default-editor contract every plain Tcl test
@@ -584,6 +587,16 @@ impl Lsp {
         // `workspace/configuration` with, read back from the shared slot.
         let requested = lsp.shared.tcllsp_config.lock().unwrap().clone();
         lsp.settle_config(&requested);
+        // The startup pack reload and workspace scan run concurrently with the
+        // first `didOpen`. Each replaces the analyser inputs, so a document
+        // opened before they land is analysed twice, and a request sent between
+        // the reload and the second analysis is answered as unavailable (an
+        // empty result). A test that means to race the startup reload holds it
+        // through the environment seam and drives the interleaving itself.
+        if !env.iter().any(|(name, _)| *name == STARTUP_RELOAD_HOLD_ENV) {
+            lsp.await_notification("tcl-lsp/specPacksReloaded", DEFAULT_TIMEOUT);
+            lsp.await_log(&["workspace_folders_scan"], DEFAULT_TIMEOUT, 0);
+        }
         lsp
     }
 
