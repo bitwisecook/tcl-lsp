@@ -330,6 +330,20 @@ What remains, in the order it should be taken:
 
 Server e2e at `c1b4cae1`, one thread (`cargo nextest run -p tcl-lsp-server -E 'test(large_file_)' --test-threads 1`): all five pass. `large_file_first_semantic_tokens_response_is_prompt` 1.4 s and `large_file_range_semantic_tokens_response_is_prompt` 1.2 s (the first-paint tier); `large_file_range_semantic_tokens_converges_via_refresh` 62 s and `large_file_semantic_tokens_refresh_delivers_enriched_result` 86 s, which wait for the analysis of the 6,000-line file; `diagnostics::large_file_publishes_fast_tier_before_deep_tier` 20 s.
 
+Re-measured at `e0804111` after the point-extent index (`projection_at_source`) and the shared line positions in `SourceMap::new`: N=100/200/400/600/800 take 2.3/4.2/9.4/15.9/23.6 s, 3.9 to 4.9 ms per walked command. Neither change moved this input; the difference from the table is run-to-run noise and other sessions' commits. One N=400 structure-only run, 325 samples, by inclusive share below the walk drivers:
+
+| Share | Function | What it is |
+| --- | --- | --- |
+| 18.5% | `source_structure::source_registry_words_with_definition_parent` (15.7% in `source_registry_words_from_image`) | the registry words of one command, asked by three consumers per command |
+| 12.3% | `CommandBindingRealm::stamp_original_tokens` | the same command's stamped binding, about 15 calls per command |
+| 10.2% | `Analyser::record_instance_creation` | four source queries per command, each re-deriving the command (`source_registry_words_at` 8.6%) |
+| 9.2% | `Analyser::record_original_variable_receivers` | per-operand variable occurrences |
+| 8.6% | `Analyser::infer_proc_param_traits` | a second scan of each procedure body |
+| 7.4% | `record_path_constant_candidates` | a third pass over the commands for path constants |
+| 5.8% | `retained_invocation_tokens` | the command's tokens again |
+
+These overlap (they nest) and none is a scan that grows with the file any more. Each is a consumer that starts from a source offset or a segment and rebuilds the command's tokens, words, stamped binding and registry facts for itself, behind its own memo and its own equality check. That is the cost that cannot be removed one function at a time. The design change is a per-command record built once by `process_command` (segment, `CommandTokens`, original native words, stamped binding, resolved registry facts, the realm point), passed by reference to `record_instance_creation`, the variable-receiver recording, the handlers and `registry_invocation::source_structure`, with the offset-keyed entry points kept for consumers outside the walk and answered from the same record. The source walk has the same shape: `prepare_source_arguments`, the observers and the target walk each re-derive the command's lookup binding from a forked state.
+
 At CI's test `opt-level 0`: `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget` (it needs about 1,510 KB of its 1,536 KB) and `tcl-irules` `walker::tests::deeply_nested_command_substitution_does_not_crash` now pass, after the cold unknown-binding block left the recursive source-walk frame and the place-bridge read collectors kept only iteration state in their recursive frames. The two `phi_undef_memo::nested_if_stages_*_linear_time` tests still fail there: they time the whole diagnostic pipeline on a 300-line file (28 s and 37 s unoptimised against 10 s), which is the per-command constant above, not a path enumeration.
 
 Measuring: a probe test that builds the input and times `analyse` (the task brief's probe, or the same body as a `tcl-compiler` integration test), `TCL_LSP_TRACE_WORKSPACE_SCAN=1` for the `ANALYSER_PHASE` lines, and `gdb -p <pid> -batch -x` with a Python loop that prints `thread apply all bt` and continues for 30 ms. Comparing a function's sampled share times wall-clock at N=200 and N=800 ranks what grows faster than the input. `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget` is within about 7 KB of its stack budget: a field added to `SourceImage` or to the bindings handle shows up there first.
