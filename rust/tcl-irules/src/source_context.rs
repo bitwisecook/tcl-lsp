@@ -100,6 +100,9 @@ pub struct OriginalIrulesSourceContext {
     events: Vec<SourceIrulesEventBody>,
     commands: Vec<OriginalIrulesSourceCommand>,
     source_vectors: Vec<(Span, OriginalRegistryWords)>,
+    /// Operand extents whose single scalar substitution constant propagation
+    /// settled to one string, from the unit `capture` built.
+    propagated_operands: Vec<(Span, String)>,
 }
 
 /// An original source handler, retaining conditional applicability and body
@@ -198,18 +201,15 @@ fn word_variable_reference_spans(word: &tcl_lexer::NativeWord) -> Vec<Span> {
         .collect()
 }
 
-fn source_variable_reference_spans(
+/// Each braced expression operand's content span with what `expr` itself
+/// substitutes there. A malformed expression substitutes nothing.
+fn braced_expression_operands(
     words: &OriginalRegistryWords,
     source: &str,
     config: LexerConfig,
     profile: &'static tcl_dialect::DialectProfile,
-) -> Vec<Span> {
-    let mut references = Vec::new();
-    for operand in words.operands().iter().flatten() {
-        if let Some(word) = operand.word() {
-            references.extend(word_variable_reference_spans(word));
-        }
-    }
+) -> Vec<(Span, tcl_syntax::expr::LiveExpressionSubstitutions)> {
+    let mut operands = Vec::new();
     for &(index, role) in words.roles().unwrap_or_default() {
         if role != tcl_registry::ArgRole::Expr {
             continue;
@@ -237,12 +237,103 @@ fn source_variable_reference_spans(
             continue;
         };
         let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_profile(profile);
-        let substitutions = tcl_syntax::expr::live_expression_substitutions(
-            expression,
-            profile,
-            config,
-            |parsed| surface.validate(parsed).is_ok(),
-        );
+        operands.push((
+            span,
+            tcl_syntax::expr::live_expression_substitutions(
+                expression,
+                profile,
+                config,
+                |parsed| surface.validate(parsed).is_ok(),
+            ),
+        ));
+    }
+    operands
+}
+
+/// Hold the command vectors inside braced expressions to what `expr`
+/// substitutes: add the commands of a substitution the analysis did not list
+/// (one inside a quoted operand) and return the listed commands no
+/// substitution reaches (a malformed expression runs none).
+fn reconcile_braced_expression_commands(
+    source: &str,
+    analysis: &AnalysisResult,
+    image: &SourceImage,
+    config: LexerConfig,
+    profile: &'static tcl_dialect::DialectProfile,
+    context: &ContextRegistry,
+    vectors: &mut Vec<(Span, OriginalRegistryWords)>,
+) -> Vec<Span> {
+    let mut unreached = Vec::new();
+    let mut next = 0;
+    while next < vectors.len() {
+        let operands = braced_expression_operands(&vectors[next].1, source, config, profile);
+        next += 1;
+        for (content, substitutions) in operands {
+            let live = substitutions
+                .commands
+                .iter()
+                .filter_map(|command| {
+                    Some(Span::new(
+                        content.start().checked_add(command.start())?,
+                        content.start().checked_add(command.end())?,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            unreached.extend(
+                vectors
+                    .iter()
+                    .map(|(span, _)| *span)
+                    .filter(|span| contains(content, *span))
+                    .filter(|span| !live.iter().any(|command| contains(*command, *span))),
+            );
+            for command in live {
+                let (Some(start), Some(end)) =
+                    (command.start().checked_add(1), command.end().checked_sub(1))
+                else {
+                    continue;
+                };
+                let Some(script) = source.get(start as usize..end as usize) else {
+                    continue;
+                };
+                for segment in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+                    script, start, config,
+                ) {
+                    if vectors
+                        .iter()
+                        .any(|(span, _)| span.start() == segment.span.start())
+                    {
+                        continue;
+                    }
+                    let Some(words) = source_registry_words(source, analysis, &segment) else {
+                        continue;
+                    };
+                    if words.matches_source(image, config)
+                        && words.matches_registry(context.commands())
+                        && words.context() == Some(context.context())
+                    {
+                        vectors.push((segment.span, words));
+                    }
+                }
+            }
+        }
+    }
+    vectors.sort_by_key(|(span, _)| span.start());
+    unreached
+}
+
+fn source_variable_reference_spans(
+    words: &OriginalRegistryWords,
+    source: &str,
+    config: LexerConfig,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Vec<Span> {
+    let mut references = Vec::new();
+    for operand in words.operands().iter().flatten() {
+        if let Some(word) = operand.word() {
+            references.extend(word_variable_reference_spans(word));
+        }
+    }
+    for (span, substitutions) in braced_expression_operands(words, source, config, profile) {
         references.extend(substitutions.variables.into_iter().filter_map(|variable| {
             Some(Span::new(
                 span.start().checked_add(variable.start())?,
@@ -400,9 +491,17 @@ fn excluded_source_bodies(
     vectors
         .iter()
         .flat_map(|(_, words)| {
-            let deferred = words.with_source_schema(context, |schema| {
-                schema.semantics.traits.contains(Traits::DEFERS_BODY)
+            // A declaration's stored body runs only when an event or a call
+            // reaches it. A stored callback (`after`) still runs for the
+            // event that stored it.
+            let declaration = words.with_source_schema(context, |schema| {
+                let traits = schema.semantics.traits;
+                traits.contains(Traits::DEFERS_BODY)
+                    && traits.intersects(Traits::DEFINES_PROCEDURE | Traits::IRULES_TOP_LEVEL_ONLY)
             }) == Some(true);
+            // A dynamic word can leave the roles unresolved; the written
+            // bodies then stand, as a reference there is still a reference.
+            let unresolved = words.roles().is_none();
             let potential = words.source_script_bodies_for(
                 context,
                 OriginalSourceScriptPurpose::PotentialEvaluation,
@@ -411,10 +510,11 @@ fn excluded_source_bodies(
                 .source_script_bodies(context)
                 .into_iter()
                 .filter(move |body| {
-                    deferred
-                        || !potential
-                            .iter()
-                            .any(|other| other.content_span() == body.content_span())
+                    declaration
+                        || (!unresolved
+                            && !potential
+                                .iter()
+                                .any(|other| other.content_span() == body.content_span()))
                 })
                 .map(|body| body.content_span())
         })
@@ -583,6 +683,60 @@ fn collect_source_commands(
     commands
 }
 
+/// String constants the unit's constant propagation holds for operands
+/// written as exactly one scalar variable substitution.
+fn propagated_operand_values(
+    source: &str,
+    unit: &CompilationUnit,
+    commands: &[OriginalIrulesSourceCommand],
+) -> Vec<(Span, String)> {
+    use tcl_compiler::analyses::{ConstValue, LatticeValue};
+    let mut values = Vec::new();
+    for command in commands {
+        let function = unit.function_unit_at(command.span.start());
+        let Some(statement) = function
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .filter(|statement| {
+                let span = statement.statement.span();
+                span.start() <= command.span.start() && command.span.start() <= span.end()
+            })
+            .min_by_key(|statement| statement.statement.span().len())
+        else {
+            continue;
+        };
+        for operand in command.words.operands().iter().flatten() {
+            let Some(word) = operand.word() else {
+                continue;
+            };
+            let mut parts = word.executable_parts().all_parts();
+            let (Some(part), None) = (parts.next(), parts.next()) else {
+                continue;
+            };
+            let tcl_lexer::ExecutablePart::Variable { name, index: None } = part.part else {
+                continue;
+            };
+            if part.span != operand.span() {
+                continue;
+            }
+            let Some(name) = source.get(name.as_range()) else {
+                continue;
+            };
+            let constant = statement
+                .uses
+                .iter()
+                .find(|(symbol, _)| function.ssa.var_name(**symbol) == name)
+                .and_then(|(symbol, version)| function.sccp.values.get(&(*symbol, *version)));
+            if let Some(LatticeValue::Const(ConstValue::String(value))) = constant {
+                values.push((operand.span(), value.clone()));
+            }
+        }
+    }
+    values
+}
+
 impl OriginalIrulesSourceContext {
     /// Retain the actual source analysis, lowered event descriptors and complete
     /// availability context. No grammar or context is rebuilt from labels.
@@ -619,9 +773,19 @@ impl OriginalIrulesSourceContext {
             return None;
         }
 
-        let vectors = source_vectors_from_analysis(source, analysis, &image, config, context)?;
+        let mut vectors = source_vectors_from_analysis(source, analysis, &image, config, context)?;
+        let unreached = reconcile_braced_expression_commands(
+            source,
+            analysis,
+            &image,
+            config,
+            retained.analyser_profile(),
+            context,
+            &mut vectors,
+        );
 
-        let excluded_bodies = excluded_source_bodies(&vectors, context);
+        let mut excluded_bodies = excluded_source_bodies(&vectors, context);
+        excluded_bodies.extend(unreached);
 
         let (events, pending) = source_event_roots(source, module, config, &vectors, context);
         let declarations =
@@ -645,6 +809,7 @@ impl OriginalIrulesSourceContext {
             events,
             commands,
             source_vectors: vectors,
+            propagated_operands: Vec::new(),
         })
     }
 
@@ -677,6 +842,7 @@ impl OriginalIrulesSourceContext {
             events: Vec::new(),
             commands: Vec::new(),
             source_vectors: vectors,
+            propagated_operands: Vec::new(),
         })
     }
 
@@ -712,7 +878,19 @@ impl OriginalIrulesSourceContext {
         let mut analyser = Analyser::new().with_resolved_input(input);
         analyser.set_cu_override(unit.clone());
         let analysis = analyser.analyse(source, profile.name);
-        Self::from_analysis(source, &analysis, &unit.ir_module, &context)
+        let mut captured = Self::from_analysis(source, &analysis, &unit.ir_module, &context)?;
+        captured.propagated_operands = propagated_operand_values(source, &unit, &captured.commands);
+        Some(captured)
+    }
+
+    /// The one string constant propagation settled for a single-variable
+    /// operand at this extent, if the capture's own unit proved one.
+    #[must_use]
+    pub fn propagated_operand_value(&self, operand: Span) -> Option<&str> {
+        self.propagated_operands
+            .iter()
+            .find(|(span, _)| *span == operand)
+            .map(|(_, value)| value.as_str())
     }
 
     /// Complete current image/configuration and actual context/store check.

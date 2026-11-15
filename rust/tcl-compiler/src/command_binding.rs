@@ -4151,6 +4151,11 @@ pub struct SourceCommandBindings {
     /// Source loops whose repetition the walk is inside. Walk-time state,
     /// outside equality.
     active_source_loops: usize,
+    /// Site of the rule's own statement the loader is reading, with whether
+    /// its head was unknown before its words ran, and site of the statement it
+    /// has just rejected by its head. Walk-time state, outside equality.
+    rule_loader_statement: Option<(u32, bool)>,
+    rule_loader_rejection: Option<u32>,
     // Derived point-memo lifetime, outside semantic equality and hash.
     source_point_cache_lease: Option<Arc<source_analysis_cache::SourcePointCacheLease>>,
     conditional_source: conditional_source::SourceConditionalKernel,
@@ -10245,6 +10250,16 @@ impl SourceCommandBindings {
                 outcomes.normal_completion.is_some(),
             );
             let prefix_complete = outcomes.normal_completion;
+            let rejected_load = (base == 0
+                && self.root_origin == continuing.current_source_origin
+                && rule_declaration::is_rule_loader_top_level(context))
+            .then(|| continuing.clone());
+            if rejected_load.is_some() {
+                self.rule_loader_statement = Some((
+                    segment.span.start(),
+                    rule_declaration::has_unknown_literal_head(segment, &continuing, context),
+                ));
+            }
             let command = self.walk_source_command(image, base, &mut continuing, segment, context);
             #[cfg(debug_assertions)]
             source_world_observer::observe_command(segment, &command, prefix_complete.is_some());
@@ -10259,6 +10274,23 @@ impl SourceCommandBindings {
                 .filter(|_| prefix_complete.is_some());
             #[cfg(debug_assertions)]
             outcomes.trace_original_namespace_child("script_join", segment.span.start());
+            let rejected_head = rejected_load.is_some()
+                && self.rule_loader_rejection.take() == Some(segment.span.start());
+            if rejected_load.is_some() {
+                self.rule_loader_statement = None;
+            }
+            if let Some(before) = rejected_load
+                && (rejected_head
+                    || (outcomes.normal.is_none()
+                        && rule_declaration::is_rule_loader_declaration_head(
+                            segment, &before, context,
+                        )))
+            {
+                // The rule loader rejects such a statement, or a malformed
+                // declaration, on its own; the declarations after it are still
+                // read from the unchanged world.
+                outcomes.normal = Some(before);
+            }
             let Some(continuing) = &outcomes.normal else {
                 continue;
             };
@@ -10747,6 +10779,21 @@ impl SourceCommandBindings {
             words,
             effective,
         } = input;
+        let own_unknown_head = self.rule_loader_statement == Some((segment.span.start(), true));
+        if let Some(rejection) =
+            rule_declaration::rule_loader_rejection(effective, state, context, own_unknown_head)
+        {
+            self.rule_loader_rejection = Some(segment.span.start());
+            let mut outcomes = SourceOutcomes::normal(state);
+            if rejection == rule_declaration::RuleLoaderRejection::Unknown {
+                // What the name would have run stays unanswered.
+                outcomes.add_abrupt(
+                    tcl_registry::completion_route::InvocationCompletionRoute::UnknownAbrupt,
+                    state,
+                );
+            }
+            return outcomes;
+        }
         if let Some(outcomes) =
             self.prepare_selected_source_command(input, state, compiled, context)
         {

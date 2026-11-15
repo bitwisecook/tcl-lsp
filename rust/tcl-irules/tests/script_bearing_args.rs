@@ -111,7 +111,9 @@ fn every_body_argument_of_every_irules_command_is_walked() {
             continue;
         }
         // Arity is unknown, so try a few shapes and let the registry tell us
-        // which argument — if any — is a body for that shape.
+        // which argument — if any — is a body for that shape. A shape the
+        // command's arity refuses raises before any body runs (Tcl 8.4:
+        // `while 1 {set r ran} x` leaves `r` unset), so it is not a body.
         for argc in 1..=5usize {
             for probe_at in 0..argc {
                 let mut words: Vec<String> = vec!["x".to_owned(); argc];
@@ -121,6 +123,13 @@ fn every_body_argument_of_every_irules_command_is_walked() {
                 if !registry
                     .arg_indices_for_role(command, &argv, ArgRole::Body)
                     .contains(&probe_at)
+                    || !registry
+                        .resolve_invocation(command, &argv, registry.own_surface_query())
+                        .is_some_and(|invocation| {
+                            invocation
+                                .argument_count_for_arity()
+                                .is_some_and(|count| invocation.semantics.arity.accepts(count))
+                        })
                 {
                     continue;
                 }

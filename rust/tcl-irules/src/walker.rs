@@ -17,8 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Readonly object-reference candidates from the shared original source context.
-//! Literal source values remain candidates; no set-value propagation, live
-//! handler, evaluated target or deletion-safety proof is issued here.
+//! A literal operand names its object; the current-source entry points also
+//! take the one string constant propagation settled for a `$name` operand. No
+//! live handler, evaluated target or deletion-safety proof is issued here.
 
 use std::collections::HashSet;
 use tcl_lexer::Span;
@@ -75,11 +76,29 @@ pub struct IrulesObjectReference {
 
 /// Literal source-reference candidates from an independently retained context.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn extract_original_irules_source_object_references(
     source: &str,
     context: &crate::OriginalIrulesSourceContext,
     rule_module: Option<&str>,
+) -> Vec<IrulesObjectReference> {
+    source_object_references(source, context, rule_module, OperandValues::Literal)
+}
+
+/// Which operand values name an object.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OperandValues {
+    /// Only a value the operand word spells itself.
+    Literal,
+    /// Also the one string constant propagation settled for `$name`.
+    Propagated,
+}
+
+#[allow(clippy::too_many_lines)]
+fn source_object_references(
+    source: &str,
+    context: &crate::OriginalIrulesSourceContext,
+    rule_module: Option<&str>,
+    values: OperandValues,
 ) -> Vec<IrulesObjectReference> {
     // Implementation contract: naming.consumer.original-source-attachment-candidates
     // docs/design/analysis/name-resolution-proofs/original-source-attachment-candidates.md
@@ -151,7 +170,19 @@ pub fn extract_original_irules_source_object_references(
             let value = match origin {
                 Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(_)) => words
                     .original_argument_word(ordinal)
-                    .and_then(tcl_syntax::word_rules::original_static_word_unicode_value),
+                    .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
+                    .or_else(|| {
+                        if values != OperandValues::Propagated {
+                            return None;
+                        }
+                        let operand = words.operands().get(ordinal)?.as_ref()?.span();
+                        Some(
+                            context
+                                .propagated_operand_value(operand)?
+                                .as_bytes()
+                                .to_vec(),
+                        )
+                    }),
                 Some(tcl_compiler::registry_invocation::InvocationWordOrigin::BindingPrefix(_)) => {
                     words
                         .arguments()
@@ -207,7 +238,7 @@ pub fn extract_irules_object_references(
     registry: &CommandRegistry,
 ) -> Vec<IrulesObjectReference> {
     crate::OriginalIrulesSourceContext::capture(source, registry).map_or_else(Vec::new, |context| {
-        extract_original_irules_source_object_references(source, &context, rule_module)
+        source_object_references(source, &context, rule_module, OperandValues::Propagated)
     })
 }
 
@@ -228,7 +259,7 @@ pub fn extract_irules_event_object_references(
         .filter(|command| command.event_source().event().eq_ignore_ascii_case(event))
         .map(crate::source_context::OriginalIrulesSourceCommand::span)
         .collect::<Vec<_>>();
-    extract_original_irules_source_object_references(source, &context, rule_module)
+    source_object_references(source, &context, rule_module, OperandValues::Propagated)
         .into_iter()
         .filter(|reference| {
             spans.iter().any(|span| {

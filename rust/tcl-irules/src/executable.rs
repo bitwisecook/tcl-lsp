@@ -83,14 +83,25 @@ pub fn irules_event_executable_closure(
     event: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesExecutableCommand> {
-    irules_executable_commands(source, registry)
-        .into_iter()
-        .filter(|command| {
-            command
-                .event
-                .as_deref()
-                .is_some_and(|actual| actual.eq_ignore_ascii_case(event))
-        })
+    once_per_span(
+        irules_executable_commands(source, registry)
+            .into_iter()
+            .filter(|command| {
+                command
+                    .event
+                    .as_deref()
+                    .is_some_and(|actual| actual.eq_ignore_ascii_case(event))
+            }),
+    )
+}
+
+/// A closure lists a command once, however many of its handlers reach it.
+fn once_per_span(
+    commands: impl Iterator<Item = IrulesExecutableCommand>,
+) -> Vec<IrulesExecutableCommand> {
+    let mut seen = HashSet::new();
+    commands
+        .filter(|command| seen.insert(command.span))
         .collect()
 }
 
@@ -191,16 +202,17 @@ pub fn irules_event_reachable_closure(
                 .map(|edge| edge.to_event.to_owned()),
         );
     }
-    context
-        .presentation_commands(source)
-        .into_iter()
-        .filter(|command| {
-            command
-                .event
-                .as_deref()
-                .is_some_and(|event| visited.contains(&event.to_ascii_uppercase()))
-        })
-        .collect()
+    once_per_span(
+        context
+            .presentation_commands(source)
+            .into_iter()
+            .filter(|command| {
+                command
+                    .event
+                    .as_deref()
+                    .is_some_and(|event| visited.contains(&event.to_ascii_uppercase()))
+            }),
+    )
 }
 
 #[cfg(test)]

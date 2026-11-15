@@ -280,10 +280,86 @@ impl SourceCommandBindings {
     }
 }
 
-fn rule_loader_target_is_eligible(
-    target: &SourceCommandTarget,
-    context: SourceExecutionContext<'_>,
+/// Why the rule loader rejects a statement by its literal head. The device
+/// reports the statement at load, so it reaches no handler and leaves the
+/// command world as it was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RuleLoaderRejection {
+    /// A command the loader refuses (F5 K36322151, measured in
+    /// `tcl_registry::irules_policy`).
+    Refused,
+    /// One of the rule's own statements, whose head no command answers to.
+    Unknown,
+}
+
+pub(super) fn rule_loader_rejection(
+    effective: &[crate::registry_invocation::EffectiveInvocationWord],
+    incoming: &ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
+    own_unknown_head: bool,
+) -> Option<RuleLoaderRejection> {
+    let realm = context.realm();
+    if realm != tcl_dialect::model::InvocationRealm::RuleLoader
+        || !context
+            .registry
+            .profile()
+            .is_some_and(tcl_dialect::DialectProfile::is_irules)
+    {
+        return None;
+    }
+    let head = effective.first()?.as_registry_word().literal()?;
+    let binding = source_binding(incoming, head, &context.namespace_identity());
+    if binding.targets.is_empty() {
+        return own_unknown_head.then_some(RuleLoaderRejection::Unknown);
+    }
+    binding
+        .targets
+        .iter()
+        .all(|target| {
+            target.registry_backed
+                && target.prepended.is_empty()
+                && context.registry.get(&target.command).is_some_and(|spec| {
+                    tcl_registry::irules_policy::rule_loader_refuses(spec.name, realm)
+                })
+        })
+        .then_some(RuleLoaderRejection::Refused)
+}
+
+/// Whether the statement's head is a bare word no command answers to in the
+/// world before the statement's own words are substituted.
+pub(super) fn has_unknown_literal_head(
+    segment: &crate::segmenter::SegmentedCommand,
+    incoming: &ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
 ) -> bool {
+    segment.single_token_word.first() == Some(&true)
+        && segment
+            .argv
+            .first()
+            .is_some_and(|token| token.kind == tcl_lexer::TokenType::Esc)
+        && source_binding(incoming, segment.name(), &context.namespace_identity())
+            .targets
+            .is_empty()
+}
+
+/// Whether the written head names only loader declarations (`when`, `proc`,
+/// ...) in the world before the statement.
+pub(super) fn is_rule_loader_declaration_head(
+    segment: &crate::segmenter::SegmentedCommand,
+    incoming: &ModuleCommandBindings,
+    context: &SourceExecutionContext<'_>,
+) -> bool {
+    let binding = source_binding(incoming, segment.name(), &context.namespace_identity());
+    !binding.targets.is_empty()
+        && binding.targets.iter().all(|target| {
+            target.registry_backed
+                && target.prepended.is_empty()
+                && context.registry.is_irules_top_level_only(&target.command)
+        })
+}
+
+/// Whether this walk is the iRules loader reading the rule's own statements.
+pub(super) fn is_rule_loader_top_level(context: &SourceExecutionContext<'_>) -> bool {
     context.realm() == tcl_dialect::model::InvocationRealm::RuleLoader
         && context
             .registry
@@ -293,8 +369,13 @@ fn rule_loader_target_is_eligible(
             context.frame,
             crate::var_resolve::VariableExecutionFrame::Global
         )
-        && target.registry_backed
-        && target.prepended.is_empty()
+}
+
+fn rule_loader_target_is_eligible(
+    target: &SourceCommandTarget,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    is_rule_loader_top_level(&context) && target.registry_backed && target.prepended.is_empty()
 }
 
 fn validated_rule_declaration(
