@@ -2217,6 +2217,30 @@ fn a_repeated_list_is_checked_at_every_read() {
     }
 }
 
+/// A reversed literal is an ordinary list on 8.5–9.0, so both reads are checked.
+/// 9.1 reverses a literal of unknown intrep through its abstract
+/// `lreverseType`, but copies a list proved current (#2437).
+#[test]
+fn a_reversed_list_is_checked_at_every_read() {
+    let w230 = |src: &str, dialect: &str| {
+        Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W230)
+            .map(|d| src[d.span.as_range()].to_owned())
+            .collect::<Vec<_>>()
+    };
+    let literal = "set l [lreverse {a b c}]\nlindex $l 9\nputs [lindex $l 9]\n";
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+        assert_eq!(w230(literal, dialect), ["9", "9"], "{dialect}");
+    }
+    let built = "set l [lreverse [list a b c]]\nlindex $l 9\nputs [lindex $l 9]\n";
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert_eq!(w230(built, dialect), ["9", "9"], "{dialect}");
+    }
+}
+
 /// Converting a variable index keeps the stock objects it may share, so a
 /// second read through the same index is checked as the first is (#2387),
 /// a loop counter `incr` left numeric included.

@@ -397,7 +397,9 @@ pub(super) fn capture_range_result(
     let selection = facts
         .native_result?
         .select(arguments, facts.argument_offset);
-    let NativeResultSelection::ListRange { list_at, .. } = selection else {
+    let (NativeResultSelection::ListRange { list_at, .. }
+    | NativeResultSelection::ListReverse { list_at }) = selection
+    else {
         return None;
     };
     let representation = context
@@ -417,18 +419,18 @@ pub(super) fn capture_range_result(
                 .read_produces_value(place, context.registry)
                 .then(|| variables.contents_representation_at(place))
         });
-    let ordinary = match representation {
-        Some(ValueRepresentation::List) => OrdinaryContainerRepresentation::List,
-        Some(ValueRepresentation::Dict) => OrdinaryContainerRepresentation::Dictionary,
+    let exact = match representation {
+        Some(ValueRepresentation::List) => Some(OrdinaryContainerRepresentation::List),
+        Some(ValueRepresentation::Dict) => Some(OrdinaryContainerRepresentation::Dictionary),
         // An original pool literal is a stock object whatever its current
-        // intrep, and no stock type supplies a slice, so the native range
-        // converts it as an ordinary list.
+        // intrep, and no stock type supplies a slice or a reversal, so the
+        // native command converts it as an ordinary list.
         _ if super::literal_object_pool::SourceOrdinaryLiteralObject::capture(
             native, list_at, state, context,
         )
         .is_some() =>
         {
-            OrdinaryContainerRepresentation::List
+            None
         }
         _ => return None,
     };
@@ -441,6 +443,15 @@ pub(super) fn capture_range_result(
     )
     .ok()?
     .len();
+    if let NativeResultSelection::ListReverse { .. } = selection {
+        let (representation, value) =
+            selection.ordinary_list_reverse_result(arguments, exact, length)?;
+        return Some(Box::new(CapturedRangeResult {
+            representation,
+            value,
+        }));
+    }
+    let ordinary = exact.unwrap_or(OrdinaryContainerRepresentation::List);
     Some(Box::new(CapturedRangeResult {
         representation: selection
             .ordinary_list_range_representation(arguments, ordinary, length)?,

@@ -116,6 +116,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        native_result: Some(crate::native_result::NativeResultContract::ListReverse { list_at: 0 }),
         runtime_backing: RuntimeBacking::shipped("lreverse"),
         const_fold: Some(crate::const_fold::fold_lreverse),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,

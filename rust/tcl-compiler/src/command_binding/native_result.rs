@@ -990,6 +990,7 @@ fn selected_result(
             tcl_syntax::list::join_list(std::iter::repeat_n(values, repetitions).flatten())
         }
         NativeResultSelection::ListRange { .. }
+        | NativeResultSelection::ListReverse { .. }
         | NativeResultSelection::InvalidArguments
         | NativeResultSelection::Unknown => return None,
     };

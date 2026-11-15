@@ -187,6 +187,12 @@ pub enum NativeResultContract {
         /// Count operand relative to the selected form; the values follow it.
         count_at: u8,
     },
+    /// Reverse one list operand. Its representation needs independently
+    /// proved ordinary input; C Tcl 9.1 also needs an actual `tclListType`.
+    ListReverse {
+        /// List operand relative to the selected form.
+        list_at: u8,
+    },
 }
 
 #[cfg(test)]
@@ -876,6 +882,66 @@ mod tests {
             }
         );
     }
+
+    /// `lreverse` copies into an ordinary list in C Tcl 8.5–9.0 when it has
+    /// elements; 9.1 copies only an actual `tclListType` below 100 elements.
+    #[test]
+    fn list_reverse_is_ordinary_only_where_the_release_copies() {
+        use crate::representation::OrdinaryContainerRepresentation::{Dictionary, List as ListRep};
+        use tcl_dialect::TclVersion;
+        use tcl_syntax::value::ValueRepresentation::List;
+        let contract = NativeResultContract::ListReverse { list_at: 0 };
+        let hundred = vec!["x"; 100].join(" ");
+        for version in TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let reverse = |list: &str, exact, length| {
+                let words = [list];
+                let args = InvocationArguments::literals(&words).with_dialect(dialect);
+                contract
+                    .select(args, 0)
+                    .ordinary_list_reverse_result(args, exact, length)
+            };
+            let copies = version >= TclVersion::V8_5;
+            let any_input = copies && version < TclVersion::V9_1;
+            let expected = |bytes: &str| Some((List, Some(bytes.to_owned())));
+            assert_eq!(
+                reverse("a {b c} d", Some(ListRep), 3),
+                copies.then(|| (List, Some("d {b c} a".to_owned()))),
+                "{version:?}"
+            );
+            for exact in [None, Some(Dictionary)] {
+                assert_eq!(
+                    reverse("a b", exact, 2),
+                    if any_input { expected("b a") } else { None },
+                    "{version:?}"
+                );
+            }
+            assert_eq!(
+                reverse("a", Some(ListRep), 1),
+                if any_input { expected("a") } else { None },
+                "{version:?}"
+            );
+            assert_eq!(reverse("", Some(ListRep), 0), None, "{version:?}");
+            assert_eq!(
+                reverse(&hundred, Some(ListRep), 100),
+                if any_input { expected(&hundred) } else { None },
+                "{version:?}"
+            );
+            assert_eq!(
+                reverse("a b", Some(ListRep), 3),
+                copies.then_some((List, None)),
+                "{version:?}"
+            );
+        }
+        assert_eq!(
+            contract.select(InvocationArguments::literals(&["a", "b"]), 0),
+            NativeResultSelection::InvalidArguments
+        );
+        assert_eq!(
+            contract.select(InvocationArguments::literals(&["a b"]), 0),
+            NativeResultSelection::ListReverse { list_at: 0 }
+        );
+    }
 }
 
 /// Structural result dependency after the exact native argv shape is selected.
@@ -917,6 +983,11 @@ pub enum NativeResultSelection {
         from: usize,
         /// Number of repeated values.
         len: usize,
+    },
+    /// A reversed native list, without an unconditional result shape.
+    ListReverse {
+        /// Effective post-head list operand index.
+        list_at: usize,
     },
     /// A native dictionary retaining a contiguous even key/value operand range.
     DictionaryArguments {
@@ -1121,6 +1192,56 @@ impl NativeResultSelection {
         let selected = &elements[first..=last];
         let bytes = dialect.list_result_serialization()?.render(selected);
         String::from_utf8(bytes).ok()
+    }
+
+    /// Reversed shape and bytes for an independently proved ordinary input of
+    /// captured native `length`. `exact` is the input's current proved
+    /// representation, or `None` for an original pool literal whose intrep is
+    /// unknown. 8.5–9.0 `Tcl_LreverseObjCmd` (tclCmdIL.c) returns an empty
+    /// input itself and otherwise an ordinary list; no stock type supplies 9.0's
+    /// `reverseProc`. 9.1 `Tcl_ListObjReverse` (tclListTypes.c) copies only an
+    /// actual `tclListType` of 2 to 99 elements. This promises no fresh object.
+    #[must_use]
+    pub fn ordinary_list_reverse_result(
+        self,
+        arguments: InvocationArguments<'_>,
+        exact: Option<crate::representation::OrdinaryContainerRepresentation>,
+        length: usize,
+    ) -> Option<(tcl_syntax::value::ValueRepresentation, Option<String>)> {
+        const ABSTRACT_FROM_9_1: usize = 100;
+        let Self::ListReverse { list_at } = self else {
+            return None;
+        };
+        if list_at.checked_add(1) != arguments.exact_argv_len() {
+            return None;
+        }
+        let dialect = arguments.dialect()?;
+        let version = dialect
+            .tcl_version
+            .filter(|_| dialect.family() == Some(tcl_dialect::model::Family::Tcl))?;
+        let ordinary = if version < tcl_dialect::TclVersion::V8_5 {
+            false
+        } else if version < tcl_dialect::TclVersion::V9_1 {
+            length > 0
+        } else {
+            exact == Some(crate::representation::OrdinaryContainerRepresentation::List)
+                && (2..ABSTRACT_FROM_9_1).contains(&length)
+        };
+        if !ordinary {
+            return None;
+        }
+        let bytes = tcl_syntax::list::split_list_bytes_in(
+            arguments.literal_at(list_at)?.as_bytes(),
+            dialect.word_values.list,
+            dialect.lexer_grammar.escapes,
+        )
+        .ok()
+        .filter(|elements| elements.len() == length)
+        .and_then(|mut elements| {
+            elements.reverse();
+            String::from_utf8(dialect.list_result_serialization()?.render(&elements)).ok()
+        });
+        Some((tcl_syntax::value::ValueRepresentation::List, bytes))
     }
 
     /// Selected range bytes for a constant-folder's ordinary-list model.
@@ -1402,6 +1523,14 @@ impl NativeResultContract {
                 first_at,
                 last_at,
             } => select_list_range(count, argument_offset, [list_at, first_at, last_at]),
+            Self::ListReverse { list_at } => {
+                let list_at = argument_offset + usize::from(list_at);
+                if list_at.checked_add(1) == Some(count) {
+                    NativeResultSelection::ListReverse { list_at }
+                } else {
+                    NativeResultSelection::InvalidArguments
+                }
+            }
             Self::ListRepeat { count_at } => {
                 let count_at = argument_offset + usize::from(count_at);
                 let from = count_at + 1;
