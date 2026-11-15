@@ -2186,7 +2186,20 @@ pub(super) fn source_script_bodies_for(
             content: geometry.content,
         });
     };
-    if case.is_some_and(|(_, layout)| layout.clause_list_index.is_none_or(admits)) {
+    // A selected case layout names its clause list positively. Where the
+    // option scan cannot fix that word's timing (an 8.4 two-word `switch` whose
+    // dynamic subject may read as an option), the clause bodies still run
+    // whenever the command succeeds, so only a reference-only timing excludes
+    // them from a potential-evaluation inventory.
+    let case_list_may_run = |argument| {
+        purpose == OriginalSourceScriptPurpose::Syntax
+            || !matches!(
+                words.with_source_schema(context, |schema| schema
+                    .authored_source_script_timing_at(argument)),
+                Some(Some(tcl_registry::ScriptTiming::ReferenceOnly))
+            )
+    };
+    if case.is_some_and(|(_, layout)| layout.clause_list_index.is_none_or(case_list_may_run)) {
         retain_source_case_bodies(words, case.as_ref(), &mut retain);
     }
     let concatenates = words

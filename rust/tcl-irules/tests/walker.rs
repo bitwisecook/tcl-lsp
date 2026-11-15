@@ -21,7 +21,6 @@
 //! bodies, `if` conditions, and GTM pool fan-out against fixed expected outputs.
 //! Self-contained — runs entirely in-process.
 
-use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_irules::extract_irules_object_references;
 use tcl_registry::CommandRegistry;
 
@@ -33,8 +32,8 @@ fn walker_matches_golden() {
             .expect("parse cases");
     let golden = std::fs::read_to_string(format!("{dir}/irule_refs.golden.tsv")).expect("golden");
 
-    let mut reg = CommandRegistry::build_default();
-    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
+    let reg =
+        CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules());
 
     // Census before pairing: `zip` stops at the shorter side, so a missing
     // golden row or case would otherwise drop its control silently.

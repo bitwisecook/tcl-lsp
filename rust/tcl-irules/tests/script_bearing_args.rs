@@ -46,9 +46,7 @@ use tcl_registry::registry::CommandRegistry;
 const PROBE: &str = "/Common/zzz_refgap_probe";
 
 fn irules_registry() -> CommandRegistry {
-    let mut registry = CommandRegistry::build_default();
-    registry.load_irules();
-    registry
+    CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules())
 }
 
 /// Does the walker find the probe pool in `source`?

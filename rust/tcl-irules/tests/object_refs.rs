@@ -33,8 +33,8 @@ use tcl_registry::CommandRegistry;
 /// `pool` / `snatpool` / `class` as BIG-IP dialect commands. `rule_module = None`
 /// so every LTM/GTM reference is recognised.
 fn refs(source: &str) -> Vec<IrulesObjectReference> {
-    let mut registry = CommandRegistry::build_default();
-    registry.load_irules();
+    let registry =
+        CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules());
     extract_irules_object_references(source, None, &registry)
 }
 

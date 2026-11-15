@@ -23,15 +23,14 @@
 //! `NAME::lookup` (<https://clouddocs.f5.com/api/irules/NAME__lookup.html>).
 //! There is no tclsh analogue — iRules events are a BIG-IP surface.
 
-use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_irules::{irules_event_emission_edges, irules_event_reachable_closure};
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventEmissionCertainty;
 
 fn registry() -> CommandRegistry {
-    let mut reg = CommandRegistry::build_default();
-    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-    reg
+    // The iRules profile's own command world: a registry with the surface
+    // loaded but no profile is not a rule loader, so nothing is an event.
+    CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules())
 }
 
 /// Whether the closure of `event` reaches a command spelled `command`.
