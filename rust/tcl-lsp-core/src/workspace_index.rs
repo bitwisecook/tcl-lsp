@@ -7261,6 +7261,21 @@ impl WorkspaceIndex {
             .then(|| target.clone())
     }
 
+    /// A release-profile call the document's own analysis did not bind
+    /// settles to the workspace definition its lookup selects: the current
+    /// namespace, then the global one, or the exact qualified name. The
+    /// link-following view lists references and answers whenever that
+    /// selection is unanimous. The direct view feeds rename, so it answers
+    /// only for a single definition nothing visible can rebind.
+    fn workspace_assistance_target(
+        &self,
+        lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+        follow_links: bool,
+    ) -> Option<SettledCommandTarget> {
+        let target = self.original_assistance_target(lookup, follow_links)?;
+        (follow_links || self.original_target_is_unrebound(&target)).then_some(target)
+    }
+
     /// Whether exactly one workspace declaration publishes this slot and no
     /// `rename`, `interp alias` or `namespace import` in any document names it
     /// as its link or its target.
@@ -7350,18 +7365,10 @@ impl WorkspaceIndex {
         {
             return self.original_assistance_target(lookup, links.is_some());
         }
-        // A release-profile call the document's own analysis did not bind
-        // settles to the workspace definition its lookup selects: the current
-        // namespace, then the global one, or the exact qualified name. The
-        // link-following view lists references and may answer whenever that
-        // selection is unanimous. The direct view feeds rename, so it answers
-        // only for a single definition nothing visible can rebind.
         if let Some(lookup) = inv.original_lookup.as_ref()
             && inv.logical_source_domain == Some(false)
         {
-            let target = self.original_assistance_target(lookup, links.is_some())?;
-            return (links.is_some() || self.original_target_is_unrebound(&target))
-                .then_some(target);
+            return self.workspace_assistance_target(lookup, links.is_some());
         }
         if inv.original_name_input.is_some() || inv.logical_source_domain != Some(false) {
             return None;
