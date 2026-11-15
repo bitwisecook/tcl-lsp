@@ -369,7 +369,7 @@ Measuring: a probe test that builds the input and times `analyse` (the task brie
 
 ## iRules area, 15 November 2026
 
-- #2528 (handler `set` never lowered, so no I230/W220 in `when` bodies): the fix is on branch `issues/irules` (e8b10c4a), not on `work`. The compiler now carries an explicit `LogicalExpressionParseProvider` (installed by `for_fresh_hosted_source`, matched by `FoldPolicy::preparation_context`); on its own it causes no regressions. With the hosted `set` lowering, entered event walk and naming-gate layers, the witnesses fire, but 18 tests regress: hosted-source contract tests (handler bodies stay source-only advice) and taint TPs whose fixtures run executable code at rule top level. Waiting on a decision between relaxing those contracts and a hosted normal-transfer selection; bisect in the issue.
+- #2528 fixed: the compiler carries the loader's explicit F5 8.4 expression parser, and a hosted rule's advisory handler walk keeps a literal `set` as a quiet store in the handler's event-frame cell and retains its prepared conditions, so I230 and W220 fire in `when` bodies without the body ever being entered. Open, separate: a vendor command (`HTTP::respond`, `log`) in a handler marks its reads dynamic, so W220 abstains there; top-level taint fixtures (IRULE5007 shapes) cover a handler taint gap that exists on `work` too.
 - #2165 (`!`/`not` before a custom comparison) and #2151 (F5 character model): need an appliance run. Probes: `scripts/dev/bigip-probes/irules/expr-prefix-grouping/` and `scripts/dev/bigip-probes/irules/character-model/`.
 
 ## iRules, registry, SpecTcl and tooling area, 15 November 2026
