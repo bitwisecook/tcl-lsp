@@ -2803,6 +2803,13 @@ is renamed or deleted in this file."
             ) {
                 continue;
             }
+            if use_site.kind == crate::def_use::UseKind::VariableName
+                && stmt_opt.is_some_and(|stmt| {
+                    substitution_unbinds(stmt, var, fu, &self.profile_registry())
+                })
+            {
+                continue;
+            }
             // An unbind of the place — a command the registry declares
             // `DESTROYS_VARIABLE`, under the spelling the source uses —
             // reads the existence fact where it runs: W213 is
@@ -5151,6 +5158,41 @@ fn existence_query_cells(
             crate::var_resolve::canonical_place_key(&place)
         })
         .collect()
+}
+
+/// Whether a `[…]` substitution of `stmt` unbinds `var`: a nested command
+/// the registry declares `DESTROYS_VARIABLE` names it. Destroying is no read,
+/// so the host statement has no read-before-set of that name.
+fn substitution_unbinds(
+    stmt: &crate::ir::Statement,
+    var: &str,
+    fu: &crate::compilation_unit::FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    let (Some(tokens), Some(metadata)) = (stmt.tokens(), fu.invocation_metadata_context(registry))
+    else {
+        return false;
+    };
+    crate::word_subst::checked_lifted_calls(tokens, fu.source_lexer_config())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|call| call.tokens.as_ref())
+        .filter_map(|nested| {
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                registry,
+                Some(metadata),
+                nested,
+            )
+        })
+        .any(|selected| {
+            selected
+                .variable_traits()
+                .contains(tcl_registry::Traits::DESTROYS_VARIABLE)
+                && selected
+                    .variable_roles()
+                    .iter()
+                    .any(|(index, _)| selected.argument_literal(*index).as_deref() == Some(var))
+        })
 }
 
 /// True when a read of `var` is the word of an existence query in the
