@@ -1942,7 +1942,11 @@ fn test_issue_898_semantic_token_corrections() {
 fn test_issue_898_default_library_modifier() {
     let mut lsp = Lsp::tcl();
     let leg = legend(&lsp);
-    let src = "namespace import msgcat::*\nmc \"hi\"\nputs [tcl::mathop::+ 1 2]\n";
+    // The package is required first: without it tclsh 8.6.18 and 9.0.4 stop at
+    // the import with `unknown namespace in import pattern "msgcat::*"`, and
+    // nothing after it runs.
+    let src = "package require msgcat\nnamespace import msgcat::*\nmc \"hi\"\n\
+               puts [tcl::mathop::+ 1 2]\n";
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &leg, &uri);
     let dl = modifier_bit(&modifiers(&lsp), "defaultLibrary");
