@@ -4962,7 +4962,14 @@ fn augment_snit_handles(
         source,
         analysis,
         &mut |command, _, _| {
-            bind_original_handle_construction(source, analysis, command, &context, object_classes);
+            bind_original_handle_construction(
+                source,
+                analysis,
+                command,
+                &context,
+                classes,
+                object_classes,
+            );
             false
         },
     );
@@ -5089,6 +5096,50 @@ fn selected_member_handle_regions(
     regions
 }
 
+/// A bare-word construction the analysis kept no call for because the
+/// instance name is computed (`set eng [Engine ${selfns}::e]`). The written
+/// type word must name a class of the hierarchy whose definer's grammar
+/// constructs on an unknown first word; a literal first word is left to the
+/// analysis, which knows whether it is a type method.
+fn bind_written_bare_construction(
+    setter: &tcl_compiler::registry_invocation::OriginalSourceHandleConstruction,
+    context: &tcl_registry::model::ContextRegistry,
+    classes: Option<&ClassHierarchy>,
+    handles: &mut ObjectClassMap,
+) {
+    let words = &setter.construction().words;
+    let (Some(hierarchy), [head, name, ..]) = (classes, words.as_slice()) else {
+        return;
+    };
+    if tcl_syntax::word_rules::original_static_word_ascii_presentation(name).is_some() {
+        return;
+    }
+    let Some(class) = tcl_syntax::word_rules::original_static_word_ascii_presentation(head)
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .and_then(|written| resolve_class_in_hierarchy(hierarchy, &written))
+        .and_then(|qualified| hierarchy.classes.get(&qualified))
+    else {
+        return;
+    };
+    let bare_word = class.class_command_fallback.constructs_named_instance()
+        || context
+            .commands()
+            .get(&class.metaclass)
+            .and_then(|definer| definer.definition_body)
+            .is_some_and(|grammar| grammar.bare_word_construction);
+    if !bare_word {
+        return;
+    }
+    if let Ok(variable) = std::str::from_utf8(setter.variable_bytes())
+        && !variable.is_empty()
+    {
+        handles
+            .entry(variable.to_owned())
+            .or_default()
+            .insert(class.qualified_name.clone());
+    }
+}
+
 /// A selected setter and current constructor graph retain independent source
 /// producers; no displayed bracket text supplies a receiver or stored value.
 fn bind_original_handle_construction(
@@ -5096,6 +5147,7 @@ fn bind_original_handle_construction(
     analysis: &AnalysisResult,
     command: &tcl_compiler::segmenter::SegmentedCommand,
     context: &tcl_registry::model::ContextRegistry,
+    classes: Option<&ClassHierarchy>,
     handles: &mut ObjectClassMap,
 ) {
     use tcl_compiler::registry_invocation::source_structure;
@@ -5110,6 +5162,7 @@ fn bind_original_handle_construction(
     let Some(call) =
         source_structure::source_constructor_call_at(source, analysis, head.span().start())
     else {
+        bind_written_bare_construction(&setter, context, classes, handles);
         return;
     };
     let Some(class) = declared_source_class(call.class_declaration(), analysis) else {
