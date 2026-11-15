@@ -6895,35 +6895,6 @@ mod tests {
         }
     }
 
-    /// A quoted `expr` word is substituted as text before the expression is
-    /// parsed: with `a` holding `1 + 1`, `expr "$a * 2"` is `1 + 1 * 2`, 3
-    /// under tclsh 8.4 to 9.1 — the variable's value is re-read as
-    /// expression source, where a braced `expr {$a * 2}` raises.
-    #[test]
-    fn a_quoted_expression_word_is_substituted_before_it_is_parsed() {
-        let mut ssa = bare_ssa();
-        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr \"$a * 2\"]", 1);
-        let a = ssa.intern_var("a");
-        stmt.uses.insert(a, 1);
-        let mut values = HashMap::new();
-        values.insert(
-            (a, 1),
-            LatticeValue::Const(ConstValue::String("1 + 1".into())),
-        );
-        assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::Const(ConstValue::Int(3))
-        );
-        let mut ssa = bare_ssa();
-        let mut stmt = fused_expr_stmt(&mut ssa, "$a * 2", None);
-        let a = ssa.intern_var("a");
-        stmt.uses.insert(a, 1);
-        assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::Overdefined
-        );
-    }
-
     // evaluate_fixture_def for Incr.
 
     fn incr_stmt(
@@ -8277,50 +8248,6 @@ p
     }
 
     #[test]
-    fn quoted_expr_with_numeric_var_still_folds() {
-        // `set r [expr "$a + $b"]` with numeric a, b is sound: textual
-        // substitution yields `3 + 4`, a valid expr → fold to 7.
-        let mut ssa = bare_ssa();
-        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr \"$a + $b\"]", 1);
-        let a = ssa.intern_var("a");
-        let b = ssa.intern_var("b");
-        stmt.uses.insert(a, 1);
-        stmt.uses.insert(b, 1);
-        let mut values = HashMap::new();
-        values.insert((a, 1), LatticeValue::Const(ConstValue::Int(3)));
-        values.insert((b, 1), LatticeValue::Const(ConstValue::Int(4)));
-        assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::Const(ConstValue::Int(7))
-        );
-    }
-
-    #[test]
-    fn braced_expr_with_string_var_folds_as_string_compare() {
-        // `set r [expr {$a == $b}]` is braced — expr resolves the vars itself,
-        // so a string-valued var is a valid operand and the compare folds.
-        let mut ssa = bare_ssa();
-        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr {$a == $b}]", 1);
-        let a = ssa.intern_var("a");
-        let b = ssa.intern_var("b");
-        stmt.uses.insert(a, 1);
-        stmt.uses.insert(b, 1);
-        let mut values = HashMap::new();
-        values.insert(
-            (a, 1),
-            LatticeValue::Const(ConstValue::String("alpha".into())),
-        );
-        values.insert(
-            (b, 1),
-            LatticeValue::Const(ConstValue::String("beta".into())),
-        );
-        assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::Const(ConstValue::Int(0))
-        );
-    }
-
-    #[test]
     fn evaluate_def_assign_value_unknown_cmd_widens() {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "x", "[nonexistent_fold args]", 1);
@@ -8772,6 +8699,159 @@ p
             .get(&(symbol, version))
             .cloned()
             .expect("the version is defined")
+    }
+
+    /// The value the semantic facts hold for `name`'s last definition in
+    /// `::p` of `source` under `dialect`, and whether the execution lattice,
+    /// which rewrites read with no further check, holds a constant there.
+    fn value_and_constant(dialect: &str, source: &str, name: &str) -> (LatticeValue, bool) {
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, dialect,
+        );
+        let function = unit.function("::p").expect("::p is analysed");
+        let symbol = function
+            .ssa
+            .var_symbol(name)
+            .expect("the variable is an SSA symbol");
+        let key = function
+            .sccp
+            .values
+            .keys()
+            .filter(|(sym, _)| *sym == symbol)
+            .max_by_key(|(_, version)| *version)
+            .copied()
+            .expect("a definition");
+        let semantic = function
+            .semantic_values()
+            .and_then(|facts| facts.contents(key).cloned())
+            .unwrap_or(LatticeValue::Overdefined);
+        (
+            semantic,
+            matches!(function.sccp.values.get(&key), Some(LatticeValue::Const(_))),
+        )
+    }
+
+    fn assert_value_and_constant_rows<const N: usize>(
+        rows: [(&str, &str, LatticeValue, bool, &str); N],
+    ) {
+        for (dialect, body, value, constant, printed) in rows {
+            let source = format!("proc p {{}} {{{body}; return $r}}");
+            assert_eq!(
+                value_and_constant(dialect, &source, "r"),
+                (value, constant),
+                "{dialect}: {body} (tclsh prints {printed})"
+            );
+        }
+    }
+
+    /// One row per input: the value the semantic facts hold, and whether the
+    /// execution lattice holds a constant. A rewrite may erase an expression
+    /// only on an execution constant; a value alone is knowledge. The last
+    /// column is what tclsh prints for `proc p {} {BODY; return $r}; p` under
+    /// that release (8.4.20, 8.6.18, 9.0.4).
+    #[test]
+    fn a_fused_expression_has_a_value_and_maybe_an_execution_constant() {
+        let int = |value: i64| LatticeValue::Const(ConstValue::Int(value));
+        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
+        let float = |value: f64| LatticeValue::Const(ConstValue::Float(value));
+        let none = LatticeValue::Overdefined;
+        let rows: [(&str, &str, LatticeValue, bool, &str); 16] = [
+            // A comparison of two string variables is false, but the numeric
+            // comparison may change the operands' representations.
+            (
+                "tcl8.6",
+                "set a alpha; set b beta; set r [expr {$a == $b}]",
+                int(0),
+                false,
+                "0",
+            ),
+            // A quoted word is substituted before the expression is parsed.
+            (
+                "tcl8.6",
+                "set a 3; set b 4; set r [expr \"$a + $b\"]",
+                int(7),
+                false,
+                "7",
+            ),
+            (
+                "tcl8.6",
+                "set a {1 + 1}; set r [expr \"$a * 2\"]",
+                int(3),
+                false,
+                "3",
+            ),
+            (
+                "tcl8.6",
+                "set a {1 + 1}; set r [expr {$a * 2}]",
+                none.clone(),
+                false,
+                "can't use non-numeric string as operand of \"*\"",
+            ),
+            (
+                "tcl9.0",
+                "set r [expr {1 ? \"yes\" : \"no\"}]",
+                text("yes"),
+                true,
+                "yes",
+            ),
+            (
+                "tcl8.6",
+                "set r [expr {\"true\"}]",
+                text("true"),
+                false,
+                "true",
+            ),
+            ("tcl8.6", "set r [expr {\" 5 \"}]", int(5), false, "5"),
+            ("tcl9.0", "set r [expr {\"0x10\"}]", int(16), false, "16"),
+            (
+                "tcl8.6",
+                "set r [expr {\"1.50\"}]",
+                float(1.5),
+                false,
+                "1.5",
+            ),
+            ("tcl8.6", "set r [expr {\"010\"}]", int(8), false, "8"),
+            ("tcl9.0", "set r [expr {\"010\"}]", int(10), false, "10"),
+            (
+                "tcl9.0",
+                "set r [expr {1/0}]",
+                none,
+                false,
+                "divide by zero",
+            ),
+            (
+                "tcl8.6",
+                "set r [expr {2 ** 64}]",
+                text("18446744073709551616"),
+                true,
+                "18446744073709551616",
+            ),
+            (
+                "tcl9.0",
+                "set r [expr {0 && [error never]}]",
+                int(0),
+                false,
+                "0",
+            ),
+            // A double from an executed operator keeps its operation under
+            // 8.4, whose spelling follows `tcl_precision`.
+            (
+                "tcl8.4",
+                "set r [expr {1 / 4.0}]",
+                float(0.25),
+                false,
+                "0.25",
+            ),
+            (
+                "tcl8.6",
+                "set r [expr {1 / 4.0}]",
+                float(0.25),
+                true,
+                "0.25",
+            ),
+        ];
+        assert_value_and_constant_rows(rows);
     }
 
     /// [`settled`] for a body: a procedure in a Tcl release, an event handler
