@@ -87,3 +87,28 @@ fn tk_option_tables_match_the_c_sources() {
     }
     assert!(report.is_empty(), "{}", report.join("\n"));
 }
+
+/// `ttkPanedwindow.c` keeps `-weight` in `PaneOptionSpecs`: it is set per
+/// pane through `add`, `insert` and `pane` (Tk 8.5 to 9.1), and the widget
+/// itself rejects it (`unknown option "-weight"` on Tk 9.0.3).
+#[test]
+fn ttk_panedwindow_weight_is_a_pane_option() {
+    for &(tcl, tk, _) in RELEASES.iter().skip(1) {
+        let mut registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find(tcl).expect("Tcl release"));
+        registry.insert_ambient_package("Tk", tk);
+        let spec = registry.get("ttk::panedwindow").expect("ttk::panedwindow");
+        assert!(
+            spec.find_option("-weight", None, Some(tk)).is_none(),
+            "Tk {tk}"
+        );
+        for (method, prefix) in [("add", 1), ("insert", 2), ("pane", 1)] {
+            let sub = spec.resolve_subcommand(method).expect("pane method");
+            assert!(
+                sub.options.iter().any(|option| option.name == "-weight"),
+                "Tk {tk} {method}"
+            );
+            assert_eq!(sub.option_prefix_words, prefix, "Tk {tk} {method}");
+        }
+    }
+}

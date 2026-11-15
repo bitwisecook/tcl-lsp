@@ -213,6 +213,18 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
         effect: None,
     },
+    OptionSpec {
+        name: "-borderwidth",
+        value: OptionValue::value("width"),
+        detail: "Width of the border.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-state",
+        value: OptionValue::value("stateSpec"),
+        detail: "Widget state (normal or disabled).",
+        ..OptionSpec::DEFAULT
+    },
 ];
 
 super::common::ttk_widget_class!(SUBCOMMANDS, CLASS, "ttk::label",);

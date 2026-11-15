@@ -16,3 +16,22 @@ scrollbar -activebackground -activerelief -background -bd -bg -borderwidth -comm
 spinbox -activebackground -background -bd -bg -borderwidth -buttonbackground -buttoncursor -buttondownrelief -buttonuprelief -command -cursor -disabledbackground -disabledforeground -exportselection -fg -font -foreground -format -from -highlightbackground -highlightcolor -highlightthickness -increment -insertbackground -insertborderwidth -insertofftime -insertontime -insertwidth -invalidcommand -invcmd -justify -locale -placeholder -placeholderforeground -readonlybackground -relief -repeatdelay -repeatinterval -selectbackground -selectborderwidth -selectforeground -state -takefocus -textvariable -to -validate -validatecommand -values -vcmd -width -wrap -xscrollcommand
 text -autoseparators -background -bd -bg -blockcursor -borderwidth -cursor -endline -exportselection -fg -font -foreground -height -highlightbackground -highlightcolor -highlightthickness -inactiveselectbackground -insertbackground -insertborderwidth -insertofftime -insertontime -insertunfocussed -insertwidth -locale -maxundo -padx -pady -relief -selectbackground -selectborderwidth -selectforeground -setgrid -spacing1 -spacing2 -spacing3 -startline -state -tabs -tabstyle -takefocus -undo -width -wrap -xscrollcommand -yscrollcommand
 toplevel -background -backgroundimage -bd -bg -bgimg -borderwidth -class -colormap -container -cursor -height -highlightbackground -highlightcolor -highlightthickness -menu -padx -pady -relief -screen -takefocus -tile -use -visual -width
+ttk::button -class -command -compound -cursor -default -image -justify -padding -state -style -takefocus -text -textvariable -underline -width
+ttk::checkbutton -class -command -compound -cursor -image -justify -offvalue -onvalue -padding -state -style -takefocus -text -textvariable -underline -variable -width
+ttk::combobox -background -class -cursor -exportselection -font -foreground -height -invalidcommand -justify -locale -placeholder -placeholderforeground -postcommand -show -state -style -takefocus -textvariable -validate -validatecommand -values -width -xscrollcommand
+ttk::entry -background -class -cursor -exportselection -font -foreground -invalidcommand -justify -locale -placeholder -placeholderforeground -show -state -style -takefocus -textvariable -validate -validatecommand -width -xscrollcommand
+ttk::frame -borderwidth -class -cursor -height -padding -relief -style -takefocus -width
+ttk::label -anchor -background -borderwidth -class -compound -cursor -font -foreground -image -justify -padding -relief -state -style -takefocus -text -textangle -textvariable -underline -width -wraplength
+ttk::labelframe -borderwidth -class -cursor -height -labelanchor -labelwidget -padding -relief -style -takefocus -text -underline -width
+ttk::menubutton -class -compound -cursor -direction -image -justify -menu -padding -state -style -takefocus -text -textvariable -underline -width
+ttk::notebook -class -cursor -height -padding -style -takefocus -width
+ttk::panedwindow -class -cursor -height -orient -style -takefocus -width
+ttk::progressbar -anchor -class -cursor -font -foreground -justify -length -maximum -mode -orient -phase -style -takefocus -text -value -variable -wraplength
+ttk::radiobutton -class -command -compound -cursor -image -justify -padding -state -style -takefocus -text -textvariable -underline -value -variable -width
+ttk::scale -class -command -cursor -from -length -orient -state -style -takefocus -to -value -variable
+ttk::scrollbar -class -command -cursor -orient -style -takefocus
+ttk::separator -class -cursor -orient -style -takefocus
+ttk::sizegrip -class -cursor -style -takefocus
+ttk::spinbox -background -class -command -cursor -exportselection -font -foreground -format -from -increment -invalidcommand -justify -locale -placeholder -placeholderforeground -show -state -style -takefocus -textvariable -to -validate -validatecommand -values -width -wrap -xscrollcommand
+ttk::toggleswitch -class -command -cursor -offvalue -onvalue -size -style -takefocus -text -textvariable -underline -variable -width
+ttk::treeview -class -columns -cursor -displaycolumns -headingheight -height -padding -rowheight -selectmode -selecttype -show -striped -style -takefocus -titlecolumns -titleitems -xscrollcommand -yscrollcommand

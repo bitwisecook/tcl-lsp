@@ -105,6 +105,43 @@ const CHECKBUTTON_OPTS: &[OptionSpec] = &[
         detail: "Widget state (normal or disabled).",
         ..OptionSpec::DEFAULT
     },
+    OptionSpec {
+        name: "-compound",
+        value: OptionValue::value("compoundType"),
+        detail: "How the image is placed relative to the text.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-image",
+        value: OptionValue::value("imageName"),
+        detail: "Image to display.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-padding",
+        value: OptionValue::value("padSpec"),
+        detail: "Extra space around the content.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-underline",
+        value: OptionValue::value("index"),
+        detail: "Index of the character to underline.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-width",
+        value: OptionValue::value("width"),
+        detail: "Width of the label area, in characters.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-justify",
+        value: OptionValue::value("justify"),
+        detail: "How multiple lines of text are aligned.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
 ];
 
 super::common::ttk_widget_class!(
@@ -194,6 +231,55 @@ const MENUBUTTON_OPTS: &[OptionSpec] = &[
         detail: "Widget state (normal or disabled).",
         ..OptionSpec::DEFAULT
     },
+    OptionSpec {
+        name: "-compound",
+        value: OptionValue::value("compoundType"),
+        detail: "How the image is placed relative to the text.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-image",
+        value: OptionValue::value("imageName"),
+        detail: "Image to display.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-padding",
+        value: OptionValue::value("padSpec"),
+        detail: "Extra space around the content.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-underline",
+        value: OptionValue::value("index"),
+        detail: "Index of the character to underline.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-width",
+        value: OptionValue::value("width"),
+        detail: "Width of the label area, in characters.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-justify",
+        value: OptionValue::value("justify"),
+        detail: "How multiple lines of text are aligned.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-text",
+        value: OptionValue::value("string"),
+        detail: "Text to display.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-textvariable",
+        value: OptionValue::global_var_name(),
+        detail: "Variable whose value is used as the text.",
+        ..OptionSpec::DEFAULT
+    },
 ];
 
 super::common::ttk_widget_class!(MENUBUTTON_METHODS, MENUBUTTON_CLASS, "ttk::menubutton",);
@@ -224,6 +310,15 @@ fn menubutton() -> CommandSpec {
     }
 }
 
+/// `ttkPanedwindow.c` `PaneOptionSpecs`: options of one pane, set by
+/// `add`, `insert` and `pane`, never on the widget itself.
+const PANE_OPTS: &[OptionSpec] = &[OptionSpec {
+    name: "-weight",
+    value: OptionValue::value("integer"),
+    detail: "Pane's relative share of space added or removed when the widget is resized.",
+    ..OptionSpec::DEFAULT
+}];
+
 const PANEDWINDOW_OPTS: &[OptionSpec] = &[
     OptionSpec {
         name: "-orient",
@@ -241,12 +336,6 @@ const PANEDWINDOW_OPTS: &[OptionSpec] = &[
         name: "-height",
         value: OptionValue::value("value"),
         detail: "Requested height in pixels; managed windows determine non-positive values.",
-        ..OptionSpec::DEFAULT
-    },
-    OptionSpec {
-        name: "-weight",
-        value: OptionValue::value("value"),
-        detail: "Pane's relative share of space added or removed when the widget is resized.",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
@@ -273,12 +362,6 @@ const PANEDWINDOW_OPTS: &[OptionSpec] = &[
         detail: "Whether the widget accepts focus during keyboard traversal.",
         ..OptionSpec::DEFAULT
     },
-    OptionSpec {
-        name: "-state",
-        value: OptionValue::value("stateSpec"),
-        detail: "Widget state (normal or disabled).",
-        ..OptionSpec::DEFAULT
-    },
 ];
 
 super::common::ttk_widget_class!(
@@ -290,6 +373,8 @@ super::common::ttk_widget_class!(
         arity: Arity::at_least(1),
         detail: "Add a child window as a pane.",
         synopsis: "pathName add subwindow ?options?",
+        options: PANE_OPTS,
+        option_prefix_words: 1,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -304,6 +389,8 @@ super::common::ttk_widget_class!(
         arity: Arity::at_least(2),
         detail: "Insert or move a pane at a position.",
         synopsis: "pathName insert pos subwindow ?options?",
+        options: PANE_OPTS,
+        option_prefix_words: 2,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -311,6 +398,8 @@ super::common::ttk_widget_class!(
         arity: Arity::at_least(1),
         detail: "Query or modify options of a managed pane.",
         synopsis: "pathName pane pane ?-option ?value ...??",
+        options: PANE_OPTS,
+        option_prefix_words: 1,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -414,6 +503,43 @@ const RADIOBUTTON_OPTS: &[OptionSpec] = &[
         name: "-state",
         value: OptionValue::value("stateSpec"),
         detail: "Widget state (normal or disabled).",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-compound",
+        value: OptionValue::value("compoundType"),
+        detail: "How the image is placed relative to the text.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-image",
+        value: OptionValue::value("imageName"),
+        detail: "Image to display.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-padding",
+        value: OptionValue::value("padSpec"),
+        detail: "Extra space around the content.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-underline",
+        value: OptionValue::value("index"),
+        detail: "Index of the character to underline.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-width",
+        value: OptionValue::value("width"),
+        detail: "Width of the label area, in characters.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-justify",
+        value: OptionValue::value("justify"),
+        detail: "How multiple lines of text are aligned.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
         ..OptionSpec::DEFAULT
     },
 ];
@@ -596,6 +722,36 @@ const SPINBOX_OPTS: &[OptionSpec] = &[
         name: "-state",
         value: OptionValue::value("stateSpec"),
         detail: "Widget state (normal or disabled).",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-exportselection",
+        value: OptionValue::boolean(),
+        detail: "Whether the selection is exported to the X selection.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-font",
+        value: OptionValue::value("font"),
+        detail: "Font of the text.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-foreground",
+        value: OptionValue::value("color"),
+        detail: "Colour of the text.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-justify",
+        value: OptionValue::value("justify"),
+        detail: "How the text is aligned.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-width",
+        value: OptionValue::value("width"),
+        detail: "Width of the entry, in average characters.",
         ..OptionSpec::DEFAULT
     },
 ];

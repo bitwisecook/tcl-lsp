@@ -166,6 +166,13 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
         effect: None,
     },
+    OptionSpec {
+        name: "-justify",
+        value: OptionValue::value("justify"),
+        detail: "How multiple lines of text are aligned.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
 ];
 
 super::common::ttk_widget_class!(

@@ -554,6 +554,7 @@ mod tests {
         ("ttk::combobox", TK_LINK),
         ("ttk::entry", TK_LINK),
         ("ttk::label", TK_LINK),
+        ("ttk::menubutton", TK_LINK),
         ("ttk::progressbar", TK_LINK),
         ("ttk::radiobutton", TK_LINK),
         ("ttk::scale", TK_LINK),

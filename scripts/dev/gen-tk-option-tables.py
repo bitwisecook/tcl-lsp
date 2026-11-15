@@ -81,12 +81,48 @@ def release_tables(tk: pathlib.Path) -> dict[str, list[str]]:
     return out
 
 
+def ttk_tables(tk: pathlib.Path) -> dict[str, list[str]]:
+    """Themed widgets: `RegisterWidget(interp, "ttk::x", &Spec)` names a
+    `WidgetSpec` whose third field is its option table; each table may end in
+    `WIDGET_INHERIT_OPTIONS(base)` and include `WIDGET_TAKEFOCUS_*`."""
+    ttk = tk / "generic" / "ttk"
+    if not ttk.is_dir():
+        return {}
+    sources = {path.name: path.read_text(errors="ignore") for path in ttk.glob("*.c")}
+    every = re.sub(r"/\*.*?\*/", "", "\n".join(sources.values()), flags=re.S)
+
+    def options(name: str) -> set[str]:
+        match = re.search(
+            r"Tk_OptionSpec\s+" + name + r"\[\]\s*=\s*\{(.*?)\n\};", every, re.S
+        )
+        if not match:
+            raise SystemExit(f"no ttk option table {name} in {tk}")
+        body = match.group(1)
+        found = set(re.findall(r'\{\s*TK_OPTION_[A-Z_]+,\s*"(-[a-zA-Z0-9]+)"', body))
+        if "WIDGET_TAKEFOCUS_" in body:
+            found.add("-takefocus")
+        for base in re.findall(r"WIDGET_INHERIT_OPTIONS\((\w+)\)", body):
+            found |= options(base)
+        return found
+
+    out = {}
+    for widget, spec in re.findall(r'RegisterWidget\(\s*interp,\s*"(ttk::\w+)",\s*&(\w+)\)', every):
+        # `ttk::square` is the demonstration widget of ttkSquare.c.
+        if widget == "ttk::square":
+            continue
+        table = re.search(r"WidgetSpec\s+" + spec + r"\s*=\s*\{[^,]*,[^,]*,\s*(\w+)", every)
+        if not table:
+            raise SystemExit(f"no WidgetSpec {spec} in {tk}")
+        out[widget] = sorted(options(table.group(1)))
+    return out
+
+
 def main() -> None:
     tmp = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "tmp")
     target = pathlib.Path("rust/tcl-registry/tests/data/tk_option_tables")
     target.mkdir(parents=True, exist_ok=True)
     for release in RELEASES:
-        tables = release_tables(tmp / f"tk{release}")
+        tables = release_tables(tmp / f"tk{release}") | ttk_tables(tmp / f"tk{release}")
         lines = [" ".join([widget, *options]) for widget, options in sorted(tables.items())]
         (target / f"tk{release}.txt").write_text("\n".join(lines) + "\n")
 

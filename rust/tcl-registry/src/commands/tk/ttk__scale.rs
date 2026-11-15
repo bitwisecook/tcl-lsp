@@ -102,7 +102,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Widget state (normal or disabled).",
         surface: None,
         aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
+        lifecycle: Lifecycle::introduced_in("8.6"),
         min_abbrev: None,
         effect: None,
     },

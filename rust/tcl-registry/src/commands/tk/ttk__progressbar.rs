@@ -136,6 +136,48 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
         effect: None,
     },
+    OptionSpec {
+        name: "-anchor",
+        value: OptionValue::value("anchor"),
+        detail: "Where the text is placed.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-font",
+        value: OptionValue::value("font"),
+        detail: "Font of the text.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-foreground",
+        value: OptionValue::value("color"),
+        detail: "Colour of the text.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-justify",
+        value: OptionValue::value("justify"),
+        detail: "How multiple lines of text are aligned.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-text",
+        value: OptionValue::value("string"),
+        detail: "Text shown on the bar.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-wraplength",
+        value: OptionValue::value("length"),
+        detail: "Line length at which the text wraps.",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..OptionSpec::DEFAULT
+    },
 ];
 
 super::common::ttk_widget_class!(
