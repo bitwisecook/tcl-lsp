@@ -613,10 +613,21 @@ mod tests {
     fn original_diff_subcommands_use_current_source_targets_and_captured_prefixes() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        // The document is Tcl 9.0 and so is its profile: the test is about
+        // aliases and prefixes, not about the lenient profile.
+        let profile = tcl_registry::model::resolve_environment("tcl9.0").analyser_profile();
         let config = LexerConfig::for_file_grammar(profile.grammar);
         let registry = registry_for_dialect("tcl9.0");
-        let input = logical_input(registry.clone(), "tcl9.0", config);
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                tcl_registry::model::resolve_environment("tcl9.0")
+                    .default_context_registry()
+                    .with_command_store(registry.clone()),
+            ),
+            config,
+        );
         let source = "::string len abc; interp alias {} chars {} string length; chars $value; string $operation abc";
         let document = DiffDocument::capture(source, &input, false).unwrap();
         assert!(

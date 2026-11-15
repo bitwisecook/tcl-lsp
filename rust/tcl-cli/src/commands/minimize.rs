@@ -574,7 +574,11 @@ mod tests {
                 "set {a} 1; list ${a}",
             ),
             ("set {$literal} 1; list ${$literal}", "set {a} 1; list ${a}"),
-            ("set λlong 1;\nlist $λlong", "set a 1;\nlist $a"),
+            // `$` takes ASCII name characters only, so `$λlong` is the
+            // literal text on Tcl 8.4.20, 8.6.18, 9.0.4 and 9.1.0 (`list
+            // $λlong` answers `{$λlong}`); the braced form is the reference.
+            ("set λlong 1;\nlist $λlong", "set a 1;\nlist $λlong"),
+            ("set λlong 1;\nlist ${λlong}", "set a 1;\nlist ${a}"),
         ] {
             assert_eq!(renamed_source(source, &input), expected, "{source:?}");
         }
