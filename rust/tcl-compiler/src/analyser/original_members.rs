@@ -2017,13 +2017,14 @@ mod tests {
                 .counted_initial_body_methods(&declaration, records[1].metadata().body(), &[])
                 .is_none()
         );
-        analyser.source.insert(0, '#');
+        let unchanged = std::sync::Arc::clone(&analyser.source);
+        analyser.source = format!("#{unchanged}").into();
         assert!(
             analyser
                 .counted_initial_body_methods(&declaration, records[0].metadata().body(), &[])
                 .is_none()
         );
-        analyser.source.remove(0);
+        analyser.source = unchanged;
         analyser.result = Analyser::new().analyse(source, "tcl9.0");
         assert!(
             analyser
@@ -2137,7 +2138,7 @@ mod tests {
                 .is_none()
         );
         analyser.result.body_lexer_config = Some(input.lexer_config());
-        analyser.source.push(' ');
+        analyser.source = format!("{}{}", analyser.source, ' ').into();
         assert!(
             analyser
                 .original_logical_inline_member_words(texts, tokens)

@@ -2915,10 +2915,11 @@ impl Analyser {
         );
         let same_card =
             |existing: &crate::signature_scan::variable_symbol::OriginalVariableWriteAdvice| {
-                existing.matches_context(&context)
-                    && existing.span() == advice.span()
-                    && existing.original_name_input() == advice.original_name_input()
+                // Cheapest test first: most cards are at another span.
+                existing.span() == advice.span()
                     && existing.receiver_form() == advice.receiver_form()
+                    && existing.matches_context(&context)
+                    && existing.original_name_input() == advice.original_name_input()
                     && existing.original_frame() == advice.original_frame()
                     && existing.original_namespace() == advice.original_namespace()
             };
@@ -4558,9 +4559,9 @@ mod tests {
         ));
         assert!(analyser.lookup_logical_const_substitution(token).is_none());
         analyser.result.resolved_input = Some(input);
-        analyser.source = source.replace("VALUE", "OTHER");
+        analyser.source = source.replace("VALUE", "OTHER").into();
         assert!(analyser.lookup_logical_const_substitution(token).is_none());
-        analyser.source = source.to_owned();
+        analyser.source = source.to_owned().into();
         analyser.result.resolved_input = None;
         assert!(analyser.lookup_logical_const_substitution(token).is_none());
         analyser.restore(snapshot);

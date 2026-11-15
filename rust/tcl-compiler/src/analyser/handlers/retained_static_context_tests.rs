@@ -152,7 +152,7 @@ fn original_static_context_refuses_missing_foreign_and_changed_source_axes() {
                 analyser.resolved_input = Some(altered.clone());
                 analyser.result.resolved_input = Some(altered);
             }
-            4 => analyser.source.push(' '),
+            4 => analyser.source = format!("{} ", analyser.source).into(),
             5 => analyser.profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
             6 => analyser.result.command_realm = None,
             7 => analyser.head_identities = crate::realm::CommandBindingRealm::default(),

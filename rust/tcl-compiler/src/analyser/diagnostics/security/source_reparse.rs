@@ -446,7 +446,7 @@ mod tests {
                     stale.config.strict_quoting = !stale.config.strict_quoting;
                     changed.result.resolved_input = Some(stale);
                 }
-                2 => changed.source = "run_current [subst $other]".to_owned(),
+                2 => changed.source = "run_current [subst $other]".to_owned().into(),
                 _ => {
                     changed.result.resolved_input = Some(self::input(
                         tcl_registry::model::ingress::resolve_environment("tcl8.6")

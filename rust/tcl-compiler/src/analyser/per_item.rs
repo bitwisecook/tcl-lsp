@@ -499,7 +499,8 @@ impl Analyser {
     ) -> Vec<crate::segmenter::SegmentedCommand> {
         use std::collections::HashSet;
 
-        self.source = source.to_string();
+        let retained = self.retain_walk_source(source);
+        let source: &str = &retained;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.body_lexer_config = Some(self.file_lexer_config());
@@ -1576,7 +1577,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     a.declared_commands = declared_commands;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).
-    a.source = db.body_text.to_string();
+    a.retain_walk_source(&db.body_text);
     // The isolated pass has no whole-file view, so the constant
     // command-substitution fold may trust only the snapshot
     // the shell attached — and must distrust EVERYTHING when none was

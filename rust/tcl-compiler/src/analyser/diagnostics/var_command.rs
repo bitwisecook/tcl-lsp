@@ -941,7 +941,7 @@ impl Analyser {
             return FactoryObjectAdvice::default();
         }
         if cu.ir_module.source_metadata_input.as_ref() != Some(input)
-            || cu.source != self.source
+            || *cu.source != *self.source
             || !self.result.matches_original_source_image(
                 &tcl_lexer::SourceImage::document(&self.source),
                 input.lexer_config(),
@@ -1272,7 +1272,7 @@ impl Analyser {
         // Restore exact original-site proofs through the shared source owner
         // before either analysis strategy classifies a result. Missing sites
         // remain explicitly unknown; no catalogue or spelling fallback is used.
-        let bindings = self.head_identities.source_bindings();
+        let bindings = self.head_identities.source_bindings_ref();
         for site in &mut cmd_sites {
             for tokens in &mut site.commands {
                 bindings.stamp_original_tokens(tokens);
@@ -3913,7 +3913,7 @@ mod original_ensemble_head_tests {
         let mut shifted = site.clone();
         shifted.cmd_span = tcl_lexer::Span::new(site.cmd_span.start() + 1, site.cmd_span.end());
         assert!(analyser.original_namespaced_ensemble(&shifted).is_none());
-        analyser.source.push(' ');
+        analyser.source = format!("{}{}", analyser.source, ' ').into();
         assert!(analyser.original_namespaced_ensemble(&site).is_none());
     }
 }
@@ -3995,14 +3995,14 @@ mod selected_method_return_source_tests {
             );
             analyser
                 .head_identities
-                .source_bindings()
+                .source_bindings_ref()
                 .stamp_original_tokens(&mut tokens);
             assert_eq!(
                 analyser.oo_self_method_returns_literal(&tokens),
                 expected,
                 "{source}"
             );
-            analyser.source.push_str("# changed");
+            analyser.source = format!("{}{}", analyser.source, "# changed").into();
             assert!(!analyser.oo_self_method_returns_literal(&tokens));
         }
     }

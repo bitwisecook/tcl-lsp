@@ -12517,7 +12517,7 @@ fn emit_cfg_ssa_diagnostics_w214_skips_args_param() {
 fn dedupe_drops_exact_duplicates() {
     // Same code + span + message + severity → kept once.
     let mut a = Analyser::new();
-    a.source = "set x 1".to_string();
+    a.source = "set x 1".to_string().into();
     a.result
         .diagnostics
         .push(diag(DiagCode::W210, Span::new(4, 5), "x not set"));
@@ -12531,7 +12531,7 @@ fn dedupe_drops_exact_duplicates() {
 #[test]
 fn dedupe_keeps_distinct_diagnostics_at_different_spans() {
     let mut a = Analyser::new();
-    a.source = "set x 1\nset y 2".to_string();
+    a.source = "set x 1\nset y 2".to_string().into();
     a.result
         .diagnostics
         .push(diag(DiagCode::W210, Span::new(4, 5), "x"));
@@ -12548,7 +12548,7 @@ fn dedupe_drops_e002_on_e101_line() {
     // a false positive (arity check confused by the
     // recovered switch) and gets dropped.
     let mut a = Analyser::new();
-    a.source = "switch $x { foo {puts foo}".to_string();
+    a.source = "switch $x { foo {puts foo}".to_string().into();
     let switch_span = Span::new(0, 6);
     a.result
         .diagnostics
@@ -12576,7 +12576,7 @@ fn dedupe_keeps_e002_on_unrelated_line() {
     // E101 on line 0, E002 on line 1 — different lines, so
     // the suppression rule doesn't fire.
     let mut a = Analyser::new();
-    a.source = "switch $x {\nset y 1".to_string();
+    a.source = "switch $x {\nset y 1".to_string().into();
     a.result
         .diagnostics
         .push(diag(DiagCode::E101, Span::new(0, 6), "missing brace"));

@@ -519,9 +519,10 @@ mod tests {
                 .bytes(),
             b"D\xed\xa0\x81"
         );
-        analyser.source.insert(0, '#');
+        let unchanged = std::sync::Arc::clone(&analyser.source);
+        analyser.source = format!("#{unchanged}").into();
         assert!(capture_empty_counted_class(&analyser, 0, &[]).is_none());
-        analyser.source.remove(0);
+        analyser.source = unchanged;
         let foreign = Analyser::new().analyse("oo::class create D\\uD801 {}", "tcl9.0");
         analyser.result = foreign;
         assert!(capture_empty_counted_class(&analyser, 0, &[]).is_none());

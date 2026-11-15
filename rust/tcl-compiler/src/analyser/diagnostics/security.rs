@@ -1032,7 +1032,7 @@ mod original_quoting_child_purpose_tests {
         analyser.result.resolved_input = None;
         assert!(!analyser.original_regex_quoting_substitution(word));
         analyser.result = retained;
-        analyser.source = source.replace(" VALUE", " OTHER");
+        analyser.source = source.replace(" VALUE", " OTHER").into();
         assert!(!analyser.original_regex_quoting_substitution(word));
     }
 }
@@ -1126,7 +1126,7 @@ mod original_catch_child_purpose_tests {
                 .is_none()
         );
         analyser.result = retained;
-        analyser.source = source.replace(" gone", " other");
+        analyser.source = source.replace(" gone", " other").into();
         assert!(
             analyser
                 .original_diagnostic_source_for_segment(child)

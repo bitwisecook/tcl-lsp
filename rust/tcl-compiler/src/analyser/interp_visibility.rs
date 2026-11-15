@@ -709,7 +709,7 @@ impl Analyser {
             .matches(&SourceImage::document(&self.source), &input)
             .then_some(())?;
         let namespace = self.declaration_namespace_scope(scope_path)?;
-        let span = tcl_lexer::word_span_at(&self.source, name.span);
+        let span = tcl_lexer::word_span_at(&*self.source, name.span);
         let mut declarations = snapshot.slots.values().filter_map(|slot| {
             let SourceVisibleSlot::Visible(SourceCommandOrigin::Declaration {
                 name,
@@ -1115,7 +1115,7 @@ impl Analyser {
             return None;
         }
         if receipt.creation().original_words() != snapshot.declaration
-            || receipt.body_word().span() != tcl_lexer::word_span_at(&self.source, body.span)
+            || receipt.body_word().span() != tcl_lexer::word_span_at(&*self.source, body.span)
         {
             return None;
         }
@@ -1382,7 +1382,7 @@ impl Analyser {
             let range = argv
                 .iter()
                 .find(|token| {
-                    tcl_lexer::word_span_at(&self.source, token.span) == original.path.span()
+                    tcl_lexer::word_span_at(&*self.source, token.span) == original.path.span()
                 })
                 .map_or(original.path.span(), |token| token.span);
             if self

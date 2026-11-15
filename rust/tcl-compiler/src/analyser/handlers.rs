@@ -2898,7 +2898,7 @@ impl Analyser {
 
     fn procedure_reporting_body_span(&self, body: Token, finite: bool) -> Span {
         if finite {
-            tcl_lexer::word_span_at(&self.source, body.span)
+            tcl_lexer::word_span_at(&*self.source, body.span)
         } else {
             body.span
         }
@@ -7880,7 +7880,7 @@ impl Analyser {
             seg,
         );
         self.head_identities
-            .source_bindings()
+            .source_bindings_ref()
             .stamp_original_tokens(&mut tokens);
         let retained = self
             .resolved_input
@@ -8110,7 +8110,7 @@ impl Analyser {
             seg,
         );
         self.head_identities
-            .source_bindings()
+            .source_bindings_ref()
             .stamp_original_tokens(&mut tokens);
         let original = crate::registry_invocation::original_expression_operand_advice_for_word(
             context.commands(),
@@ -8266,7 +8266,7 @@ impl Analyser {
                 return UnknownBodyEvidence::Nothing;
             };
             let config = self.file_lexer_config();
-            let bindings = self.head_identities.source_bindings();
+            let bindings = self.head_identities.source_bindings_ref();
             let Some(origin) = bindings.source_origin() else {
                 return UnknownBodyEvidence::Nothing;
             };
@@ -9129,7 +9129,7 @@ impl Analyser {
             config,
             &arm.controller,
         );
-        let bindings = self.head_identities.source_bindings();
+        let bindings = self.head_identities.source_bindings_ref();
         let origin = bindings.source_origin()?;
         let original = origin.original_lexical_command(
             tokens.words(),
@@ -12534,7 +12534,7 @@ impl Analyser {
             &segmented,
         );
         self.head_identities
-            .source_bindings()
+            .source_bindings_ref()
             .stamp_original_tokens(&mut tokens);
         if self.result.allows_lexical_declaration_advice() {
             let words = crate::registry_invocation::source_structure::source_registry_words(
@@ -12768,7 +12768,7 @@ mod tests {
                         .resolve_class_creation(&changed, segment.arg_tokens(), segment.argv[0])
                         .is_none()
                 );
-                analyser.source.push(' ');
+                analyser.source = format!("{}{}", analyser.source, ' ').into();
                 assert!(
                     analyser
                         .resolve_class_creation(
@@ -12919,7 +12919,7 @@ mod tests {
                         )
                         .is_none()
                 );
-                analyser.source.push(' ');
+                analyser.source = format!("{}{}", analyser.source, ' ').into();
                 assert!(
                     analyser
                         .class_factory_for_command(
@@ -13094,7 +13094,7 @@ mod tests {
                 .collect::<Vec<_>>();
             assert_eq!(selected, selected_bodies, "{source}");
             assert_eq!(actual_fallthrough, fallthrough, "{source}");
-            analyser.source.push(' ');
+            analyser.source = format!("{}{}", analyser.source, ' ').into();
             assert!(
                 analyser
                     .possible_if_body_spans(&segment, "unused")
@@ -13153,7 +13153,7 @@ mod tests {
                 "an arbitrary contained point is not an original body"
             );
             arm.body_span = actual_span;
-            analyser.source.push(' ');
+            analyser.source = format!("{}{}", analyser.source, ' ').into();
             assert!(analyser.control_arm_semantics_for(&arm).is_none());
         }
     }
@@ -13237,7 +13237,7 @@ mod tests {
                     "interior point cannot donate body authority"
                 );
             }
-            analyser.source.push(' ');
+            analyser.source = format!("{}{}", analyser.source, ' ').into();
             let arm = ControlArm {
                 controller,
                 body_span: bodies[0].extent_span(),
@@ -13718,7 +13718,7 @@ mod tests {
             analyser.resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[]),
             Some("WRONG:RIGHT:SCALAR".to_owned())
         );
-        analyser.source = source.replace("RIGHT", "OTHER");
+        analyser.source = source.replace("RIGHT", "OTHER").into();
         assert!(
             analyser
                 .resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[])
@@ -13770,9 +13770,9 @@ mod tests {
             Some("named")
         );
         let snapshot = analyser.snapshot();
-        analyser.source = source.replace("VALUE", "OTHER");
+        analyser.source = source.replace("VALUE", "OTHER").into();
         assert!(analyser.resolve_dynamic_interp_path(Some(token)).is_none());
-        analyser.source = source.to_owned();
+        analyser.source = source.to_owned().into();
         analyser.restore(snapshot);
         assert_eq!(
             analyser.resolve_dynamic_interp_path(Some(token)).as_deref(),
@@ -13877,7 +13877,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["p", "puts $p", "::N"]
         );
-        analyser.source = source.replace("VALUE", "OTHER");
+        analyser.source = source.replace("VALUE", "OTHER").into();
         assert!(analyser.resolve_dynamic_apply_lambda(token).is_none());
     }
 
@@ -13969,7 +13969,7 @@ mod tests {
             .expect("original literal list lambda");
         assert_eq!(elements.len(), 3, "iRules list elements: {elements:?}");
         let mut missing = Analyser::new();
-        missing.source = source.to_owned();
+        missing.source = source.to_owned().into();
         missing.profile = tcl_dialect::DialectProfile::irules();
         assert!(
             missing.resolve_dynamic_apply_lambda(token).is_none(),
@@ -14994,7 +14994,7 @@ mod tests {
     fn irules_profile_without_attached_registry_keeps_valid_proc_semantics() {
         let mut analyser = Analyser::new();
         analyser.profile = tcl_dialect::DialectProfile::irules();
-        analyser.source = "proc set {} {}".to_owned();
+        analyser.source = "proc set {} {}".to_owned().into();
         assert!(analyser.registry.is_none());
         let handled = analyser.handle_proc_command(
             "proc",
@@ -15136,7 +15136,7 @@ mod tests {
         // namespace, not a core-global shadow.)
         let mut a = Analyser::new();
         a.profile = tcl_dialect::DialectProfile::irules();
-        a.source = "proc pool {} {}".to_owned();
+        a.source = "proc pool {} {}".to_owned().into();
         a.handle_proc_command(
             "proc",
             &["pool".to_string(), String::new(), String::new()],
@@ -20996,10 +20996,7 @@ mod original_proc_source_layout_tests {
                 .original_procedure_source_words_at(command.argv[0], command.args(), &tokens)
                 .is_none()
         );
-        analyser.source.push_str(
-            "
-# changed complete source",
-        );
+        analyser.source = format!("{}\n# changed complete source", analyser.source).into();
         assert!(
             analyser
                 .original_procedure_source_words_at(

@@ -3490,7 +3490,7 @@ mod logical_class_family_tests {
             .as_ref()
             .map(crate::analyser::ResolvedAnalysisInput::context_registry);
         analyser.resolved_input = result.resolved_input.clone();
-        analyser.source = SOURCE.to_owned();
+        analyser.source = SOURCE.to_owned().into();
         analyser.result = result;
         analyser
     }
@@ -3558,9 +3558,9 @@ mod logical_class_family_tests {
             .source_name_ambiguous = SourceNameAmbiguity::Observed;
         assert!(!family_is_tcloo(&analyser));
         analyser.result.all_classes.insert("::Dog".into(), original);
-        analyser.source.push_str("# changed whole input");
+        analyser.source = format!("{}{}", analyser.source, "# changed whole input").into();
         assert!(!family_is_tcloo(&analyser));
-        analyser.source = SOURCE.to_owned();
+        analyser.source = SOURCE.to_owned().into();
         analyser.profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").unit_profile();
         analyser.result.dialect = "tcl9.1".into();

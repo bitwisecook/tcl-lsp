@@ -814,7 +814,7 @@ impl Analyser {
         let Some(registry) = self.registry.as_deref() else {
             return false;
         };
-        let bindings = self.head_identities.source_bindings();
+        let bindings = self.head_identities.source_bindings_ref();
         let ingress = bindings.invocation_at_source(cmd_name, cmd_tok.span.start());
         for index in selectors {
             if let Some(token) = arg_tokens.get(index) {
@@ -1003,7 +1003,7 @@ fn collect_debug_flag_names(
 ) -> Vec<crate::connection_scope::EventCell> {
     use tcl_registry::events::EventExecutionMultiplicity;
     let mut names = std::collections::HashSet::new();
-    let bindings = resolver.source_bindings();
+    let bindings = resolver.source_bindings_ref();
     let declarations = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
     for candidate in declarations.iter().flat_map(|command| {
         bindings

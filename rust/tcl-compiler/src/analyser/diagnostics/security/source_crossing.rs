@@ -414,8 +414,7 @@ mod tests {
                     changed.result.resolved_input = Some(stale);
                 }
                 2 => {
-                    changed.source =
-                        "uplevel 1 \"pré $other\"; interp eval $child $other".to_owned();
+                    changed.source = "uplevel 1 \"pré $other\"; interp eval $child $other".into();
                 }
                 _ => {
                     changed.result.resolved_input = Some(input(

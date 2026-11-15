@@ -571,7 +571,7 @@ mod tests {
                     changed.config.strict_quoting = !changed.config.strict_quoting;
                     missing.result.resolved_input = Some(changed);
                 }
-                2 => missing.source = "template_current $other".to_owned(),
+                2 => missing.source = "template_current $other".to_owned().into(),
                 _ => {
                     missing.result.resolved_input = Some(input(
                         tcl_registry::model::ingress::resolve_environment("tcl8.6")

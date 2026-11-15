@@ -385,8 +385,10 @@ pub struct Analyser {
     ///
     /// Set at the top of [`Self::analyse`] (and the chunked
     /// entries) and read by handlers that need to re-slice the outer
-    /// source — recovery and CFG/SSA diagnostic emission.
-    pub source: String,
+    /// source — recovery and CFG/SSA diagnostic emission. A walk holds the
+    /// document image's own buffer, so checking an image against this text
+    /// compares addresses, not the document.
+    pub source: Arc<str>,
     /// Static original words from this walk's genuine complete command
     /// vectors. Missing or conflicting producers never use a display name.
     pub(super) original_static_source_names:
@@ -1606,7 +1608,7 @@ impl Analyser {
             authenticated_report_request: None,
             result: AnalysisResult::default(),
             current_scope_path: Vec::new(),
-            source: String::new(),
+            source: Arc::from(""),
             original_static_source_names: HashMap::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
             ingress_grammar: None,
@@ -2535,7 +2537,8 @@ impl Analyser {
         self.unresolved_commands_emitted = false;
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
-        self.source = source.to_string();
+        let retained = self.retain_walk_source(source);
+        let source: &str = &retained;
         self.original_static_source_names.clear();
         self.original_class_definition_body = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
@@ -2675,6 +2678,15 @@ impl Analyser {
         self.clear_run_state();
         Self::trace_analysis_phase(phase_start, source.len(), "complete");
         result
+    }
+
+    /// Hold `source` through its document image's buffer and return it.
+    pub(super) fn retain_walk_source(&mut self, source: &str) -> Arc<str> {
+        let text = tcl_lexer::SourceImage::document(source)
+            .shared_text()
+            .unwrap_or_else(|| Arc::from(source));
+        self.source = Arc::clone(&text);
+        text
     }
 
     fn trace_analysis_phase(
@@ -3099,7 +3111,8 @@ impl Analyser {
         chunk_commands: Vec<Vec<crate::segmenter::SegmentedCommand>>,
         dialect: &str,
     ) -> (AnalysisResult, Vec<super::snapshot::AnalyserSnapshot>) {
-        self.source = source.to_string();
+        let retained = self.retain_walk_source(source);
+        let source: &str = &retained;
         self.original_static_source_names.clear();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
@@ -3200,7 +3213,8 @@ impl Analyser {
         dialect: &str,
         finalise: bool,
     ) -> AnalysisResult {
-        self.source = source.to_string();
+        let retained = self.retain_walk_source(source);
+        let source: &str = &retained;
         self.original_static_source_names.clear();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
@@ -4432,7 +4446,7 @@ mod tests {
         let a = Analyser::new();
         assert_eq!(a.result.global_scope.kind, ScopeKind::Global);
         assert_eq!(a.current_scope_path, [] as [usize; 0]);
-        assert_eq!(a.source, "");
+        assert_eq!(&*a.source, "");
         assert_eq!(a.disabled_diagnostics.len(), 0);
         assert_eq!(a.conditional_depth, 0);
         assert_eq!(a.body_depth, 0);
@@ -5535,7 +5549,7 @@ mod tests {
         // ``analyse``.
         let mut a = Analyser::new();
         let _ = a.analyse("set x 1", "tcl");
-        assert_eq!(a.source, "set x 1");
+        assert_eq!(&*a.source, "set x 1");
     }
 
     #[test]

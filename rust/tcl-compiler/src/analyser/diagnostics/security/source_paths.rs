@@ -782,7 +782,7 @@ mod tests {
                     changed_input.config.strict_quoting = !changed_input.config.strict_quoting;
                     changed.result.resolved_input = Some(changed_input);
                 }
-                2 => changed.source = "open $other; source $other".to_owned(),
+                2 => changed.source = "open $other; source $other".to_owned().into(),
                 _ => changed.result.resolved_input = Some(current_input("tcl9.0")),
             }
             changed.emit_w103_open_pipeline(Some(&originals[0]));

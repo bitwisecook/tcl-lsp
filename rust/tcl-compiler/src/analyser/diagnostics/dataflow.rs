@@ -1063,7 +1063,7 @@ is renamed or deleted in this file."
         let image = tcl_lexer::SourceImage::document(&self.source);
         let Some(report) = self
             .head_identities
-            .source_bindings()
+            .source_bindings_ref()
             .original_procedure_declaration_flow(procedure, &image, registry)
             .or_else(|| function_declaration_flow(fu, procedure, &image, registry))
         else {
@@ -1843,7 +1843,7 @@ is renamed or deleted in this file."
             rbs_read_option(
                 "fallback_read_flow",
                 self.head_identities
-                    .source_bindings()
+                    .source_bindings_ref()
                     .original_procedure_read_flow(
                         procedure,
                         original_image,
@@ -5928,7 +5928,7 @@ mod original_variable_anchor_tests {
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
         );
         let mut analyser = crate::analyser::Analyser::new().with_resolved_input(input);
-        analyser.source = source.to_owned();
+        analyser.source = source.to_owned().into();
         analyser.narrow_to_read_var(
             tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             target,
@@ -6402,7 +6402,7 @@ mod original_condition_child_purpose_tests {
                 .is_none()
         );
         analyser.result = retained;
-        analyser.source = source.replace(" x y v", " x z v");
+        analyser.source = source.replace(" x y v", " x z v").into();
         assert!(
             analyser
                 .original_condition_matcher(&expression, Some(region.start()))

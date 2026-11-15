@@ -248,7 +248,7 @@ fn matching_document_image(
 ) -> Option<tcl_lexer::SourceImage> {
     // naming.source.original-immutable-image-geometry
     // docs/design/analysis/name-resolution-proofs/original-immutable-image-geometry.md
-    (image.channel() == tcl_lexer::SourceChannel::Document && image.bytes() == source.as_bytes())
+    (image.channel() == tcl_lexer::SourceChannel::Document && image.has_bytes_of(source))
         .then(|| image.clone())
 }
 

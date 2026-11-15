@@ -200,8 +200,7 @@ fn original_document_source_image(
 ) -> tcl_lexer::SourceImage {
     retained
         .filter(|image| {
-            image.channel() == tcl_lexer::SourceChannel::Document
-                && image.bytes() == source.as_bytes()
+            image.channel() == tcl_lexer::SourceChannel::Document && image.has_bytes_of(source)
         })
         .cloned()
         .unwrap_or_else(|| tcl_lexer::SourceImage::document(source))
@@ -694,7 +693,7 @@ impl Analyser {
                 };
                 let proof = self
                     .head_identities
-                    .source_bindings()
+                    .source_bindings_ref()
                     .invocation_at_origin(&source.origin, command.argv.first()?.span.start());
                 proof
                     .invocation_realm()
@@ -5937,7 +5936,7 @@ impl Analyser {
                     position.line,
                     position.character.get(),
                 );
-                let bindings = self.head_identities.source_bindings();
+                let bindings = self.head_identities.source_bindings_ref();
                 let commands = crate::segmenter::segment_commands_with_offset_and_config(
                     &cmd_text,
                     base,
@@ -8023,7 +8022,7 @@ mod tests {
             (None, None)
         );
         analyser.result.resolved_input = Some(owner);
-        analyser.source.push(' ');
+        analyser.source = format!("{}{}", analyser.source, ' ').into();
         assert_eq!(
             analyser.original_namespace_reference_input(Some(&word), span, offset, &[]),
             (None, None)
@@ -8179,7 +8178,7 @@ mod tests {
             ));
             assert!(!analyser.original_keyword_slot_is_absent("finally", token));
             analyser.result.resolved_input = Some(input);
-            analyser.source.push(' ');
+            analyser.source = format!("{}{}", analyser.source, ' ').into();
             assert!(!analyser.original_keyword_slot_is_absent("finally", token));
         }
     }
@@ -9487,7 +9486,7 @@ mod original_command_variable_geometry_tests {
             analyser.pending_const_dispatches.last().unwrap().var_name,
             "arr(key)"
         );
-        analyser.source.push_str("# foreign source");
+        analyser.source = format!("{}{}", analyser.source, "# foreign source").into();
         assert!(!analyser.head_is_whole_word_variable(commands[1].argv[0]));
         assert!(
             analyser

@@ -678,7 +678,7 @@ mod controls {
                 .reborrow(&analyser, receipt.name_token, &[])
                 .is_some()
         );
-        analyser.source.push_str("\n# changed complete source");
+        analyser.source = format!("{}{}", analyser.source, "\n# changed complete source").into();
         assert!(
             receipt
                 .reborrow(&analyser, receipt.name_token, &[])

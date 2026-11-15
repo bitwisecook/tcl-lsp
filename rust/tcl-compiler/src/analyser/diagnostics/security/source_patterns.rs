@@ -638,7 +638,7 @@ mod tests {
             analyser.result.diagnostics.clear();
             match axis {
                 0 => analyser.result.resolved_input = None,
-                1 => analyser.source = "regexp {(b+)+} literal".to_owned(),
+                1 => analyser.source = "regexp {(b+)+} literal".to_owned().into(),
                 2 => {
                     analyser.result.resolved_input = Some(self::input(
                         tcl_registry::model::ingress::resolve_environment("tcl9.0")
