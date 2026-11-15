@@ -2087,11 +2087,37 @@ pub fn original_logical_operation_invocation_with_metadata_context(
     context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
 ) -> Option<ResolvedStatementInvocation> {
+    original_source_model_operation_invocation_with_metadata_context(
+        registry,
+        context,
+        tokens,
+        crate::command_binding::OriginalInvocationSourcePurpose::Logical,
+    )
+}
+
+/// The original operation invocation of a source read under `purpose`, a
+/// software source model (Logical, or a release's authored simulation). It
+/// answers source structure only: no Native entry, dispatch or completion.
+#[doc(hidden)]
+#[must_use]
+pub fn original_source_model_operation_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    purpose: crate::command_binding::OriginalInvocationSourcePurpose,
+) -> Option<ResolvedStatementInvocation> {
+    if !matches!(
+        purpose,
+        crate::command_binding::OriginalInvocationSourcePurpose::Logical
+            | crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
+    ) {
+        return None;
+    }
     let logical_source = tokens
         .source_binding
         .as_ref()?
         .original_source_advice_purpose(tokens, context, registry)?
-        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+        == purpose;
     if !context.matches_registry(registry) || !logical_source || tokens.synthetic.is_some() {
         return None;
     }
