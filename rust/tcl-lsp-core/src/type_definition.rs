@@ -69,7 +69,9 @@ pub fn type_definition(
                         class.name_input().span(),
                     )]
                 }),
-            std::ops::ControlFlow::Break(None) | std::ops::ControlFlow::Continue(()) => Vec::new(),
+            std::ops::ControlFlow::Break(None) | std::ops::ControlFlow::Continue(()) => {
+                declared_member_type(source, &line_index, analysis, cursor)
+            }
         };
     }
 
@@ -89,7 +91,29 @@ pub fn type_definition(
             current.config(),
             cursor,
         )
-        .map_or_default(|class| vec![span_to_range(source, &line_index, class.name_span)])
+        .map_or_else(
+            || declared_member_type(source, &line_index, analysis, cursor),
+            |class| vec![span_to_range(source, &line_index, class.name_span)],
+        )
+}
+
+/// Display answer for a self-dispatch in a method body the analysis did not
+/// enter: the declared class that provides the written member.
+fn declared_member_type(
+    source: &str,
+    line_index: &LineIndex,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Vec<LspRange> {
+    crate::definition::declared_self_dispatch_at(source, analysis, cursor)
+        .filter(|(_, _, method)| {
+            // The declaration record must still describe this source.
+            method.name_span.end() <= method.body_span.start()
+                && source.get(method.name_span.as_range()).is_some()
+        })
+        .map_or_default(|(_, provider, _)| {
+            vec![span_to_range(source, line_index, provider.name_span)]
+        })
 }
 
 #[cfg(test)]
