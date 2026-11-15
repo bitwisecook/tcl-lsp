@@ -35,9 +35,10 @@ pub(super) struct OriginalCommandMove {
     config: tcl_lexer::LexerConfig,
     handler: super::SourceCommandTarget,
     from: SignatureSourceNameInput,
-    to: SignatureSourceNameInput,
+    /// `None` for the delete form.
+    to: Option<SignatureSourceNameInput>,
     source: SourceCommandKey,
-    destination: SourceCommandKey,
+    destination: Option<SourceCommandKey>,
     binding: MayBinding,
     target: ResolvedCommandTarget,
     imported_origin: Option<SourceCommandKey>,
@@ -73,66 +74,87 @@ impl OriginalCommandMove {
         }
         let transitions = facts.state_transitions.declared()?;
         let mut bindings = transitions.command_bindings();
-        let CommandBindingTransition::Move { from, to } = bindings.next()? else {
-            return None;
-        };
+        let first = bindings.next()?;
         if bindings.next().is_some() {
             return None;
         }
+        // The registry states the delete form (`rename NAME {}`) as its own
+        // transition; the move form names a destination operand.
+        let (from, to) = match first {
+            CommandBindingTransition::Move { from, to } => (from, Some(to)),
+            CommandBindingTransition::Delete {
+                interpreter: None,
+                name,
+            } => (name, None),
+            _ => return None,
+        };
         if transitions
             .facts()
             .iter()
             .any(|fact| match &fact.transition {
-                StateTransition::CommandBinding(CommandBindingTransition::Move {
-                    from: a,
-                    to: b,
-                }) => a != from || b != to,
+                StateTransition::CommandBinding(transition) => transition != first,
                 StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure {
                     namespace: tcl_registry::NamespaceTransitionTarget::Named(subject),
-                }) => subject.argument_index() != to.argument_index(),
+                }) => to.is_none_or(|to| subject.argument_index() != to.argument_index()),
                 _ => true,
             })
         {
             return None;
         }
         let from = super::original_command_table::original_operand(native, from, state, context)?;
-        let to = super::original_command_table::original_operand(native, to, state, context)?;
-        if from.policy() != to.policy()
-            || !matches!(
-                from.policy().recipe(),
-                tcl_syntax::naming::NativeNameProtocol::C(_)
-            )
-        {
+        if !matches!(
+            from.policy().recipe(),
+            tcl_syntax::naming::NativeNameProtocol::C(_)
+        ) {
             return None;
         }
         let current = context.namespace_identity();
-        let scope = state.original_namespace_geometry(&current, to.policy())?;
-        let selected = to
-            .policy()
-            .recipe()
-            .rename_destination_input(scope.context()?, to.bytes())
-            .ok()?;
-        if selected.selected().is_empty() {
-            return None;
-        }
         let (source, occupied) = state.original_occupied_command_for_input(&current, &from)?;
         let (binding, target, imported_origin) =
             Self::intrinsic_occupied_target(state, &source, &occupied)?;
-        let destination = state.original_publication_key(
-            &current,
-            &to,
-            super::namespace_slots::PublicationPurpose::Rename,
-        )?;
-        if source == destination
-            || !state.namespaces.contains(destination.holder().as_ref())
-            || state
-                .unknown_lookup_namespaces
-                .contains(destination.holder().as_ref())
-            || state.original_bindings_for_key(&destination)?
-                != BTreeSet::from([MayBinding::Missing])
-        {
-            return None;
-        }
+        let to = match to {
+            Some(to) => {
+                let to =
+                    super::original_command_table::original_operand(native, to, state, context)?;
+                if from.policy() != to.policy() {
+                    return None;
+                }
+                let scope = state.original_namespace_geometry(&current, to.policy())?;
+                let selected = to
+                    .policy()
+                    .recipe()
+                    .rename_destination_input(scope.context()?, to.bytes())
+                    .ok()?;
+                (!selected.selected().is_empty()).then_some(to)
+            }
+            None => None,
+        };
+        let destination = match &to {
+            None => {
+                if !Self::deletion_runs_no_cleanup(state, &current, &source, &binding, &target) {
+                    return None;
+                }
+                None
+            }
+            Some(to) => {
+                let destination = state.original_publication_key(
+                    &current,
+                    to,
+                    super::namespace_slots::PublicationPurpose::Rename,
+                )?;
+                if source == destination
+                    || !state.namespaces.contains(destination.holder().as_ref())
+                    || state
+                        .unknown_lookup_namespaces
+                        .contains(destination.holder().as_ref())
+                    || state.original_bindings_for_key(&destination)?
+                        != BTreeSet::from([MayBinding::Missing])
+                {
+                    return None;
+                }
+                Some(destination)
+            }
+        };
         Some(Self {
             site: CommandAllocationSite {
                 source: Arc::clone(state.current_source_origin.as_ref()?),
@@ -149,6 +171,49 @@ impl OriginalCommandMove {
             target,
             imported_origin,
         })
+    }
+
+    /// Deleting a procedure's own slot runs no delete callback and leaves
+    /// every other slot as it was, provided no import link refers to it: Tcl
+    /// removes those links with their origin. The release's unresolved-command
+    /// handler is a library procedure the registry describes as a builtin.
+    /// Other builtins, objects and imported wrappers keep their own cleanup
+    /// owners.
+    fn deletion_runs_no_cleanup(
+        state: &ModuleCommandBindings,
+        current: &super::SourceNamespaceKey,
+        source: &SourceCommandKey,
+        binding: &MayBinding,
+        target: &ResolvedCommandTarget,
+    ) -> bool {
+        let Some(identity) = target.token.as_ref() else {
+            return false;
+        };
+        let procedure = match target.kind {
+            BindingKind::Proc => true,
+            BindingKind::Builtin => state
+                .baseline
+                .dialect
+                .and_then(|dialect| {
+                    tcl_registry::command_lookup::native_lookup_fallback_policy(
+                        dialect,
+                        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                    )
+                })
+                .is_some_and(|policy| {
+                    state
+                        .source_keys(policy.default_handler, current)
+                        .contains(source)
+                }),
+            _ => false,
+        };
+        procedure
+            && matches!(binding, MayBinding::Target(_))
+            && !state.bindings.values().any(|alternatives| {
+                alternatives.iter().any(|alternative| {
+                    matches!(alternative, MayBinding::Imported(imported) if &imported.origin == identity)
+                })
+            })
     }
 
     fn intrinsic_occupied_target(
@@ -237,7 +302,10 @@ impl OriginalCommandMove {
             || self.handler != *native.target
             || self.site.offset != native.segment.span.start()
             || !self.from.is_current(&state.source_variables)
-            || !self.to.is_current(&state.source_variables)
+            || self
+                .to
+                .as_ref()
+                .is_some_and(|to| !to.is_current(&state.source_variables))
             || state.current_source_origin.as_ref() != Some(&self.site.source)
             || facts.analyser_hook != Some(tcl_registry::hooks::AnalyserHookId::Rename)
             || state.source_step_observed()
@@ -268,9 +336,11 @@ impl OriginalCommandMove {
                     })
             };
         state.original_bindings_for_key(&self.source) == Some(BTreeSet::from([MayBinding::Missing]))
-            && state.original_bindings_for_key(&self.destination)
-                == Some(BTreeSet::from([self.binding.clone()]))
-            && origin_current
+            && self.destination.as_ref().is_none_or(|destination| {
+                state.original_bindings_for_key(destination)
+                    == Some(BTreeSet::from([self.binding.clone()]))
+            })
+            && (self.destination.is_none() || origin_current)
     }
 }
 
@@ -409,6 +479,23 @@ mod tests {
     }
 
     #[test]
+    fn deleting_an_unobserved_procedure_keeps_the_complete_normal_world() {
+        // Every release: `proc P {} {}; rename P {}; P` raises
+        // `invalid command name "P"`, and no other command changes.
+        for version in tcl_dialect::TclVersion::ALL {
+            let bindings = analyse("proc P {} {}; proc Q {} {}; rename P {}", version);
+            let completed = bindings
+                .original_completed_command_world()
+                .unwrap_or_else(|| panic!("{}", version.dialect_name()));
+            let names = completed
+                .declarations()
+                .map(|entry| entry.slot().simple.as_bytes().to_vec())
+                .collect::<Vec<_>>();
+            assert_eq!(names, [b"Q".to_vec()], "{}", version.dialect_name());
+        }
+    }
+
+    #[test]
     fn original_command_move_does_not_close_missing_occupied_or_observed_targets() {
         // Implementation contract: naming.command.original-occupied-mutation-transfer
         // docs/design/analysis/name-resolution-proofs/original-occupied-mutation-transfer.md
@@ -417,7 +504,8 @@ mod tests {
                 "rename absent Q",
                 "proc P {} {}; proc Q {} {}; rename P Q",
                 "proc P {} {}; trace add command P rename {list}; rename P Q",
-                "proc P {} {}; rename P {}",
+                "proc P {} {}; trace add command P delete {list}; rename P {}",
+                "rename set {}",
             ] {
                 let bindings = analyse(source, version);
                 assert!(

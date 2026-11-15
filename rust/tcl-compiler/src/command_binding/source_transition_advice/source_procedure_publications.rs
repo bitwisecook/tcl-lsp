@@ -299,10 +299,15 @@ mod tests {
     fn original_procedure_publications_keep_current_slots_and_canonical_headers() {
         // naming.source.original-procedure-publications
         // docs/design/analysis/name-resolution-proofs/source-original-procedure-publications.md
-        let source = "proc old {value} {}; proc deleted {} {}; rename old moved; rename deleted {}";
+        // The delete trace keeps the completed command world withheld, which
+        // is the state this inventory answers in.
+        let source = "proc old {value} {}; proc deleted {} {}; rename old moved; trace add command deleted delete list; rename deleted {}";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let mut analysis = Analyser::new().analyse(source, dialect);
-            assert!(analysis.original_completed_command_world().is_none());
+            assert!(
+                analysis.original_completed_command_world().is_none(),
+                "{dialect}"
+            );
             analysis.all_procs.clear();
             analysis.superseded_procs.clear();
             let inventory = source_procedure_publications(source, &analysis).expect(dialect);
