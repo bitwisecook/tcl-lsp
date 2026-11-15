@@ -2878,7 +2878,6 @@ impl Analyser {
             return;
         }
         self.result.global_scope.naming_scope = self.declaration_namespace_scope(&[]);
-        self.record_path_constant_candidates(commands);
         let total = commands.len();
         let mut cmd_idx: usize = 0;
         while cmd_idx < total {
@@ -2950,6 +2949,9 @@ impl Analyser {
             self.record_arg_var_reads(&cmd, &base_path);
             cmd_idx += 1 + consumed;
         }
+        // After the walk, so the path inventory reads each command's words
+        // under the same recorded head metadata as every later consumer.
+        self.record_path_constant_candidates(commands);
     }
 
     /// Ghost-token recovery.  When the scan-to-next
@@ -3490,7 +3492,6 @@ impl Analyser {
     /// portion that's load-bearing for incremental analysis.
     fn analyse_commands_inner(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
         self.result.global_scope.naming_scope = self.declaration_namespace_scope(&[]);
-        self.record_path_constant_candidates(commands);
         let scope_path = self.current_scope_path.clone();
         let total = commands.len();
         let mut cmd_idx: usize = 0;
@@ -3557,6 +3558,7 @@ impl Analyser {
             self.record_arg_var_reads(&cmd, &scope_path);
             cmd_idx += 1 + consumed;
         }
+        self.record_path_constant_candidates(commands);
     }
 
     /// Resolve (and cache) the set of built-in command names that

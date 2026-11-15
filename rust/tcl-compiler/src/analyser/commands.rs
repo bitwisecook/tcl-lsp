@@ -899,6 +899,12 @@ impl Analyser {
         // points at the unresolved name rather than the whole
         // command line.
         let cmd_tok = arg_tokens_in[0];
+        // The head's conditional metadata is an input of this command's
+        // registry words, so it is recorded before anything asks for them.
+        if !presubstituted_args {
+            self.record_original_scoped_body_advice(cmd_tok.span.start(), arg_tokens, scope_path);
+        }
+        report_phase("scoped-bodies");
         // Retain constructor reporting metadata in structure-only analyses
         // as well as full analyses. Source receiver consumers independently
         // require the positioned constructor or instance issuer; these maps
@@ -912,10 +918,6 @@ impl Analyser {
         // per-command cost.  The structural handlers further down still run, so
         // `file_decls` is identical to a full `analyse` (gated by the
         // `file_decls_corpus` corpus test).
-        if !presubstituted_args {
-            self.record_original_scoped_body_advice(cmd_tok.span.start(), arg_tokens, scope_path);
-        }
-        report_phase("scoped-bodies");
         self.record_original_variable_receivers(cmd_tok.span.start(), arg_tokens, scope_path);
         report_phase("variable-receivers");
         self.record_dynamic_variable_name_sites(
