@@ -6679,6 +6679,17 @@ fn hook_source(stmt: &Stmt) -> Option<HookSource> {
     }
 }
 
+/// What separates the steps of a pack hook's identity (`-native
+/// lsort::sub::const_fold`): owning command, then member, then field. It is
+/// spelt like Tcl's namespace separator but names no namespace.
+pub const HOOK_PATH_SEPARATOR: &str = "::";
+
+/// One step further down a pack hook's identity path.
+#[must_use]
+pub fn hook_path(owner: &str, member: &str) -> String {
+    format!("{owner}{HOOK_PATH_SEPARATOR}{member}")
+}
+
 /// A `const_fold -native ID` or `const_fold_versioned -native ID` resolved
 /// against the shipped folders' table (`tcl_registry::pack_hooks`'s
 /// `CONST_FOLD_NATIVE` / `CONST_FOLD_VERSIONED_NATIVE`), keyed by
@@ -6695,7 +6706,7 @@ fn native_fold<T: Copy>(
     line: u32,
     log: &mut Log,
 ) -> Option<T> {
-    let full = format!("{scope}::{field}");
+    let full = hook_path(scope, field);
     if id != full {
         log.say(
             line,
@@ -8410,7 +8421,7 @@ fn load_refinement(
     let body = stmt.arg(2)?;
     let line = stmt.line;
     let outer = log.context.clone();
-    let path = format!("{parent}::{name}");
+    let path = hook_path(parent, &name);
     log.scoped(format!("{outer} / refine {name}"), |log| {
         let mut form = CommandForm {
             name: leak_str(&name),
@@ -9072,14 +9083,14 @@ fn apply_subcommand_stmt(
         }
         "refine" => {
             log.v20(stmt.line, "refine");
-            let parent = format!("{}::{owner}", log.command);
+            let parent = hook_path(&log.command, owner);
             if let Some(form) = load_refinement(stmt, tables, &parent, log) {
                 acc.refinements.push(form);
             }
         }
         // Value transfers (vocabulary 2.2).
         "semantics" | "evaluate" | "facts" => {
-            let path = format!("{}::{owner}", log.command);
+            let path = hook_path(&log.command, owner);
             let scope = semantics::Scope {
                 path: &path,
                 binds_bodies: true,
@@ -9174,7 +9185,7 @@ fn apply_subcommand_stmt(
         }
         "world_effects" => sub.world_effects = world_effects_value(stmt, tables, log),
         "state_transitions" => {
-            let scope = format!("{}::{owner}", log.command);
+            let scope = hook_path(&log.command, owner);
             sub.state_transitions =
                 state_transitions_value(stmt, tables, &scope, log).map(|(descriptor, source)| {
                     if let Some((source, line)) = source {
@@ -9220,7 +9231,7 @@ fn apply_subcommand_stmt(
                     ("script_timing_resolver", HookFamily::ScriptTimingResolver)
                 }
                 "const_fold" => {
-                    let scope = format!("{}::{owner}", log.command);
+                    let scope = hook_path(&log.command, owner);
                     sub.const_fold = Some(match &source {
                         HookSource::Native { id } => native_fold(
                             &scope,
@@ -9236,7 +9247,7 @@ fn apply_subcommand_stmt(
                     ("const_fold", HookFamily::ConstFold)
                 }
                 "const_fold_versioned" => {
-                    let scope = format!("{}::{owner}", log.command);
+                    let scope = hook_path(&log.command, owner);
                     sub.const_fold_versioned = Some(match &source {
                         HookSource::Native { id } => native_fold(
                             &scope,
@@ -9285,7 +9296,7 @@ fn declare_subcommand_semantics(
     owner: &str,
     log: &Log,
 ) {
-    let path = format!("{}::{owner}", log.command);
+    let path = hook_path(&log.command, owner);
     let scope = semantics::Scope {
         path: &path,
         binds_bodies: true,

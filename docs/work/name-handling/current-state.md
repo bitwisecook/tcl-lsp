@@ -359,7 +359,7 @@ Measuring: a probe test that builds the input and times `analyse` (the task brie
 
 ## iRules, registry, SpecTcl and tooling area, 15 November 2026
 
-Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 56, `tcl-spectcl` 43, `tcl-spec-studio` 21, `tcl-diagram` 19, `tcl-explorer` 17, `tcl-mcp` 10, `tcl-registry` 4, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
+Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 55, `tcl-spectcl` 40, `tcl-spec-studio` 17, `tcl-diagram` 19, `tcl-explorer` 16, `tcl-mcp` 10, `tcl-registry` 4, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
 
 Fixed:
 
@@ -383,7 +383,29 @@ Open in the rule loader (`tcl-compiler`):
 
 Open in `tcl-registry` (4, not investigated beyond the message): `resolved_invocation` `dictionary_source_phase_keeps_generic_unknown_and_additional_effects`, `selected_descriptor_never_borrows_older_available_hint_rows` (`classvariable` or `next` under `bpf` selects a row with one side-effect hint), `original_logical_case_role_projection_keeps_selected_options_and_body_residuals`, `source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection`.
 
-Not started: `tcl-spectcl`, `tcl-spec-studio`, `tcl-cli`, `tcl-mcp`, `tcl-explorer`, `tcl-diagram`, `tcl-sslictcl`, the two `tcl-mcp` `original_datagroup_tool_advice_*` tests, and the hand-written `::` sites the naming gate lists for `tcl-spectcl`, `tcl-spec-studio` and `tcl-registry`.
+`issues/irules` now carries only the explicit F5 8.4 expression-parser provider (`857140b6`); its handler-entry layers regress 18 tests (hosted-source contracts, taint fixtures with executable code at rule top level) and wait on that session's owner decision, so it was not cherry-picked. `tcl-lsp-core --lib` after the `arg_indices_for_role` change: `semantic_tokens` 26 failing, unchanged.
+
+Second batch: `codegen_stamps` ran a Tcl 9.0 module and its setup script on a profile-less VM (`bytecode compiled for dialect profile tcl9.0 cannot run under tcl`); the fixture VM and setup are pinned to 9.0 (3 tests). The explorer spells a double lattice constant as a constant return does when no release is selected (`tcl-explorer` 1, `tcl-cli` 1). The hook-identity and Rust-path joins in `tcl-spectcl` and `tcl-spec-studio` go through `loader::hook_path`, `catalogue::rust_path` and `rust_path_leaf` (19 ledger sites; they are not Tcl names). Left in the ledger for this area: `tcl-registry/src/f5/rule_identity.rs` (6) and `native_argument_role_hook.rs` (2), to move with the next registry rebuild.
+
+Classification of what still fails (first failing assertion, one run):
+
+| Crate | Group | Count | Owner |
+| --- | --- | --- | --- |
+| `tcl-spectcl` | `codegen_stamps`: a pack reference body is not inlined at the call (`procedure_bindings` empty, `inlined` 0); decided in `tcl-codegen/src/inlining/reference.rs` | about 20, with the 1,200 s timeout | Execution |
+| `tcl-spectcl` | `jim_document`, `disabled_command_wording`, `spectcl_dialect_analysis`: W123/W210/W002 on Jim documents (statics, `class`, two-word proc names) | 11 | Analyser |
+| `tcl-spectcl` | `hooks::*` (3), `i6_security_floor`, `workspace_packs`, `lazy_bundled`, `eda_environment_packs`, `native_normal_store`, `variable_reference_boundaries`, `pack_source_e2e` (2) | 11 | this area, not classified further |
+| `tcl-spec-studio` | parity debt: `CommandSpec` fields with no studio schema or seed (`pack_source_sandbox_helper`, `substitution_resolver`, `teardown_argument_layout`, `SubCommand::source_package_query`), ten fields in no relation cluster, port and round-trip differences that follow (`lsort`, `string is`, `regsub` Jim dialect, `f5-irules/when`) | 15 | this area |
+| `tcl-spec-studio` | `pack_formatting_uses_the_shared_spectcl_profile`: a `command` block body is not indented | 1 | this area or LSP formatting |
+| `tcl-spec-studio` | `infer::*`: a probe reports `::p::one` for `p::one`; `count: arguments` in a proposed arity | 3 | this area |
+| `tcl-cli` | `value_transfers_cli`, `explore sccp`, `opt` folds and release spellings | about 35 | Dataflow |
+| `tcl-cli` | `diag` rows (W210, W242, noqa, suppressed), truth table | about 8 | Analyser |
+| `tcl-cli` | `minimize`, `diff`, `graphs`, `pkg_discover`, `spec_probe`, `spec import`, `every_dialect_flag_reaches_the_one_resolver` (`tcl-libero` exits 1), lone-CR diff | about 13 | this area, not classified further |
+| `tcl-diagram` | no `completion` on `return`/`exit`/`try` nodes, loop exit reasons, caller-namespace resolution: the flow reads statement completions the lowering no longer gives | 15 | Compiler lowering |
+| `tcl-diagram` | `original_source_tests` (source context unavailable) | 4 | this area |
+| `tcl-explorer` | SCCP, AOT premises, WASM tier, shimmer, taint replay views | 14 | Dataflow and Execution |
+| `tcl-explorer` | `supplied_analysis_input_controls_the_document_pipeline`, `source_function_rows_preserve_duplicate_names_and_named_top` | 2 | this area |
+| `tcl-mcp` | `policy_tests` (W242, noqa, review families, lone-CR optimise) | 4 | Analyser and Dataflow |
+| `tcl-mcp` | `datagroup::*` and `original_datagroup_tool_advice_*` (no suggestion for `if {$host eq a || $host eq b}`) | 6 | this area |
 
 ## Scope and publication
 

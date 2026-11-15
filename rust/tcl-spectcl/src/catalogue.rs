@@ -905,7 +905,22 @@ pub fn variant_name<T: std::fmt::Debug>(value: &T) -> String {
 /// `Debug` prints them in Rust literal form:
 /// `VarElementsEffect::AppendsListElements { values_from: 1 }`.
 pub fn qualified_variant<T: std::fmt::Debug>(type_name: &str, value: &T) -> String {
-    format!("{type_name}::{}", variant_name(value))
+    rust_path(type_name, &variant_name(value))
+}
+
+/// The separator of a Rust path in rendered spec source (`Type::Variant`).
+pub const RUST_PATH_SEPARATOR: &str = "::";
+
+/// The last step of a Rust path (`Type::Variant` gives `Variant`).
+#[must_use]
+pub fn rust_path_leaf(path: &str) -> &str {
+    path.rsplit(RUST_PATH_SEPARATOR).next().unwrap_or(path)
+}
+
+/// A Rust path one step below `parent`.
+#[must_use]
+pub fn rust_path(parent: &str, leaf: &str) -> String {
+    format!("{parent}{RUST_PATH_SEPARATOR}{leaf}")
 }
 
 /// [`qualified_variant`] wrapped in `Some(…)`, for an `Option`-typed field the

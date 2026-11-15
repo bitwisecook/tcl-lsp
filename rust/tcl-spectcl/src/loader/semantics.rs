@@ -363,7 +363,7 @@ fn native_id<T: Copy>(
     log: &mut Log,
 ) -> Option<T> {
     let id = stmt.word_text(2);
-    let full = format!("{}::{field}", scope.path);
+    let full = super::hook_path(scope.path, field);
     if id.is_empty() {
         log.say(stmt.line, format!("`{field} {flag}` needs an id: `{full}`"));
         return None;

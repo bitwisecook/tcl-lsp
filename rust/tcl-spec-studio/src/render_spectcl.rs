@@ -1110,7 +1110,7 @@ fn rust_str(text: &str) -> Option<String> {
 
 /// The variant word of a `Path::Variant` expression, payload included.
 fn variant_of(text: &str) -> &str {
-    text.trim().rsplit("::").next().unwrap_or("").trim()
+    tcl_spectcl::catalogue::rust_path_leaf(text.trim()).trim()
 }
 
 /// `Some(inner)` → `inner`; anything else is returned unchanged.
@@ -1155,7 +1155,7 @@ fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
         .unwrap_or(expr);
     let mut names: Vec<&'static str> = Vec::new();
     for part in inner.split(',') {
-        let key = part.trim().rsplit("::").next()?;
+        let key = tcl_spectcl::catalogue::rust_path_leaf(part.trim());
         let (_, members) = CONSTANTS.iter().find(|(name, _)| *name == key)?;
         for member in *members {
             if !names.contains(member) {
@@ -1430,7 +1430,7 @@ fn relation_term_word(expr: &str) -> Option<String> {
     let expr = expr.trim();
     let open = expr.find('(')?;
     let inner = expr[open + 1..].strip_suffix(')')?;
-    let variant = expr[..open].rsplit("::").next()?.trim();
+    let variant = tcl_spectcl::catalogue::rust_path_leaf(&expr[..open]).trim();
     let parts = split_top(inner, ',');
     let words: Vec<String> = match (variant, parts.as_slice()) {
         ("Option", [name]) => vec![rust_str(name)?],
@@ -1759,7 +1759,7 @@ impl Ctx<'_> {
         vec![
             field.to_owned(),
             "-native".to_owned(),
-            format!("{}::{field}", self.scope),
+            tcl_spectcl::loader::hook_path(&self.scope, field),
         ]
     }
 }
@@ -3791,7 +3791,7 @@ fn object_class_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
 
     let mut scope = Ctx {
         defaults: ctx.defaults,
-        scope: format!("{}::{}", ctx.scope, str_of(&class["class_name"])),
+        scope: tcl_spectcl::loader::hook_path(&ctx.scope, str_of(&class["class_name"])),
         owner: ctx.owner.clone(),
         tables: ctx.tables,
         availability: ctx.availability,
@@ -3823,7 +3823,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     let defaults = draft::default_subcommand_draft();
     let mut ctx = Ctx {
         defaults: &defaults,
-        scope: format!("{}::{name}", parent.scope),
+        scope: tcl_spectcl::loader::hook_path(&parent.scope, name),
         owner: parent.owner.clone(),
         tables: parent.tables,
         availability: parent.availability,

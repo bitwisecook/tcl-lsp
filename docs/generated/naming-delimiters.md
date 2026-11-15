@@ -16,10 +16,5 @@
 | `rust/tcl-compiler/src/var_resolve/cell_key.rs` | 1 |
 | `rust/tcl-registry/src/f5/rule_identity.rs` | 6 |
 | `rust/tcl-registry/src/native_argument_role_hook.rs` | 2 |
-| `rust/tcl-spec-studio/src/render_rs.rs` | 3 |
-| `rust/tcl-spec-studio/src/render_spectcl.rs` | 6 |
-| `rust/tcl-spectcl/src/catalogue.rs` | 1 |
-| `rust/tcl-spectcl/src/loader.rs` | 8 |
-| `rust/tcl-spectcl/src/loader/semantics.rs` | 1 |
 
-37 site(s) in 15 file(s).
+18 site(s) in 10 file(s).

@@ -632,7 +632,7 @@ fn variable_receivers_expr(values: &[Value]) -> String {
 fn enum_slice(ty: &str, values: &[Value]) -> String {
     let items: Vec<String> = values
         .iter()
-        .map(|value| format!("{ty}::{}", as_str(value)))
+        .map(|value| tcl_spectcl::catalogue::rust_path(ty, as_str(value)))
         .collect();
     format!("&[{}]", items.join(", "))
 }
@@ -657,7 +657,9 @@ fn body_interpreter_expr(value: &Value) -> Option<String> {
 /// `union` is a `const fn`, so it is correct in both a `const` and the `fn`
 /// body that returns the spec.
 fn flag_union(ty: &str, values: &[Value]) -> String {
-    let mut names = values.iter().map(|v| format!("{ty}::{}", as_str(v)));
+    let mut names = values
+        .iter()
+        .map(|v| tcl_spectcl::catalogue::rust_path(ty, as_str(v)));
     let Some(head) = names.next() else {
         return format!("{ty}::empty()");
     };
@@ -1528,7 +1530,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         } => {
             let variant = value.as_str()?;
             let ty = enum_type_name(catalogue);
-            let expr = format!("{ty}::{variant}");
+            let expr = tcl_spectcl::catalogue::rust_path(ty, variant);
             if optional {
                 format!("Some({expr})")
             } else {

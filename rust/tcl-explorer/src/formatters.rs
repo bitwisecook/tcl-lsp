@@ -356,6 +356,11 @@ pub fn format_taint(tl: &TaintLattice) -> String {
 fn const_value_repr(c: &ConstValue) -> String {
     match c {
         ConstValue::String(s) => py_repr_str(s),
+        // No release is selected here, so the fold has no proved spelling for
+        // a double; the view shows the one a constant return shows.
+        ConstValue::Float(value) => {
+            format_constant(c).unwrap_or_else(|| ConstantReturn::Float(*value).text())
+        }
         _ => format_constant(c).unwrap_or_default(),
     }
 }
