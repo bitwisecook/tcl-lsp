@@ -88,6 +88,7 @@ pub fn run() -> Result<ExitCode> {
     problems.extend(validate_native_list_storage_consumers(&root)?);
     problems.extend(validate_execution_name_policy_consumers(&root)?);
     problems.extend(validate_counted_name_facade_consumers(&root)?);
+    problems.extend(validate_workspace_name_delimiters(&root)?);
     problems.extend(validate_f5_string_predicate_consumers(&root)?);
     if problems.is_empty() {
         let owner_count = parse_manifest(&contract).map_or_default(|rows| rows.len());
@@ -1597,6 +1598,227 @@ fn validate_counted_name_facade_consumers(root: &Path) -> Result<Vec<String>> {
     Ok(problems)
 }
 
+/// The per-file count of qualified-name delimiter recipes outside the naming
+/// owner. Generated; a count may only fall.
+const NAME_DELIMITER_LEDGER: &str = "docs/generated/naming-delimiters.md";
+
+/// Production source trees the delimiter ledger covers.
+const NAME_DELIMITER_ROOTS: &[&str] = &["rust", "runtime/rust/src"];
+
+/// String methods that split, find or strip a qualified name by its separator.
+const NAME_DELIMITER_METHODS: &[&str] = &[
+    "split",
+    "rsplit",
+    "splitn",
+    "rsplitn",
+    "split_once",
+    "rsplit_once",
+    "find",
+    "rfind",
+    "contains",
+    "matches",
+    "starts_with",
+    "ends_with",
+    "strip_prefix",
+    "strip_suffix",
+    "trim_start_matches",
+    "trim_end_matches",
+];
+
+/// Whether `literal` is exactly the namespace separator.
+fn name_separator_literal(literal: &str) -> bool {
+    match syn::parse_str::<syn::Lit>(literal) {
+        Ok(syn::Lit::Str(value)) => value.value() == "::",
+        Ok(syn::Lit::ByteStr(value)) => value.value() == b"::",
+        _ => false,
+    }
+}
+
+/// Whether `literal` is a format template that only joins holes with the
+/// separator (`"::{}"`, `"{}::{}"`, `"::{ns}::{name}"`).
+fn name_join_template(literal: &str) -> bool {
+    let Ok(syn::Lit::Str(value)) = syn::parse_str::<syn::Lit>(literal) else {
+        return false;
+    };
+    let value = value.value();
+    let mut rest = value.strip_prefix("::").unwrap_or(&value);
+    let mut holes = 0usize;
+    loop {
+        let Some(after) = rest.strip_prefix('{') else {
+            return false;
+        };
+        let Some(close) = after.find('}') else {
+            return false;
+        };
+        if after[..close].contains('{') {
+            return false;
+        }
+        holes += 1;
+        rest = &after[close + 1..];
+        if rest.is_empty() {
+            return value.contains("::") && holes > 0;
+        }
+        let Some(next) = rest.strip_prefix("::") else {
+            return false;
+        };
+        rest = next;
+    }
+}
+
+/// How many times production code in `source` splits, searches, strips or
+/// joins a qualified name by a hand-written separator.
+fn name_delimiter_recipes(source: &str) -> usize {
+    use rustc_lexer::TokenKind;
+    let tokens = counted_name_production_tokens(source);
+    let mut count = 0;
+    for (index, token) in tokens.iter().enumerate() {
+        if matches!(token.kind, TokenKind::Literal { .. }) && name_join_template(token.text) {
+            count += 1;
+        }
+        if token.kind == TokenKind::Dot
+            && tokens
+                .get(index + 1)
+                .is_some_and(|method| NAME_DELIMITER_METHODS.contains(&method.text))
+            && tokens
+                .get(index + 2)
+                .is_some_and(|open| open.kind == TokenKind::OpenParen)
+            && tokens
+                .get(index + 3)
+                .is_some_and(|argument| name_separator_literal(argument.text))
+        {
+            count += 1;
+        }
+    }
+    count
+}
+
+/// Whether `relative` is production source the ledger counts: not the naming
+/// owner, not this gate, and not a test tree or test-only file.
+fn counts_name_delimiters(relative: &str) -> bool {
+    let name = relative.rsplit('/').next().unwrap_or(relative);
+    Path::new(relative)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
+        && relative.contains("/src/")
+        && !relative.starts_with("rust/tcl-syntax/src/naming")
+        && !relative.starts_with("rust/xtask/")
+        && !relative.contains("/tests/")
+        && name != "tests.rs"
+        && !name.ends_with("_tests.rs")
+        && !name.ends_with("_test.rs")
+}
+
+fn collect_rust_sources(root: &Path, relative: &str, found: &mut Vec<String>) -> Result<()> {
+    let directory = root.join(relative);
+    let entries = std::fs::read_dir(&directory)
+        .with_context(|| format!("read owner-resolution directory `{relative}`"))?;
+    for entry in entries {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let child = format!("{relative}/{name}");
+        if entry.file_type()?.is_dir() {
+            if name != "target" && !name.starts_with('.') {
+                collect_rust_sources(root, &child, found)?;
+            }
+        } else if counts_name_delimiters(&child) {
+            found.push(child);
+        }
+    }
+    Ok(())
+}
+
+fn workspace_name_delimiter_counts(
+    root: &Path,
+) -> Result<std::collections::BTreeMap<String, usize>> {
+    let mut sources = Vec::new();
+    for tree in NAME_DELIMITER_ROOTS {
+        collect_rust_sources(root, tree, &mut sources)?;
+    }
+    let mut counts = std::collections::BTreeMap::new();
+    for path in sources {
+        let count = name_delimiter_recipes(&read(root, &path)?);
+        if count > 0 {
+            counts.insert(path, count);
+        }
+    }
+    Ok(counts)
+}
+
+fn render_name_delimiter_ledger(counts: &std::collections::BTreeMap<String, usize>) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::from(
+        "<!-- Generated by `cargo xtask owner-resolution`; do not edit. -->\n\n\
+         # Qualified-name delimiter recipes outside the naming owner\n\n\
+         `tcl_syntax::naming` owns how a Tcl name is split, tested and joined. Each row is a \
+         production file that still does it by hand: a string method given the literal `::`, \
+         or a format template that only joins holes with `::`. A count may only fall; a new \
+         site fails `cargo xtask owner-resolution`. Call the owner instead, then rerun the \
+         gate, which lowers the count here.\n\n| File | Sites |\n|---|---|\n",
+    );
+    for (path, count) in counts {
+        let _ = writeln!(out, "| `{path}` | {count} |");
+    }
+    let _ = writeln!(
+        out,
+        "\n{} site(s) in {} file(s).",
+        counts.values().sum::<usize>(),
+        counts.len()
+    );
+    out
+}
+
+fn parse_name_delimiter_ledger(ledger: &str) -> std::collections::BTreeMap<String, usize> {
+    ledger
+        .lines()
+        .filter_map(|line| {
+            let cells = split_row(line);
+            let [path, count] = cells.as_slice() else {
+                return None;
+            };
+            let path = path.strip_prefix('`')?.strip_suffix('`')?;
+            Some((path.to_owned(), count.parse().ok()?))
+        })
+        .collect()
+}
+
+/// Hold every production file to its recorded count of hand-written name
+/// delimiter recipes. A rise, or a first site in an unrecorded file, is a
+/// problem; a fall rewrites the ledger.
+fn validate_workspace_name_delimiters(root: &Path) -> Result<Vec<String>> {
+    let counts = workspace_name_delimiter_counts(root)?;
+    let recorded = std::fs::read_to_string(root.join(NAME_DELIMITER_LEDGER))
+        .map(|ledger| parse_name_delimiter_ledger(&ledger))
+        .ok();
+    let Some(recorded) = recorded else {
+        std::fs::write(
+            root.join(NAME_DELIMITER_LEDGER),
+            render_name_delimiter_ledger(&counts),
+        )
+        .with_context(|| format!("write `{NAME_DELIMITER_LEDGER}`"))?;
+        return Ok(Vec::new());
+    };
+    let problems: Vec<String> = counts
+        .iter()
+        .filter_map(|(path, count)| {
+            let allowed = recorded.get(path).copied().unwrap_or(0);
+            (*count > allowed).then(|| {
+                format!(
+                    "{path} splits or joins a qualified name by hand {count} time(s), {allowed} \
+                     recorded in {NAME_DELIMITER_LEDGER}; call tcl_syntax::naming"
+                )
+            })
+        })
+        .collect();
+    if problems.is_empty() && counts != recorded {
+        std::fs::write(
+            root.join(NAME_DELIMITER_LEDGER),
+            render_name_delimiter_ledger(&counts),
+        )
+        .with_context(|| format!("write `{NAME_DELIMITER_LEDGER}`"))?;
+    }
+    Ok(problems)
+}
+
 fn parse_manifest(markdown: &str) -> Result<Vec<OwnerRow>, String> {
     let start = markdown
         .find(START_MARKER)
@@ -2953,6 +3175,55 @@ mod tests {
             fn production(){ original.matches_source(&image, config); }
         "##;
         assert_eq!(counted_name_local_recipes(source).len(), 0);
+    }
+
+    #[test]
+    fn name_delimiter_recipes_count_separator_methods_and_join_templates() {
+        let source = r#"
+            fn production(name: &str, ns: &str) -> String {
+                let _ = name.split("::").count();
+                let _ = name.as_bytes().starts_with(b"::");
+                let _ = name.split(':').count();
+                let _ = name.contains("tcl::mathop");
+                let _ = format!("no namespace named ::{ns}");
+                format!("::{ns}::{name}")
+            }
+            // name.rfind("::");
+            #[cfg(test)] mod tests { fn fixture(s: &str) { s.split("::"); } }
+        "#;
+        assert_eq!(name_delimiter_recipes(source), 3);
+        for (template, joins) in [
+            ("\"::{}\"", true),
+            ("\"{}::{}\"", true),
+            ("\"{ns}::{name}\"", true),
+            ("\"{}\"", false),
+            ("\"::\"", false),
+            ("\"{}::{} is unknown\"", false),
+        ] {
+            assert_eq!(name_join_template(template), joins, "{template}");
+        }
+    }
+
+    #[test]
+    fn name_delimiter_ledger_round_trips_and_skips_owner_and_tests() {
+        let counts = std::collections::BTreeMap::from([
+            ("rust/a/src/x.rs".to_owned(), 2),
+            ("runtime/rust/src/y.rs".to_owned(), 1),
+        ]);
+        assert_eq!(
+            parse_name_delimiter_ledger(&render_name_delimiter_ledger(&counts)),
+            counts
+        );
+        for (path, counted) in [
+            ("rust/tcl-vm/src/exec.rs", true),
+            ("rust/tcl-syntax/src/naming.rs", false),
+            ("rust/tcl-syntax/src/naming/autoload.rs", false),
+            ("rust/tcl-vm/tests/it_3/main.rs", false),
+            ("rust/tcl-vm/src/exec_tests.rs", false),
+            ("rust/xtask/src/owner_resolution.rs", false),
+        ] {
+            assert_eq!(counts_name_delimiters(path), counted, "{path}");
+        }
     }
 
     #[test]
