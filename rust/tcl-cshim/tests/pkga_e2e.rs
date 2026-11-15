@@ -143,7 +143,7 @@ fn the_loaded_report_bridges_to_the_default_fact() {
             "{}",
             command.name
         );
-        assert!(!command.traits.contains(Traits::PURE), "{}", command.name);
+        assert!(!default.is_pure(), "{}", command.name);
     }
 }
 

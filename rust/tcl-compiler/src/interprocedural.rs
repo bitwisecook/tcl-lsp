@@ -3695,9 +3695,7 @@ fn scan_positioned_registry_facts(
         scan_unproved_invocation(args, ctx, facts);
         return;
     }
-    if !traits.intersects(tcl_registry::Traits::PURE | tcl_registry::Traits::PURE_EVALUATION)
-        || !writes.is_empty()
-    {
+    if !resolved.facts.evaluates_purely() || !writes.is_empty() {
         facts.mark_impure();
     }
     // Targets and source incidence retain independent original owners.

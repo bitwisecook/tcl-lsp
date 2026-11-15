@@ -756,6 +756,14 @@ impl<'a> DocumentCommandSurface<'a> {
         }
     }
 
+    /// Whether `name` is declared free of side effects, by the document's
+    /// own declaration or the catalogue.
+    #[must_use]
+    pub fn is_pure(&self, name: &str) -> bool {
+        self.traits(name)
+            .is_some_and(|traits| traits.contains(Traits::PURE))
+    }
+
     /// The traits one invocation of `name` carries — [`Self::traits`] for a
     /// declared command, which has no subcommands to refine them, and the
     /// catalogue's

@@ -56,7 +56,6 @@
 use std::fmt::Write as _;
 
 use tcl_registry::TclType;
-use tcl_registry::traits::Traits;
 use tcl_registry::{BodySource, RuntimeBacking};
 use tcl_spectcl::PackSet;
 use tcl_syntax::list::list_element;
@@ -108,7 +107,7 @@ pub fn probes_of(set: &PackSet) -> Vec<CommandProbe> {
                     max: (!arity.is_unlimited()).then_some(arity.max),
                     step: arity.step,
                 }),
-                pure: spec.traits.contains(Traits::PURE),
+                pure: spec.is_pure(),
                 return_type: spec.return_type,
                 examples: spec.hover.as_ref().map_or_default(|hover| {
                     hover

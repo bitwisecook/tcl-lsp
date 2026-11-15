@@ -483,7 +483,7 @@ pub(crate) fn is_pure_tokens_with_metadata_context(
             facts.descriptor_key(),
             traced_commands,
         )
-        || !facts.traits.contains(Traits::PURE)
+        || !facts.is_pure()
         || !facts.effects.accesses().is_empty()
         || facts.effects.requires_world_barrier()
         || facts.effects.legacy().command_table_mutation
@@ -710,10 +710,7 @@ impl GvnSemanticFacts {
 /// the per-class predicates below; live dispatch stability is a separate
 /// per-site proof ([`crate::dispatch_proof::SiteDispatchProof`]).
 fn resolved_invocation_static_gvn_gates(resolved: &tcl_registry::InvocationFacts) -> bool {
-    if !resolved
-        .traits
-        .contains(Traits::PURE.union(Traits::CSE_CANDIDATE))
-    {
+    if !resolved.is_cse_pure() {
         return false;
     }
     if !resolved.effects.accesses().is_empty() || resolved.effects.requires_world_barrier() {

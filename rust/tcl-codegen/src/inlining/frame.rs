@@ -55,7 +55,7 @@ use std::collections::HashSet;
 use tcl_lexer::LexerConfig;
 #[cfg(test)]
 use tcl_lexer::{Lexer, SourceMap, TokenType};
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::CommandRegistry;
 
 use tcl_compiler::depth_guard::MAX_EXPR_NODE_DEPTH;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
@@ -507,10 +507,7 @@ impl Frame<'_> {
         for call in calls {
             let child = call.tokens.as_ref()?;
             let invocation = self.source.invocation(child)?;
-            if !invocation
-                .facts
-                .traits
-                .intersects(Traits::PURE | Traits::PURE_EVALUATION)
+            if !invocation.facts.evaluates_purely()
                 || invocation.facts.arg_roles.iter().any(|(_, role)| {
                     role.names_variable()
                         || matches!(
@@ -707,7 +704,7 @@ fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
         && !head.contains(['$', '[', ']', '\\', '{', '}', '"'])
         && registry
             .get(head)
-            .is_some_and(|spec| registry.is_splice_safe(head) || spec.traits.contains(Traits::PURE))
+            .is_some_and(|spec| registry.is_splice_safe(head) || spec.is_pure())
 }
 
 #[cfg(test)]

@@ -734,7 +734,7 @@ mod tests {
             .expect("carrier head");
         let registry = tcl_registry::CommandRegistry::build_default();
         let spec = registry.get(head).expect("registered carrier");
-        assert!(spec.traits.contains(tcl_registry::Traits::PURE), "{head}");
+        assert!(spec.is_pure(), "{head}");
         for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
             let resolved = registry
                 .resolve_invocation(
@@ -743,10 +743,7 @@ mod tests {
                     Some(SurfaceQuery::core(Family::Tcl, release)),
                 )
                 .unwrap_or_else(|| panic!("Tcl {release} resolves {head}"));
-            assert!(
-                resolved.facts().traits.contains(tcl_registry::Traits::PURE),
-                "Tcl {release} {head} is pure"
-            );
+            assert!(resolved.facts().is_pure(), "Tcl {release} {head} is pure");
         }
         assert!(
             !pure.note.contains("fold"),

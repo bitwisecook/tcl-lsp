@@ -874,8 +874,8 @@ fn push_row(
     let (targets, writes) = target_roles(spec, sub, form);
     let has_semantics = resolved.semantics().is_some();
     let traits = spec.traits | sub.map_or_else(Traits::empty, |s| s.traits);
-    let pure = traits.contains(Traits::PURE)
-        || sub.is_some_and(|s| s.pure)
+    let pure = spec.is_pure()
+        || sub.is_some_and(SubCommand::is_pure)
         || traits.contains(Traits::CSE_CANDIDATE)
         || matches!(
             sub.and_then(|s| s.result_stability)

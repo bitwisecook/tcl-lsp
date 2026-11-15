@@ -2934,6 +2934,14 @@ fn declares_variable_write(
 }
 
 impl CommandSpec {
+    /// Whether the command is declared free of side effects. This is the one
+    /// reader of the authored `PURE` trait outside the registry, so purity
+    /// can later be derived from a complete effect footprint here alone.
+    #[must_use]
+    pub const fn is_pure(&self) -> bool {
+        self.traits.contains(Traits::PURE)
+    }
+
     /// Whether argument roles have a declared dynamic input contract.
     #[must_use]
     pub const fn has_dynamic_argument_roles(&self) -> bool {
@@ -4886,6 +4894,13 @@ impl SubCommand {
 }
 
 impl SubCommand {
+    /// Whether the subcommand is declared free of side effects, by its
+    /// `pure` flag or its own `PURE` trait.
+    #[must_use]
+    pub const fn is_pure(&self) -> bool {
+        self.pure || self.traits.contains(Traits::PURE)
+    }
+
     /// Default value for all fields.
     pub const DEFAULT: Self = Self {
         name: "",

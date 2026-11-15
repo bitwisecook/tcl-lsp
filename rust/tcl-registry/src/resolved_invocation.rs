@@ -1975,6 +1975,38 @@ fn selected_variable_receiver_operand_form(
 }
 
 impl InvocationFacts {
+    /// Whether the selected invocation is declared free of side effects.
+    #[must_use]
+    pub const fn is_pure(&self) -> bool {
+        self.traits.contains(Traits::PURE)
+    }
+
+    /// Whether the invocation is pure and a candidate for common
+    /// subexpression elimination.
+    #[must_use]
+    pub const fn is_cse_pure(&self) -> bool {
+        self.traits
+            .contains(Traits::PURE.union(Traits::CSE_CANDIDATE))
+    }
+
+    /// Whether evaluating the invocation changes no state: a pure command, or
+    /// one whose evaluation is pure (a braced `expr`).
+    #[must_use]
+    pub const fn evaluates_purely(&self) -> bool {
+        self.traits
+            .intersects(Traits::PURE.union(Traits::PURE_EVALUATION))
+    }
+
+    /// Withdraw every purity claim, and the frameless-runtime claim that
+    /// rests on it, once the invocation is known to call back into a host.
+    pub fn withdraw_purity(&mut self) {
+        self.traits.remove(
+            Traits::PURE
+                .union(Traits::PURE_EVALUATION)
+                .union(Traits::FRAMELESS_RUNTIME),
+        );
+    }
+
     /// Selected source retention capability, frozen with these same facts.
     /// Absence concerns this invocation only, never existing hooks or native
     /// implementation identity. Unproven remains a callback guard obligation.
@@ -2126,8 +2158,7 @@ impl InvocationFacts {
                     kinds: crate::world_effect::CallbackKinds::HOST,
                     reentrancy: crate::world_effect::Reentrancy::AnyInterpreter,
                 });
-            self.traits
-                .remove(Traits::PURE | Traits::PURE_EVALUATION | Traits::FRAMELESS_RUNTIME);
+            self.withdraw_purity();
         }
     }
 
@@ -10683,6 +10714,53 @@ mod tests {
                 "{command} {arguments:?}"
             );
         }
+    }
+
+    /// The purity doors answer the authored facts for Tcl 8.4 to 9.1:
+    /// `llength` is pure and a CSE candidate, a braced `expr` evaluates
+    /// purely without being declared pure, `puts` is neither, and a host
+    /// callback withdraws every claim.
+    #[test]
+    fn purity_queries_answer_the_selected_invocation() {
+        let registry = CommandRegistry::build_default();
+        for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
+            let dialect = Some(SurfaceQuery::core(Family::Tcl, release));
+            let facts = |name: &str, args: &[&str]| {
+                registry
+                    .resolve_invocation(name, args, dialect)
+                    .unwrap_or_else(|| panic!("Tcl {release} resolves {name}"))
+                    .facts()
+            };
+            let mut llength = facts("llength", &["$items"]);
+            assert!(llength.is_pure() && llength.is_cse_pure(), "Tcl {release}");
+            assert!(llength.evaluates_purely(), "Tcl {release}");
+            llength.withdraw_purity();
+            assert!(
+                !llength.is_pure() && !llength.evaluates_purely(),
+                "Tcl {release}"
+            );
+            assert!(
+                !llength.traits.contains(Traits::FRAMELESS_RUNTIME),
+                "Tcl {release}"
+            );
+
+            let expr = facts("expr", &["{$a + 1}"]);
+            assert!(expr.evaluates_purely() && !expr.is_pure(), "Tcl {release}");
+            let puts = facts("puts", &["hello"]);
+            assert!(
+                !puts.evaluates_purely() && !puts.is_cse_pure(),
+                "Tcl {release}"
+            );
+        }
+        let llength = registry.get("llength").expect("llength");
+        assert!(llength.is_pure());
+        let string = registry.get("string").expect("string");
+        assert!(!string.is_pure());
+        assert!(
+            string
+                .resolve_subcommand("length")
+                .is_some_and(SubCommand::is_pure)
+        );
     }
 
     #[test]

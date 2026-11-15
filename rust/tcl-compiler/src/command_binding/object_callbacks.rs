@@ -499,11 +499,7 @@ pub(crate) fn refine_facts(
                 kinds: tcl_registry::world_effect::CallbackKinds::HOST,
                 reentrancy: tcl_registry::world_effect::Reentrancy::AnyInterpreter,
             });
-        facts.traits.remove(
-            tcl_registry::Traits::PURE
-                | tcl_registry::Traits::PURE_EVALUATION
-                | tcl_registry::Traits::FRAMELESS_RUNTIME,
-        );
+        facts.withdraw_purity();
     }
 }
 

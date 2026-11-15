@@ -2286,13 +2286,7 @@ pub(crate) fn original_substitution_purity_with_metadata_context(
     {
         return None;
     }
-    Some(
-        !invocation.facts.mutator
-            && invocation
-                .facts
-                .traits
-                .intersects(tcl_registry::Traits::PURE | tcl_registry::Traits::PURE_EVALUATION),
-    )
+    Some(!invocation.facts.mutator && invocation.facts.evaluates_purely())
 }
 
 /// The source-role consumer chooses its purpose-specific closure before this

@@ -11565,7 +11565,7 @@ impl SourceCommandBindings {
             if frame != tcl_registry::model::DeclaredFrameEffect::Stated(None) {
                 Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
             }
-        } else if let Some(traits) = incoming.receiver_context_head(
+        } else if let Some(pure) = incoming.receiver_context_head(
             context.registry,
             effective,
             self.declaration_preview_depth != 0,
@@ -11573,7 +11573,7 @@ impl SourceCommandBindings {
             // A TclOO helper this walk's namespace cannot reach. It reads
             // the call context or dispatches to the receiver's own methods,
             // whose bodies are walked in their own right.
-            if !traits.contains(tcl_registry::Traits::PURE) {
+            if !pure {
                 Arc::make_mut(&mut residual.source_variables).widen_keeping_observers();
             }
         } else {
@@ -17293,7 +17293,7 @@ impl ModuleCommandBindings {
         registry: &CommandRegistry,
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
         preview: bool,
-    ) -> Option<tcl_registry::Traits> {
+    ) -> Option<bool> {
         use tcl_registry::Traits;
         let spec = registry_head(registry, effective)?;
         if !matches!(
@@ -17305,8 +17305,8 @@ impl ModuleCommandBindings {
         let traits = spec.traits;
         (traits.contains(Traits::TCLOO_METHOD_CONTEXT)
             && !traits.contains(Traits::TCLOO_BINDS_METHOD_ALIAS)
-            && (preview || traits.contains(Traits::PURE)))
-        .then_some(traits)
+            && (preview || spec.is_pure()))
+        .then_some(spec.is_pure())
     }
 
     /// The frame effect a declared command states when an authored call

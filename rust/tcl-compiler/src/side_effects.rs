@@ -786,7 +786,7 @@ pub fn classify_side_effects_with_context(
     //      (getter) reads header state. Return the structured hint
     //      with `reads=true, writes=false` by forcing the
     //      spec's hints read-only.
-    if spec.traits.contains(Traits::PURE) {
+    if spec.is_pure() {
         let effective_sub = args.first().map(String::as_str);
         let sub_is_mutator = effective_sub
             .and_then(|s| spec.resolve_subcommand(s))
@@ -975,7 +975,7 @@ fn classify_declared(
         };
     }
     let stated = surface.side_effects(command).unwrap_or_default();
-    if traits.contains(Traits::PURE) {
+    if surface.is_pure(command) {
         return CommandSideEffects {
             effects: stated
                 .iter()
