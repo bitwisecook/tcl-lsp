@@ -141,6 +141,14 @@ impl Analyser {
             return false;
         };
         class.doc = std::mem::take(&mut self.last_comment);
+        let original_body = call.cmd_tok.and_then(|head| {
+            self.original_class_definition_body_at(
+                head.span.start(),
+                call.arg_tokens[body],
+                grammar,
+            )
+        });
+        let enclosing = std::mem::replace(&mut self.original_class_definition_body, original_body);
         self.parse_oo_definition_body(
             &call.args[body],
             call.arg_tokens[body],
@@ -149,6 +157,7 @@ impl Analyser {
             Some(grammar),
             disabled,
         );
+        self.original_class_definition_body = enclosing;
         let qualified = class.qualified_name.clone();
         self.result
             .class_body_spans
@@ -188,7 +197,7 @@ mod tests {
         assert_eq!(method.original_name_input().bytes(), b"connect");
         assert_eq!(
             method.name_purpose(),
-            DefinitionMemberNamePurpose::SourceValue
+            DefinitionMemberNamePurpose::TclOoMethod
         );
         assert_eq!(method.metadata().name_span, Span::new(31, 38));
         let image = SourceImage::document(source);

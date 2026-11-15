@@ -1208,8 +1208,13 @@ impl Analyser {
         let Some(grammar) = grammar else {
             return;
         };
-        if grammar.family == tcl_registry::definer::DefinerFamily::TclOo
-            && class_def.source_name.is_some()
+        // A Clay class is a fresh TclOO class whose relation members reach
+        // `oo::define` as TclOO's do.
+        if matches!(
+            grammar.family,
+            tcl_registry::definer::DefinerFamily::TclOo
+                | tcl_registry::definer::DefinerFamily::Clay
+        ) && class_def.source_name.is_some()
             && !class_def.source_name_ambiguous.is_observed()
         {
             class_def.original_relations.begin_declaration();

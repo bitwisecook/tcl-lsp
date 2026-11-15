@@ -1803,6 +1803,15 @@ impl DefinerFamily {
         )
     }
 
+    /// Whether this family's instance methods are `TclOO` methods, so `my`
+    /// inside a method body dispatches through the object's `TclOO` order.
+    /// Clay builds every class with `oo::class` and declares methods through
+    /// `oo::define` (tcllib clay 0.8.8, `::clay::dialect::Define`).
+    #[must_use]
+    pub const fn members_are_tcloo_methods(self) -> bool {
+        matches!(self, Self::TclOo | Self::Clay)
+    }
+
     /// Whether a class of this family stores each member as the two-word
     /// command `{CLASS member}`, so that a `proc` named by that two-element
     /// list is also a member of the class. Jim's `oo.tcl` builds every method,
@@ -2612,10 +2621,14 @@ impl DefinitionBodyGrammar {
         {
             return None;
         }
-        Some(if self.family == DefinerFamily::TclOo {
-            DefinitionMemberNamePurpose::TclOoMethod
-        } else {
-            DefinitionMemberNamePurpose::SourceValue
+        Some(match self.family {
+            DefinerFamily::TclOo => DefinitionMemberNamePurpose::TclOoMethod,
+            // Clay's `DefineThunk` hands a member that keeps its own header and
+            // body to `oo::define` unchanged, which creates a TclOO method.
+            DefinerFamily::Clay if member.effect != MemberEffect::Configuration => {
+                DefinitionMemberNamePurpose::TclOoMethod
+            }
+            _ => DefinitionMemberNamePurpose::SourceValue,
         })
     }
 

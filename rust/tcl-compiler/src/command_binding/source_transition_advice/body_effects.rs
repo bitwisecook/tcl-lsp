@@ -1897,18 +1897,16 @@ impl BodyWalk<'_, '_> {
                             invocation.head.bytes(),
                         )
                         .ok()?;
-                    let contextual_self =
-                        body.receiver_grammar(self.context.context)
-                            .is_some_and(|grammar| {
-                                grammar.family == tcl_registry::definer::DefinerFamily::TclOo
-                            })
-                            && schema
-                                .semantics
-                                .traits
-                                .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
-                            && self.context.context.commands().method_dispatch_keyword(
-                                std::str::from_utf8(invocation.head.bytes()).ok()?,
-                            ) == Some(tcl_registry::MethodDispatchKind::SelfDispatch);
+                    let contextual_self = body
+                        .receiver_grammar(self.context.context)
+                        .is_some_and(|grammar| grammar.family.members_are_tcloo_methods())
+                        && schema
+                            .semantics
+                            .traits
+                            .contains(tcl_registry::Traits::TCLOO_SELF_DISPATCH)
+                        && self.context.context.commands().method_dispatch_keyword(
+                            std::str::from_utf8(invocation.head.bytes()).ok()?,
+                        ) == Some(tcl_registry::MethodDispatchKind::SelfDispatch);
                     if (selected.namespace_route()
                         != tcl_syntax::naming::NativeCommandNamespaceRoute::Root
                         && !contextual_self)

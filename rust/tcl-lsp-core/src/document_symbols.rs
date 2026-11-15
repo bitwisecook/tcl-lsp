@@ -865,14 +865,21 @@ mod tests {
     }
 
     #[test]
-    fn clay_outline_does_not_admit_receiver_dispatch_or_rename() {
+    fn clay_outline_admits_self_dispatch_but_not_rename() {
         let source = "clay::define ::Probe {\n  method connect {} {}\n  method use {} {my connect}\n}\n::Probe new\n";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
         let profile = environment.analyser_profile();
         let registry = environment.default_context_registry();
         assert!(analysis.original_class_declarations().next().is_some());
-        assert!(crate::definition::definition(source, 2, 20, &analysis).is_empty());
+        // #1956: a Clay class's `my connect` reaches its TclOO method.
+        assert_eq!(
+            crate::definition::definition(source, 2, 20, &analysis)
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            [1]
+        );
         for (line, column) in [(0, 13), (1, 9), (2, 20)] {
             assert!(crate::rename::prepare_rename(source, line, column, &analysis).is_none());
             assert!(

@@ -496,6 +496,45 @@ mod tests {
         }
     }
 
+    /// `Tcl_SocketObjCmd` (8.4.20-9.1.0) scans options while a word starts
+    /// with `-` and then needs exactly the port to remain for a server, so the
+    /// accept callback stays at `-server`'s value whatever the port word is.
+    #[test]
+    fn socket_server_callback_survives_a_dynamic_port_and_later_options() {
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let context = crate::model::ingress::static_context_for(name);
+            let registry = context.commands();
+            for arguments in [
+                vec![Literal("-server"), Dynamic, Literal("8080")],
+                vec![Literal("-server"), Dynamic, Dynamic],
+                vec![
+                    Literal("-server"),
+                    Dynamic,
+                    Literal("-myaddr"),
+                    Dynamic,
+                    Dynamic,
+                ],
+            ] {
+                let resolution = registry.resolve_structured_invocation(
+                    InvocationWords::structured(Literal("socket"), &arguments)
+                        .with_profile(Some(registry.profile().unwrap())),
+                    registry.own_surface_query(),
+                );
+                let schema = resolution.resolved().unwrap();
+                assert_eq!(
+                    schema.authored_source_plain_script_arguments(),
+                    Some(vec![1]),
+                    "{name}: {arguments:?}"
+                );
+                assert_eq!(
+                    schema.authored_source_command_prefix_arguments(),
+                    Some(vec![(1, crate::AppendedArity::Exactly(3))]),
+                    "{name}: {arguments:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn authored_ascii_list_result_retains_element_boundaries_and_unknown_values() {
         // naming.source.original-structured-script-timing

@@ -7445,21 +7445,27 @@ mod tests {
             || std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tmp/tcllib-2.0"),
             std::path::PathBuf::from,
         );
-        // (file, method declared in the file, a method named by a callback
-        // prefix inside it). `cat.tcl` is the `after … [namespace code [list
-        // my Post $c]]` shape.  `httpd.tcl` carries the `socket -server
-        // [namespace code [list my connect]]` CommandPrefix shape, but its
-        // classes come from `::clay::define`, whose members keep the
-        // `SourceValue` name purpose: the callback scan resolves only
-        // `TclOoMethod` declarations, so that shape is not asserted here.
-        let (relative, method) = ("modules/virtchannel_base/cat.tcl", "Post");
-        {
-            let original = tcl_test_support::fixed_corpus::FixedCorpusSource::read(
-                &corpus,
+        // (fixture, method declared in the file, 0-based lines of the
+        // callback prefixes that name it). `cat.tcl` is the `after …
+        // [namespace code [list my Post $c]]` shape; `httpd.tcl` (Clay classes,
+        // Tcl 8.6) is the `socket -server [namespace code [list my connect]]
+        // ?-myaddr $ip? $port` shape (#1956).
+        for (fixture, method, callbacks) in [
+            (
                 &tcl_test_support::fixed_corpus::TCLLIB_2_0_CHANNEL_CAT,
-            )
-            .expect("fixed Tcllib 2.0 source setup must be available and unchanged");
-            assert_eq!(original.fixture().relative_path, relative);
+                "Post",
+                &[][..],
+            ),
+            (
+                &tcl_test_support::fixed_corpus::TCLLIB_2_0_HTTPD,
+                "connect",
+                &[1010_u32, 1013][..],
+            ),
+        ] {
+            let relative = fixture.relative_path;
+            let original =
+                tcl_test_support::fixed_corpus::FixedCorpusSource::read(&corpus, fixture)
+                    .expect("fixed Tcllib 2.0 source setup must be available and unchanged");
             let src = String::from_utf8(original.bytes().to_vec())
                 .expect("the original Tcllib callback control is UTF-8");
             let analysis = analyse(&src);
@@ -7488,6 +7494,64 @@ mod tests {
                 refs.len() > 1,
                 "{relative}: `{method}` must reach its callback prefix as well as its \
                  declaration, got {refs:?}"
+            );
+            for callback in callbacks {
+                assert!(
+                    refs.iter().any(|r| r.start_line == *callback),
+                    "{relative}: `{method}` must reach the callback on line {callback}: {refs:?}"
+                );
+            }
+        }
+    }
+
+    /// A `clay::define` class is a `TclOO` class: its lowercase `method` names a
+    /// `TclOO` method and its `superclass` a `TclOO` relation, with Clay's
+    /// `::clay::object` root implicit as `::oo::object` is, so a `my` call
+    /// reaches the method a class or its superclass declares (#1956). Tcl 8.6.
+    #[test]
+    fn references_reach_a_my_call_in_a_clay_class() {
+        for src in [
+            "clay::define ::C {\n    method connect {sock} {}\n    method run {} { my connect x }\n}\n",
+            "clay::define ::B {\n    method connect {sock} {}\n}\nclay::define ::C {\n    superclass ::B\n    method run {} { my connect x }\n}\n",
+        ] {
+            let refs = references(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                1,
+                11,
+                &analyse(src),
+                true,
+            );
+            assert!(
+                refs.iter().any(|r| r.start_line != 1),
+                "the `my connect` call is missing: {src}: {refs:?}"
+            );
+        }
+    }
+
+    /// `socket` scans options while a word starts with `-` and keeps the last
+    /// word as the port (`Tcl_SocketObjCmd`, 8.4.20-9.1.0), so the accept
+    /// callback is found with a dynamic port and later options. Tcl 8.6.
+    #[test]
+    fn references_reach_a_socket_server_callback_with_a_dynamic_port() {
+        for call in [
+            "socket -server [namespace code [list my connect]] $port",
+            "socket -server [namespace code [list my connect]] -myaddr $ip $port",
+        ] {
+            let src = format!(
+                "oo::class create C {{\n    method connect {{sock ip port}} {{}}\n    method start {{ip port}} {{\n        {call}\n    }}\n}}\n"
+            );
+            let refs = references(
+                &src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                1,
+                11,
+                &analyse(&src),
+                true,
+            );
+            assert!(
+                refs.iter().any(|r| r.start_line == 3),
+                "the socket accept callback is missing: {call}: {refs:?}"
             );
         }
     }

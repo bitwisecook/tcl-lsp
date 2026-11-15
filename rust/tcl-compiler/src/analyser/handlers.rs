@@ -11482,7 +11482,7 @@ impl Analyser {
         }
     }
 
-    fn original_class_definition_body_at(
+    pub(super) fn original_class_definition_body_at(
         &self,
         offset: u32,
         token: Token,

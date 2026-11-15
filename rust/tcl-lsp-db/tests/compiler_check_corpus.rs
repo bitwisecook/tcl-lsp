@@ -92,7 +92,7 @@ fn clay_source_inventory_retains_exact_httpd_server_method_sites_1956() {
     assert_eq!(method.metadata().name_span, Span::new(21_872, 21_879));
     assert_eq!(
         method.name_purpose(),
-        DefinitionMemberNamePurpose::SourceValue
+        DefinitionMemberNamePurpose::TclOoMethod
     );
     let parameters = method.parameters_word().expect("original method formals");
     let body = method.body_word().expect("original unchanged method body");

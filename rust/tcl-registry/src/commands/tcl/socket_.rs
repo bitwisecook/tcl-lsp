@@ -182,6 +182,10 @@ pub fn spec() -> CommandSpec {
             | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(2),
         command_forms: INVOCATION_FORMS,
+        // `Tcl_SocketObjCmd` (8.4.20-9.1.0) scans options while a word starts
+        // with `-`, then requires the port (server) or host and port (client)
+        // to be what remains, so the last word is never an option.
+        reserved_trailing_words: 1,
         return_type: Some(TclType::Channel),
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,

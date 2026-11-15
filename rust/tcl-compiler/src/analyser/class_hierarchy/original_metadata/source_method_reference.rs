@@ -500,7 +500,10 @@ fn checked_member_source_schema(
         || !advice.matches_context(&context)
         || !body.matches_source(&image, config)
         || !body.matches_context(&context)
-        || body.receiver_grammar(&context)?.family != tcl_registry::definer::DefinerFamily::TclOo
+        || !body
+            .receiver_grammar(&context)?
+            .family
+            .members_are_tcloo_methods()
         || !matches!(
             body.member_row()?.effect,
             MemberEffect::Callable {

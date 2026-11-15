@@ -19,8 +19,9 @@
 //! Source inventory for Tcllib 2.0 Clay's definition vocabulary.
 
 use super::{
-    DefinerFamily, DefinitionBodyGrammar, INSTANCE_METHOD, METHOD_ROLES, MemberEffect, MemberSpec,
-    NO_ROLES, TCLOO_MEMBER_BODY_NAMESPACE_PATH, TCLOO_METHOD_VISIBILITY_ARGUMENT,
+    DefinerFamily, DefinitionBodyGrammar, INSTANCE_METHOD, METHOD_ROLES, MemberEffect,
+    MemberRefKind, MemberSpec, MemberVisibility, NO_ROLES, RelationSlot, SlotOp,
+    TCLOO_MEMBER_BODY_NAMESPACE_PATH, TCLOO_METHOD_VISIBILITY_ARGUMENT, relation,
 };
 
 const MEMBERS: &[MemberSpec] = &[
@@ -31,13 +32,31 @@ const MEMBERS: &[MemberSpec] = &[
     // change dispatch. They supply no unchanged method-body declaration.
     MemberSpec::flat("constructor", NO_ROLES, MemberEffect::Configuration),
     MemberSpec::flat("destructor", NO_ROLES, MemberEffect::Configuration),
-    MemberSpec::flat("superclass", NO_ROLES, MemberEffect::Configuration),
-    MemberSpec::flat("mixin", NO_ROLES, MemberEffect::Configuration),
+    // `::clay::dialect::SuperClass` sets the named classes and appends the
+    // dialect's root `::clay::object`, which stays implicit here as
+    // `::oo::object` does for TclOO. A relative name is canonicalised against
+    // the class's own namespace first, unlike `oo::define`.
+    MemberSpec::all_refs(
+        "superclass",
+        MemberRefKind::Class,
+        relation(RelationSlot::Superclass),
+    )
+    .slot_spec(SlotOp::Set, false),
+    // `DefineThunk` hands these to `oo::define` unchanged.
+    MemberSpec::all_refs("mixin", MemberRefKind::Class, relation(RelationSlot::Mixin))
+        .slot_spec(SlotOp::Set, false),
+    MemberSpec::all_refs(
+        "filter",
+        MemberRefKind::Method,
+        relation(RelationSlot::Filter),
+    )
+    .slot_spec(SlotOp::Append, false),
+    MemberSpec::all_refs("export", MemberRefKind::Method, MemberEffect::Visibility)
+        .visibility(MemberVisibility::Exported),
+    MemberSpec::all_refs("unexport", MemberRefKind::Method, MemberEffect::Visibility)
+        .visibility(MemberVisibility::Unexported),
     MemberSpec::flat("variable", NO_ROLES, MemberEffect::Configuration),
     MemberSpec::flat("forward", NO_ROLES, MemberEffect::Configuration),
-    MemberSpec::flat("filter", NO_ROLES, MemberEffect::Configuration),
-    MemberSpec::flat("export", NO_ROLES, MemberEffect::Configuration),
-    MemberSpec::flat("unexport", NO_ROLES, MemberEffect::Configuration),
     MemberSpec::flat("self", NO_ROLES, MemberEffect::Configuration),
     MemberSpec::flat("clay", NO_ROLES, MemberEffect::Configuration),
     MemberSpec::flat("aliases", NO_ROLES, MemberEffect::Configuration),
@@ -53,7 +72,8 @@ const MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("Ensemble", NO_ROLES, MemberEffect::Configuration),
 ];
 
-/// Original class/member syntax only. Package loading, class creation,
+/// Original class/member syntax. A lowercase `method` reaches `oo::define`
+/// unchanged and names a `TclOO` method; package loading, class creation,
 /// configuration, generated methods and actual receiver entry remain unknown.
 pub const CLAY_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     family: DefinerFamily::Clay,
@@ -85,7 +105,7 @@ mod tests {
         let method = grammar.member("method").unwrap();
         assert_eq!(
             grammar.member_name_purpose(method),
-            Some(DefinitionMemberNamePurpose::SourceValue)
+            Some(DefinitionMemberNamePurpose::TclOoMethod)
         );
         assert!(grammar.command_installation().is_none());
         assert!(grammar.manufacturer("create").is_none());
