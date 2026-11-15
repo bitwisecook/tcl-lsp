@@ -305,7 +305,7 @@ fn a_renamed_form_on_the_same_route_keeps_the_shipped_lowering_hook() {
         "form-renamed-route",
         "tcl8.6",
         "incr",
-        "refine renamed { arity 1 lowering_hook -native If }",
+        "refine renamed { arity 1; lowering_hook -native If }",
     );
     let form = spec
         .command_forms
@@ -330,7 +330,7 @@ fn the_floor_leaves_removed_and_new_invocation_routes_as_declared() {
         "form-added",
         "tcl8.6",
         "incr",
-        "refine added { arity 3 lowering_hook -native If }",
+        "refine added { arity 3; lowering_hook -native If }",
     );
     let form = added
         .command_forms

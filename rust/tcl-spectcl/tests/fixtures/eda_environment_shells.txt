@@ -36,10 +36,52 @@
                 Span {
                     min: Version {
                         text: "8.4a0",
+                        key: VersionOrderKey(
+                            [
+                                Number(
+                                    [
+                                        56,
+                                    ],
+                                ),
+                                Number(
+                                    [],
+                                ),
+                                Number(
+                                    [
+                                        52,
+                                    ],
+                                ),
+                                Alpha,
+                                Number(
+                                    [],
+                                ),
+                            ],
+                        ),
                     },
                     max: Some(
                         Version {
                             text: "8.5a0",
+                            key: VersionOrderKey(
+                                [
+                                    Number(
+                                        [
+                                            56,
+                                        ],
+                                    ),
+                                    Number(
+                                        [],
+                                    ),
+                                    Number(
+                                        [
+                                            53,
+                                        ],
+                                    ),
+                                    Alpha,
+                                    Number(
+                                        [],
+                                    ),
+                                ],
+                            ),
                         },
                     ),
                 },
@@ -158,10 +200,52 @@
                 Span {
                     min: Version {
                         text: "8.5a0",
+                        key: VersionOrderKey(
+                            [
+                                Number(
+                                    [
+                                        56,
+                                    ],
+                                ),
+                                Number(
+                                    [],
+                                ),
+                                Number(
+                                    [
+                                        53,
+                                    ],
+                                ),
+                                Alpha,
+                                Number(
+                                    [],
+                                ),
+                            ],
+                        ),
                     },
                     max: Some(
                         Version {
                             text: "8.6a0",
+                            key: VersionOrderKey(
+                                [
+                                    Number(
+                                        [
+                                            56,
+                                        ],
+                                    ),
+                                    Number(
+                                        [],
+                                    ),
+                                    Number(
+                                        [
+                                            54,
+                                        ],
+                                    ),
+                                    Alpha,
+                                    Number(
+                                        [],
+                                    ),
+                                ],
+                            ),
                         },
                     ),
                 },
@@ -309,10 +393,52 @@
                 Span {
                     min: Version {
                         text: "8.6a0",
+                        key: VersionOrderKey(
+                            [
+                                Number(
+                                    [
+                                        56,
+                                    ],
+                                ),
+                                Number(
+                                    [],
+                                ),
+                                Number(
+                                    [
+                                        54,
+                                    ],
+                                ),
+                                Alpha,
+                                Number(
+                                    [],
+                                ),
+                            ],
+                        ),
                     },
                     max: Some(
                         Version {
                             text: "8.7a0",
+                            key: VersionOrderKey(
+                                [
+                                    Number(
+                                        [
+                                            56,
+                                        ],
+                                    ),
+                                    Number(
+                                        [],
+                                    ),
+                                    Number(
+                                        [
+                                            55,
+                                        ],
+                                    ),
+                                    Alpha,
+                                    Number(
+                                        [],
+                                    ),
+                                ],
+                            ),
                         },
                     ),
                 },
@@ -428,10 +554,52 @@
                 Span {
                     min: Version {
                         text: "8.5a0",
+                        key: VersionOrderKey(
+                            [
+                                Number(
+                                    [
+                                        56,
+                                    ],
+                                ),
+                                Number(
+                                    [],
+                                ),
+                                Number(
+                                    [
+                                        53,
+                                    ],
+                                ),
+                                Alpha,
+                                Number(
+                                    [],
+                                ),
+                            ],
+                        ),
                     },
                     max: Some(
                         Version {
                             text: "8.6a0",
+                            key: VersionOrderKey(
+                                [
+                                    Number(
+                                        [
+                                            56,
+                                        ],
+                                    ),
+                                    Number(
+                                        [],
+                                    ),
+                                    Number(
+                                        [
+                                            54,
+                                        ],
+                                    ),
+                                    Alpha,
+                                    Number(
+                                        [],
+                                    ),
+                                ],
+                            ),
                         },
                     ),
                 },
@@ -526,10 +694,52 @@
                 Span {
                     min: Version {
                         text: "8.6a0",
+                        key: VersionOrderKey(
+                            [
+                                Number(
+                                    [
+                                        56,
+                                    ],
+                                ),
+                                Number(
+                                    [],
+                                ),
+                                Number(
+                                    [
+                                        54,
+                                    ],
+                                ),
+                                Alpha,
+                                Number(
+                                    [],
+                                ),
+                            ],
+                        ),
                     },
                     max: Some(
                         Version {
                             text: "8.7a0",
+                            key: VersionOrderKey(
+                                [
+                                    Number(
+                                        [
+                                            56,
+                                        ],
+                                    ),
+                                    Number(
+                                        [],
+                                    ),
+                                    Number(
+                                        [
+                                            55,
+                                        ],
+                                    ),
+                                    Alpha,
+                                    Number(
+                                        [],
+                                    ),
+                                ],
+                            ),
                         },
                     ),
                 },
@@ -659,10 +869,52 @@
                 Span {
                     min: Version {
                         text: "8.5a0",
+                        key: VersionOrderKey(
+                            [
+                                Number(
+                                    [
+                                        56,
+                                    ],
+                                ),
+                                Number(
+                                    [],
+                                ),
+                                Number(
+                                    [
+                                        53,
+                                    ],
+                                ),
+                                Alpha,
+                                Number(
+                                    [],
+                                ),
+                            ],
+                        ),
                     },
                     max: Some(
                         Version {
                             text: "8.6a0",
+                            key: VersionOrderKey(
+                                [
+                                    Number(
+                                        [
+                                            56,
+                                        ],
+                                    ),
+                                    Number(
+                                        [],
+                                    ),
+                                    Number(
+                                        [
+                                            54,
+                                        ],
+                                    ),
+                                    Alpha,
+                                    Number(
+                                        [],
+                                    ),
+                                ],
+                            ),
                         },
                     ),
                 },

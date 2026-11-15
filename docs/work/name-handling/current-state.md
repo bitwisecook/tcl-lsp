@@ -378,7 +378,7 @@ Measuring: a probe test that builds the input and times `analyse` (the task brie
 
 ## iRules, registry, SpecTcl and tooling area, 15 November 2026
 
-Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 52, `tcl-spectcl` 40, `tcl-spec-studio` 14, `tcl-diagram` 19, `tcl-explorer` 16, `tcl-mcp` 10, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
+Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 52, `tcl-spectcl` 38, `tcl-spec-studio` 12, `tcl-diagram` 17, `tcl-explorer` 16, `tcl-mcp` 10, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
 
 Fixed:
 
@@ -414,7 +414,10 @@ Classification of what still fails (first failing assertion, one run):
 | --- | --- | --- | --- |
 | `tcl-spectcl` | `codegen_stamps`: a pack reference body is not inlined at the call (`procedure_bindings` empty, `inlined` 0); decided in `tcl-codegen/src/inlining/reference.rs` | about 20, with the 1,200 s timeout | Execution |
 | `tcl-spectcl` | `jim_document`, `disabled_command_wording`, `spectcl_dialect_analysis`: W123/W210/W002 on Jim documents (statics, `class`, two-word proc names) | 11 | Analyser |
-| `tcl-spectcl` | `hooks::*` (3), `i6_security_floor`, `workspace_packs`, `lazy_bundled`, `eda_environment_packs`, `native_normal_store`, `variable_reference_boundaries`, `pack_source_e2e` (2) | 11 | this area, not classified further |
+| `tcl-spectcl` | `lazy_bundled::bare_carriage_returns_are_pack_data…`: the engine's compile of a script string turns a bare CR in a braced word into LF (tclsh 8.4, 8.6, 9.0 keep it; the static fast path keeps it); `native_normal_store` (`executed_source` set) | 2 | Execution (sent) |
+| `tcl-spectcl` | `pack_source_e2e` (2: SCCP gives `Const(42)` where the test wants an unentered declaration to stay `Overdefined`), `variable_reference_boundaries::a_live_fold_keeps_declared_effects_and_unclosed_arguments` | 3 | Dataflow |
+| `tcl-spectcl` | `hooks::owned_evaluator` (3: hook cache keeps an entry, a retired evaluator still answers, a colon-suffixed element), `hooks::service::inline` (`LiteralArgumentValidator` abstains), `workspace_packs::a_manifest_that_places_nothing_does_not_lift_its_pack` (a transitive pack's `alias_of` is refused where the test expects it to load) | 5 | this area, open |
+| `tcl-spectcl` | fixed: `i6_security_floor` (two statements on one line), `eda_environment_packs` (snapshot regenerated for `Version`'s order key) | 0 | done |
 | `tcl-spec-studio` | parity debt left: port and round-trip differences (`lsort`, `string is` `subcommand_forms`, `regsub` Jim dialect dropped, `f5-irules/when` not declared, `bpf/!` prelude import, `arg_role_resolver` sample), header/body vocabulary | 10 | this area |
 | `tcl-spec-studio` | `pack_formatting_uses_the_shared_spectcl_profile`: a `command` block body is not indented | 1 | this area or LSP formatting |
 | `tcl-spec-studio` | `infer::*`: `count: arguments` in a proposed arity, a body's return type not proposed | 2 | this area |
