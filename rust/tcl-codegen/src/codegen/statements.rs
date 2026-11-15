@@ -2086,6 +2086,40 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// `TclCompileBreakCmd` and `TclCompileContinueCmd` from 8.6: inside the
+    /// loop's own exception range, at the body's stack depth, the command is a
+    /// `jump4` to the loop's target. Elsewhere, and in 8.5, it is the
+    /// instruction the enclosing range catches.
+    fn emit_native_loop_exit(&mut self, is_break: bool, version: tcl_dialect::TclVersion) {
+        let target = (version >= tcl_dialect::TclVersion::V8_6)
+            .then(|| self.native_loop_targets.last().cloned().flatten())
+            .flatten()
+            .and_then(|(break_target, continue_target)| {
+                if is_break {
+                    Some(break_target)
+                } else {
+                    continue_target
+                }
+            });
+        match target {
+            // The comment keeps the four-byte form, which C never narrows
+            // for a break or continue jump.
+            Some(label) => {
+                self.emit_comment(
+                    Op::JUMP4,
+                    vec![Operand::Label(label)],
+                    if is_break { "break" } else { "continue" },
+                );
+            }
+            None if is_break => {
+                self.emit(Op::BREAK, vec![]);
+            }
+            None => {
+                self.emit(Op::CONTINUE, vec![]);
+            }
+        }
+    }
+
     fn emit_native_control_task(
         &mut self,
         task: NativeEmissionTask,
@@ -2100,38 +2134,8 @@ impl CodegenCtx<'_> {
             Task::LeaveNativeLoop => {
                 self.native_loop_targets.pop();
             }
-            // `TclCompileBreakCmd` and `TclCompileContinueCmd` from 8.6: inside
-            // the loop's own exception range, at the body's stack depth, the
-            // command is a `jump4` to the loop's target. Elsewhere, and in
-            // 8.5, it is the instruction the enclosing range catches.
             Task::NativeLoopExit(is_break, version) => {
-                let target = (version >= tcl_dialect::TclVersion::V8_6)
-                    .then(|| self.native_loop_targets.last().cloned().flatten())
-                    .flatten()
-                    .and_then(|(break_target, continue_target)| {
-                        if is_break {
-                            Some(break_target)
-                        } else {
-                            continue_target
-                        }
-                    });
-                match target {
-                    // The comment keeps the four-byte form, which C never
-                    // narrows for a break or continue jump.
-                    Some(label) => {
-                        self.emit_comment(
-                            Op::JUMP4,
-                            vec![Operand::Label(label)],
-                            if is_break { "break" } else { "continue" },
-                        );
-                    }
-                    None if is_break => {
-                        self.emit(Op::BREAK, vec![]);
-                    }
-                    None => {
-                        self.emit(Op::CONTINUE, vec![]);
-                    }
-                }
+                self.emit_native_loop_exit(is_break, version);
             }
             Task::ControlScript(image, body, context, config) => {
                 // A body keeps the loop in reach only where C keeps the loop's
