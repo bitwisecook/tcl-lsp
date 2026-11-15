@@ -73,7 +73,7 @@ Other token faults fixed in this pass:
 
 Tests collapsed in the owner: 18 single-assertion tests of `normalise_var_name`, `normalise_qualified_name` and `qualify` became three table-driven tests with the same rows (53 tests to 38 in `naming.rs`).
 
-Token tests: `tcl-lsp-core` library token tests 27 failing (38 at the last snapshot), residual `st_*` tests 4 (6); server token and large-file e2e 2 of 105 (9). `tcl-compiler` and `tcl-irules`: 13,191 run, 2,579 failing, none new.
+Token tests: `tcl-lsp-core` library token tests 26 failing (38 at the last snapshot), residual `st_*` tests 4 (6); server token and large-file e2e 2 of 105 (9). `tcl-compiler` and `tcl-irules`: 13,191 run, 2,579 failing, none new.
 
 Open:
 
@@ -82,6 +82,7 @@ Open:
 - The analysed walk is itself super-linear (0.65 s, 2.2 s, 11 s at 1,000, 2,000 and 4,000 lines). Known per-command costs: `collect_parameter_fields` scans every procedure declaration per parameter list; `source_registry_words` builds a `SourceMap` (a line index of the whole document) per command; `stamp_original_tokens` prepares advice lazily per site.
 - `tcl-irules` 15 (events are not lowered when an invalid command precedes them at top level; `pool $p` value flow; `while` and `serverside` bodies not walked), `tcl-registry` 9, `tcl-spectcl` 44 and the tooling crates are not yet worked.
 - Object handles in collections, loop variables, widget paths and snit components, and the receiver-receipt token tests, as recorded above.
+- An ordinary command inside a class definition script (`oo::class create C { if 1 {method m {} {…}} }`, also `proc` and `catch` there) is dispatched without a proved target, so its head stays generic and its body is not entered; tclsh 8.6.18 to 9.1.0 run it and define the method. Witness: `original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies`, whose fixture now runs on tclsh (`self self {…}` and a bare `apply` of a lambda calling `method` both raise). For the analyser session: a non-member command in a definition script resolves through the definition namespace's path to the global command.
 
 ## Execution area, 15 November 2026
 

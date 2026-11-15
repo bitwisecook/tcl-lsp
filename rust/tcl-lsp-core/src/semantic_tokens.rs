@@ -11507,12 +11507,18 @@ mod original_definition_vocabulary_tests {
     fn original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies() {
         // naming.core.original-command-source-schema
         // docs/design/analysis/name-resolution-proofs/original-command-source-schema.md
-        let source = "oo::class create C {\nself self {method café {} {puts wrapper}}\nif 1 {method café {} {puts immediate}}\nmethod plain {} {method ordinary {} {puts inert}}\nproc p {} {method ordinary {} {puts inert}}\napply {{} {method ordinary {} {puts inert}}}\n}";
+        // tclsh 8.6.18, 9.0.4 and 9.1.0 run this and report `{plain café} café`
+        // for the class and object methods. `self self {…}` is not a wrapper
+        // (8.6: invalid command name "self"; 9.0: wrong # args), and a bare
+        // `apply` of the lambda raises invalid command name "method", so the
+        // wrapper is `self {…}` and the lambda's error is caught.
+        let source = "oo::class create C {\nself {method café {} {puts wrapper}}\nif 1 {method café {} {puts immediate}}\nmethod plain {} {method ordinary {} {puts inert}}\nproc p {} {method ordinary {} {puts inert}}\ncatch {apply {{} {method ordinary {} {puts inert}}}}\n}";
         let tokens = retained_tokens(source, "tcl8.6");
         for (offset, _) in source.match_indices("method café") {
             assert_eq!(
                 token_kind_at(source, &tokens, offset),
-                Some(TokenKind::Keyword as u32)
+                Some(TokenKind::Keyword as u32),
+                "{offset}: {tokens:?}"
             );
         }
         for word in ["puts wrapper", "puts immediate"] {
@@ -11575,11 +11581,16 @@ mod original_definition_vocabulary_tests {
         // naming.core.original-command-source-schema
         // docs/design/analysis/name-resolution-proofs/original-command-source-schema.md
         for (source, dialect, keyword, body) in [
+            // A substituted parameter list does not hide the body. The list is
+            // bound first: with `params` unset tclsh 8.6.18 stops at
+            // `can't read "params"` and defines nothing; bound, it prints
+            // `café` for `info class methods C`. (tclsh 9.0.4 cannot read a
+            // global from the definition script, so this row is 8.6 only.)
             (
-                "oo::class create C {method café $params {puts hidden}}",
+                "set params {}\noo::class create C {method café $params {puts visible}}",
                 "tcl8.6",
                 true,
-                false,
+                true,
             ),
             (
                 "oo::class create C {method café -private {} {puts visible}}",
