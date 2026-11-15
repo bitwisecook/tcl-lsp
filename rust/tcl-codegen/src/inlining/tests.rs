@@ -830,7 +830,10 @@ fn unresolved_native_entry_keeps_structural_calls() {
             "h",
         ),
     ] {
-        let original = module_for(source);
+        // A registry with no profile names no release: the unit is read with
+        // no source model the inliner admits.
+        let registry = CommandRegistry::build_default();
+        let original = CompilationUnit::build_for(source, &registry, false).ir_module;
         assert!(
             original
                 .source_entry
@@ -838,7 +841,10 @@ fn unresolved_native_entry_keeps_structural_calls() {
                 .is_none_or(|dialect| dialect.core_point.is_none()),
             "the refusal control must keep its unresolved native release"
         );
-        assert_eq!(top_calls_to(&inline_module_default(original), command), 1);
+        assert_eq!(
+            top_calls_to(&inline_module(original, &registry), command),
+            1
+        );
     }
 }
 
