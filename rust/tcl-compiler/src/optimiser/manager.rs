@@ -95,23 +95,27 @@ pub fn optimise_unit(
 /// an equal `CompilationUnit` (the precondition for salsa early-cutoff on
 /// `compiler_check_diagnostics`, and for the per-procedure optimiser memo: the
 /// rebased per-proc raw set sorts into the same order the whole-module run does).
+///
+/// The message is presentation and comes last: it only orders candidates whose
+/// span, code, replacement and hint flag already agree, so rewording a pass can
+/// never change which replacement wins overlap arbitration.
 fn sort_optimisations(opts: &mut [Optimisation]) {
     opts.sort_by(|a, b| {
         (
             a.span.start(),
             a.span.end(),
             &a.code,
-            &a.message,
             &a.replacement,
             a.hint_only,
+            &a.message,
         )
             .cmp(&(
                 b.span.start(),
                 b.span.end(),
                 &b.code,
-                &b.message,
                 &b.replacement,
                 b.hint_only,
+                &b.message,
             ))
     });
 }
@@ -1311,6 +1315,24 @@ mod tests {
         assert!(!folds("db_query {sql}"));
     }
     use tcl_lexer::Span;
+
+    /// Dialect-invariant optimiser contract (Tcl 8.4–9.1, no interpreter): message
+    /// wording never selects between competing replacements (#2426).
+    #[test]
+    fn rewording_a_candidate_does_not_change_the_surviving_replacement() {
+        let winner = |first: &str, second: &str| {
+            let mut opts = vec![
+                Optimisation::new(DiagCode::O100, first, Span::new(6, 7), "z"),
+                Optimisation::new(DiagCode::O100, second, Span::new(6, 7), "y"),
+            ];
+            sort_optimisations(&mut opts);
+            let selected = select_non_overlapping(&opts);
+            assert_eq!(selected.len(), 1);
+            selected[0].replacement.clone()
+        };
+        assert_eq!(winner("a", "b"), "y");
+        assert_eq!(winner("b", "a"), "y");
+    }
 
     #[test]
     fn multipass_reports_only_edits_that_change_source() {

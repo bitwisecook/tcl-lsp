@@ -7938,7 +7938,16 @@ p\uD801 ordinary";
                 .diagnostics
                 .iter()
                 .filter(|d| d.code == DiagCode::W123)
-                .map(|d| d.message.split('\'').nth(1).unwrap_or_default().to_owned())
+                .map(|d| {
+                    String::from_utf8(
+                        d.unresolved_command()
+                            .unwrap()
+                            .name_input()
+                            .bytes()
+                            .to_vec(),
+                    )
+                    .unwrap()
+                })
                 .collect::<Vec<_>>()
         };
         let expected = vec!["putb".to_owned()];
