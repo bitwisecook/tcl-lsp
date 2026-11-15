@@ -325,57 +325,57 @@ Working method that held up: an unoptimised incremental build in a second target
 
 ## Analysis performance, 15 November 2026
 
-Structure-only analysis (`Analyser::new().structure_only()`, the semantic-token input) and the full diagnostic analysis of a generated file under `tcl8.6`: `namespace eval ::bench { variable counter 0 }` followed by N procedures of seven lines (`generate_big_tcl` in the server e2e test). One 4-core Linux host, test profile `opt-level 1`, best of three runs. A procedure is six walked commands, so N=600 is about 6,000 lines and 3,600 commands.
+Structure-only analysis (`Analyser::new().structure_only()`, the semantic-token input) of a generated file under `tcl8.6`: `namespace eval ::bench { variable counter 0 }` followed by N procedures of seven lines (`generate_big_tcl` in the server e2e test). One 4-core Linux host, test profile `opt-level 1`, best of three runs. A procedure is six walked commands, so N=600 is about 6,000 lines and 3,600 commands.
 
-| N | Lines | Before | Structure-only | Source walk (realm) | Analyser walk | Per walked command | Peak memory |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 100 | 1,004 | 5.1 s | 1.9 s | 0.8 s | 1.1 s | 3.1 ms | 158 MB |
-| 200 | 2,004 | 11.7 s | 3.9 s | 1.8 s | 2.1 s | 3.3 ms | 269 MB |
-| 400 | 4,004 | 41 s | 8.7 s | 3.7 s | 4.8 s | 3.6 ms | 512 MB |
-| 600 | 6,004 | not measured | 14.4 s | 6.6 s | 7.8 s | 4.0 ms | not measured |
-| 800 | 8,004 | not measured | 20.9 s | 9.0 s | 11.9 s | 4.4 ms | 967 MB |
+| N | Lines | At `fb474310` | Now | Source walk (realm) | Analyser walk | Per walked command |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100 | 1,004 | 1.7 s | 1.2 s | 0.6 s | 0.6 s | 2.1 ms |
+| 200 | 2,004 | 3.7 s | 2.9 s | 1.4 s | 1.4 s | 2.4 ms |
+| 400 | 4,004 | 7.5 s | 5.9 s | 3.0 s | 2.8 s | 2.5 ms |
+| 600 | 6,004 | 13.7 s | 8.9 s | 5.0 s | 3.8 s | 2.5 ms |
+| 800 | 8,004 | 19.3 s | 13.2 s | 7.5 s | 5.5 s | 2.7 ms |
 
-"Before" is the coordinator's measurement after `d044c28e` (the shared document image and site memo). Doubling N now costs ×2.08, ×2.20 and ×2.42 (the target was at most ×2.4); the target of N=600 under 3 s is **not met**, by about five times. Peak memory at N=200 and N=400 was 345 MB and 780 MB.
-
-Full analysis, one run: N=100 7.2 s, N=200 16.9 s, N=400 43.7 s. The diagnostic emitters are 4.6 s, 10.7 s and 29.3 s of that, and still super-linear.
+The target (N=600 under 3 s, about 0.8 ms per command) is **not met**: N=600 takes 8.9 s, about 3.3 times the target. Doubling N costs ×2.3, ×2.0 and ×2.2 (N=100 to 200, 200 to 400, 400 to 800), inside the ×2.4 allowance. "At `fb474310`" is this session's own measurement of the tree it started from.
 
 What changed, each returning what the code it replaced returned (the commit messages give the argument):
 
-- Per-reference queries over the retained bindings read an index instead of every row: declaration layouts by word extent and by sole variable word, variable accesses by owning invocation, implicit math sites and formal components by key range. An index keys on its inventory's allocation through a weak handle and is built on the second query of an unchanged inventory.
-- State forks stopped copying by value: `rebound_names` is copy-on-write, the command table shares its values (a `BTreeSet<MayBinding>` leaf is about 3.5 KB, and every `proc` copied the table), and a join leaves a name alone when the incoming alternatives are already held.
-- The nested-layout visit set no longer hashes each parent's whole lookup world; the Jim stock continuation scan and the first-row self-comparison in `select_declaration_layouts` are gone.
-- A document image keeps its validated text beside its bytes (`SourceImage::try_text`, `has_bytes_of`, `shared_text`), and the analyser holds its source through that buffer, so "is this text the realm's image" compares addresses. `SourceMap::from_image` no longer validates the document per call.
-- Query sites borrow the realm's bindings instead of cloning them.
+- **A command's registry words are computed once.** The memo row is keyed on the head's conditional-metadata row and on the scoped bodies containing the head. `process_command` now records that row before anything asks for the words, and the path-constant pass runs after the walk of its batch instead of before it, so both read the row every later consumer reads. Nothing in the walk reads the path inventory.
+- **The realm memos hold a large document.** Prepared command tokens and point bindings were retained for the first 256 commands only, and the stamped-token, body-inventory and registry-word memos stopped or cleared at 4,096; past those sizes every query prepared its command again. That was most of the rise in cost per command with N and all of the step near N=450. All five hold 65,536 entries.
+- **Four scans that grew with the file.** A variable root compares its span before its owner (`record_qualified_var_ref` compares a root with every earlier root); `extend_conditional_math_invocations` looks for a call site inside the script before it compares an expression's observations; the command table derives, once per table contents, the rows under each command token's hash (`retained_target_is_current`) and its authored keys (`original_advice_candidate_from_paths`).
+- **The two caller-frame scans of a procedure body share one list of commands and their assistance** (`param_traits::caller_frame_facts`).
+- **Two queries a provider asks of a finished analysis.** The four queries that take a retained procedure row (`original_procedure_formals` among them) find it by address before comparing it with every row, and the comment-line walk borrows the analysis's realm instead of copying it, so it shares that realm's memos and indexes.
+- Still in place from the first half of this pass: per-reference queries over the retained bindings read indexes keyed on their inventory's allocation; state forks share `rebound_names` and the command table's values instead of copying them; a document image keeps its validated text beside its bytes, so "is this text the realm's image" compares addresses.
 
-What remains, in the order it should be taken:
-
-- **The per-command constant.** The profile is flat: about 10,000 `malloc` calls per walked command (a third of the time with their frees and drops), and per command the same text is tokenised about 26 times, its words rebuilt about 96 times, its registry semantics resolved about 71 times, the lookup state cloned about 62 times and a `SourceInvocationBinding` cloned about 26 times. No single site is above 4%. Reaching 1 ms per command needs each walked command to compute its tokens, words, stamped binding and registry facts once and hand them to every consumer (`source_registry_words*`, `stamp_original_tokens`, `retained_original_tokens`, `original_native_compiler_words`, `capture_with_nested_cuts`), not more memos under each consumer.
-- **Per-definition copies that still grow with N.** A `proc` definition still copies the command table's keys and handles, `rebound_names`, the original command world and the allocation counts once each. They need persistent (structure-sharing) maps to become constant.
-- **`original_catalogue_bindings_for_slot`** scans the command table per command head; it now tests the simple name first but is still one pass per lookup.
-- **`extend_conditional_math_invocations`** reads every retained expression per script.
-- **`SourceImage::document`** compares its text with up to four recent images per call when the caller's buffer is not the image's own; the analyser walk now passes the image's buffer, other callers do not.
-- **Full analysis.** `emit_cfg_ssa_diagnostics` builds a compilation unit per analysis; at N=400 a third of the diagnostics phase is `SourceCommandBindings::module_projection`, which joins every point's state into one (each join reads state the size of the document), and the unit build walks the source a second time. Lowering, SSA and SCCP are the rest. This belongs with the dataflow half.
-- The semantic-token walk over the finished analysis was not changed here.
-
-Server e2e at `c1b4cae1`, one thread (`cargo nextest run -p tcl-lsp-server -E 'test(large_file_)' --test-threads 1`): all five pass. `large_file_first_semantic_tokens_response_is_prompt` 1.4 s and `large_file_range_semantic_tokens_response_is_prompt` 1.2 s (the first-paint tier); `large_file_range_semantic_tokens_converges_via_refresh` 62 s and `large_file_semantic_tokens_refresh_delivers_enriched_result` 86 s, which wait for the analysis of the 6,000-line file; `diagnostics::large_file_publishes_fast_tier_before_deep_tier` 20 s.
-
-Re-measured at `e0804111` after the point-extent index (`projection_at_source`) and the shared line positions in `SourceMap::new`: N=100/200/400/600/800 take 2.3/4.2/9.4/15.9/23.6 s, 3.9 to 4.9 ms per walked command. Neither change moved this input; the difference from the table is run-to-run noise and other sessions' commits. One N=400 structure-only run, 325 samples, by inclusive share below the walk drivers:
+What the profile says now (N=800, 1,000 samples, `gdb`): the source walk and the analyser walk are each about 45% of the time; allocation is 26% of samples, drops 8%, `memcpy` 8%, hashing 8%, clones 5%. No function has more than 2% of exclusive time and no scan that grows with the file has more than 0.03 ms per command left. The cost is the per-command constant, about 2.2 ms even at N=40. By inclusive share:
 
 | Share | Function | What it is |
 | --- | --- | --- |
-| 18.5% | `source_structure::source_registry_words_with_definition_parent` (15.7% in `source_registry_words_from_image`) | the registry words of one command, asked by three consumers per command |
-| 12.3% | `CommandBindingRealm::stamp_original_tokens` | the same command's stamped binding, about 15 calls per command |
-| 10.2% | `Analyser::record_instance_creation` | four source queries per command, each re-deriving the command (`source_registry_words_at` 8.6%) |
-| 9.2% | `Analyser::record_original_variable_receivers` | per-operand variable occurrences |
-| 8.6% | `Analyser::infer_proc_param_traits` | a second scan of each procedure body |
-| 7.4% | `record_path_constant_candidates` | a third pass over the commands for path constants |
-| 5.8% | `retained_invocation_tokens` | the command's tokens again |
+| 21% | `walk_source_target_after_observers` | the source walk's target step, including nested bodies |
+| 13% | `prepare_source_arguments` | argument preparation and substitution walks |
+| 9% | `stamp_original_tokens` | of which 3.5% is the whole-source advice tape, built once per realm |
+| 8% | `infer_proc_param_traits` | three scans of each procedure body; two now share their assistance |
+| 7.5% | `retained_invocation_tokens` | the first preparation of each command's tokens |
+| 7.4% | `prepare_source_chunk` | the compiled preflight of each body |
+| 6% | `record_instance_creation` | where a command's registry words are first computed |
+| 5.4% | `tcl_registry` `facts_on_edge` | an `InvocationFacts` built in full for three callers per command |
+| 4.4% | `record_original_variable_receivers` | per-operand variable occurrences |
 
-These overlap (they nest) and none is a scan that grows with the file any more. Each is a consumer that starts from a source offset or a segment and rebuilds the command's tokens, words, stamped binding and registry facts for itself, behind its own memo and its own equality check. That is the cost that cannot be removed one function at a time. The design change is a per-command record built once by `process_command` (segment, `CommandTokens`, original native words, stamped binding, resolved registry facts, the realm point), passed by reference to `record_instance_creation`, the variable-receiver recording, the handlers and `registry_invocation::source_structure`, with the offset-keyed entry points kept for consumers outside the walk and answered from the same record. The source walk has the same shape: `prepare_source_arguments`, the observers and the target walk each re-derive the command's lookup binding from a forked state.
+What remains, in the order it should be taken:
 
-At CI's test `opt-level 0`: `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget` (it needs about 1,510 KB of its 1,536 KB) and `tcl-irules` `walker::tests::deeply_nested_command_substitution_does_not_crash` now pass, after the cold unknown-binding block left the recursive source-walk frame and the place-bridge read collectors kept only iteration state in their recursive frames. The two `phi_undef_memo::nested_if_stages_*_linear_time` tests still fail there: they time the whole diagnostic pipeline on a 300-line file (28 s and 37 s unoptimised against 10 s), which is the per-command constant above, not a path enumeration.
+- **The per-command record.** The remaining factor of three is the same command prepared by each consumer for itself: `select_invocation_boxed` from the preflight and from the walk, `facts_on_edge` from three callers, `source_keys_checked` from five, `original_command_slot_paths_for_bytes` from four, `original_native_compiler_words` from five, `stamp_original_tokens_with_bindings` from the stamp and from `segmented_body_assistance`. Each is 2% to 5% and none can be removed alone, because each caller holds a different state fork or a different subset of the inputs. A record built once per walked command (segment, `CommandTokens`, native words, stamped binding, resolved registry facts, realm point) and passed by reference has to be introduced in the source walk first, since the analyser walk reads the realm the source walk leaves.
+- **Values copied whole.** `ResolvedCommandTarget` and `SourceInvocationBinding` are large and are cloned into sets and snapshots (`original_resolve_target`, `original_bindings_for_key`, `attach_invocation_reads`); that is where the allocator time is. Sharing them behind `Arc` at their construction sites is mechanical and wide.
+- **Per-definition copies that still grow with N.** A `proc` definition copies the command table's keys and handles, `rebound_names`, the original command world and the allocation counts once each; they need persistent (structure-sharing) maps to become constant. `original_catalogue_bindings_for_slot` still reads the whole table per lookup but no longer shows in the profile.
+- **Rebuilt once per table or inventory version, still linear in the file:** the token rows of the command table (about 1%), `DeferredBodyIndexCache::for_inventory` (about 1.5%), `variable_accesses_owned_by` when the access inventory was written since the last query (about 1%).
+- **The registry-word memo is emptied when an analysis completes**, so the semantic-token walk computes each command's words once more on its first query. Keeping the rows on the result would remove that at the cost of retained memory; that is the result owner's decision.
+- **`RealmBinding` answering `Rebound` for a site the walk never reached** was not changed: it changes an answer, not a cost.
+- **Full analysis** was not re-measured. `emit_cfg_ssa_diagnostics` builds a compilation unit per analysis and a third of the diagnostics phase at N=400 was `SourceCommandBindings::module_projection`; this belongs with the dataflow half.
+- The two `phi_undef_memo::nested_if_stages_*_linear_time` tests time the diagnostic pipeline on a 300-line file at `opt-level 0`; they are the per-command constant and were not re-run here.
 
-Measuring: a probe test that builds the input and times `analyse` (the task brief's probe, or the same body as a `tcl-compiler` integration test), `TCL_LSP_TRACE_WORKSPACE_SCAN=1` for the `ANALYSER_PHASE` lines, and `gdb -p <pid> -batch -x` with a Python loop that prints `thread apply all bt` and continues for 30 ms. Comparing a function's sampled share times wall-clock at N=200 and N=800 ranks what grows faster than the input. `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget` is within about 7 KB of its stack budget: a field added to `SourceImage` or to the bindings handle shows up there first.
+For a consumer outside the walk, the per-command query is `tcl_compiler::registry_invocation::source_structure::source_registry_words(source, analysis, segment)` (and `source_registry_words_at` by offset): it answers from the result's memo, one row per segment.
+
+Server e2e at `5adced69`, one thread (`cargo nextest run -p tcl-lsp-server -E 'test(large_file_)' --test-threads 1`): all five pass. `large_file_first_semantic_tokens_response_is_prompt` 1.5 s and `large_file_range_semantic_tokens_response_is_prompt` 1.4 s (the first-paint tier); `large_file_range_semantic_tokens_converges_via_refresh` 53 s and `large_file_semantic_tokens_refresh_delivers_enriched_result` 72 s (62 s and 86 s before this pass), which wait for the server's enriched analysis of the 6,000-line file, several times the structure-only analysis measured above; `diagnostics::large_file_publishes_fast_tier_before_deep_tier` 16 s.
+
+Measuring: an uncommitted integration test in `rust/tcl-compiler/tests/` that builds the input and times `analyse` (the body of `standalone_token_analysis`), `TCL_LSP_TRACE_WORKSPACE_SCAN=1` for the `ANALYSER_PHASE` lines, and `gdb -p <pid> -batch -x` with a Python loop that prints `thread apply all bt 90` and continues for 30 ms. Two views of the samples rank what matters: exclusive time with allocator, clone, drop and `std` frames folded into the nearest crate function, and the same per function at N=40 and N=800 scaled by milliseconds per command, which isolates what grows with the file. The cargo build directory is `target/debug/build/<crate>/<hash>/out/`. `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget` is within about 26 KB of its stack budget at `opt-level 0`: a field added to `SourceImage` or to the bindings handle shows up there first; nothing in this pass added one.
 
 ## Taint and iRules checks area, 15 November 2026
 
