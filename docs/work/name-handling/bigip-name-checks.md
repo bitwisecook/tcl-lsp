@@ -3412,3 +3412,21 @@ its citation and a regression that reads the recorded lines.
     is wrong for F5's custom comparisons and the compiler needs the fix; the
     harness's refusal of `not` (`_refuse_unmeasured_prefix_grouping`) can
     then be replaced by that grouping.
+13. **Constant integer expressions.** The optimiser folds a constant
+    expression in an F5 unit (iRule, iApp implementation, tmsh script) by the
+    8.4 rule: `expr {1 + 2}` is 3 and `expr {010 + 1}` is 9 (a leading zero
+    reads as octal). Run
+    `log local0. "[expr {1 + 2}] [expr {010 + 1}] [expr {-010}]"` in each of
+    TMM, tmsh and an iApp implementation; anything other than `3 9 -8` means
+    the fold must stop for that host
+    (`optimiser_coverage::an_f5_unit_folds_a_constant_expression_as_tcl_8_4_does`).
+14. **Double overflow.** tclsh 8.4.20 raises `floating-point value too large
+    to represent` for `expr {1e308 * 10}`, so the fold leaves it as written
+    under the F5 profiles. Run `catch {expr {1e308 * 10}} r; log local0. $r`;
+    if TMM prints `Inf`, the F5 profile widens like Tcl 8.5 and the fold may
+    take it.
+15. **Word operators on literals.** `if {"abcde" contains "cd"} {…}` in an
+    iRule is folded to its body. Run
+    `log local0. "[expr {"abcde" contains "cd"}] [expr {"abcde" starts_with "ab"}] [expr {"abcde" ends_with "de"}] [expr {"abc" equals "abc"}]"`
+    on TMM; expected `1 1 1 1`. Also say whether tmsh and iApp Tcl accept
+    these operators at all: the optimiser assumes only iRules has them.

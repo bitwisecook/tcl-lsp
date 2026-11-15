@@ -296,6 +296,25 @@ fn o101_constant_folding_ternary_unary_logical() {
     assert!(opt_absent("set v [expr {$x + 1}]", TCL, "O101"));
 }
 
+/// An F5 unit folds a constant expression as Tcl 8.4 computes it: F5 Tcl is
+/// read as its 8.4 base until a BIG-IP measurement says otherwise (checks 10
+/// and 13 to 15 in `docs/work/name-handling/bigip-name-checks.md`). tclsh 8.4.20
+/// prints 3, 9 and 0 for the first three and raises `floating-point value
+/// too large to represent` for the last, which therefore stays as written.
+#[test]
+fn an_f5_unit_folds_a_constant_expression_as_tcl_8_4_does() {
+    for dialect in ["f5-irules", "f5-iapps", "f5-tmsh"] {
+        for (source, folded) in [
+            ("set v [expr {1 + 2}]", "set v 3"),
+            ("set v [expr {010 + 1}]", "set v 9"),
+            ("set v [expr {1 << 70}]", "set v 0"),
+            ("set v [expr {1e308 * 10}]", "set v [expr {1e308 * 10}]"),
+        ] {
+            assert_eq!(optimised(source, dialect), folded, "{dialect}: {source}");
+        }
+    }
+}
+
 #[test]
 fn o101_dialect_octal_arithmetic() {
     // TP: `010` is octal 8 under tcl8.x/f5-irules (this suite's default

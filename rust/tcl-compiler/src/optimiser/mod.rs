@@ -402,12 +402,33 @@ impl<'a> PassContext<'a> {
             .map_or(policy, |dialect| policy.with_invocation_dialect(dialect))
     }
 
+    /// An F5 unit has no native entry, so the walk records no expression
+    /// preparation for it. F5 Tcl is read as Tcl 8.4 until a BIG-IP
+    /// measurement says otherwise (`docs/work/name-handling/bigip-name-checks.md`),
+    /// so its expression folds under the profile's own 8.4 policy: no
+    /// variable is read beyond `env`, no math function is resolved, and an
+    /// operand or result past the wide tower declines.
+    fn eval_f5_expression(
+        &self,
+        expression: &crate::expr_ast::ExprNode,
+        env: &crate::tcl_expr_eval::Env,
+        policy: crate::tcl_expr_eval::FoldPolicy,
+    ) -> Option<crate::tcl_expr_eval::TclValue> {
+        let family = tcl_registry::InvocationDialect::of_profile(self.dialect?).family()?;
+        matches!(
+            family,
+            tcl_dialect::model::Family::F5Tcl | tcl_dialect::model::Family::F5Irules
+        )
+        .then(|| crate::tcl_expr_eval::eval_tcl_expr_with_policy(expression, env, policy))
+        .flatten()
+    }
+
     /// Fold an original retained expression using its reached implicit-call
     /// bindings. Reparsed or rendered text must not inherit another AST's sites.
     #[must_use]
     pub fn eval_expression_at(
         &self,
-        _expression: &crate::expr_ast::ExprNode,
+        expression: &crate::expr_ast::ExprNode,
         env: &crate::tcl_expr_eval::Env,
         span: tcl_lexer::Span,
     ) -> Option<crate::tcl_expr_eval::TclValue> {
@@ -428,7 +449,9 @@ impl<'a> PassContext<'a> {
             eprintln!("CCG24 stage=eval-preparation-context");
         }
         let preparation = bindings.and_then(|bindings| bindings.preparation_for_context(&context));
-        let preparation = preparation?;
+        let Some(preparation) = preparation else {
+            return self.eval_f5_expression(expression, env, policy);
+        };
         #[cfg(debug_assertions)]
         if row24_trace {
             eprintln!("CCG24 stage=eval-preparation");
