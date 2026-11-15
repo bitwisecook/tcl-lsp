@@ -441,6 +441,8 @@ Third batch (`tcl-spec-studio` 21 to 14): the dead `CommandSpec::substitution_re
 
 Test-table collapse, started: `tcl-cli` `tests/cli.rs` had three tests running one Jim program under `--dialect jim`, a `jimsh` shebang and `--dialect tcl8.6`; they are one table, `diag_reads_the_jim_program_under_jim_and_refuses_it_under_tcl_8_6` (crate test count 491 to 489 with `tcl-spectcl`). Nothing else has been collapsed.
 
+Do not re-diagnose: the `tcl-cli` `value_transfers_cli`/`opt`/`explore sccp` rows, the `tcl-explorer` SCCP/AOT/WASM rows and the `tcl-diagram` completion rows below wait on the `return [expr …]` selection regression (a release unit lowers it to a generic call), which is first in the analyser session's queue; the `codegen_stamps` rows wait on the execution session's inliner change. Known gap from the Jim spelling: `render_spectcl::dialect_names` (and `unwrap_some` before it) cannot read a `core_in` row back from a rendered Rust surface expression, so a Jim-windowed gate on an option relation or effect family would be dropped; no shipped spec has one.
+
 Classification of what still fails (first failing assertion, one run):
 
 | Crate | Group | Count | Owner |
