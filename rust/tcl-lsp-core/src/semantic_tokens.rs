@@ -6341,7 +6341,11 @@ mod tests {
 
     #[test]
     fn case_list_patterns_keep_literal_braces_from_selected_elements() {
-        let source = "switch x {\"{default\" {puts a} {default} {puts b}}\n";
+        // tclsh 8.4.20, 8.6.18 and 9.0.4 print `b` for this script and `a` when
+        // the subject is `{default`: the quoted element is a literal pattern.
+        // The brace is escaped because an unescaped one inside quotes still
+        // counts towards the enclosing braces (`missing close-brace`).
+        let source = "switch x {\"\\{default\" {puts a} {default} {puts b}}\n";
         let tokens = decode_full(source, tcl(), &release_reg("tcl8.6"));
         let literal = u32::try_from(source.find("{default").unwrap()).unwrap();
         assert!(
@@ -8578,46 +8582,40 @@ mod tests {
 
     #[test]
     fn cross_file_constructor_dispatch_resolves() {
-        // A class defined in one file (`Pin`), dispatched on via a direct
-        // constructor in *another* file — `[::Pin new] configure -node …`.
-        // Resolving against a workspace-merged `ClassHierarchy` (what
-        // `project_class_index` builds) lights up the method even though the
-        // class is not in this file (the cross-file mro_eval lever).
-        use tcl_compiler::analyser::{Analyser, build_class_hierarchy};
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let lib = "oo::configurable create ::Pin { property node }\n";
-        let hierarchy = build_class_hierarchy(Analyser::new().analyse(lib, "tcl9.0").all_classes);
+        // `[::Pin new] configure -node 5` where `Pin` is defined in another
+        // file: the project's class cards supply the class, as the project
+        // token query does. Without a provider the selector is not a method.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards;
+        let library = Analyser::new().analyse(
+            "oo::configurable create ::Pin { property node }\n",
+            "tcl9.0",
+        );
+        let providers = [OriginalProjectClassCards::capture(&library).unwrap()];
         let user = "[::Pin new] configure -node 5\n";
-        let cu = CompilationUnit::build_for(user, &registry, false);
-        let toks = decode_semantic(&full_with_cu_and_classes(
-            user,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&hierarchy),
-        ));
-        // `configure` (col 12, after `[::Pin new] `) resolves to a method.
+        let caller = Analyser::new().analyse(user, "tcl9.0");
+        let method = |project_classes| {
+            let tokens = decode_semantic(&full_with_cu_and_facts(
+                user,
+                caller.resolved_profile().unwrap(),
+                caller.resolved_registry().unwrap(),
+                None,
+                WorkspaceTokenFacts {
+                    classes: Some(library.class_hierarchy()),
+                    project_classes,
+                    analysis: Some(&caller),
+                    ..WorkspaceTokenFacts::default()
+                },
+            ));
+            tokens.iter().any(|&(l, c, _, k, m)| {
+                l == 0 && c == 12 && k == TokenKind::Method as u32 && m == 0
+            })
+        };
         assert!(
-            toks.iter().any(|&(l, c, _, k, m)| l == 0
-                && c == 12
-                && k == TokenKind::Method as u32
-                && m == 0),
-            "cross-file `[::Pin new] configure` should resolve; got {toks:?}"
+            method(Some(&providers[..])),
+            "the provider's class resolves"
         );
-        // Without the hierarchy it stays an unresolved string.
-        let none = decode_semantic(&full_with_cu_and_classes(
-            user,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            None,
-        ));
-        assert!(
-            none.iter()
-                .any(|&(l, c, _, k, _)| l == 0 && c == 12 && k == TokenKind::String as u32),
-            "without a hierarchy, configure is a string; got {none:?}"
-        );
+        assert!(!method(None), "no provider, no method");
     }
 
     #[test]
