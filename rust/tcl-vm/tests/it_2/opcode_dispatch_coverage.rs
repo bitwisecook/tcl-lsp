@@ -51,7 +51,7 @@ use std::collections::HashMap;
 use tcl_bytecode::{
     FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand, bytecode_imm, layout,
 };
-use tcl_vm::{Code, Completion, Value};
+use tcl_vm::{Code, Completion};
 
 /// A hand-built instruction stream plus its literal pool, mirroring the
 /// `Asm` helper in `opcode_c_parity.rs` (kept file-local, per that file's own
@@ -109,20 +109,45 @@ impl Asm {
     }
 }
 
-fn run(asm: Asm) -> Completion<Value> {
-    tcl_vm::test_support::native_vm().run_function(&asm.build())
+/// The completion with its result as text. The result is read while the
+/// interpreter that owns it is alive; a value outlives its interpreter only
+/// as an empty string.
+///
+/// The stream runs under Tcl 8.4, the release whose compiler emits these
+/// instructions (`tclExecute.c` keeps `INST_LAND`/`INST_LOR` through 8.6 and
+/// 9.0 has neither); elsewhere the opcode is only the final-operand step of
+/// a short-circuit sequence.
+fn run(asm: Asm) -> Completion<String> {
+    let mut vm = tcl_vm::test_support::native_vm_for("tcl8.4", Box::new(std::io::sink()));
+    let module = tcl_bytecode::ModuleAsm {
+        profile: vm.dialect_profile(),
+        source: tcl_lexer::SourceImage::default(),
+        source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+        plain_command_dispatch: false,
+        top_level: asm.build(),
+        top_level_body: FunctionAsm::default(),
+        procedures: HashMap::new(),
+        procedure_provenance: HashMap::new(),
+        manifest: None,
+    };
+    let completion = vm.run_module(&module);
+    Completion::new(
+        completion.code,
+        completion.result.to_str().to_string(),
+        String::new(),
+    )
 }
 
 /// Run `land ( a b )` (`a`/`b` are Tcl boolean literals) and return the
 /// completion.
-fn land(a: &str, b: &str) -> Completion<Value> {
+fn land(a: &str, b: &str) -> Completion<String> {
     let mut asm = Asm::new();
     asm.push(a).push(b).op(Op::LAND);
     run(asm)
 }
 
 /// Run `lor ( a b )` and return the completion.
-fn lor(a: &str, b: &str) -> Completion<Value> {
+fn lor(a: &str, b: &str) -> Completion<String> {
     let mut asm = Asm::new();
     asm.push(a).push(b).op(Op::LOR);
     run(asm)
@@ -140,13 +165,8 @@ fn land_truth_table() {
         ("0", "0", "0"),
     ] {
         let c = land(a, b);
-        assert_eq!(
-            c.code,
-            Code::Ok,
-            "land({a}, {b}) errored: {}",
-            c.result.to_str()
-        );
-        assert_eq!(c.result.to_str().as_ref(), want, "land({a}, {b})");
+        assert_eq!(c.code, Code::Ok, "land({a}, {b}) errored: {}", c.result);
+        assert_eq!(c.result, want, "land({a}, {b})");
     }
 }
 
@@ -161,13 +181,8 @@ fn lor_truth_table() {
         ("0", "0", "0"),
     ] {
         let c = lor(a, b);
-        assert_eq!(
-            c.code,
-            Code::Ok,
-            "lor({a}, {b}) errored: {}",
-            c.result.to_str()
-        );
-        assert_eq!(c.result.to_str().as_ref(), want, "lor({a}, {b})");
+        assert_eq!(c.code, Code::Ok, "lor({a}, {b}) errored: {}", c.result);
+        assert_eq!(c.result, want, "lor({a}, {b})");
     }
 }
 
@@ -181,9 +196,9 @@ fn land_lor_never_hit_the_unimplemented_catch_all() {
     for c in [land("1", "1"), lor("0", "0")] {
         assert_eq!(c.code, Code::Ok);
         assert!(
-            !c.result.to_str().contains("not implemented in tcl-vm"),
+            !c.result.contains("not implemented in tcl-vm"),
             "dispatch fell through to the catch-all: {}",
-            c.result.to_str()
+            c.result
         );
     }
 }
