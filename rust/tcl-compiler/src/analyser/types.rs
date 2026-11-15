@@ -3606,6 +3606,19 @@ impl AnalysisResult {
         self.original_procedure_metadata.iter()
     }
 
+    /// Whether `declaration` equals a retained procedure row. A caller
+    /// usually passes a retained row itself, which is found by address before
+    /// any row is compared.
+    fn retains_original_procedure(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+    ) -> bool {
+        self.original_procedure_metadata
+            .iter()
+            .any(|row| std::ptr::eq(row, declaration))
+            || self.original_procedure_metadata.contains(declaration)
+    }
+
     /// Original byte formal topology from this exact retained procedure
     /// declaration and unanimous Registry-selected declaration recipe.
     /// Reporting parameter names supply no fallback or activation authority.
@@ -3615,7 +3628,7 @@ impl AnalysisResult {
         declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<crate::signature_scan::formal_parameters::SignatureSourceFormalParameters> {
-        if !self.original_procedure_metadata.contains(declaration)
+        if !self.retains_original_procedure(declaration)
             || !self.matches_original_source_image(
                 declaration.name_input().source_image(),
                 declaration.name_input().lexer_config(),
@@ -3674,7 +3687,7 @@ impl AnalysisResult {
         declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
-        if !self.original_procedure_metadata.contains(declaration)
+        if !self.retains_original_procedure(declaration)
             || !self.matches_original_source_image(
                 declaration.name_input().source_image(),
                 declaration.name_input().lexer_config(),
@@ -3742,7 +3755,7 @@ impl AnalysisResult {
         selection: ScalarAlphaFormalSelection,
     ) -> Option<crate::command_binding::OriginalScalarBodyAlphaRename> {
         use crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver;
-        if !self.original_procedure_metadata.contains(declaration)
+        if !self.retains_original_procedure(declaration)
             || !self.matches_original_source_image(
                 declaration.name_input().source_image(),
                 declaration.name_input().lexer_config(),
@@ -3817,7 +3830,7 @@ impl AnalysisResult {
         proposed: &[u8],
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<crate::command_binding::OriginalLocalStoreAlphaRename> {
-        if !self.original_procedure_metadata.contains(declaration)
+        if !self.retains_original_procedure(declaration)
             || !self.matches_original_source_image(
                 declaration.name_input().source_image(),
                 declaration.name_input().lexer_config(),
