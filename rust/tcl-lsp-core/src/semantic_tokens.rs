@@ -6342,7 +6342,7 @@ mod tests {
     #[test]
     fn case_list_patterns_keep_literal_braces_from_selected_elements() {
         let source = "switch x {\"{default\" {puts a} {default} {puts b}}\n";
-        let tokens = decode_full(source, tcl(), &reg());
+        let tokens = decode_full(source, tcl(), &release_reg("tcl8.6"));
         let literal = u32::try_from(source.find("{default").unwrap()).unwrap();
         assert!(
             !tokens.iter().any(|&(line, column, length, kind, _)| {
