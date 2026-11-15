@@ -620,7 +620,19 @@ impl<'a> IrulesSourceQuery<'a> {
                 continue;
             }
             if !statement.child_scripts().is_empty() {
-                return None;
+                // A statement with bodies is walked path by path by the flow
+                // advice. The census keeps its written command so the handler
+                // stays fully accounted for, and adds nothing else.
+                let tokens = input
+                    .procedure
+                    .body
+                    .retained_source_tokens_for_statement(statement)?;
+                let vector = self.original_argv(tokens)?;
+                if !input.commands.iter().any(|command| command.words == vector) {
+                    return None;
+                }
+                output.original.push(vector);
+                continue;
             }
             let tokens = input
                 .procedure
@@ -843,7 +855,7 @@ struct ConditionalIruleSourceOwner<'unit> {
     )>,
     _schemas: Vec<crate::registry_invocation::RegistryInvocationShape>,
     obligations: HashSet<CollectionSourceObligationKind>,
-    completions: Vec<tcl_registry::registry::InvocationCompletion>,
+    _completions: Vec<tcl_registry::registry::InvocationCompletion>,
     flow_commands: Vec<(crate::ir::ProcedureId, Vec<OriginalIrulesFlowCommand>)>,
 }
 
@@ -1260,6 +1272,7 @@ pub fn find_unguarded_drop_warnings(
                 leaf: &leaf,
                 dedupe: &dedupe_drop_states,
                 unreached: &unreached,
+                terminates: None,
             },
             None,
         );
@@ -1871,7 +1884,7 @@ pub fn find_conditional_collection_source_pairing_advice<'unit>(
             _handlers: advice.handlers,
             _schemas: advice.schemas,
             obligations,
-            completions: advice.completions,
+            _completions: advice.completions,
             flow_commands: advice.flow_commands,
         },
         pairings: out
@@ -1894,73 +1907,248 @@ pub fn find_conditional_irule_source_flow_advice<'unit>(
         .conditional_source_flow()
 }
 
+/// Whether every possible source schema for the statement completes some
+/// other way than falling through (`return`).
+fn statement_ends_its_path(
+    source: &IrulesSourceQuery<'_>,
+    tokens: &crate::ir::CommandTokens,
+) -> bool {
+    let Some(metadata) = source.metadata() else {
+        return false;
+    };
+    crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
+        source.registry,
+        Some(metadata),
+        tokens,
+    )
+    .is_some_and(|possible| {
+        !possible.candidates.is_empty()
+            && possible.candidates.iter().all(|candidate| {
+                candidate
+                    .with_possible_source_schema(
+                        source.registry,
+                        metadata,
+                        tokens,
+                        leaf_handler_source_completion,
+                    )
+                    .is_some_and(|completion| {
+                        completion != tcl_registry::registry::InvocationCompletion::FallsThrough
+                    })
+            })
+    })
+}
+
+fn unguarded_drop_findings(finals: Vec<DropFlowState>) -> Vec<IrulesCheckWarning> {
+    let mut warnings = Vec::new();
+    for pending in finals {
+        if pending.dropped
+            && let Some(span) = pending.drop_at
+        {
+            warnings.push(
+                conditional_source_flow_finding(
+                    span,
+                    DiagCode::Irule5002,
+                    &format!(
+                        "Possible '{}' has no independently established guard against later processing.",
+                        pending.drop_cmd
+                    ),
+                )
+                .warning,
+            );
+        }
+        if pending.dns_returned
+            && let Some(span) = pending.dns_at
+        {
+            warnings.push(
+                conditional_source_flow_finding(
+                    span,
+                    DiagCode::Irule5004,
+                    "Possible DNS packet return has no independently established guard against later processing.",
+                )
+                .warning,
+            );
+        }
+    }
+    warnings
+}
+
+/// One handler's findings and the lookup obligations its statements carry.
+fn conditional_handler_flow(
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+    source: &IrulesSourceQuery<'_>,
+    events: &EventRegistry,
+    id: crate::ir::ProcedureId,
+) -> Option<(
+    Vec<IrulesCheckWarning>,
+    HashSet<CollectionSourceObligationKind>,
+)> {
+    let mut warnings = Vec::new();
+    let function = unit.procedures.get(&id)?;
+    let event = source.event(function)?.into_event()?;
+    let config = source.function_config(function)?;
+    let unreached = unreached_statements(function);
+    let http = events
+        .get_props(event.body.event())
+        .is_some_and(|props| props.implied_profiles.contains(&"HTTP"));
+    // The walk follows the structured body path by path: an `if` or
+    // `switch` arm, a `catch` body and a loop each keep their own states,
+    // and a `return` ends its path. A statement's lookup obligations stay
+    // on the advice instead of refusing it.
+    let missing_source = std::cell::Cell::new(false);
+    let obligations = std::cell::RefCell::new(HashSet::new());
+    let commands = |script: &Script, statement: &Statement| {
+        let Some(inventory) = original_irules_flow_inventory(script, statement, source, config)
+        else {
+            missing_source.set(true);
+            return Vec::new();
+        };
+        obligations.borrow_mut().extend(inventory.obligations);
+        inventory.commands
+    };
+    let terminates = |tokens: &crate::ir::CommandTokens| statement_ends_its_path(source, tokens);
+    if http {
+        let event_name = event.body.event();
+        let leaf = |state: &HttpFlowState,
+                    script: &Script,
+                    statement: &Statement,
+                    out: &mut Vec<IrulesCheckWarning>| {
+            commands(script, statement)
+                .iter()
+                .fold(*state, |current, command| {
+                    conditional_http_flow_command(current, command, event_name, out)
+                })
+        };
+        walk_flow(
+            &event.procedure.body,
+            &[HttpFlowState {
+                responded: false,
+                respond_at: None,
+            }],
+            &mut FlowDispatch {
+                registry,
+                out: &mut warnings,
+                leaf: &leaf,
+                dedupe: &dedupe_flow_states,
+                unreached: &unreached,
+                terminates: Some(&terminates),
+            },
+            None,
+        );
+    }
+    let leaf = |state: &DropFlowState,
+                script: &Script,
+                statement: &Statement,
+                _out: &mut Vec<IrulesCheckWarning>| {
+        commands(script, statement)
+            .iter()
+            .fold(state.clone(), |current, command| {
+                drop_flow_command(&current, command)
+            })
+    };
+    let mut unused = Vec::new();
+    let finals = walk_flow(
+        &event.procedure.body,
+        &[DropFlowState::default()],
+        &mut FlowDispatch {
+            registry,
+            out: &mut unused,
+            leaf: &leaf,
+            dedupe: &dedupe_drop_states,
+            unreached: &unreached,
+            terminates: Some(&terminates),
+        },
+        None,
+    );
+    if missing_source.get() {
+        return None;
+    }
+    warnings.extend(unguarded_drop_findings(finals));
+    Some((warnings, obligations.into_inner()))
+}
+
 fn conditional_irule_source_flow_advice<'unit>(
     owner: &ConditionalIruleSourceOwner<'unit>,
 ) -> Option<ConditionalIruleSourceFlowAdvice<'unit>> {
-    if owner
-        .completions
-        .iter()
-        .any(|completion| *completion != tcl_registry::registry::InvocationCompletion::FallsThrough)
-    {
-        return None;
-    }
     let source = IrulesSourceQuery::capture(owner.unit, owner.registry)?;
     let events = EventRegistry::build();
     let mut owner = owner.clone();
     owner
         .obligations
         .insert(CollectionSourceObligationKind::NormalContinuation);
-    let mut findings = Vec::new();
-    for (id, commands) in &owner.flow_commands {
-        let function = owner.unit.procedures.get(id)?;
-        let event = source.event(function)?.into_event()?;
-        let http = events
-            .get_props(event.body.event())
-            .is_some_and(|props| props.implied_profiles.contains(&"HTTP"));
-        let mut pending = DropFlowState::default();
-        let mut responded = false;
-        for command in commands {
-            pending = drop_flow_command(&pending, command);
-            if http && command.may_commit_response {
-                if responded {
-                    findings.push(conditional_source_flow_finding(
-                        command.span, DiagCode::Irule1202,
-                        &format!("Possible response operation '{}' follows another response candidate in {}.",
-                            command.command, event.body.event()),
-                    ));
-                }
-                responded = true;
-            } else if http && responded && command.requires_http_context {
-                findings.push(conditional_source_flow_finding(
-                    command.span,
-                    DiagCode::Irule1201,
-                    &format!(
-                        "Possible HTTP-context operation '{}' follows a response candidate in {}.",
-                        command.command,
-                        event.body.event()
-                    ),
-                ));
-            }
-        }
-        if pending.dropped
-            && let Some(span) = pending.drop_at
-        {
-            findings.push(conditional_source_flow_finding(
-                span, DiagCode::Irule5002,
-                &format!("Possible '{}' has no independently established guard against later processing.",
-                    pending.drop_cmd),
-            ));
-        }
-        if pending.dns_returned
-            && let Some(span) = pending.dns_at
-        {
-            findings.push(conditional_source_flow_finding(
-                span, DiagCode::Irule5004,
-                "Possible DNS packet return has no independently established guard against later processing.",
-            ));
-        }
+    let mut warnings = Vec::new();
+    let handlers = owner
+        .flow_commands
+        .iter()
+        .map(|(id, _)| *id)
+        .collect::<Vec<_>>();
+    for id in handlers {
+        let (found, obligations) =
+            conditional_handler_flow(owner.unit, owner.registry, &source, &events, id)?;
+        warnings.extend(found);
+        owner.obligations.extend(obligations);
     }
-    Some(ConditionalIruleSourceFlowAdvice { owner, findings })
+    // Several predecessor states can reach the same command; the editor
+    // receives one finding per code, range and message.
+    let mut seen = HashSet::new();
+    warnings.retain(|warning| {
+        seen.insert((
+            warning.code,
+            warning.span.start(),
+            warning.span.end(),
+            warning.message.clone(),
+        ))
+    });
+    Some(ConditionalIruleSourceFlowAdvice {
+        owner,
+        findings: warnings
+            .into_iter()
+            .map(|warning| ConditionalIruleSourceFlowFinding { warning })
+            .collect(),
+    })
+}
+
+/// Apply one command to a response-flow state under conditional advice.
+fn conditional_http_flow_command(
+    state: HttpFlowState,
+    command: &OriginalIrulesFlowCommand,
+    event: &str,
+    out: &mut Vec<IrulesCheckWarning>,
+) -> HttpFlowState {
+    if command.may_commit_response {
+        if state.responded {
+            out.push(
+                conditional_source_flow_finding(
+                    command.span,
+                    DiagCode::Irule1202,
+                    &format!(
+                        "Possible response operation '{}' follows another response candidate in {event}.",
+                        command.command
+                    ),
+                )
+                .warning,
+            );
+            return state;
+        }
+        return HttpFlowState {
+            responded: true,
+            respond_at: Some(command.span.start()),
+        };
+    }
+    if state.responded && command.requires_http_context {
+        out.push(
+            conditional_source_flow_finding(
+                command.span,
+                DiagCode::Irule1201,
+                &format!(
+                    "Possible HTTP-context operation '{}' follows a response candidate in {event}.",
+                    command.command
+                ),
+            )
+            .warning,
+        );
+    }
+    state
 }
 
 fn conditional_source_flow_finding(
@@ -2325,6 +2513,7 @@ pub fn find_http_flow_warnings(
                 leaf: &leaf,
                 dedupe: &dedupe_flow_states,
                 unreached: &unreached,
+                terminates: None,
             },
             None,
         );
@@ -2431,6 +2620,10 @@ struct FlowDispatch<'a, L, D> {
     /// The statements the solver proved never run ([`unreached_statements`]):
     /// a step over one leaves the states as they were.
     unreached: &'a HashSet<Span>,
+    /// Whether a statement ends its path, for a walk that has no converged
+    /// handler to ask: conditional advice answers from the statement's
+    /// possible source schemas. `None` asks the handler's completion route.
+    terminates: Option<&'a dyn Fn(&crate::ir::CommandTokens) -> bool>,
 }
 
 /// The spans of the statements of `fu` that only blocks the solver proved
@@ -2518,8 +2711,17 @@ where
         return Some(flow_step_region(region, states, fd, return_sink));
     }
     if let Some(tokens) = stmt.tokens()
-        && !crate::registry_invocation::normal_handler_completion_route(fd.registry, None, tokens)
-            .normal_possible()
+        && fd.terminates.map_or_else(
+            || {
+                !crate::registry_invocation::normal_handler_completion_route(
+                    fd.registry,
+                    None,
+                    tokens,
+                )
+                .normal_possible()
+            },
+            |terminates| terminates(tokens),
+        )
     {
         return None;
     }

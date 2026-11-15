@@ -439,7 +439,7 @@ are published to an iApp implementation; `tmsh::argv`.
 
 ## 4. Check list
 
-67 checks. By area: Identity 1, Command name resolution 15, Namespaces 8, Variables and array elements 9, `$` substitution 6, Procedure naming 5, iRules in TMM 15, tmsh, iApp and iCall 8.
+68 checks. By area: Identity 1, Command name resolution 15, Namespaces 8, Variables and array elements 9, `$` substitution 6, Procedure naming 5, iRules in TMM 16, tmsh, iApp and iCall 8.
 
 Every check has: the question; why the toolchain needs the answer (Rust file
 and symbol); what is already on record; the snippet; the result Tcl 8.4 gives,
@@ -513,6 +513,7 @@ is the last field of the `BNC|…` line. "empty" means the result field is empty
 | BIGIP-NAME-057 | iRules in TMM | Load-time resolution of literal command names | TMM rule load | yes; rerun on other builds |
 | BIGIP-NAME-058 | iRules in TMM | `table` keys are not Tcl names | TMM HTTP_REQUEST | no |
 | BIGIP-NAME-059 | iRules in TMM | Inventory of namespaces and commands in TMM | TMM RULE_INIT | partly |
+| BIGIP-NAME-068 | iRules in TMM | `HTTP::header NAME VALUE` with no subcommand, before and after `HTTP::respond` | TMM rule load + HTTP_REQUEST | no |
 | BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly |
 | BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly |
 | BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly |
@@ -2874,6 +2875,67 @@ when RULE_INIT {
 
 The tmsh-hosted contexts share an interpreter build but are entered differently; run each check in every context its environment line lists.
 
+#### BIGIP-NAME-068 — `HTTP::header NAME VALUE` with no subcommand, before and after `HTTP::respond`
+
+- **Question.** Does TMM accept `HTTP::header NAME VALUE` (first word a header name, not a subcommand), and as what: a read of `NAME`, an insert, or an error? Is it refused when the rule loads or when the event runs? Does it raise after `HTTP::respond` in the same event?
+- **Why the toolchain needs it.** `rust/tcl-compiler/src/irules_checks.rs` test `irule1201_http_after_respond_fires` uses `HTTP::respond 200 content ok; HTTP::header Cache-Control no-cache` and expects IRULE1201. The registry (`rust/tcl-registry/src/commands/irules/`) describes no `HTTP::header` form whose first word is a header name followed by a value, so the command selects no subcommand and the check stays silent. The answer decides whether the registry gains that form or the test's source becomes `HTTP::header insert`. This is not a naming question; it is filed here because it needs a device.
+- **Environments.** TMM rule load, then `HTTP_REQUEST` (lab virtual server; send a request with a `Host` header). Load the three rules one at a time and record whether each loads.
+- **Already on record.** Not measured on BIG-IP.
+
+```tcl
+when HTTP_REQUEST {
+    set bnc_id BIGIP-NAME-068
+    set bnc_obs {
+        bare    {HTTP::header Host}
+        pair    {HTTP::header X-Bnc one}
+        seen    {HTTP::header exists X-Bnc}
+        insert  {HTTP::header insert X-Bnc2 two}
+    }
+    foreach {bnc_l bnc_s} $bnc_obs {
+        set bnc_rc [catch {eval $bnc_s} bnc_r]; regsub -all {[\r\n]+} $bnc_r { / } bnc_r
+        log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|$bnc_l|$bnc_rc|$bnc_r"
+    }
+    HTTP::respond 200 content "BNC $bnc_id [TMM::cmp_unit]" Connection close
+    set bnc_obs {
+        after_pair   {HTTP::header X-Bnc3 three}
+        after_insert {HTTP::header insert X-Bnc4 four}
+        after_read   {HTTP::header value Host}
+    }
+    foreach {bnc_l bnc_s} $bnc_obs {
+        set bnc_rc [catch {eval $bnc_s} bnc_r]; regsub -all {[\r\n]+} $bnc_r { / } bnc_r
+        log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|$bnc_l|$bnc_rc|$bnc_r"
+    }
+}
+```
+
+Then load each of these as its own rule, with the words literal, and record the load result and the `/var/log/ltm` lines for one request:
+
+```tcl
+when HTTP_REQUEST { HTTP::header Cache-Control no-cache }
+```
+
+```tcl
+when HTTP_REQUEST { HTTP::respond 200 content ok; HTTP::header Cache-Control no-cache }
+```
+
+There is no Tcl baseline: `HTTP::header` is a TMM command.
+
+| Label | Expected | Basis |
+|---|---|---|
+| `bare` | to be recorded | n/a |
+| `pair` | to be recorded | n/a |
+| `seen` | to be recorded (`1` if `pair` inserted) | n/a |
+| `insert` | `0`, empty | n/a |
+| `after_pair` | to be recorded | n/a |
+| `after_insert` | to be recorded | n/a |
+| `after_read` | to be recorded | n/a |
+| literal rule 1 load | to be recorded | n/a |
+| literal rule 2 load and run | to be recorded | n/a |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
 #### BIGIP-NAME-060 — Execution namespace and frame of tmsh-hosted scripts
 
 - **Question.** In which namespace and at which call level do a cli script's `script::run`, an iApp implementation and an iCall script run, and where does a bare variable go?
@@ -3314,13 +3376,7 @@ its citation and a regression that reads the recorded lines.
 8. **Filing.** This document files returned blocks under
    `experiments/name-handling/f5/` and converted evidence under
    `evidence/tcl/`. Confirm that split, or name the single place wanted.
-9. **`HTTP::header NAME VALUE` after a response.** Not a naming check, but it
-   needs a device. `irules_checks::tests::irule1201_http_after_respond_fires`
-   uses `when HTTP_REQUEST { HTTP::respond 200 content ok; HTTP::header
-   Cache-Control no-cache }` and expects IRULE1201. The registry describes no
-   `HTTP::header` form whose first word is a header name followed by a value,
-   so the command resolves to no subcommand and the check stays silent. Does
-   TMM accept `HTTP::header NAME VALUE` (and as what: a read of `NAME`, an
-   insert, or an error), and does it raise after `HTTP::respond` in the same
-   event? If TMM rejects the form at load, the test's source should use
-   `HTTP::header insert`.
+9. **`HTTP::header NAME VALUE` after a response** is now check
+   BIGIP-NAME-068. Until it is run,
+   `irules_checks::tests::irule1201_http_after_respond_fires` keeps its
+   expectation and stays failing.
