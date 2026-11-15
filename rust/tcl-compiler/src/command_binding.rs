@@ -19191,10 +19191,19 @@ impl ModuleCommandBindings {
         changed |= self.join_lookup_support(other);
         changed |= self.join_binding_history(other);
         if !Arc::ptr_eq(&self.bindings, &other.bindings) && self.bindings != other.bindings {
+            // A name whose incoming alternatives this side already holds
+            // (through one shared value, or by containment) joins to the
+            // value it has, which `replace_bindings` leaves in place; only
+            // the other names are joined, in the same ascending order.
             let keys: BTreeSet<SourceCommandKey> = self
                 .bindings
-                .keys()
-                .chain(other.bindings.keys())
+                .keys_not_sharing_a_value(&other.bindings)
+                .filter(|key| {
+                    !matches!(
+                        (self.bindings.get(*key), other.bindings.get(*key)),
+                        (Some(held), Some(incoming)) if incoming.is_subset(held)
+                    )
+                })
                 .cloned()
                 .collect();
             let joined = keys.into_iter().map(|key| {
@@ -19231,14 +19240,22 @@ impl ModuleCommandBindings {
             Arc::make_mut(&mut self.object_instances).join(&other.object_instances);
             changed |= self.object_instances != before_objects;
         }
-        for (site, incoming) in other.allocation_counts.iter() {
+        // One shared map holds no count above its own.
+        let counts = (!Arc::ptr_eq(&self.allocation_counts, &other.allocation_counts))
+            .then_some(&other.allocation_counts);
+        for (site, incoming) in counts.into_iter().flat_map(|counts| counts.iter()) {
             let current = self.allocation_counts.get(site).copied().unwrap_or(0);
             if *incoming > current {
                 Arc::make_mut(&mut self.allocation_counts).insert(site.clone(), *incoming);
                 changed = true;
             }
         }
-        for (site, incoming) in other.namespace_allocation_counts.iter() {
+        let counts = (!Arc::ptr_eq(
+            &self.namespace_allocation_counts,
+            &other.namespace_allocation_counts,
+        ))
+        .then_some(&other.namespace_allocation_counts);
+        for (site, incoming) in counts.into_iter().flat_map(|counts| counts.iter()) {
             let current = self
                 .namespace_allocation_counts
                 .get(site)

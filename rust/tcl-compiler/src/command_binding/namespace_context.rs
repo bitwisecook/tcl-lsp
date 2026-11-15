@@ -301,6 +301,23 @@ impl<V> SourceCommandTable<V> {
     pub(super) fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+    /// Every key of either table except those both hold through one shared
+    /// value allocation; such a value is equal on both sides.
+    pub(super) fn keys_not_sharing_a_value<'a>(
+        &'a self,
+        other: &'a Self,
+    ) -> impl Iterator<Item = &'a SourceCommandKey> {
+        self.0
+            .iter()
+            .filter(|(key, value)| {
+                other
+                    .0
+                    .get(*key)
+                    .is_none_or(|shared| !std::sync::Arc::ptr_eq(value, shared))
+            })
+            .map(|(key, _)| key)
+            .chain(other.0.keys().filter(|key| !self.0.contains_key(*key)))
+    }
     pub(super) fn extend<K: Into<SourceCommandKey>>(
         &mut self,
         entries: impl IntoIterator<Item = (K, V)>,
