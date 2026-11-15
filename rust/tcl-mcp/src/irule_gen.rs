@@ -1689,7 +1689,8 @@ mod tests {
             objects: &objects,
             variables: &variables,
             cfg_paths: &paths,
-            request_syntax: None,
+            // Event setup is written only under a captured source grammar.
+            request_syntax: Some(request_syntax()),
             multi_tmm: false,
         };
         let blocks = build_all_test_blocks("owned-kind", &context);

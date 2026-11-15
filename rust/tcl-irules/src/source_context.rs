@@ -250,25 +250,17 @@ fn braced_expression_operands(
     operands
 }
 
-/// Hold the command vectors inside braced expressions to what `expr`
-/// substitutes: add the commands of a substitution the analysis did not list
-/// (one inside a quoted operand) and return the listed commands no
-/// substitution reaches (a malformed expression runs none).
-fn reconcile_braced_expression_commands(
+/// The listed commands inside braced expressions that no `expr` substitution
+/// reaches: a malformed expression runs none of them.
+fn unreached_braced_expression_commands(
     source: &str,
-    analysis: &AnalysisResult,
-    image: &SourceImage,
     config: LexerConfig,
     profile: &'static tcl_dialect::DialectProfile,
-    context: &ContextRegistry,
-    vectors: &mut Vec<(Span, OriginalRegistryWords)>,
+    vectors: &[(Span, OriginalRegistryWords)],
 ) -> Vec<Span> {
     let mut unreached = Vec::new();
-    let mut next = 0;
-    while next < vectors.len() {
-        let operands = braced_expression_operands(&vectors[next].1, source, config, profile);
-        next += 1;
-        for (content, substitutions) in operands {
+    for (_, words) in vectors {
+        for (content, substitutions) in braced_expression_operands(words, source, config, profile) {
             let live = substitutions
                 .commands
                 .iter()
@@ -286,38 +278,8 @@ fn reconcile_braced_expression_commands(
                     .filter(|span| contains(content, *span))
                     .filter(|span| !live.iter().any(|command| contains(*command, *span))),
             );
-            for command in live {
-                let (Some(start), Some(end)) =
-                    (command.start().checked_add(1), command.end().checked_sub(1))
-                else {
-                    continue;
-                };
-                let Some(script) = source.get(start as usize..end as usize) else {
-                    continue;
-                };
-                for segment in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
-                    script, start, config,
-                ) {
-                    if vectors
-                        .iter()
-                        .any(|(span, _)| span.start() == segment.span.start())
-                    {
-                        continue;
-                    }
-                    let Some(words) = source_registry_words(source, analysis, &segment) else {
-                        continue;
-                    };
-                    if words.matches_source(image, config)
-                        && words.matches_registry(context.commands())
-                        && words.context() == Some(context.context())
-                    {
-                        vectors.push((segment.span, words));
-                    }
-                }
-            }
         }
     }
-    vectors.sort_by_key(|(span, _)| span.start());
     unreached
 }
 
@@ -647,6 +609,17 @@ fn collect_source_commands(
             {
                 continue;
             }
+            // A declaration is legal only at the top level; inside a body the
+            // loader rejects it, so it is not an executable command there.
+            if words.with_source_schema(context, |schema| {
+                schema
+                    .semantics
+                    .traits
+                    .contains(Traits::IRULES_TOP_LEVEL_ONLY)
+            }) == Some(true)
+            {
+                continue;
+            }
             let mut obligations = vec![IrulesSourceObligation::ConditionalApplicability];
             if through_call {
                 obligations.push(IrulesSourceObligation::ProcedureBindingUnavailable);
@@ -773,15 +746,12 @@ impl OriginalIrulesSourceContext {
             return None;
         }
 
-        let mut vectors = source_vectors_from_analysis(source, analysis, &image, config, context)?;
-        let unreached = reconcile_braced_expression_commands(
+        let vectors = source_vectors_from_analysis(source, analysis, &image, config, context)?;
+        let unreached = unreached_braced_expression_commands(
             source,
-            analysis,
-            &image,
             config,
             retained.analyser_profile(),
-            context,
-            &mut vectors,
+            &vectors,
         );
 
         let mut excluded_bodies = excluded_source_bodies(&vectors, context);
