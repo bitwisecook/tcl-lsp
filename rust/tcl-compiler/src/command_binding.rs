@@ -15698,6 +15698,11 @@ pub struct ModuleCommandBindings {
     /// detaches only at the centralised replacement/join seams below.
     bindings: Arc<SourceCommandTable<BTreeSet<MayBinding>>>,
     original_entry_bindings: Arc<SourceCommandTable<BTreeSet<MayBinding>>>,
+    /// The package rows and loader-handler state the entry starts from. A
+    /// top-level replay restarts from them as it does from the entry's command
+    /// rows: a package the module's own walk loaded is not loaded before the
+    /// document's first command runs.
+    original_entry_packages: Option<Arc<OriginalEntryPackages>>,
     /// Implementations of command objects followed by namespace imports.
     objects: Arc<BTreeMap<CommandToken, BTreeSet<MayBinding>>>,
     /// Exact export/path alternatives are joined alongside command bindings.
@@ -15828,6 +15833,7 @@ impl PartialEq for ModuleCommandBindings {
             && self.loader_handler_unknown == other.loader_handler_unknown
             && self.root_boundary_bindings == other.root_boundary_bindings
             && self.original_entry_bindings == other.original_entry_bindings
+            && self.original_entry_packages == other.original_entry_packages
             && self.opaque_domain == other.opaque_domain
             && self.opaque_binding_mutation == other.opaque_binding_mutation
             && self.dynamic_proc_binding == other.dynamic_proc_binding
@@ -16789,6 +16795,11 @@ impl ModuleCommandBindings {
             state.mark_opaque_binding_mutation();
             state.loader_handler_unknown = true;
         }
+        state.original_entry_packages = Some(Arc::new(OriginalEntryPackages {
+            packages: Arc::clone(&state.packages),
+            revoked_loaders: Arc::clone(&state.revoked_loaders),
+            loader_handler_unknown: state.loader_handler_unknown,
+        }));
         state
     }
     #[cfg(test)]
@@ -17581,6 +17592,11 @@ impl ModuleCommandBindings {
             // The document starts from its entry's command rows: none for an
             // authored module, the interpreter's own for a native entry.
             initial.bindings = Arc::clone(&self.original_entry_bindings);
+            if let Some(entry) = &self.original_entry_packages {
+                initial.packages = Arc::clone(&entry.packages);
+                initial.revoked_loaders = Arc::clone(&entry.revoked_loaders);
+                initial.loader_handler_unknown = entry.loader_handler_unknown;
+            }
             initial.root_boundary_bindings = Arc::new(SourceCommandTable::default());
             initial.logical_alias_prefixes = Arc::new(BTreeMap::new());
             initial.opaque_domain = false;
@@ -22044,6 +22060,15 @@ fn default_binding(qname: &str, registry: &CommandRegistry) -> Binding {
 /// The packages a fresh interpreter of `release` provides before any script
 /// runs, keyed by `policy`'s package keys. Requiring one only checks its
 /// version: no loader runs and no command binding changes.
+/// Package state captured at a binding walk's entry
+/// ([`ModuleCommandBindings::original_entry_packages`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalEntryPackages {
+    packages: Arc<BTreeMap<String, BTreeSet<PackageProvision>>>,
+    revoked_loaders: Arc<BTreeSet<String>>,
+    loader_handler_unknown: bool,
+}
+
 fn interpreter_provided_packages(
     release: tcl_dialect::TclVersion,
     policy: tcl_syntax::naming::NamePolicyProtocol,

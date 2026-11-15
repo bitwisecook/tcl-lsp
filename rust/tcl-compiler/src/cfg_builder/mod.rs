@@ -7755,6 +7755,64 @@ mod tests {
         assert_eq!(calls[position_of(&calls, "<arm-writes>")].1, ["go"]);
     }
 
+    /// A top-level replay starts from the entry's package rows as it starts
+    /// from the entry's command rows. A package the module's own walk loaded
+    /// is not loaded before the document's first command, so `package require
+    /// Tk` installs the supplied Tk 8.6 provider's widget commands instead of
+    /// counting as satisfied with none of them bound. A package no loader
+    /// declares stays unseen. Tcl 8.6 (#2324).
+    #[test]
+    fn a_top_level_replay_loads_a_supplied_package_from_the_entry_state() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let unit = |source: &str| {
+            let context = std::sync::Arc::new(
+                crate::environment_ingress::context_for_profile(registry.profile().unwrap())
+                    .with_command_store(registry.snapshot().shared_registry()),
+            );
+            crate::compilation_unit::CompilationUnit::build_with_context_registry(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry: &registry,
+                    defer_top_level: false,
+                    config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                    dialect: registry.profile(),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                Some(&crate::provider_fixtures::entry(
+                    &registry,
+                    &[crate::provider_fixtures::Provider::Tk],
+                )),
+                context,
+            )
+        };
+        let unseen = |unit: &crate::compilation_unit::CompilationUnit| {
+            unit.top_level
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .filter(|stmt| {
+                    stmt.tokens().is_some_and(|tokens| {
+                        tokens.synthetic == Some(crate::ir::SyntheticMarker::UnseenCall)
+                    })
+                })
+                .count()
+        };
+        assert_eq!(
+            unseen(&unit(
+                "package require Tk\nset v 1\nttk::entry .f\nputs $v\n"
+            )),
+            0,
+            "a supplied Tk provider binds package, ttk::entry and puts"
+        );
+        assert!(
+            unseen(&unit("package require Mystery\nset v 1\nputs $v\n")) > 0,
+            "a package no loader declares runs code the module cannot see"
+        );
+    }
+
     /// The marker for where code the module cannot see runs, and the barrier
     /// for a command that may write any name, stand ahead of the opaque
     /// `catch` call whose body runs it: at the top level a plain name is the
