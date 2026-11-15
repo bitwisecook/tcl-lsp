@@ -55,7 +55,7 @@ Crates: `tcl-codegen`, `tcl-vm`, `tcl-vm-cli`, `tcl-engine-api`, `tcl-engine-tcl
 | `454068e6` | 5,475 | 482: `tcl-codegen` 324, `tcl-vm` 114, `tcl-cshim` 20, `tcl-engine-tclvm` 18, `tcl-spec-hooks` 5, `tcl-vm-cli` 1 |
 | `9e208e7d` (after the naming port) | 5,469 | 462: `tcl-codegen` 304, the rest unchanged; fixed 20, new 0 |
 
-`runtime/rust` baseline: not yet recorded here.
+`runtime/rust` (`cargo nextest run --locked --features engine` in `runtime/rust`, its own target): 2,723 run, 65 failing at `454068e6`; 62 at `610d90bc`, none new. `engine::every_value_builder_answers_to_the_value_size_budget` is excluded from later runs: it allocates until the kernel kills the test process (and whatever shares its memory limit).
 
 Fixed:
 
@@ -74,6 +74,10 @@ Open, with cause:
   - `return $arr(key1)` in a procedure: `tclsh8.6` emits `push1 key1; loadArray1`; the unit loads `arr(key1)` by name (`loadStk`).
   - `string length "hello"` at top level: `tclsh8.6` folds to `push1 "5"`; the unit emits `strlen`.
   - `proc p {} { set warmup 1; for {missing_command} {0} {} {} }`: `tclsh8.6` gives the init command `startCommand +29 1`; `for_init_unseen_call_keeps_count_two_boundary` expects a count of 2. Not yet decided which is wrong.
+- **Runtime command budget (fixed).** A body run from its compiled artifact executed `incr` and other inline commands without counting or charging them, so `catch {while 1 {incr i}}` under a command-only budget never ended (`engine::a_body_cannot_catch_its_way_past_a_budget` hung the suite). The body executor now charges before each command and counts one that ran without a dispatch.
+- **Runtime store confinement (open, a containment fault).** After `confine_stores`, `set ::g 1`, `array set ::fresh {}` and the other rows of `engine::confine_stores_refuses_every_store_outside_the_activation` and `..._creation_and_unset_...` succeed. `Interp::store_escapes` is asked only by the command implementations in `builtins.rs`, `cmd_dict.rs`, `cmd_array.rs` and `state_traits.rs`; neither the compiled body artifact nor the native `set` dispatch asks it. Skipping the artifact for a confined interpreter in `run_selected_procedure_body` did not change the result, so the native invocation path stores too.
+- **Runtime value-size budget (open).** `every_value_builder_answers_to_the_value_size_budget` grows without bound; the same case fails in `tcl-engine-tclvm` on `string cat` of nine words.
+- `runtime/rust` remaining 60, by suite: `native_namespace_command_query` 13 (eight Jim rows, five C alias-registration rows, `original query/setup/context rows` differ), lib 23 single witnesses, `engine` 4, `integer_argument_reads` 4, `pkga_extension` 3 (missing `PKGA FAIL` error code, twelve unreleased objects), `literal_index_encoding` 2, `ensemble_release_surface` 2, `array_trace_oracle` 2, and one each in eight suites.
 - `tcl-vm` (114), `tcl-cshim` (20), `tcl-engine-tclvm` (18), `tcl-spec-hooks` (5), `tcl-vm-cli` (1): clustered, not yet worked. Largest shared messages: `NativePreflightRequired` admission (about 14), `CommandProtocolUnavailable` (3), single witness differences otherwise.
 - Naming port follow-ups (`inlining/heads.rs` rooting a `:a` head, `names_builtin`/`release_compiles_dict_scope` on `:::set` heads, `variable_locals` element test) and the engine duplicate tests: not started. Classification of the 346 same-named `tcl-vm`/`runtime/rust` test pairs: 122 already read one shared data file, 21 are near-identical with inline vectors (12 of them `tcl-vm/tests/it_3/namespace_surface_e2e.rs` against `runtime/rust/src/cmd_namespace.rs` and `cmd_trace.rs`, plain script/result pairs), 125 are similar, 78 differ.
 
