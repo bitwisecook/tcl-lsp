@@ -39,23 +39,36 @@ pub fn declared_surface_package_loader(
 ) -> Option<crate::command_binding::TrustedPackageLoader> {
     use tcl_registry::native_package::NativePackageNameKey;
     let requested = NativePackageNameKey::from_native_units(package.as_bytes(), policy);
-    let mut command_surface = registry
-        .command_descriptor_keys()
-        .filter(|key| {
-            registry
-                .get(key.label())
-                .and_then(|spec| spec.required_package)
-                .is_some_and(|required| {
-                    NativePackageNameKey::from_native_units(required.as_bytes(), policy)
-                        == requested
-                })
-        })
-        .map(tcl_registry::CanonicalCommandDescriptorKey::rooted_binding_label)
-        .collect::<Vec<_>>();
+    let mut command_surface = Vec::new();
+    // The export list a later `namespace import` filters by: the commands the
+    // registry marks exported, under the namespace each is published in.
+    let mut namespace_exports = std::collections::BTreeMap::<String, Vec<String>>::new();
+    for key in registry.command_descriptor_keys() {
+        let Some(spec) = registry.get(key.label()) else {
+            continue;
+        };
+        if spec.required_package.is_none_or(|required| {
+            NativePackageNameKey::from_native_units(required.as_bytes(), policy) != requested
+        }) {
+            continue;
+        }
+        let rooted = key.rooted_binding_label();
+        if spec.is_namespace_exported {
+            let (namespace, tail) = tcl_syntax::naming::key_holder_and_tail(&rooted);
+            namespace_exports
+                .entry(namespace.to_owned())
+                .or_default()
+                .push(tail.to_owned());
+        }
+        command_surface.push(rooted);
+    }
     if command_surface.is_empty() {
         return None;
     }
     command_surface.sort_unstable();
+    for exports in namespace_exports.values_mut() {
+        exports.sort_unstable();
+    }
     Some(crate::command_binding::TrustedPackageLoader {
         required_core_family: None,
         package: package.to_owned(),
@@ -74,7 +87,7 @@ pub fn declared_surface_package_loader(
         command_surface,
         definition_dispatchers: std::collections::BTreeSet::new(),
         optional_command_surface: Vec::new(),
-        namespace_exports: std::collections::BTreeMap::new(),
+        namespace_exports,
         optional_namespace_exports: std::collections::BTreeMap::new(),
         lookup_dependencies: Vec::new(),
         installed_lookup_dependencies: Vec::new(),

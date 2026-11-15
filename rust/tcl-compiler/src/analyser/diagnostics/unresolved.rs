@@ -873,6 +873,38 @@ mod require_ordering_tests {
     /// index lists, so with no index entry the import links exactly what the
     /// namespace exports.
     ///
+    /// A catalogued package publishes its export list with its commands, so
+    /// a wildcard import brings them in and the bare head keeps its spec.
+    ///
+    /// tclsh 8.4.20 (tcltest 2.2.11), 8.5.19, 8.6.18, 9.0.4 and 9.1.0
+    /// (2.6.0): `package require tcltest; namespace eval ::tcltest
+    /// {namespace export}` lists every command the registry catalogues for
+    /// the package, `test` and `testConstraint` among them.
+    #[test]
+    fn a_catalogued_package_import_keeps_the_bare_heads_symbol() {
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for head in ["test", "tcltest::test"] {
+                let source = format!(
+                    "package require tcltest\nnamespace import ::tcltest::*\n\
+                     {head} my-case-1 {{verifies}} -body {{ set x 1 }} -result 1\n"
+                );
+                let result = crate::analyser::Analyser::new().analyse(&source, release);
+                assert_eq!(
+                    result.original_symbol_declarations().count(),
+                    1,
+                    "{release}: {head}"
+                );
+                assert!(
+                    result
+                        .diagnostics
+                        .iter()
+                        .all(|diagnostic| diagnostic.code != tcl_core_types::DiagCode::W123),
+                    "{release}: {head}"
+                );
+            }
+        }
+    }
+
     /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all print
     /// `rc=1 invalid command name "helper"` then `rc=0 right` for:
     ///
