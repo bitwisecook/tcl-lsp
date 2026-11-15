@@ -3529,10 +3529,13 @@ impl Analyser {
             if let Some(e) = element {
                 existing.array_indices.insert(e);
             }
-            if let Some(global) = self
-                .result
-                .all_variables
-                .get_mut(&format!("{}::{base_owned}", scope.name))
+            if let Some(global) =
+                self.result
+                    .all_variables
+                    .get_mut(&tcl_syntax::naming::scope_variable_key(
+                        &scope.name,
+                        &base_owned,
+                    ))
             {
                 *global = scope.variables[&base_owned].clone();
             }
@@ -3554,7 +3557,7 @@ impl Analyser {
                 .original_variable_declaration_spans
                 .insert(base_owned.clone(), span);
             scope.variables.insert(base_owned.clone(), var.clone());
-            let key = format!("{}::{base_owned}", scope.name);
+            let key = tcl_syntax::naming::scope_variable_key(&scope.name, &base_owned);
             self.result.all_variables.insert(key, var);
         }
     }
@@ -3715,7 +3718,7 @@ impl Analyser {
             scope.variables.insert(key.clone(), variable);
         }
         self.result.all_variables.insert(
-            format!("{}::{key}", scope.name),
+            tcl_syntax::naming::scope_variable_key(&scope.name, &key),
             scope.variables[&key].clone(),
         );
     }

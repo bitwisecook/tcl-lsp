@@ -1690,6 +1690,20 @@ pub fn unroot_rooted_key_bytes(key: &[u8]) -> Option<&[u8]> {
     key.strip_prefix(b"::")
 }
 
+/// The analyser's flat key for a variable held by a named scope: the scope's
+/// own key, one separator, the variable's base name. The scope key is used
+/// verbatim, so this is a pair rendered flat and not a Tcl name.
+///
+/// ```
+/// use tcl_syntax::naming::scope_variable_key;
+/// assert_eq!(scope_variable_key("::", "x"), "::::x");
+/// assert_eq!(scope_variable_key("::ns::p", "x"), "::ns::p::x");
+/// ```
+#[must_use]
+pub fn scope_variable_key(scope: &str, variable: &str) -> String {
+    format!("{scope}::{variable}")
+}
+
 /// A command lookup base supplied by a consumer's context owner.
 /// Coordinates carry no namespace liveness or binding evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -156,7 +156,10 @@ impl VariableCellKey {
                 SourceNamespaceKey::Authored(namespace) => {
                     tcl_syntax::naming::rooted_member_key(namespace, &byte_label(simple))
                 }
-                _ => format!("{identity:?}::{}", byte_label(simple)),
+                _ => tcl_syntax::naming::rooted_member_key(
+                    &format!("{identity:?}"),
+                    &byte_label(simple),
+                ),
             },
             Self::Activation { identity, simple } => {
                 format!(

@@ -6,13 +6,16 @@
 
 | File | Sites |
 |---|---|
-| `rust/f5-cli/src/commands/explain_flow.rs` | 1 |
-| `rust/f5-cli/src/commands/irule.rs` | 1 |
-| `rust/tcl-bigip/src/parser/driver.rs` | 1 |
-| `rust/tcl-bigip/src/redact.rs` | 1 |
-| `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 1 |
-| `rust/tcl-compiler/src/analyser/scope.rs` | 3 |
-| `rust/tcl-compiler/src/command_binding/source_declared_method_template.rs` | 1 |
-| `rust/tcl-compiler/src/var_resolve/cell_key.rs` | 1 |
 
-10 site(s) in 8 file(s).
+0 site(s) in 0 file(s).
+
+## Matches that are not Tcl names
+
+The gate subtracts these; the joined text is some other key or label.
+
+| File | Sites | Text |
+|---|---|---|
+| `rust/f5-cli/src/commands/explain_flow.rs` | 1 | report label of a rule path and an event |
+| `rust/f5-cli/src/commands/irule.rs` | 1 | input label of a file and a rule path |
+| `rust/tcl-bigip/src/parser/driver.rs` | 1 | configuration object key of module, type and identifier |
+| `rust/tcl-bigip/src/redact.rs` | 1 | hash input of a seed and an address range |

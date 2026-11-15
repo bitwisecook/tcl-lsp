@@ -184,10 +184,9 @@ impl AnalysisResult {
             callee: selected_body,
             method: Box::new(method.clone()),
             formals,
-            display: format!(
-                "{}::{}",
-                provider.name().reported_full_name()?,
-                method.metadata().name
+            display: tcl_syntax::naming::rooted_member_key(
+                &provider.name().reported_full_name()?,
+                &method.metadata().name,
             ),
             parameter_arguments,
         })

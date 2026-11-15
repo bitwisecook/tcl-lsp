@@ -817,9 +817,10 @@ impl Analyser {
         if let Some((prefix, tail)) = self.original_namespaced_ensemble(site)
             && let Some(values) = ctx.all_constsets.get(&prefix)
             && !values.is_empty()
-            && values
-                .iter()
-                .all(|v| self.command_slot_is_present(&format!("{v}::{tail}"), call_off))
+            && values.iter().all(|v| {
+                let suffix = tcl_syntax::naming::root_unrooted_key(&tail);
+                self.command_slot_is_present(&format!("{v}{suffix}"), call_off)
+            })
         {
             return true;
         }

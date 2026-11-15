@@ -1605,6 +1605,31 @@ const NAME_DELIMITER_LEDGER: &str = "docs/generated/naming-delimiters.md";
 /// Production source trees the delimiter ledger covers.
 const NAME_DELIMITER_ROOTS: &[&str] = &["rust", "runtime/rust/src"];
 
+/// Sites the recogniser matches where the joined text is not a Tcl name. Each
+/// row is subtracted from its file's count and listed in the ledger.
+const NAME_DELIMITER_OTHER_TEXT: &[(&str, usize, &str)] = &[
+    (
+        "rust/f5-cli/src/commands/explain_flow.rs",
+        1,
+        "report label of a rule path and an event",
+    ),
+    (
+        "rust/f5-cli/src/commands/irule.rs",
+        1,
+        "input label of a file and a rule path",
+    ),
+    (
+        "rust/tcl-bigip/src/parser/driver.rs",
+        1,
+        "configuration object key of module, type and identifier",
+    ),
+    (
+        "rust/tcl-bigip/src/redact.rs",
+        1,
+        "hash input of a seed and an address range",
+    ),
+];
+
 /// String methods that split, find or strip a qualified name by its separator.
 const NAME_DELIMITER_METHODS: &[&str] = &[
     "split",
@@ -1736,7 +1761,11 @@ fn workspace_name_delimiter_counts(
     }
     let mut counts = std::collections::BTreeMap::new();
     for path in sources {
-        let count = name_delimiter_recipes(&read(root, &path)?);
+        let other_text = NAME_DELIMITER_OTHER_TEXT
+            .iter()
+            .find(|(file, _, _)| *file == path)
+            .map_or(0, |(_, sites, _)| *sites);
+        let count = name_delimiter_recipes(&read(root, &path)?).saturating_sub(other_text);
         if count > 0 {
             counts.insert(path, count);
         }
@@ -1764,6 +1793,13 @@ fn render_name_delimiter_ledger(counts: &std::collections::BTreeMap<String, usiz
         counts.values().sum::<usize>(),
         counts.len()
     );
+    out.push_str(
+        "\n## Matches that are not Tcl names\n\nThe gate subtracts these; the joined text is \
+         some other key or label.\n\n| File | Sites | Text |\n|---|---|---|\n",
+    );
+    for (path, sites, text) in NAME_DELIMITER_OTHER_TEXT {
+        let _ = writeln!(out, "| `{path}` | {sites} | {text} |");
+    }
     out
 }
 
@@ -3210,10 +3246,11 @@ mod tests {
             ("rust/a/src/x.rs".to_owned(), 2),
             ("runtime/rust/src/y.rs".to_owned(), 1),
         ]);
-        assert_eq!(
-            parse_name_delimiter_ledger(&render_name_delimiter_ledger(&counts)),
-            counts
-        );
+        let ledger = render_name_delimiter_ledger(&counts);
+        assert_eq!(parse_name_delimiter_ledger(&ledger), counts);
+        for (path, _, text) in NAME_DELIMITER_OTHER_TEXT {
+            assert!(ledger.contains(path) && ledger.contains(text), "{path}");
+        }
         for (path, counted) in [
             ("rust/tcl-vm/src/exec.rs", true),
             ("rust/tcl-syntax/src/naming.rs", false),
