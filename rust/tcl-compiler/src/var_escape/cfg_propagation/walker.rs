@@ -669,12 +669,12 @@ fn handle_statement(
     let defs = &defs;
     state.remember_versions(ssa_stmt, ssa);
 
-    if stmt.is_executable_invocation()
-        && stmt
-            .tokens()
-            .is_some_and(|tokens| tokens.synthetic.is_none())
+    // A typed statement keeps no words of its own; the SSA source view
+    // retains the original invocation it was lowered from.
+    let original = stmt.tokens().or(tokens);
+    if stmt.is_executable_invocation() && original.is_some_and(|tokens| tokens.synthetic.is_none())
     {
-        apply_original_substitution_scan(stmt.tokens(), state, defs, registry);
+        apply_original_substitution_scan(original, state, defs, registry);
     } else if statement_needs_original_substitution_inventory(stmt) {
         state.mark_pessimistic();
     }
@@ -744,6 +744,39 @@ fn handle_statement(
     }
 }
 
+/// Whether evaluating `condition` can run a command: a substitution the
+/// expression parsed, or unparsed text that spells one. A test the CFG
+/// builder made for a `switch` arm or a `foreach` header runs none, and a
+/// plain variable read escapes nothing.
+fn condition_may_run_a_command(condition: &ExprNode, depth: u32) -> bool {
+    if crate::depth_guard::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+        return true;
+    }
+    match condition {
+        ExprNode::Command { .. } => true,
+        ExprNode::Binary { left, right, .. } => {
+            condition_may_run_a_command(left, depth + 1)
+                || condition_may_run_a_command(right, depth + 1)
+        }
+        ExprNode::Unary { operand, .. } => condition_may_run_a_command(operand, depth + 1),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            condition_may_run_a_command(condition, depth + 1)
+                || condition_may_run_a_command(true_branch, depth + 1)
+                || condition_may_run_a_command(false_branch, depth + 1)
+        }
+        ExprNode::Call { args, .. } => args
+            .iter()
+            .any(|argument| condition_may_run_a_command(argument, depth + 1)),
+        ExprNode::String { text, .. } | ExprNode::Raw { text } => text.contains('['),
+        ExprNode::CompiledWord { text, braced } => !braced && text.contains('['),
+        ExprNode::Literal { .. } | ExprNode::Var { .. } => false,
+    }
+}
+
 /// Process one SSA block — every statement plus the terminator's
 /// branch condition (so `[info exists ...]` inside an `if`
 /// condition isn't missed).
@@ -762,7 +795,9 @@ fn walk_block(
         let tokens = crate::ssa::SsaSourceView::at_statement(ssa, block_id, index).source_tokens();
         handle_statement(stmt, tokens, state, ssa, registry);
     }
-    if let Some((condition, tokens)) = terminator_condition {
+    if let Some((condition, tokens)) = terminator_condition
+        && condition_may_run_a_command(condition, 0)
+    {
         let unchanged = tokens.is_some_and(|tokens| {
             (0..tokens.words().len()).any(|written| {
                 crate::registry_invocation::original_expression_operand_advice_for_word(
