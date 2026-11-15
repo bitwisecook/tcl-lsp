@@ -2301,9 +2301,18 @@ impl Interp {
             }
             let counted = self.cmd_count.get();
             let code = self.execute_body_instruction(artifact, command, execution);
-            if self.cmd_count.get() == counted {
+            let code = if self.cmd_count.get() == counted {
                 self.cmd_count.set(counted + 1);
-            }
+                // The dispatch boundary charges a dispatched command's
+                // result; one run here is charged here.
+                if code == Code::Ok {
+                    self.charge_result(code)
+                } else {
+                    code
+                }
+            } else {
+                code
+            };
             if execution.done {
                 return code;
             }
