@@ -3368,7 +3368,9 @@ mod tests {
     /// numeral grammar as it found it.
     #[test]
     fn set_release_pins_the_numeral_grammar() {
-        for (profile, want) in [("tcl8.6", "8"), ("tcl9.0", "10"), ("f5-irules", "8")] {
+        // An F5 dialect is for F5 only: no Tcl core evaluates for it, so it
+        // has no row here.
+        for (profile, want) in [("tcl8.6", "8"), ("tcl9.0", "10")] {
             let mut engine = TclVmEngine::new();
             let collector = std::rc::Rc::new(Collector {
                 emitted: RefCell::new(Vec::new()),

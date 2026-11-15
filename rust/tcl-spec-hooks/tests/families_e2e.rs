@@ -202,10 +202,11 @@ on_both_engines! {
 on_both_engines! {
     /// A release-pinned hook runs on an engine pinned to the release the call
     /// is analysed under, one engine per profile: `expr {010 + 0}` is 8 on
-    /// tclsh 8.4 to 8.6 — and so under `f5-irules`, whose engine is 8.4's — and
-    /// 10 on 9.0 and 9.1. A call that names no release abstains rather than
-    /// run at an engine's default, and a profile no engine can pin abstains
-    /// with one error-log line.
+    /// tclsh 8.4 to 8.6 and 10 on 9.0 and 9.1. A call that names no release
+    /// abstains rather than run at an engine's default. An F5 dialect is for
+    /// F5 only: no Tcl core stands in for it, so a hook pinned to `f5-irules`
+    /// abstains, as does a profile no engine can pin, each with one
+    /// error-log line.
     fn a_release_pinned_hook_runs_under_the_calls_release(host) {
         let host = Rc::new(host());
         let installed = host.install_pack_hooks(
@@ -229,7 +230,7 @@ on_both_engines! {
         for (dialect, want) in [
             (Some("tcl8.6"), Some("8")),
             (Some("tcl9.0"), Some("10")),
-            (Some("f5-irules"), Some("8")),
+            (Some("f5-irules"), None),
             (Some("tcl8.6"), Some("8")),
             (None, None),
             (Some("tcl"), None),
@@ -239,9 +240,13 @@ on_both_engines! {
             assert_eq!(fold(&[], None).as_deref(), want, "{dialect:?}");
         }
         let log = host.error_log();
-        assert_eq!(log.len(), 1, "{log:?}");
+        assert_eq!(log.len(), 2, "{log:?}");
         assert!(
-            log[0].contains("no engine pinned to tcl"),
+            log[0].contains("f5-irules") || log[0].contains("native compiler preflight"),
+            "the F5 profile is refused once: {log:?}"
+        );
+        assert!(
+            log[1].contains("no engine pinned to tcl:"),
             "the unpinnable profile is logged once: {log:?}"
         );
         pack_hooks::clear_host();
