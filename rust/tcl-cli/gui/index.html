@@ -211,7 +211,8 @@ body {
   position: relative;
   background: var(--bg);
 }
-.line-numbers {
+/* Scoped by id: Monaco's own gutter uses the same `line-numbers` class. */
+#lineNumbers {
   flex-shrink: 0;
   padding: 8px 0;
   text-align: right;
@@ -225,8 +226,8 @@ body {
   background: var(--bg-surface);
   border-right: 1px solid var(--border);
 }
-.line-numbers .ln { display: block; height: 1.5em; }
-.line-numbers .ln.active { color: var(--text); }
+#lineNumbers .ln { display: block; height: 1.5em; }
+#lineNumbers .ln.active { color: var(--text); }
 textarea#source {
   flex: 1;
   background: transparent;

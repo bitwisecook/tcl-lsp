@@ -56,6 +56,8 @@ The toolbar's **Codegen passes** control opens a checkbox per pass, plus the `na
 
 The rows come from `meta.semanticOptimisations`, so the panel is populated before the first compile.
 
+![Codegen passes popover with the native-tier preset ticked over the WASM tab](../../screenshots/32-compiler-codegen-passes.png)
+
 The CLI takes the same selection as `tcl explore --codegen-passes PASS[,PASS...]` (and `tcl compwasm --codegen-passes`), naming pass ids or a group. It is rejected together with `--serve`, because the served GUI has its own toggles and the serve path never reaches the compile the flag would configure.
 
 This is a different axis from the optimiser lens below: the lens shows what the **source-rewrite** optimiser (the `O1xx` codes) would change, while a codegen pass changes what the compiler emits for unchanged source.

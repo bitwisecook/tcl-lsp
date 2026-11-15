@@ -1317,6 +1317,8 @@ following line being flagged.
 
 ![Compiler explorer — Optimiser](docs/screenshots/13-compiler-optimiser.png)
 
+![Compiler explorer — Codegen passes with native-tier ticked](docs/screenshots/32-compiler-codegen-passes.png)
+
 ### Compiler explorer (CLI)
 
 Console tool for inspecting the compiler pipeline: IR, CFG, SSA, optimiser
