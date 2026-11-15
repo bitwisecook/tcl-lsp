@@ -1863,6 +1863,8 @@ mod tests {
         assert_eq!(n("12x"), None);
         assert_eq!(n("0x1.5"), None); // no hex floats
         assert_eq!(n("1.2.3"), None);
+        assert_eq!(n("--5"), None);
+        assert_eq!(n("+-5"), None);
     }
 
     #[test]
@@ -2405,7 +2407,7 @@ mod dialect_tests {
             NumberSyntax::Tcl85,
             NumberSyntax::Tcl90,
         ] {
-            for bad in ["0o8", "0o9", "0b2", "0b3", "0x", "0xg"] {
+            for bad in ["0o8", "0o9", "0b2", "0b3", "0x", "0xg", "0x_", "0xZZZ"] {
                 assert_eq!(whole(bad, syntax), None, "{bad} under {syntax:?}");
             }
         }

@@ -3151,7 +3151,7 @@ struct ScriptCtx<'a> {
     /// the per-word `Number` classification does not re-walk the profile
     /// catalogue for every token.  Decides which radix prefixes exist, whether a
     /// bare leading zero is octal, and whether `_` digit separators are
-    /// allowed — see [`is_number_literal`].
+    /// allowed — see [`tcl_syntax::number::is_whole_number`].
     numbers: NumberSyntax,
     registry: &'a CommandRegistry,
     line_index: &'a LineIndex,
@@ -5017,6 +5017,18 @@ fn augment_snit_handles(
     }
 }
 
+/// The class a declaration names in this analysis: its canonical record
+/// under a pinned release, its retained logical record otherwise.
+fn declared_source_class<'a>(
+    declaration: &tcl_compiler::command_binding::OriginalSourceClassDeclaration,
+    analysis: &'a AnalysisResult,
+) -> Option<&'a tcl_compiler::analyser::ClassDef> {
+    declaration
+        .source_class(analysis)
+        .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::metadata)
+        .or_else(|| declaration.logical_source_class(analysis))
+}
+
 /// The actual selected factory and sealed member-script vectors own the
 /// installer vocabulary. This is conditional source metadata only.
 fn selected_member_handle_regions(
@@ -5040,7 +5052,7 @@ fn selected_member_handle_regions(
                     .map(|target| target.class_declaration().clone())
             });
             if let Some(declaration) = declaration
-                && declaration.logical_source_class(analysis).is_some()
+                && declared_source_class(&declaration, analysis).is_some()
                 && let Some(grammar) = declaration.grammar(context)
                 && !grammar.member_body_commands.is_empty()
                 && let Some(words) =
@@ -5100,7 +5112,7 @@ fn bind_original_handle_construction(
     else {
         return;
     };
-    let Some(class) = call.class_declaration().logical_source_class(analysis) else {
+    let Some(class) = declared_source_class(call.class_declaration(), analysis) else {
         return;
     };
     let Some(grammar) = call.class_declaration().grammar(context) else {
@@ -5519,17 +5531,13 @@ fn token_object_maps(
     // where the loop is nested in a command substitution and the IR never
     // surfaces it as a loop — and feeds the value variable(s) into the handle
     // map (the SpiceGenTcl `allNodes` / `actOnParam` shape).
-    if lexical {
-        augment_loop_var_handles(source, retained, &object_collections, &mut object_classes);
-    }
+    augment_loop_var_handles(source, retained, &object_collections, &mut object_classes);
 
     // snit object-handle bindings the compiler CFG doesn't surface — `install
     // NAME using TYPE` components and `set NAME [Type inst]` bare constructors —
     // via a source scan, since snit method bodies (where these live) are not
     // lowered into the CFG `object_handle_classes` reads.
-    if lexical {
-        augment_snit_handles(source, retained, classes, &mut object_classes);
-    }
+    augment_snit_handles(source, retained, classes, &mut object_classes);
 
     (object_classes, object_collections)
 }
@@ -5758,7 +5766,7 @@ fn classify_arg_token(tok: Token, source: &str, numbers: NumberSyntax) -> Option
             let text = source
                 .get(start..(start + len).min(source.len()))
                 .unwrap_or("");
-            if is_number_literal(text, numbers) {
+            if tcl_syntax::number::is_whole_number(text, numbers) {
                 Some(TokenKind::Number)
             } else if tcl_syntax::naming::is_qualified(text.as_bytes()) && tok.content_offset == 0 {
                 // Only a *bare* word can be a namespace reference.  A quoted or
@@ -5776,21 +5784,6 @@ fn classify_arg_token(tok: Token, source: &str, numbers: NumberSyntax) -> Option
         }
         _ => None,
     }
-}
-
-/// `true` when the whole of `text` is a Tcl number literal under `numbers` —
-/// the release's numeric-literal grammar, which decides which radix prefixes
-/// exist (`0x` always, `0o`/`0b` from 8.5, `0d` from 9.0), whether a bare
-/// leading zero is octal (up to 8.6) or decimal (9.0+), and whether `_` digit
-/// separators are allowed (9.0+).
-///
-/// This is the same question C's `ParseLexeme` asks before classifying a word
-/// as a `NUMBER`, so it routes through the one shared numeral facility rather
-/// than a private recogniser: a hand-rolled copy here painted `0o17` as a
-/// bareword, accepted `0x_` and `--5`, and applied 9.0's `_` separators to
-/// every release.
-fn is_number_literal(text: &str, numbers: NumberSyntax) -> bool {
-    tcl_syntax::number::is_whole_number(text, numbers)
 }
 
 /// Emit genuine original comment tokens without overlapping another colour.
@@ -8006,7 +7999,8 @@ mod tests {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = release_reg("tcl9.0");
-        let src = "snit::type C {\n\
+        let src = "package require snit\n\
+                   snit::type C {\n\
                    \x20   method helper {} {}\n\
                    \x20   method run {} { $self helper }\n\
                    }\n";
@@ -8021,7 +8015,7 @@ mod tests {
         ));
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Method as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 3 && k == TokenKind::Method as u32 && m == 0),
             "expected `$self helper` in a snit method to resolve; got {toks:?}"
         );
     }
@@ -8034,7 +8028,8 @@ mod tests {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = release_reg("tcl9.0");
-        let src = "snit::widget verticalAxis { method draw {} {} }\n\
+        let src = "package require snit\n\
+                   snit::widget verticalAxis { method draw {} {} }\n\
                    snit::widget chart {\n\
                    \x20   component axis\n\
                    \x20   constructor {args} {\n\
@@ -8051,10 +8046,10 @@ mod tests {
             Some(&cu),
             Some(&analysis),
         ));
-        // `$axis draw` on line 5 resolves the component's method.
+        // `$axis draw` on line 6 resolves the component's method.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Method as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 6 && k == TokenKind::Method as u32 && m == 0),
             "expected `$axis draw` on an installed component to resolve; got {toks:?}"
         );
     }
@@ -8124,9 +8119,10 @@ mod tests {
                 Some(&analysis),
             ))
             .iter()
-            .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Method as u32 && m == 0)
+            .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Method as u32 && m == 0)
         };
-        let src = "snit::widget frameish { method draw {} {} }\n\
+        let src = "package require snit\n\
+                   snit::widget frameish { method draw {} {} }\n\
                    snit::widgetadaptor chart {\n\
                    \x20   constructor {args} {\n\
                    \x20     installhull using frameish\n\
@@ -8138,7 +8134,8 @@ mod tests {
             "`installhull using frameish` must type the implicit `hull` component"
         );
         // The already-created form has no static type word — abstain.
-        let src = "snit::widget frameish { method draw {} {} }\n\
+        let src = "package require snit\n\
+                   snit::widget frameish { method draw {} {} }\n\
                    snit::widgetadaptor chart {\n\
                    \x20   constructor {args} {\n\
                    \x20     installhull $win\n\
@@ -8160,7 +8157,8 @@ mod tests {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
         let registry = release_reg("tcl9.0");
-        let src = "snit::type Engine { method run {} {} }\n\
+        let src = "package require snit\n\
+                   snit::type Engine { method run {} {} }\n\
                    snit::type Wrapper {\n\
                    \x20   variable eng\n\
                    \x20   constructor {} { set eng [Engine ${selfns}::e] }\n\
@@ -8175,10 +8173,10 @@ mod tests {
             Some(&cu),
             Some(&analysis),
         ));
-        // `$eng run` on line 4 resolves the method.
+        // `$eng run` on line 5 resolves the method.
         assert!(
             toks.iter()
-                .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Method as u32 && m == 0),
+                .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Method as u32 && m == 0),
             "expected `$eng run` on a bare-constructor handle to resolve; got {toks:?}"
         );
     }
@@ -10007,74 +10005,6 @@ mod tests {
             kinds.contains(&(TokenKind::Variable as u32)),
             "expected Variable in kinds; got {kinds:?}",
         );
-    }
-
-    #[test]
-    fn is_number_literal_recognises_integers_and_floats() {
-        let n = NumberSyntax::Tcl90;
-        assert!(is_number_literal("42", n));
-        assert!(is_number_literal("-7", n));
-        assert!(is_number_literal("3.14", n));
-        assert!(is_number_literal("0xff", n));
-        assert!(is_number_literal("0b1010", n));
-        assert!(!is_number_literal("abc", n));
-        assert!(!is_number_literal("", n));
-        assert!(!is_number_literal("1.2.3", n));
-    }
-
-    /// The radix prefixes appear in the release that added them, so the
-    /// `Number` classification follows the document's dialect rather than
-    /// hardcoding 9.0: `0o`/`0b` from 8.5, `0d` from 9.0.  The old private
-    /// recogniser knew neither `0o` nor `0d` at all.
-    #[test]
-    fn is_number_literal_gates_radix_prefixes_on_the_release() {
-        for syntax in [NumberSyntax::Tcl85, NumberSyntax::Tcl90] {
-            assert!(is_number_literal("0o17", syntax), "{syntax:?}");
-        }
-        assert!(!is_number_literal("0o17", NumberSyntax::Tcl84));
-        assert!(is_number_literal("0d99", NumberSyntax::Tcl90));
-        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
-            assert!(!is_number_literal("0d99", syntax), "{syntax:?}");
-        }
-        // `_` digit separators are 9.0+ (the old recogniser applied them to
-        // every release inside a radix prefix, and to none outside one).
-        assert!(is_number_literal("1_000", NumberSyntax::Tcl90));
-        assert!(is_number_literal("0xff_ff", NumberSyntax::Tcl90));
-        for syntax in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
-            assert!(!is_number_literal("1_000", syntax), "{syntax:?}");
-            assert!(!is_number_literal("0xff_ff", syntax), "{syntax:?}");
-        }
-    }
-
-    /// Shapes the old private recogniser mis-accepted: a body of nothing but
-    /// separators, a doubled sign (it stripped signs with
-    /// `trim_start_matches`), and radix-invalid digits.
-    #[test]
-    fn is_number_literal_rejects_malformed_numerals() {
-        for syntax in [
-            NumberSyntax::Tcl84,
-            NumberSyntax::Tcl85,
-            NumberSyntax::Tcl90,
-        ] {
-            for bad in ["0x_", "0x", "--5", "+-5", "0b2", "0o8", "0xZZZ"] {
-                assert!(!is_number_literal(bad, syntax), "{bad} under {syntax:?}");
-            }
-        }
-    }
-
-    /// A bare leading zero is octal up to 8.6 and decimal from 9.0, so `08` is
-    /// a bad octal numeral (a bareword) before 9.0 and plain decimal after.
-    #[test]
-    fn is_number_literal_follows_the_leading_zero_rule() {
-        for syntax in [
-            NumberSyntax::Tcl84,
-            NumberSyntax::Tcl85,
-            NumberSyntax::Tcl90,
-        ] {
-            assert!(is_number_literal("0755", syntax), "{syntax:?}");
-        }
-        assert!(!is_number_literal("08", NumberSyntax::Tcl85));
-        assert!(is_number_literal("08", NumberSyntax::Tcl90));
     }
 
     /// End-to-end: an `0o17` argument paints as a `Number` under an 8.6

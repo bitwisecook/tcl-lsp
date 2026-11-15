@@ -492,9 +492,6 @@ pub(super) fn receiver_grammar_for_body(
     original: Option<&crate::original_invocation::OriginalRegistryWords>,
     body: tcl_lexer::Token,
 ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
-    if !ctx.lexical {
-        return None;
-    }
     let current =
         crate::original_context::CurrentSourceContext::capture(ctx.full_source, ctx.analysis?)?;
     if current.config() != ctx.config || current.context().context() != ctx.context {
@@ -1602,7 +1599,7 @@ fn collect_source_parameter_fields(
         if let Some(field) = fields.get(1)
             && let Some(span) = field.source_span()
         {
-            let kind = if super::is_number_literal(field.value(), ctx.numbers) {
+            let kind = if tcl_syntax::number::is_whole_number(field.value(), ctx.numbers) {
                 TokenKind::Number
             } else {
                 TokenKind::String
@@ -1712,7 +1709,7 @@ pub(super) fn collect_parameter_fields(
                 let Some(text) = ctx.full_source.get(span.as_range()) else {
                     continue;
                 };
-                let kind = if super::is_number_literal(text, ctx.numbers) {
+                let kind = if tcl_syntax::number::is_whole_number(text, ctx.numbers) {
                     TokenKind::Number
                 } else {
                     TokenKind::String
@@ -2444,12 +2441,9 @@ mod original_source_schema_tests {
         let mut spec = registry.get("itcl::class").unwrap().clone();
         spec.name = "selected_class";
         spec.required_package = None;
-        assert!(
-            !spec
-                .arg_roles
-                .iter()
-                .any(|(_, role)| *role == tcl_registry::ArgRole::Name)
-        );
+        // No name role: the class name must come from the definer's own
+        // installation operand.
+        spec.arg_roles = &[(1, tcl_registry::ArgRole::Body)];
         registry.insert(spec);
         let context = std::sync::Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl9.1")
