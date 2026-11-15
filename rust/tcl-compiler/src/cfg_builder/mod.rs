@@ -45,7 +45,7 @@ use crate::var_refs::{VarReferenceScanner, VarScanOptions};
 
 use self::global_write_info::GlobalWriteInfo;
 pub use self::summary_candidates::OriginalProcedureSummaryOwners;
-use self::upvar_info::{FrameReach, UpvarInfo};
+use self::upvar_info::{FrameTarget, UpvarInfo};
 
 /// Registry traits by which a command declares that it runs code, or raises a
 /// barrier, where it is invoked. A head that reaches such a command through a
@@ -3750,7 +3750,7 @@ fn opaque_frame_summary() -> UpvarInfo {
         has_unresolvable_caller_target: true,
         caller_frame_opaque_writes: true,
         caller_frame_opaque_reads: true,
-        frame_reach: FrameReach::PastTheCaller,
+        beyond_caller: std::collections::BTreeSet::from([FrameTarget::Unknown]),
         ..UpvarInfo::default()
     }
 }
@@ -3809,22 +3809,70 @@ pub(crate) fn detect_upvar_bodies_with_registry(
             (*id, info)
         })
         .collect();
-    let prior = summaries.clone();
+    close_beyond_caller_reach(module, registry, &mut summaries);
+    summaries
+}
+
+/// Carry each effect that lands past a callee's direct caller out along the
+/// ordinary calls that reach it, one level per hop, to a fixpoint.
+///
+/// A callee's `Caller(2)` effect lands in the frame of whoever called its
+/// caller, so it becomes the caller's own caller-frame barrier; a
+/// `Caller(n)` further out becomes the caller's `Caller(n - 1)`. Exact
+/// distances only shrink, and [`FrameTarget::Unknown`] — like a call the
+/// edges cannot name — makes the whole caller opaque, so the closure ends.
+fn close_beyond_caller_reach(
+    module: &Module,
+    registry: &CommandRegistry,
+    summaries: &mut HashMap<crate::ir::ProcedureId, UpvarInfo>,
+) {
     let owners = OriginalProcedureSummaryOwners::for_module(module, registry);
-    for (id, procedure) in module.original_source_procedure_bodies() {
-        let (calls, opaque) =
-            global_write_info::direct_call_targets(&procedure.body, &owners, registry);
-        if opaque
-            || calls.iter().any(|callee| {
-                prior.get(callee).is_none_or(|summary| {
-                    summary.frame_reach == upvar_info::FrameReach::PastTheCaller
-                })
-            })
-        {
-            summaries.insert(*id, opaque_frame_summary());
+    let edges: Vec<_> = module
+        .original_source_procedure_bodies()
+        .map(|(id, procedure)| {
+            let (calls, opaque) =
+                global_write_info::direct_call_targets(&procedure.body, &owners, registry);
+            (*id, calls, opaque)
+        })
+        .collect();
+    loop {
+        let prior = summaries.clone();
+        for (id, calls, opaque) in &edges {
+            let mut opaque = *opaque;
+            let mut caller_frame = false;
+            let mut further = std::collections::BTreeSet::new();
+            for callee in calls {
+                let Some(summary) = prior.get(callee) else {
+                    opaque = true;
+                    break;
+                };
+                for target in &summary.beyond_caller {
+                    match target.one_call_nearer() {
+                        None => caller_frame = true,
+                        Some(FrameTarget::Unknown) => opaque = true,
+                        Some(nearer) => {
+                            further.insert(nearer);
+                        }
+                    }
+                }
+            }
+            if opaque {
+                summaries.insert(*id, opaque_frame_summary());
+                continue;
+            }
+            let Some(summary) = summaries.get_mut(id) else {
+                continue;
+            };
+            if caller_frame {
+                summary.caller_frame_opaque_writes = true;
+                summary.caller_frame_opaque_reads = true;
+            }
+            summary.beyond_caller.extend(further);
+        }
+        if *summaries == prior {
+            return;
         }
     }
-    summaries
 }
 
 /// The procedures the module's own code can enter: those reachable over the

@@ -303,15 +303,20 @@ because the salsa interning layer imports it by that path):
 | `uplevel_param_writes` | `uplevel 1 [list set $param …]` | at the call site, like `param_targets` |
 | `uplevel_forwarded_calls` | `uplevel 1 [list callee …]` | one hop, in `detect_upvar_procs` |
 | `has_unresolvable_caller_target` | `upvar 1 $computed x` | not resolvable — widen |
-| `caller_frame_opaque_writes` / `caller_frame_opaque_reads` | `uplevel 1 $body`, `upvar 2 …`, `upvar $lvl …` | not resolvable — widen |
+| `caller_frame_opaque_writes` / `caller_frame_opaque_reads` | `uplevel 1 $body`, `upvar $lvl …` | not resolvable — widen |
 | `unnameable_local_aliases` | `upvar 1 x $dst` — the alias has no local name to file it under | structural only: it is what `reaches_caller_frame` counts |
-| `frame_reach` / `plain_calls` | how far past this frame the effects land, and the ordinary callees to compose one hop through | bookkeeping for `detect_upvar_procs` |
+| `beyond_caller` | `upvar 2 …` → `Caller(2)`; `uplevel #3 …`, `upvar $lvl …` → `Unknown` | carried out along ordinary calls by `detect_upvar_procs` |
+| `plain_calls` | the ordinary callees the closure composes through | bookkeeping for `detect_upvar_procs` |
 
 **Complexity.**  One walk per procedure to build the summary; one hash
 lookup plus work proportional to the *bound arguments* at each call site.
 The forwarded-call hop composes against the **own-body** summaries, never
 the composed ones, so a recursive or mutually-recursive forward cannot
-diverge — a single level by construction, no fixpoint and no iteration cap.
+diverge. Effects past the caller close to a fixpoint over ordinary calls:
+a callee's `Caller(n)` becomes its caller's `Caller(n - 1)`, and `Caller(2)`
+becomes the caller's own caller-frame barrier. Exact distances only shrink
+and stop at `MAX_FRAME_DISTANCE` (past it a target is `Unknown`, which makes
+the caller opaque), so the closure ends.
 
 **Frame targeting is the whole game.**  Only a `Relative(1)` level (or an
 omitted one) reaches the direct caller.  Which argument is the level word,
@@ -324,7 +329,8 @@ and how to read it, is registry data —
 | `upvar 1 x y` / `upvar x y` | the caller | a named binding |
 | `upvar #0 g l` | the global frame | nothing — `global_write_info` owns it |
 | `upvar 0 x y` | the callee's own frame | nothing |
-| `upvar 2 far f`, `upvar $lvl a b` | somewhere further out | widen |
+| `upvar 2 far f` | exactly two frames out, nothing between | `Caller(2)` |
+| `upvar #3 far f`, `upvar $lvl a b` | a frame nothing static places | `Unknown`: widen the caller too |
 | `uplevel 1 $body` | the caller | opaque write **and** read |
 | `uplevel 0 $body` / `eval $body` | the callee's own frame | the callee's own barrier |
 

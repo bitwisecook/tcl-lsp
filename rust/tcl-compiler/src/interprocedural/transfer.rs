@@ -55,7 +55,7 @@ pub(crate) use source_context::{OriginalSummaryExpression, OriginalSummaryScript
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::cfg_builder::global_write_info::GlobalWriteInfo;
-use crate::cfg_builder::upvar_info::{FrameReach, UpvarInfo};
+use crate::cfg_builder::upvar_info::UpvarInfo;
 use crate::command_binding::{ModuleCommandMutations, ProcBindingTrustProjection};
 use crate::ir::{Statement, SyntheticMarker};
 use crate::sccp::{
@@ -2087,7 +2087,7 @@ fn frame_is_closed(frame: &UpvarInfo, params: &[String]) -> bool {
         && !frame.has_unresolvable_caller_target
         && !frame.caller_frame_opaque_writes
         && !frame.caller_frame_opaque_reads
-        && frame.frame_reach == FrameReach::NoFurtherThanTheCaller
+        && !frame.reaches_past_the_caller()
         && frame.literal_targets.is_empty()
         && frame.args_tail_upvar.is_empty()
         && frame.uplevel_literal_writes.is_empty()

@@ -181,19 +181,17 @@ pub struct UpvarInfo {
     /// covers, so `detect_upvar_procs` registers the proc and its call
     /// sites widen.
     pub unnameable_local_aliases: BTreeSet<String>,
-    /// How far out of this proc's own frame its frame effects reach — see
-    /// [`FrameReach`].
-    ///
-    /// Not part of [`Self::is_empty`]'s summary contract on its own: every
-    /// site that sets it past the caller also sets
-    /// [`Self::caller_frame_opaque_writes`], which `is_empty` already covers.
-    pub frame_reach: FrameReach,
+    /// The frames past the direct caller this proc may read or write
+    /// ([`FrameTarget`]). Each one is opaque at its frame: any name there
+    /// may be read, created or overwritten. An [`FrameTarget::Unknown`]
+    /// target also widens the direct caller, which it may be.
+    pub beyond_caller: BTreeSet<FrameTarget>,
     /// Binding-resolved terminal user procedures this proc invokes as
     /// **ordinary** calls (not through `uplevel`), deduplicated.
     ///
     /// Only [`super::detect_upvar_procs`]'s one-hop composition reads it, to
-    /// find the callees whose [`FrameReach::PastTheCaller`] effects land in
-    /// this proc's caller. Like [`Self::unnameable_local_aliases`] it is
+    /// find the callees whose [`Self::beyond_caller`] effects land in this
+    /// proc's caller or further out. Like [`Self::unnameable_local_aliases`] it is
     /// structural bookkeeping, not a caller-side effect, so it stays out of
     /// [`Self::is_empty`].
     pub plain_calls: BTreeSet<String>,
@@ -230,18 +228,16 @@ fn push_caller_side_def(effects: &mut CallerSideEffects, name: &str) {
     }
 }
 
-/// How far out of a procedure's own frame its `upvar` / `uplevel` effects
-/// reach, as far as the summary can tell.
+/// A frame past a procedure's direct caller that its `upvar` / `uplevel`
+/// effects reach.
 ///
 /// A **level-1** effect (`upvar 1`, `uplevel 1`) writes the direct caller's
 /// frame and stops there: it is emphatically not transitive through an
 /// ordinary call, because the callee's caller *is* the wrapper
 /// (`detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper`
-/// pins the tclsh transcript). A level that lands **past** the direct caller
-/// travels one hop further along an ordinary call, and
-/// [`super::detect_upvar_procs`] composes that hop; without it a three-frame
-/// chain reads as a plain call chain and the outermost frame draws a false
-/// `W210` on a variable that really is assigned.
+/// pins the tclsh transcript). An effect `n` levels out lands `n - 1` levels
+/// out of the direct caller, and [`super::detect_upvar_procs`] carries it one
+/// ordinary call further per hop until it reaches its frame.
 ///
 /// On tclsh 9.0.4 and 8.6.16, identically: with
 /// `proc setUp2 {var} {uplevel 2 [list set $var 99]}`,
@@ -249,16 +245,41 @@ fn push_caller_side_def(effects: &mut CallerSideEffects, name: &str) {
 /// `proc outer {} {middle; return $answer}`, `outer` returns `99` — `answer`
 /// is genuinely set in `outer`'s frame by a proc `outer` never calls
 /// directly.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub enum FrameReach {
-    /// Nothing lands further out than the direct caller, so the summary's
-    /// other fields describe the whole effect.
-    #[default]
-    NoFurtherThanTheCaller,
-    /// At least one effect lands past the direct caller — an `upvar 2` /
-    /// `uplevel 2` / `uplevel #3`, or a level word nothing static can place
-    /// (`uplevel [expr {[info level] - $n}] …`).
-    PastTheCaller,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FrameTarget {
+    /// Exactly this many levels out of the procedure's own frame; always
+    /// past the direct caller, so at least 2.
+    Caller(std::num::NonZeroU32),
+    /// A frame no static distance places: `uplevel #3`, a level word nothing
+    /// static can read, or a distance past [`MAX_FRAME_DISTANCE`].
+    Unknown,
+}
+
+/// The furthest exact distance a summary keeps; anything further is
+/// [`FrameTarget::Unknown`], so call-edge closure always terminates.
+pub const MAX_FRAME_DISTANCE: u32 = 32;
+
+impl FrameTarget {
+    /// The target `distance` levels out of a procedure's own frame, when it
+    /// lies past the direct caller.
+    #[must_use]
+    pub fn past_the_caller(distance: u32) -> Option<Self> {
+        match distance {
+            0 | 1 => None,
+            d if d > MAX_FRAME_DISTANCE => Some(Self::Unknown),
+            d => std::num::NonZeroU32::new(d).map(Self::Caller),
+        }
+    }
+
+    /// The same frame seen from the direct caller: one level nearer.
+    /// `None` when it is then the direct caller's own caller-frame effect.
+    #[must_use]
+    pub fn one_call_nearer(self) -> Option<Self> {
+        match self {
+            Self::Caller(distance) => Self::past_the_caller(distance.get() - 1),
+            Self::Unknown => Some(Self::Unknown),
+        }
+    }
 }
 
 impl UpvarInfo {
@@ -279,6 +300,13 @@ impl UpvarInfo {
             && !self.has_unresolvable_caller_target
             && !self.caller_frame_opaque_writes
             && !self.caller_frame_opaque_reads
+            && self.beyond_caller.is_empty()
+    }
+
+    /// Whether any effect lands past the direct caller.
+    #[must_use]
+    pub fn reaches_past_the_caller(&self) -> bool {
+        !self.beyond_caller.is_empty()
     }
 
     /// The caller-frame barrier a call to this proc imposes on the calling
@@ -1023,7 +1051,14 @@ fn walk_stmt(
             // `uplevel #0` selects the global frame, which is owned by the
             // global-write summary rather than this caller-frame projection.
             (true, 0) => {}
-            _ => widen_beyond_caller(info),
+            (absolute, shift) => widen_level_beyond_caller(
+                info,
+                match u32::try_from(shift) {
+                    Ok(shift) if absolute => FrameLevel::Absolute(shift),
+                    Ok(shift) => FrameLevel::Relative(shift),
+                    Err(_) => FrameLevel::Dynamic,
+                },
+            ),
         },
         Statement::If {
             clauses, else_body, ..
@@ -1105,7 +1140,30 @@ enum FrameContext {
     Own,
     DirectCaller,
     Global,
-    PastTheCaller,
+    Beyond(FrameTarget),
+}
+
+impl FrameContext {
+    /// The frame `levels` relative levels out of this one. Out of the global
+    /// frame there is no frame to select, so nothing static places it.
+    fn relative(self, levels: u32) -> Self {
+        let distance = match self {
+            Self::Own => 0,
+            Self::DirectCaller => 1,
+            Self::Global if levels == 0 => return Self::Global,
+            Self::Global | Self::Beyond(FrameTarget::Unknown) => {
+                return Self::Beyond(FrameTarget::Unknown);
+            }
+            Self::Beyond(FrameTarget::Caller(distance)) => distance.get(),
+        };
+        match distance.saturating_add(levels) {
+            0 => Self::Own,
+            1 => Self::DirectCaller,
+            further => {
+                Self::Beyond(FrameTarget::past_the_caller(further).unwrap_or(FrameTarget::Unknown))
+            }
+        }
+    }
 }
 
 fn selected_frame_context(
@@ -1113,17 +1171,14 @@ fn selected_frame_context(
     selection: ResolvedFrameBodySelection,
 ) -> FrameContext {
     match selection {
-        ResolvedFrameBodySelection::Current
-        | ResolvedFrameBodySelection::Selected(FrameLevel::Relative(0)) => current,
-        ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(0)) => FrameContext::Global,
-        ResolvedFrameBodySelection::Selected(FrameLevel::Relative(1))
-            if current == FrameContext::Own =>
-        {
-            FrameContext::DirectCaller
+        ResolvedFrameBodySelection::Current => current,
+        ResolvedFrameBodySelection::Selected(FrameLevel::Relative(levels)) => {
+            current.relative(levels)
         }
-        ResolvedFrameBodySelection::Selected(
-            FrameLevel::Relative(_) | FrameLevel::Absolute(_) | FrameLevel::Dynamic,
-        ) => FrameContext::PastTheCaller,
+        ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(0)) => FrameContext::Global,
+        ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(_) | FrameLevel::Dynamic) => {
+            FrameContext::Beyond(FrameTarget::Unknown)
+        }
     }
 }
 
@@ -1155,8 +1210,7 @@ fn record_logical_frame_invocation(
         Some(FrameArgumentResolution::Invalid) => return,
         Some(FrameArgumentResolution::Unknown) | None => {
             if layout != FrameArgLayout::ScriptInCurrentFrame {
-                widen_beyond_caller(info);
-                info.caller_frame_opaque_reads = true;
+                widen_beyond_caller(info, FrameTarget::Unknown);
             }
             return;
         }
@@ -1179,11 +1233,20 @@ fn record_logical_alias_pairs(
     info: &mut UpvarInfo,
 ) {
     let (level, start) = selection;
-    if level != FrameLevel::Relative(1) {
-        if !level.is_global_frame() && !level.is_current_frame() {
-            widen_beyond_caller(info);
+    match selected_frame_context(context.current, ResolvedFrameBodySelection::Selected(level)) {
+        FrameContext::Own | FrameContext::Global => return,
+        FrameContext::Beyond(target) => {
+            widen_beyond_caller(info, target);
+            return;
         }
-        return;
+        // An alias made inside a body already running in the caller's
+        // frame binds two of the caller's names; which ones its later
+        // writes reach is not projected here.
+        FrameContext::DirectCaller if context.current != FrameContext::Own => {
+            info.caller_frame_opaque_writes = true;
+            return;
+        }
+        FrameContext::DirectCaller => {}
     }
     for source in (start..invocation.count()).step_by(2) {
         let Some(destination) = source
@@ -1241,9 +1304,8 @@ fn record_logical_frame_script(
     if selected == FrameContext::Global {
         return;
     }
-    if selected == FrameContext::PastTheCaller {
-        widen_beyond_caller(info);
-        info.caller_frame_opaque_reads = true;
+    if let FrameContext::Beyond(target) = selected {
+        widen_beyond_caller(info, target);
         return;
     }
     let start = if layout == FrameArgLayout::ScriptInCurrentFrame {
@@ -1332,13 +1394,9 @@ fn record_resolved_frame_body(
                     info.caller_frame_opaque_writes = true;
                     info.caller_frame_opaque_reads = true;
                 }
-                // The selected frame is further out.  Keep the established
-                // summary convention: expose an opaque one-hop barrier and
-                // retain the structural reach for interprocedural closure.
-                FrameContext::PastTheCaller => {
-                    widen_beyond_caller(info);
-                    info.caller_frame_opaque_reads = true;
-                }
+                // The selected frame is further out: opaque there, and
+                // carried out to it by interprocedural closure.
+                FrameContext::Beyond(target) => widen_beyond_caller(info, target),
                 // Current-frame opacity is owned by dynamic_names; #0 is
                 // owned by global_write_info.
                 FrameContext::Own | FrameContext::Global => {}
@@ -1366,10 +1424,9 @@ fn record_readable_frame_body(
     }
     match selected {
         FrameContext::Global => {}
-        FrameContext::PastTheCaller => {
-            widen_beyond_caller(info);
-            info.caller_frame_opaque_reads = true;
-        }
+        // A readable body further out is still summarised as opaque at its
+        // frame: its own nested frame selections are not composed here.
+        FrameContext::Beyond(target) => widen_beyond_caller(info, target),
         FrameContext::Own | FrameContext::DirectCaller => {
             let config = bindings.input.lexer_config();
             let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
@@ -1440,18 +1497,35 @@ fn record_plain_call(command: &str, info: &mut UpvarInfo) {
     info.plain_calls.insert(command.to_owned());
 }
 
-/// Record a frame effect that lands **past** the direct caller — an
-/// `upvar 2` / `uplevel 2` / `uplevel #3`, or a level word nothing static can
-/// place.
+/// Record a frame effect that lands **past** the direct caller: an exact
+/// `upvar 2` / `uplevel 2`, or a level nothing static can place.
 ///
-/// Two facts, not one. The caller-frame widening is what today's call-site
-/// resolution consumes (a write it cannot enumerate must not be trusted as
-/// absent), and the beyond-caller flag is what lets
-/// [`super::detect_upvar_procs`] carry the effect one hop further out along
-/// an ordinary call — the frame it actually reaches.
-fn widen_beyond_caller(info: &mut UpvarInfo) {
-    info.caller_frame_opaque_writes = true;
-    info.frame_reach = FrameReach::PastTheCaller;
+/// An exact target is opaque at its own frame only; the frames between are
+/// untouched, and [`super::detect_upvar_procs`] carries it out along
+/// ordinary calls. An unknown one may be any frame, the direct caller
+/// included, so it widens that too.
+fn widen_beyond_caller(info: &mut UpvarInfo, target: FrameTarget) {
+    if target == FrameTarget::Unknown {
+        info.caller_frame_opaque_writes = true;
+        info.caller_frame_opaque_reads = true;
+    }
+    info.beyond_caller.insert(target);
+}
+
+/// [`widen_beyond_caller`] for a frame selected by `level` from the
+/// procedure's own frame: the global and own frames are not past the caller.
+fn widen_level_beyond_caller(info: &mut UpvarInfo, level: FrameLevel) {
+    match level {
+        FrameLevel::Relative(distance) => {
+            if let Some(target) = FrameTarget::past_the_caller(distance) {
+                widen_beyond_caller(info, target);
+            }
+        }
+        FrameLevel::Absolute(0) => {}
+        FrameLevel::Absolute(_) | FrameLevel::Dynamic => {
+            widen_beyond_caller(info, FrameTarget::Unknown);
+        }
+    }
 }
 
 fn record_resolved_alias_pairs(
@@ -1470,14 +1544,12 @@ fn record_resolved_alias_pairs(
         } => (level, level_word_len),
         FrameArgumentResolution::Invalid => return,
         FrameArgumentResolution::Unknown => {
-            widen_beyond_caller(info);
+            widen_beyond_caller(info, FrameTarget::Unknown);
             return;
         }
     };
     if !level.is_caller_frame() {
-        if !level.is_global_frame() && !level.is_current_frame() {
-            widen_beyond_caller(info);
-        }
+        widen_level_beyond_caller(info, level);
         return;
     }
     for source in (start..invocation.arguments.len()).step_by(2) {
@@ -1542,10 +1614,8 @@ fn record_upvar_call(
         // else's), so they contribute nothing. Everything else — `upvar 2`,
         // `upvar #3`, `upvar $lvl` — writes *some* frame further out, and
         // dropping it would leave that write invisible where it lands, so
-        // widen. See the module doc's frame table.
-        if !level.is_global_frame() && !level.is_current_frame() {
-            widen_beyond_caller(info);
-        }
+        // widen there. See the module doc's frame table.
+        widen_level_beyond_caller(info, level);
         return;
     }
     let start = args.len().saturating_sub(rest.len());
@@ -1643,11 +1713,8 @@ fn record_uplevel_call(
         // Same reasoning as `record_upvar_call`: `uplevel 0` stays in the
         // callee's own frame and `uplevel #0` runs in the global one, so
         // neither touches the caller; any other level does, somewhere this
-        // summary cannot name.
-        if !level.is_global_frame() && !level.is_current_frame() {
-            widen_beyond_caller(info);
-            info.caller_frame_opaque_reads = true;
-        }
+        // summary places by its distance.
+        widen_level_beyond_caller(info, level);
         return;
     }
     // `uplevel` concat-joins every remaining word into one script (its
@@ -1947,10 +2014,12 @@ fn compose_selected_statement_aliases(
     }
 }
 
+/// Where an alias made in the caller's frame points, relative to that frame.
 enum SelectedAliasTarget {
     SameExact(String),
     SameOpaque,
-    Past,
+    /// This many levels out of the caller's frame (at least one).
+    Past(u32),
     Unplaced,
     Other,
 }
@@ -1964,7 +2033,7 @@ fn selected_alias_target(
         return SelectedAliasTarget::Other;
     };
     let tcl_registry::CallerFrameSelection::Explicit(level) = frame else {
-        return SelectedAliasTarget::Past;
+        return SelectedAliasTarget::Past(1);
     };
     let Some(level) = level.literal() else {
         return SelectedAliasTarget::Unplaced;
@@ -1989,7 +2058,7 @@ fn selected_alias_target(
                 })
         }
         FrameLevel::Absolute(0) => SelectedAliasTarget::Other,
-        FrameLevel::Relative(_) => SelectedAliasTarget::Past,
+        FrameLevel::Relative(levels) => SelectedAliasTarget::Past(levels),
         FrameLevel::Absolute(_) | FrameLevel::Dynamic => SelectedAliasTarget::Unplaced,
     }
 }
@@ -2034,11 +2103,11 @@ fn compose_selected_alias(
             info.uplevel_literal_writes.insert(target);
         }
         SelectedAliasTarget::SameOpaque => info.caller_frame_opaque_writes = true,
-        SelectedAliasTarget::Past => widen_beyond_caller(info),
-        SelectedAliasTarget::Unplaced => {
-            info.caller_frame_opaque_writes = true;
-            widen_beyond_caller(info);
-        }
+        SelectedAliasTarget::Past(levels) => widen_beyond_caller(
+            info,
+            FrameTarget::past_the_caller(levels.saturating_add(1)).unwrap_or(FrameTarget::Unknown),
+        ),
+        SelectedAliasTarget::Unplaced => widen_beyond_caller(info, FrameTarget::Unknown),
         SelectedAliasTarget::Other => {}
     }
 }
@@ -2122,7 +2191,21 @@ fn record_nested_upframe_effects(
                 // `#0` is global; global_write_info owns it, including its
                 // nested level-zero bodies.
             }
-            Statement::UpFrame { .. } => widen_beyond_caller(info),
+            // Run from the caller's frame: `k` relative levels out of it.
+            Statement::UpFrame {
+                absolute,
+                frame_shift,
+                ..
+            } => widen_beyond_caller(
+                info,
+                match u32::try_from(*frame_shift) {
+                    Ok(shift) if !*absolute => {
+                        FrameTarget::past_the_caller(shift.saturating_add(1))
+                            .unwrap_or(FrameTarget::Unknown)
+                    }
+                    _ => FrameTarget::Unknown,
+                },
+            ),
             _ => {
                 for body in crate::ir_helpers::nested_bodies(stmt) {
                     record_nested_upframe_effects(
@@ -2630,21 +2713,75 @@ mod tests {
 
     #[test]
     fn level_beyond_the_caller_widens_rather_than_binding() {
-        // `upvar 2 far f` writes the caller's *caller*. Naming `far` as a
-        // caller-frame def would be wrong; dropping it would hide the write
-        // from the frame that does receive it. Widen — the abstain-toward-
-        // silence direction (tclsh 9.0.4 / 8.6.14: `proc gp {} {upvar 2 far
-        // f; set f FAR}` through one intermediate frame sets the
-        // grandparent's `far`).
-        for src in ["upvar 2 far f", "upvar #3 far f", "upvar $lvl a b"] {
+        // `upvar 2 far f` writes the caller's *caller* and nothing between:
+        // on tclsh 8.4.20, 8.6.18 and 9.0.4, `proc gp {} {upvar 2 far f; set
+        // f FAR}` through one intermediate frame sets the grandparent's `far`
+        // and leaves the intermediate frame's variables alone. So it is an
+        // exact target two frames out. A level nothing static places may be
+        // any frame, the direct caller included, so it widens that too.
+        let body = lower("upvar 2 far f");
+        let info = collect_upvar_targets(&body, &["lvl".to_string()]);
+        assert_eq!(
+            info.beyond_caller,
+            BTreeSet::from([FrameTarget::Caller(std::num::NonZeroU32::new(2).unwrap())]),
+            "got {info:?}"
+        );
+        assert!(!info.caller_frame_opaque_writes, "got {info:?}");
+        assert_eq!(info.literal_targets.len(), 0, "got {info:?}");
+        for src in ["upvar #3 far f", "upvar $lvl a b"] {
             let body = lower(src);
             let info = collect_upvar_targets(&body, &["lvl".to_string()]);
+            assert_eq!(
+                info.beyond_caller,
+                BTreeSet::from([FrameTarget::Unknown]),
+                "{src}: {info:?}"
+            );
             assert!(
                 info.caller_frame_opaque_writes,
                 "{src} must widen; got {info:?}"
             );
             assert_eq!(info.literal_targets.len(), 0, "{src}: got {info:?}");
         }
+    }
+
+    #[test]
+    fn an_uplevel_past_the_caller_is_an_exact_target_there() {
+        // On tclsh 8.4.20, 8.6.18 and 9.0.4, `proc deep {} {uplevel 3 {set x
+        // 2}}` called through two wrappers sets `x` in the third frame out,
+        // and only there.
+        let info = collect_upvar_targets(&lower("uplevel 3 {set x 2}"), &[]);
+        assert_eq!(
+            info.beyond_caller,
+            BTreeSet::from([FrameTarget::Caller(std::num::NonZeroU32::new(3).unwrap())]),
+            "got {info:?}"
+        );
+        assert!(!info.caller_frame_opaque_writes, "got {info:?}");
+        assert!(info.uplevel_literal_writes.is_empty(), "got {info:?}");
+        let unplaced = collect_upvar_targets(&lower("uplevel #2 {set x 2}"), &[]);
+        assert_eq!(
+            unplaced.beyond_caller,
+            BTreeSet::from([FrameTarget::Unknown]),
+            "got {unplaced:?}"
+        );
+        assert!(unplaced.caller_frame_opaque_writes, "got {unplaced:?}");
+    }
+
+    #[test]
+    fn frame_targets_move_one_level_nearer_per_call_and_saturate() {
+        use std::num::NonZeroU32;
+        let caller = |distance| FrameTarget::Caller(NonZeroU32::new(distance).unwrap());
+        assert_eq!(FrameTarget::past_the_caller(1), None);
+        assert_eq!(FrameTarget::past_the_caller(2), Some(caller(2)));
+        assert_eq!(
+            FrameTarget::past_the_caller(MAX_FRAME_DISTANCE + 1),
+            Some(FrameTarget::Unknown)
+        );
+        assert_eq!(caller(3).one_call_nearer(), Some(caller(2)));
+        assert_eq!(caller(2).one_call_nearer(), None);
+        assert_eq!(
+            FrameTarget::Unknown.one_call_nearer(),
+            Some(FrameTarget::Unknown)
+        );
     }
 
     #[test]
@@ -2790,8 +2927,16 @@ mod tests {
              interp alias {} ::inner {} uplevel 1",
             "::setter",
         );
-        assert_eq!(info.frame_reach, FrameReach::PastTheCaller, "got {info:?}");
-        assert!(info.caller_frame_opaque_writes, "got {info:?}");
+        // Exactly two frames out, and only there: on tclsh 8.4.20, 8.6.18
+        // and 9.0.4, with `proc caller {} {set x 0; setter; return $x}`
+        // called from a frame holding `x`, `caller` returns 0 and the
+        // calling frame's `x` becomes 1.
+        assert_eq!(
+            info.beyond_caller,
+            BTreeSet::from([FrameTarget::Caller(std::num::NonZeroU32::new(2).unwrap())]),
+            "got {info:?}"
+        );
+        assert!(!info.caller_frame_opaque_writes, "got {info:?}");
     }
 
     #[test]
@@ -2828,8 +2973,16 @@ mod tests {
             "proc ::setter {} { uplevel 1 { ::upvar 1 x local; ::set local 1 } }",
             "::setter",
         );
-        assert_eq!(info.frame_reach, FrameReach::PastTheCaller, "got {info:?}");
-        assert!(info.caller_frame_opaque_writes, "got {info:?}");
+        // Exactly two frames out, and only there: on tclsh 8.4.20, 8.6.18
+        // and 9.0.4, with `proc caller {} {set x 0; setter; return $x}`
+        // called from a frame holding `x`, `caller` returns 0 and the
+        // calling frame's `x` becomes 1.
+        assert_eq!(
+            info.beyond_caller,
+            BTreeSet::from([FrameTarget::Caller(std::num::NonZeroU32::new(2).unwrap())]),
+            "got {info:?}"
+        );
+        assert!(!info.caller_frame_opaque_writes, "got {info:?}");
     }
 
     #[test]
@@ -2849,8 +3002,16 @@ mod tests {
              proc ::caller {} {::setter}; ::caller",
             "::setter",
         );
-        assert_eq!(info.frame_reach, FrameReach::PastTheCaller, "got {info:?}");
-        assert!(info.caller_frame_opaque_writes, "got {info:?}");
+        // Exactly two frames out, and only there: on tclsh 8.4.20, 8.6.18
+        // and 9.0.4, with `proc caller {} {set x 0; setter; return $x}`
+        // called from a frame holding `x`, `caller` returns 0 and the
+        // calling frame's `x` becomes 1.
+        assert_eq!(
+            info.beyond_caller,
+            BTreeSet::from([FrameTarget::Caller(std::num::NonZeroU32::new(2).unwrap())]),
+            "got {info:?}"
+        );
+        assert!(!info.caller_frame_opaque_writes, "got {info:?}");
     }
 
     #[test]

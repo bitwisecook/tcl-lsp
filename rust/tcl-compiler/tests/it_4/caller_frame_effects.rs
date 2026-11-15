@@ -387,17 +387,20 @@ proc host {} { setsGlobal; puts $unrelated }
 }
 
 #[test]
-fn upvar_beyond_the_caller_widens_instead_of_naming() {
-    // `upvar 2 far f` writes the caller's caller (tclsh 9.0.4 / 8.6.14:
-    // `proc gp {} {upvar 2 far f; set f FAR}` through one intermediate frame
-    // sets the grandparent's `far`). Naming `far` as a *direct* caller def
-    // would be wrong, so the summary widens — and the direct caller goes
-    // quiet rather than reporting a read it cannot disprove.
+fn upvar_beyond_the_caller_writes_the_frame_it_names() {
+    // `upvar 2 far f` writes the caller's caller and nothing in between.
+    // On tclsh 8.4.20, 8.6.18 and 9.0.4, with the procs below and
+    // `proc top {} {catch par m; puts $m; mid; puts $far}`: `par` fails with
+    // `can't read "anything": no such variable`, and `top` prints `FAR`.
     let src = "\
 proc gp {} { upvar 2 far f; set f FAR }
 proc par {} { gp; puts $anything }
+proc mid {} { gp }
+proc top {} { mid; puts $far }
 ";
-    assert!(w210(src).is_empty(), "got {:?}", w210(src));
+    let reported = w210(src);
+    assert!(reported.contains("anything"), "got {reported:?}");
+    assert!(!reported.contains("far"), "got {reported:?}");
 }
 
 #[test]
@@ -409,4 +412,84 @@ proc reach {lvl} { upvar $lvl a b; set b 1 }
 proc host {} { reach 1; puts $a }
 ";
     assert!(!w210(src).contains("a"), "got {:?}", w210(src));
+}
+
+// Frame distance (#1796): an effect lands exactly as many frames out as its
+// level says, through ordinary calls, and nowhere in between. Pinned on
+// tclsh 8.4.20, 8.6.18 and 9.0.4, identically:
+//
+// ```text
+// proc deep {} {uplevel 3 {set x 2}}
+// proc w2 {} {deep}
+// proc w1 {} {w2}
+// proc outer {} {set x 1; w1; return $x}   ;# → 2
+// proc p {} {set _ [upvar #0 g local]; set local 1}
+// set g 0; p; set g                         ;# → 1
+// proc s {} {uplevel #0 {::upvar 0 g local; ::set local 1}}
+// set g 0; s; set g                         ;# → 1
+// ```
+
+/// The releases the transcript above was measured on.
+const FRAME_DISTANCE_RELEASES: [&str; 3] = ["tcl8.4", "tcl8.6", "tcl9.0"];
+
+/// Whether `src` draws I230 (a constant branch condition) under `dialect`.
+fn constant_branch(src: &str, dialect: &str) -> bool {
+    Analyser::new()
+        .analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .any(|d| d.code.as_str() == "I230")
+}
+
+const DEEP_CHAIN: &str = "proc deep {} {uplevel 3 {set x 2}}\n\
+     proc w2 {} {deep}\n\
+     proc w1 {} {w2}\n";
+
+/// TP: `uplevel 3` three calls down reaches `outer`'s own frame, so `x` there
+/// is no longer the constant it was set to.
+#[test]
+fn an_exact_distance_reaches_its_frame_through_ordinary_calls() {
+    let src = format!("{DEEP_CHAIN}proc outer {{}} {{set x 1; w1; if {{$x == 1}} {{puts one}}}}\n");
+    for dialect in FRAME_DISTANCE_RELEASES {
+        assert!(
+            !constant_branch(&src, dialect),
+            "{dialect}: x is 2 in outer"
+        );
+    }
+}
+
+/// TN control: without the call, `outer`'s condition is constant.
+#[test]
+fn an_exact_distance_leaves_a_frame_it_does_not_reach_constant() {
+    let unreached =
+        format!("{DEEP_CHAIN}proc outer {{}} {{set x 1; if {{$x == 1}} {{puts one}}}}\n");
+    for dialect in FRAME_DISTANCE_RELEASES {
+        assert!(
+            constant_branch(&unreached, dialect),
+            "{dialect}: no call, no write"
+        );
+    }
+}
+
+/// TP: a global alias made inside a substitution, or by a same-frame `upvar 0`
+/// in a global-frame script, writes the global `g`.
+#[test]
+fn global_aliases_write_the_global_variable() {
+    for definition in [
+        "proc p {} {set _ [upvar #0 g local]; set local 1}",
+        "proc p {} {uplevel #0 {::upvar 0 g local; ::set local 1}}",
+    ] {
+        let called = format!("{definition}\nset g 0\np\nif {{$g == 0}} {{puts zero}}\n");
+        let uncalled = format!("{definition}\nset g 0\nif {{$g == 0}} {{puts zero}}\n");
+        for dialect in FRAME_DISTANCE_RELEASES {
+            assert!(
+                !constant_branch(&called, dialect),
+                "{dialect}: {definition}"
+            );
+            assert!(
+                constant_branch(&uncalled, dialect),
+                "{dialect}: control {definition}"
+            );
+        }
+    }
 }
