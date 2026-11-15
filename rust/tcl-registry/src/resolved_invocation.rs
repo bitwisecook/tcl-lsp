@@ -7741,7 +7741,10 @@ mod tests {
                 );
             }
         }
+        // Tcl 8.6.18 and 9.0.4 raise "-matchvar option requires -regexp
+        // option" without `-regexp`; 8.4.20 has no `-matchvar` at all.
         let values = [
+            Literal("-regexp"),
             Literal("-matchvar"),
             Literal("matches"),
             Literal("--"),
@@ -8897,7 +8900,8 @@ mod tests {
                 )
                 .resolved()
                 .unwrap();
-            assert!(source_selected.words.arguments().dialect().is_none());
+            // Words written without a dialect take the registry profile's.
+            assert_eq!(source_selected.words.arguments().dialect(), Some(dialect));
             assert_eq!(
                 source_selected
                     .authored_source_case_clause_projection(dialect.word_values)
@@ -13244,10 +13248,18 @@ mod logical_source_alias_projection_tests {
 
     #[test]
     fn dictionary_source_phase_keeps_generic_unknown_and_additional_effects() {
+        // An unknown callback and a variable write: the callback alone
+        // carries no access for the additional effects to show.
         fn extra(
-            _arguments: crate::InvocationArguments<'_>,
+            arguments: crate::InvocationArguments<'_>,
         ) -> crate::world_effect::EffectFootprint {
-            crate::world_effect::EffectFootprint::conservative_unknown_invocation()
+            let mut footprint =
+                crate::world_effect::EffectFootprint::conservative_unknown_invocation();
+            footprint.extend(
+                crate::world_effect::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE
+                    .resolve(arguments),
+            );
+            footprint
         }
         // The lenient profile spans 8.4, which has no `dict`.
         let ingress = crate::model::ingress::resolve_environment("tcl8.6");
@@ -13509,25 +13521,32 @@ mod selected_effect_hint_controls {
     #[test]
     fn selected_descriptor_never_borrows_older_available_hint_rows() {
         let context = crate::model::ingress::resolve_environment("bpf").default_context_registry();
-        for name in ["classvariable", "next"] {
-            let selected = crate::model::assembly::resolve_invocation_in_context(
+        let selected_hints = |name| {
+            crate::model::assembly::resolve_invocation_in_context(
                 context.commands(),
                 Some(context.context()),
                 name,
                 &[],
             )
-            .expect("actual selected descriptor");
-            assert_eq!(selected.selected_side_effect_hints().len(), 0);
-            assert!(
-                crate::model::assembly::side_effect_hints_in_context(
-                    context.commands(),
-                    Some(context.context()),
-                    name,
-                    None,
-                )
-                .is_some()
-            );
-        }
+            .expect("actual selected descriptor")
+            .selected_side_effect_hints()
+            .len()
+        };
+        // `next` selects the bpf row, which declares no hints, while the walk
+        // still finds the TclOO row's.
+        assert_eq!(selected_hints("next"), 0);
+        assert!(
+            crate::model::assembly::side_effect_hints_in_context(
+                context.commands(),
+                Some(context.context()),
+                "next",
+                None,
+            )
+            .is_some()
+        );
+        // `classvariable` has no bpf row: its selected Tcl 9.0 row carries its
+        // own hint, borrowed from nowhere.
+        assert_eq!(selected_hints("classvariable"), 1);
         let context =
             crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let selected = crate::model::assembly::resolve_invocation_in_context(

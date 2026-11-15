@@ -377,7 +377,7 @@ Measuring: a probe test that builds the input and times `analyse` (the task brie
 
 ## iRules, registry, SpecTcl and tooling area, 15 November 2026
 
-Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 52, `tcl-spectcl` 40, `tcl-spec-studio` 14, `tcl-diagram` 19, `tcl-explorer` 16, `tcl-mcp` 10, `tcl-registry` 4, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
+Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 52, `tcl-spectcl` 40, `tcl-spec-studio` 14, `tcl-diagram` 19, `tcl-explorer` 16, `tcl-mcp` 10, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
 
 Fixed:
 
@@ -399,7 +399,7 @@ Open in the rule loader (`tcl-compiler`):
 - A nested command no command answers to (`set t [file normalize $raw]`) and a failing non-declaration statement still end or cloud the load walk. Making them inert as well exposes `taint::irule3004_open_redirect::path_normalised_suppresses_irule3004` and `taint_depth::irule3004_depth::file_normalised_target_suppresses`: both use `file normalize` at the top level of an iRule, where `file` is absent from TMM's interpreter, and pass only because the walk never reaches `HTTP::redirect`. No device-valid source produces `PATH_NORMALISED` under `f5-irules`; the fixtures need a decision from the dataflow owner before the rule widens.
 - A top-level `if {1} {set x 1}` or `catch {set x 1}` clouds the load world (the body compiles under the unknown vendor compiler). No test depends on it.
 
-Open in `tcl-registry` (4, not investigated beyond the message): `resolved_invocation` `dictionary_source_phase_keeps_generic_unknown_and_additional_effects`, `selected_descriptor_never_borrows_older_available_hint_rows` (`classvariable` or `next` under `bpf` selects a row with one side-effect hint), `original_logical_case_role_projection_keeps_selected_options_and_body_residuals`, `source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection`.
+`tcl-registry` is green. The last four were fixtures: `switch -matchvar` was written without `-regexp` (Tcl 8.6.18 and 9.0.4 raise "-matchvar option requires -regexp option"; 8.4.20 has no `-matchvar`); the dictionary-scope test's extra resolver returned a callback with no access, so no write could show; a resolution now stamps dialect-less words with the registry profile's dialect, which the case-clause test asserted absent while the case-role test relied on it; and `classvariable` has no `bpf` row, so its selected Tcl 9.0 row rightly carries its own hint (`next` keeps the original assertion).
 
 `issues/irules` now carries only the explicit F5 8.4 expression-parser provider (`857140b6`); its handler-entry layers regress 18 tests (hosted-source contracts, taint fixtures with executable code at rule top level) and wait on that session's owner decision, so it was not cherry-picked. `tcl-lsp-core --lib` after the `arg_indices_for_role` change: `semantic_tokens` 26 failing, unchanged.
 
