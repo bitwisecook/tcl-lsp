@@ -2683,7 +2683,22 @@ impl Analyser {
         source_head: Option<Token>,
     ) -> Option<tcl_registry::ProcedureWords> {
         if let Some(head) = source_head {
-            return self.original_procedure_source_words_at(head, args, arg_tokens);
+            let words = self.original_procedure_source_words_at(head, args, arg_tokens);
+            // The interpretation never enters a child interpreter's script,
+            // so a declaration there has no retained words: its layout is
+            // the written head's in the registry. A computed name stays
+            // refused, since its value may name another namespace.
+            let unreached_child_script = !self.interp_path_stack.is_empty()
+                && args
+                    .first()
+                    .is_some_and(|name| !crate::naming::is_dynamic_word(name))
+                && !self
+                    .head_identities
+                    .source_bindings_ref()
+                    .reached_site(head.span.start());
+            if words.is_some() || !unreached_child_script {
+                return words;
+            }
         }
         // Legacy direct callers retain their existing Native-shape projection.
         let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
