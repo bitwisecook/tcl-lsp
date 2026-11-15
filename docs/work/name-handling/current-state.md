@@ -296,6 +296,8 @@ What remains, in the order it should be taken:
 - **Full analysis.** `emit_cfg_ssa_diagnostics` builds a compilation unit per analysis; at N=400 a third of the diagnostics phase is `SourceCommandBindings::module_projection`, which joins every point's state into one (each join reads state the size of the document), and the unit build walks the source a second time. Lowering, SSA and SCCP are the rest. This belongs with the dataflow half.
 - The semantic-token walk over the finished analysis was not changed here.
 
+Server e2e at `c1b4cae1`, one thread (`cargo nextest run -p tcl-lsp-server -E 'test(large_file_)' --test-threads 1`): all five pass. `large_file_first_semantic_tokens_response_is_prompt` 1.4 s and `large_file_range_semantic_tokens_response_is_prompt` 1.2 s (the first-paint tier); `large_file_range_semantic_tokens_converges_via_refresh` 62 s and `large_file_semantic_tokens_refresh_delivers_enriched_result` 86 s, which wait for the analysis of the 6,000-line file; `diagnostics::large_file_publishes_fast_tier_before_deep_tier` 20 s.
+
 Measuring: a probe test that builds the input and times `analyse` (the task brief's probe, or the same body as a `tcl-compiler` integration test), `TCL_LSP_TRACE_WORKSPACE_SCAN=1` for the `ANALYSER_PHASE` lines, and `gdb -p <pid> -batch -x` with a Python loop that prints `thread apply all bt` and continues for 30 ms. Comparing a function's sampled share times wall-clock at N=200 and N=800 ranks what grows faster than the input. `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget` is within about 7 KB of its stack budget: a field added to `SourceImage` or to the bindings handle shows up there first.
 
 ## Scope and publication
