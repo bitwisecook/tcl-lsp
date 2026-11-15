@@ -483,6 +483,14 @@ impl SourceCommandBindings {
             let Some(expression) = observations.first() else {
                 continue;
             };
+            // A call site is at or after its expression's base in the same
+            // origin, so an expression elsewhere or past the script adds none.
+            if expression.source().origin != script.origin
+                || u64::from(expression.source().base())
+                    >= u64::from(script.base()) + script.text.len() as u64
+            {
+                continue;
+            }
             if !observations.iter().all(|other| other == expression)
                 || !matches!(
                     expression.source().mapping,
