@@ -89,11 +89,7 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
     #[cfg(feature = "live-entry")]
     let module = {
         let mut module = module;
-        crate::live_entry::recompile_through_live_entry(
-            source,
-            &result.unit.ir_module,
-            &mut module,
-        );
+        crate::live_entry::recompile_through_live_entry(&result.unit.ir_module, &mut module);
         module
     };
 
@@ -321,10 +317,13 @@ fn function_explorer(
         "kind": kind,
         "instrCount": instrs.len(),
         "byteCount": instrs.iter().map(|i| u32::from(i.op.size())).sum::<u32>(),
+        // A private original object (a compiled constant list, return
+        // options) has no string payload to show.
         "literals": asm.literals.entries().iter().map(|literal| {
-            literal.unicode().map_or_else(
-                |_| json!({"bytes": literal.bytes()}),
-                |text| json!(text),
+            literal.byte_payload().map_or_else(
+                || json!({"private": true}),
+                |bytes| std::str::from_utf8(bytes)
+                    .map_or_else(|_| json!({"bytes": bytes}), |text| json!(text)),
             )
         }).collect::<Vec<_>>(),
         "locals": asm.lvt.entries().iter().map(|name| {

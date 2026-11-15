@@ -16,32 +16,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Disassembly through a live interpreter's compilation entry.
+//! Procedure disassembly through a live interpreter's compilation entry.
 //!
 //! Native command compilers (`catch`, `info exists`, `expr` in a command
 //! word, `if`) are admitted only through a live interpreter entry, so static
-//! codegen alone shows them as generic invocations. This recompiles each body
-//! of a static module through a fresh interpreter, as C's
-//! `tcl::unsupported::disassemble` does: the script is compiled, never run,
-//! and each procedure is defined from its static declaration and compiled as
-//! on its first call. A body the interpreter cannot compile keeps its static
-//! disassembly.
+//! codegen alone shows them as generic invocations. This recompiles each
+//! procedure body of a static module through a fresh interpreter, as C's
+//! `tcl::unsupported::disassemble proc` does: nothing runs, and each procedure
+//! is defined from its static declaration and compiled as on its first call.
+//! The top level keeps its static disassembly, and so does a body the
+//! interpreter cannot compile.
 
 use tcl_codegen::codegen::ModuleAsm;
 use tcl_compiler::ir::Module;
 
-/// Replace the bodies of `module`, compiled statically from `ir`, with the
-/// bytecode a fresh interpreter for `ir`'s dialect compiles for them. A dialect
-/// with no native core leaves `module` unchanged.
-pub fn recompile_through_live_entry(source: &str, ir: &Module, module: &mut ModuleAsm) {
+/// Replace the procedure bodies of `module`, compiled statically from `ir`,
+/// with the bytecode a fresh interpreter for `ir`'s Tcl release compiles for
+/// them. Any other dialect leaves `module` unchanged.
+pub fn recompile_through_live_entry(ir: &Module, module: &mut ModuleAsm) {
     let Some(mut vm) = ir.dialect_profile.and_then(live_interpreter) else {
         return;
     };
-    if let Ok(handle) = vm.try_compile_function(source) {
-        let mut top = (*handle.bytecode()).clone();
-        top.name.clone_from(&module.top_level.name);
-        module.top_level = top;
-    }
     for (id, asm) in &mut module.procedures {
         let Some(procedure) = ir.procedures.get(id) else {
             continue;
@@ -66,8 +61,14 @@ pub fn recompile_through_live_entry(source: &str, ir: &Module, module: &mut Modu
 }
 
 /// A fresh interpreter for `dialect` with its compile service installed, or
-/// `None` for a dialect with no native core.
+/// `None` unless `dialect` is a plain Tcl release, the only family whose
+/// compiler tclsh's disassembly is the reference for.
 fn live_interpreter(dialect: &'static tcl_dialect::DialectProfile) -> Option<tcl_vm::Vm> {
+    if tcl_registry::InvocationDialect::of_profile(dialect).family()
+        != Some(tcl_dialect::model::Family::Tcl)
+    {
+        return None;
+    }
     let profile = tcl_registry::model::resolve_environment(dialect.name).unit_profile();
     let mut vm = tcl_vm::Vm::with_native_core(
         Box::new(std::io::sink()),
