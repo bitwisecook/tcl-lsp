@@ -27,7 +27,7 @@ use tcl_syntax::{naming::NamePolicyProtocol, word_rules::WordValueRules};
 /// A variable component of one authentic original word. Its root units and
 /// separate-index flag are lexical facts; compiler versus runtime selection,
 /// cell currency, observer closure and normal completion remain independent.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Eq)]
 pub struct SignatureSourceVariableRoot {
     owner: OriginalVariableRootOwner,
     part: SpannedExecutablePart,
@@ -36,6 +36,50 @@ pub struct SignatureSourceVariableRoot {
     rules: WordValueRules,
     policy: NamePolicyProtocol,
     formation: VariableRootFormation,
+}
+
+// Every field in declaration order, as the derived implementation hashes.
+impl std::hash::Hash for SignatureSourceVariableRoot {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let Self {
+            owner,
+            part,
+            source_span,
+            bytes,
+            rules,
+            policy,
+            formation,
+        } = self;
+        owner.hash(state);
+        part.hash(state);
+        source_span.hash(state);
+        bytes.hash(state);
+        rules.hash(state);
+        policy.hash(state);
+        formation.hash(state);
+    }
+}
+
+impl PartialEq for SignatureSourceVariableRoot {
+    // Every field, cheapest first: roots at different spans differ at once.
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            owner,
+            part,
+            source_span,
+            bytes,
+            rules,
+            policy,
+            formation,
+        } = self;
+        *source_span == other.source_span
+            && *formation == other.formation
+            && *policy == other.policy
+            && *rules == other.rules
+            && *bytes == other.bytes
+            && *part == other.part
+            && *owner == other.owner
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
