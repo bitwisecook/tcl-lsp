@@ -42,6 +42,19 @@ pub(super) enum OriginalNamespaceKeyPresence {
     Available(Option<SourceNamespaceKey>),
 }
 
+/// The command token a one-binding row names: its target's own token or its
+/// imported origin.
+fn sole_token(bindings: &BTreeSet<super::MayBinding>) -> Option<&super::CommandIdentity> {
+    if bindings.len() != 1 {
+        return None;
+    }
+    match bindings.first()? {
+        super::MayBinding::Target(current) => current.token.as_ref(),
+        super::MayBinding::Imported(imported) => Some(&imported.origin),
+        super::MayBinding::Missing | super::MayBinding::Unknown => None,
+    }
+}
+
 impl ModuleCommandBindings {
     /// Select an original declared namespace operand from the actual root.
     /// This never interprets a displayed namespace label as written input.
@@ -134,22 +147,28 @@ impl ModuleCommandBindings {
                     && current.prepended == target.prepended
             )
         };
-        if self.bindings.values().any(|bindings| {
-            bindings.len() == 1
-                && bindings.iter().any(|binding| {
-                    matches(binding)
-                        || match binding {
-                            super::MayBinding::Imported(imported)
-                                if &imported.origin == identity =>
-                            {
-                                self.objects.get(identity).is_some_and(|objects| {
-                                    objects.len() == 1 && objects.iter().any(matches)
-                                })
+        // A row passes only through its one binding's own token or imported
+        // origin being `identity`, so only the rows naming it are read.
+        if self
+            .bindings
+            .rows_naming(identity, sole_token)
+            .any(|bindings| {
+                bindings.len() == 1
+                    && bindings.iter().any(|binding| {
+                        matches(binding)
+                            || match binding {
+                                super::MayBinding::Imported(imported)
+                                    if &imported.origin == identity =>
+                                {
+                                    self.objects.get(identity).is_some_and(|objects| {
+                                        objects.len() == 1 && objects.iter().any(matches)
+                                    })
+                                }
+                                _ => false,
                             }
-                            _ => false,
-                        }
-                })
-        }) {
+                    })
+            })
+        {
             return true;
         }
         // An unmodified authored row may remain implicit in its registry base.

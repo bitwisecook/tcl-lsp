@@ -272,11 +272,48 @@ impl CommandKeyQuery for String {
 ///
 /// Values are shared: a state fork that writes one name copies the table's
 /// keys and value handles, not every name's alternatives.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SourceCommandTable<V>(rustc_hash::FxHashMap<SourceCommandKey, std::sync::Arc<V>>);
+#[derive(Debug, Clone)]
+pub(super) struct SourceCommandTable<V>(
+    rustc_hash::FxHashMap<SourceCommandKey, std::sync::Arc<V>>,
+    std::sync::Arc<DerivedRows<V>>,
+);
+
+/// Facts derived from a table's rows on first use. A clone shares them,
+/// because its rows are the same; every write starts empty ones first, so
+/// they never keep a row shared.
+#[derive(Debug)]
+struct DerivedRows<V> {
+    /// The rows that name each command token, by the token's hash.
+    token_rows: std::sync::OnceLock<rustc_hash::FxHashMap<u64, Vec<std::sync::Arc<V>>>>,
+    /// The keys in the authored domain.
+    authored: std::sync::OnceLock<Vec<SourceCommandKey>>,
+}
+
+impl<V> Default for DerivedRows<V> {
+    fn default() -> Self {
+        Self {
+            token_rows: std::sync::OnceLock::new(),
+            authored: std::sync::OnceLock::new(),
+        }
+    }
+}
+
+fn token_hash(token: &super::CommandIdentity) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = rustc_hash::FxHasher::default();
+    token.hash(&mut hasher);
+    hasher.finish()
+}
+
+impl<V: PartialEq> PartialEq for SourceCommandTable<V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl<V: Eq> Eq for SourceCommandTable<V> {}
 impl<V> Default for SourceCommandTable<V> {
     fn default() -> Self {
-        Self(rustc_hash::FxHashMap::default())
+        Self(rustc_hash::FxHashMap::default(), std::sync::Arc::default())
     }
 }
 impl<V> SourceCommandTable<V> {
@@ -287,6 +324,7 @@ impl<V> SourceCommandTable<V> {
         self.get(key).is_some()
     }
     pub(super) fn insert(&mut self, key: impl Into<SourceCommandKey>, value: V) {
+        self.1 = std::sync::Arc::default();
         self.0.insert(key.into(), std::sync::Arc::new(value));
     }
     pub(super) fn iter(&self) -> impl Iterator<Item = (&SourceCommandKey, &V)> {
@@ -295,8 +333,45 @@ impl<V> SourceCommandTable<V> {
     pub(super) fn values(&self) -> impl Iterator<Item = &V> {
         self.0.values().map(AsRef::as_ref)
     }
+    /// At least every row `token_of` files under `token`; a row of another
+    /// token appears only when the two tokens hash alike. `token_of` must be
+    /// the one function this table is ever asked with: the first call decides
+    /// which rows each token lists.
+    pub(super) fn rows_naming<'a>(
+        &'a self,
+        token: &super::CommandIdentity,
+        token_of: impl Fn(&V) -> Option<&super::CommandIdentity>,
+    ) -> impl Iterator<Item = &'a V> {
+        self.1
+            .token_rows
+            .get_or_init(|| {
+                let mut rows = rustc_hash::FxHashMap::<u64, Vec<std::sync::Arc<V>>>::default();
+                for value in self.0.values() {
+                    if let Some(token) = token_of(value) {
+                        rows.entry(token_hash(token))
+                            .or_default()
+                            .push(std::sync::Arc::clone(value));
+                    }
+                }
+                rows
+            })
+            .get(&token_hash(token))
+            .into_iter()
+            .flatten()
+            .map(AsRef::as_ref)
+    }
     pub(super) fn keys(&self) -> impl Iterator<Item = &SourceCommandKey> {
         self.0.keys()
+    }
+    /// Every key with an authored spelling, in no particular order.
+    pub(super) fn authored_keys(&self) -> &[SourceCommandKey] {
+        self.1.authored.get_or_init(|| {
+            self.0
+                .keys()
+                .filter(|key| key.authored_spelling().is_some())
+                .cloned()
+                .collect()
+        })
     }
     pub(super) fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -322,6 +397,7 @@ impl<V> SourceCommandTable<V> {
         &mut self,
         entries: impl IntoIterator<Item = (K, V)>,
     ) {
+        self.1 = std::sync::Arc::default();
         self.0.extend(
             entries
                 .into_iter()
@@ -332,6 +408,7 @@ impl<V> SourceCommandTable<V> {
 impl<V: Clone + Default> SourceCommandTable<V> {
     /// The value at `key` for writing, inserted empty when absent.
     pub(super) fn entry_or_default(&mut self, key: impl Into<SourceCommandKey>) -> &mut V {
+        self.1 = std::sync::Arc::default();
         std::sync::Arc::make_mut(self.0.entry(key.into()).or_default())
     }
 }

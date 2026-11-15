@@ -2726,7 +2726,8 @@ impl ModuleCommandBindings {
                 let metadata_slot = |name: &str| registry_metadata_slot_is(policy, name, slot);
                 if self
                     .bindings
-                    .keys()
+                    .authored_keys()
+                    .iter()
                     .any(|key| key.authored_spelling().is_some_and(metadata_slot))
                 {
                     return None;
