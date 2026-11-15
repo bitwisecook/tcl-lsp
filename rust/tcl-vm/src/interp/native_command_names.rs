@@ -270,7 +270,11 @@ impl Vm {
             implementation_generation: identity.generation,
             command_epoch: world.command_name_epochs.get(&token).copied().unwrap_or(0),
             namespace_token: u64::from(namespace.0),
-            namespace_dying: world.dying_namespaces.contains(&namespace),
+            // A namespace deleted while an activation runs in it is retained
+            // until the activation ends, and is `NS_DYING` meanwhile; its
+            // children are torn down only then.
+            namespace_dying: world.dying_namespaces.contains(&namespace)
+                || world.ns_deferral.retained.contains_key(&namespace),
         })
     }
 
