@@ -23,7 +23,7 @@ use tcl_compiler::cfg::{Block, BlockId, CfgModule, Function, LoopNode, Terminato
 use tcl_compiler::cfg_builder::cfg_lower::matches_foreach_header;
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::summary_candidates::OriginalProcedureSummaryOwners;
-use tcl_compiler::cfg_builder::upvar_info::{FrameReach, UpvarInfo};
+use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
 use tcl_compiler::command_binding::ModuleCommandBindings;
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::{CommandBindingSite, CommandTokens, Module, Script, Statement};
