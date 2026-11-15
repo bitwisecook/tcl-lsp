@@ -204,7 +204,7 @@ impl ModuleCommandBindings {
             })
             .collect::<Vec<_>>();
         for (slot, alternatives) in changed {
-            self.rebound_names.insert(slot.clone());
+            self.retain_rebound_name(&slot);
             self.replace(slot, alternatives);
         }
         self.remove_command_observers_for_token(token);
@@ -233,7 +233,7 @@ impl ModuleCommandBindings {
         for slot in slots {
             let mut alternatives = self.bindings[&slot].clone();
             alternatives.insert(MayBinding::Missing);
-            self.rebound_names.insert(slot.clone());
+            self.retain_rebound_name(&slot);
             self.replace(slot, alternatives);
         }
     }
@@ -315,10 +315,10 @@ impl ModuleCommandBindings {
                 if replaced {
                     self.retire_command_instance(token);
                 } else {
-                    self.rebound_names.insert(action.slot.clone());
+                    self.retain_rebound_name(&action.slot);
                     self.replace(action.slot, BTreeSet::from([MayBinding::Missing]));
                 }
-                self.rebound_names.insert(destination);
+                self.retain_rebound_name(&destination);
             }
         }
         true

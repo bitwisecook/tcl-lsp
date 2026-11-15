@@ -82,6 +82,7 @@ mod original_source_projection;
 pub(crate) use original_missing_command::OriginalMissingCommandContext;
 mod pre_handler_failure;
 #[cfg(any(test, debug_assertions))]
+mod root_layout_extents;
 mod root_owner_work;
 mod source_arguments;
 mod source_name_lookup;
@@ -292,6 +293,7 @@ pub mod compiled_preflight;
 #[doc(hidden)]
 pub mod compiler_inventory;
 pub(crate) use compiler_inventory::OriginalCompilerArgumentSyntax;
+mod variable_access_owners;
 mod variable_observers;
 mod variable_outputs;
 pub use compiled_preflight::{
@@ -4176,6 +4178,7 @@ pub struct SourceCommandBindings {
     unrepresented_entries: SharedSourceInventory<pre_handler_failure::UnrepresentedEntries>,
     unpositioned_projections: SourceHeadProjectionCache,
     declaration_flow_cache: declaration_flow::SourceDeclarationFlowCache,
+    derived_indexes: shared_inventory::DerivedIndexes,
     module_projection_memo: retained_source::ModuleProjectionMemo,
     deferred_namespace_index: deferred_namespace_index::DeferredNamespaceIndexCache,
     deferred_body_index: deferred_body_index::DeferredBodyIndexCache,
@@ -8640,19 +8643,10 @@ impl SourceCommandBindings {
     /// the lexical inventory is deliberately broader than this projection.
     #[must_use]
     pub fn variable_accesses_for_invocation_args(&self, offset: u32) -> Vec<SourceVariableAccess> {
-        let Some(source) = &self.root_origin else {
-            return Vec::new();
-        };
-        let site = CommandAllocationSite {
-            source: Arc::clone(source),
+        self.variable_accesses_owned_by(
             offset,
-        };
-        self.variable_accesses
-            .values()
-            .flatten()
-            .filter(|access| access.owner.is_direct_arguments_of(&site))
-            .cloned()
-            .collect()
+            variable_access_owners::AccessOwnerProjection::DirectArguments,
+        )
     }
 
     /// Reads executed during original argv evaluation, including entered nested
@@ -8663,19 +8657,10 @@ impl SourceCommandBindings {
         &self,
         offset: u32,
     ) -> Vec<SourceVariableAccess> {
-        let Some(source) = &self.root_origin else {
-            return Vec::new();
-        };
-        let site = CommandAllocationSite {
-            source: Arc::clone(source),
+        self.variable_accesses_owned_by(
             offset,
-        };
-        self.variable_accesses
-            .values()
-            .flatten()
-            .filter(|access| access.owner.is_argument_evaluation_of(&site))
-            .cloned()
-            .collect()
+            variable_access_owners::AccessOwnerProjection::ArgumentEvaluation,
+        )
     }
 
     /// Reached reads while evaluating this invocation's original argv or its
@@ -8686,22 +8671,10 @@ impl SourceCommandBindings {
         &self,
         offset: u32,
     ) -> Vec<SourceVariableAccess> {
-        let Some(source) = &self.root_origin else {
-            return Vec::new();
-        };
-        let site = CommandAllocationSite {
-            source: Arc::clone(source),
+        self.variable_accesses_owned_by(
             offset,
-        };
-        self.variable_accesses
-            .values()
-            .flatten()
-            .filter(|access| {
-                access.owner.is_argument_evaluation_of(&site)
-                    || access.owner.is_expression_evaluation_of(&site)
-            })
-            .cloned()
-            .collect()
+            variable_access_owners::AccessOwnerProjection::ArgumentOrExpressionEvaluation,
+        )
     }
 
     /// Query one exact original reference; an unrecorded read is unresolved.
@@ -15551,7 +15524,8 @@ pub struct ModuleCommandBindings {
     /// move/delete/alias transition. Unlike `bindings`, this is historical:
     /// restoring the final binding does not restore trust in the intervening
     /// procedure identity.
-    rebound_names: BTreeSet<SourceCommandKey>,
+    /// Shared between forks of one state; a write detaches it.
+    rebound_names: SharedSourceInventory<BTreeSet<SourceCommandKey>>,
     /// Flow-insensitive, namespace-candidate rebound names for procedure
     /// call-site trust: a conservative local-or-global interpretation, kept
     /// separate so it cannot weaken the exact binding resolver above.
@@ -17217,7 +17191,8 @@ impl ModuleCommandBindings {
                 .rebound_names
                 .into_iter()
                 .map(SourceCommandKey::authored)
-                .collect(),
+                .collect::<BTreeSet<_>>()
+                .into(),
             has_redefined_procedures: !module.redefined_procedures.is_empty(),
             ..Self::initial_with_options(registry, options, Some(module.native_lexer_config()))
         };
@@ -17357,7 +17332,9 @@ impl ModuleCommandBindings {
             initial.dynamic_proc_binding = false;
             initial.unnameable_rebinding_subject = false;
             initial.namespace_resolution = NamespaceResolutionProjection::default();
-            initial.rebound_names.clear();
+            if !initial.rebound_names.is_empty() {
+                initial.rebound_names.clear();
+            }
             initial.proc_rebound_names.clear();
         }
         Self::source_binding_timeline_from_initial(script, registry, namespace, &initial)
@@ -18770,9 +18747,16 @@ impl ModuleCommandBindings {
         self.replace_bindings([(key.command_key().into_owned(), joined)])
     }
 
+    /// Record a rebound name, detaching the shared history only for a new one.
+    fn retain_rebound_name(&mut self, key: &SourceCommandKey) {
+        if !self.rebound_names.contains(key) {
+            self.rebound_names.insert(key.clone());
+        }
+    }
+
     fn remove(&mut self, key: impl Into<SourceCommandKey>) {
         let key = key.into();
-        self.rebound_names.insert(key.clone());
+        self.retain_rebound_name(&key);
         let tokens = self
             .bindings
             .get(&key)
@@ -18852,7 +18836,7 @@ impl ModuleCommandBindings {
 
     fn install(&mut self, key: impl Into<SourceCommandKey>, mut implementation: MayBinding) {
         let key = key.into();
-        self.rebound_names.insert(key.clone());
+        self.retain_rebound_name(&key);
         let label = crate::command_binding::ModuleCommandBindings::command_key_label(&key)
             .unwrap_or_default();
         if let MayBinding::Target(target) = &mut implementation
@@ -19170,10 +19154,14 @@ impl ModuleCommandBindings {
         {
             changed |= self.extend_procedure_bodies(other.procedure_bodies.iter().cloned());
         }
-        let rebound_count = self.rebound_names.len();
-        self.rebound_names
-            .extend(other.rebound_names.iter().cloned());
-        changed |= self.rebound_names.len() != rebound_count;
+        // A shared or contained set adds nothing and stays shared.
+        if !self.rebound_names.shares(&other.rebound_names)
+            && !other.rebound_names.is_subset(&self.rebound_names)
+        {
+            self.rebound_names
+                .extend(other.rebound_names.iter().cloned());
+            changed = true;
+        }
         let proc_rebound_count = self.proc_rebound_names.len();
         self.proc_rebound_names
             .extend(other.proc_rebound_names.iter().cloned());

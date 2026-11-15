@@ -24,7 +24,9 @@ mod method;
 mod reference_prefix;
 mod source_advice;
 pub(super) use entry::OriginalJimStockMethodEntry;
-pub(in crate::command_binding) use source_advice::OriginalJimStockSourceEffects;
+pub(in crate::command_binding) use source_advice::{
+    JimStockContinuationMemo, OriginalJimStockSourceEffects,
+};
 
 use super::{
     Arc, BindingKind, CommandAllocation, CommandAllocationSite, MayBinding, ModuleCommandBindings,

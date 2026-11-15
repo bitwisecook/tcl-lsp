@@ -139,6 +139,64 @@ impl OriginalJimStockSourceEffects {
         .then_some(self.publications.as_slice())
     }
 }
+/// Whether any point of one undetached point inventory continues a Jim stock
+/// class under one origin and baseline. The answer reads the points and the
+/// two identities only. A weak handle reserves each allocation's address, and
+/// a point inventory with a weak handle is never written in place, so equal
+/// addresses are the same inputs. A clone starts empty.
+#[derive(Default)]
+pub(in crate::command_binding) struct JimStockContinuationMemo(
+    std::sync::Mutex<Option<JimStockContinuationSlot>>,
+);
+
+struct JimStockContinuationSlot {
+    points: std::sync::Weak<Vec<super::super::SourceBindingPoint>>,
+    origin: std::sync::Weak<super::super::SourceOriginId>,
+    baseline: std::sync::Weak<super::super::BindingBaseline>,
+    any: bool,
+}
+
+impl Clone for JimStockContinuationMemo {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for JimStockContinuationMemo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JimStockContinuationMemo")
+            .finish_non_exhaustive()
+    }
+}
+
+impl JimStockContinuationMemo {
+    fn any(
+        &self,
+        points: &super::super::SharedSourceInventory<Vec<super::super::SourceBindingPoint>>,
+        origin: &Arc<super::super::SourceOriginId>,
+        baseline: &Arc<super::super::BindingBaseline>,
+        scan: impl FnOnce(&[super::super::SourceBindingPoint]) -> bool,
+    ) -> bool {
+        let points = points.shared();
+        let mut slot = self.0.lock().expect("jim stock continuation memo poisoned");
+        if let Some(current) = slot.as_ref().filter(|current| {
+            std::ptr::eq(current.points.as_ptr(), Arc::as_ptr(&points))
+                && std::ptr::eq(current.origin.as_ptr(), Arc::as_ptr(origin))
+                && std::ptr::eq(current.baseline.as_ptr(), Arc::as_ptr(baseline))
+        }) {
+            return current.any;
+        }
+        let any = scan(&points);
+        *slot = Some(JimStockContinuationSlot {
+            points: Arc::downgrade(&points),
+            origin: Arc::downgrade(origin),
+            baseline: Arc::downgrade(baseline),
+            any,
+        });
+        any
+    }
+}
+
 impl SourceCommandBindings {
     pub(in crate::command_binding) fn original_jim_stock_source_effects(
         &self,
@@ -149,23 +207,33 @@ impl SourceCommandBindings {
         let Some(origin) = self.source_origin() else {
             return Vec::new();
         };
-        let mut effects = Vec::new();
-        for (point_index, point) in self.points.iter().enumerate() {
-            // A class continuation needs a rule-loader point whose world holds
-            // a Jim stock publication; both are checked before any scan.
-            if !point
+        // A class continuation needs a rule-loader point whose world holds
+        // a Jim stock publication; both are checked before any scan.
+        let continues = |point: &super::super::SourceBindingPoint| {
+            point
                 .state
                 .original_command_world
                 .may_hold_jim_stock_publication()
-                || point.declaration_preview
-                || point.dispatch
-                || point.realm != tcl_dialect::model::InvocationRealm::RuleLoader
-                || point
+                && !point.declaration_preview
+                && !point.dispatch
+                && point.realm == tcl_dialect::model::InvocationRealm::RuleLoader
+                && point
                     .continuation_of
                     .as_ref()
-                    .is_none_or(|site| !Arc::ptr_eq(&site.source, origin))
-                || !Arc::ptr_eq(&point.state.baseline, &self.final_state.baseline)
-            {
+                    .is_some_and(|site| Arc::ptr_eq(&site.source, origin))
+                && Arc::ptr_eq(&point.state.baseline, &self.final_state.baseline)
+        };
+        if !self.derived_indexes.get().jim_stock_continuations.any(
+            &self.points,
+            origin,
+            &self.final_state.baseline,
+            |points| points.iter().any(&continues),
+        ) {
+            return Vec::new();
+        }
+        let mut effects = Vec::new();
+        for (point_index, point) in self.points.iter().enumerate() {
+            if !continues(point) {
                 continue;
             }
             for effect in point.state.original_command_world.jim_stock_source_effects(

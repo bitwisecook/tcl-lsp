@@ -404,9 +404,11 @@ fn select_declaration_layouts(
         }
     }
     if original.clone().any(|observation| {
-        observation.entry != first.entry
-            || observation.config != first.config
-            || observation.words != first.words
+        // The first row is equal to itself; only later rows need the join.
+        (!std::ptr::eq(observation, first)
+            && (observation.entry != first.entry
+                || observation.config != first.config
+                || observation.words != first.words))
             || observation.snapshot.state.current_source_origin.as_ref()
                 != Some(&observation.entry.source().origin)
             || (catalogue
@@ -1164,7 +1166,7 @@ impl SourceCommandBindings {
         };
         let origin = self.root_origin.as_ref()?;
         let mut found = false;
-        for (site, rows) in &self.declaration_layouts {
+        for (site, rows) in self.root_layouts_spanning(span.start(), span.end()) {
             if &site.source != origin || site.offset > span.start() {
                 continue;
             }
@@ -1737,7 +1739,7 @@ impl SourceCommandBindings {
     ) -> Option<SourceOriginalVariableFrame> {
         let origin = self.root_origin.as_ref()?;
         let mut found: Option<SourceOriginalVariableFrame> = None;
-        for (site, observations) in &self.declaration_layouts {
+        for (site, observations) in self.root_layouts_spanning(span.start(), span.end()) {
             if &site.source != origin || site.offset > span.start() {
                 continue;
             }

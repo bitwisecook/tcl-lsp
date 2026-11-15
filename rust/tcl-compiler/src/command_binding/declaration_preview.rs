@@ -1761,9 +1761,18 @@ struct NestedDeclarationLayoutVisits {
 
 impl NestedDeclarationLayoutVisits {
     fn insert(&mut self, key: NestedDeclarationLayoutKey) -> bool {
-        use std::hash::BuildHasher;
-        let fingerprint = self.buckets.hasher().hash_one(&key);
-        self.insert_in_bucket(fingerprint, key)
+        use std::hash::{BuildHasher, Hash, Hasher};
+        // The bucket reads the body and each parent's cheap fields only.
+        // Hashing a parent's lookup world reads the whole command world, and
+        // the equality in the bucket compares those worlds in any case.
+        let mut hasher = self.buckets.hasher().build_hasher();
+        key.source.hash(&mut hasher);
+        for parent in &key.parents {
+            parent.issuer.hash(&mut hasher);
+            parent.namespace.hash(&mut hasher);
+            parent.config.hash(&mut hasher);
+        }
+        self.insert_in_bucket(hasher.finish(), key)
     }
 
     fn insert_in_bucket(&mut self, fingerprint: u64, key: NestedDeclarationLayoutKey) -> bool {

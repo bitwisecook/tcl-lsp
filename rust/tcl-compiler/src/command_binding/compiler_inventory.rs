@@ -2304,14 +2304,15 @@ impl SourceCommandBindings {
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<crate::signature_scan::original_name::SourceOriginalNameOccurrence> {
         let origin = self.root_origin.as_ref()?;
-        let upper = CommandAllocationSite {
-            source: Arc::clone(origin),
-            offset: span.start(),
-        };
         let mut found = None;
-        for (site, observations) in self.declaration_layouts.range(..=upper).rev() {
-            if &site.source != origin {
-                break;
+        // A selected word starts at `span`, so its site reaches that offset.
+        for (site, observations) in self
+            .root_layouts_spanning(span.start(), span.start())
+            .into_iter()
+            .rev()
+        {
+            if &site.source != origin || site.offset > span.start() {
+                continue;
             }
             let Some(original) =
                 super::declaration_layout::original_declaration_layouts(observations)

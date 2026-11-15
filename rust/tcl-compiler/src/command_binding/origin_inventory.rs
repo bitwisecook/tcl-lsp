@@ -399,7 +399,9 @@ impl SourceCommandBindings {
         script: &ExecutedScriptSource,
     ) -> Vec<super::SourceMathInvocation> {
         let mut calls = Vec::new();
-        for (origin, site, function) in self.implicit_math_invocations.keys() {
+        for ((origin, site, function), _) in
+            math_sites_within(&self.implicit_math_invocations, script)
+        {
             if original_math_site_within(script, origin, *site)
                 && self
                     .implicit_math_invocation_at(origin, *site, function)
@@ -430,7 +432,9 @@ impl SourceCommandBindings {
                 ));
             }
         }
-        for ((origin, site, function), observations) in &self.implicit_fixed_math_invocations {
+        for ((origin, site, function), observations) in
+            math_sites_within(&self.implicit_fixed_math_invocations, script)
+        {
             let mut actual = observations
                 .iter()
                 .filter(|observation| !observation.declaration_preview);
@@ -1150,6 +1154,16 @@ impl SourceCommandBindings {
             points.push(point);
         }
     }
+}
+
+/// The rows whose site lies within `script`, in inventory order. Rows order
+/// by origin and then site, so they are one contiguous run.
+fn math_sites_within<'a, V>(
+    rows: &'a std::collections::BTreeMap<super::ImplicitMathSite, V>,
+    script: &'a ExecutedScriptSource,
+) -> impl Iterator<Item = (&'a super::ImplicitMathSite, &'a V)> {
+    rows.range((Arc::clone(&script.origin), script.base(), String::new())..)
+        .take_while(move |((origin, site, _), _)| original_math_site_within(script, origin, *site))
 }
 
 fn original_math_site_within(

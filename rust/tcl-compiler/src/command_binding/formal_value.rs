@@ -281,7 +281,7 @@ impl SourceCommandBindings {
         let (registry, owner) = selection;
         let mut agreed = None;
         let mut observed = false;
-        for (site, observations) in &self.declaration_layouts {
+        for (site, observations) in self.root_layouts_with_sole_variable_at(source.span) {
             if &site.source != origin {
                 continue;
             }
@@ -455,9 +455,11 @@ impl SourceCommandBindings {
             offset: invocation,
         };
         let span = word.source().span;
+        // An access is keyed by its start, which a contained access has
+        // inside the word.
         self.variable_accesses
-            .values()
-            .flatten()
+            .range(span.start()..=span.end())
+            .flat_map(|(_, accesses)| accesses)
             .filter(|access| {
                 span.start() <= access.source.span.start()
                     && access.source.span.end() <= span.end()

@@ -19,7 +19,7 @@
 //! Retained source inventories shared by exact body projections.
 
 use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, Weak};
 
 /// Analysis writes detach a shared inventory; retained body selection shares it.
 #[derive(Debug, Clone, Default)]
@@ -103,9 +103,141 @@ impl<T> SharedSourceInventory<T> {
     }
 }
 
+/// A derived index of one shared inventory under one root origin, built when
+/// the same undetached inventory is queried a second time, so a walk that
+/// writes between queries never pays for an index it cannot reuse. A clone
+/// starts empty.
+///
+/// The slot keeps a weak handle: that reserves the allocation's address, and
+/// an inventory with a weak handle is never written in place (a write moves
+/// it to a fresh allocation), so an equal address is the same contents.
+pub(super) struct InventoryIndexCache<T, I>(Mutex<Option<InventoryIndexSlot<T, I>>>);
+
+struct InventoryIndexSlot<T, I> {
+    inventory: Weak<T>,
+    origin: Arc<super::SourceOriginId>,
+    index: Option<Arc<I>>,
+}
+
+impl<T, I> Default for InventoryIndexCache<T, I> {
+    fn default() -> Self {
+        Self(Mutex::new(None))
+    }
+}
+
+impl<T, I> Clone for InventoryIndexCache<T, I> {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl<T, I> std::fmt::Debug for InventoryIndexCache<T, I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InventoryIndexCache")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T, I> InventoryIndexCache<T, I> {
+    /// The index of `inventory`, or `None` on the first query of an inventory;
+    /// the caller then scans the whole inventory as it would without an index.
+    pub(super) fn get(
+        &self,
+        inventory: &SharedSourceInventory<T>,
+        origin: &Arc<super::SourceOriginId>,
+        build: impl FnOnce(&T) -> I,
+    ) -> Option<Arc<I>> {
+        let mut slot = self.0.lock().expect("inventory index cache poisoned");
+        if let Some(current) = slot.as_mut().filter(|current| {
+            std::ptr::eq(current.inventory.as_ptr(), Arc::as_ptr(&inventory.0))
+                && (Arc::ptr_eq(&current.origin, origin) || &current.origin == origin)
+        }) {
+            return Some(Arc::clone(
+                current
+                    .index
+                    .get_or_insert_with(|| Arc::new(build(&inventory.0))),
+            ));
+        }
+        *slot = Some(InventoryIndexSlot {
+            inventory: Arc::downgrade(&inventory.0),
+            origin: Arc::clone(origin),
+            index: None,
+        });
+        None
+    }
+}
+
+/// The derived indexes of one bindings handle. They are allocated on first
+/// use, so the handle itself grows by one pointer; a clone starts empty.
+#[derive(Default)]
+pub(super) struct DerivedIndexes(std::sync::OnceLock<Box<DerivedIndexSet>>);
+
+#[derive(Default)]
+pub(super) struct DerivedIndexSet {
+    pub(super) root_layout_extents: super::root_layout_extents::RootLayoutExtentCache,
+    pub(super) jim_stock_continuations: super::jim_stock_class::JimStockContinuationMemo,
+    pub(super) variable_access_owners: super::variable_access_owners::VariableAccessOwnerCache,
+}
+
+impl DerivedIndexes {
+    pub(super) fn get(&self) -> &DerivedIndexSet {
+        self.0.get_or_init(Box::default)
+    }
+}
+
+impl Clone for DerivedIndexes {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for DerivedIndexes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DerivedIndexes").finish_non_exhaustive()
+    }
+}
+
 #[cfg(test)]
 impl<T> SharedSourceInventory<T> {
     pub(super) fn shares_storage(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[cfg(test)]
+mod index_cache_tests {
+    use super::{InventoryIndexCache, SharedSourceInventory};
+    use std::sync::Arc;
+
+    #[test]
+    fn an_index_is_built_on_the_second_query_and_dropped_by_a_write() {
+        let origin = Arc::new(crate::command_binding::SourceOriginId::authored(
+            &Arc::from("set x 1"),
+        ));
+        let mut inventory = SharedSourceInventory::from(vec![1_u32, 2]);
+        let cache = InventoryIndexCache::<Vec<u32>, usize>::default();
+        let index = |cache: &InventoryIndexCache<Vec<u32>, usize>,
+                     inventory: &SharedSourceInventory<Vec<u32>>| {
+            cache
+                .get(inventory, &origin, Vec::len)
+                .map(|length| *length)
+        };
+        assert_eq!(index(&cache, &inventory), None);
+        assert_eq!(index(&cache, &inventory), Some(2));
+        assert_eq!(index(&cache, &inventory), Some(2));
+
+        // A write moves the inventory, so the old index is never read again.
+        inventory.push(3);
+        assert_eq!(index(&cache, &inventory), None);
+        assert_eq!(index(&cache, &inventory), Some(3));
+
+        // A clone of the cache starts empty.
+        assert_eq!(index(&cache.clone(), &inventory), None);
+
+        // Another origin is another index.
+        let other = Arc::new(crate::command_binding::SourceOriginId::authored(
+            &Arc::from("set y 2"),
+        ));
+        assert_eq!(cache.get(&inventory, &other, Vec::len), None);
     }
 }

@@ -55,15 +55,21 @@ pub(super) fn baseline_lookup_totals() -> (u64, u128) {
     BASELINE_LOOKUP_TOTALS.with(std::cell::Cell::get)
 }
 
+/// The start-up environment never changes, so the switch is read once; the
+/// timers below sit on every command lookup.
+#[cfg(any(test, debug_assertions))]
+fn source_phases_traced() -> bool {
+    static TRACED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TRACED.get_or_init(|| tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
+}
+
 #[cfg(any(test, debug_assertions))]
 struct BaselineLookupTiming(std::time::Instant);
 
 #[cfg(any(test, debug_assertions))]
 impl BaselineLookupTiming {
     fn at_query() -> Option<Self> {
-        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(|| Self(std::time::Instant::now()))
+        source_phases_traced().then(|| Self(std::time::Instant::now()))
     }
 }
 
@@ -152,12 +158,10 @@ pub(super) struct ProviderValidationTiming(std::time::Instant);
 #[cfg(any(test, debug_assertions))]
 impl ProviderValidationTiming {
     pub(super) fn at_query() -> Option<Self> {
-        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(|| {
-                PROVIDER_VALIDATION_DEPTH.with(|depth| depth.set(depth.get().saturating_add(1)));
-                Self(std::time::Instant::now())
-            })
+        source_phases_traced().then(|| {
+            PROVIDER_VALIDATION_DEPTH.with(|depth| depth.set(depth.get().saturating_add(1)));
+            Self(std::time::Instant::now())
+        })
     }
 
     pub(super) fn required_row() {
@@ -222,12 +226,10 @@ struct OriginalGeometryTiming {
 #[cfg(any(test, debug_assertions))]
 impl OriginalGeometryTiming {
     fn at_query(query: usize) -> Option<Self> {
-        tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
-            .is_some()
-            .then(|| Self {
-                query,
-                started: std::time::Instant::now(),
-            })
+        source_phases_traced().then(|| Self {
+            query,
+            started: std::time::Instant::now(),
+        })
     }
 
     fn record_clone(&self, elapsed: Option<u128>) {
@@ -1648,7 +1650,7 @@ impl OriginalCommandOperands {
         } else {
             MayBinding::Unknown
         };
-        state.rebound_names.insert(key.clone());
+        state.retain_rebound_name(&key);
         state.install(key, binding);
         Some(())
     }
@@ -1745,8 +1747,8 @@ impl OriginalCommandOperands {
                     return None;
                 }
                 state.replace(source.clone(), BTreeSet::from([MayBinding::Missing]));
-                state.rebound_names.insert(source.clone());
-                state.rebound_names.insert(destination.clone());
+                state.retain_rebound_name(&source);
+                state.retain_rebound_name(&destination);
                 state.replace(destination, bindings);
             }
             CommandBindingTransition::Delete { interpreter, name } => {
@@ -2331,8 +2333,13 @@ impl ModuleCommandBindings {
     ) -> Vec<&MayBinding> {
         self.bindings
             .iter()
-            .filter(|(key, _)| {
-                self.original_catalogue_slot_for_key(key, policy).as_ref() == Some(slot)
+            .filter(|(key, _)| match key {
+                SourceCommandKey::Authored(name) => registry_metadata_slot_is(policy, name, slot),
+                // A slot key projects its own simple name unchanged.
+                SourceCommandKey::Slot { simple, .. } => {
+                    simple == &slot.simple
+                        && self.original_catalogue_slot_for_key(key, policy).as_ref() == Some(slot)
+                }
             })
             .flat_map(|(_, alternatives)| alternatives.iter())
             .collect()
