@@ -14141,18 +14141,33 @@ mod tests {
                 tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
             );
         }
+        // The entry carries the document's complete source input, as an
+        // analysed document's does; without it callback replay has no source
+        // metadata to resolve against and correctly abstains.
+        let profile = registry.profile().expect("selected native profile");
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for_profile(profile)
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        entry.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                &input,
+            ));
         let source = format!("package require Tk\n{source}");
-        let unit = crate::compilation_unit::CompilationUnit::build_with_source_entry(
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
             &source,
             crate::compilation_unit::UnitBuildOptions {
                 registry: &registry,
                 defer_top_level: false,
-                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
-                dialect: registry.profile(),
+                config,
+                dialect: Some(profile),
                 external_call_sites: None,
                 declared_commands: None,
             },
-            &entry,
+            Some(&entry),
+            &input,
         )
         .with_interprocedural(&registry, None);
         (unit, registry)
