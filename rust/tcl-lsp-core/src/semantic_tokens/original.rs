@@ -697,7 +697,7 @@ pub(super) fn registry_overrides(
         insert_source_roles(
             command,
             roles,
-            &words.arguments,
+            |ordinal| ArgumentWords::Original(words).literal(command, ordinal),
             |ordinal| original_argument_token(command, words, ordinal),
             |ordinal| {
                 let operand = words.operands.get(ordinal)?.as_ref()?;
@@ -716,9 +716,146 @@ pub(super) fn registry_overrides(
     insert_format_overrides(ctx, command, words, &mut overrides);
     insert_pattern_overrides(ctx, command, words, &mut overrides);
     let _ = words.with_source_schema(ctx.generation, |schema| {
-        insert_source_schema_overrides(ctx, command, words, schema, &mut overrides);
+        insert_source_schema_overrides(
+            ctx,
+            command,
+            ArgumentWords::Original(words),
+            words.roles.as_deref().unwrap_or(&[]),
+            schema,
+            &mut overrides,
+        );
     });
     overrides
+}
+
+/// The argument words a role mapping reads: the retained operands of a
+/// selected invocation, or the written words of a command the analysis kept
+/// no invocation for.
+#[derive(Clone, Copy)]
+enum ArgumentWords<'a> {
+    Original(&'a crate::original_invocation::OriginalRegistryWords),
+    Written,
+}
+
+impl ArgumentWords<'_> {
+    /// The token argument `ordinal` starts at.
+    fn token(self, command: &SegmentedCommand, ordinal: usize) -> Option<tcl_lexer::Token> {
+        match self {
+            Self::Original(words) => original_argument_token(command, words, ordinal),
+            Self::Written => command.argv.get(ordinal.checked_add(1)?).copied(),
+        }
+    }
+
+    /// Whether the value of argument `ordinal` is its written spelling.
+    fn literal(self, command: &SegmentedCommand, ordinal: usize) -> bool {
+        match self {
+            Self::Original(words) => words
+                .arguments
+                .get(ordinal)
+                .is_some_and(|word| word.literal_bytes().is_some()),
+            Self::Written => ordinal.checked_add(1).is_some_and(|word| {
+                command.single_token_word.get(word) == Some(&true)
+                    && command.argv.get(word).is_some_and(|token| {
+                        matches!(
+                            token.kind,
+                            tcl_lexer::TokenType::Esc | tcl_lexer::TokenType::Str
+                        )
+                    })
+            }),
+        }
+    }
+
+    fn literal_text(
+        self,
+        command: &SegmentedCommand,
+        ordinal: usize,
+    ) -> Option<std::borrow::Cow<'_, str>> {
+        match self {
+            Self::Original(words) => {
+                let bytes = words.arguments.get(ordinal)?.literal_bytes()?;
+                Some(std::borrow::Cow::Owned(
+                    std::str::from_utf8(bytes).ok()?.to_owned(),
+                ))
+            }
+            Self::Written => self.literal(command, ordinal).then(|| {
+                std::borrow::Cow::Owned(command.texts.get(ordinal + 1).cloned().unwrap_or_default())
+            }),
+        }
+    }
+}
+
+/// Every role the written-word display reads.
+const WRITTEN_ROLES: &[tcl_registry::ArgRole] = &[
+    tcl_registry::ArgRole::Body,
+    tcl_registry::ArgRole::Expr,
+    tcl_registry::ArgRole::LoopVarList,
+    tcl_registry::ArgRole::ParamList,
+    tcl_registry::ArgRole::CommandName,
+    tcl_registry::ArgRole::CommandNameProbe,
+    tcl_registry::ArgRole::LambdaLiteral,
+    tcl_registry::ArgRole::Subcommand,
+    tcl_registry::ArgRole::Keyword,
+    tcl_registry::ArgRole::Option,
+    tcl_registry::ArgRole::OptionTerminator,
+    tcl_registry::ArgRole::NamespaceName,
+    tcl_registry::ArgRole::Name,
+    tcl_registry::ArgRole::VarWrite,
+    tcl_registry::ArgRole::VarRead,
+];
+
+/// Display roles of a command the analysis kept no invocation for, read from
+/// its written words and the document's own descriptor `spec`. Each written
+/// spelling stands in for its value. This selects no command and grants no
+/// binding, edit or diagnostic.
+pub(super) fn insert_written_overrides(
+    ctx: ScriptCtx<'_>,
+    command: &SegmentedCommand,
+    spec: &tcl_registry::CommandSpec,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) {
+    use tcl_registry::ArgRole;
+    let texts: Vec<&str> = command.texts[1..].iter().map(String::as_str).collect();
+    let arguments = tcl_registry::InvocationArguments::literals(&texts);
+    let words = ArgumentWords::Written;
+    let roles = ctx
+        .registry
+        .arg_role_assignments_words(spec.name, arguments, WRITTEN_ROLES)
+        .unwrap_or_default();
+    for &(ordinal, role) in &roles {
+        let kind = match role {
+            ArgRole::VarWrite => ArgOverride::VarDecl,
+            ArgRole::VarRead => ArgOverride::VarRef,
+            _ => continue,
+        };
+        if words.literal(command, ordinal)
+            && let Some(token) = words.token(command, ordinal)
+        {
+            overrides.entry(token.span.start()).or_insert(kind);
+        }
+    }
+    insert_source_roles(
+        command,
+        &roles,
+        |ordinal| words.literal(command, ordinal),
+        |ordinal| words.token(command, ordinal),
+        |_| None,
+        overrides,
+    );
+    for pattern in ctx.registry.pattern_args_words(spec.name, arguments) {
+        if pattern.kind == tcl_registry::patterns::PatternType::Regex
+            && let Some(token) = words.token(command, usize::from(pattern.index))
+        {
+            super::mark_literal_fragments(
+                command,
+                token.span,
+                &ArgOverride::RegexPattern,
+                overrides,
+            );
+        }
+    }
+    if let Some(schema) = ctx.registry.resolve_invocation(spec.name, &texts, None) {
+        insert_source_schema_overrides(ctx, command, words, &roles, &schema, overrides);
+    }
 }
 
 /// Display roles for a command whose exact role set a dynamic word leaves
@@ -769,7 +906,7 @@ fn insert_written_word_roles(
     insert_source_roles(
         command,
         &roles,
-        &words.arguments,
+        |ordinal| ArgumentWords::Original(words).literal(command, ordinal),
         |ordinal| original_argument_token(command, words, ordinal),
         |ordinal| words.operands.get(ordinal)?.as_ref()?.word.as_ref(),
         overrides,
@@ -802,7 +939,12 @@ pub(super) fn declared_overrides(
         insert_source_roles(
             command,
             &roles,
-            words.arguments(),
+            |ordinal| {
+                words
+                    .arguments()
+                    .get(ordinal)
+                    .is_some_and(|word| word.literal_bytes().is_some())
+            },
             |ordinal| {
                 let word = words.argument_word(ordinal)?;
                 let token = *word.tokens().first()?;
@@ -818,7 +960,7 @@ pub(super) fn declared_overrides(
 fn insert_source_roles<'word>(
     command: &SegmentedCommand,
     roles: &[(usize, tcl_registry::ArgRole)],
-    arguments: &[tcl_compiler::registry_invocation::EffectiveInvocationWord],
+    static_at: impl Fn(usize) -> bool,
     token_at: impl Fn(usize) -> Option<tcl_lexer::Token>,
     word_at: impl Fn(usize) -> Option<&'word tcl_lexer::NativeWord>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
@@ -843,9 +985,7 @@ fn insert_source_roles<'word>(
         let Some(token) = token_at(ordinal) else {
             continue;
         };
-        let static_value = arguments
-            .get(ordinal)
-            .is_some_and(|word| word.literal_bytes().is_some());
+        let static_value = static_at(ordinal);
         let kind = match role {
             ArgRole::Body if token.kind == tcl_lexer::TokenType::Str => {
                 Some(ArgOverride::BodyScript)
@@ -876,11 +1016,12 @@ fn insert_source_roles<'word>(
 fn insert_source_schema_overrides(
     ctx: ScriptCtx<'_>,
     command: &SegmentedCommand,
-    words: &crate::original_invocation::OriginalRegistryWords,
+    words: ArgumentWords<'_>,
+    roles: &[(usize, tcl_registry::ArgRole)],
     schema: &tcl_registry::resolved_invocation::ResolvedInvocation<'_, '_>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let token_at = |ordinal| original_argument_token(command, words, ordinal);
+    let token_at = |ordinal| words.token(command, ordinal);
     if matches!(
         schema.subcommand,
         tcl_registry::resolved_invocation::SubcommandResolution::Exact(_)
@@ -907,10 +1048,7 @@ fn insert_source_schema_overrides(
             }
             if let Some(values) = option.values {
                 for ordinal in values {
-                    if words
-                        .arguments
-                        .get(ordinal)
-                        .is_some_and(|value| value.literal_bytes().is_some())
+                    if words.literal(command, ordinal)
                         && let Some(token) = token_at(ordinal)
                     {
                         overrides
@@ -921,7 +1059,9 @@ fn insert_source_schema_overrides(
             }
         }
     }
-    insert_inline_member_keywords(ctx, command, words, schema, overrides);
+    if let ArgumentWords::Original(original) = words {
+        insert_inline_member_keywords(ctx, command, original, schema, overrides);
+    }
     for ordinal in schema.authored_source_enum_arguments() {
         if let Some(token) = token_at(ordinal) {
             overrides
@@ -935,14 +1075,11 @@ fn insert_source_schema_overrides(
         }
     }
     insert_source_case_overrides(command, words, schema, overrides);
-    insert_logical_definition_overrides(ctx, command, words, schema, overrides);
+    insert_logical_definition_overrides(ctx, command, words, roles, schema, overrides);
     if ctx.dialect.is_irules() {
         for object in tcl_irules::original_source_object_operands(schema, None) {
             if let Some(token) = token_at(object.argument())
-                && words
-                    .arguments
-                    .get(object.argument())
-                    .is_some_and(|value| value.literal_bytes().is_some())
+                && words.literal(command, object.argument())
             {
                 overrides.insert(token.span.start(), ArgOverride::Kind(TokenKind::Object));
             }
@@ -952,11 +1089,11 @@ fn insert_source_schema_overrides(
 
 fn insert_source_case_overrides(
     command: &SegmentedCommand,
-    words: &crate::original_invocation::OriginalRegistryWords,
+    words: ArgumentWords<'_>,
     schema: &tcl_registry::resolved_invocation::ResolvedInvocation<'_, '_>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    let token_at = |ordinal| original_argument_token(command, words, ordinal);
+    let token_at = |ordinal| words.token(command, ordinal);
     if let Some((spec, case)) = schema.authored_source_case_invocation()
         && let Some(ordinal) = case.clause_list_index
         && let Some(token) = token_at(ordinal)
@@ -1003,14 +1140,19 @@ fn insert_source_case_overrides(
 fn insert_logical_definition_overrides(
     ctx: ScriptCtx<'_>,
     command: &SegmentedCommand,
-    words: &crate::original_invocation::OriginalRegistryWords,
+    words: ArgumentWords<'_>,
+    roles: &[(usize, tcl_registry::ArgRole)],
     schema: &tcl_registry::resolved_invocation::ResolvedInvocation<'_, '_>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     use tcl_registry::ArgRole;
     // A hosted iRules document has no Logical head; its rule-load declarations
-    // (`when`, `proc`) are still read from the selected schema.
-    let logical = original_logical_head(ctx, words).is_some();
+    // (`when`, `proc`) are still read from the selected schema. Written words
+    // have no head receipt at all and are display only.
+    let logical = match words {
+        ArgumentWords::Original(original) => original_logical_head(ctx, original).is_some(),
+        ArgumentWords::Written => true,
+    };
     if !logical && !ctx.dialect.is_irules() {
         return;
     }
@@ -1025,13 +1167,10 @@ fn insert_logical_definition_overrides(
         && selected.command.definition_body.is_none()
         && (logical || top_level_declaration)
     {
-        for &(ordinal, role) in words.roles.as_deref().unwrap_or(&[]) {
+        for &(ordinal, role) in roles {
             if role == ArgRole::Name
-                && words
-                    .arguments
-                    .get(ordinal)
-                    .is_some_and(|value| value.literal_bytes().is_some())
-                && let Some(token) = original_argument_token(command, words, ordinal)
+                && words.literal(command, ordinal)
+                && let Some(token) = words.token(command, ordinal)
             {
                 overrides
                     .entry(token.span.start())
@@ -1044,21 +1183,16 @@ fn insert_logical_definition_overrides(
         .traits
         .contains(tcl_registry::Traits::IS_EVENT_HANDLER)
         && top_level_declaration
-        && let Some(token) = original_argument_token(command, words, 0)
+        && let Some(token) = words.token(command, 0)
         && words
-            .arguments
-            .first()
-            .and_then(|value| std::str::from_utf8(value.literal_bytes()?).ok())
-            .is_some_and(super::is_event_name)
+            .literal_text(command, 0)
+            .is_some_and(|name| super::is_event_name(&name))
     {
         overrides.insert(token.span.start(), ArgOverride::Kind(TokenKind::Event));
     }
     if let Some((ordinal, declares)) = source_class_ordinal(schema)
-        && words
-            .arguments
-            .get(ordinal)
-            .is_some_and(|value| value.literal_bytes().is_some())
-        && let Some(token) = original_argument_token(command, words, ordinal)
+        && words.literal(command, ordinal)
+        && let Some(token) = words.token(command, ordinal)
     {
         overrides.entry(token.span.start()).or_insert(if declares {
             ArgOverride::ClassNameDef
@@ -1066,7 +1200,9 @@ fn insert_logical_definition_overrides(
             ArgOverride::ClassNameRef
         });
     }
-    insert_logical_inline_member_overrides(ctx, command, words, schema, overrides);
+    if let ArgumentWords::Original(original) = words {
+        insert_logical_inline_member_overrides(ctx, command, original, schema, overrides);
+    }
 }
 
 fn source_class_ordinal(
@@ -1477,6 +1613,39 @@ fn collect_source_parameter_fields(
     emitted
 }
 
+/// The complete written word that starts at `tok`, lexed on its own from the
+/// document. Display only: it carries no command, value or name receipt.
+fn written_word(ctx: ScriptCtx<'_>, tok: tcl_lexer::Token) -> Option<tcl_lexer::NativeWord> {
+    let plan = tcl_lexer::native_script_words_in(
+        SourceImage::document(ctx.full_source),
+        tcl_lexer::word_span_at(ctx.full_source, tok.span),
+        ctx.config,
+    )
+    .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    let [word] = command.words.as_slice() else {
+        return None;
+    };
+    (word.tokens().first()?.span == tok.span).then(|| word.clone())
+}
+
+/// Parameter fields of a command with no retained invocation, from its
+/// written list.
+fn collect_written_parameter_fields(
+    ctx: ScriptCtx<'_>,
+    tok: tcl_lexer::Token,
+    entries: &mut Vec<super::Entry>,
+) -> bool {
+    ctx.original_words.is_none()
+        && ctx.declared_words.is_none()
+        && written_word(ctx, tok)
+            .as_ref()
+            .and_then(tcl_syntax::word_rules::original_static_word_list_elements)
+            .is_some_and(|fields| collect_source_parameter_fields(ctx, &fields, entries))
+}
+
 pub(super) fn collect_parameter_fields(
     ctx: ScriptCtx<'_>,
     tok: tcl_lexer::Token,
@@ -1484,7 +1653,7 @@ pub(super) fn collect_parameter_fields(
 ) -> bool {
     use tcl_compiler::signature_scan::formal_parameters::SignatureSourceFormalParameters;
     let Some(analysis) = ctx.analysis else {
-        return false;
+        return collect_written_parameter_fields(ctx, tok, entries);
     };
     let formal = analysis
         .original_procedure_declarations()
@@ -1544,7 +1713,7 @@ pub(super) fn collect_parameter_fields(
         return collect_source_parameter_fields(ctx, &fields, entries);
     }
     let Some(word) = ctx.operand.and_then(|operand| operand.word.as_ref()) else {
-        return false;
+        return collect_written_parameter_fields(ctx, tok, entries);
     };
     let mut emitted = false;
     for advice in analysis.original_vendor_variable_advice() {

@@ -121,6 +121,10 @@ pub struct SourceAnalysisOptions<'a> {
     pub vendor_source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     /// Compilation request's body inventory; independent of native admission.
     pub compilation_scope: tcl_runtime_api::SourceCompilationScope,
+    /// Retain the source identity and entry state only: no command is
+    /// interpreted and no body is entered, so every command site answers as
+    /// one the interpretation never reached. Never memoised.
+    pub unentered: bool,
     /// Availability phase selected by the entry owner, independent of source origin.
     pub invocation_realm: tcl_dialect::model::InvocationRealm,
     /// Actual live runtime table; supplied rows replace fresh-world assumptions.
@@ -560,6 +564,7 @@ impl SourceAnalysisEntry {
             logical_source_input: self.logical_source_input.as_ref(),
             vendor_source_input: self.vendor_source_input.as_ref(),
             compilation_scope: self.compilation_scope,
+            unentered: false,
             invocation_realm: self.invocation_realm,
             native_entry: self.native_entry.as_deref(),
             incoming_formals: &self.incoming_formals,

@@ -66,7 +66,7 @@ impl SourceAnalysisCacheKey {
     ) -> Option<Self> {
         // Physical provider currency can change independently of an entry's
         // immutable rows. Such entries require a fresh interpretation.
-        if options.native_entry.is_some() || source.len() > MAX_SOURCE_BYTES {
+        if options.native_entry.is_some() || options.unentered || source.len() > MAX_SOURCE_BYTES {
             return None;
         }
         if options.source_point_entry.is_some() && diagnostic_source_point_memo_bypass() {

@@ -1019,6 +1019,38 @@ pub fn document_realm_bindings_with_resolved_input(
         .with_resolved_analysis_input(input.clone())
 }
 
+/// The document's source identity under `input`, with no command interpreted.
+/// A display consumer that reads written words and the document's registry
+/// needs only this; it costs one pass over nothing, whatever the file size.
+/// Every site-bound query answers as for a site the interpretation never
+/// reached, so no proof consumer can read a fact from it.
+#[must_use]
+pub(crate) fn document_shell_realm_with_resolved_input(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> CommandBindingRealm {
+    let context = input.context_registry();
+    let config = input.lexer_config();
+    let dialect = crate::environment_ingress::authoring_invocation_dialect(
+        context.commands(),
+        Some(input.unit_profile()),
+        config,
+    );
+    let options = crate::command_binding::SourceAnalysisOptions {
+        metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+            Some(input),
+        ),
+        invocation_dialect: Some(dialect),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        unentered: true,
+        ..crate::command_binding::SourceAnalysisOptions::default()
+    };
+    let bindings =
+        SourceCommandBindings::analyse_with_options(source, config, context.commands(), options);
+    realm_from_source_bindings(bindings, context.commands())
+        .with_resolved_analysis_input(input.clone())
+}
+
 /// Interpret explicit Logical authoring inputs without donating the
 /// heterogeneous catalogue driver's default Native engine. The document
 /// driver's file protocol is retained; this supplies no Native name recipe.

@@ -1017,7 +1017,7 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
     // in tcl-lsp-db proves the enriched tier retags) so `same_tokens` below
     // can actually tell the two tiers apart.
     let big = format!(
-        "{}\nproc ::bench::regex_check {{}} {{\n    set my_re \".*abc\"\n    regexp $my_re $s\n}}\n",
+        "{}\nset s subject\nset my_re \".*abc\"\nregexp $my_re $s\n",
         generate_big_tcl(CONVERGENCE_FIXTURE_PROCS)
     );
 
@@ -1095,7 +1095,7 @@ fn large_file_range_semantic_tokens_converges_via_refresh() {
     // enriched tier (which retags it) differs from the coarse tier — otherwise
     // the two are byte-identical and no refresh is warranted.
     let big = format!(
-        "{}\nproc ::bench::regex_check {{}} {{\n    set my_re \".*abc\"\n    regexp $my_re $s\n}}\n",
+        "{}\nset s subject\nset my_re \".*abc\"\nregexp $my_re $s\n",
         generate_big_tcl(CONVERGENCE_FIXTURE_PROCS)
     );
     let line_count = u32::try_from(big.lines().count()).unwrap();

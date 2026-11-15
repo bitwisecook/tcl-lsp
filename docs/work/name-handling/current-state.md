@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 14 November 2026. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
+Updated 15 November 2026. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
 
 ## Measured state, 14 November 2026
 
@@ -45,6 +45,41 @@ Open token faults and their cause:
 The server e2e suite is not deterministic on this host: 14 tests that passed in one full run failed in the next and each passed again on rerun; `spec_packs::a_pack_added_after_startup_reloads_and_re_analyses_open_documents` passed one run in four alone on one thread.
 
 Recorded `edit.tokens` (100 edits): 2.1.22 1.47 s and 2.1.24 2.87 s on `darwin-arm64`; 2.2.0 6.48 s on `linux-x86_64`. The platforms differ, so the last step is not a like-for-like comparison.
+
+## Tokens, owner and tooling area, 15 November 2026
+
+Crates: semantic tokens in `tcl-lsp-core` and `tcl-lsp-server`, `tcl-syntax::naming`, `tcl-lexer`, `tcl-registry`, `tcl-spectcl`, `tcl-irules`, the tooling crates and `xtask`. Measured on the same host at test profile `opt-level 1`.
+
+Naming port. The compiler's own `::` tests, joins and prefix strips (60 files) now call `tcl_syntax::naming`; with the earlier ports of `tcl-cmd-core`, `tcl-codegen`, `tcl-vm`, `runtime/rust`, `tcl-runtime-api`, `tcl-registry`, `tcl-lsp-core` and `tcl-lsp-db`, no production crate outside the owner builds or splits a qualified name itself. The owner gained `is_absolute`, `is_absolute_bytes`, `unrooted_member_key` and `authored_namespace_hint_tail_bytes`. Still to do: widen `cargo xtask owner-resolution` from its 13 counted LSP files to every production crate, in a delimiter-only mode, so the port cannot regress.
+
+First-paint semantic tokens. On this branch the server's coarse tier had become a structure-only analysis of the whole document, so the first response waited for it: 61 s on a cold 6,000-line file. It is now a *source shell* (`Analyser::source_shell`, `SourceAnalysisOptions::unentered`): the analysed document and its resolved input with no command interpreted. The token walk colours a command with no retained invocation from its written words and the document's registry: head (a qualified head split by `naming::written_command_tail`), subcommand, options, bodies, expressions, case lists, parameter lists, variable-name arguments, definition-body members, and the comments of every script region it enters. `tcl_lsp_core::semantic_tokens::coarse` and `coarse_range` are the entry points; the server's full and range handlers both serve them when the analysed read misses its 40 ms budget.
+
+| Generated file, `tcl8.6` | Before | After |
+| --- | --- | --- |
+| 6,000 lines, first-paint tier | structure analysis 73 s + walk 29 s | shell 14 ms + walk 0.35 s, the same 16,806 tokens |
+| 4,000 lines, structure-only analysis | 117 s | about 40 s |
+| `large_file_first_semantic_tokens_response_is_prompt`, `large_file_range_semantic_tokens_response_is_prompt` | fail (61 s, timeout) | pass |
+
+Two causes of the analysis cost were removed on the way; the rest belongs to the analysis-performance session:
+
+- `SourceImage::document` copied the document at about 800 call sites and every later image equality compared whole documents. The lexer keeps the few most recent document images per thread, so a repeat request returns the same allocation.
+- The realm's array-root and namespace-operand queries rebuilt the binding of every earlier command site per variable reference; they now read the realm's site memo.
+
+Other token faults fixed in this pass:
+
+- The written-word fallback for a command with no invocation asked the registry for an empty role set, so it coloured only the head. It now reads every display role, which also colours bodies the analysis did not enter in the analysed tier.
+- A command at a site the interpretation never reached (a `[expr …]` inside `return` in an uncalled procedure) was treated as rebound and lost its colours and its expression. It now reads its descriptor unless the document itself rebinds that name; a site the interpretation dispatched and could not prove stays generic.
+- A comment inside a body the analysis did not enter (an `if` arm of an uncalled procedure) had no token although the commands around it did.
+
+Token tests: `tcl-lsp-core` library token tests 29 failing (38 at the last snapshot), residual `st_*` tests 4 (6); server token and large-file e2e 2 of 105 (9). `tcl-compiler` and `tcl-irules`: 13,191 run, 2,579 failing, none new.
+
+Open:
+
+- The two `large_file_*converges*` tests wait up to 30 s for the analysed tier of a 600-line file; one or the other still times out from run to run until the analysis is faster. Their fixture read an unset `$s` inside an uncalled procedure, where no release proves the regex source; it now binds `s` at top level. `test_issue_898_default_library_modifier` is open.
+- What the first-paint tier does not colour until the analysed result arrives: user classes and object dispatch (`$obj method`, `my method`), a builtin the document rebinds, regex sources, format strings, `oo::define C method …` inline members, and the namespace split of an ensemble head such as `oo::class`.
+- The analysed walk is itself super-linear (0.65 s, 2.2 s, 11 s at 1,000, 2,000 and 4,000 lines). Known per-command costs: `collect_parameter_fields` scans every procedure declaration per parameter list; `source_registry_words` builds a `SourceMap` (a line index of the whole document) per command; `stamp_original_tokens` prepares advice lazily per site.
+- `tcl-irules` 15 (events are not lowered when an invalid command precedes them at top level; `pool $p` value flow; `while` and `serverside` bodies not walked), `tcl-registry` 9, `tcl-spectcl` 44 and the tooling crates are not yet worked.
+- Object handles in collections, loop variables, widget paths and snit components, and the receiver-receipt token tests, as recorded above.
 
 ## Execution area, 15 November 2026
 

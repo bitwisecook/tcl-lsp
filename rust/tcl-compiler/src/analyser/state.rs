@@ -1078,6 +1078,13 @@ pub struct Analyser {
     /// `analyse` (gated by the `file_decls_corpus` corpus test).  Defaults to
     /// `false`; normal `analyse` is unaffected.
     pub structure_only: bool,
+    /// When `true`, [`Analyser::analyse`] retains only the document's source
+    /// identity and resolved input: the realm interprets no command and the
+    /// walk visits none, so the cost does not grow with the file. The result
+    /// carries no declaration, binding or diagnostic. It exists for display
+    /// consumers that read written words and the registry (the first-paint
+    /// semantic-token tier). Defaults to `false`.
+    pub source_shell: bool,
     /// Test-only capture of the diagnostics the whole-document CFG/SSA phase
     /// adds, so fixtures that assert on that phase alone run through the
     /// checked `analyse` ingress instead of a detached unit build.
@@ -1705,6 +1712,7 @@ impl Analyser {
             pending_next_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
+            source_shell: false,
             #[cfg(test)]
             cfg_ssa_capture_for_test: None,
             workspace_classes: std::collections::HashSet::new(),
@@ -2016,6 +2024,14 @@ impl Analyser {
         self
     }
 
+    /// Enable source-shell mode (see [`Self::source_shell`]): keep the
+    /// document's source identity and interpret nothing.
+    #[must_use]
+    pub fn source_shell(mut self) -> Self {
+        self.source_shell = true;
+        self
+    }
+
     /// The workspace classes whose command bare-word-constructs — see
     /// [`Self::workspace_bare_word_classes`].
     #[must_use]
@@ -2277,6 +2293,15 @@ impl Analyser {
         &mut self,
         source: &str,
     ) -> crate::realm::CommandBindingRealm {
+        if self.source_shell {
+            return crate::realm::document_shell_realm_with_resolved_input(
+                source,
+                &self.resolved_analysis_input(),
+            )
+            .with_analyser_source_settings(Arc::new(
+                super::source_settings::OriginalAnalyserSourceSettings::capture(self),
+            ));
+        }
         if let Some(prebuilt) = self.prebuilt_realm.take()
             && self.source_region_override.is_none()
             && prebuilt.source == source
@@ -2844,6 +2869,10 @@ impl Analyser {
         commands: &[crate::segmenter::SegmentedCommand],
         ghost_recovery_applied: bool,
     ) {
+        // A source shell interprets nothing.
+        if self.source_shell {
+            return;
+        }
         self.result.global_scope.naming_scope = self.declaration_namespace_scope(&[]);
         self.record_path_constant_candidates(commands);
         let total = commands.len();
@@ -3739,6 +3768,10 @@ impl Analyser {
 
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
         use crate::analysis_control::{AnalysisCheckpoint, checkpoint};
+        // A source shell interpreted nothing, so there is nothing to report on.
+        if self.source_shell {
+            return;
+        }
         let phase_start = ((cfg!(debug_assertions)
             && tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
             || tcl_dialect::trace_env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
@@ -4158,6 +4191,30 @@ impl Default for Analyser {
 mod tests {
     use super::*;
     use crate::analyser::types::ScopeKind;
+
+    /// A source shell keeps the analysed document and its resolved input and
+    /// interprets nothing: no invocation, declaration or diagnostic, where the
+    /// ordinary analysis of the same text records all three. Dialect-invariant;
+    /// run under Tcl 8.6.
+    #[test]
+    fn a_source_shell_keeps_the_document_and_interprets_nothing() {
+        let source = "proc p {} { set x 1 }\np\nundefined_command_here\n";
+        let shell = Analyser::new().source_shell().analyse(source, "tcl8.6");
+        assert!(shell.is_source_shell());
+        assert!(shell.command_invocations.is_empty());
+        assert!(shell.diagnostics.is_empty());
+        assert!(shell.resolved_input.is_some());
+        let image = shell
+            .retained_command_realm()
+            .and_then(crate::realm::CommandBindingRealm::original_source_image)
+            .expect("the shell retains the document");
+        assert_eq!(image.bytes(), source.as_bytes());
+
+        let analysed = Analyser::new().analyse(source, "tcl8.6");
+        assert!(!analysed.is_source_shell());
+        assert!(!analysed.command_invocations.is_empty());
+        assert!(!analysed.diagnostics.is_empty());
+    }
 
     /// The composite-head split asks the shared owner where the
     /// `${…}` name ends, so the dispatched variable and the word suffix move

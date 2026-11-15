@@ -4170,6 +4170,9 @@ pub struct SourceCommandBindings {
     /// `package_target_survey` for its exact admission.
     logical_conditional_source_control: bool,
     compilation_scope: tcl_runtime_api::SourceCompilationScope,
+    /// The interpretation entered no command: only the source identity and
+    /// entry state are retained.
+    unentered: bool,
     lexer_config: Option<tcl_lexer::LexerConfig>,
     declaration_layouts: SharedSourceInventory<declaration_layout::DeclarationLayouts>,
     original_script_activations: Vec<Arc<declaration_layout::OriginalDiagnosticFrameEntry>>,
@@ -8294,6 +8297,7 @@ impl SourceCommandBindings {
             }),
             logical_conditional_source_control,
             compilation_scope: options.compilation_scope,
+            unentered: options.unentered,
             lexer_config: Some(config),
             ..Self::default()
         }
@@ -8400,6 +8404,10 @@ impl SourceCommandBindings {
             let scope = owner.bind_scope(&state, context, options.incoming_formals);
             Arc::make_mut(&mut state.source_variables).original_native_compiler_formals = scope;
         }
+        if options.unentered {
+            bindings.final_state = Arc::new(state);
+            return bindings;
+        }
         let root_outcomes = bindings.walk_source(source, 0, &mut state, &context);
         if crate::analysis_control::interrupted() {
             return Self::default();
@@ -8428,14 +8436,24 @@ impl SourceCommandBindings {
         if options.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule {
             bindings.retain_jim_wrapper_future_bodies(config, registry);
         }
-        bindings.retain_logical_receiver_source_catalogues(config, registry);
-        bindings.retain_original_declaration_source_operand_layouts(registry);
-        if let Some(key) = memo_key {
-            source_analysis_cache::retain(key, &mut bindings);
-        }
+        bindings.retain_completed_source_catalogues(config, registry, memo_key);
         #[cfg(any(test, debug_assertions))]
         tracing.phase("complete", source.len(), &bindings);
         bindings
+    }
+
+    /// The catalogues and memo entry a completed interpretation leaves.
+    fn retain_completed_source_catalogues(
+        &mut self,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        memo_key: Option<source_analysis_cache::SourceAnalysisCacheKey>,
+    ) {
+        self.retain_logical_receiver_source_catalogues(config, registry);
+        self.retain_original_declaration_source_operand_layouts(registry);
+        if let Some(key) = memo_key {
+            source_analysis_cache::retain(key, self);
+        }
     }
 
     fn analyse_deferred_entries(
@@ -9102,6 +9120,7 @@ impl SourceCommandBindings {
                 &self.final_state.baseline.metadata_context,
             ),
             compilation_scope: tcl_runtime_api::SourceCompilationScope::WholeModule,
+            unentered: false,
             invocation_realm: self
                 .points
                 .iter()
@@ -9730,6 +9749,20 @@ impl SourceCommandBindings {
             self.root_origin.as_ref(),
             offset,
         )
+    }
+
+    /// Whether the interpretation dispatched a command at `offset`. A site it
+    /// never reached has no binding fact of either kind.
+    #[must_use]
+    pub fn reached_site(&self, offset: u32) -> bool {
+        self.dispatch_points.contains_key(&offset)
+    }
+
+    /// Whether this interpretation entered no command (see
+    /// [`SourceAnalysisOptions::unentered`]).
+    #[must_use]
+    pub fn is_unentered(&self) -> bool {
+        self.unentered
     }
 
     fn dispatch_points_at(&self, offset: u32) -> impl Iterator<Item = &SourceBindingPoint> {

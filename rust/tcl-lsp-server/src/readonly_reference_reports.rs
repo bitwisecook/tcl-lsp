@@ -922,7 +922,7 @@ impl Backend {
                 let mut driver = self
                     .fresh_analysis_driver(admission)
                     .await
-                    .into_structure_only();
+                    .into_source_shell();
                 // Every capture attempt of every coarse token request used to
                 // re-analyse the same text; key it exactly as the seed cache.
                 let key = super::fresh_analysis_cache::FreshAnalysisKey {

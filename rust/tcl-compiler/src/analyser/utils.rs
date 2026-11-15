@@ -434,6 +434,24 @@ pub fn original_script_comment_facts(
     )
 }
 
+/// Command-position comment tokens, inline `;#` comments included, in
+/// explicitly supplied original script regions. Otherwise exactly
+/// [`original_script_comment_facts`]: the caller owns each region's
+/// applicability and nothing is interpreted.
+#[must_use]
+pub fn original_script_command_comment_facts(
+    image: &tcl_lexer::SourceImage,
+    scripts: &[(Span, u32)],
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<ScriptCommentFact>> {
+    original_script_comment_facts_for_position(
+        image,
+        scripts,
+        config,
+        ScriptCommentPosition::CommandPosition,
+    )
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ScriptCommentPosition {
     PhysicalLine,

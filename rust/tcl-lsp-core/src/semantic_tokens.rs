@@ -861,6 +861,40 @@ pub fn full(
     full_with_cu(source, dialect, registry, None)
 }
 
+/// First-paint semantic tokens from the written words and the registry alone.
+///
+/// No command is interpreted and no body is analysed, so the cost is one
+/// pass over the text whatever the file's size. Command heads, subcommands,
+/// options, bodies, expressions, parameters, variables and comments are
+/// coloured as [`full`] colours them; what needs the analysis (user classes,
+/// object dispatch, a rebound builtin, regex sources) arrives with the
+/// analysed result.
+#[must_use]
+pub fn coarse(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+) -> SemanticTokens {
+    let shell = standalone_analyser(dialect, registry)
+        .source_shell()
+        .analyse(source, dialect.name);
+    full_with_cu_and_analysis(source, dialect, registry, None, Some(&shell))
+}
+
+/// [`coarse`] filtered to the tokens that start inside `range`.
+#[must_use]
+pub fn coarse_range(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    range: crate::definition::LspRange,
+    registry: &CommandRegistry,
+) -> SemanticTokens {
+    let shell = standalone_analyser(dialect, registry)
+        .source_shell()
+        .analyse(source, dialect.name);
+    range_with_cu_and_analysis(source, dialect, range, registry, None, Some(&shell))
+}
+
 /// Compute semantic tokens for an **APL** (iApp presentation) document.
 ///
 /// APL is not Tcl — it is a declarative form-description grammar — so it does
@@ -3053,6 +3087,41 @@ const MAX_TOKEN_RECURSION: tcl_core_types::RecursionLimit = tcl_core_types::Recu
 /// walk.  Bundling these read-only borrows keeps each recursive helper to a
 /// small, focused signature (the mutable `entries` sink and the `depth`
 /// guard stay explicit parameters).
+/// Per-walk facts every [`ScriptCtx`] of one token walk shares.
+struct WalkFacts<'a> {
+    /// The source shell this walk reads. Nothing was interpreted, so the
+    /// context's `analysis` is `None` and every command reads its written
+    /// words.
+    shell: Option<&'a AnalysisResult>,
+    /// Written command tails the analysed document itself rebinds (a
+    /// procedure, an alias, either end of a `rename`). A head the analysis has
+    /// no proof for keeps its descriptor's colours unless it is one of these.
+    rebound_tails: FxHashSet<Vec<u8>>,
+    /// The script regions this walk entered, with their nesting depth. Their
+    /// commands are coloured as script, so their comments are comments.
+    entered_scripts: std::cell::RefCell<Vec<(Span, u32)>>,
+}
+
+impl<'a> WalkFacts<'a> {
+    fn new(shell: Option<&'a AnalysisResult>, analysis: Option<&AnalysisResult>) -> Self {
+        let rebound_tails = analysis.map_or_else(FxHashSet::default, |analysis| {
+            analysis
+                .all_procs
+                .keys()
+                .chain(analysis.command_aliases.keys())
+                .chain(analysis.renamed_commands.keys())
+                .chain(analysis.renamed_commands.values())
+                .map(|name| tcl_syntax::naming::written_command_tail(name.as_bytes()).to_vec())
+                .collect()
+        });
+        Self {
+            shell,
+            rebound_tails,
+            entered_scripts: std::cell::RefCell::new(Vec::new()),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct ScriptCtx<'a> {
     full_source: &'a str,
@@ -3063,6 +3132,11 @@ struct ScriptCtx<'a> {
     operand: Option<&'a crate::original_invocation::OriginalOperandSource>,
     original_words: Option<&'a crate::original_invocation::OriginalRegistryWords>,
     declared_words: Option<&'a tcl_compiler::command_binding::OriginalDeclaredCommandWords>,
+    /// The enclosing definition body was opened by a command with no retained
+    /// invocation, so its member words are read from the grammar alone.
+    written_members: bool,
+    /// Facts fixed for the whole walk.
+    walk: &'a WalkFacts<'a>,
     lexical: bool,
     /// The dialect's numeric-literal grammar, resolved once from `dialect` so
     /// the per-word `Number` classification does not re-walk the profile
@@ -3184,8 +3258,10 @@ fn collect_case_list(
     depth: u32,
     spec: &tcl_registry::CaseListSpec,
     regexp: bool,
+    written: bool,
 ) {
     if !ctx.lexical
+        && !written
         && !ctx
             .operand
             .and_then(|operand| operand.word.as_ref())
@@ -3403,6 +3479,12 @@ fn collect_script(
     if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
+    if let Ok(length) = u32::try_from(text.len()) {
+        ctx.walk.entered_scripts.borrow_mut().push((
+            Span::new(base_offset, base_offset.saturating_add(length)),
+            depth,
+        ));
+    }
     let full_source = ctx.full_source;
     let definition_members = ctx.original_definition_parent.and_then(|parent| {
         let end = base_offset.checked_add(u32::try_from(text.len()).ok()?)?;
@@ -3579,9 +3661,63 @@ fn emit_selected_command_head(
     } else if let Some(words) = original {
         original::registry_head(ctx, seg, words, entries);
     } else {
-        let (kind, mods) = unrecorded_head_kind(ctx, seg);
-        push_token(ctx.line_index, full_source, head_tok, kind, mods, entries);
+        push_written_head(ctx, seg, entries);
     }
+}
+
+/// A written bareword head with no selected invocation. Its qualifier reads
+/// as a namespace and its tail as the command, split where the naming owner
+/// ends the qualifier, as a selected head is shown.
+fn push_written_head(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    entries: &mut Vec<Entry>,
+) {
+    let head = seg.argv[0];
+    let text = &seg.texts[0];
+    let (kind, mods) = unrecorded_head_kind(ctx, seg);
+    let tail = tcl_syntax::naming::written_command_tail(text.as_bytes());
+    let split = text
+        .len()
+        .checked_sub(tail.len())
+        .filter(|boundary| *boundary != 0 && !tail.is_empty())
+        .filter(|_| {
+            // A backslash sequence can end the name early (a NUL ends a C
+            // command name), so only a plain spelling is split.
+            head.kind == TokenType::Esc
+                && seg.single_token_word.first() == Some(&true)
+                && !text.contains('\\')
+                && ctx.full_source.get(head.span.as_range()) == Some(text.as_str())
+        })
+        .and_then(|boundary| u32::try_from(boundary).ok())
+        .and_then(|boundary| head.span.start().checked_add(boundary));
+    let Some(split) = split else {
+        push_token(ctx.line_index, ctx.full_source, head, kind, mods, entries);
+        return;
+    };
+    let known = unrecorded_command_spec(ctx, seg).is_some();
+    push_token(
+        ctx.line_index,
+        ctx.full_source,
+        Token {
+            span: Span::new(head.span.start(), split),
+            ..head
+        },
+        TokenKind::Namespace,
+        if known { MOD_DEFAULT_LIBRARY } else { 0 },
+        entries,
+    );
+    push_token(
+        ctx.line_index,
+        ctx.full_source,
+        Token {
+            span: Span::new(split, head.span.end()),
+            ..head
+        },
+        kind,
+        mods,
+        entries,
+    );
 }
 
 /// A written member of the document's own grammar (a `.sslictcl` or `SpecTcl`
@@ -3598,7 +3734,9 @@ fn document_member(
         return None;
     }
     let grammar = ctx.oo_grammar?;
-    (ctx.registry.document_grammar()?.family == grammar.family).then_some(())?;
+    if !ctx.written_members && ctx.registry.document_grammar()?.family != grammar.family {
+        return None;
+    }
     grammar.source_member_in(
         seg.texts.first()?.as_bytes(),
         Some(ctx.context.authoring_query()),
@@ -3630,49 +3768,44 @@ fn unrecorded_command_spec(
     ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Option<&'static tcl_registry::CommandSpec> {
+    use tcl_compiler::realm::RealmBindingFact;
     let head = seg.argv.first()?;
     (head.kind == TokenType::Esc && seg.single_token_word.first() == Some(&true)).then_some(())?;
-    // A spelling the document rebinds (a `proc` over a builtin, a rename)
-    // resolves to the empty name, which no descriptor answers.
-    let name = ctx
-        .analysis?
-        .retained_command_realm()?
-        .resolve(seg.texts.first()?, head.span.start())
-        .spec_name();
+    let text = seg.texts.first()?;
+    let Some(analysis) = ctx.analysis else {
+        // A source shell knows no rebinding: the spelling names the command.
+        ctx.walk.shell?;
+        return ctx.generation.resolve_command(text);
+    };
+    let realm = analysis.retained_command_realm()?;
+    let name = match realm.binding_at(text, head.span.start()) {
+        RealmBindingFact::Unchanged => text.as_str(),
+        RealmBindingFact::Command(name) => name,
+        RealmBindingFact::Rebound => {
+            // A site the interpretation dispatched and could not prove stays
+            // unknown. One it never reached has no fact at all: the spelling
+            // still names the document's own command for display, unless the
+            // document itself rebinds that name.
+            let tail = tcl_syntax::naming::written_command_tail(text.as_bytes());
+            if realm.source_bindings_ref().reached_site(head.span.start())
+                || ctx.walk.rebound_tails.contains(tail)
+            {
+                return None;
+            }
+            text.as_str()
+        }
+    };
     ctx.generation.resolve_command(name)
 }
 
-/// Body, expression, keyword and option words of an unrecorded command, from
-/// its written spellings.
+/// Registry roles of an unrecorded command, from its written spellings.
 fn insert_unrecorded_command_roles(
     ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    use tcl_registry::ArgRole;
-    let Some(spec) = unrecorded_command_spec(ctx, seg) else {
-        return;
-    };
-    let texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-    let arguments = tcl_registry::InvocationArguments::literals(&texts);
-    for (ordinal, role) in ctx
-        .registry
-        .arg_role_assignments_words(spec.name, arguments, &[])
-        .unwrap_or_default()
-    {
-        let Some(token) = ordinal.checked_add(1).and_then(|word| seg.argv.get(word)) else {
-            continue;
-        };
-        let braced = token.kind == TokenType::Str;
-        let kind = match role {
-            ArgRole::Body if braced => ArgOverride::BodyScript,
-            ArgRole::Expr if braced => ArgOverride::ExprScript,
-            ArgRole::Subcommand => ArgOverride::SubcommandKeyword,
-            ArgRole::Keyword => ArgOverride::KeywordArg,
-            ArgRole::Option | ArgRole::OptionTerminator => ArgOverride::Decorator,
-            _ => continue,
-        };
-        overrides.entry(token.span.start()).or_insert(kind);
+    if let Some(spec) = unrecorded_command_spec(ctx, seg) {
+        original::insert_written_overrides(ctx, seg, spec, overrides);
     }
 }
 
@@ -3885,8 +4018,24 @@ fn command_body_context<'a>(
             })
             .flatten()
     });
-    let next_oo = if ctx.lexical {
-        next_original_definition_grammar(ctx, head_text, arg_texts, outer_grammar)
+    // A command with no retained invocation opens the definition grammar its
+    // written words select, so the member words inside read as members.
+    let written_grammar = (!ctx.lexical && original.is_none())
+        .then(|| {
+            let spec = unrecorded_command_spec(ctx, seg)?;
+            ctx.registry
+                .resolve_invocation(spec.name, arg_texts, None)?
+                .authored_source_definition_body_grammar()
+        })
+        .flatten();
+    let written_members = written_grammar.is_some() || (ctx.written_members && original.is_none());
+    let next_oo = if ctx.lexical || written_members {
+        next_original_definition_grammar(
+            ctx,
+            head_text,
+            arg_texts,
+            outer_grammar.or(written_grammar),
+        )
     } else {
         // A document grammar's member opens its own member grammar on every
         // profile; a class-system body keeps its selected source owner.
@@ -3926,6 +4075,7 @@ fn command_body_context<'a>(
         .or(ctx.scoped_env);
     ScriptCtx {
         oo_grammar: next_oo,
+        written_members: written_members && next_oo.is_some(),
         enclosing_class: next_class,
         scoped_env: next_scoped,
         ..ctx
@@ -4499,7 +4649,9 @@ fn emit_arg_token(
                 operand: ctx.operand,
                 ..body_ctx
             };
-            collect_case_list(list_ctx, *tok, entries, depth + 1, spec, *regexp);
+            // A command with no retained invocation reads its written list.
+            let written = ctx.original_words.is_none() && ctx.declared_words.is_none();
+            collect_case_list(list_ctx, *tok, entries, depth + 1, spec, *regexp, written);
         }
         Some(ArgOverride::KeywordArg) => {
             push_keyword_arg(ctx, *tok, entries);
@@ -5179,9 +5331,12 @@ fn collect_entries(
     let registry = current.registry();
     let dialect = current.profile();
     let generation = current.context();
-    let lexical = analysis.allows_lexical_declaration_advice();
+    // A source shell interpreted nothing, so every command reads its written
+    // words; any analysis query would interpret the document after all.
     let retained = analysis;
-    let analysis = Some(retained);
+    let shell = retained.is_source_shell().then_some(retained);
+    let lexical = shell.is_none() && retained.allows_lexical_declaration_advice();
+    let analysis = shell.is_none().then_some(retained);
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
     let profile = dialect;
@@ -5203,7 +5358,7 @@ fn collect_entries(
     // `test` = `tcltest::test`), plus every statically proven `interp alias` /
     // `rename` / built-in-shadowing `proc`.  Empty (no lookups)
     // unless the document actually binds something.
-    let Some(head_identities) = analysis.and_then(AnalysisResult::retained_command_realm) else {
+    let Some(head_identities) = retained.retained_command_realm() else {
         return Vec::new();
     };
 
@@ -5229,6 +5384,7 @@ fn collect_entries(
             )
         });
     let original_roles = original::OriginalTokenRoles::capture(source, analysis);
+    let walk = WalkFacts::new(shell, analysis);
     let ctx = ScriptCtx {
         full_source: source,
         dialect,
@@ -5238,6 +5394,8 @@ fn collect_entries(
         operand: None,
         original_words: None,
         declared_words: None,
+        written_members: false,
+        walk: &walk,
         lexical,
         numbers: profile.grammar.numbers,
         registry,
@@ -5271,6 +5429,15 @@ fn standalone_token_analysis(
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> AnalysisResult {
+    standalone_analyser(dialect, registry)
+        .structure_only()
+        .analyse(source, dialect.name)
+}
+
+fn standalone_analyser(
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+) -> tcl_compiler::analyser::Analyser {
     let context = tcl_registry::model::context_for_profile(dialect);
     let context =
         std::sync::Arc::new(context.with_command_store(registry.snapshot().shared_registry()));
@@ -5280,10 +5447,7 @@ fn standalone_token_analysis(
         context,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
     );
-    tcl_compiler::analyser::Analyser::new()
-        .structure_only()
-        .with_resolved_input(input)
-        .analyse(source, dialect.name)
+    tcl_compiler::analyser::Analyser::new().with_resolved_input(input)
 }
 
 fn token_object_maps(
@@ -5378,6 +5542,9 @@ fn collect_context_entries(
     // The shared original source walker retains comment phase independently
     // of the semantic colours already emitted for other source roles.
     push_comment_tokens(source, line_index, analysis, entries);
+    // A body the analysis did not enter is still coloured as script by the
+    // walk above; its comments are read from the same regions.
+    push_entered_comment_tokens(ctx, &ctx.walk.entered_scripts.borrow(), entries);
 
     // BIG-IP object references (iRules dialect): overlay `object` tokens
     // at recognised pool / data-group / virtual / … name positions.
@@ -5629,14 +5796,46 @@ fn push_comment_tokens(
     }) else {
         return;
     };
+    push_comment_facts(source, line_index, comments, entries);
+}
+
+/// The lexer's comments in exactly the script regions the walk entered and
+/// coloured as script. A source shell has no other source of comments.
+fn push_entered_comment_tokens(
+    ctx: ScriptCtx<'_>,
+    entered: &[(Span, u32)],
+    entries: &mut Vec<Entry>,
+) {
+    let image = tcl_lexer::SourceImage::document(ctx.full_source);
+    let Some(mut comments) = tcl_compiler::analyser::utils::original_script_command_comment_facts(
+        &image, entered, ctx.config,
+    ) else {
+        return;
+    };
+    comments.sort_by_key(|comment| comment.span.start());
+    comments.dedup_by_key(|comment| comment.span.start());
+    push_comment_facts(ctx.full_source, ctx.line_index, comments, entries);
+}
+
+fn push_comment_facts(
+    source: &str,
+    line_index: &LineIndex,
+    comments: Vec<tcl_compiler::analyser::utils::ScriptCommentFact>,
+    entries: &mut Vec<Entry>,
+) {
+    let mut covered: FxHashMap<u32, Vec<(u32, u32)>> = FxHashMap::default();
+    for (line, column, length, _, _) in entries.iter() {
+        covered.entry(*line).or_default().push((*column, *length));
+    }
     for comment in comments {
         let pos = line_index.position_at_utf16(comment.span.start(), source);
         // This is only a rendering conflict check: the retained lexer token
         // already established command-position comment phase.
-        let already_covered = entries.iter().any(|(line, column, length, _, _)| {
-            *line == pos.line
-                && *column <= pos.character.get()
-                && pos.character.get() < *column + *length
+        let character = pos.character.get();
+        let already_covered = covered.get(&pos.line).is_some_and(|spans| {
+            spans
+                .iter()
+                .any(|(column, length)| *column <= character && character < *column + *length)
         });
         if !already_covered {
             push_span_entries(
@@ -5928,6 +6127,62 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    /// The first-paint tier reads written words and the registry only. On
+    /// source whose colours need no analysis it must equal the analysed
+    /// result, so serving it first changes nothing the user sees. The cases
+    /// are release-invariant; run under Tcl 8.6.
+    #[test]
+    fn coarse_tokens_equal_analysed_tokens_on_plain_source() {
+        let registry = release_reg("tcl8.6");
+        let sources = [
+            "namespace eval ::bench {\n    variable counter 0\n}\n",
+            "# a comment\nproc ::bench::step {a b} {\n    set v [expr {$a + $b}]\n    \
+             set msg \"step = $v\"\n    if {$v > 10} {\n        # nested comment\n        \
+             set v [expr {$v + 1}]\n    }\n    return $v\n}\n",
+            "set s [string length abc] ;# inline comment\nputs -nonewline $s\n",
+        ];
+        for source in sources {
+            assert_eq!(
+                coarse(source, tcl(), &registry).data,
+                full(source, tcl(), &registry).data,
+                "{source}"
+            );
+        }
+    }
+
+    /// What the first-paint tier colours without any analysis: a class body's
+    /// members and their parameters, a parameter default, and a `switch` arm's
+    /// script. Release-invariant; run under Tcl 8.6.
+    #[test]
+    fn coarse_tokens_read_definition_bodies_and_case_arms_from_written_words() {
+        let registry = release_reg("tcl8.6");
+        let source = "oo::class create Stack {\n    method push {x {n 1}} {\n        \
+                      switch -exact -- $x {\n            a { puts one }\n        }\n    }\n}\n";
+        let lines: Vec<&str> = source.lines().collect();
+        let (mut line, mut column) = (0usize, 0usize);
+        let mut kinds = FxHashMap::default();
+        for token in coarse(source, tcl(), &registry).data.chunks(5) {
+            if token[0] > 0 {
+                line += token[0] as usize;
+                column = token[1] as usize;
+            } else {
+                column += token[1] as usize;
+            }
+            let text = &lines[line][column..column + token[2] as usize];
+            kinds.entry(text).or_insert(token[3]);
+        }
+        for (text, kind) in [
+            ("method", TokenKind::Keyword),
+            ("x", TokenKind::Parameter),
+            ("n", TokenKind::Parameter),
+            ("1", TokenKind::Number),
+            ("switch", TokenKind::Keyword),
+            ("puts", TokenKind::Function),
+        ] {
+            assert_eq!(kinds.get(text).copied(), Some(kind as u32), "{text}");
+        }
     }
 
     /// The command set of one release, so a unit built from it carries that

@@ -1322,8 +1322,10 @@ struct FreshAnalysisDriver {
 }
 
 impl FreshAnalysisDriver {
-    fn into_structure_only(mut self: Box<Self>) -> Box<Self> {
-        self.analyser = self.analyser.structure_only();
+    /// Keep the document's source identity and interpret nothing: all the
+    /// first-paint token tier reads.
+    fn into_source_shell(mut self: Box<Self>) -> Box<Self> {
+        self.analyser = self.analyser.source_shell();
         self
     }
 
@@ -42296,13 +42298,19 @@ fn range_token_data(
             unindexed_semantic_tokens_for_range(text, analysis, Some(core_range)).data
         });
     }
+    let profile = tcl_lsp_core::profile_for_dialect(dialect);
+    let Some(analysis) = analysis else {
+        // The analysed read missed the budget: serve the first-paint tier,
+        // which interprets nothing, and let the continuation converge.
+        return core_semantic_tokens::coarse_range(text, profile, core_range, registry).data;
+    };
     core_semantic_tokens::range_with_cu_and_analysis(
         text,
-        tcl_lsp_core::profile_for_dialect(dialect),
+        profile,
         core_range,
         registry,
         cu,
-        analysis,
+        Some(analysis),
     )
     .data
 }

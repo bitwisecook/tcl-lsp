@@ -3658,6 +3658,10 @@ impl super::SourceCommandBindings {
     }
 
     pub(super) fn original_source_transition_seed(&self) -> Option<OriginalSourceTransitionSeed> {
+        // An unentered interpretation offers no advice to re-interpret from.
+        if self.unentered {
+            return None;
+        }
         if self.final_state.baseline.source_point_entry.is_some()
             && self.original_inherited_source_entry().is_none()
         {

@@ -2475,6 +2475,7 @@ impl<'r> Lowerer<'r> {
                 logical_source_input: self.logical_source_input.as_ref(),
                 vendor_source_input: self.vendor_source_input.as_ref(),
                 compilation_scope: self.compilation_scope,
+                unentered: false,
                 invocation_realm: self.invocation_realm,
                 declared_commands: self
                     .source_declared_commands

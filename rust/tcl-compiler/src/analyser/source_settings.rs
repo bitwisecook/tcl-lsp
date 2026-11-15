@@ -32,7 +32,7 @@ pub struct OriginalAnalyserSourceSettings {
     declared_targets: Vec<(String, String)>,
     package_provides: Vec<(String, Vec<String>)>,
     deep_param_traits: bool,
-    structure_only: bool,
+    depth: AnalysisDepth,
     defer_proc_bodies: bool,
     workspace_classes: HashSet<String>,
     workspace_bare_word_classes: HashSet<String>,
@@ -41,6 +41,17 @@ pub struct OriginalAnalyserSourceSettings {
     workspace_declared_commands: Option<Arc<tcl_registry::model::DeclaredSurface>>,
     workspace_source_modules: Option<Arc<Vec<crate::command_binding::TrustedSourceModuleLoader>>>,
 }
+/// How much of the document an analyser run interprets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum AnalysisDepth {
+    /// The walk and every diagnostic emitter.
+    Complete,
+    /// The walk without diagnostics ([`Analyser::structure_only`]).
+    StructureOnly,
+    /// Nothing ([`Analyser::source_shell`]).
+    SourceShell,
+}
+
 impl Hash for OriginalAnalyserSourceSettings {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Bucket selection only; complete Eq above retains every typed fact.
@@ -48,7 +59,7 @@ impl Hash for OriginalAnalyserSourceSettings {
         self.declared_targets.hash(state);
         self.package_provides.hash(state);
         self.deep_param_traits.hash(state);
-        self.structure_only.hash(state);
+        self.depth.hash(state);
         self.defer_proc_bodies.hash(state);
     }
 }
@@ -61,7 +72,13 @@ impl OriginalAnalyserSourceSettings {
             declared_targets: analyser.declared_targets.clone(),
             package_provides: analyser.package_provides.clone(),
             deep_param_traits: analyser.deep_param_traits,
-            structure_only: analyser.structure_only,
+            depth: if analyser.source_shell {
+                AnalysisDepth::SourceShell
+            } else if analyser.structure_only {
+                AnalysisDepth::StructureOnly
+            } else {
+                AnalysisDepth::Complete
+            },
             defer_proc_bodies: analyser.defer_proc_bodies,
             workspace_classes: analyser.workspace_classes.clone(),
             workspace_bare_word_classes: analyser.workspace_bare_word_classes.clone(),
@@ -78,7 +95,8 @@ impl OriginalAnalyserSourceSettings {
         analyser.declared_targets.clone_from(&self.declared_targets);
         analyser.package_provides.clone_from(&self.package_provides);
         analyser.deep_param_traits = self.deep_param_traits;
-        analyser.structure_only = self.structure_only;
+        analyser.structure_only = self.depth == AnalysisDepth::StructureOnly;
+        analyser.source_shell = self.depth == AnalysisDepth::SourceShell;
         analyser.defer_proc_bodies = self.defer_proc_bodies;
         analyser
             .workspace_classes

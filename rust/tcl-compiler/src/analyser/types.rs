@@ -4031,6 +4031,16 @@ impl AnalysisResult {
         self.command_realm.as_deref()
     }
 
+    /// Whether this is a source shell ([`super::Analyser::source_shell`]): the
+    /// document's identity with no command interpreted. Display consumers read
+    /// written words from it; it holds no fact for any other consumer.
+    #[must_use]
+    pub fn is_source_shell(&self) -> bool {
+        self.command_realm
+            .as_deref()
+            .is_some_and(|realm| realm.source_bindings_ref().is_unentered())
+    }
+
     /// Borrow the same immutable interpretation owner for source-derived
     /// batch currency. Arc identity grants no invocation or execution facts.
     pub(crate) fn retained_command_realm_arc(
