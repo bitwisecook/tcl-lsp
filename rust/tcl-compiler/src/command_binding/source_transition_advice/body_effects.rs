@@ -836,6 +836,9 @@ impl BodyWalk<'_, '_> {
             {
                 return None;
             }
+            if self.declares_tcloo_members_only(&region) {
+                continue;
+            }
             let span = region.content_span();
             // Changing namespace source coordinates retain their independently
             // selected policy; no frame or body execution follows.
@@ -874,6 +877,30 @@ impl BodyWalk<'_, '_> {
             );
         }
         Some(())
+    }
+
+    /// A `TclOO` definition body whose every command is a written member of
+    /// its grammar with no substitution. Such a body declares methods,
+    /// relations and state on the class; it publishes no command and runs no
+    /// member body, so it leaves the command world as it found it.
+    fn declares_tcloo_members_only(
+        &self,
+        region: &crate::registry_invocation::OriginalSourceScriptBody,
+    ) -> bool {
+        let Some(members) =
+            region.definition_member_region(self.context.context, region.content_span())
+        else {
+            return false;
+        };
+        members.grammar().family == tcl_registry::definer::DefinerFamily::TclOo
+            && members
+                .complete_original_commands()
+                .is_some_and(|commands| {
+                    commands.iter().all(|command| {
+                        original_operand_effects(command).is_empty()
+                            && members.script_bodies(command).is_some()
+                    })
+                })
     }
 
     #[inline(never)]

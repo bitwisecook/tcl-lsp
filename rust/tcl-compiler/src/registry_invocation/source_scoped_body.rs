@@ -1119,6 +1119,12 @@ pub enum OriginalSourceDefinitionMemberDisposition {
 }
 
 impl OriginalSourceDefinitionMemberRegion {
+    /// The definition grammar selected for the parent body.
+    #[must_use]
+    pub(crate) fn grammar(&self) -> &'static tcl_registry::definer::DefinitionBodyGrammar {
+        self.grammar
+    }
+
     /// Complete original vectors only when the retained lexical plan covers
     /// the entire genuine parent definition body without a fatal tail.
     /// An empty complete vector is source coverage, never lifecycle absence.
