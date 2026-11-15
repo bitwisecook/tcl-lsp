@@ -2172,6 +2172,18 @@ impl Vm {
     /// `activation_depth` counts nested `drive` invocations — the host re-entry
     /// counter `yield` consults to reject a suspend across a `catch`/`uplevel`/
     /// `eval`/OO-method boundary (`cannot yield: C stack busy`).
+    /// Charge the value the last tick left on top of the running activation's
+    /// stack against the value-size limit: a command's result, or what an
+    /// inline instruction built — a concatenation, an append, a list. Every
+    /// value a body keeps passes through there, so none over the limit
+    /// outlives the instruction that built it.
+    fn charge_built_value(&mut self, acts: &[Frame]) -> Option<Completion<Value>> {
+        let limit = self.value_size_limit_value()?;
+        let built = acts.last()?.stack.last()?;
+        (built.measured_bytes(limit) > limit)
+            .then(|| self.exceed_limit_inner(crate::LimitKind::ValueSize))
+    }
+
     fn drive(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         let original = crate::interp::oo_cleanup::OriginalOoCleanup::enter(self);
         let previous_depth = self.activation_depth;
@@ -2566,7 +2578,10 @@ impl Vm {
             // Enforce `interp limit $i time` for unbounded bytecode loops: the
             // counter is Vm-scoped so it survives the short activations a
             // command-driven loop re-enters (see `limit_check_tick`).
-            if let Some(c) = self.limit_check_tick() {
+            if let Some(c) = self
+                .limit_check_tick()
+                .or_else(|| self.charge_built_value(acts))
+            {
                 fresh_top = None;
                 let c = match self.publish_and_log_completion(acts, c) {
                     Ok(completion) => completion,

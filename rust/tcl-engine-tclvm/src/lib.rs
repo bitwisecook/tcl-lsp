@@ -2294,6 +2294,11 @@ impl Engine for TclVmEngine {
                 vm.set_wall_clock_budget(Some(wall_clock));
             }
             let invoked = vm.try_invoke_command(&handle.procedure, &arguments);
+            // A result about to leave the VM answers to the value-size budget
+            // however it was built, a folded constant included.
+            if let Ok(completion) = &invoked {
+                vm.charge_value_size(&completion.result);
+            }
             let current = vm.check_original_scalar_ingress(&original);
             let projected_current = check_projection(vm, projected);
             drop(arguments);
