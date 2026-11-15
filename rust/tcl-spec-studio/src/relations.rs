@@ -300,6 +300,7 @@ pub const CLUSTERS: &[Cluster] = &[
         why: "What an author reads on hover, and the call shapes that back it.",
         members: &[
             "hover",
+            "documentation_examples",
             "synopsis",
             "detail",
             "forms",

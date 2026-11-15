@@ -68,6 +68,7 @@ export const STRUCTURAL_KINDS = new Set([
   "subSubCommands",
   "subCommands",
   "hover",
+  "documentationExamples",
   "objectClass",
   "tkGeometry",
   "definitionBody",
@@ -1426,6 +1427,76 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         },
         set,
         "operation",
+      ),
+
+    documentationExamples: (_kind, value, set) =>
+      rowList<Json>(
+        asArray(value),
+        () => ({ code: "", carrier: null, notes: [] }),
+        (item, _i, update, remove) => {
+          const example = asRecord(item);
+          const patch = (next: Record<string, Json>, structural?: boolean): void => {
+            update({ ...clone(example), ...next }, structural);
+          };
+          const code = el("textarea", { rows: 4, placeholder: "the example's Tcl code" });
+          code.value = asString(example.code);
+          code.addEventListener("input", () => patch({ code: code.value }, false));
+          const carrier = asRecord(example.carrier ?? {});
+          const notes = rowList<Json>(
+            asArray(example.notes ?? []),
+            () => ({ line: 0, needle: "", label: "" }),
+            (noteItem, _j, updateNote, removeNote) => {
+              const note = asRecord(noteItem);
+              const patchNote = (next: Record<string, Json>): void => {
+                updateNote({ ...clone(note), ...next }, false);
+              };
+              return el("div", { class: "row wide" }, [
+                el("div", { class: "ctl" }, [
+                  labelled(
+                    "line",
+                    numberInput(asNumber(note.line) ?? 0, (n) => patchNote({ line: n ?? 0 })),
+                  ),
+                  labelled(
+                    "text",
+                    textInput(asString(note.needle), (t) => patchNote({ needle: t }), { size: 16 }),
+                  ),
+                  removeButton(removeNote),
+                ]),
+                textInput(asString(note.label), (t) => patchNote({ label: t }), {
+                  placeholder: "what happens at this point",
+                }),
+              ]);
+            },
+            (next, structural) => patch({ notes: next }, structural),
+            "note",
+          );
+          return el("div", { class: "row wide" }, [
+            code,
+            el("div", { class: "ctl" }, [
+              labelled(
+                "carrier line",
+                numberInput(asNumber(carrier.line), (n) =>
+                  patch({
+                    carrier: n === null ? null : { line: n, needle: asString(carrier.needle) },
+                  }),
+                ),
+              ),
+              labelled(
+                "carrier text",
+                textInput(
+                  asString(carrier.needle),
+                  (t) =>
+                    patch({ carrier: { line: asNumber(carrier.line) ?? 0, needle: t } }, false),
+                  { size: 16 },
+                ),
+              ),
+              removeButton(remove),
+            ]),
+            notes,
+          ]);
+        },
+        set,
+        "example",
       ),
 
     hover: (_kind, value, set) => {

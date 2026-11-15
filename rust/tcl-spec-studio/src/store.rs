@@ -1875,6 +1875,22 @@ impl<'a> Resolution<'a> {
                     // data — or `null` when the command declares none.
                     "clause_grammar": d.get("clause_grammar").cloned().unwrap_or(Value::Null),
                     "hooks": hooks,
+                    // Structured `example` blocks failing the checks the
+                    // built-in examples pass: text off its line, arrows out of
+                    // execution order.
+                    "example_errors": self.store.pack.command(name).map_or_default(|c| {
+                        c.spec
+                            .documentation_examples
+                            .iter()
+                            .enumerate()
+                            .flat_map(|(index, example)| {
+                                crate::examples::documentation_example_errors(
+                                    *example,
+                                    &format!("{name} example {}", index + 1),
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                    }),
                 })
             })
             .collect();

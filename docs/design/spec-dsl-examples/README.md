@@ -399,6 +399,28 @@ This is where the DSL beats the `.rs` outright: a braced word keeps real
 newlines and literal backslashes, so a multi-line example is written as
 itself instead of as one `"…\n…\\w…"` string.
 
+An `example` whose braced word starts with a `code` row is a **structured
+example**, loaded into `CommandSpec::documentation_examples` rather than
+the hover text:
+
+```tcl
+hover {
+    example {
+        code {set n [llength $items]}
+        carrier 0 llength                  ;# optional: the command it is about
+        note 0 {$items} {supplies the list} ;# repeatable, in execution order
+        note 0 llength {returns the count}
+    }
+}
+```
+
+Lines count from 0 and every `carrier` / `note` text must occur on its
+line, or the loader refuses the example with a notice. The Studio's
+`validate` report runs the same source-alignment and causal-order checks
+on it that guard the built-in examples (`example_errors`). A plain
+`example {…}` without a `code` row keeps its meaning as hover text; only a
+command's own `hover` takes structured examples.
+
 ### Pack-level declarations
 
 ```tcl

@@ -970,6 +970,34 @@ fn object_class(class: Option<&'static ObjectClassSpec>) -> Value {
     })
 }
 
+/// `[{code, carrier: {line, needle} | null, notes: [{line, needle, label}]}]`.
+pub(crate) fn documentation_examples(
+    examples: &[tcl_registry::documentation::DocumentationExample],
+) -> Value {
+    Value::Array(
+        examples
+            .iter()
+            .map(|example| {
+                json!({
+                    "code": example.code,
+                    "carrier": example.carrier.map_or(Value::Null, |carrier| {
+                        json!({ "line": carrier.line, "needle": carrier.needle })
+                    }),
+                    "notes": example
+                        .annotations
+                        .iter()
+                        .map(|note| json!({
+                            "line": note.line,
+                            "needle": note.needle,
+                            "label": note.label,
+                        }))
+                        .collect::<Vec<_>>(),
+                })
+            })
+            .collect(),
+    )
+}
+
 pub(crate) fn hover(value: Option<HoverSnippet>) -> Value {
     match value {
         None => Value::Null,
@@ -2259,6 +2287,10 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             .map_or(Value::Null, |w| json!(catalogue::variant_name(&w))),
     );
     d.insert("hover".into(), hover(spec.hover));
+    d.insert(
+        "documentation_examples".into(),
+        documentation_examples(spec.documentation_examples),
+    );
     d.insert(
         "forms".into(),
         nested_rows(spec.forms, "forms", lost, form_spec),

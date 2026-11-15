@@ -1868,6 +1868,11 @@ pub struct CommandSpec {
     /// Hover documentation.
     pub hover: Option<HoverSnippet>,
 
+    /// Worked examples with source-aligned annotations, as a pack's
+    /// structured `example { code …; carrier …; note … }` hover block states
+    /// them. Built-in commands document through `hover` and need none.
+    pub documentation_examples: &'static [crate::documentation::DocumentationExample],
+
     /// Invocation forms (for completion and arity-dependent lookup).
     pub forms: &'static [FormSpec],
 
@@ -3024,6 +3029,7 @@ impl CommandSpec {
         allow_unknown_subcommands: false,
         default_form_first_word: None,
         hover: None,
+        documentation_examples: &[],
         forms: &[],
         command_forms: &[],
         semantic_operation: None,

@@ -4583,7 +4583,17 @@ fn option_row(
 
 // Hover
 
-fn hover_block(stmts: &[Stmt], log: &mut Log) -> HoverSnippet {
+/// The hover text, plus the structured worked examples among its `example`
+/// rows. An `example` whose braced word starts with a `code` row is a
+/// [`DocumentationExample`]; any other `example` is hover text, as before.
+fn hover_block(
+    stmts: &[Stmt],
+    log: &mut Log,
+) -> (
+    HoverSnippet,
+    Vec<tcl_registry::documentation::DocumentationExample>,
+) {
+    let mut structured = Vec::new();
     let mut summary = String::new();
     let mut synopsis: Vec<String> = Vec::new();
     let mut snippet = String::new();
@@ -4599,12 +4609,19 @@ fn hover_block(stmts: &[Stmt], log: &mut Log) -> HoverSnippet {
             // else in the DSL renames a key.
             "description" => snippet = value,
             "source" => source = value,
-            "example" => examples.push(value),
+            "example" => match stmt.arg(1).map(block) {
+                Some(rows) if rows.first().is_some_and(|row| row.word_text(0) == "code") => {
+                    if let Some(example) = documentation_example(&rows, log) {
+                        structured.push(example);
+                    }
+                }
+                _ => examples.push(value),
+            },
             "returns" => return_value = value,
             _ => log.unknown_property(stmt),
         }
     }
-    HoverSnippet {
+    let hover = HoverSnippet {
         summary: leak_str(&summary),
         synopsis: leak_strs(&synopsis),
         snippet: leak_str(&snippet),
@@ -4612,7 +4629,75 @@ fn hover_block(stmts: &[Stmt], log: &mut Log) -> HoverSnippet {
         // Repeated `example` rows join with a single newline.
         examples: leak_str(&examples.join("\n")),
         return_value: leak_str(&return_value),
+    };
+    (hover, structured)
+}
+
+/// `example { code SCRIPT; carrier LINE NEEDLE; note LINE NEEDLE LABEL … }`.
+///
+/// Lines are zero-based lines of `code`, and every needle must occur on its
+/// line: an annotation pointing at text the code does not contain is
+/// refused with the whole example rather than drawn somewhere else.
+fn documentation_example(
+    rows: &[Stmt],
+    log: &mut Log,
+) -> Option<tcl_registry::documentation::DocumentationExample> {
+    use tcl_registry::documentation::{
+        DocumentationAnnotation, DocumentationCarrier, DocumentationExample,
+    };
+    let code = rows.first()?.word_text(1);
+    let lines: Vec<&str> = code.lines().collect();
+    let located = |row: &Stmt, log: &mut Log| -> Option<(usize, &'static str)> {
+        let line = row.word_text(1).parse::<usize>().ok();
+        let needle = row.word_text(2);
+        match line {
+            Some(line)
+                if lines.get(line).is_some_and(|text| text.contains(needle))
+                    && !needle.is_empty() =>
+            {
+                Some((line, leak_str(needle)))
+            }
+            _ => {
+                log.say(
+                    row.line,
+                    format!(
+                        "`{}` needs a 0-based line of `code` and text on that line; `{} {}` is not",
+                        row.word_text(0),
+                        row.word_text(1),
+                        needle
+                    ),
+                );
+                None
+            }
+        }
+    };
+    let mut carrier = None;
+    let mut notes = Vec::new();
+    for row in &rows[1..] {
+        match row.word_text(0) {
+            "carrier" => carrier = Some(located(row, log)?),
+            "note" => {
+                let (line, needle) = located(row, log)?;
+                notes.push(DocumentationAnnotation::new(
+                    line,
+                    needle,
+                    leak_str(row.word_text(3)),
+                ));
+            }
+            _ => {
+                log.unknown_property(row);
+                return None;
+            }
+        }
     }
+    let code = leak_str(code);
+    let notes: &'static [DocumentationAnnotation] = Box::leak(notes.into_boxed_slice());
+    Some(match carrier {
+        Some((line, needle)) => {
+            DocumentationExample::with_carrier(code, DocumentationCarrier::new(line, needle), notes)
+        }
+        None => DocumentationExample::new(code, notes),
+    })
 }
 
 // Block-valued descriptors
@@ -6281,7 +6366,14 @@ fn scoped_command_row(
                 }
                 "hover" => {
                     if let Some(word) = row.arg(1) {
-                        command.hover = Some(hover_block(&block(word), log));
+                        let (hover, examples) = hover_block(&block(word), log);
+                        if !examples.is_empty() {
+                            log.say(
+                                row.line,
+                                "a body-scope command has no structured examples; they stay hover text",
+                            );
+                        }
+                        command.hover = Some(hover);
                     }
                 }
                 "subcommand" => {
@@ -7075,7 +7167,11 @@ fn apply_command_stmt(
         // Documentation.
         "hover" => {
             if let Some(word) = stmt.arg(1) {
-                spec.hover = Some(hover_block(&block(word), log));
+                let (hover, examples) = hover_block(&block(word), log);
+                spec.hover = Some(hover);
+                if !examples.is_empty() {
+                    spec.documentation_examples = Box::leak(examples.into_boxed_slice());
+                }
             }
         }
         "form" => acc.forms.push(form_row(stmt, log)),
@@ -8895,7 +8991,15 @@ fn apply_subcommand_stmt(
         "synopsis" => sub.synopsis = leak_str(&value),
         "hover" => {
             if let Some(word) = stmt.arg(1) {
-                sub.hover = Some(hover_block(&block(word), log));
+                let (hover, examples) = hover_block(&block(word), log);
+                if !examples.is_empty() {
+                    log.say(
+                        stmt.line,
+                        "a structured `example` belongs to the command's own `hover`; \
+                         a subcommand's examples stay hover text",
+                    );
+                }
+                sub.hover = Some(hover);
             }
         }
         "arg" => acc.args.apply(stmt, tables, log),

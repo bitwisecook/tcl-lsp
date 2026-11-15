@@ -393,6 +393,21 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
     ),
     // Documentation
     (
+        "documentation_examples",
+        Example {
+            code: "set items {a b c}\nset n [llength $items]\nputs $n",
+            focuses: &[
+                focus(1, "$items", "a note: supplies the list"),
+                focus(
+                    1,
+                    "llength",
+                    "the carrier: the command the example is about",
+                ),
+                focus(2, "$n", "a later note: the observed result"),
+            ],
+        },
+    ),
+    (
         "hover",
         Example {
             code: "lappend names Bob",

@@ -299,136 +299,148 @@ fn named<T: Copy + std::fmt::Debug>(all: &[T], key: &str) -> Option<T> {
     })
 }
 
+pub(crate) fn validation_errors(example: &Value, owner: &str) -> Vec<String> {
+    let mut errors = Vec::new();
+    let code = example["code"].as_str().expect("example code");
+    let lines: Vec<&str> = code.lines().collect();
+    let annotations = example["annotations"].as_array().expect("annotations");
+    if annotations.is_empty() {
+        errors.push(format!("{owner} has no arrow annotations"));
+    }
+    for annotation in annotations {
+        let line =
+            usize::try_from(annotation["line"].as_u64().expect("line")).expect("line fits usize");
+        let needle = annotation["needle"].as_str().expect("needle");
+        if !lines.get(line).is_some_and(|text| text.contains(needle)) {
+            errors.push(format!(
+                "{owner}: line {line} does not contain {needle:?} in {code:?}"
+            ));
+        }
+        if annotation["label"].as_str().is_none_or(str::is_empty) {
+            errors.push(format!("{owner} has an empty arrow label"));
+        }
+    }
+    errors.extend(causal_order_errors(annotations, &lines, owner));
+    if let Some(carrier) = example.get("carrier") {
+        let line = usize::try_from(carrier["line"].as_u64().expect("carrier line"))
+            .expect("carrier line fits usize");
+        let needle = carrier["needle"].as_str().expect("carrier needle");
+        if needle.is_empty() {
+            errors.push(format!("{owner} has an empty carrier token"));
+        } else if !lines.get(line).is_some_and(|text| text.contains(needle)) {
+            errors.push(format!(
+                "{owner}: carrier line {line} does not contain {needle:?} in {code:?}"
+            ));
+        }
+        if carrier["label"].as_str().is_none_or(str::is_empty) {
+            errors.push(format!("{owner} has an empty carrier label"));
+        }
+    }
+    errors
+}
+
+/// Arrows are numbered by their position in the array and drawn as
+/// numbered steps, so their order is a claim about *when things happen*.
+/// Three rules follow, all checkable against the source:
+///
+/// 1. **Numbering runs forwards through the program.** An arrow on an
+///    earlier line may not be numbered after one on a later line — that
+///    tells the reader the consequence before the cause.
+/// 2. **A substitution is numbered before the word that consumes it.**
+///    `[gets stdin]` inside `puts [gets stdin]` is evaluated first, so it
+///    is step 1. This is why left-to-right is deliberately *not* the rule:
+///    `error` before `catch` on one line is right, and only containment
+///    can say so. Only a `[…]` or `$…` needle counts — a `%b` inside a
+///    braced format string is contained but not substituted, and Tcl's own
+///    rule is the one to follow here.
+/// 3. **Two arrows on a line may not start at the same column.** The
+///    browser finds a needle with `indexOf` and draws its bracket from
+///    there, so `$item` on a line holding `$items`, or `set local` beside
+///    `set local value`, stack two brackets on one token and at least one
+///    label describes something the reader is not being shown.
+///
+/// Spans that merely overlap, or sit side by side, are left alone: their
+/// order is the author's knowledge of the flow, which no rule here can
+/// recover.
+pub(crate) fn causal_order_errors(
+    annotations: &[Value],
+    lines: &[&str],
+    owner: &str,
+) -> Vec<String> {
+    fn needle(annotation: &Value) -> &str {
+        annotation["needle"].as_str().unwrap_or_default()
+    }
+    let mut errors = Vec::new();
+    let at = |annotation: &Value| {
+        usize::try_from(annotation["line"].as_u64().expect("line")).expect("line fits usize")
+    };
+    // The span the browser will actually bracket: the needle's first
+    // occurrence, which is what `indexOf` finds.
+    let span = |annotation: &Value| -> Option<(usize, usize)> {
+        let text = lines.get(at(annotation))?;
+        let start = text.find(needle(annotation))?;
+        Some((start, start + needle(annotation).len()))
+    };
+
+    for pair in annotations.windows(2) {
+        if at(&pair[0]) > at(&pair[1]) {
+            errors.push(format!(
+                "{owner}: an arrow on line {} is numbered after one on line {} — \
+                 number them in execution order",
+                at(&pair[1]),
+                at(&pair[0])
+            ));
+        }
+    }
+
+    for (index, first) in annotations.iter().enumerate() {
+        for second in &annotations[index + 1..] {
+            if at(first) != at(second) {
+                continue;
+            }
+            let (Some(outer), Some(inner)) = (span(first), span(second)) else {
+                continue;
+            };
+            if outer.0 == inner.0 {
+                errors.push(format!(
+                    "{owner}: {:?} and {:?} both bracket line {} from column {} — the \
+                     browser finds a needle by its first occurrence, so the two arrows \
+                     land on one token",
+                    needle(first),
+                    needle(second),
+                    at(first),
+                    outer.0
+                ));
+            } else if outer.0 < inner.0
+                && inner.1 <= outer.1
+                && (needle(second).starts_with('[') || needle(second).starts_with('$'))
+            {
+                errors.push(format!(
+                    "{owner}: {:?} is substituted before {:?} consumes it, so it must be \
+                     the earlier arrow",
+                    needle(second),
+                    needle(first)
+                ));
+            }
+        }
+    }
+    errors
+}
+
+/// The source-alignment and causal-order errors of one annotated example,
+/// whatever wrote it: a registry vocabulary or a pack's structured
+/// `example` block.
+#[must_use]
+pub fn documentation_example_errors(example: DocumentationExample, owner: &str) -> Vec<String> {
+    validation_errors(&registry_example_json(example, owner), owner)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
     use super::*;
     use crate::{catalogue, schema};
-
-    fn validation_errors(example: &Value, owner: &str) -> Vec<String> {
-        let mut errors = Vec::new();
-        let code = example["code"].as_str().expect("example code");
-        let lines: Vec<&str> = code.lines().collect();
-        let annotations = example["annotations"].as_array().expect("annotations");
-        if annotations.is_empty() {
-            errors.push(format!("{owner} has no arrow annotations"));
-        }
-        for annotation in annotations {
-            let line = usize::try_from(annotation["line"].as_u64().expect("line"))
-                .expect("line fits usize");
-            let needle = annotation["needle"].as_str().expect("needle");
-            if !lines.get(line).is_some_and(|text| text.contains(needle)) {
-                errors.push(format!(
-                    "{owner}: line {line} does not contain {needle:?} in {code:?}"
-                ));
-            }
-            if annotation["label"].as_str().is_none_or(str::is_empty) {
-                errors.push(format!("{owner} has an empty arrow label"));
-            }
-        }
-        errors.extend(causal_order_errors(annotations, &lines, owner));
-        if let Some(carrier) = example.get("carrier") {
-            let line = usize::try_from(carrier["line"].as_u64().expect("carrier line"))
-                .expect("carrier line fits usize");
-            let needle = carrier["needle"].as_str().expect("carrier needle");
-            if needle.is_empty() {
-                errors.push(format!("{owner} has an empty carrier token"));
-            } else if !lines.get(line).is_some_and(|text| text.contains(needle)) {
-                errors.push(format!(
-                    "{owner}: carrier line {line} does not contain {needle:?} in {code:?}"
-                ));
-            }
-            if carrier["label"].as_str().is_none_or(str::is_empty) {
-                errors.push(format!("{owner} has an empty carrier label"));
-            }
-        }
-        errors
-    }
-
-    /// Arrows are numbered by their position in the array and drawn as
-    /// numbered steps, so their order is a claim about *when things happen*.
-    /// Three rules follow, all checkable against the source:
-    ///
-    /// 1. **Numbering runs forwards through the program.** An arrow on an
-    ///    earlier line may not be numbered after one on a later line — that
-    ///    tells the reader the consequence before the cause.
-    /// 2. **A substitution is numbered before the word that consumes it.**
-    ///    `[gets stdin]` inside `puts [gets stdin]` is evaluated first, so it
-    ///    is step 1. This is why left-to-right is deliberately *not* the rule:
-    ///    `error` before `catch` on one line is right, and only containment
-    ///    can say so. Only a `[…]` or `$…` needle counts — a `%b` inside a
-    ///    braced format string is contained but not substituted, and Tcl's own
-    ///    rule is the one to follow here.
-    /// 3. **Two arrows on a line may not start at the same column.** The
-    ///    browser finds a needle with `indexOf` and draws its bracket from
-    ///    there, so `$item` on a line holding `$items`, or `set local` beside
-    ///    `set local value`, stack two brackets on one token and at least one
-    ///    label describes something the reader is not being shown.
-    ///
-    /// Spans that merely overlap, or sit side by side, are left alone: their
-    /// order is the author's knowledge of the flow, which no rule here can
-    /// recover.
-    fn causal_order_errors(annotations: &[Value], lines: &[&str], owner: &str) -> Vec<String> {
-        fn needle(annotation: &Value) -> &str {
-            annotation["needle"].as_str().unwrap_or_default()
-        }
-        let mut errors = Vec::new();
-        let at = |annotation: &Value| {
-            usize::try_from(annotation["line"].as_u64().expect("line")).expect("line fits usize")
-        };
-        // The span the browser will actually bracket: the needle's first
-        // occurrence, which is what `indexOf` finds.
-        let span = |annotation: &Value| -> Option<(usize, usize)> {
-            let text = lines.get(at(annotation))?;
-            let start = text.find(needle(annotation))?;
-            Some((start, start + needle(annotation).len()))
-        };
-
-        for pair in annotations.windows(2) {
-            if at(&pair[0]) > at(&pair[1]) {
-                errors.push(format!(
-                    "{owner}: an arrow on line {} is numbered after one on line {} — \
-                     number them in execution order",
-                    at(&pair[1]),
-                    at(&pair[0])
-                ));
-            }
-        }
-
-        for (index, first) in annotations.iter().enumerate() {
-            for second in &annotations[index + 1..] {
-                if at(first) != at(second) {
-                    continue;
-                }
-                let (Some(outer), Some(inner)) = (span(first), span(second)) else {
-                    continue;
-                };
-                if outer.0 == inner.0 {
-                    errors.push(format!(
-                        "{owner}: {:?} and {:?} both bracket line {} from column {} — the \
-                         browser finds a needle by its first occurrence, so the two arrows \
-                         land on one token",
-                        needle(first),
-                        needle(second),
-                        at(first),
-                        outer.0
-                    ));
-                } else if outer.0 < inner.0
-                    && inner.1 <= outer.1
-                    && (needle(second).starts_with('[') || needle(second).starts_with('$'))
-                {
-                    errors.push(format!(
-                        "{owner}: {:?} is substituted before {:?} consumes it, so it must be \
-                         the earlier arrow",
-                        needle(second),
-                        needle(first)
-                    ));
-                }
-            }
-        }
-        errors
-    }
 
     fn assert_valid(example: &Value, owner: &str) {
         let errors = validation_errors(example, owner);
@@ -1246,6 +1258,38 @@ mod tests {
                 "{group} uses a placeholder"
             );
         }
+    }
+
+    /// A pack's structured example meets the same source-alignment and
+    /// causal-order rules as a built-in one.
+    #[test]
+    fn pack_examples_are_checked_like_built_in_examples() {
+        use tcl_registry::documentation::{DocumentationAnnotation, DocumentationCarrier};
+        const IN_ORDER: &[DocumentationAnnotation] = &[
+            DocumentationAnnotation::new(0, "{a b}", "supplies the list"),
+            DocumentationAnnotation::new(1, "mypkg::count", "returns the count"),
+        ];
+        const BACKWARDS: &[DocumentationAnnotation] = &[
+            DocumentationAnnotation::new(1, "mypkg::count", "returns the count"),
+            DocumentationAnnotation::new(0, "{a b}", "supplies the list"),
+        ];
+        let code = "set items {a b}\nset n [mypkg::count $items]";
+        let carrier = DocumentationCarrier::new(1, "mypkg::count");
+        assert!(
+            documentation_example_errors(
+                DocumentationExample::with_carrier(code, carrier, IN_ORDER),
+                "pack"
+            )
+            .is_empty()
+        );
+        assert!(
+            !documentation_example_errors(
+                DocumentationExample::with_carrier(code, carrier, BACKWARDS),
+                "pack"
+            )
+            .is_empty(),
+            "a consequence numbered before its cause is reported"
+        );
     }
 
     #[test]

@@ -366,6 +366,19 @@ This is pure documentation: nothing here changes any diagnostic, so it is \
 the easiest high-value field to fill in.",
     ),
     (
+        "documentation_examples",
+        "Worked examples that point at the exact text they explain. Each has \
+its `code`, an optional `carrier` (the line and text of the command that \
+owns the fact) and ordered `note`s (line, text, what happens there). In a \
+pack it is an `example` block inside `hover` whose first row is `code`:\n\n\
+`example {\n    code {set n [llength $items]}\n    carrier 0 llength\n    \
+note 0 {$items} {supplies the list}\n    note 0 llength {returns the count}\n}`\n\n\
+Lines count from 0, and every note's text must appear on its line or the \
+example is refused. Notes run in execution order, so the same checks that \
+guard the built-in examples apply. A plain `example {…}` with no `code` row \
+stays ordinary hover text.",
+    ),
+    (
         "forms",
         "The distinct documented ways the command can be called, each with a \
 synopsis and kind — most usefully a read form and a write form: \

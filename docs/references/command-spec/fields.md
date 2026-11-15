@@ -326,6 +326,21 @@ What the editor shows when the pointer rests on the command: a one-line summary,
 
 Write the summary like the first line of a man page — one sentence, present tense. This is pure documentation: nothing here changes any diagnostic, so it is the easiest high-value field to fill in.
 
+### `documentation_examples` — Annotated examples
+
+*command only* — Worked examples whose notes point at exact text on each line, checked like the built-in examples.
+
+Worked examples that point at the exact text they explain. Each has its `code`, an optional `carrier` (the line and text of the command that owns the fact) and ordered `note`s (line, text, what happens there). In a pack it is an `example` block inside `hover` whose first row is `code`:
+
+`example {
+    code {set n [llength $items]}
+    carrier 0 llength
+    note 0 {$items} {supplies the list}
+    note 0 llength {returns the count}
+}`
+
+Lines count from 0, and every note's text must appear on its line or the example is refused. Notes run in execution order, so the same checks that guard the built-in examples apply. A plain `example {…}` with no `code` row stays ordinary hover text.
+
 ### `forms` — Invocation forms
 
 *command only* — Documented synopsis and getter/setter classification; does not select semantic routing.

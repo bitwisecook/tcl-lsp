@@ -586,6 +586,93 @@ fn alias_of_survives_the_round_trip() {
     );
 }
 
+/// A pack's structured `example { code …; carrier …; note … }` loads into
+/// `documentation_examples` and survives the studio round trip; a plain
+/// `example` beside it stays hover text.
+#[test]
+fn structured_examples_survive_the_round_trip() {
+    use tcl_registry::documentation::{
+        DocumentationAnnotation, DocumentationCarrier, DocumentationExample,
+    };
+    const NOTES: &[DocumentationAnnotation] = &[
+        DocumentationAnnotation::new(1, "$items", "supplies the list"),
+        DocumentationAnnotation::new(1, "mypkg::count", "returns the count"),
+    ];
+    const EXAMPLES: &[DocumentationExample] = &[DocumentationExample::with_carrier(
+        "set items {a b}\nset n [mypkg::count $items]",
+        DocumentationCarrier::new(1, "mypkg::count"),
+        NOTES,
+    )];
+    let spec = tcl_registry::CommandSpec {
+        name: "mypkg::count",
+        arity: tcl_registry::arity::Arity::exact(1),
+        hover: Some(tcl_registry::prelude::HoverSnippet {
+            summary: "Count list elements.",
+            synopsis: &["mypkg::count list"],
+            snippet: "",
+            source: "",
+            examples: "mypkg::count {a b c}",
+            return_value: "",
+        }),
+        documentation_examples: EXAMPLES,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text.contains("carrier 1 {mypkg::count}"),
+        "{}",
+        trip.text
+    );
+    assert_eq!(
+        trip.reloaded["documentation_examples"], draft["documentation_examples"],
+        "{}",
+        trip.text
+    );
+    assert_eq!(
+        trip.reloaded["hover"]["examples"],
+        serde_json::json!("mypkg::count {a b c}")
+    );
+}
+
+/// A note whose text is not on its line is refused with a notice, and the
+/// example with it, rather than drawn somewhere else.
+#[test]
+fn a_structured_example_note_off_its_line_is_refused() {
+    use tcl_registry::documentation::{DocumentationAnnotation, DocumentationExample};
+    const NOTES: &[DocumentationAnnotation] = &[DocumentationAnnotation::new(
+        0,
+        "$items",
+        "supplies the list",
+    )];
+    const EXAMPLES: &[DocumentationExample] = &[DocumentationExample::new(
+        "set n [mypkg::count $items]",
+        NOTES,
+    )];
+    let spec = tcl_registry::CommandSpec {
+        name: "mypkg::count",
+        arity: tcl_registry::arity::Arity::exact(1),
+        documentation_examples: EXAMPLES,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let text = round_trip(&draft)
+        .text
+        .replace("note 0 {$items}", "note 0 {$missing}");
+    let pack = spectcl::evaluate_pack(&text);
+    let command = pack.command("mypkg::count").expect("command loads");
+    assert!(command.spec.documentation_examples.is_empty(), "{text}");
+    assert!(
+        pack.notices
+            .iter()
+            .any(|notice| notice.message.contains("$missing")),
+        "{:?}",
+        pack.notices
+    );
+}
+
 /// `runtime_backing` is a per-command fact with five spellings; every one
 /// survives the studio round trip, and `none` — the default — writes no row.
 /// The whole-surface trips meet the `shipped-builtin` spelling on every core

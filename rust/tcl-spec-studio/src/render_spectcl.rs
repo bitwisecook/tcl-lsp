@@ -2635,11 +2635,18 @@ fn integer_domain_word(value: &Value) -> Option<String> {
 
 /// The `hover { … }` block.
 fn hover_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
-    if !ctx.set(draft, "hover") {
-        return;
-    }
-    let hover = &draft["hover"];
-    if hover.is_null() {
+    let null = Value::Null;
+    let hover = if ctx.set(draft, "hover") {
+        &draft["hover"]
+    } else {
+        &null
+    };
+    let examples = if ctx.set(draft, "documentation_examples") {
+        as_array(&draft["documentation_examples"])
+    } else {
+        &[]
+    };
+    if hover.is_null() && examples.is_empty() {
         return;
     }
     out.gap();
@@ -2671,8 +2678,44 @@ fn hover_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
         // separates its examples with a blank line.
         scalar_row(out, "examples", "example");
         scalar_row(out, "return_value", "returns");
+        for example in examples {
+            match documentation_example_rows(example) {
+                Some(rows) => {
+                    out.line("example {");
+                    out.indented(|out| {
+                        for row in &rows {
+                            out.line(row);
+                        }
+                    });
+                    out.line("}");
+                }
+                None => unwritable(out, "documentation_examples"),
+            }
+        }
     });
     out.line("}");
+}
+
+/// The rows of one structured `example { code …; carrier …; note … }`.
+fn documentation_example_rows(example: &Value) -> Option<Vec<String>> {
+    let mut rows = vec![format!("code {}", braced(str_of(&example["code"]))?)];
+    let carrier = &example["carrier"];
+    if !carrier.is_null() {
+        rows.push(format!(
+            "carrier {} {}",
+            carrier["line"].as_u64()?,
+            braced(str_of(&carrier["needle"]))?
+        ));
+    }
+    for note in as_array(&example["notes"]) {
+        rows.push(format!(
+            "note {} {} {}",
+            note["line"].as_u64()?,
+            braced(str_of(&note["needle"]))?,
+            braced(str_of(&note["label"]))?
+        ));
+    }
+    Some(rows)
 }
 
 // Command and subcommand bodies

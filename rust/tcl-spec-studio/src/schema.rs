@@ -112,6 +112,8 @@ pub enum FieldKind {
     ManufacturerMethods,
     /// `Option<HoverSnippet>`.
     Hover,
+    /// `&'static [DocumentationExample]` — code with a carrier and notes.
+    DocumentationExamples,
     /// `&'static [SubCommand]` — edited with the subcommand schema.
     SubCommands,
     /// `&'static [SubSubCommand]`.
@@ -188,6 +190,7 @@ impl FieldKind {
             Self::SetterConstraints => "setterConstraints",
             Self::ManufacturerMethods => "manufacturerMethods",
             Self::Hover => "hover",
+            Self::DocumentationExamples => "documentationExamples",
             Self::SubCommands => "subCommands",
             Self::SubSubCommands => "subSubCommands",
             Self::ObjectClass => "objectClass",
@@ -743,6 +746,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         DOCS,
         FieldKind::Hover,
         "Summary, synopsis lines, prose, source, examples, and return value.",
+    ),
+    f(
+        "documentation_examples",
+        "Annotated examples",
+        DOCS,
+        FieldKind::DocumentationExamples,
+        "Worked examples whose notes point at exact text on each line, checked like the built-in examples.",
     ),
     f(
         "forms",

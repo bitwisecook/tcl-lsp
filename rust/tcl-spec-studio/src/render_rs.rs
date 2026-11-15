@@ -1456,6 +1456,35 @@ fn manufacturer_method_expr(entry: &Value, indent: &str) -> String {
     )
 }
 
+fn documentation_example_expr(value: &Value, indent: &str) -> String {
+    let inner = format!("{indent}    ");
+    let notes: Vec<String> = as_array(&value["notes"])
+        .iter()
+        .map(|note| {
+            format!(
+                "{inner}    crate::documentation::DocumentationAnnotation::new({}, {}, {}),",
+                note["line"].as_u64().unwrap_or(0),
+                rust_string(as_str(&note["needle"])),
+                rust_string(as_str(&note["label"])),
+            )
+        })
+        .collect();
+    let code = rust_string(as_str(&value["code"]));
+    let notes = format!("&[\n{}\n{inner}]", notes.join("\n"));
+    let carrier = &value["carrier"];
+    if carrier.is_null() {
+        format!(
+            "{indent}crate::documentation::DocumentationExample::new(\n{inner}{code},\n{inner}{notes},\n{indent}),"
+        )
+    } else {
+        format!(
+            "{indent}crate::documentation::DocumentationExample::with_carrier(\n{inner}{code},\n{inner}crate::documentation::DocumentationCarrier::new({}, {}),\n{inner}{notes},\n{indent}),",
+            carrier["line"].as_u64().unwrap_or(0),
+            rust_string(as_str(&carrier["needle"])),
+        )
+    }
+}
+
 fn hover_expr(value: &Value, indent: &str) -> String {
     let inner = format!("{indent}    ");
     let synopsis = str_slice(as_array(&value["synopsis"]));
@@ -1597,6 +1626,9 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
                 return None;
             }
             hover_expr(value, indent)
+        }
+        FieldKind::DocumentationExamples => {
+            list_expr(as_array(value), indent, documentation_example_expr)?
         }
         FieldKind::RustExpr { .. } => {
             let expr = value.as_str()?.trim();
