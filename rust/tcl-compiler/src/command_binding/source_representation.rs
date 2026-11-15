@@ -101,7 +101,7 @@ impl FrozenSourceRepresentation {
     ) -> Option<Self> {
         matches!(
             representation,
-            ValueRepresentation::List | ValueRepresentation::Dict
+            ValueRepresentation::String | ValueRepresentation::List | ValueRepresentation::Dict
         )
         .then_some(())?;
         Some(Self {
@@ -127,7 +127,9 @@ impl FrozenSourceRepresentation {
                 || (method != tcl_registry::list_object_methods::NativeListMethod::StringAccess
                     && matches!(
                         self.representation,
-                        ValueRepresentation::List | ValueRepresentation::Dict
+                        ValueRepresentation::String
+                            | ValueRepresentation::List
+                            | ValueRepresentation::Dict
                     ))
                 || self
                     .list_method_provider
@@ -397,6 +399,20 @@ pub(super) fn capture_range_result(
     let selection = facts
         .native_result?
         .select(arguments, facts.argument_offset);
+    if let NativeResultSelection::ListConcat { .. } | NativeResultSelection::StringJoin { .. } =
+        selection
+    {
+        let text = selection.fresh_string_result(arguments, |index| {
+            super::literal_object_pool::SourceOrdinaryLiteralObject::capture(
+                native, index, state, context,
+            )
+            .is_some()
+        })?;
+        return Some(Box::new(CapturedRangeResult {
+            representation: ValueRepresentation::String,
+            value: Some(text),
+        }));
+    }
     let (NativeResultSelection::ListRange { list_at, .. }
     | NativeResultSelection::ListReverse { list_at }) = selection
     else {
@@ -562,7 +578,7 @@ pub(super) fn retain_created_result(
         });
     if matches!(
         representation,
-        ValueRepresentation::List | ValueRepresentation::Dict
+        ValueRepresentation::String | ValueRepresentation::List | ValueRepresentation::Dict
     ) || list_method_provider.is_some()
         || numeric_shape.is_some()
     {

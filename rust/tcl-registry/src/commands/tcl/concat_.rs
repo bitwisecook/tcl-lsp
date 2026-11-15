@@ -44,6 +44,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        native_result: Some(crate::native_result::NativeResultContract::ListConcat { from: 0 }),
         runtime_backing: RuntimeBacking::shipped("concat"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
@@ -79,5 +80,6 @@ pub fn jim_spec() -> CommandSpec {
         &[("0.84", None)]
     )]);
     command.const_fold = None;
+    command.native_result = None;
     command
 }

@@ -57,10 +57,10 @@ pub(super) fn capture(
         .successful_ordinary_container_coercion(arguments, facts.argument_offset)?;
     let receiver = capture_receiver(native, coercion.argument(), state, context)?;
     let variables = &state.source_variables;
-    let previous = variables.container_representation_alternatives_at(&receiver)?;
     let target = target(coercion);
     let may_preserve = coercion
         .may_preserve_input_for_bytes(arguments.literal_at(coercion.argument()).map(str::as_bytes));
+    let previous = variables.container_representation_alternatives_at(&receiver)?;
     let value = if let Some(object) =
         variables.contents_stock_literal_object_at(&receiver, context.registry)
     {
@@ -200,6 +200,10 @@ pub(super) fn ordinary_list_length_completion(
         return Some(route);
     }
     let previous = captured.previous?;
+    // Parsing a string can fail where an existing container cannot.
+    if previous.contains(ValueRepresentation::String) {
+        return None;
+    }
     let arguments = native.invocation.arguments();
     let selected = facts
         .representation_effect

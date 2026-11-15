@@ -39,6 +39,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        native_result: Some(crate::native_result::NativeResultContract::StringJoin { list_at: 0 }),
         runtime_backing: RuntimeBacking::shipped("join"),
         // `Some(SpecSurface::ALL_TCL_AND_IRULES)` is deliberate, not an
         // oversight: `join` is a pure list-manipulation command — none of the

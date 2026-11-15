@@ -991,6 +991,8 @@ fn selected_result(
         }
         NativeResultSelection::ListRange { .. }
         | NativeResultSelection::ListReverse { .. }
+        | NativeResultSelection::ListConcat { .. }
+        | NativeResultSelection::StringJoin { .. }
         | NativeResultSelection::InvalidArguments
         | NativeResultSelection::Unknown => return None,
     };

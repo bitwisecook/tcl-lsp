@@ -193,6 +193,17 @@ pub enum NativeResultContract {
         /// List operand relative to the selected form.
         list_at: u8,
     },
+    /// Concatenate the retained operands through `Tcl_ConcatObj`. Its
+    /// representation needs separately proved ordinary operand objects.
+    ListConcat {
+        /// First retained operand, relative to the selected form.
+        from: u8,
+    },
+    /// Join one list operand's elements with an optional separator operand.
+    StringJoin {
+        /// List operand relative to the selected form; the separator follows.
+        list_at: u8,
+    },
 }
 
 #[cfg(test)]
@@ -942,6 +953,47 @@ mod tests {
             NativeResultSelection::ListReverse { list_at: 0 }
         );
     }
+
+    /// `concat` builds a fresh string once a nonempty pool literal forces its
+    /// string path; `join` does for two or more elements and a nonempty separator.
+    #[test]
+    fn concat_and_join_build_fresh_strings_only_on_their_string_paths() {
+        use tcl_dialect::TclVersion;
+        let concat = NativeResultContract::ListConcat { from: 0 };
+        let join = NativeResultContract::StringJoin { list_at: 0 };
+        for version in TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let result = |contract: NativeResultContract, words: &[&str], pooled: bool| {
+                let args = InvocationArguments::literals(words).with_dialect(dialect);
+                contract
+                    .select(args, 0)
+                    .fresh_string_result(args, |_| pooled)
+            };
+            assert_eq!(
+                result(concat, &[" a b ", "c"], true).as_deref(),
+                Some("a b c"),
+                "{version:?}"
+            );
+            assert_eq!(result(concat, &["a b", "c"], false), None, "{version:?}");
+            assert_eq!(result(concat, &["", ""], true), None, "{version:?}");
+            assert_eq!(
+                result(join, &["a {b c} d"], false).as_deref(),
+                Some("a b c d"),
+                "{version:?}"
+            );
+            assert_eq!(
+                result(join, &["a b", ", "], false).as_deref(),
+                Some("a, b"),
+                "{version:?}"
+            );
+            assert_eq!(result(join, &["a"], true), None, "{version:?}");
+            assert_eq!(result(join, &["a b", ""], true), None, "{version:?}");
+        }
+        assert_eq!(
+            join.select(InvocationArguments::literals(&["a", "b", "c"]), 0),
+            NativeResultSelection::InvalidArguments
+        );
+    }
 }
 
 /// Structural result dependency after the exact native argv shape is selected.
@@ -988,6 +1040,20 @@ pub enum NativeResultSelection {
     ListReverse {
         /// Effective post-head list operand index.
         list_at: usize,
+    },
+    /// A native concatenation, without an unconditional result shape.
+    ListConcat {
+        /// Effective post-head first operand index.
+        from: usize,
+        /// Number of concatenated operands.
+        len: usize,
+    },
+    /// A native join, without an unconditional result shape.
+    StringJoin {
+        /// Effective post-head list operand index.
+        list_at: usize,
+        /// Effective post-head separator operand index, when given.
+        separator_at: Option<usize>,
     },
     /// A native dictionary retaining a contiguous even key/value operand range.
     DictionaryArguments {
@@ -1192,6 +1258,59 @@ impl NativeResultSelection {
         let selected = &elements[first..=last];
         let bytes = dialect.list_result_serialization()?.render(selected);
         String::from_utf8(bytes).ok()
+    }
+
+    /// Bytes of a result that C Tcl builds as a fresh stock string object.
+    /// `pooled(index)` must prove that operand an original pool literal.
+    ///
+    /// `Tcl_ConcatObj` (tclUtil.c) concatenates as lists only when every
+    /// operand is empty or a canonical list; a nonempty pool literal keeps its
+    /// source bytes, so is never canonical, and forces the string path. Join
+    /// appends into a new object for two or more elements and a nonempty
+    /// separator; 9.x returns a lone element itself and 9.1 concatenates an
+    /// empty separator through `TclStringCat`, which may return an operand.
+    #[must_use]
+    pub fn fresh_string_result(
+        self,
+        arguments: InvocationArguments<'_>,
+        pooled: impl Fn(usize) -> bool,
+    ) -> Option<String> {
+        let dialect = arguments.dialect()?;
+        dialect
+            .tcl_version
+            .filter(|_| dialect.family() == Some(tcl_dialect::model::Family::Tcl))?;
+        match self {
+            Self::ListConcat { from, len } => {
+                let values = (from..from.checked_add(len)?)
+                    .map(|index| arguments.literal_at(index))
+                    .collect::<Option<Vec<_>>>()?;
+                values
+                    .iter()
+                    .enumerate()
+                    .any(|(offset, value)| !value.is_empty() && pooled(from + offset))
+                    .then(|| tcl_syntax::list::concat_values(values.iter().copied()))
+            }
+            Self::StringJoin {
+                list_at,
+                separator_at,
+            } => {
+                let separator = separator_at.map_or(Some(" "), |at| arguments.literal_at(at))?;
+                if separator.is_empty() {
+                    return None;
+                }
+                let elements = tcl_syntax::list::split_list_bytes_in(
+                    arguments.literal_at(list_at)?.as_bytes(),
+                    dialect.word_values.list,
+                    dialect.lexer_grammar.escapes,
+                )
+                .ok()?;
+                if elements.len() < 2 {
+                    return None;
+                }
+                String::from_utf8(elements.join(separator.as_bytes())).ok()
+            }
+            _ => None,
+        }
     }
 
     /// Reversed shape and bytes for an independently proved ordinary input of
@@ -1523,6 +1642,28 @@ impl NativeResultContract {
                 first_at,
                 last_at,
             } => select_list_range(count, argument_offset, [list_at, first_at, last_at]),
+            Self::ListConcat { from } => {
+                let from = argument_offset + usize::from(from);
+                count
+                    .checked_sub(from)
+                    .map_or(NativeResultSelection::InvalidArguments, |len| {
+                        NativeResultSelection::ListConcat { from, len }
+                    })
+            }
+            Self::StringJoin { list_at } => {
+                let list_at = argument_offset + usize::from(list_at);
+                match count.checked_sub(list_at) {
+                    Some(1) => NativeResultSelection::StringJoin {
+                        list_at,
+                        separator_at: None,
+                    },
+                    Some(2) => NativeResultSelection::StringJoin {
+                        list_at,
+                        separator_at: Some(list_at + 1),
+                    },
+                    _ => NativeResultSelection::InvalidArguments,
+                }
+            }
             Self::ListReverse { list_at } => {
                 let list_at = argument_offset + usize::from(list_at);
                 if list_at.checked_add(1) == Some(count) {

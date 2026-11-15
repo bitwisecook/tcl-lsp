@@ -2241,6 +2241,27 @@ fn a_reversed_list_is_checked_at_every_read() {
     }
 }
 
+/// `concat` and `join` build a fresh stock string, which the first index read
+/// converts through the ordinary parser, so the second read is checked too (#2437).
+#[test]
+fn a_concatenated_or_joined_string_is_checked_at_every_read() {
+    for src in [
+        "set l [concat {a b} {c}]\nlindex $l 9\nputs [lindex $l 9]\n",
+        "set l [join {a b c} { }]\nlindex $l 9\nputs [lindex $l 9]\n",
+    ] {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let findings = Analyser::new()
+                .analyse(src, dialect)
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::W230)
+                .map(|d| src[d.span.as_range()].to_owned())
+                .collect::<Vec<_>>();
+            assert_eq!(findings, ["9", "9"], "{dialect}: {src}");
+        }
+    }
+}
+
 /// Converting a variable index keeps the stock objects it may share, so a
 /// second read through the same index is checked as the first is (#2387),
 /// a loop counter `incr` left numeric included.

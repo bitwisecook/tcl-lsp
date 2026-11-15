@@ -298,10 +298,12 @@ pub(crate) struct FrozenSourceNumeric {
     pub epoch: u64,
 }
 
-/// A closed set of ordinary List/Dict representations for conversion-cost
-/// advice. It cannot prove one current representation or erase any operation.
+/// A closed set of ordinary String/List/Dict representations for conversion
+/// advice. A stock string converts through the ordinary parser without object
+/// callbacks. It cannot prove one current representation or erase any operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ClosedContainerRepresentations {
+    string: bool,
     list: bool,
     dictionary: bool,
 }
@@ -309,21 +311,24 @@ pub struct ClosedContainerRepresentations {
 impl ClosedContainerRepresentations {
     pub(crate) fn of(representation: tcl_syntax::value::ValueRepresentation) -> Option<Self> {
         use tcl_syntax::value::ValueRepresentation;
+        let only = |string, list, dictionary| {
+            Some(Self {
+                string,
+                list,
+                dictionary,
+            })
+        };
         match representation {
-            ValueRepresentation::List => Some(Self {
-                list: true,
-                dictionary: false,
-            }),
-            ValueRepresentation::Dict => Some(Self {
-                list: false,
-                dictionary: true,
-            }),
-            ValueRepresentation::String | ValueRepresentation::Unknown => None,
+            ValueRepresentation::String => only(true, false, false),
+            ValueRepresentation::List => only(false, true, false),
+            ValueRepresentation::Dict => only(false, false, true),
+            ValueRepresentation::Unknown => None,
         }
     }
 
     pub(crate) const fn joined(self, other: Self) -> Self {
         Self {
+            string: self.string || other.string,
             list: self.list || other.list,
             dictionary: self.dictionary || other.dictionary,
         }
@@ -331,9 +336,10 @@ impl ClosedContainerRepresentations {
 
     pub(crate) fn stored(self) -> StoredNativeRepresentation {
         use tcl_syntax::value::ValueRepresentation;
-        match (self.list, self.dictionary) {
-            (true, false) => StoredNativeRepresentation::Known(ValueRepresentation::List),
-            (false, true) => StoredNativeRepresentation::Known(ValueRepresentation::Dict),
+        match (self.string, self.list, self.dictionary) {
+            (true, false, false) => StoredNativeRepresentation::Known(ValueRepresentation::String),
+            (false, true, false) => StoredNativeRepresentation::Known(ValueRepresentation::List),
+            (false, false, true) => StoredNativeRepresentation::Known(ValueRepresentation::Dict),
             _ => StoredNativeRepresentation::ContainerAlternatives(self),
         }
     }
@@ -343,9 +349,10 @@ impl ClosedContainerRepresentations {
     pub const fn contains(self, representation: tcl_syntax::value::ValueRepresentation) -> bool {
         use tcl_syntax::value::ValueRepresentation;
         match representation {
+            ValueRepresentation::String => self.string,
             ValueRepresentation::List => self.list,
             ValueRepresentation::Dict => self.dictionary,
-            ValueRepresentation::String | ValueRepresentation::Unknown => false,
+            ValueRepresentation::Unknown => false,
         }
     }
 }
