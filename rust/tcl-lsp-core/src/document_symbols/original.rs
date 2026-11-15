@@ -182,6 +182,15 @@ fn extend_vendor_outline(
                     Some("Source declaration".to_owned()),
                 )
             } else if let Some(metadata) = declaration.symbol_metadata() {
+                // A symbol definer whose name word is not constant names
+                // nothing statically (`when $evt {…}`).
+                if declaration
+                    .input()
+                    .literal_units(declaration.purpose())
+                    .is_none()
+                {
+                    continue;
+                }
                 (
                     SymbolKind::from(metadata.kind),
                     metadata.full_span,
@@ -190,6 +199,14 @@ fn extend_vendor_outline(
             } else {
                 continue;
             };
+            // A hosted symbol definer retains both a symbol declaration and a
+            // vendor source card for the one name word; the outline has one row.
+            if nodes
+                .iter()
+                .any(|node| node.symbol.selection_range == selection && node.symbol.kind == kind)
+            {
+                continue;
+            }
             nodes.push(Node {
                 symbol: DocumentSymbol {
                     name,

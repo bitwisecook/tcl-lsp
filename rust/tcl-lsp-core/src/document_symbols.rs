@@ -1779,9 +1779,10 @@ mod tests {
             "    method area {} {}\n",
             "}\n",
         );
+        // tclsh 8.6: invalid command name "oo::abstract"; 9.0 creates ::Shape.
         let symbols = document_symbols(
             source,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let detail = symbols[0].detail.as_deref().unwrap_or("");
         assert!(
