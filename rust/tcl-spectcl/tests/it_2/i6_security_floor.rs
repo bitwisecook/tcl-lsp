@@ -7,9 +7,7 @@
 //! nor `TAINT_SOURCE`.
 
 use tcl_registry::CommandSpec;
-use tcl_registry::hooks::{AnalyserHookId, LoweringHookId};
-use tcl_registry::native_lowering::NativeLowering;
-use tcl_registry::semantic_operation::SemanticOperationId;
+use tcl_registry::hooks::LoweringHookId;
 use tcl_spectcl::discovery::{Origin, PackFile, Tier};
 use tcl_spectcl::install::registry_for_dialect_with_packs;
 use tcl_spectcl::pack::load;
@@ -116,181 +114,166 @@ fn overridden(test: &str, dialect: &str, command: &str, body: &str) -> &'static 
     spec
 }
 
-#[test]
-fn a_workspace_override_cannot_swap_the_lowering_hook() {
-    let kept = shipped("tcl8.6", "while").lowering_hook;
-    assert_eq!(kept, Some(LoweringHookId::While));
-    let spec = overridden(
-        "lowering-hook",
-        "tcl8.6",
-        "while",
-        "lowering_hook -native If",
-    );
-    assert_eq!(
-        spec.lowering_hook, kept,
-        "an override does not choose how the compiler translates a shipped command"
-    );
+/// One shipped fact a workspace override must leave alone.
+struct FloorCase {
+    fact: &'static str,
+    dialect: &'static str,
+    command: &'static str,
+    /// What the override says; empty where a pack cannot spell the fact and
+    /// can only lose it by replacing the command and saying nothing.
+    body: &'static str,
+    /// The fact as text, so one table carries facts of different types.
+    read: fn(&CommandSpec) -> String,
+    /// How the shipped command's fact starts: the probe needs a command that
+    /// ships one.
+    shipped_as: &'static str,
 }
 
-#[test]
-fn a_workspace_override_cannot_swap_the_analyser_hook() {
-    let kept = shipped("tcl8.6", "source").analyser_hook;
-    assert_eq!(kept, Some(AnalyserHookId::Source));
-    let spec = overridden(
-        "analyser-hook",
-        "tcl8.6",
-        "source",
-        "analyser_hook -native Rename",
-    );
-    assert_eq!(
-        spec.analyser_hook, kept,
-        "an override does not choose which analyser handler reads a shipped command"
-    );
+fn subcommand_fact(
+    spec: &CommandSpec,
+    name: &str,
+    read: fn(&tcl_registry::spec::SubCommand) -> String,
+) -> String {
+    spec.subcommand(name)
+        .map_or_else(|| "absent".to_owned(), read)
 }
 
-#[test]
-fn a_workspace_override_cannot_swap_the_semantic_operation() {
-    let kept = shipped("tcl8.6", "puts").semantic_operation;
-    assert!(matches!(kept, Some(SemanticOperationId::Intrinsic(_))));
-    let spec = overridden(
-        "semantic-operation",
-        "tcl8.6",
-        "puts",
-        "semantic_operation Invoke",
-    );
-    assert_eq!(
-        spec.semantic_operation, kept,
-        "an override does not rename the operation a shipped command performs"
-    );
+fn implicit_form_lowering(spec: &CommandSpec) -> String {
+    spec.command_forms
+        .iter()
+        .find(|form| form.name == "implicit")
+        .map_or_else(
+            || "absent".to_owned(),
+            |form| format!("{:?}", form.lowering_hook),
+        )
 }
 
-#[test]
-fn a_workspace_override_cannot_swap_the_state_transitions() {
-    let kept = format!("{:?}", shipped("tcl8.6", "join").state_transitions);
-    assert!(
-        kept.starts_with("Some("),
-        "the probe needs a command that ships a descriptor"
-    );
-    let spec = overridden(
-        "state-transitions",
-        "tcl8.6",
-        "join",
-        "state_transitions {\n      composition Extend\n      argument_shape Positional\n    }",
-    );
-    assert_eq!(
-        format!("{:?}", spec.state_transitions),
-        kept,
-        "an override does not restate the state a shipped command transitions"
-    );
-}
+const FLOOR_CASES: &[FloorCase] = &[
+    FloorCase {
+        fact: "lowering hook",
+        dialect: "tcl8.6",
+        command: "while",
+        body: "lowering_hook -native If",
+        read: |spec| format!("{:?}", spec.lowering_hook),
+        shipped_as: "Some(While)",
+    },
+    FloorCase {
+        fact: "analyser hook",
+        dialect: "tcl8.6",
+        command: "source",
+        body: "analyser_hook -native Rename",
+        read: |spec| format!("{:?}", spec.analyser_hook),
+        shipped_as: "Some(Source)",
+    },
+    FloorCase {
+        fact: "semantic operation",
+        dialect: "tcl8.6",
+        command: "puts",
+        body: "semantic_operation Invoke",
+        read: |spec| format!("{:?}", spec.semantic_operation),
+        shipped_as: "Some(Intrinsic(",
+    },
+    FloorCase {
+        fact: "state transitions",
+        dialect: "tcl8.6",
+        command: "join",
+        body: "state_transitions {\n      composition Extend\n      argument_shape Positional\n    }",
+        read: |spec| format!("{:?}", spec.state_transitions),
+        shipped_as: "Some(",
+    },
+    FloorCase {
+        fact: "native lowering",
+        dialect: "tcl8.6",
+        command: "break",
+        body: "",
+        read: |spec| format!("{:?}", spec.native_lowering),
+        shipped_as: "Some(Completion(",
+    },
+    FloorCase {
+        fact: "BPF op",
+        dialect: "bpf",
+        command: "pass",
+        body: "",
+        read: |spec| format!("{:?}", spec.bpf_op),
+        shipped_as: "Some(",
+    },
+    // Claiming the command is the host's own, or that nothing executes
+    // it, is the swap a compiled site's identity must not follow.
+    FloorCase {
+        fact: "runtime backing",
+        dialect: "tcl8.6",
+        command: "lindex",
+        body: "runtime_backing host-native",
+        read: |spec| {
+            format!(
+                "shipped lindex: {}",
+                spec.runtime_backing == tcl_registry::RuntimeBacking::shipped("lindex")
+            )
+        },
+        shipped_as: "shipped lindex: true",
+    },
+    FloorCase {
+        fact: "runtime backing",
+        dialect: "tcl8.6",
+        command: "lindex",
+        body: "runtime_backing none",
+        read: |spec| {
+            format!(
+                "shipped lindex: {}",
+                spec.runtime_backing == tcl_registry::RuntimeBacking::shipped("lindex")
+            )
+        },
+        shipped_as: "shipped lindex: true",
+    },
+    FloorCase {
+        fact: "subcommand lowering hook",
+        dialect: "tcl8.6",
+        command: "array",
+        body: "subcommand for { lowering_hook -native If }",
+        read: |spec| subcommand_fact(spec, "for", |sub| format!("{:?}", sub.lowering_hook)),
+        shipped_as: "Some(ArrayFor)",
+    },
+    FloorCase {
+        fact: "subcommand semantic operation",
+        dialect: "tcl8.6",
+        command: "string",
+        body: "subcommand length { arity 1 }",
+        read: |spec| {
+            subcommand_fact(spec, "length", |sub| {
+                format!("{:?}", sub.semantic_operation)
+            })
+        },
+        shipped_as: "Some(Intrinsic(",
+    },
+    FloorCase {
+        fact: "form lowering hook",
+        dialect: "tcl8.6",
+        command: "incr",
+        body: "refine implicit { lowering_hook -native If }",
+        read: implicit_form_lowering,
+        shipped_as: "Some(Incr)",
+    },
+];
 
 #[test]
-fn a_workspace_override_cannot_drop_the_native_lowering() {
-    let kept = shipped("tcl8.6", "break").native_lowering;
-    assert!(matches!(kept, Some(NativeLowering::Completion(_))));
-    // A pack cannot spell `native_lowering`; the way an override loses it is
-    // by replacing the command wholesale and saying nothing.
-    let spec = overridden("native-lowering", "tcl8.6", "break", "");
-    assert_eq!(
-        spec.native_lowering, kept,
-        "an override that says nothing keeps the shipped native shape"
-    );
-}
-
-#[test]
-fn a_workspace_override_cannot_drop_the_bpf_op() {
-    let kept = shipped("bpf", "pass").bpf_op;
-    assert!(kept.is_some());
-    // As above: a pack cannot spell `bpf_op`, only drop it.
-    let spec = overridden("bpf-op", "bpf", "pass", "");
-    assert_eq!(
-        spec.bpf_op, kept,
-        "an override that says nothing keeps the shipped BPF op"
-    );
-}
-
-#[test]
-fn a_workspace_override_cannot_swap_the_runtime_backing() {
-    use tcl_registry::RuntimeBacking;
-
-    let kept = shipped("tcl8.6", "lindex").runtime_backing;
-    assert_eq!(kept, RuntimeBacking::shipped("lindex"));
-    // Claiming the command is the host's own, or that nothing executes it,
-    // is the swap a compiled site's identity must not follow.
-    for body in ["runtime_backing host-native", "runtime_backing none"] {
-        let spec = overridden("runtime-backing", "tcl8.6", "lindex", body);
+fn a_workspace_override_keeps_the_shipped_floor_under_tcl_8_6_and_bpf() {
+    for (row, case) in FLOOR_CASES.iter().enumerate() {
+        let label = format!("{} of `{}` under {}", case.fact, case.command, case.dialect);
+        let kept = (case.read)(shipped(case.dialect, case.command));
+        assert!(kept.starts_with(case.shipped_as), "{label}: ships {kept}");
+        let spec = overridden(
+            &format!("floor-{row}"),
+            case.dialect,
+            case.command,
+            case.body,
+        );
         assert_eq!(
-            spec.runtime_backing, kept,
-            "`{body}` does not change how a shipped command reaches the runtime"
+            (case.read)(spec),
+            kept,
+            "{label}: `{}` does not change what the shipped command carries",
+            case.body
         );
     }
-}
-
-#[test]
-fn a_workspace_override_cannot_swap_a_subcommand_lowering_hook() {
-    let kept = shipped("tcl8.6", "array")
-        .subcommand("for")
-        .expect("array for is shipped")
-        .lowering_hook;
-    assert_eq!(kept, Some(LoweringHookId::ArrayFor));
-    let spec = overridden(
-        "subcommand-lowering-hook",
-        "tcl8.6",
-        "array",
-        "subcommand for { lowering_hook -native If }",
-    );
-    assert_eq!(
-        spec.subcommand("for").and_then(|sub| sub.lowering_hook),
-        kept,
-        "an override cannot select the lowering for a shipped subcommand"
-    );
-}
-
-#[test]
-fn a_workspace_override_cannot_drop_a_subcommand_intrinsic() {
-    let kept = shipped("tcl8.6", "string")
-        .subcommand("length")
-        .expect("string length is shipped")
-        .semantic_operation;
-    assert!(matches!(kept, Some(SemanticOperationId::Intrinsic(_))));
-    let spec = overridden(
-        "subcommand-intrinsic",
-        "tcl8.6",
-        "string",
-        "subcommand length { arity 1 }",
-    );
-    assert_eq!(
-        spec.subcommand("length")
-            .and_then(|sub| sub.semantic_operation),
-        kept,
-        "an override cannot remove the operation for a shipped subcommand"
-    );
-}
-
-#[test]
-fn a_workspace_override_cannot_swap_a_form_lowering_hook() {
-    let kept = shipped("tcl8.6", "incr")
-        .command_forms
-        .iter()
-        .find(|form| form.name == "implicit")
-        .expect("incr's implicit form is shipped")
-        .lowering_hook;
-    assert_eq!(kept, Some(LoweringHookId::Incr));
-    let spec = overridden(
-        "form-lowering-hook",
-        "tcl8.6",
-        "incr",
-        "refine implicit { lowering_hook -native If }",
-    );
-    let form = spec
-        .command_forms
-        .iter()
-        .find(|form| form.name == "implicit")
-        .expect("the pack's form remains installed");
-    assert_eq!(
-        form.lowering_hook, kept,
-        "an override cannot select the lowering for a shipped form"
-    );
 }
 
 #[test]
