@@ -932,6 +932,59 @@ mod require_ordering_tests {
         }
     }
 
+    /// `eval` and `uplevel` given one braced literal script do what that
+    /// script does, in the frame the level names; a computed script may do
+    /// anything.
+    ///
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all print
+    /// `::N/::/::T/8/7 hello` for:
+    ///
+    /// ```tcl
+    /// namespace eval ::T {
+    ///     proc who {} { return [uplevel 1 {namespace current}] }
+    ///     proc top {} { return [uplevel #0 {namespace current}] }
+    ///     proc here {} { return [eval {namespace current}] }
+    ///     proc setit {} { uplevel 1 {set v 7}; eval {set w 8}; return $w }
+    /// }
+    /// namespace eval ::N {
+    ///     proc call {} { return [::T::who]/[::T::top]/[::T::here]/[::T::setit]/[set v] }
+    /// }
+    /// puts -nonewline "[::N::call] "
+    /// eval {set x hello}
+    /// puts $x
+    /// ```
+    ///
+    /// No `jimsh` is installed on this host, so Jim is not covered. After
+    /// `[uplevel 1 {namespace current}]` the heads that follow are proved,
+    /// but absence advice is not yet given: the inline `namespace current`
+    /// in the frame `uplevel` selects does not report a closed completion.
+    #[test]
+    fn a_braced_literal_script_keeps_the_command_world_and_a_computed_one_does_not() {
+        let w123 = |source: &str, release: &str| {
+            crate::analyser::Analyser::new()
+                .analyse(source, release)
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W123)
+                .count()
+        };
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for source in [
+                "eval {set x hello}\nnosuch\n",
+                "proc p {} {uplevel 1 {set y 1}; nosuch}\nproc c {} {p}\nc\n",
+                "proc g {} {uplevel #0 {set y 1}; nosuch}\ng\n",
+            ] {
+                assert_eq!(w123(source, release), 1, "{release}: {source}");
+            }
+            for source in [
+                "set s {set x 1}\neval $s\nnosuch\n",
+                "proc g {} {uplevel [gets stdin] {set y 1}; nosuch}\ng\n",
+            ] {
+                assert_eq!(w123(source, release), 0, "{release}: {source}");
+            }
+        }
+    }
+
     /// A catalogued package publishes its export list with its commands, so
     /// a wildcard import brings them in and the bare head keeps its spec.
     ///

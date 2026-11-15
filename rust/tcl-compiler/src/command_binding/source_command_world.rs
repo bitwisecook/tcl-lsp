@@ -2252,6 +2252,8 @@ pub(super) fn capture(
             operations.push(operation.unwrap_or(Operation::Withdraw));
         }
     }
+    // A handler that only runs one braced literal script writes what that
+    // script writes; the body walk records those commands one by one.
     if facts.effects.accesses().iter().any(|access| {
         matches!(
             access.domain,
@@ -2261,7 +2263,9 @@ pub(super) fn capture(
             access.mode,
             tcl_registry::world_effect::EffectAccessMode::Read
         )
-    }) {
+    }) && !super::original_delegated_script::has_delegated_literal_script(
+        native, facts, state, context,
+    ) {
         operations.push(Operation::Withdraw);
     }
     Some(CapturedOriginalCommandTransfer {

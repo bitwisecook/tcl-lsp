@@ -92,6 +92,7 @@ pub use original_callback_lookup::OriginalCallbackPrefix;
 mod insertion_template;
 mod original_command_mutation;
 mod original_command_table;
+mod original_delegated_script;
 mod original_namespace_binding;
 mod original_namespace_body;
 pub(crate) mod original_namespace_deletion;
@@ -7228,6 +7229,7 @@ fn install_selected_native_frame(
 /// Namespace receipts a selected native body carries across its walk.
 struct SelectedNativeBodyReceipts {
     namespace_body: Option<Box<original_namespace_body::OriginalNamespaceBody>>,
+    delegated_script: Option<Box<original_delegated_script::OriginalDelegatedScript>>,
     previous_namespace_exit: Option<conditional_source::SourceConditionalNamespaceExit>,
     conditional_namespace: Option<conditional_source::SourceConditionalNamespaceExit>,
 }
@@ -13487,6 +13489,11 @@ impl SourceCommandBindings {
                 native, facts, state, *context, prepared,
             )
         });
+        let delegated_script = boxed_source_completion_receipt(|| {
+            original_delegated_script::OriginalDelegatedScript::capture(
+                native, facts, state, *context, prepared,
+            )
+        });
         let previous_namespace_exit = self.conditional_source.pending_namespace.take();
         self.conditional_source.pending_namespace =
             original_namespace_body::conditional_source_namespace_exit(
@@ -13495,6 +13502,7 @@ impl SourceCommandBindings {
         let conditional_namespace = self.conditional_source.pending_namespace.clone();
         Box::new(SelectedNativeBodyReceipts {
             namespace_body,
+            delegated_script,
             previous_namespace_exit,
             conditional_namespace,
         })
@@ -13516,6 +13524,7 @@ impl SourceCommandBindings {
     ) {
         let SelectedNativeBodyReceipts {
             namespace_body,
+            delegated_script,
             previous_namespace_exit,
             conditional_namespace,
         } = *receipts;
@@ -13528,6 +13537,9 @@ impl SourceCommandBindings {
         if namespace_body
             .as_ref()
             .is_some_and(|receipt| receipt.completed(native, outcomes, *context, prepared))
+            || delegated_script
+                .as_ref()
+                .is_some_and(|receipt| receipt.completed(native, outcomes, *context, prepared))
         {
             outcomes.retain_closed_native_handler_completion(native, facts, *context);
         }

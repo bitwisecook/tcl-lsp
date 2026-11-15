@@ -46,7 +46,7 @@ pub(super) struct OriginalNamespaceBody {
     parent: crate::var_resolve::VariableExecutionFrame,
 }
 
-fn quiet(state: &ModuleCommandBindings) -> bool {
+pub(super) fn quiet(state: &ModuleCommandBindings) -> bool {
     !state.has_opaque_domain()
         && state.baseline.native_entry.is_none()
         && !state.baseline.unknown_entry
