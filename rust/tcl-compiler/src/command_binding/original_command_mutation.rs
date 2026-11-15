@@ -51,6 +51,31 @@ impl OriginalCommandMove {
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<Self> {
+        Self::capture_in_view(native, facts, state, context, false)
+    }
+
+    /// The delete form for the diagnostic view, which also admits a class.
+    /// Deleting a class destroys its instances and subclasses, which this
+    /// receipt does not model: their slots stay as they were, so the view can
+    /// only claim the deleted class name itself absent. Not a completion
+    /// receipt.
+    pub(super) fn capture_deletion_for_diagnostics(
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<Self> {
+        Self::capture_in_view(native, facts, state, context, true)
+            .filter(|receipt| receipt.destination.is_none())
+    }
+
+    fn capture_in_view(
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+        diagnostic: bool,
+    ) -> Option<Self> {
         if state.has_opaque_domain()
             || state.baseline.native_entry.is_some()
             || state.source_step_observed()
@@ -83,7 +108,7 @@ impl OriginalCommandMove {
         let current = context.namespace_identity();
         let (source, occupied) = state.original_occupied_command_for_input(&current, &from)?;
         let (binding, target, imported_origin) =
-            Self::intrinsic_occupied_target(state, &source, &occupied)?;
+            Self::intrinsic_occupied_target(state, &source, &occupied, diagnostic)?;
         let to = match to {
             Some(to) => {
                 let to =
@@ -103,7 +128,10 @@ impl OriginalCommandMove {
         };
         let destination = match &to {
             None => {
-                if !Self::deletion_runs_no_cleanup(state, &current, &source, &binding, &target) {
+                let modelled = diagnostic && target.kind == BindingKind::Class;
+                if !(modelled
+                    || Self::deletion_runs_no_cleanup(state, &current, &source, &binding, &target))
+                {
                     return None;
                 }
                 None
@@ -231,6 +259,7 @@ impl OriginalCommandMove {
         state: &ModuleCommandBindings,
         source: &SourceCommandKey,
         occupied: &BTreeSet<MayBinding>,
+        diagnostic: bool,
     ) -> Option<(MayBinding, ResolvedCommandTarget, Option<SourceCommandKey>)> {
         let targets = occupied.iter().cloned().collect::<Vec<_>>();
         let [binding] = targets.as_slice() else {
@@ -274,7 +303,8 @@ impl OriginalCommandMove {
         // imported wrapper is admitted only with the direct origin above.
         if !target.terminal
             || !target.prepended.is_empty()
-            || !matches!(target.kind, BindingKind::Proc | BindingKind::Builtin)
+            || !(matches!(target.kind, BindingKind::Proc | BindingKind::Builtin)
+                || (diagnostic && target.kind == BindingKind::Class))
         {
             return None;
         }

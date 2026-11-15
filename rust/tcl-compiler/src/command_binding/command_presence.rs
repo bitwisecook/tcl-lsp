@@ -335,7 +335,8 @@ impl SourceInvocationBinding {
             return Presence::Unknown;
         };
         let state = &snapshot.state;
-        let presence = state.original_slot_presence_for_input(&input, &self.lookup_namespace_key);
+        let presence =
+            state.original_diagnostic_slot_presence_for_input(&input, &self.lookup_namespace_key);
         if presence != Presence::Absent {
             return presence;
         }

@@ -2902,6 +2902,25 @@ impl ModuleCommandBindings {
         input: &SignatureSourceNameInput,
         current: &SourceNamespaceKey,
     ) -> super::SourceCommandSlotPresence {
+        self.original_slot_presence_in_view(input, current, false)
+    }
+
+    /// The same presence for absence advice, which also accepts a world
+    /// withheld only by steps the diagnostic view models.
+    pub(super) fn original_diagnostic_slot_presence_for_input(
+        &self,
+        input: &SignatureSourceNameInput,
+        current: &SourceNamespaceKey,
+    ) -> super::SourceCommandSlotPresence {
+        self.original_slot_presence_in_view(input, current, true)
+    }
+
+    fn original_slot_presence_in_view(
+        &self,
+        input: &SignatureSourceNameInput,
+        current: &SourceNamespaceKey,
+        diagnostic: bool,
+    ) -> super::SourceCommandSlotPresence {
         use super::SourceCommandSlotPresence as Presence;
         let input_is_current = input.is_current(&self.source_variables);
         #[cfg(debug_assertions)]
@@ -2919,7 +2938,7 @@ impl ModuleCommandBindings {
                 self.source_variables.namespace_known
             );
         }
-        if self.unclosed_command_world
+        if (self.unclosed_command_world && !(diagnostic && self.diagnostic_command_world_closed))
             || !input_is_current
             || self.baseline.unknown_entry
             || (!tcl_syntax::naming::is_absolute_bytes(input.bytes())

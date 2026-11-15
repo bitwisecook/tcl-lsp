@@ -5002,6 +5002,12 @@ struct CapturedNativeCompletionReceipts {
     mutation: Option<Box<original_command_mutation::OriginalCommandMove>>,
     alias_creation: Option<Box<original_alias_creation::OriginalAliasCreation>>,
     namespace_binding: Option<Box<original_namespace_binding::OriginalNamespaceBinding>>,
+    /// The same transfer under the release's own preload command, captured
+    /// only when the strict receipt is unavailable. Diagnostic view only.
+    diagnostic_namespace_binding: Option<Box<original_namespace_binding::OriginalNamespaceBinding>>,
+    /// A class deletion, captured only when the strict receipt is
+    /// unavailable. Diagnostic view only.
+    diagnostic_deletion: Option<Box<original_command_mutation::OriginalCommandMove>>,
     namespace_deletion: Option<Box<original_namespace_deletion::OriginalNamespaceDeletion>>,
 }
 
@@ -5028,12 +5034,191 @@ impl CapturedNativeCompletionReceipts {
                 native, facts, state, *context,
             )
         });
+        let diagnostic_namespace_binding = if namespace_binding.is_none() {
+            boxed_source_completion_receipt(|| {
+                original_namespace_binding::OriginalNamespaceBinding::capture_with(
+                    native,
+                    facts,
+                    state,
+                    *context,
+                    original_namespace_binding::ImportPreload::AbsentOrStock,
+                )
+            })
+        } else {
+            None
+        };
+        let diagnostic_deletion = if mutation.is_none() {
+            boxed_source_completion_receipt(|| {
+                original_command_mutation::OriginalCommandMove::capture_deletion_for_diagnostics(
+                    native, facts, state, *context,
+                )
+            })
+        } else {
+            None
+        };
         Self {
             mutation,
             alias_creation,
             namespace_binding,
+            diagnostic_namespace_binding,
+            diagnostic_deletion,
             namespace_deletion,
         }
+    }
+
+    /// Whether the diagnostic-only receipt matches the walked normal state.
+    /// An abrupt alternative (the preload command may raise) does not matter
+    /// here: advice after the step speaks only for the path that returned.
+    fn completed_for_diagnostics(
+        &self,
+        outcomes: &SourceOutcomes,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        let Some(normal) = outcomes.normal.as_ref() else {
+            return false;
+        };
+        self.diagnostic_namespace_binding
+            .as_ref()
+            .is_some_and(|receipt| receipt.completed(native, normal, context))
+            || self
+                .diagnostic_deletion
+                .as_ref()
+                .is_some_and(|receipt| receipt.completed(native, facts, normal, context))
+    }
+
+    /// A declared deletion the walk recorded as exactly one alias slot going
+    /// missing, with every other slot as it found it. Deleting an alias
+    /// removes that one command and leaves its target alone.
+    fn deleted_one_alias_for_diagnostics(
+        facts: &InvocationFacts,
+        incoming: &ModuleCommandBindings,
+        normal: &ModuleCommandBindings,
+    ) -> bool {
+        let Some(transitions) = facts.state_transitions.declared() else {
+            return false;
+        };
+        let mut declared = transitions.command_bindings();
+        if !matches!(
+            declared.next(),
+            Some(tcl_registry::CommandBindingTransition::Delete { .. })
+        ) || declared.next().is_some()
+            || normal.has_opaque_domain()
+        {
+            return false;
+        }
+        let missing = BTreeSet::from([MayBinding::Missing]);
+        let mut deleted = false;
+        for (key, before) in incoming.bindings.iter() {
+            let Some(after) = normal.original_bindings_for_key(key) else {
+                return false;
+            };
+            if &after == before {
+                continue;
+            }
+            let mut targets = before.iter();
+            let (Some(MayBinding::Target(target)), None) = (targets.next(), targets.next()) else {
+                return false;
+            };
+            if target.kind != BindingKind::Alias || after != missing || deleted {
+                return false;
+            }
+            deleted = true;
+        }
+        deleted
+            && normal
+                .bindings
+                .iter()
+                .all(|(key, _)| incoming.original_bindings_for_key(key).is_some())
+    }
+
+    /// A declared alias the walk recorded as exactly one new alias slot, with
+    /// every other slot as it found it. Creating an alias runs nothing; its
+    /// target runs at a later call, which is its own step.
+    fn created_one_alias_for_diagnostics(
+        facts: &InvocationFacts,
+        incoming: &ModuleCommandBindings,
+        normal: &ModuleCommandBindings,
+    ) -> bool {
+        let Some(transitions) = facts.state_transitions.declared() else {
+            return false;
+        };
+        let mut declared = transitions.command_bindings();
+        if !matches!(
+            declared.next(),
+            Some(tcl_registry::CommandBindingTransition::Alias { .. })
+        ) || declared.next().is_some()
+            || normal.has_opaque_domain()
+        {
+            return false;
+        }
+        let missing = BTreeSet::from([MayBinding::Missing]);
+        let mut created = false;
+        for (key, after) in normal.bindings.iter() {
+            let before = incoming.original_bindings_for_key(key);
+            if before.as_ref() == Some(after) {
+                continue;
+            }
+            let mut targets = after.iter();
+            let (Some(MayBinding::Target(target)), None) = (targets.next(), targets.next()) else {
+                return false;
+            };
+            if target.kind != BindingKind::Alias || before != Some(missing.clone()) || created {
+                return false;
+            }
+            created = true;
+        }
+        created
+            && incoming
+                .bindings
+                .iter()
+                .all(|(key, _)| normal.original_bindings_for_key(key).is_some())
+    }
+
+    /// A definer the walk recorded as exactly one class command, with every
+    /// other slot as it found it. The definition has no completion receipt
+    /// (its script may still reach the caller frame), but the diagnostic view
+    /// knows which command it published.
+    fn defined_one_class_for_diagnostics(
+        facts: &InvocationFacts,
+        incoming: &ModuleCommandBindings,
+        normal: &ModuleCommandBindings,
+    ) -> bool {
+        let Some(transitions) = facts.state_transitions.declared() else {
+            return false;
+        };
+        let mut defined = transitions.command_bindings();
+        if !matches!(
+            defined.next(),
+            Some(tcl_registry::CommandBindingTransition::Define {
+                kind: tcl_registry::CommandBindingDefinitionKind::Object,
+                ..
+            })
+        ) || defined.next().is_some()
+            || normal.has_opaque_domain()
+        {
+            return false;
+        }
+        let mut published = false;
+        for (key, alternatives) in normal.bindings.iter() {
+            if incoming.original_bindings_for_key(key).as_ref() == Some(alternatives) {
+                continue;
+            }
+            let mut targets = alternatives.iter();
+            let (Some(MayBinding::Target(target)), None) = (targets.next(), targets.next()) else {
+                return false;
+            };
+            if target.kind != BindingKind::Class || published {
+                return false;
+            }
+            published = true;
+        }
+        published
+            && incoming
+                .bindings
+                .iter()
+                .all(|(key, _)| normal.original_bindings_for_key(key).is_some())
     }
 
     fn captured(&self) -> bool {
@@ -12277,7 +12462,7 @@ impl SourceCommandBindings {
                     )))
                 && let Some(normal) = outcomes.normal.as_mut()
             {
-                normal.unclosed_command_world = true;
+                normal.withhold_command_world(false);
             }
             return Err(outcomes);
         }
@@ -12368,15 +12553,33 @@ impl SourceCommandBindings {
                 .as_ref()
                 .filter(|_| write_complete),
         );
-        if (requires_reentry_guard(facts)
+        let reentry = requires_reentry_guard(facts);
+        if reentry
             || (outcomes.normal_completion.is_none()
                 && !command_world_closed_on_normal_return(native.target, facts)
                 && !source_command_world::namespace_body_world_closed_on_normal_return(
                     native, facts, outcomes, *context,
-                )))
-            && let Some(normal) = outcomes.normal.as_mut()
+                ))
         {
-            normal.unclosed_command_world = true;
+            let modelled = (!reentry
+                && (walk
+                    .completions
+                    .completed_for_diagnostics(outcomes, native, facts, *context)
+                    || outcomes.normal.as_ref().is_some_and(|normal| {
+                        CapturedNativeCompletionReceipts::defined_one_class_for_diagnostics(
+                            facts, incoming, normal,
+                        ) || CapturedNativeCompletionReceipts::deleted_one_alias_for_diagnostics(
+                            facts, incoming, normal,
+                        )
+                    })))
+                || outcomes.normal.as_ref().is_some_and(|normal| {
+                    CapturedNativeCompletionReceipts::created_one_alias_for_diagnostics(
+                        facts, incoming, normal,
+                    )
+                });
+            if let Some(normal) = outcomes.normal.as_mut() {
+                normal.withhold_command_world(modelled);
+            }
         }
         outcomes.publish(state);
     }
@@ -15500,6 +15703,11 @@ pub struct ModuleCommandBindings {
     /// The normal path then holds no exact completed command world, even when
     /// every abrupt alternative is an error.
     unclosed_command_world: bool,
+    /// While the world is withheld, whether every step that withheld it is one
+    /// the diagnostic view models exactly (an import under the release's own
+    /// preload command). Only absence advice reads this; a proof consumer
+    /// reads `unclosed_command_world` alone.
+    diagnostic_command_world_closed: bool,
     /// An unbounded command-world effect was reached in a runtime receiver's
     /// member-body frame, where relative publications land in the receiver's
     /// private namespace.
@@ -15580,6 +15788,7 @@ impl PartialEq for ModuleCommandBindings {
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.unclosed_command_world == other.unclosed_command_world
+            && self.diagnostic_command_world_closed == other.diagnostic_command_world_closed
             && self.receiver_frame_opacity == other.receiver_frame_opacity
             && self.namespace_resolution == other.namespace_resolution
             && self.procedure_bodies == other.procedure_bodies
@@ -16580,6 +16789,7 @@ impl ModuleCommandBindings {
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.unclosed_command_world == other.unclosed_command_world
+            && self.diagnostic_command_world_closed == other.diagnostic_command_world_closed
             && self.receiver_frame_opacity == other.receiver_frame_opacity
             && self.namespace_resolution == other.namespace_resolution
             && (Arc::ptr_eq(&self.procedure_bodies, &other.procedure_bodies)
@@ -16675,6 +16885,7 @@ impl std::hash::Hash for ModuleCommandBindings {
         self.dynamic_proc_binding.hash(state);
         self.unnameable_rebinding_subject.hash(state);
         self.unclosed_command_world.hash(state);
+        self.diagnostic_command_world_closed.hash(state);
         self.namespace_resolution.hash(state);
         self.procedure_bodies.hash(state);
         self.rebound_names.hash(state);
@@ -16961,6 +17172,7 @@ impl ModuleCommandBindings {
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
             && self.unclosed_command_world == other.unclosed_command_world
+            && self.diagnostic_command_world_closed == other.diagnostic_command_world_closed
     }
 
     /// Traits of a literal head that a runtime receiver's member body reaches
@@ -19120,6 +19332,16 @@ impl ModuleCommandBindings {
         changed
     }
 
+    /// Withhold the completed command world after a step with no closed
+    /// normal-return receipt. `modelled_for_diagnostics` says the diagnostic
+    /// view still knows the step's exact effect; one step it does not know
+    /// withholds that view for good.
+    fn withhold_command_world(&mut self, modelled_for_diagnostics: bool) {
+        self.diagnostic_command_world_closed = modelled_for_diagnostics
+            && (!self.unclosed_command_world || self.diagnostic_command_world_closed);
+        self.unclosed_command_world = true;
+    }
+
     /// Historical opacity survives restoration of the current lookup state.
     fn join_binding_history(&mut self, other: &Self) -> bool {
         let mut changed = false;
@@ -19143,9 +19365,16 @@ impl ModuleCommandBindings {
             self.unnameable_rebinding_subject = true;
             changed = true;
         }
-        if other.unclosed_command_world && !self.unclosed_command_world {
-            self.unclosed_command_world = true;
-            changed = true;
+        if other.unclosed_command_world {
+            let closed_for_diagnostics = other.diagnostic_command_world_closed
+                && (!self.unclosed_command_world || self.diagnostic_command_world_closed);
+            if !self.unclosed_command_world
+                || self.diagnostic_command_world_closed != closed_for_diagnostics
+            {
+                self.unclosed_command_world = true;
+                self.diagnostic_command_world_closed = closed_for_diagnostics;
+                changed = true;
+            }
         }
         changed |= self.namespace_resolution.join(&other.namespace_resolution);
         if !Arc::ptr_eq(&self.procedure_bodies, &other.procedure_bodies)

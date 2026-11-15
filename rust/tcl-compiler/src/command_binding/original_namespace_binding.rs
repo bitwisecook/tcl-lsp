@@ -28,6 +28,34 @@ use tcl_syntax::{
     native_glob::{NativeGlobProtocol, NativeNameGlobPurpose},
 };
 
+/// What an import requires of the release's import preload command
+/// (`auto_import`), which `namespace import` calls with each pattern.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ImportPreload {
+    /// The command is absent, so the import runs nothing else. The only
+    /// premise a completion receipt accepts.
+    Absent,
+    /// The command is absent or still the release's own, in a document that
+    /// never names the autoload index. The stock command loads a definition
+    /// only for a name the index lists, so with no index entry the import
+    /// links exactly what the namespace exports. A diagnostic may read this;
+    /// it is not a completion receipt.
+    AbsentOrStock,
+}
+
+/// Whether the document names the autoload index or its search path. Either
+/// can give the stock preload command a definition to load.
+fn names_autoload_index(state: &ModuleCommandBindings) -> bool {
+    let Some(origin) = state.current_source_origin.as_ref() else {
+        return true;
+    };
+    let image = origin.source_image();
+    let bytes = image.bytes();
+    [b"auto_path".as_slice(), b"auto_index".as_slice()]
+        .iter()
+        .any(|name| bytes.windows(name.len()).any(|window| window == *name))
+}
+
 fn policy(state: &ModuleCommandBindings) -> Option<NamePolicyProtocol> {
     if state.has_opaque_domain() || state.baseline.unknown_entry {
         return None;
@@ -429,6 +457,7 @@ fn closed_pattern_transfer(
     state: &ModuleCommandBindings,
     namespace: &SourceNamespaceKey,
     policy: NamePolicyProtocol,
+    preload: ImportPreload,
     operand: &impl Fn(&tcl_registry::TransitionSubject) -> Option<Vec<u8>>,
 ) -> Option<Box<ModuleCommandBindings>> {
     if !quiet(state) {
@@ -438,7 +467,7 @@ fn closed_pattern_transfer(
     if state.unknown_lookup_namespaces.contains(namespace) {
         return None;
     }
-    let expected = expected_pattern_transfer(facts, state, namespace, policy, operand)?;
+    let expected = expected_pattern_transfer(facts, state, namespace, policy, preload, operand)?;
     quiet(&expected).then_some(expected)
 }
 
@@ -447,6 +476,7 @@ fn expected_pattern_transfer(
     state: &ModuleCommandBindings,
     namespace: &SourceNamespaceKey,
     policy: NamePolicyProtocol,
+    preload: ImportPreload,
     operand: &impl Fn(&tcl_registry::TransitionSubject) -> Option<Vec<u8>>,
 ) -> Option<Box<ModuleCommandBindings>> {
     use tcl_registry::{
@@ -479,7 +509,7 @@ fn expected_pattern_transfer(
                     let input = operand(subject)?;
                     // The narrow fresh-destination envelope invokes no
                     // replacement cleanup or imported-alias loop callback.
-                    import_is_fresh_and_closed(&expected, namespace, &input, policy)?;
+                    import_is_fresh_and_closed(&expected, namespace, &input, policy, preload)?;
                     apply_import(&mut expected, namespace, &input, Some(*force))?;
                 }
             }
@@ -510,6 +540,16 @@ impl OriginalNamespaceBinding {
         facts: &tcl_registry::InvocationFacts,
         state: &ModuleCommandBindings,
         context: super::SourceExecutionContext<'_>,
+    ) -> Option<Self> {
+        Self::capture_with(native, facts, state, context, ImportPreload::Absent)
+    }
+
+    pub(super) fn capture_with(
+        native: super::SourceNativeInvocation<'_>,
+        facts: &tcl_registry::InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: super::SourceExecutionContext<'_>,
+        preload: ImportPreload,
     ) -> Option<Self> {
         use tcl_registry::hooks::AnalyserHookId;
         #[cfg(debug_assertions)]
@@ -568,6 +608,7 @@ impl OriginalNamespaceBinding {
             state,
             &namespace,
             policy,
+            preload,
             &|subject: &tcl_registry::TransitionSubject| {
                 super::original_command_table::original_operand(native, subject, state, context)
                     .map(|input| input.bytes().to_vec())
@@ -684,21 +725,49 @@ fn import_origins_are_live(
     Some(())
 }
 
+fn preload_hook_is_admitted(
+    state: &ModuleCommandBindings,
+    policy: NamePolicyProtocol,
+    preload: ImportPreload,
+) -> Option<()> {
+    let command = tcl_registry::NamespaceTransition::import_preload_command(policy)?;
+    let root = state.source_root_namespace_key()?;
+    let stock_tolerated = preload == ImportPreload::AbsentOrStock && !names_autoload_index(state);
+    for path in state.original_registry_command_paths(&root, command, policy)? {
+        for key in path {
+            let bindings = state.original_bindings_for_key(&key)?;
+            if bindings != BTreeSet::from([MayBinding::Missing])
+                && !(stock_tolerated
+                    && state.original_initial_bindings_for_key(&key).as_ref() == Some(&bindings))
+            {
+                return None;
+            }
+        }
+    }
+    Some(())
+}
+
+fn export_list_is_foreign(state: &ModuleCommandBindings, key: &SourceCommandKey) -> Option<bool> {
+    Some(
+        state
+            .original_bindings_for_key(key)?
+            .iter()
+            .any(|binding| match binding {
+                MayBinding::Target(target) => target.registry_backed,
+                MayBinding::Missing => false,
+                MayBinding::Imported(_) | MayBinding::Unknown => true,
+            }),
+    )
+}
+
 fn import_is_fresh_and_closed(
     state: &ModuleCommandBindings,
     destination: &SourceNamespaceKey,
     original: &[u8],
     policy: NamePolicyProtocol,
+    preload: ImportPreload,
 ) -> Option<()> {
-    let preload = tcl_registry::NamespaceTransition::import_preload_command(policy)?;
-    let root = state.source_root_namespace_key()?;
-    for path in state.original_registry_command_paths(&root, preload, policy)? {
-        for key in path {
-            if state.original_bindings_for_key(&key)? != BTreeSet::from([MayBinding::Missing]) {
-                return None;
-            }
-        }
-    }
+    preload_hook_is_admitted(state, policy, preload)?;
     let (source, pattern) = pattern_source(
         state,
         destination,
@@ -752,6 +821,11 @@ fn import_is_fresh_and_closed(
             .into_iter()
             .any(|matched| matched);
         if !exported {
+            // A catalogued command's export list is its package's, not the
+            // document's, so the diagnostic view cannot call it unexported.
+            if preload == ImportPreload::AbsentOrStock && export_list_is_foreign(state, &key)? {
+                return None;
+            }
             continue;
         }
         let bindings = state.original_bindings_for_key(&key)?;

@@ -16497,6 +16497,9 @@ fn w123_fp_issue_973_proc_reestablished_after_deletion_resolves() {
 
 #[test]
 fn w123_tp_issue_973_class_deleted_via_rename_no_reestablishment() {
+    // tclsh 8.6.18, 9.0.4 and 9.1.0: after `oo::class create Helper; rename
+    // Helper {}`, `Helper new` raises `invalid command name "Helper"` (and
+    // the class's subclasses and instances are gone with it).
     let src = "oo::class create Helper\nrename Helper {}\nproc caller {} { Helper new }\n";
     assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
 }
@@ -16515,6 +16518,9 @@ fn w123_fp_issue_973_class_reestablished_after_deletion_resolves() {
 
 #[test]
 fn w123_tp_issue_973_interp_alias_deleted_no_reestablishment() {
+    // tclsh 8.4.20 to 9.1.0: after `interp alias {} short {} target; interp
+    // alias {} short {}`, `short` raises `invalid command name "short"` and
+    // `target` is still a command.
     let src = "proc target {} {}\ninterp alias {} short {} target\ninterp alias {} short {}\nproc caller {} { short }\n";
     assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
 }

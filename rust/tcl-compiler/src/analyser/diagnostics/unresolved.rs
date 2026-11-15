@@ -868,6 +868,50 @@ mod require_ordering_tests {
         );
     }
 
+    /// `namespace import` calls the release's `auto_import` with each
+    /// pattern. The stock one loads a definition only for a name the autoload
+    /// index lists, so with no index entry the import links exactly what the
+    /// namespace exports.
+    ///
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all print
+    /// `rc=1 invalid command name "helper"` then `rc=0 right` for:
+    ///
+    /// ```tcl
+    /// namespace eval n {proc helper {} {return wrong}}
+    /// namespace import ::n::*
+    /// puts "rc=[catch {helper} m] $m"
+    /// namespace eval m {proc helper {} {return right}; namespace export helper}
+    /// namespace import ::m::*
+    /// puts "rc=[catch {helper} m] $m"
+    /// ```
+    #[test]
+    fn absence_advice_survives_an_import_under_the_stock_preload_on_every_release() {
+        let unexported =
+            "namespace eval n {proc helper {} {return wrong}}; namespace import ::n::*; helper";
+        let exported = "namespace eval m {proc helper {} {return right}; namespace export helper}; namespace import ::m::*; helper";
+        // A document that names the autoload index, or replaces the preload
+        // command, may give the import something to load: no absence claim.
+        let indexed = "set auto_path {}; namespace eval n {proc helper {} {return wrong}}; namespace import ::n::*; helper";
+        let replaced = "proc auto_import {pattern} {proc ::helper {} {}}; namespace eval n {proc helper {} {return wrong}}; namespace import ::n::*; helper";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let count = |source: &str| {
+                Analyser::new()
+                    .analyse(source, dialect)
+                    .diagnostics
+                    .iter()
+                    .filter(|diagnostic| {
+                        diagnostic.code.as_str() == "W123"
+                            && diagnostic.message.contains("'helper'")
+                    })
+                    .count()
+            };
+            assert_eq!(count(unexported), 1, "{dialect}: unexported");
+            assert_eq!(count(exported), 0, "{dialect}: exported");
+            assert_eq!(count(indexed), 0, "{dialect}: autoload index named");
+            assert_eq!(count(replaced), 0, "{dialect}: preload replaced");
+        }
+    }
+
     #[test]
     fn unresolved_slot_advice_respects_temporal_deletion_and_custom_fallback() {
         assert_eq!(slot_count("proc p {} {}; p; rename p {}; p", "W123"), 1);
