@@ -196,6 +196,44 @@ impl<'a> ExpressionMathBindings<'a> {
         })
     }
 
+    /// [`Self::source_numeric_operands`] that also admits a read whose closed
+    /// integer contents the selected conversion accepts. Such a read supplies
+    /// its value and no numeric object.
+    pub(crate) fn source_operands_with_integer_contents(
+        &self,
+        context: &tcl_syntax::expr::parser::ExprParseContext,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<(
+        crate::tcl_expr_eval::Env,
+        crate::tcl_expr_eval::NativeOperandProofs,
+        crate::native_numeric::SourceIntegerContentsReads,
+    )> {
+        let preparation = self.preparation_for_context(context)?;
+        let read = |node: &crate::expr_ast::ExprNode| {
+            let (_, source) = preparation.original_variable_source(node)?;
+            let mut accesses = self.reads.iter().filter(|access| {
+                access.source == source
+                    && matches!(&access.owner, crate::command_binding::SourceVariableEvaluationOwner::NativeExpression { invocation, .. } if invocation == &preparation.invocation)
+            });
+            let access = accesses.next()?;
+            accesses.next().is_none().then_some(access)
+        };
+        crate::native_numeric::expression_operands_with_integer_contents(
+            preparation.witness.tree(),
+            |node| crate::native_numeric::source_read_operand(read(node)?, registry),
+            |node| crate::native_numeric::source_read_integer_contents(read(node)?, registry),
+            |node| {
+                let crate::expr_ast::ExprNode::Call {
+                    function, start, ..
+                } = node
+                else {
+                    return false;
+                };
+                self.resolved_call(function, *start).is_some()
+            },
+        )
+    }
+
     /// Already numeric at the original expression read, independently of its
     /// value. This purpose-only check cannot construct a frozen operand or fold
     /// another expression. Missing/observed/alternative reads withdraw it.
@@ -378,6 +416,30 @@ impl<'a> ExpressionMathBindings<'a> {
                     } if *condition_span == span => Some(Self::new(script, *condition_base)),
                     _ => None,
                 };
+                // An `[expr …]` nested in a word of this statement: its own
+                // reached invocation selects the prepared source.
+                let candidate = candidate.or_else(|| {
+                    let site = span.start().checked_add(1)?;
+                    let host = statement.span();
+                    if host.start() > span.start() || host.end() < span.end() {
+                        return None;
+                    }
+                    let tokens = script.retained_source_tokens_for_statement(statement)?;
+                    tokens
+                        .nested_bindings
+                        .iter()
+                        .any(|(offset, _)| *offset == site)
+                        .then_some(())?;
+                    // A quoted or concatenated operand prepares bytes the
+                    // source does not hold; only the written expression is
+                    // answered here.
+                    let nested = Self::new(script, None).at_invocation(site)?;
+                    nested
+                        .preparation()?
+                        .original_expression_mapping()
+                        .is_some()
+                        .then_some(nested)
+                });
                 if let Some(candidate) = candidate {
                     let candidate = Self {
                         tokens: script.retained_source_tokens_for_statement(statement),

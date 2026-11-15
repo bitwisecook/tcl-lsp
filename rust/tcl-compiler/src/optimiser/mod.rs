@@ -465,7 +465,30 @@ impl<'a> PassContext<'a> {
                     .map(|call| call.target())
             },
             numeric.as_ref().map_or(&empty, |(_, operands)| operands),
-        )?;
+        )
+        .or_else(|| {
+            // An operand read whose closed integer contents the selected
+            // conversion accepts has the value the execution walk computed
+            // with; only its conversion is left out of the folded text.
+            let bindings = bindings?;
+            let (environment, operands, integer_contents) =
+                bindings.source_operands_with_integer_contents(&context, self.registry?)?;
+            let evaluation = crate::tcl_expr_eval::analyse_tcl_expr_with_integer_contents(
+                preparation.witness.tree(),
+                &environment,
+                policy,
+                &|function, start| {
+                    bindings
+                        .resolved_call(function, start)
+                        .map(|call| call.target())
+                },
+                &operands,
+                &integer_contents,
+            )?;
+            evaluation
+                .native_value_effects_are_proved()
+                .then_some(evaluation.value)
+        })?;
         // The folded literal replaces the original result object.
         crate::expression_rewrite::contents_only_result_equivalence(&preparation.witness, &value)
             .ok()?;

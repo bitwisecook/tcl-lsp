@@ -3188,9 +3188,22 @@ fn visit_string_interpolation(
     // the opening-quote token (e.g. `"$` at 5..7). Extend to the
     // matching close quote so the rewrite target covers the full
     // string — otherwise we leave trailing `$b $c"` garbage.
-    let Some(rewrite_span) = original_quoted_word_rewrite_span(ctx, span, inside) else {
-        return;
-    };
+    let (rewrite_span, rewritten) =
+        if let Some(rewrite_span) = original_quoted_word_rewrite_span(ctx, span, inside) {
+            (rewrite_span, rewritten)
+        } else {
+            // The argv text spells every reference `${name}`; the word as
+            // written is what the edit replaces.
+            let Some((rewrite_span, written)) =
+                super::helpers::spans::original_quoted_word_contents(ctx, span)
+            else {
+                return;
+            };
+            match substitute_dollar_refs(&written, constants, config.nested()) {
+                Some(rewritten) if rewritten != written => (rewrite_span, rewritten),
+                _ => return,
+            }
+        };
     ctx.report(Optimisation::new(
         DiagCode::O100,
         "Inline constant into string interpolation",

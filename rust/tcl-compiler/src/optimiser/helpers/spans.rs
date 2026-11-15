@@ -290,6 +290,34 @@ pub fn original_quoted_word_rewrite_span(
     (chars.as_str() == inside).then_some(span)
 }
 
+/// The original word at `argv_span` and its contents as written, without the
+/// quotes of a quoted word.
+#[must_use]
+pub fn original_quoted_word_contents(
+    ctx: &crate::optimiser::PassContext<'_>,
+    argv_span: Span,
+) -> Option<(Span, String)> {
+    let module = ctx.ir_module?;
+    let registry = ctx.registry?;
+    let config = ctx.lexer_config();
+    if module.source.try_text().ok()? != ctx.source || module.lexer_config != config {
+        return None;
+    }
+    let bindings = module
+        .retained_source_bindings
+        .as_ref()?
+        .positioned_for_module(module, registry)?;
+    let (word, _) =
+        bindings.original_written_word_at_span_in_source(&module.source, argv_span, config)?;
+    let span = word.span();
+    let written = ctx.source.get(span.as_range())?;
+    let contents = match written.strip_prefix('"') {
+        Some(rest) => rest.strip_suffix('"')?,
+        None => written,
+    };
+    Some((span, contents.to_owned()))
+}
+
 /// Whole original command extent from the actual lowering source interpreter.
 /// The supplied IR extent selects geometry only; every rewrite permission and
 /// semantic/effect/current-value obligation remains with the caller.
