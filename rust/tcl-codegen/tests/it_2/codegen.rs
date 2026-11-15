@@ -553,6 +553,34 @@ fn a_math_function_behind_a_false_conjunct_is_still_compiled_in_tcl_8_6() {
 }
 
 #[test]
+fn string_length_of_a_known_word_is_its_folded_length_from_tcl_8_5() {
+    // `TclCompileStringLenCmd` pushes the character length of a word known
+    // at compile time. tclsh8.5, 8.6, 9.0 and 9.1,
+    // `tcl::unsupported::disassemble script {string length "hello"}`:
+    //   push1 "5"; done
+    // and `set s abc; string length $s` keeps `loadStk; strlen`.
+    for release in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let folded = crate::vm_compiled::top_level(release, "string length \"hello\"");
+        let ops = opcodes(&folded);
+        assert!(!ops.contains(&Op::STR_LEN), "{release}: {ops:?}");
+        assert!(
+            folded
+                .literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "5"),
+            "{release}: {:?}",
+            folded.literals.entries()
+        );
+        let read = opcodes(&crate::vm_compiled::top_level(
+            release,
+            "set s abc; string length $s",
+        ));
+        assert!(read.contains(&Op::STR_LEN), "{release}: {read:?}");
+    }
+}
+
+#[test]
 fn top_level_commands_compile_to_the_instructions_tclsh_8_6_emits() {
     // tclsh8.6: tcl::unsupported::disassemble script {<source>}
     //   set x hello; append x world      -> push1 push1 storeStk pop push1 push1 appendStk done

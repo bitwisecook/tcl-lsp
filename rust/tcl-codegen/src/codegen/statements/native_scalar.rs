@@ -32,6 +32,16 @@ impl CodegenCtx<'_> {
         if recipe.operands.len() != recipe.operation.arity() {
             return false;
         }
+        // `TclCompileStringLenCmd` pushes the character length of a word it
+        // knows at compile time and emits no `strlen`.
+        if recipe.operation == NativeScalarOperation::StringLength
+            && let Some(Some(literal)) = recipe.literals.first()
+            && let Ok(length) = tcl_syntax::raw_string::RawString::from_bytes(literal.clone())
+                .character_count(version.string_character_model())
+        {
+            operations.push(NativeEmissionTask::Literal(length.to_string().into_bytes()));
+            return true;
+        }
         for operand in recipe.operands {
             let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
                 return false;
