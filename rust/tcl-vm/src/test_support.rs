@@ -99,7 +99,7 @@ pub fn native_vm_for_profile_on_host(
     out: Box<dyn Write>,
     host: std::rc::Rc<dyn tcl_platform::Host>,
 ) -> Vm {
-    Vm::with_native_core(
+    let mut vm = Vm::with_native_core(
         out,
         host,
         profile,
@@ -110,5 +110,11 @@ pub fn native_vm_for_profile_on_host(
             "profile {} has no native core to build an interpreter over",
             profile.name
         )
-    })
+    });
+    // jimsh loads its static extensions before it reads a script; the C
+    // releases have no scripted library in this roster.
+    for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
+        vm.install_scripted_library(library);
+    }
+    vm
 }
