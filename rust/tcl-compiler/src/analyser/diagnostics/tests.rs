@@ -6050,6 +6050,7 @@ fn emit_cfg_ssa_diagnostics_w220_dead_store_overwritten() {
     // is overwritten before being read.  W220 should fire
     // at the first assignment.
     let mut a = Analyser::new();
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test("set x 1\nset x 2\nputs $x");
     let w220s: Vec<_> = a
         .result
@@ -6338,6 +6339,7 @@ fn w210_pkgindex_reports_other_reads_inside_command_substitutions() {
 fn emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex() {
     let mut a = Analyser::new();
     a.file_path = Some("/some/path/script.tcl".to_string());
+    a.profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     a.emit_document_cfg_ssa_diagnostics_for_test("set dir foo\nset dir bar\nputs $dir");
     let w220s: Vec<_> = a
         .result

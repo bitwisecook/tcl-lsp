@@ -14708,13 +14708,14 @@ mod tests {
 
     #[test]
     fn global_binds_the_tail_of_a_qualified_name_and_skips_a_computed_one() {
-        let mut a = Analyser::new();
-        dispatch_words(&mut a, &["global", "::ns::v", "$dyn"]);
+        let src = "namespace eval ns {variable v 1}\nset dyn other\nglobal ::ns::v $dyn\n";
+        let a = analysed(src);
         let v = &a.result.global_scope.variables["v"];
         assert_eq!(v.link_target.as_deref(), Some("::ns::v"));
         // The declaration word names the cell, so a rename rewrites it.
-        assert_eq!(v.link_target_span, Some(span(4, 5)));
-        assert!(!a.result.global_scope.variables.contains_key("dyn"));
+        let word = u32::try_from(src.find("::ns::v").unwrap()).unwrap();
+        assert_eq!(v.link_target_span, Some(span(word, word + 7)));
+        assert!(!a.result.global_scope.variables.contains_key("other"));
         assert!(!a.result.global_scope.variables.contains_key("$dyn"));
     }
 
@@ -14784,14 +14785,13 @@ mod tests {
         // and kept whole (`b::c` is `::a::b::c`, not the tail-collapsed
         // `::a::c`), `ns` relative to the current namespace; the rename span
         // is the `other` word, not the local.
-        let mut a = Analyser::new();
-        dispatch_words(
-            &mut a,
-            &["namespace", "upvar", "::a", "b::c", "l", "d", "m"],
-        );
+        let src = "namespace eval a {namespace eval b {variable c 1}; variable d 2}\n\
+                   namespace upvar ::a b::c l d m\n";
+        let a = analysed(src);
         let l = &a.result.global_scope.variables["l"];
         assert_eq!(l.link_target.as_deref(), Some("::a::b::c"));
-        assert_eq!(l.link_target_span, Some(span(12, 13)));
+        let other = u32::try_from(src.find("b::c l").unwrap()).unwrap();
+        assert_eq!(l.link_target_span, Some(span(other, other + 4)));
         assert_eq!(
             a.result.global_scope.variables["m"].link_target.as_deref(),
             Some("::a::d"),
@@ -14852,6 +14852,19 @@ mod tests {
 
     // `upvar` — the `otherVar` link
 
+    /// The link target of `local` in the first procedure body of `src`,
+    /// analysed under Tcl 8.6.
+    fn proc_alias_link(src: &str, local: &str) -> Option<String> {
+        let a = analysed(src);
+        a.result
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == crate::analyser::types::ScopeKind::Proc)
+            .and_then(|scope| scope.variables.get(local))
+            .and_then(|v| v.link_target.clone())
+    }
+
     /// Dispatch `upvar <args>` and report the alias's link target, if it got
     /// one.
     fn upvar_link_of(args: &[&str], local: &str) -> Option<String> {
@@ -14872,14 +14885,17 @@ mod tests {
         // `upvar 1 ::myns::q g` binds `::myns::q` from any call depth
         // (tclsh 9.0.4 / 8.6.14: reached identically through `upvar 1` and
         // `upvar 2`), so the alias has a stable cell to link to.
-        assert_eq!(
-            upvar_link_of(&["1", "::myns::q", "g"], "g"),
-            Some("::myns::q".to_string()),
-        );
-        assert_eq!(
-            upvar_link_of(&["2", "::myns::q", "g"], "g"),
-            Some("::myns::q".to_string()),
-        );
+        for src in [
+            "namespace eval myns {variable q 1}\nproc p {} {upvar 1 ::myns::q g; return $g}\np\n",
+            "namespace eval myns {variable q 1}\nproc p {} {upvar 2 ::myns::q g; return $g}\n\
+             proc outer {} {p}\nouter\n",
+        ] {
+            assert_eq!(
+                proc_alias_link(src, "g"),
+                Some("::myns::q".to_string()),
+                "{src}"
+            );
+        }
     }
 
     #[test]
@@ -14983,7 +14999,7 @@ mod tests {
         // tclsh 9.0.4 / 8.6.14: `upvar #0 counter c` reaches `::counter`
         // however deep the stack is.
         assert_eq!(
-            upvar_link_of(&["#0", "counter", "c"], "c"),
+            proc_alias_link("proc p {} {upvar #0 counter c; set c 1}\np\n", "c"),
             Some("::counter".to_string()),
         );
     }
@@ -15007,10 +15023,10 @@ mod tests {
         // `upvar 1 b` is TWO words, so there is no level word and `1` is the
         // caller-side variable name — the alias is `b` (tclsh 9.0.4 /
         // 8.6.14: with `set 1 ONE` in the caller, the callee reads `ONE`).
-        let mut a = Analyser::new();
-        dispatch_words(&mut a, &["upvar", "1", "b"]);
-        assert!(a.result.global_scope.variables.contains_key("b"));
-        assert!(!a.result.global_scope.variables.contains_key("1"));
+        let a = analysed("proc p {} {upvar 1 b; return $b}\nset 1 ONE\np\n");
+        let body = &a.result.global_scope.children[0];
+        assert!(body.variables.contains_key("b"));
+        assert!(!body.variables.contains_key("1"));
     }
 
     // handle_proc_command
@@ -15509,53 +15525,23 @@ mod tests {
 
     #[test]
     fn handle_proc_walks_body_set_defines_local() {
-        // ``proc foo {} {set x 1}`` — body walk segments the
-        // body and dispatches `set x 1` against the proc scope,
-        // landing the local in proc_scope.variables, not global.
-        // The body token's span must mirror the outer source so
-        // the segmenter rebases correctly: source layout is
-        // ``proc foo {} {set x 1}`` with the body occupying [13, 22].
-        // ``content_offset = 1`` skips the leading ``{`` so the
-        // re-segmented inner runs at base 14.
-        let mut a = Analyser::new();
-        a.handle_proc_command(
-            "proc",
-            &["foo".to_string(), String::new(), "set x 1".to_string()],
-            &[
-                esc_tok(span(5, 8)),
-                str_tok(span(9, 11)),
-                str_tok(span(13, 22)),
-            ],
-            &[],
-            &[],
-        );
+        // The body walk dispatches `set x 1` against the procedure scope, so
+        // the local lands there and not in the global scope.
+        let a = analysed("proc foo {} {set x 1}\n");
         let proc_scope = &a.result.global_scope.children[0];
         assert!(
             proc_scope.variables.contains_key("x"),
             "body walk should land 'x' in proc scope; vars: {:?}",
-            proc_scope.variables.keys().collect::<Vec<_>>(),
+            proc_scope.variables.keys().collect::<Vec<_>>()
         );
         assert!(!a.result.global_scope.variables.contains_key("x"));
     }
 
     #[test]
     fn handle_proc_walks_body_global_falls_into_proc_scope() {
-        // ``proc foo {} {global a b}`` — the ``global`` handler
-        // defines bindings in the proc scope so the body's later
-        // reads/writes resolve correctly. Real ``global`` semantics
-        // (link to outer var) live with diagnostic emission later.
-        let mut a = Analyser::new();
-        a.handle_proc_command(
-            "proc",
-            &["foo".to_string(), String::new(), "global a b".to_string()],
-            &[
-                esc_tok(span(5, 8)),
-                str_tok(span(9, 11)),
-                str_tok(span(13, 25)),
-            ],
-            &[],
-            &[],
-        );
+        // `global a b` inside a procedure body binds both names in the
+        // procedure scope, so the body's later reads and writes resolve.
+        let a = analysed("proc foo {} {global a b}\n");
         let proc_scope = &a.result.global_scope.children[0];
         assert!(proc_scope.variables.contains_key("a"));
         assert!(proc_scope.variables.contains_key("b"));
@@ -15563,24 +15549,9 @@ mod tests {
 
     #[test]
     fn handle_proc_nested_proc_creates_nested_scopes() {
-        // Body-walk recursion must dispatch `proc` inside the body,
-        // creating a nested proc scope under the outer proc.
-        let mut a = Analyser::new();
-        a.handle_proc_command(
-            "proc",
-            &[
-                "outer".to_string(),
-                String::new(),
-                "proc inner {} {}".to_string(),
-            ],
-            &[
-                esc_tok(span(5, 10)),
-                str_tok(span(11, 13)),
-                str_tok(span(15, 33)),
-            ],
-            &[],
-            &[],
-        );
+        // The body walk dispatches `proc` inside the body, creating a nested
+        // procedure scope under the outer one.
+        let a = analysed("proc outer {} {proc inner {} {}}\n");
         // Outer proc registered.
         assert!(a.result.all_procs.contains_key("::outer"));
         // A nested definition homes to the enclosing proc's *defining*
@@ -18291,50 +18262,17 @@ mod tests {
 
     #[test]
     fn handle_switch_form1_walks_each_arm_body() {
-        // Form 1: ``switch $x a {set y 1} b {set z 2}``.
-        // Each arm body should land its ``set`` in the
-        // surrounding scope.  Source layout has the bodies at
-        // offsets 13..23 (``{set y 1}``) and 27..37 (``{set z 2}``).
-        let mut a = switch_analyser();
-        a.handle_switch_command(
-            "switch",
-            &[
-                "$x".to_string(),
-                "a".to_string(),
-                "set y 1".to_string(),
-                "b".to_string(),
-                "set z 2".to_string(),
-            ],
-            &[
-                esc_tok(span(7, 9)),
-                esc_tok(span(10, 11)),
-                str_tok(span(13, 22)),
-                esc_tok(span(24, 25)),
-                str_tok(span(27, 36)),
-            ],
-            &[],
-        );
+        // Form 1: each arm body lands its `set` in the surrounding scope.
+        let a = analysed("set x a\nswitch $x a {set y 1} b {set z 2}\n");
         assert!(a.result.global_scope.variables.contains_key("y"));
         assert!(a.result.global_scope.variables.contains_key("z"));
     }
 
     #[test]
     fn handle_switch_form2_braced_body_walks_each_arm() {
-        // Form 2: ``switch $x { a {set y 1} b {set z 2} }``.
-        // The single braced body holds all pattern/body pairs;
-        // ``flatten_clause_list_elements`` uses Tcl list offsets to surface
-        // each pair, then each body recurses.
-        let mut a = switch_analyser();
-        let body_text = " a {set y 1} b {set z 2} ".to_string();
-        // body span: outer source positions 10..(10 + len(body)+2).
-        // body_text has 25 chars, plus surrounding braces → token
-        // span 10..37, content_offset = 1 to skip the opening ``{``.
-        a.handle_switch_command(
-            "switch",
-            &["$x".to_string(), body_text],
-            &[esc_tok(span(7, 9)), str_tok(span(10, 37))],
-            &[],
-        );
+        // Form 2: the single braced word holds all pattern/body pairs, and
+        // each body is walked.
+        let a = analysed("set x a\nswitch $x { a {set y 1} b {set z 2} }\n");
         assert!(a.result.global_scope.variables.contains_key("y"));
         assert!(a.result.global_scope.variables.contains_key("z"));
     }
@@ -18344,25 +18282,7 @@ mod tests {
         // ``switch $x a - b {set y 1}`` — the ``-`` body for
         // pattern ``a`` is fall-through (next arm fires); only
         // ``b``'s body should be walked.
-        let mut a = switch_analyser();
-        a.handle_switch_command(
-            "switch",
-            &[
-                "$x".to_string(),
-                "a".to_string(),
-                "-".to_string(),
-                "b".to_string(),
-                "set y 1".to_string(),
-            ],
-            &[
-                esc_tok(span(7, 9)),
-                esc_tok(span(10, 11)),
-                esc_tok(span(12, 13)),
-                esc_tok(span(14, 15)),
-                str_tok(span(17, 26)),
-            ],
-            &[],
-        );
+        let a = analysed("set x a\nswitch $x a - b {set y 1}\n");
         assert!(a.result.global_scope.variables.contains_key("y"));
     }
 
@@ -18371,23 +18291,7 @@ mod tests {
         // ``switch -- $x a {set y 1}`` — ``--`` ends the option
         // section; the string arg follows.  Walker still finds
         // the arm body and lands ``y``.
-        let mut a = switch_analyser();
-        a.handle_switch_command(
-            "switch",
-            &[
-                "--".to_string(),
-                "$x".to_string(),
-                "a".to_string(),
-                "set y 1".to_string(),
-            ],
-            &[
-                esc_tok(span(7, 9)),
-                esc_tok(span(10, 12)),
-                esc_tok(span(13, 14)),
-                str_tok(span(16, 25)),
-            ],
-            &[],
-        );
+        let a = analysed("set x a\nswitch -- $x a {set y 1}\n");
         assert!(a.result.global_scope.variables.contains_key("y"));
     }
 
@@ -19120,23 +19024,7 @@ mod tests {
 
     #[test]
     fn handle_oo_class_create_records_class() {
-        let mut a = Analyser::new();
-        // Metaclass recognition is now registry-trait-driven (`IS_OO_METACLASS`).
-        a.registry = Some(std::sync::Arc::clone(
-            tcl_registry::model::ingress::static_context_for("tcl").commands(),
-        ));
-        let handled = a.handle_oo_class_command(
-            "oo::class",
-            &["create".to_string(), "MyClass".to_string()],
-            &[
-                esc_tok(span(0, 9)),
-                esc_tok(span(10, 16)),
-                esc_tok(span(17, 24)),
-            ],
-            &[],
-            esc_tok(span(0, 9)),
-        );
-        assert!(handled);
+        let a = analysed("oo::class create MyClass\n");
         assert!(a.result.all_classes.contains_key("::MyClass"));
         let cls = &a.result.all_classes["::MyClass"];
         assert_eq!(cls.name, "MyClass");
@@ -19144,29 +19032,13 @@ mod tests {
 
     #[test]
     fn handle_oo_class_create_with_body() {
-        // arg_tokens stripped of cmd_name (matching the
-        // ``process_command`` dispatch convention).
-        let mut a = Analyser::new();
-        a.registry = Some(std::sync::Arc::clone(
-            tcl_registry::model::ingress::static_context_for("tcl").commands(),
-        ));
-        let handled = a.handle_oo_class_command(
-            "oo::class",
-            &[
-                "create".to_string(),
-                "MyClass".to_string(),
-                "method m {} {}".to_string(),
-            ],
-            &[
-                esc_tok(span(10, 16)),
-                esc_tok(span(17, 24)),
-                str_tok(span(25, 41)),
-            ],
-            &[],
-            esc_tok(span(0, 9)),
+        let src = "oo::class create MyClass {method m {} {}}\n";
+        let a = analysed(src);
+        let open = u32::try_from(src.find('{').unwrap()).unwrap();
+        assert_eq!(
+            a.result.all_classes["::MyClass"].body_span,
+            span(open, open + 15)
         );
-        assert!(handled);
-        assert_eq!(a.result.all_classes["::MyClass"].body_span, span(25, 41));
     }
 
     #[test]
@@ -19432,15 +19304,14 @@ mod tests {
         // `incr hits($word)` writes an element of `hits` whatever the key;
         // `append $name x` and `incr $count` write a variable no static name
         // spells.
-        let mut a = Analyser::new();
-        dispatch_words(&mut a, &["incr", "hits($word)"]);
-        dispatch_words(&mut a, &["append", "$name", "x"]);
-        dispatch_words(&mut a, &["incr", "$count"]);
-        dispatch_words(&mut a, &["lappend", "items", "x"]);
+        let a = analysed(
+            "set word k\nincr hits($word)\nset name v\nappend $name x\n\
+             set count n\nset n 1\nincr $count\nlappend items x\n",
+        );
         assert!(a.result.global_scope.variables.contains_key("hits"));
         assert!(a.result.global_scope.variables.contains_key("items"));
-        assert!(!a.result.global_scope.variables.contains_key("name"));
-        assert!(!a.result.global_scope.variables.contains_key("count"));
+        assert!(!a.result.global_scope.variables.contains_key("v"));
+        assert!(!a.result.global_scope.variables.contains_key("$name"));
         assert!(!a.result.global_scope.variables.contains_key("$count"));
     }
 
