@@ -657,7 +657,7 @@ impl<'a> IrulesSourceQuery<'a> {
                     return None;
                 }
                 if let OriginalIrulesFlowPresence::Relevant(command) =
-                    possible_irule_flow_command(token, &possible)?
+                    possible_irule_flow_command(self.registry, token, &possible)?
                 {
                     output.handler_flow_commands.push(command);
                 }
@@ -1116,7 +1116,7 @@ fn original_irules_flow_inventory(
             obligations.insert(CollectionSourceObligationKind::MayBeAbsent);
         }
         if let OriginalIrulesFlowPresence::Relevant(command) =
-            possible_irule_flow_command(tokens, &possible)?
+            possible_irule_flow_command(source.registry, tokens, &possible)?
         {
             calls.push(command);
         }
@@ -1133,6 +1133,7 @@ enum OriginalIrulesFlowPresence {
 }
 
 fn possible_irule_flow_command(
+    registry: &CommandRegistry,
     tokens: &crate::ir::CommandTokens,
     possible: &crate::registry_invocation::RegistryInvocationAssistance,
 ) -> Option<OriginalIrulesFlowPresence> {
@@ -1147,9 +1148,15 @@ fn possible_irule_flow_command(
         returns_dns_packet |=
             candidate.irules_source_flow_action == Some(IrulesSourceFlowAction::ReturnsDnsPacket);
         may_commit_response |= candidate.source_may_commit_response;
+        // The transaction requirement is declared on the command. A selected
+        // subcommand (`HTTP::header insert`) resolves to its own traits, which
+        // do not repeat it.
         requires_http_context |= candidate
             .possible_traits
-            .contains(Traits::REQUIRES_HTTP_CONTEXT);
+            .contains(Traits::REQUIRES_HTTP_CONTEXT)
+            || registry
+                .get(&candidate.command)
+                .is_some_and(|spec| spec.traits.contains(Traits::REQUIRES_HTTP_CONTEXT));
     }
     // Conditional advice keeps lookup closure as an obligation on both sides:
     // a guard counts by its candidates exactly as a drop does.
@@ -1994,11 +2001,60 @@ fn collect_flow_state(source: &IrulesSourceQuery<'_>) -> Option<(CollectFlowStat
                 _ => None,
             })
         else {
+            retain_handler_source_vectors(fu, &mut state, source)?;
             continue;
         };
         scan_when_body_for_collect_flow(fu, event, side, &mut state, source)?;
     }
     Some((state, events_seen))
+}
+
+/// An event with no single connection side has no collection pairing to
+/// scan, but its handler still owns its source vectors: the flow advice
+/// accepts a handler's commands only from that census.
+fn retain_handler_source_vectors(
+    fu: &FunctionUnit,
+    state: &mut CollectFlowState,
+    source: &IrulesSourceQuery<'_>,
+) -> Option<()> {
+    if source.standalone {
+        return Some(());
+    }
+    let config = source.function_config(fu)?;
+    let body = fu.body_id?;
+    for bn in cfg_order(&fu.cfg) {
+        if !fu.sccp.executable_blocks.contains(&bn) {
+            continue;
+        }
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            if matches!(
+                stmt.original_argv_inventory_disposition(),
+                crate::ir::OriginalArgvInventoryDisposition::EffectOnly(_)
+            ) {
+                continue;
+            }
+            let Some(tokens) = stmt.tokens() else {
+                continue;
+            };
+            tokens
+                .source_binding
+                .as_ref()?
+                .original_lexer_config_for_tokens(tokens)?;
+            let children = source.argument_calls(tokens, config)?;
+            state
+                .source_argv
+                .push((body, source.original_argv(tokens)?));
+            for call in children {
+                state
+                    .source_argv
+                    .push((body, source.original_argv(call.tokens.as_ref()?)?));
+            }
+        }
+    }
+    Some(())
 }
 
 /// Project missing source collection candidates within the certified handler census.
