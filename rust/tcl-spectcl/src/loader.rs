@@ -7602,8 +7602,7 @@ fn native_count_role_resolver(
     let selected =
         (stmt.words.len() == 3 && stmt.word_text(1) == "-native").then(|| stmt.word_text(2));
     let resolver = selected.and_then(|id| {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        match registry.native_argument_role_hook(id) {
+        match tcl_registry::native_argument_role_hook::shipped_native_argument_role_hook(id) {
             Some(tcl_registry::native_argument_role_hook::NativeArgumentRoleHook::Count(
                 resolver,
             )) => Some(resolver),
@@ -7629,8 +7628,7 @@ fn native_layout_role_resolver(
     let selected =
         (stmt.words.len() == 3 && stmt.word_text(1) == "-native").then(|| stmt.word_text(2));
     let resolver = selected.and_then(|id| {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        match registry.native_argument_role_hook(id) {
+        match tcl_registry::native_argument_role_hook::shipped_native_argument_role_hook(id) {
             Some(tcl_registry::native_argument_role_hook::NativeArgumentRoleHook::Layout(
                 resolver,
             )) => Some(resolver),

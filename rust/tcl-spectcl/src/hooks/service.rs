@@ -323,6 +323,9 @@ pub(crate) struct Proxy;
 
 impl PackHookHost for Proxy {
     fn invoke(&self, slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
+        if !self.is_available(slot) {
+            return HookAnswer::Abstain;
+        }
         transport::invoke(slot, call)
     }
 

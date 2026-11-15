@@ -37,6 +37,34 @@ pub enum NativeArgumentRoleHook {
 /// names no namespace.
 pub const HOOK_PATH_SEPARATOR: &str = "::";
 
+/// The shipped hook `id` names, on whichever compiled surface ships its
+/// owner. The default registry answers first; a surface the dialect
+/// catalogue layers over it answers for a command only that surface ships.
+#[must_use]
+pub fn shipped_native_argument_role_hook(id: &str) -> Option<NativeArgumentRoleHook> {
+    static SHIPPED: std::sync::OnceLock<Vec<CommandRegistry>> = std::sync::OnceLock::new();
+    SHIPPED
+        .get_or_init(|| {
+            let mut layers = Vec::new();
+            for profile in tcl_dialect::DialectProfile::all() {
+                for &layer in profile.base_layers {
+                    if !layers.contains(&layer) {
+                        layers.push(layer);
+                    }
+                }
+            }
+            std::iter::once(CommandRegistry::build_default())
+                .chain(layers.into_iter().map(|layer| {
+                    let mut registry = CommandRegistry::build_default();
+                    registry.load_surface(layer);
+                    registry
+                }))
+                .collect()
+        })
+        .iter()
+        .find_map(|registry| registry.native_argument_role_hook(id))
+}
+
 impl CommandRegistry {
     /// Resolve an exact command/member hook ID in this registry's catalogue.
     /// An exact qualified command takes precedence over a member interpretation,
@@ -80,6 +108,28 @@ fn selected_hook(
 #[cfg(test)]
 mod tests {
     use super::{CommandRegistry, NativeArgumentRoleHook};
+
+    #[test]
+    fn a_shipped_hook_is_found_on_the_surface_that_ships_its_command() {
+        // `when` is the iRules pack's own; the default registry has no such
+        // command, and `binary scan` is in it.
+        assert!(CommandRegistry::build_default().get("when").is_none());
+        for (id, found) in [
+            ("when::arg_role_count_resolver", true),
+            ("binary::scan::arg_role_count_resolver", true),
+            ("when::arg_role_layout_resolver", false),
+            ("no_such_command::arg_role_count_resolver", false),
+        ] {
+            assert_eq!(
+                matches!(
+                    super::shipped_native_argument_role_hook(id),
+                    Some(NativeArgumentRoleHook::Count(_))
+                ),
+                found,
+                "{id}"
+            );
+        }
+    }
 
     #[test]
     fn native_role_ids_keep_qualified_command_precedence_over_members() {

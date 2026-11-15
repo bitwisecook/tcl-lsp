@@ -321,6 +321,7 @@ pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
     ("split::const_fold", crate::const_fold::fold_split),
     ("lrepeat::const_fold", crate::const_fold::fold_lrepeat),
     ("lrange::const_fold", crate::const_fold::fold_lrange),
+    ("lsort::const_fold", crate::const_fold::fold_lsort),
     ("dict::get::const_fold", crate::const_fold::fold_dict_get),
     (
         "dict::exists::const_fold",
@@ -1894,9 +1895,8 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
         n17_live_trace!("decline=dispatch-no-receiver slot={slot:?}");
         return HookAnswer::Abstain;
     };
-    if !host.is_available(slot) {
-        return HookAnswer::Abstain;
-    }
+    // An owning receiver admits or refuses each dispatch itself, so it is
+    // shown the ones it will refuse too.
     if host.requires_uncached_dispatch() {
         let answer = host.invoke(slot, call);
         return if publication.is_current() {
@@ -1904,6 +1904,9 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
         } else {
             HookAnswer::Abstain
         };
+    }
+    if !host.is_available(slot) {
+        return HookAnswer::Abstain;
     }
     let generation = GENERATION.with(Cell::get);
     let mode = cache_mode(slot);
