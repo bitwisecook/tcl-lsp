@@ -1730,7 +1730,8 @@ mod tests {
             lua_key(key).unwrap(),
             format!("[{}]", lua_string(key).unwrap())
         );
-        assert!(!lua_key(key).unwrap().contains("'] ="));
+        // Every quote of the hostile text is escaped, so none can close the key.
+        assert!(!lua_key(key).unwrap().replace("\\'", "").contains("'] ="));
 
         let elisp = elisp_extension_regexp(std::slice::from_ref(&extension)).unwrap();
         let expected_pattern =

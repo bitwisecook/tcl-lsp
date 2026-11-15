@@ -121,8 +121,16 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: the semantic handle agrees with every catalogue profile",
     ),
     (
+        "rust/tcl-registry/src/native_argument_role_hook.rs",
+        "shipped hooks: each catalogue surface layer is searched for a hook's owner",
+    ),
+    (
         "rust/tcl-registry/tests/it_3/detect_dialect.rs",
         "tests: detection agrees with the catalogue",
+    ),
+    (
+        "rust/tcl-registry/tests/it_4/spec_pack_provenance.rs",
+        "tests: pack provenance across every catalogue profile",
     ),
     (
         "rust/tcl-registry/tests/it_5/dialect_profile.rs",
@@ -131,10 +139,6 @@ const ALLOWED: &[(&str, &str)] = &[
     (
         "rust/tcl-registry/tests/it_5/registry_sweep.rs",
         "tests: the registry sweep walks every catalogue profile",
-    ),
-    (
-        "rust/tcl-registry/tests/it_4/spec_pack_provenance.rs",
-        "tests: pack provenance across every catalogue profile",
     ),
     (
         "rust/tcl-spec-studio/src/environment.rs",
