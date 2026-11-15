@@ -2115,6 +2115,17 @@ fn constructor_class_candidate(
             .all(|other| other == class)
             .then(|| class.to_owned());
     }
+    // A factory that publishes an instance command returns that command's
+    // name (`set t [ttk::treeview .tree]` leaves `.tree` in `t`), so the
+    // word holding the result is a handle of the published class.
+    let mut published = factories
+        .iter()
+        .filter_map(|factory| factory.publication.as_ref().map(|(_, class)| *class));
+    if let Some(class) = published.next() {
+        return published
+            .all(|other| other == class)
+            .then(|| class.to_owned());
+    }
     let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         registry,
         Some(context),
@@ -2952,6 +2963,30 @@ mod tests {
             map.get("engine").map(|s| s.contains("::Motor")),
             Some(true),
             "instance var `engine` should be a ::Motor handle via ctor param; got {map:?}"
+        );
+    }
+
+    /// A widget factory returns the path it creates: Tk 9.0.3 gives `.tree
+    /// Treeview` for `set t [ttk::treeview .tree]; list $t [winfo class $t]`.
+    /// The variable holding the result is a handle of the same class as the
+    /// path the bare form publishes.
+    #[test]
+    fn a_factory_result_held_in_a_variable_is_a_handle_of_the_published_class() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let class_of = |source: &str| {
+            let cu = CompilationUnit::build_for(source, registry, false);
+            let mut classes: Vec<_> = object_handle_classes(&cu, registry).into_iter().collect();
+            classes.sort_by(|left, right| left.0.cmp(&right.0));
+            classes
+        };
+        let treeview = HashSet::from(["ttk::treeview".to_owned()]);
+        assert_eq!(
+            class_of("package require Tk\nttk::treeview .tree\n.tree current\n"),
+            [(".tree".to_owned(), treeview.clone())]
+        );
+        assert_eq!(
+            class_of("package require Tk\nset t [ttk::treeview .tree]\n$t current\n"),
+            [("t".to_owned(), treeview)]
         );
     }
 
