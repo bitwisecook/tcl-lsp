@@ -107,6 +107,9 @@ pub struct InterpState {
     result: RefCell<ObjRef>,
     error_code: RefCell<Option<ObjRef>>,
     error_info: RefCell<Option<ObjRef>>,
+    /// Whether the error state is what a door or a nested evaluation left,
+    /// not what the C command stated with `Tcl_SetObjErrorCode`.
+    error_left_by_door: std::cell::Cell<bool>,
     packages: RefCell<Vec<(NameBytes, Vec<u8>)>>,
     pending: RefCell<Vec<CommandChange>>,
     publication_service: RefCell<Option<Rc<dyn CommandPublicationService>>>,
@@ -204,6 +207,7 @@ impl InterpState {
             result: RefCell::new(ObjRef::new(Obj::from_text(""))),
             error_code: RefCell::new(None),
             error_info: RefCell::new(None),
+            error_left_by_door: std::cell::Cell::new(false),
             packages: RefCell::new(Vec::new()),
             pending: RefCell::new(Vec::new()),
             publication_service: RefCell::new(None),
@@ -567,10 +571,14 @@ impl InterpState {
             }
             entries.push((key(b"-errorstack"), ObjRef::new(Obj::list(Vec::new()))));
         }
-        if let Some(error_code) = &*self.error_code.borrow() {
+        // tclsh 9.0 reports no `-errorcode` after a command that swallowed an
+        // evaluation's error and completed normally (`doors_try {error e}`),
+        // so only a failure, or a code the command itself stated, is listed.
+        let stated = code == crate::ffi::TCL_ERROR || !self.error_left_by_door.get();
+        if let Some(error_code) = self.error_code.borrow().as_ref().filter(|_| stated) {
             entries.push((key(b"-errorcode"), error_code.clone()));
         }
-        if let Some(error_info) = &*self.error_info.borrow() {
+        if let Some(error_info) = self.error_info.borrow().as_ref().filter(|_| stated) {
             entries.push((key(b"-errorinfo"), error_info.clone()));
             entries.push((key(b"-errorline"), ObjRef::new(Obj::int(1))));
         }
@@ -589,6 +597,7 @@ impl InterpState {
 
     /// Set the `-errorcode` — `Tcl_SetObjErrorCode`.
     pub fn set_error_code(&self, code: Option<ObjRef>) {
+        self.error_left_by_door.set(false);
         *self.error_code.borrow_mut() = code;
     }
 
@@ -628,6 +637,7 @@ impl InterpState {
                     .map(|code| ObjRef::new(Obj::from_bytes(code))),
             );
         }
+        self.error_left_by_door.set(true);
     }
 
     /// Record a provided package — `Tcl_PkgProvideEx`.

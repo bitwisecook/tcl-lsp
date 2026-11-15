@@ -281,10 +281,25 @@ impl HostCommand for ShimCommand {
         .ok_or_else(|| {
             EngineError::ExecutionRefusal("error completion requires error transport".into())
         })?;
+        // A host outcome has options only for a `Return` raised by a `return`
+        // with options of its own; the command's own plain one has none.
+        let options = completion.options.snapshot()?;
+        let plain = options.as_dict().is_some_and(|entries| {
+            entries.iter().all(|(key, value)| {
+                matches!(
+                    (key.as_bytes(), value.as_int()),
+                    (Some(b"-code"), Some(0)) | (Some(b"-level"), Some(1))
+                )
+            })
+        });
         Ok(HostOutcome {
             value: completion.result.snapshot()?,
             code,
-            options: completion.options.snapshot()?,
+            options: if code == CompletionCode::Return && !plain {
+                options
+            } else {
+                Value::Empty
+            },
         })
     }
 
@@ -417,13 +432,11 @@ impl ShimCommand {
         }
 
         let result = self.state.result();
-        let options = if code == ffi::TCL_RETURN {
-            match self.state.take_return_options() {
-                Some(options) => ObjRef::new(Obj::from_value(&options)?),
-                None => ObjRef::new(self.state.return_options(code)),
-            }
-        } else {
-            ObjRef::new(self.state.return_options(code))
+        // What an evaluation left of a `return` does not outlive the call.
+        let pending = self.state.take_return_options();
+        let options = match (code, pending) {
+            (ffi::TCL_RETURN, Some(options)) => ObjRef::new(Obj::from_value(&options)?),
+            _ => ObjRef::new(self.state.return_options(code)),
         };
         let mut graph = obj::OriginalObjectGraph::default();
         let result = graph.export(result.get(), false)?;
