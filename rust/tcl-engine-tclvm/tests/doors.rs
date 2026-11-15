@@ -172,12 +172,29 @@ fn run(engine: &mut TclVmEngine, body: &str) -> Result<String, EngineError> {
     engine
         .invoke(&handle, &[])
         .map(|value| value.as_str().unwrap_or_default().to_owned())
+        .map_err(message_and_code)
 }
 
-fn script_error(message: &str) -> EngineError {
+/// The engine carries a failure's return options in its byte-exact variant;
+/// these tests assert the message and the `-errorcode`, so the same failure
+/// is compared in its text form.
+fn message_and_code(error: EngineError) -> EngineError {
+    match (error.script_message_bytes(), error.script_code_bytes()) {
+        (Some(message), code) => {
+            EngineError::script_bytes(message.to_vec(), code.map(<[u8]>::to_vec))
+        }
+        (None, _) => error,
+    }
+}
+
+/// A variable error with the `-errorcode` tclsh 9.0.4 reports for it:
+/// `catch {set nosuch} m o` gives `TCL LOOKUP VARNAME nosuch`; with
+/// `set a(1) 1`, `set a` and `set a(2)` give `TCL READ VARNAME` and `set a w`
+/// gives `TCL WRITE VARNAME`.
+fn script_error(message: &str, code: &str) -> EngineError {
     EngineError::Script {
         message: message.to_owned(),
-        code: None,
+        code: Some(code.to_owned()),
     }
 }
 
@@ -323,18 +340,25 @@ fn a_host_command_reads_writes_and_unsets_in_the_frame_that_called_it() {
     assert_eq!(run(&mut engine, "set y 5; hget y"), Ok("5".to_owned()));
     assert_eq!(
         run(&mut engine, "hget nosuch"),
-        Err(script_error("can't read \"nosuch\": no such variable")),
+        Err(script_error(
+            "can't read \"nosuch\": no such variable",
+            "TCL LOOKUP VARNAME nosuch"
+        )),
         "a variable that is not there is Tcl's own error"
     );
     assert_eq!(
         run(&mut engine, "set a(1) 1; hget a"),
-        Err(script_error("can't read \"a\": variable is array")),
+        Err(script_error(
+            "can't read \"a\": variable is array",
+            "TCL READ VARNAME"
+        )),
         "as is an array read as a scalar"
     );
     assert_eq!(
         run(&mut engine, "set a(1) 1; hget a(2)"),
         Err(script_error(
-            "can't read \"a(2)\": no such element in array"
+            "can't read \"a(2)\": no such element in array",
+            "TCL READ VARNAME"
         )),
         "and an element that is not in its array"
     );
@@ -357,13 +381,17 @@ fn a_host_command_reads_writes_and_unsets_in_the_frame_that_called_it() {
         run(&mut engine, "hunset nosuch"),
         Err(EngineError::Script {
             message: "can't unset \"nosuch\": no such variable".to_owned(),
-            code: Some("TCL UNSET VARNAME".to_owned()),
+            // tclsh 9.0.4: `catch {unset nosuch} m o` gives this code.
+            code: Some("TCL LOOKUP VARNAME nosuch".to_owned()),
         }),
         "one that is not there is Tcl's own error, code included"
     );
     assert_eq!(
         run(&mut engine, "set a(1) 1; hset a 2"),
-        Err(script_error("can't set \"a\": variable is array")),
+        Err(script_error(
+            "can't set \"a\": variable is array",
+            "TCL WRITE VARNAME"
+        )),
         "a store the VM refuses is its error"
     );
 }
@@ -584,8 +612,14 @@ fn an_embedder_reads_writes_and_evaluates_through_the_engine_itself() {
         "a unit sees the global the embedder set"
     );
     assert_eq!(
-        engine.variable("nosuch").map(|_| ()),
-        Err(script_error("can't read \"nosuch\": no such variable"))
+        engine
+            .variable("nosuch")
+            .map(|_| ())
+            .map_err(message_and_code),
+        Err(script_error(
+            "can't read \"nosuch\": no such variable",
+            "TCL LOOKUP VARNAME nosuch"
+        ))
     );
     assert_eq!(engine.unset_variable("g"), Ok(()));
     assert!(
