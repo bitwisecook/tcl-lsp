@@ -279,11 +279,15 @@ The whole relation — definition, hover and both directions of
 find-references — is **filesystem-path** shaped: `extensions/<name>/` is
 matched on path components, the entry point is resolved through
 `package.json`'s `main`, and the caller search lists directories. Every server
-tier therefore starts by turning the request's URI into a path, and a URI that
-is not `file:` has none.
+tier therefore starts by turning the request's URI into a path and reads the
+files around it through the server's source store.
 
-So on the web hosts (vscode.dev / github.dev, where documents are `vscode-vfs:`
-and friends) every ILX tier abstains. The browser entry point deliberately does
+On the web hosts (vscode.dev / github.dev, where documents are `vscode-vfs:`
+and friends) the browser worker's store admits only `file:` sources
+(`file_uri::to_source_namespace_path` refuses any other scheme), so it holds
+no entry point, `package.json` or sibling rule to read, and every ILX tier
+finds nothing. A path the tiers did resolve would also be reported back as a
+`file:` URI, since the store has no path-to-original-URI inverse. The browser entry point deliberately does
 **not** register the JavaScript reference provider: it would send a request the server cannot answer. Making this work on
 the web means giving the relation a URI-shaped discovery path rather than a
 path-shaped one — extension lookup, entry-point resolution and directory
