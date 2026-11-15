@@ -51,6 +51,7 @@ So keep `opt-level 1` and leave incremental on: an edit-to-test cycle is about a
 - Build only the binary you need in the loop: `--lib`, or one `--test it_4`. A nextest `-E` filter alone still builds every test binary of the selected packages.
 - Keep one package selection per target directory (`-p a -p b …`). A different selection resolves different features (`syn`, `tokio`, `hashbrown`, and the workspace's own `test-support`, `html` and `truth-table` features) and rebuilds most of the tree.
 - Run one cargo build at a time; two concurrent builds exhaust 15 GB of memory. With incremental on, a selection that holds both `tcl-compiler` and `tcl-lsp-server` can also be killed (`signal: 9`) when both test crates compile at once: set `CARGO_BUILD_JOBS=2` for that selection.
+- `clippy --all-targets` and any one-off test selection (`cargo test -p xtask`, a single crate's doc tests, `nextest -p tcl-registry` alone) build test targets too, each with its own incremental cache; three of them filled the disk on 15 November. Prefix those commands with `CARGO_PROFILE_TEST_INCREMENTAL=false` and keep incremental for the one selection you iterate on.
 - When the disk fills, remove `target/debug/incremental` (it is rebuilt) or `cargo clean -p <crate>`. Do not delete files under `target/` by age: build-script outputs such as `aws-lc-sys` are not tracked by cargo.
 - CI builds tests at `opt-level 0`. Four tests pass at `opt-level 1` and fail at 0 (stack and time budgets): `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget`, the two `phi_undef_memo::nested_if_stages_*` tests and `tcl-irules` `walker::tests::deeply_nested_command_substitution_does_not_crash`. Check a change to recursion depth or a hot loop at `opt-level 0` as well.
 - Install nextest 0.9.148 from `https://get.nexte.st/0.9.148/linux` into `~/.cargo/bin`.
@@ -62,7 +63,7 @@ So keep `opt-level 1` and leave incremental on: an edit-to-test cycle is about a
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy -p <changed crates> --all-targets -- -D warnings -A clippy::assert_is_empty
+CARGO_PROFILE_TEST_INCREMENTAL=false cargo clippy -p <changed crates> --all-targets -- -D warnings -A clippy::assert_is_empty
 cargo xtask registry-axes          # regenerates docs/generated/registry-axes.md; it pins line numbers
 cargo xtask value-transfers --check
 cargo xtask owner-resolution
@@ -79,7 +80,11 @@ Stay inside your area's crates so sessions do not collide; a fix that needs anot
 
 | Area | Crates |
 | --- | --- |
-| Compiler analysis | `tcl-compiler` (analyser, diagnostics, binding, CFG, SSA, SCCP, taint, optimiser) |
+| Compiler analyser and binding | `tcl-compiler`: the binding walk, realm, `command_binding`, `registry_invocation`, class factories |
+| Compiler diagnostics | `tcl-compiler`: `analyser/diagnostics`, `analyser::handlers`, `param_traits`, `types`, the diagnostic integration tests |
+| Compiler dataflow and optimiser | `tcl-compiler`: lowering, CFG, SSA, SCCP, optimiser, interprocedural transfer, object types |
+| Taint and iRules checks | `tcl-compiler`: `taint`, `taint_interproc`, `irules_checks`, `uri_split`, `irules_event_checks` and their integration tests |
+| Value transfers, escape, shimmer, types | `tcl-compiler`: value-transfer witnesses, `var_escape_*`, `shimmer`, `type_infer`, `dynamic_names`, `native_integer_proof`, `upvar_info`, `global_write_info`, `unit_scope` |
 | Execution | `tcl-codegen`, `tcl-vm`, `tcl-engine-*`, `tcl-cmd-core`, `runtime/rust`, `tcl-cshim` |
 | LSP features | `tcl-lsp-core` and `tcl-lsp-server` outside semantic tokens, `tcl-lsp-db` |
 | Tokens, owner | semantic tokens, `tcl-syntax::naming`, `tcl-lexer`, `xtask` |
