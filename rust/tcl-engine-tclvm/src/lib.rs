@@ -1004,10 +1004,17 @@ impl HostCommandShim {
                 self.command
                     .invoke_with_registrar(&mut registrar, &arguments)
                     .map(|outcome| {
+                        // Only a `Return` has a use for options, as in C Tcl,
+                        // where `catch` of any other code reports its own.
+                        let options = if outcome.code == tcl_engine_api::CompletionCode::Return {
+                            outcome.options
+                        } else {
+                            Value::Empty
+                        };
                         Completion::new(
                             to_vm_code(outcome.code),
                             tcl_engine_api::OriginalObjectResult::Value(outcome.value),
-                            tcl_engine_api::OriginalObjectResult::Value(outcome.options),
+                            tcl_engine_api::OriginalObjectResult::Value(options),
                         )
                     })
             };
@@ -2055,32 +2062,28 @@ impl TclVmEngine {
         if completion.code.is_ok() || completion.code == Code::Return {
             return from_vm_value_using(vm, original, &completion.result);
         }
+        // An error raised with no code has `-errorcode NONE`: tclsh 8.4.20 to
+        // 9.0.4 and jimsh 0.84 all report `NONE` after `catch {error plain}`.
         let code = vm
             .original_completion_option_bytes(original, completion, b"-errorcode")
-            .map_err(|error| projection_error(vm, original, error))?;
+            .map_err(|error| projection_error(vm, original, error))?
+            .or_else(|| (completion.code == Code::Error).then(|| b"NONE".to_vec()));
         let message = vm
             .original_operand_native_raw_string(original, &completion.result)
             .map_err(|error| projection_error(vm, original, error))?;
-        match message.as_ref() {
-            b"command count limit exceeded" => {
-                Err(EngineError::BudgetExceeded(BudgetKind::Commands))
-            }
-            b"time limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::WallClock)),
-            b"value size limit exceeded" => Err(EngineError::BudgetExceeded(BudgetKind::ValueSize)),
-            _ => {
-                let options = vm
-                    .original_operand_native_raw_string(original, &completion.options)
-                    .map_err(|error| projection_error(vm, original, error))?;
-                if options.is_empty() {
-                    Err(EngineError::script_bytes(message.to_vec(), code))
-                } else {
-                    Err(EngineError::ScriptBytes {
-                        message: message.to_vec(),
-                        code,
-                        options: Some(options.to_vec()),
-                    })
-                }
-            }
+        // The budget a body outran is the VM's own record above; an error
+        // that only spells a limit's message is the script's error.
+        let options = vm
+            .original_operand_native_raw_string(original, &completion.options)
+            .map_err(|error| projection_error(vm, original, error))?;
+        if options.is_empty() {
+            Err(EngineError::script_bytes(message.to_vec(), code))
+        } else {
+            Err(EngineError::ScriptBytes {
+                message: message.to_vec(),
+                code,
+                options: Some(options.to_vec()),
+            })
         }
     }
 }
@@ -2996,9 +2999,9 @@ mod tests {
         let error = engine
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect_err("no such command");
-        assert!(
-            matches!(&error, EngineError::Script { message, .. }
-                if message == "invalid command name \"factory\""),
+        assert_eq!(
+            error.script_message_bytes(),
+            Some(b"invalid command name \"factory\"".as_slice()),
             "{error:?}"
         );
     }
@@ -3189,7 +3192,11 @@ mod tests {
         let error = engine
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect_err("the body raises");
-        assert!(matches!(error, EngineError::Script { .. }), "{error:?}");
+        assert_eq!(
+            error.script_message_bytes(),
+            Some(b"command count limit exceeded".as_slice()),
+            "{error:?}"
+        );
     }
 
     /// A loop the compiler inlines dispatches nothing. Its commands still count
