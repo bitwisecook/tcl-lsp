@@ -3388,3 +3388,27 @@ its citation and a regression that reads the recorded lines.
     Run `when RULE_INIT { log local0. "[expr {1 << 70}] [expr {(1 << 70) == 0}] [expr {-(1 << 70)}]" }`
     on TMM; anything other than `0 1 0` means the F5 profile needs its own
     arithmetic model.
+11. **String character model** (issue #2151). Not a naming question; filed
+    here so it is measured on the same visit. `Family::F5Tcl` and
+    `Family::F5Irules` answer `StringCharacterModel::Utf16CodeUnits`
+    (`character_model`, `rust/tcl-dialect/src/model/family.rs`), an
+    inference with no measurement behind it. Run in both TMM and a tmsh cli
+    script:
+    `set s [encoding convertfrom utf-8 "\xF0\x9F\x98\x80"]; puts "[string length $s] [scan [string index $s 0] %c]"`
+    (in TMM, `log local0.` the same string from `RULE_INIT`). Do not put a
+    hex digit after the last `\x80`: in 8.4 `\x` consumes every following hex
+    digit. `4 240` means `BmpCharsElseUtf8Bytes`, as stock 8.4.20 prints;
+    `2 55357` means `Utf16CodeUnits`, the current value; `1 128512` means
+    neither. Record the result and the build; the arm then cites it like its
+    neighbours in `canonical_builds_resolve_measured_capabilities`.
+12. **Prefix operator before an iRules comparison** (issue #2165). Not a
+    naming question. The compiler groups `! A contains B` as
+    `(! A) contains B` (`UNARY_BP` in `rust/tcl-syntax/src/expr/parser.rs`
+    against the F5 comparison rows in `rust/tcl-dialect/src/model/expr_grammar.rs`);
+    `rust/tcl-irule-test/tcl/expr_ops.tcl` groups it as `! (A contains B)`.
+    Run in TMM `RULE_INIT`:
+    `log local0. "[catch {expr {! "abc" contains "z"}} r1] $r1 | [catch {expr {not 1 starts_with ""}} r2] $r2"`.
+    If TMM groups the comparison tighter than the prefix operator, `UNARY_BP`
+    is wrong for F5's custom comparisons and the compiler needs the fix; the
+    harness's refusal of `not` (`_refuse_unmeasured_prefix_grouping`) can
+    then be replaced by that grouping.
