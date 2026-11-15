@@ -3468,8 +3468,10 @@ mod tests {
     use super::*;
     use crate::cfg_builder::build_cfg;
 
+    /// The Tcl 8.6 catalogue: a fixture that defines a procedure names a release.
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").expect("Tcl 8.6"))
     }
 
     /// The catalogue with no document declarations — what every fixture here
@@ -3537,7 +3539,7 @@ mod tests {
             crate::environment_ingress::context_for_profile(profile)
                 .with_command_store(registry.snapshot().shared_registry()),
         );
-        let config = tcl_lexer::LexerConfig::default();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
         crate::lowering::lower_to_ir_with(
             crate::lowering::Lowerer::with_config(registry, config)
                 .with_dialect(Some(profile))
@@ -3837,7 +3839,7 @@ mod tests {
             "proc helper {a {b x}} { return $a }\nhelper 1 two\nhelper 1\n",
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -3859,7 +3861,7 @@ mod tests {
             &format!("{src}helper prod\n"),
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -3871,7 +3873,7 @@ mod tests {
             &format!("{src}helper dev\n"),
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -3890,7 +3892,7 @@ mod tests {
             "::helper prod\noo::class create C { method run {} { hook } }\n",
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &["::helper".to_owned()],
         );
@@ -3911,7 +3913,7 @@ mod tests {
             "proc ::helper {mode} {return $mode}\n::helper prod\noo::class create C { method run {} { ::puts ok } }\n",
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &["::helper".to_owned()],
         );
@@ -3947,7 +3949,7 @@ mod tests {
             "proc helper {mode} {return $mode}\nhelper prod\nafter 0 helper\n",
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -3969,7 +3971,7 @@ mod tests {
                 src,
                 &reg,
                 None,
-                tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 &known(&["::helper"]),
                 &[],
             );
@@ -3988,7 +3990,7 @@ mod tests {
             "proc helper {args x} {}\nhelper one two\nhelper one two\n",
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -4029,7 +4031,7 @@ mod tests {
             "proc helper {mode} {}\nhelper prod\nhelper prod\n",
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -4286,7 +4288,7 @@ mod tests {
             "proc a {value} {}\nproc b {value} {}\na 1\nb 2\n",
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::a", "::b"]),
             &[],
         );
@@ -4599,7 +4601,7 @@ mod tests {
             "oo::class create Dog { method bark {} { return woof } }\nDog new\n",
             &reg,
             None,
-            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::unknown"]),
             &[],
         );
