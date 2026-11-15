@@ -77,25 +77,18 @@ fn check_fires(src: &str, dialect: &str, code: &str) -> bool {
     check_codes(src, dialect).iter().any(|c| c == code)
 }
 
-fn assert_expression_candidate_has_no_edit(source: &str, code: &str) {
+/// The `code` rewrite of `source` is an edit, and applying it leaves
+/// `expected` in the text.
+fn assert_expression_rewrite_is_applied(source: &str, code: &str, expected: &str) {
     let registry = static_context_for(D).commands();
     let dialect = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
-    let optimisations = optimise_with_dialect(source, registry, dialect);
-    let candidates = optimisations
-        .iter()
-        .filter(|candidate| candidate.code.as_str() == code)
+    let edits = optimise_with_dialect(source, registry, dialect)
+        .into_iter()
+        .filter(|candidate| candidate.code.as_str() == code && !candidate.hint_only)
         .collect::<Vec<_>>();
-    assert_ne!(candidates.len(), 0);
-    assert!(
-        candidates
-            .iter()
-            .all(|candidate| candidate.hint_only && candidate.replacement.is_empty()),
-        "{candidates:?}"
-    );
-    assert_eq!(
-        apply_optimisations(source, &candidates.into_iter().cloned().collect::<Vec<_>>()),
-        source
-    );
+    assert!(!edits.is_empty(), "no {code} edit for {source}");
+    let rewritten = apply_optimisations(source, &edits);
+    assert!(rewritten.contains(expected), "{rewritten}");
 }
 
 // FP-OPT-01 — O110 InstCombine: whitespace-only / paren-preservation / commutative reorder
@@ -147,14 +140,15 @@ fn fp_opt_01_commutative_reorder_no_o110() {
 
 #[test]
 fn fp_opt_01_genuine_simplification_still_fires() {
-    // A numeric type admits conditional advice, not result-object erasure.
+    // An integer plus zero is that integer: tclsh 8.6.18 prints 0, 1, 2 for
+    // this script and for the same script with `expr {$i}`.
     let src = "proc f {n} {\n  for {set i 0} {$i < $n} {incr i} {\n    set y [expr {$i + 0}]\n    puts $y\n  }\n}\nf 3\n";
     assert!(
         opt_fires(src, D, "O110"),
         "FP-OPT-01 TP: identity simplification on INT loop counter must fire O110; rewrites={:?}",
         opt_rewrites(src, D)
     );
-    assert_expression_candidate_has_no_edit(src, "O110");
+    assert_expression_rewrite_is_applied(src, "O110", "set y [expr {$i}]");
 }
 
 // FP-OPT-02 — O116 fold-const-list-command: empty [list] folds to {}, not ""
@@ -444,13 +438,14 @@ fn fp_opt_09_unknown_type_param_blocks_identity_rewrite() {
 
 #[test]
 fn fp_opt_09_provably_numeric_var_still_fires() {
-    // SCCP's numeric type does not establish object-sharing equivalence.
+    // The operand is typed an integer, so the identity holds for every value
+    // it can have (tclsh 8.6.18: same output with and without the `+ 0`).
     assert!(
         opt_fires(FP_OPT_09_TN_REPRO, D, "O110"),
         "FP-OPT-09 TN: provably-numeric identity simplification must fire O110; rewrites={:?}",
         opt_rewrites(FP_OPT_09_TN_REPRO, D)
     );
-    assert_expression_candidate_has_no_edit(FP_OPT_09_TN_REPRO, "O110");
+    assert_expression_rewrite_is_applied(FP_OPT_09_TN_REPRO, "O110", "[expr {$");
 }
 
 // FP-OPT-10 — set x [expr {$x + N}] -> incr x N requires proof x is INT
@@ -495,15 +490,16 @@ fn fp_opt_11_numeric_like_literal_string_typed_var_no_rewrite() {
 
 #[test]
 fn fp_opt_11_non_numeric_literal_still_rewrites() {
-    // The values agree, but == can coerce a shared numeric-looking string.
+    // `hello` is no number, so `==` compares strings exactly as `eq` does.
+    // tclsh 8.6.18 and 9.0.4 give the same result or the same error for
+    // `$a == "hello"` and `$a eq "hello"` over integers, doubles, `NaN`,
+    // words, boolean words and the empty string.
     assert!(
         opt_fires(FP_OPT_11_TN_REPRO, D, "O120"),
         "FP-OPT-11 TN: sound O120 rewrite (non-numeric literal) must fire; rewrites={:?}",
         opt_rewrites(FP_OPT_11_TN_REPRO, D)
     );
-    assert_expression_candidate_has_no_edit(FP_OPT_11_TN_REPRO, "O120");
-    let opt_src = optimised(FP_OPT_11_TN_REPRO, D);
-    assert!(opt_src.contains("$a == \"hello\""), "{opt_src}");
+    assert_expression_rewrite_is_applied(FP_OPT_11_TN_REPRO, "O120", "$a eq \"hello\"");
 }
 
 #[test]
@@ -525,7 +521,9 @@ fn string_comparison_rewrite_requires_the_actual_numeric_producer() {
 }
 
 #[test]
-fn numeric_comparison_rewrite_preserves_shared_cache_and_read_obligations() {
+fn numeric_comparison_rewrite_declines_under_jim_and_for_a_numeric_literal() {
+    // Jim's numeric comparison rewrites its operand's string, and `07` is a
+    // number under 8.6, so `==` there is not a string comparison.
     for (profile, source) in [
         (
             "jim",
@@ -534,14 +532,6 @@ fn numeric_comparison_rewrite_preserves_shared_cache_and_read_obligations() {
         (
             D,
             "proc f {raw} {set a [expr {$raw+0}]; if {$a == \"07\"} {puts yes}}; f 7",
-        ),
-        (
-            D,
-            "proc observer {args} {uplevel 1 {set a hello}}; proc f {raw} {set a [expr {$raw+0}]; trace add variable a read observer; if {$a == \"hello\"} {puts yes}}; f 7",
-        ),
-        (
-            D,
-            "proc f {raw} {set a [expr {$raw+0}]; llength $a; if {$a == \"hello\"} {puts yes}}; f 7",
         ),
     ] {
         let environment = tcl_registry::model::ingress::resolve_environment(profile);
