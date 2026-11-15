@@ -512,7 +512,7 @@ struct CommentLineWalker<'a> {
     whole: &'a str,
     config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
-    identities: crate::realm::CommandBindingRealm,
+    identities: std::borrow::Cow<'a, crate::realm::CommandBindingRealm>,
     source_context: Option<
         std::sync::Arc<crate::registry_invocation::source_structure::OriginalSourceRegistryContext>,
     >,
@@ -541,7 +541,7 @@ impl<'a> CommentLineWalker<'a> {
             whole,
             config,
             registry,
-            identities,
+            identities: std::borrow::Cow::Owned(identities),
             source_context,
             analysis: None,
             availability: registry
@@ -564,7 +564,7 @@ impl<'a> CommentLineWalker<'a> {
             whole,
             config,
             registry: analysis.resolved_registry()?,
-            identities: analysis.retained_command_realm()?.clone(),
+            identities: std::borrow::Cow::Borrowed(analysis.retained_command_realm()?),
             source_context: None,
             analysis: Some(analysis),
             availability: Some(input.availability_context().authoring_query()),
