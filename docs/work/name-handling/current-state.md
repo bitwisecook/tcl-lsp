@@ -100,6 +100,34 @@ Established, not yet fixed:
 
 Not started: `rename`, `references`, `minify`, the refactors, `call_hierarchy`, `rename_safety`, `code_actions`, `completion`, `document_symbols`, `tcl-lsp-db`, the server unit tests and e2e suite, and collapsing the duplicated name-resolution matrix.
 
+## Compiler dataflow and optimiser half, 15 November 2026
+
+Area: `tcl-compiler` lowering, CFG, SSA, SCCP, type inference, shimmer, optimiser, taint, interprocedural, value transfer and their integration tests. Measured with `cargo nextest run -p tcl-compiler -p tcl-registry`, test profile `opt-level 1`.
+
+| Point | `tcl-compiler` run | Failing |
+| --- | --- | --- |
+| `454068e6` (start) | 13,082 | 2,630 |
+| after the commits below | 13,082 | 2,603 |
+
+`tcl-registry` in the same selection: 2,430 run, 9 failing, none in `conditional_expression`; they are `resolved_invocation` (4), `spectcl_pack` (2), `registry_sweep` (2) and `sslictcl_pack` (1), and belong to the tokens, owner and tooling area.
+
+Fixed, each with zero new failures against the starting list:
+
+- Expression result typing. `ConditionalExpressionEvaluation::normal_result_representation` answered only for arithmetic and bitwise operators, so `set z [expr {$a < $b}]` and every logical, ternary and math-function result was `OVERDEFINED` under a release profile. Comparisons, membership tests, `&&`, `||` and `!` are Boolean on every release that parses them; a ternary takes the category its arms share; a math call takes the class of the function its dispatch reached (`ExpressionMathBindings::resolved_call_for_value_analysis`).
+- A math call with two or more operands and a variable among them (`pow($a, 3)`, `max($a, $b)`) left the expression walk's object-callback effects unknown, so the whole `set` lowered as an opaque call with a caller-frame barrier and an unseen call. Small change in `command_binding.rs` (`walk_expression_call`).
+- Optimiser folds: `set c [expr {$a + $b}]` over integer variable reads (O101), `puts [expr {$a + $b}]` nested in a command word (O101), and `puts "count is $count"` (O100).
+- Fixtures: the 8.6 type tests that used 9.0 operators and functions (`lt`, `isnan`, `isinf`), `true + 5`, an undefined command, an unset `$cond`; the SCCP unit tests now build under Tcl 8.6.
+
+Open, with the cause where it is known. The first three are in the execution walk (`command_binding`, analyser and binding half) and decide most of the remaining failures in this half: a command the walk did not reach has no lookup state, and `cfg_builder` then emits `<caller-frame-opaque>` and `<unseen-call>` for it and for every later command of the script.
+
+- A list command over a quoted literal ends the walk: `set n [llength "a b"]; set m $n` under `tcl8.6` gives an unseen call for both statements; `llength {a b}` and `llength [list a b]` do not. tclsh 8.6.18 and 9.0.4 return 2.
+- `eval {set x hello}; puts $x` under `tcl8.6`: the body's `set` and the following `puts` have no lookup state. tclsh prints `hello`.
+- A unit built from `CommandRegistry::build_default()` reads an authored `proc` as a declaration only; a fixture that defines a procedure has to name a release. The SCCP unit tests are switched; `ssa`, `cfg_builder`, `taint`, `lowering` and `interprocedural` unit tests still build the default registry in many places and are not yet examined one by one.
+- Taint inside an iRules event handler reports nothing: `when HTTP_REQUEST {set x [HTTP::uri]; HTTP::respond 200 content $x}` under `f5-irules` gives no IRULE3001 through `find_taint_warnings_for_cu`, while the same two commands at file level do. `taint::tests::hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims` is the unit test. The file-level form loses the result colours instead (`set addr [IP::client_addr]; log local0. $addr` warns IRULE3003), which is what most of the 139 `tests/it_3/taint.rs` failures under `f5-irules` assert. Not yet traced.
+- `tests/it_3/taint.rs` under `tcl8.6`: sources that read an unset `$fd` (the `channel_*` helpers define it) and sources that call `URI::encode`, `regex::quote` or `IP::client_addr`, which are not Tcl 8.6 commands, so the walk stops at them. The second group needs a dialect that has both the sanitiser and the sink.
+- The optimiser's expression rewrites that substitute a constant for a variable inside an expression (`substitute_expr_constants_for_execution`) are called with no operand receipts and never change the text; O100 into an expression operand therefore never fires. The folds above go through the evaluator instead.
+- `type_propagation::namespaced_scalar_keeps_qualified_symbol_type` and `namespaced_array_element_uses_base_array_symbol_type` write `::ns::x` with no `namespace eval ns`, which tclsh rejects (`parent namespace doesn't exist`); with the namespace created the scalar is typed `String` where the test expects `OVERDEFINED`. Whether a qualified variable in a unit with no other writer is widened is a policy the tests and the code disagree on.
+
 ## Scope and publication
 
 Work is paused at the user's request after finishing the current autoload repair. All parallel investigations are stopped. Source/status checkpoints have been published to work and the periodic publisher is stopped. The final one-shot sync publishes this paused snapshot. The release verdict remains unchanged.
