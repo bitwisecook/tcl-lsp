@@ -756,7 +756,8 @@ fn stays_local(lexed: &Lexed<'_>, word: &tcl_lexer::script::WordSpan) -> bool {
     }
     match lexed.fragments(word).first() {
         Some(&(kind, first)) => {
-            matches!(kind, TokenType::Esc | TokenType::Str) && !first.contains("::")
+            matches!(kind, TokenType::Esc | TokenType::Str)
+                && !tcl_syntax::naming::is_qualified(first.as_bytes())
         }
         None => true,
     }

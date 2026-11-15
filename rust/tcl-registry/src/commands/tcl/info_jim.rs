@@ -415,7 +415,7 @@ impl NativeJimInfoScope {
     ) -> bool {
         self == Self::NamespaceAware
             && (!actual_namespace.is_empty()
-                || pattern.is_some_and(|pattern| pattern.starts_with(b"::")))
+                || pattern.is_some_and(tcl_syntax::naming::is_absolute_bytes))
     }
     /// Exact -nons skips the namespace stage, independently of invocation head.
     #[must_use]
@@ -436,7 +436,7 @@ impl NativeJimInfoScope {
             return selected;
         }
         let rooted_single =
-            operand_count == 1 && first_operand.is_some_and(|word| word.starts_with(b"::"));
+            operand_count == 1 && first_operand.is_some_and(tcl_syntax::naming::is_absolute_bytes);
         if !actual_namespace.is_empty() || rooted_single {
             NativeJimCommandInventory::NamespaceHelper
         } else {

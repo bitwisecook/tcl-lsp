@@ -5098,7 +5098,8 @@ fn constant_selection(
     version: TclVersion,
     operation: SemanticOperationId,
 ) -> NativeCompilationSelection {
-    let element = name.is_some_and(|name| name.ends_with(b")") && name.contains(&b'('));
+    let element =
+        name.is_some_and(|name| tcl_syntax::naming::split_element_ref_bytes(name).is_some());
     if element {
         return NativeCompilationSelection::Generic;
     }
@@ -5694,7 +5695,7 @@ fn info_commands_preserves_names(
 ) -> bool {
     count == 1
         && words.literal(operand_from).is_some_and(|value| {
-            value.starts_with(b"::")
+            tcl_syntax::naming::is_absolute_bytes(value)
                 && value
                     .iter()
                     .all(|&byte| byte.is_ascii() && !matches!(byte, 0 | b'*' | b'?' | b'[' | b'\\'))

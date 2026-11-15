@@ -98,7 +98,7 @@ pub fn release_binding(
     if version.revalidates_running_bytecode() {
         return None;
     }
-    let command = command.strip_prefix("::").unwrap_or(command);
+    let command = tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command);
     let count = shape.arg_count();
     let compiled_if = |compiles: bool| {
         if compiles {
@@ -157,7 +157,7 @@ pub fn release_binding(
 pub fn may_compile(version: TclVersion, command: &str) -> bool {
     !version.revalidates_running_bytecode()
         && matches!(
-            command.strip_prefix("::").unwrap_or(command),
+            tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command),
             "append"
                 | "break"
                 | "catch"
@@ -183,8 +183,8 @@ pub fn may_compile(version: TclVersion, command: &str) -> bool {
 /// C's `TclIsLocalScalar`: a name with no namespace qualifier and no array
 /// element.
 fn is_local_scalar(name: &str) -> bool {
-    let element = name.contains('(') && name.ends_with(')');
-    !name.contains("::") && !element
+    !tcl_syntax::naming::is_qualified(name.as_bytes())
+        && tcl_syntax::naming::split_element_ref(name).is_none()
 }
 
 /// [`compiles_control`] for an invocation of `shape`, a word not known to
@@ -331,7 +331,7 @@ fn string_compiles(shape: &InvocationShape) -> bool {
 /// `Tcl_EvalEx` (`Tcl_FSEvalFile`).
 #[must_use]
 pub fn evaluates_script_directly(version: TclVersion, command: &str, script_words: usize) -> bool {
-    let command = command.strip_prefix("::").unwrap_or(command);
+    let command = tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command);
     let joined = script_words > 1;
     match version {
         TclVersion::V8_4 => {
@@ -374,7 +374,7 @@ pub fn compiles_control(
     words: &[CompileWord<'_>],
     in_procedure: bool,
 ) -> Option<bool> {
-    let command = command.strip_prefix("::").unwrap_or(command);
+    let command = tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command);
     let literal = |index: usize| words.get(index).is_some_and(|word| word.literal);
     Some(match command {
         "if" => words.len() >= 2 && words.iter().all(|word| word.literal),
@@ -425,7 +425,7 @@ fn compiles_dict_each(
 /// `lmap`, the key and value names for `dict for` and `dict map`.
 #[must_use]
 pub fn compiled_loop_variables(command: &str, words: &[CompileWord<'_>]) -> Vec<String> {
-    let command = command.strip_prefix("::").unwrap_or(command);
+    let command = tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command);
     let lists: Vec<&str> = match command {
         "foreach" | "lmap" => words
             .split_last()
@@ -700,7 +700,7 @@ pub fn compile_procedure(
     if !compile_procedures_modelled(version) {
         return None;
     }
-    let command = command.strip_prefix("::").unwrap_or(command);
+    let command = tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command);
     let (_, subcommands) = COMPILED_8_6.iter().find(|(name, _)| *name == command)?;
     if let Some(subcommands) = subcommands
         && !subcommand.is_some_and(|sub| subcommands.contains(&sub))

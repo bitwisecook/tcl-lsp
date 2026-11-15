@@ -1361,7 +1361,9 @@ impl AllDialectCommandNames {
         // bare-normalised too or the two never agree.
         let name = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
         self.known.insert(name);
-        if name.contains("::") || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT) {
+        if tcl_syntax::naming::is_qualified(name.as_bytes())
+            || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT)
+        {
             self.rootable.insert(name);
         }
         self.providers.entry(name).or_default().add_spec(spec);
@@ -1449,7 +1451,8 @@ fn all_dialect_command_names() -> &'static AllDialectCommandNames {
 /// such as `::oo::Helpers::self` remains an ordinary qualified fallback.
 fn rooted_fallback_allowed(rooted: &str, spec: &CommandSpec) -> bool {
     tcl_syntax::naming::unroot_rooted_key(rooted).is_none_or(|unrooted| {
-        unrooted.contains("::") || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT)
+        tcl_syntax::naming::is_qualified(unrooted.as_bytes())
+            || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT)
     })
 }
 
@@ -2769,7 +2772,7 @@ impl CommandRegistry {
                     .copied()
                     .chain(self.overlay_specs.iter().copied())
                     .filter(|spec| {
-                        spec.name.contains("::")
+                        tcl_syntax::naming::is_qualified(spec.name.as_bytes())
                             || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT)
                     })
                     .map(|spec| spec.name),
@@ -2794,7 +2797,7 @@ impl CommandRegistry {
                 .chain(self.overlay_specs.iter())
                 .any(|spec| {
                     tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name) == name
-                        && (name.contains("::")
+                        && (tcl_syntax::naming::is_qualified(name.as_bytes())
                             || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT))
                 })
         {

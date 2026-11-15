@@ -122,9 +122,9 @@ impl OriginalSourceFunctionName {
             return None;
         }
         let function = function.to_owned();
-        let mut relative = MATHFUNC_NAMESPACE_RELATIVE.as_bytes().to_vec();
-        relative.extend_from_slice(b"::");
-        relative.extend_from_slice(function.as_bytes());
+        let relative =
+            tcl_syntax::naming::unrooted_member_key(MATHFUNC_NAMESPACE_RELATIVE, &function)
+                .into_bytes();
         Some(Self {
             expression,
             ordinal,
@@ -210,9 +210,8 @@ impl NativeExpressionFunctionCommandName {
         if !function.is_ascii() || source.as_bytes().get(begin..end) != Some(function.as_bytes()) {
             return None;
         }
-        let mut bytes = MATHFUNC_NAMESPACE_RELATIVE.as_bytes().to_vec();
-        bytes.extend_from_slice(b"::");
-        bytes.extend_from_slice(function.as_bytes());
+        let bytes = tcl_syntax::naming::unrooted_member_key(MATHFUNC_NAMESPACE_RELATIVE, function)
+            .into_bytes();
         Some(Self {
             source: source.to_owned(),
             context: *expression.context(),
@@ -271,7 +270,7 @@ impl NativeExpressionFunctionCommandName {
 /// when it resolves globally.
 #[must_use]
 pub fn qualified_name(bare: &str) -> String {
-    format!("{MATHFUNC_NAMESPACE}::{bare}")
+    tcl_syntax::naming::rooted_member_key(MATHFUNC_NAMESPACE, bare)
 }
 
 /// Extract a direct global function from the shared constructed reporting-key
@@ -622,7 +621,8 @@ impl CommandRegistry {
             NativeMathFunctionDispatch::CommandTable => self.get(identity),
             NativeMathFunctionDispatch::FixedTable => {
                 let bare = global_command_bare_name(identity).or_else(|| {
-                    (!identity.is_empty() && !identity.contains("::")).then_some(identity)
+                    (!identity.is_empty() && !tcl_syntax::naming::is_qualified(identity.as_bytes()))
+                        .then_some(identity)
                 })?;
                 crate::registry::fixed_math_function_metadata(bare)
             }

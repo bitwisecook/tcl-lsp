@@ -235,11 +235,9 @@ pub fn required_package_namespace_advice_covers(package: &str, command: &str) ->
     }
     let command = tcl_syntax::naming::canonical_written_command(command);
     // A rooted spelling names the same global-relative path.
-    let command = command.strip_prefix("::").unwrap_or(&command);
+    let command = tcl_syntax::naming::unroot_rooted_key(&command).unwrap_or(&command);
     command == package
-        || command
-            .strip_prefix(package)
-            .is_some_and(|tail| tail.starts_with("::"))
+        || tcl_syntax::naming::authored_namespace_hint_tail(command, package).is_some()
 }
 
 #[cfg(test)]

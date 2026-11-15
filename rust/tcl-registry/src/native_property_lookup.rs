@@ -48,7 +48,7 @@ fn property_declaration_validity(original: &[u8]) -> Result<(), Vec<u8>> {
         Some(b"must not begin with -".as_slice())
     } else if quoted.len() != original.len() {
         Some(b"must be a simple word".as_slice())
-    } else if name.windows(2).any(|pair| pair == b"::") {
+    } else if tcl_syntax::naming::is_qualified(name) {
         Some(b"must not contain namespace separators".as_slice())
     } else if name.iter().any(|byte| matches!(byte, b'(' | b')')) {
         Some(b"must not contain parentheses".as_slice())
@@ -162,13 +162,12 @@ fn property_accessor_names(original: &[u8], declaration: bool) -> (Vec<u8>, Vec<
 }
 
 fn property_object_variable_operand(original: &[u8], namespace: &[u8]) -> Option<Vec<u8>> {
-    if tcl_core_types::c_string_extent(original).starts_with(b"::") {
+    if tcl_syntax::naming::is_absolute_bytes(tcl_core_types::c_string_extent(original)) {
         return None;
     }
-    let mut qualified = namespace.to_vec();
-    qualified.extend_from_slice(b"::");
-    qualified.extend_from_slice(original);
-    Some(qualified)
+    Some(tcl_syntax::naming::rooted_member_key_bytes(
+        namespace, original,
+    ))
 }
 
 fn property_name_lookup(original: &[u8], members: &[&[u8]]) -> Result<usize, Vec<u8>> {

@@ -159,7 +159,7 @@ pub(crate) fn namespace_which_shape(
 #[must_use]
 pub fn native_info_commands_literal_is_trivial(bytes: &[u8]) -> bool {
     let bytes = tcl_core_types::c_string_extent(bytes);
-    bytes.starts_with(b"::")
+    tcl_syntax::naming::is_absolute_bytes(bytes)
         && !bytes
             .iter()
             .any(|byte| matches!(byte, b'*' | b'[' | b'?' | b'\\'))

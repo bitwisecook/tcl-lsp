@@ -231,7 +231,7 @@ impl Compile<'_> {
         if !(self.compiles)(head) {
             return None;
         }
-        let name = head.strip_prefix("::").unwrap_or(head);
+        let name = tcl_syntax::naming::unroot_rooted_key(head).unwrap_or(head);
         let arg_texts: Vec<&str> = args
             .iter()
             .map(|word| word.simple.as_deref().unwrap_or(word.raw))
@@ -488,9 +488,9 @@ impl Compile<'_> {
                 return Ok(Outcome::OutLine);
             };
             if names.is_empty()
-                || names
-                    .iter()
-                    .any(|name| name.contains("::") || name.ends_with(')'))
+                || names.iter().any(|name| {
+                    tcl_syntax::naming::is_qualified(name.as_bytes()) || name.ends_with(')')
+                })
             {
                 return Ok(Outcome::OutLine);
             }
@@ -519,7 +519,9 @@ impl Compile<'_> {
         }
         if let Some(variable) = words.get(2) {
             match &variable.simple {
-                Some(name) if !name.contains("::") && !name.ends_with(')') => {}
+                Some(name)
+                    if !tcl_syntax::naming::is_qualified(name.as_bytes())
+                        && !name.ends_with(')') => {}
                 _ => return Ok(Outcome::OutLine),
             }
         }

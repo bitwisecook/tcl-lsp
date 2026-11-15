@@ -34,7 +34,6 @@ use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_syntax::expr::ast::{BinOp, ExprNode};
 
 use crate::cache::registry_for_profile;
-use crate::mathfunc::MATHFUNC_NAMESPACE;
 use crate::mathfunc::available_in_expr;
 use crate::registry::CommandRegistry;
 use crate::spec::CommandSpec;
@@ -332,7 +331,7 @@ impl RuntimeExprSurface {
     #[must_use]
     pub fn builtin_math_function_command_visible(self, qualified_name: &str) -> Option<bool> {
         let bare = crate::mathfunc::global_command_bare_name(qualified_name)?;
-        let registry_name = format!("{MATHFUNC_NAMESPACE}::{bare}");
+        let registry_name = crate::mathfunc::qualified_name(bare);
         self.registry.get(&registry_name)?;
         Some(self.has_math_function_command_table() && self.builtin_math_function(bare).is_some())
     }

@@ -359,11 +359,10 @@ fn scalar_tail(value: &[u8], complete: bool) -> Option<Vec<u8>> {
     if value.last() == Some(&b')') {
         return None;
     }
-    let separator = value.windows(2).rposition(|bytes| bytes == b"::");
-    if !complete && !value.is_empty() && separator.is_none() {
+    if !complete && !value.is_empty() && !tcl_syntax::naming::is_qualified(value) {
         return None;
     }
-    Some(value[separator.map_or(0, |index| index + 2)..].to_vec())
+    Some(tcl_syntax::naming::written_command_tail(value).to_vec())
 }
 
 #[cfg(test)]
