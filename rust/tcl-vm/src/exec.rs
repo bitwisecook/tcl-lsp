@@ -10762,6 +10762,7 @@ impl Vm {
         let previous = std::mem::replace(&mut self.native_invocation.sidecar, selected);
         let res = command.invoke(self, &words[1..]);
         self.native_invocation.sidecar = previous;
+        self.adopt_host_error_code(&res);
         self.settle_native_dispatch(frame, res)
     }
 
@@ -11564,6 +11565,20 @@ impl Vm {
     /// [`dispatch_words`](Self::dispatch_words) twin is
     /// [`settle_native_dispatch`](Self::settle_native_dispatch); the two differ
     /// only in having a trampoline to push onto.
+    /// Keep the `-errorcode` a host command's error names. The interpreter
+    /// holds the error code as its own state, and a host command states it in
+    /// its completion's options, as a C command does with `Tcl_SetErrorCode`.
+    fn adopt_host_error_code(&mut self, completion: &Completion<Value>) {
+        if completion.code != Code::Error {
+            return;
+        }
+        if let Ok(Some(code)) =
+            crate::command::opt_get_checked(self, &completion.options, b"-errorcode")
+        {
+            self.retain_return_error_code(Some(&code), false);
+        }
+    }
+
     pub(crate) fn settle_native_invoke(&mut self, res: Completion<Value>) -> Completion<Value> {
         if let Some(refused) = self.refused_completion() {
             return refused;
@@ -11869,6 +11884,7 @@ impl Vm {
                 let saved = std::mem::replace(&mut self.native_invocation.sidecar, sidecar);
                 let res = cmd.invoke(self, argv);
                 self.native_invocation.sidecar = saved;
+                self.adopt_host_error_code(&res);
                 self.settle_native_invoke(res)
             }
             Command::Proc(p) => {
