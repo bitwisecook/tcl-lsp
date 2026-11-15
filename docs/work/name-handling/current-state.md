@@ -120,7 +120,11 @@ Other findings:
 - Letting hover fall through to its pre-migration tiers when the strict path has no answer fixes nothing and breaks `hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers`; each remaining hover failure has its own cause.
 - `clippy -D warnings` failed in `tcl-registry` (`items_after_statements`, `native_result.rs`) after `72c77c83`, which stopped every dependent crate from being linted; fixed in `f68af93a`.
 
-Changed result since the baseline without a change in this area (fail with and without the settlement commit; cause upstream, not traced): `references::tests::idx63_two_block_class_my_dispatch_already_fixed_by_idx52`, `workspace_index::original_settlement_transport_tests::original_source_procedure_candidates_share_slots_and_reindex_currency`, and the server's `readonly_reference_reports::source_views::closed_source_child_ingress_tests::sourced_class_declaration_hover_keeps_its_own_original_metadata`.
+Changed result since the baseline from commits outside this area, by bisect over `454068e6..HEAD` with a filtered run:
+
+- `f6fbccbf` (Complete the command world after deleting a procedure): three LSP tests asserted the incomplete world as a premise; premise removed, they pass.
+- `bca37f5f` (Keep the advice graph closed across a literal TclOO definition body), for the compiler analyser session: the server's `readonly_reference_reports::source_views::closed_source_child_ingress_tests::sourced_class_declaration_hover_keeps_its_own_original_metadata` no longer gets a class source-declaration card from `original_source_view_hover_route` for `source child.tcl` followed by `oo::class create Widget {…}`. Open.
+- Not bisected: e2e `rename::rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace` and `tcloo_navigation::tn_cross_file_self_unexport_leaves_the_declaring_documents_own_call` answered `-32602 conditional source advice for <uri> is unavailable` in the full run; `tcloo_navigation::tn_second_classes_instance_dispatch_untouched_by_method_rename` gives the same error in one run of two. An intermittent server refusal, cause not located. `references::tests::idx63_two_block_class_my_dispatch_already_fixed_by_idx52` fails in an unoptimised build and passes at `opt-level 1`.
 
 Not started: `rename`, `references`, `minify`, `if_to_switch`, `switch_to_dict`, `inline_proc`, `call_hierarchy`, `rename_safety`, `code_actions`, `tcl-lsp-db`, the server unit tests, and collapsing the duplicated name-resolution matrix.
 
