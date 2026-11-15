@@ -114,7 +114,7 @@ const OPTIONS: &[OptionSpec] = &[
         value: OptionValue::value(""),
         detail: "Width of the border around the scrollbar.",
         surface: None,
-        aliases: &[],
+        aliases: &["-bd"],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
         effect: None,

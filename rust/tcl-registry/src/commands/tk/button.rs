@@ -97,6 +97,16 @@ const OPTIONS: &[OptionSpec] = &[
         effect: None,
     },
     OptionSpec {
+        name: "-borderwidth",
+        value: OptionValue::value("width"),
+        detail: "Width of the 3-D border.",
+        surface: None,
+        aliases: &["-bd"],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+        effect: None,
+    },
+    OptionSpec {
         name: "-bg",
         value: OptionValue::value(""),
         detail: "Shorthand for -background.",

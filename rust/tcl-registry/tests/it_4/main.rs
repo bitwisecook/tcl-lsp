@@ -29,4 +29,5 @@ mod registry;
 mod spec_pack_provenance;
 mod spectcl_pack;
 mod tcltest_specs;
+mod tk_option_tables;
 mod value_transfers;

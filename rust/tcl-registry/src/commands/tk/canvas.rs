@@ -328,6 +328,16 @@ const OPTIONS: &[OptionSpec] = &[
         effect: None,
     },
     OptionSpec {
+        name: "-offset",
+        value: OptionValue::value("offset"),
+        detail: "Origin of stipple patterns: x,y or a compass anchor.",
+        surface: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+        effect: None,
+    },
+    OptionSpec {
         name: "-borderwidth",
         value: OptionValue::value(""),
         detail: "Width of the border around the canvas.",

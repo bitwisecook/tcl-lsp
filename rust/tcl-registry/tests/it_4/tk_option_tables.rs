@@ -1,0 +1,67 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Classic Tk widget option tables against the Tk C sources.
+//!
+//! `tests/data/tk_option_tables/tk<release>.txt` is extracted from each
+//! release's `Tk_OptionSpec` / `Tk_ConfigSpec` tables by
+//! `scripts/dev/gen-tk-option-tables.py`.
+
+use tcl_registry::CommandRegistry;
+
+const RELEASES: &[(&str, &str, &str)] = &[
+    ("tcl8.4", "8.4", include_str!("../data/tk_option_tables/tk8.4.20.txt")),
+    ("tcl8.5", "8.5", include_str!("../data/tk_option_tables/tk8.5.19.txt")),
+    ("tcl8.6", "8.6", include_str!("../data/tk_option_tables/tk8.6.18.txt")),
+    ("tcl9.0", "9.0", include_str!("../data/tk_option_tables/tk9.0.4.txt")),
+    ("tcl9.1", "9.1", include_str!("../data/tk_option_tables/tk9.1.0.txt")),
+];
+
+#[test]
+fn tk_option_tables_match_the_c_sources() {
+    let mut report = Vec::new();
+    for &(tcl, tk, table) in RELEASES {
+        let mut registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find(tcl).expect("Tcl release"));
+        registry.insert_ambient_package("Tk", tk);
+        for line in table.lines() {
+            let mut words = line.split_whitespace();
+            let widget = words.next().expect("widget");
+            let c_options: Vec<&str> = words.collect();
+            let spec = registry
+                .get(widget)
+                .unwrap_or_else(|| panic!("Tk {tk} {widget} is registered"));
+            let missing: Vec<&str> = c_options
+                .iter()
+                .copied()
+                .filter(|option| spec.find_option(option, None, Some(tk)).is_none())
+                .collect();
+            let extra: Vec<&str> = spec
+                .options
+                .iter()
+                .filter(|option| spec.find_option(option.name, None, Some(tk)).is_some())
+                .map(|option| option.name)
+                .filter(|name| !c_options.contains(name))
+                .collect();
+            if !missing.is_empty() || !extra.is_empty() {
+                report.push(format!("Tk {tk} {widget}: missing {missing:?} extra {extra:?}"));
+            }
+        }
+    }
+    assert!(report.is_empty(), "{}", report.join("\n"));
+}

@@ -60,7 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
         value: OptionValue::value("screen units"),
         detail: "Width of the border around the entry.",
         surface: None,
-        aliases: &[],
+        aliases: &["-bd"],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
         effect: None,
