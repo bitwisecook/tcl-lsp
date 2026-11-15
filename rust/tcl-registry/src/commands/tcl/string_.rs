@@ -1688,6 +1688,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "map",
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::StringMap(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
@@ -1895,6 +1896,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "repeat",
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
                 lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
@@ -2288,6 +2290,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trim",
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
@@ -2341,6 +2344,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimleft",
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
@@ -2387,6 +2391,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimright",
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,

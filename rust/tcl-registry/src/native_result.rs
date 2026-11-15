@@ -181,6 +181,10 @@ pub enum NativeResultContract {
     /// Increment publishes a numeric object into its captured receiver before
     /// write callbacks. The eventual returned value needs separate proof.
     IncrementStore,
+    /// The successful result is the operand itself, a part of one, or a new
+    /// object of a stock type. With only stock operands it is a stock-class
+    /// object whose intrep is unknown; nothing about its bytes is promised.
+    StockResult,
     /// Sort the final list operand under only byte-ordered `-ascii` options.
     /// Every release builds the nonempty result as an ordinary list object.
     ListSort,
@@ -1060,6 +1064,8 @@ pub enum NativeResultSelection {
         /// Effective post-head last-index operand index.
         last_at: usize,
     },
+    /// A stock-class result when every operand is a stock object.
+    StockResult,
     /// A native byte-ordered sort of a literal list.
     ListSort {
         /// Effective post-head first option index.
@@ -1795,6 +1801,7 @@ impl NativeResultContract {
                 first_at,
                 last_at,
             } => select_list_range(count, argument_offset, [list_at, first_at, last_at]),
+            Self::StockResult => NativeResultSelection::StockResult,
             Self::ListSort
             | Self::ListConcat { .. }
             | Self::StringJoin { .. }

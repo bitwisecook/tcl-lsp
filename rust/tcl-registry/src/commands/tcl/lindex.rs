@@ -30,6 +30,7 @@ pub fn spec() -> CommandSpec {
         // Reached native value handler has no callbacks or variable-name writes.
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         name: "lindex",
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
         completion: Some(crate::completion::CompletionDescriptor::exact(&[

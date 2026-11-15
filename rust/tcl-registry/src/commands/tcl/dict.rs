@@ -393,6 +393,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "keys",
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Keys.spec(true),
         ),
@@ -688,6 +689,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "values",
+        native_result: Some(crate::native_result::NativeResultContract::StockResult),
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Values.spec(true),
         ),

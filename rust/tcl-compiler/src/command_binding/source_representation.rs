@@ -547,6 +547,14 @@ pub(super) fn retain_created_result(
     } else {
         Vec::new()
     };
+    if matches!(
+        selection,
+        tcl_registry::native_result::NativeResultSelection::StockResult
+            | tcl_registry::native_result::NativeResultSelection::DictionaryValue { .. }
+    ) && retain_stock_result(outcomes, native, context)
+    {
+        return;
+    }
     let construction = selection.list_construction(
         dialect,
         context.compilation(),
@@ -614,6 +622,39 @@ pub(super) fn retain_created_result(
             ),
         }));
     }
+}
+
+/// A stock-result handler over operands that are all original pool literals
+/// returns a stock-class object, as a pool literal itself is: one operand,
+/// a part of one, or a new object of a stock type.
+fn retain_stock_result(
+    outcomes: &mut SourceOutcomes,
+    native: super::SourceNativeInvocation<'_>,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    let Some(count) = native.invocation.arguments().exact_argv_len() else {
+        return false;
+    };
+    let normal = outcomes.normal.as_mut().unwrap();
+    let pooled = (0..count).all(|index| {
+        super::literal_object_pool::SourceOrdinaryLiteralObject::capture(
+            native, index, normal, context,
+        )
+        .is_some()
+    });
+    let Some(object) = pooled
+        .then(|| super::literal_object_pool::SourceOrdinaryLiteralObject::stock_result(normal))
+        .flatten()
+    else {
+        return false;
+    };
+    if normal.source_variables.representation_epoch.is_none() {
+        Arc::make_mut(&mut normal.source_variables).establish_created_representation_epoch();
+    }
+    outcomes.normal_representation =
+        FrozenSourceRepresentation::capture_stock_literal(object, &normal.source_variables)
+            .map(Arc::new);
+    outcomes.normal_representation.is_some()
 }
 
 pub(super) fn retain_store_representation(

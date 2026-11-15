@@ -991,6 +991,7 @@ fn selected_result(
         }
         NativeResultSelection::ListSort { .. } => selection.sorted_literal_result(arguments)?,
         NativeResultSelection::ListRange { .. }
+        | NativeResultSelection::StockResult
         | NativeResultSelection::ListReverse { .. }
         | NativeResultSelection::ListConcat { .. }
         | NativeResultSelection::StringJoin { .. }

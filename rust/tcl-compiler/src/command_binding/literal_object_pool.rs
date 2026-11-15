@@ -324,6 +324,11 @@ impl SourceOrdinaryLiteralObject {
         Self::list_element(state)
     }
 
+    /// A stock-result handler over stock operands returns a stock-class object.
+    pub(super) fn stock_result(state: &ModuleCommandBindings) -> Option<SourceStockLiteralObject> {
+        Self::list_element(state)
+    }
+
     /// An element parsed from an authored literal list is a fresh untyped
     /// object; later conversions leave it a stock-class object.
     pub(super) fn list_element(state: &ModuleCommandBindings) -> Option<SourceStockLiteralObject> {

@@ -2315,6 +2315,38 @@ fn a_compiled_constant_list_is_checked_at_every_read() {
     }
 }
 
+/// Over pool-literal operands these builders return a stock-class object: an
+/// operand, a part of one, or a new string, list or dictionary. A later
+/// literal index conversion keeps that receipt, so both reads are checked (#2437).
+#[test]
+fn a_stock_built_container_is_checked_at_every_read() {
+    for (build, from) in [
+        ("lindex {{a b c} x} 0", "tcl8.4"),
+        ("split a,b,c ,", "tcl8.4"),
+        ("string repeat {a } 3", "tcl8.4"),
+        ("string map {, { }} a,b,c", "tcl8.4"),
+        ("string trim { a b c }", "tcl8.4"),
+        ("dict keys {a 1 b 2}", "tcl8.5"),
+        ("dict values {a 1 b 2}", "tcl8.5"),
+        ("dict get {k {a b}} k", "tcl8.5"),
+    ] {
+        let src = format!("set l [{build}]\nlindex $l 9\nputs [lindex $l 9]\n");
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            if dialect < from {
+                continue;
+            }
+            let findings = Analyser::new()
+                .analyse(&src, dialect)
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::W230)
+                .map(|d| src[d.span.as_range()].to_owned())
+                .collect::<Vec<_>>();
+            assert_eq!(findings, ["9", "9"], "{dialect}: {build}");
+        }
+    }
+}
+
 /// Converting a variable index keeps the stock objects it may share, so a
 /// second read through the same index is checked as the first is (#2387),
 /// a loop counter `incr` left numeric included.
