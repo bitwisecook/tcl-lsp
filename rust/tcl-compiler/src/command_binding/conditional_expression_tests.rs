@@ -347,7 +347,7 @@ fn conditional_expression_template_retains_grammar_without_actual_entry() {
         .conditional_expression_evaluation(registry, &tokens)
         .expect("exact conditional expression receipt");
     assert_eq!(
-        receipt.normal_result_representation(|_| None),
+        receipt.normal_result_representation(|_| None, |_| None),
         Some(tcl_registry::TclType::Int)
     );
     assert_eq!(
@@ -388,7 +388,7 @@ fn conditional_expression_pool_representation_is_withdrawn_by_shared_getters() {
             .source_binding
             .as_ref()
             .and_then(|binding| binding.conditional_expression_evaluation(registry, &tokens))
-            .and_then(|receipt| receipt.normal_result_representation(|_| None));
+            .and_then(|receipt| receipt.normal_result_representation(|_| None, |_| None));
         assert!(answer.is_none(), "{source}");
     }
 }

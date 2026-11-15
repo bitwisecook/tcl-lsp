@@ -23,6 +23,7 @@
 //! handler, input occurrences and the separate current literal-pool evidence.
 
 use crate::TclType;
+use tcl_syntax::expr::mathfunc::MathResultClass;
 use tcl_syntax::expr::parser::{CheckedExprParse, ExprParseContext, NativeExprSyntax};
 use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
 
@@ -113,7 +114,20 @@ impl ConditionalExpressionEvaluation {
     pub fn normal_result_representation(
         &self,
         pool: ConditionalExpressionPoolState,
+        variable: impl FnMut(&ExprNode) -> Option<TclType>,
+    ) -> Option<TclType> {
+        self.normal_result_representation_with_functions(pool, variable, |_| None)
+    }
+
+    /// [`Self::normal_result_representation`] where `function` answers the
+    /// result class of a call whose dispatch the caller has proved. A call it
+    /// does not answer for has no category.
+    #[must_use]
+    pub fn normal_result_representation_with_functions(
+        &self,
+        pool: ConditionalExpressionPoolState,
         mut variable: impl FnMut(&ExprNode) -> Option<TclType>,
+        mut function: impl FnMut(&ExprNode) -> Option<MathResultClass>,
     ) -> Option<TclType> {
         if !matches!(self.context.native_syntax, NativeExprSyntax::Tcl(_)) {
             return None;
@@ -126,13 +140,73 @@ impl ConditionalExpressionEvaluation {
         {
             return None;
         }
-        self.node_result(&self.tree, &mut variable, 0)
+        self.node_result(&self.tree, &mut variable, &mut function, 0)
+    }
+
+    fn binary_result(
+        &self,
+        op: BinOp,
+        left: &ExprNode,
+        right: &ExprNode,
+        variable: &mut impl FnMut(&ExprNode) -> Option<TclType>,
+        function: &mut impl FnMut(&ExprNode) -> Option<MathResultClass>,
+        next: usize,
+    ) -> Option<TclType> {
+        match op {
+            BinOp::LShift | BinOp::RShift | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor => {
+                Some(TclType::Int)
+            }
+            BinOp::Mod => {
+                let left = self.node_result(left, variable, function, next);
+                let right = self.node_result(right, variable, function, next);
+                (!matches!(left, Some(TclType::Double)) && !matches!(right, Some(TclType::Double)))
+                    .then_some(TclType::Int)
+            }
+            BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Pow => {
+                let left = self
+                    .node_result(left, variable, function, next)
+                    .map(truth_value_as_integer);
+                let right = self
+                    .node_result(right, variable, function, next)
+                    .map(truth_value_as_integer);
+                match (left, right) {
+                    (Some(TclType::Int), Some(TclType::Int)) => Some(TclType::Int),
+                    (Some(TclType::Double), _) | (_, Some(TclType::Double)) => {
+                        Some(TclType::Double)
+                    }
+                    _ => Some(TclType::Numeric),
+                }
+            }
+            // A comparison, a membership test and a short-circuit
+            // operator complete normally only with 0 or 1: 8.4 makes a
+            // fresh integer or pushes the literal `0`/`1`, 8.5 and later
+            // return the interpreter's shared 0/1 constants. That is the
+            // value, whatever becomes of the shared object's intrep.
+            BinOp::And
+            | BinOp::Or
+            | BinOp::Eq
+            | BinOp::Ne
+            | BinOp::Lt
+            | BinOp::Le
+            | BinOp::Gt
+            | BinOp::Ge
+            | BinOp::StrEq
+            | BinOp::StrNe
+            | BinOp::StrLt
+            | BinOp::StrLe
+            | BinOp::StrGt
+            | BinOp::StrGe
+            | BinOp::In
+            | BinOp::Ni => Some(TclType::Boolean),
+            _ => None,
+        }
     }
 
     fn node_result(
         &self,
         node: &ExprNode,
         variable: &mut impl FnMut(&ExprNode) -> Option<TclType>,
+        function: &mut impl FnMut(&ExprNode) -> Option<MathResultClass>,
         depth: usize,
     ) -> Option<TclType> {
         if depth > 128 {
@@ -151,47 +225,95 @@ impl ConditionalExpressionEvaluation {
                     None => Some(TclType::String),
                 }
             }
-            ExprNode::Var { .. } => variable(node)
-                .filter(|kind| matches!(kind, TclType::Int | TclType::Double | TclType::Numeric)),
+            // A variable holding a truth value keeps it: `expr {$flag}`
+            // returns the word it read.
+            ExprNode::Var { .. } => variable(node).filter(|kind| {
+                matches!(
+                    kind,
+                    TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+                )
+            }),
             ExprNode::Unary { op, operand, .. } => match op {
-                UnaryOp::Pos | UnaryOp::Neg => {
-                    self.node_result(operand, variable, next).filter(|kind| {
+                UnaryOp::Pos | UnaryOp::Neg => self
+                    .node_result(operand, variable, function, next)
+                    .map(truth_value_as_integer)
+                    .filter(|kind| {
                         matches!(kind, TclType::Int | TclType::Double | TclType::Numeric)
-                    })
-                }
+                    }),
                 UnaryOp::BitNot => Some(TclType::Int),
-                UnaryOp::Not | UnaryOp::WordNot => None,
+                // `!` leaves 0 or 1 in every C Tcl release.
+                UnaryOp::Not => Some(TclType::Boolean),
+                UnaryOp::WordNot => None,
             },
             ExprNode::Binary {
                 op, left, right, ..
-            } => match op {
-                BinOp::LShift | BinOp::RShift | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor => {
-                    Some(TclType::Int)
-                }
-                BinOp::Mod => {
-                    let left = self.node_result(left, variable, next);
-                    let right = self.node_result(right, variable, next);
-                    (!matches!(left, Some(TclType::Double))
-                        && !matches!(right, Some(TclType::Double)))
-                    .then_some(TclType::Int)
-                }
-                BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Pow => {
-                    let left = self.node_result(left, variable, next);
-                    let right = self.node_result(right, variable, next);
-                    match (left, right) {
-                        (Some(TclType::Int), Some(TclType::Int)) => Some(TclType::Int),
-                        (Some(TclType::Double), _) | (_, Some(TclType::Double)) => {
-                            Some(TclType::Double)
-                        }
-                        _ => Some(TclType::Numeric),
+            } => self.binary_result(*op, left, right, variable, function, next),
+            // The selected arm's value is the result, so two arms of one
+            // category give that category and an integer with a double gives
+            // a number.
+            ExprNode::Ternary {
+                true_branch,
+                false_branch,
+                ..
+            } => {
+                let chosen = self.node_result(true_branch, variable, function, next)?;
+                let other = self.node_result(false_branch, variable, function, next)?;
+                selected_arm_result(chosen, other)
+            }
+            ExprNode::Call { args, .. } => match function(node)? {
+                MathResultClass::Int => Some(TclType::Int),
+                MathResultClass::Float => Some(TclType::Double),
+                MathResultClass::Bool => Some(TclType::Boolean),
+                // The result is one of the operands, each a number.
+                MathResultClass::Numeric => {
+                    let mut joined = None;
+                    for argument in args {
+                        let kind = self
+                            .node_result(argument, variable, function, next)
+                            .map(truth_value_as_integer);
+                        joined = Some(numeric_operand_join(joined, kind));
                     }
+                    Some(joined.unwrap_or(TclType::Numeric))
                 }
-                _ => None,
+                MathResultClass::Any => None,
             },
-            // Forwarded branches and script/function results have independent
-            // result-object and dispatch alternatives.
+            // A script result has independent dispatch alternatives.
             _ => None,
         }
+    }
+}
+
+/// The selected arm's value is the result, so two arms of one category give
+/// that category and an integer with a double gives a number.
+fn selected_arm_result(chosen: TclType, other: TclType) -> Option<TclType> {
+    let numeric = |kind| matches!(kind, TclType::Int | TclType::Double | TclType::Numeric);
+    if chosen == other {
+        Some(chosen)
+    } else if numeric(chosen) && numeric(other) {
+        Some(TclType::Numeric)
+    } else {
+        None
+    }
+}
+
+/// Join one more numeric operand into the category of a result that is one
+/// of its operands. An operand of no known category is still a number.
+fn numeric_operand_join(joined: Option<TclType>, operand: Option<TclType>) -> TclType {
+    let kind = match operand {
+        Some(kind @ (TclType::Int | TclType::Double)) => kind,
+        _ => TclType::Numeric,
+    };
+    match joined {
+        Some(previous) if previous != kind => TclType::Numeric,
+        _ => kind,
+    }
+}
+
+/// An arithmetic operator reads a 0/1 truth value as that integer.
+const fn truth_value_as_integer(kind: TclType) -> TclType {
+    match kind {
+        TclType::Boolean => TclType::Int,
+        other => other,
     }
 }
 
@@ -248,6 +370,82 @@ mod tests {
                     .normal_result_representation(ConditionalExpressionPoolState::Unknown, |_| None)
                     .is_none()
             );
+        }
+    }
+
+    /// A comparison, membership test, short-circuit operator and `!` give 0
+    /// or 1 in every release that parses them. tclsh 8.6.18 and 9.0.4, with
+    /// `set a 1; set b 0`: `expr {$a < $b}` is 0, `expr {$a || $b}` is 1,
+    /// `expr {!$a}` is 0, `expr {$a in $b}` is 0, `expr {($a<$b)+1}` is 1 and
+    /// `expr {$a ? ($a>0) : ($b<0)}` is 1. 8.4 pushes `Tcl_NewLongObj(iResult)`
+    /// for a comparison and the literal `0`/`1` for `&&`/`||`
+    /// (`tclExecute.c`, `CompileLandOrLorExpr`).
+    #[test]
+    fn conditional_expression_truth_operators_give_a_boolean_in_every_release() {
+        let result = |profile: &str, source: &str| {
+            ConditionalExpressionEvaluation::prepare(source, &context(profile)).map(|evaluation| {
+                evaluation
+                    .normal_result_representation(ConditionalExpressionPoolState::Unknown, |_| {
+                        Some(TclType::Int)
+                    })
+            })
+        };
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for source in [
+                "$a < $b",
+                "$a <= $b",
+                "$a > $b",
+                "$a >= $b",
+                "$a == $b",
+                "$a != $b",
+                "$a eq $b",
+                "$a ne $b",
+                "$a && $b",
+                "$a || $b",
+                "!$a",
+                "$a < $b == $a > $b",
+                "$c ? ($a > 0) : ($b < 0)",
+            ] {
+                assert_eq!(
+                    result(profile, source),
+                    Some(Some(TclType::Boolean)),
+                    "{profile}: {source}"
+                );
+            }
+            for (source, expected) in [
+                ("($a < $b) + 1", TclType::Int),
+                ("-($a < $b)", TclType::Int),
+                ("$c ? $a : $b", TclType::Int),
+                ("$c ? 1.0 : 2.0", TclType::Double),
+                ("$c ? $a : 2.0", TclType::Numeric),
+            ] {
+                assert_eq!(
+                    result(profile, source),
+                    Some(Some(expected)),
+                    "{profile}: {source}"
+                );
+            }
+            // One arm a truth value and the other a number: neither category.
+            assert_eq!(
+                result(profile, "$c ? ($a < $b) : 2.5"),
+                Some(None),
+                "{profile}"
+            );
+            // `in`/`ni` arrive in 8.5 and the string orderings in 9.0.
+            let membership = profile != "tcl8.4";
+            let ordering = matches!(profile, "tcl9.0" | "tcl9.1");
+            for (source, parses) in [
+                ("$a in $b", membership),
+                ("$a ni $b", membership),
+                ("$a lt $b", ordering),
+                ("$a ge $b", ordering),
+            ] {
+                assert_eq!(
+                    result(profile, source),
+                    parses.then_some(Some(TclType::Boolean)),
+                    "{profile}: {source}"
+                );
+            }
         }
     }
 

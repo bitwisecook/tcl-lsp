@@ -55,7 +55,12 @@ use tcl_registry::model::ingress::static_context_for;
 ///
 /// Groups every `ValueKey` whose symbol name equals `var` by SSA version.
 fn var_types(src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
-    let registry = static_context_for("tcl8.6").commands();
+    var_types_under("tcl8.6", src, qname, var)
+}
+
+/// [`var_types`] under the release `profile` names.
+fn var_types_under(profile: &str, src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
+    let registry = static_context_for(profile).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     var_types_in_unit(&cu, qname, var)
 }
@@ -92,6 +97,19 @@ fn tcl_type(src: &str, var: &str) -> TclType {
     let t = var_type(src, var).unwrap_or_else(|| panic!("no type inferred for `{var}` in {src:?}"));
     t.tcl_type()
         .unwrap_or_else(|| panic!("type for `{var}` has no tcl_type: {t} in {src:?}"))
+}
+
+/// [`tcl_type`] of a top-level variable under the release `profile` names.
+fn tcl_type_under(profile: &str, src: &str, var: &str) -> TclType {
+    let t = var_types_under(profile, src, "::top", var)
+        .into_iter()
+        .max_by_key(|(ver, _)| *ver)
+        .map_or_else(
+            || panic!("{profile}: no type inferred for `{var}` in {src:?}"),
+            |(_, t)| t,
+        );
+    t.tcl_type()
+        .unwrap_or_else(|| panic!("{profile}: type for `{var}` has no tcl_type: {t} in {src:?}"))
 }
 
 // Literal types
@@ -252,8 +270,10 @@ fn phi_incompatible_types_shimmer() {
     // (fall-through) or String (body), which is not Tcl-observable as a single
     // value: the lattice models the conflicting merge as SHIMMERED(String, Int)
     // (the analogue of a value whose cached intrep was forced to change type).
-    let src = "\nset x 1\nif {$cond} {\n    set x hello\n}\nputs $x\n";
-    let all = var_types(src, "::top", "x");
+    // The condition is a parameter: an unset `$cond` raises `can't read
+    // "cond": no such variable` before the branch (tclsh 8.6.18, 9.0.4).
+    let src = "proc f {cond} {\nset x 1\nif {$cond} {\n    set x hello\n}\nputs $x\n}";
+    let all = var_types(src, "::f", "x");
     let conflict: Vec<&TypeLattice> = all
         .values()
         .filter(|t| matches!(t.kind(), TypeKind::Shimmered | TypeKind::Overdefined))
@@ -436,15 +456,24 @@ fn expr_power_promotion() {
 
 #[test]
 fn expr_booleans_are_integers_in_arithmetic() {
-    // tclsh: `set a true; set b 5; expr {$a + $b}` -> 6, `string is integer` = 1
-    // => Int (a boolean used arithmetically is an integer 0/1).
+    // A comparison result used arithmetically is the integer 0 or 1. tclsh
+    // 8.6.18 and 9.0.4: `set p 1; set q 2; set a [expr {$p < $q}]; set b 5;
+    // expr {$a + $b}` -> 6, `string is integer` = 1 => Int.
     assert_eq!(
-        tcl_type("set a true\nset b 5\nset z [expr {$a + $b}]", "z"),
+        tcl_type(
+            "set p 1\nset q 2\nset a [expr {$p < $q}]\nset b 5\nset z [expr {$a + $b}]",
+            "z"
+        ),
         TclType::Int
     );
-    // tclsh: `set a true; set b false; expr {$a + $b}` -> 1 => Int
+    // The word `true` is not an arithmetic operand: tclsh 8.6.18 and 9.0.4,
+    // `set a true; set b 5; expr {$a + $b}` raises `can't use non-numeric
+    // string as operand of "+"`, so that sum has no result to type.
     assert_eq!(
-        tcl_type("set a true\nset b false\nset z [expr {$a + $b}]", "z"),
+        tcl_type(
+            "set p 1\nset q 2\nset a [expr {$p < $q}]\nset b [expr {$q < $p}]\nset z [expr {$a + $b}]",
+            "z"
+        ),
         TclType::Int
     );
 }
@@ -508,14 +537,32 @@ fn expr_ceil_floor_are_double() {
 
 #[test]
 fn expr_predicate_functions_are_boolean() {
-    // tclsh: `expr {bool(1)}` -> 1 (`string is boolean` = 1), `expr {isnan(1.0)}`
-    // -> 0, `expr {isinf(1.0)}` -> 0 => Boolean.
-    for (src, var) in [
-        ("set x 1\nset z [expr {bool($x)}]", "z"),
-        ("set x 1.0\nset z [expr {isnan($x)}]", "z"),
-        ("set x 1.0\nset z [expr {isinf($x)}]", "z"),
+    // tclsh 8.6.18: `expr {bool(1)}` -> 1 (`string is boolean` = 1) => Boolean.
+    assert_eq!(
+        tcl_type("set x 1\nset z [expr {bool($x)}]", "z"),
+        TclType::Boolean
+    );
+    // The classification predicates arrive in 9.0 (TIP 521). tclsh 9.0.4:
+    // `expr {isnan(1.0)}` -> 0 and `expr {isinf(1.0)}` -> 0; tclsh 8.6.18
+    // raises `invalid command name "tcl::mathfunc::isnan"`, so 8.6 has no
+    // result to type.
+    for src in [
+        "set x 1.0\nset z [expr {isnan($x)}]",
+        "set x 1.0\nset z [expr {isinf($x)}]",
     ] {
-        assert_eq!(tcl_type(src, var), TclType::Boolean, "{src}");
+        for profile in ["tcl9.0", "tcl9.1"] {
+            assert_eq!(
+                tcl_type_under(profile, src, "z"),
+                TclType::Boolean,
+                "{profile}: {src}"
+            );
+        }
+        assert!(
+            var_types_under("tcl8.6", src, "::top", "z")
+                .values()
+                .all(|t| t.tcl_type().is_none()),
+            "tcl8.6: {src}"
+        );
     }
 }
 
@@ -598,7 +645,7 @@ fn expr_ternary_joins_branch_types() {
 #[test]
 fn comparison_operators_are_boolean() {
     // Every comparison yields 0/1, which tclsh reports as `string is boolean` = 1
-    // (e.g. `expr {1 < 2}` -> 1 => Boolean). Covers < <= > >= != eq ne lt in ni.
+    // (e.g. `expr {1 < 2}` -> 1 => Boolean). Covers < <= > >= != ne in ni.
     let cases = [
         "set a 1\nset b 2\nset z [expr {$a < $b}]",
         "set a 1\nset b 2\nset z [expr {$a <= $b}]",
@@ -606,7 +653,6 @@ fn comparison_operators_are_boolean() {
         "set a 3\nset b 2\nset z [expr {$a >= $b}]",
         "set a 1\nset b 2\nset z [expr {$a != $b}]",
         "set a hello\nset z [expr {$a ne \"world\"}]",
-        "set a abc\nset z [expr {$a lt \"xyz\"}]",
         // tclsh: `set x 1; set list {a b c}; expr {$x in $list}` -> 0 => Boolean
         "set x 1\nset list {a b c}\nset z [expr {$x in $list}]",
         // tclsh: `expr {$x ni $list}` -> 1 => Boolean
@@ -615,6 +661,18 @@ fn comparison_operators_are_boolean() {
     for src in cases {
         assert_eq!(tcl_type(src, "z"), TclType::Boolean, "{src}");
     }
+    // The string orderings arrive in 9.0 (TIP 461). tclsh 9.0.4:
+    // `set a abc; expr {$a lt "xyz"}` -> 1; tclsh 8.6.18 raises
+    // `invalid bareword "lt"`, so 8.6 has no result to type.
+    let ordering = "set a abc\nset z [expr {$a lt \"xyz\"}]";
+    for profile in ["tcl9.0", "tcl9.1"] {
+        assert_eq!(tcl_type_under(profile, ordering, "z"), TclType::Boolean);
+    }
+    assert!(
+        var_types_under("tcl8.6", ordering, "::top", "z")
+            .values()
+            .all(|t| t.tcl_type().is_none())
+    );
 }
 
 // Logical operators
@@ -694,7 +752,11 @@ fn command_sub_in_expr_stays_typed() {
     // time, so the result is over-approximated. The requirement is that it be
     // typed; this pass pins it to NUMERIC (an expr always yields a number, but the
     // exact Int-vs-Double can't be known statically — no single Tcl analogue).
-    let t = var_type("set z [expr {[some_cmd] + 1}]", "z").expect("z typed");
+    let t = var_type(
+        "proc some_cmd {} {return 4}\nset z [expr {[some_cmd] + 1}]",
+        "z",
+    )
+    .expect("z typed");
     assert!(matches!(
         t.tcl_type(),
         Some(TclType::Numeric | TclType::Int | TclType::Double)

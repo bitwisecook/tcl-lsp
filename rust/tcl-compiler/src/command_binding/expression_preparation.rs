@@ -764,10 +764,13 @@ impl SourceConditionalExpressionEvaluation {
     pub(crate) fn normal_result_representation(
         &self,
         variable: impl FnMut(&crate::expr_ast::ExprNode) -> Option<tcl_registry::TclType>,
+        function: impl FnMut(
+            &crate::expr_ast::ExprNode,
+        ) -> Option<tcl_syntax::expr::mathfunc::MathResultClass>,
     ) -> Option<tcl_registry::TclType> {
         self.lookup_closed.then_some(())?;
         self.evaluation
-            .normal_result_representation(self.pool, variable)
+            .normal_result_representation_with_functions(self.pool, variable, function)
     }
 }
 
@@ -2396,13 +2399,16 @@ mod tests {
             .unwrap();
         assert!(descriptor.semantic_lookup_closed());
         assert_eq!(
-            descriptor.normal_result_representation(|_| None),
+            descriptor.normal_result_representation(|_| None, |_| None),
             Some(tcl_registry::TclType::Double)
         );
         let tree = descriptor.tree().clone();
         descriptor.lookup_closed = false;
         assert!(!descriptor.semantic_lookup_closed());
-        assert_eq!(descriptor.normal_result_representation(|_| None), None);
+        assert_eq!(
+            descriptor.normal_result_representation(|_| None, |_| None),
+            None
+        );
         assert_eq!(
             descriptor.tree(),
             &tree,

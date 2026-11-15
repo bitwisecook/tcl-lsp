@@ -560,6 +560,8 @@ pub(crate) type NormalProcedureResultTypes =
 /// Read-only word-shape context at one retained program point.
 struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
     preparations: &'a [crate::command_binding::SourceExpressionPreparation],
+    /// Reached math-function dispatches of the same source inventory.
+    math: &'a [crate::command_binding::SourceMathInvocation],
     tokens: Option<&'a crate::ir::CommandTokens>,
     source: crate::ssa::SsaSourceView<'a>,
     uses: &'a HashMap<Symbol, u32>,
@@ -694,6 +696,7 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
     fn with_tokens<'b>(&'b self, tokens: &'b crate::ir::CommandTokens) -> WordTypingCtx<'b, S> {
         WordTypingCtx {
             preparations: self.preparations,
+            math: self.math,
             tokens: Some(tokens),
             source: self.source,
             uses: self.uses,
@@ -1203,16 +1206,37 @@ fn prepared_expression_result_type<S: std::hash::BuildHasher>(
             .source_binding
             .as_ref()?
             .conditional_expression_evaluation(ctx.registry, tokens)?;
+        let math = crate::math_function_binding::ExpressionMathBindings::for_origin(
+            ctx.math,
+            Some(receipt.source()),
+            Some(advice.expression_base),
+        );
         return receipt
-            .normal_result_representation(|node| {
-                let ExprNode::Var {
-                    text, start, end, ..
-                } = node
-                else {
-                    return None;
-                };
-                variables.get(&(text.clone(), *start, *end))?.tcl_type()
-            })
+            .normal_result_representation(
+                |node| {
+                    let ExprNode::Var {
+                        text, start, end, ..
+                    } = node
+                    else {
+                        return None;
+                    };
+                    variables.get(&(text.clone(), *start, *end))?.tcl_type()
+                },
+                // Only a call whose dispatch reached a registry function
+                // with no alias prefix has that function's result class.
+                |node| {
+                    let ExprNode::Call {
+                        function, start, ..
+                    } = node
+                    else {
+                        return None;
+                    };
+                    let call = math.resolved_call_for_value_analysis(function, *start)?;
+                    call.prepended
+                        .is_empty()
+                        .then(|| tcl_syntax::expr::mathfunc::result_class(call.function))
+                },
+            )
             .map(TypeLattice::of);
     }
     let preparation = tokens
@@ -1489,6 +1513,7 @@ fn type_of_read_contents<S: std::hash::BuildHasher>(
         active_writes.push((block, index));
         let write_ctx = WordTypingCtx {
             preparations: ctx.preparations,
+            math: ctx.math,
             tokens: statement.statement.tokens(),
             source: crate::ssa::SsaSourceView::at_statement(ctx.ssa, block, index),
             uses: &statement.uses,
@@ -2380,6 +2405,7 @@ pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
     // lexical policy; neither is reconstructed from the registry profile.
     let ctx = StatementTypingCtx {
         preparations: &cfg.expression_preparations,
+        math: &cfg.implicit_math_invocations,
         ssa,
         context: Some(context),
         config: metadata.config,
@@ -2586,6 +2612,8 @@ fn refined_type(own: &TypeLattice, proved: TclType) -> TypeLattice {
 /// Shared, read-only context for [`type_infer_process_statements`].
 struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     preparations: &'a [crate::command_binding::SourceExpressionPreparation],
+    /// Reached math-function dispatches of the same source inventory.
+    math: &'a [crate::command_binding::SourceMathInvocation],
     ssa: &'a SsaFunction,
     /// Same retained metadata as each original word query.
     context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
@@ -2642,6 +2670,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
             _ => {
                 let word_ctx = WordTypingCtx {
                     preparations: ctx.preparations,
+                    math: ctx.math,
                     tokens: stmt.tokens(),
                     source,
                     uses: &ssa_stmt.uses,
@@ -2818,6 +2847,7 @@ pub(crate) fn infer_function_return_type_with_results<S: std::hash::BuildHasher>
                 };
                 let context = WordTypingCtx {
                     preparations: &cfg.expression_preparations,
+                    math: &cfg.implicit_math_invocations,
                     tokens: tokens.as_deref(),
                     source: crate::ssa::SsaSourceView::at_terminator(ssa, *bn),
                     uses: &ssa_block.exit_versions,
@@ -3588,6 +3618,7 @@ mod tests {
         let known_classes: HashSet<String> = HashSet::new();
         let context = WordTypingCtx {
             preparations: &[],
+            math: &[],
             tokens: None,
             source: crate::ssa::SsaSourceView::unpositioned(&ssa),
             uses: &uses,
@@ -3687,6 +3718,7 @@ mod tests {
         let known_classes: HashSet<String> = HashSet::new();
         let ctx = WordTypingCtx {
             preparations: &[],
+            math: &[],
             tokens: stmt.tokens(),
             source: crate::ssa::SsaSourceView::unpositioned(ssa),
             uses: &uses,
