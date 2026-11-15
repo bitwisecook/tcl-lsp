@@ -25,11 +25,31 @@
 use tcl_registry::CommandRegistry;
 
 const RELEASES: &[(&str, &str, &str)] = &[
-    ("tcl8.4", "8.4", include_str!("../data/tk_option_tables/tk8.4.20.txt")),
-    ("tcl8.5", "8.5", include_str!("../data/tk_option_tables/tk8.5.19.txt")),
-    ("tcl8.6", "8.6", include_str!("../data/tk_option_tables/tk8.6.18.txt")),
-    ("tcl9.0", "9.0", include_str!("../data/tk_option_tables/tk9.0.4.txt")),
-    ("tcl9.1", "9.1", include_str!("../data/tk_option_tables/tk9.1.0.txt")),
+    (
+        "tcl8.4",
+        "8.4",
+        include_str!("../data/tk_option_tables/tk8.4.20.txt"),
+    ),
+    (
+        "tcl8.5",
+        "8.5",
+        include_str!("../data/tk_option_tables/tk8.5.19.txt"),
+    ),
+    (
+        "tcl8.6",
+        "8.6",
+        include_str!("../data/tk_option_tables/tk8.6.18.txt"),
+    ),
+    (
+        "tcl9.0",
+        "9.0",
+        include_str!("../data/tk_option_tables/tk9.0.4.txt"),
+    ),
+    (
+        "tcl9.1",
+        "9.1",
+        include_str!("../data/tk_option_tables/tk9.1.0.txt"),
+    ),
 ];
 
 #[test]
@@ -59,7 +79,9 @@ fn tk_option_tables_match_the_c_sources() {
                 .filter(|name| !c_options.contains(name))
                 .collect();
             if !missing.is_empty() || !extra.is_empty() {
-                report.push(format!("Tk {tk} {widget}: missing {missing:?} extra {extra:?}"));
+                report.push(format!(
+                    "Tk {tk} {widget}: missing {missing:?} extra {extra:?}"
+                ));
             }
         }
     }

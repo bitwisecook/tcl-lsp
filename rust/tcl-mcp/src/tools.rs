@@ -3869,7 +3869,7 @@ mod original_refactor_request_tests {
     fn original_datagroup_tool_advice_keeps_actual_output_availability_and_selected_horizons() {
         // naming.consumer.original-mcp-refactor-context
         // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
-        let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
+        let source = "if {$x eq {one}} {set answer FIRST} elseif {$x eq {two}} {set answer SECOND}";
         let registry = authored_datagroup_registry();
         let analysis = datagroup_analysis(source, "tcl9.0", registry.clone());
         let index = LineIndex::new(source);
@@ -3894,7 +3894,7 @@ mod original_refactor_request_tests {
             );
         }
         let alias = "interp alias {} choose {} if
-choose {$x eq one} {puts SAME} elseif {$x eq two} {puts SAME}";
+choose {$x eq {one}} {puts SAME} elseif {$x eq {two}} {puts SAME}";
         let alias_owner = datagroup_analysis(alias, "tcl9.0", registry.clone());
         assert!(
             datagroup_advice(
@@ -3906,8 +3906,8 @@ choose {$x eq one} {puts SAME} elseif {$x eq two} {puts SAME}";
             )
             .is_some()
         );
-        let captured = "interp alias {} choose {} if {$x eq one}
-choose {puts SAME} elseif {$x eq two} {puts SAME}";
+        let captured = "interp alias {} choose {} if {$x eq {one}}
+choose {puts SAME} elseif {$x eq {two}} {puts SAME}";
         let owner = datagroup_analysis(captured, "tcl9.0", registry);
         assert!(
             datagroup_advice(
@@ -3925,7 +3925,7 @@ choose {puts SAME} elseif {$x eq two} {puts SAME}";
     fn original_datagroup_tool_advice_refuses_missing_stale_foreign_and_unavailable_owners() {
         // naming.consumer.original-mcp-refactor-context
         // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
-        let source = "if {$x eq one} {set answer FIRST} elseif {$x eq two} {set answer SECOND}";
+        let source = "if {$x eq {one}} {set answer FIRST} elseif {$x eq {two}} {set answer SECOND}";
         let registry = authored_datagroup_registry();
         let analysis = datagroup_analysis(source, "tcl9.0", registry.clone());
         let index = LineIndex::new(source);

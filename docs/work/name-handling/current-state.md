@@ -379,7 +379,7 @@ Measuring: a probe test that builds the input and times `analyse` (the task brie
 
 ## iRules, registry, SpecTcl and tooling area, 15 November 2026
 
-Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 52, `tcl-spectcl` 38, `tcl-spec-studio` 12, `tcl-diagram` 17, `tcl-explorer` 16, `tcl-mcp` 10, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
+Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 52, `tcl-spectcl` 38, `tcl-spec-studio` 12, `tcl-diagram` 17, `tcl-explorer` 16, `tcl-mcp` 7, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
 
 Fixed:
 
@@ -409,6 +409,8 @@ Second batch: `codegen_stamps` ran a Tcl 9.0 module and its setup script on a pr
 
 Third batch (`tcl-spec-studio` 21 to 14): the dead `CommandSpec::substitution_resolver` (never set, never read; the consumer contract already says the field is gone) is removed, with the pack goldens regenerated for the changed spec digest. `schema_coverage` no longer demands a schema entry for a field the crate's coverage ledger excludes with a reason. Nine unclustered fields are filed in relation clusters. A probed command name loses the one root marker `info commands` reports (tclsh 8.6 and 9.0 print `::demo::fixed`); a row the C scan already holds keeps its spelling; `probe_descriptor_projection_keeps_colon_components_separate` was inverted to match (`:::::p` gives `:::p`, no colon collapsing). `cargo xtask command-backing --check` is stale on `work` for `clock` and `tcl::prefix` (VM column `builtin` to `absent`), unrelated to this area and left for the execution owner.
 
+Test-table collapse, started: `tcl-cli` `tests/cli.rs` had three tests running one Jim program under `--dialect jim`, a `jimsh` shebang and `--dialect tcl8.6`; they are one table, `diag_reads_the_jim_program_under_jim_and_refuses_it_under_tcl_8_6` (crate test count 491 to 489 with `tcl-spectcl`). Nothing else has been collapsed.
+
 Classification of what still fails (first failing assertion, one run):
 
 | Crate | Group | Count | Owner |
@@ -430,7 +432,9 @@ Classification of what still fails (first failing assertion, one run):
 | `tcl-explorer` | SCCP, AOT premises, WASM tier, shimmer, taint replay views | 14 | Dataflow and Execution |
 | `tcl-explorer` | `supplied_analysis_input_controls_the_document_pipeline`, `source_function_rows_preserve_duplicate_names_and_named_top` | 2 | this area |
 | `tcl-mcp` | `policy_tests` (W242, noqa, review families, lone-CR optimise) | 4 | Analyser and Dataflow |
-| `tcl-mcp` | `datagroup::*` and `original_datagroup_tool_advice_*` (no suggestion for `if {$host eq a || $host eq b}`) | 6 | this area |
+| `tcl-mcp` | fixed 3: the fixtures compared against bare words (`$host eq a`), which `expr` refuses on 8.6.18 and 9.0.4 (`invalid bareword "a"`); the operands are braced | 0 | done |
+| `tcl-mcp` | `original_datagroup_arm_parser_preserves_body_bom_and_actual_grammar_overrides`: now a per-release table; `return ${a{b}` is complete on 8.4.20 and 8.6.18 and incomplete on 9.0.4 and 9.1.0 ("missing close-brace for variable name"), but the segmenter under the Tcl 9.0 file grammar still reports it complete | 1 | Lexer/segmenter |
+| `tcl-mcp` | `original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility` (no static extraction under an explicit lexical profile), `original_switch_suggestions_keep_selected_alias_and_current_analysis` (`interp alias {} select {} switch -exact --` gives no suggestion) | 2 | this area, open |
 
 ## Scope and publication
 

@@ -2695,34 +2695,60 @@ fn problems(rows: &[(String, String)]) -> Vec<&(String, String)> {
         .collect()
 }
 
-/// Under `--dialect jim` the program draws no error or warning.
+/// One Jim program under the dialect each run selects: clean under Jim, by
+/// flag or by a `jimsh` shebang, and refused under Tcl 8.6. The 8.6 row is the
+/// control: the clean results come from the dialect and not from a `diag`
+/// that reports nothing. There the four-word `proc` is an arity error and
+/// `loop` and `sleep` are Jim's commands, disabled in a Tcl document.
 #[test]
-fn diag_accepts_the_jim_program_under_the_jim_dialect() {
-    let (code, rows) = diag_severities("jim-flag", JIM_PROGRAM, &["--dialect", "jim"]);
-    assert_eq!(code, Some(0), "{rows:?}");
-    assert_eq!(problems(&rows), Vec::<&(String, String)>::new(), "{rows:?}");
-}
-
-/// The control for the Jim runs: the same program under Tcl 8.6 is refused, so
-/// the clean result above comes from the dialect and not from a `diag` that
-/// reports nothing. The four-word `proc` is an arity error and `loop` and
-/// `sleep` are Jim's commands, disabled in a Tcl document.
-#[test]
-fn diag_rejects_the_jim_program_under_tcl86() {
-    let (code, rows) = diag_severities("jim-tcl86", JIM_PROGRAM, &["--dialect", "tcl8.6"]);
-    assert_eq!(code, Some(1), "{rows:?}");
-    let codes: Vec<&str> = rows.iter().map(|(_, c)| c.as_str()).collect();
-    assert!(codes.contains(&"E003"), "{rows:?}");
-    assert!(codes.contains(&"W002"), "{rows:?}");
-}
-
-/// A `jimsh` shebang selects Jim with no `--dialect` flag.
-#[test]
-fn diag_analyses_a_jimsh_shebang_document_as_jim() {
-    let text = format!("#!/usr/bin/env jimsh\n{JIM_PROGRAM}");
-    let (code, rows) = diag_severities("jim-shebang", &text, &[]);
-    assert_eq!(code, Some(0), "{rows:?}");
-    assert_eq!(problems(&rows), Vec::<&(String, String)>::new(), "{rows:?}");
+fn diag_reads_the_jim_program_under_jim_and_refuses_it_under_tcl_8_6() {
+    struct Run<'a> {
+        label: &'a str,
+        text: &'a str,
+        arguments: &'a [&'a str],
+        exit: i32,
+        codes: &'a [&'a str],
+    }
+    let shebang = format!("#!/usr/bin/env jimsh\n{JIM_PROGRAM}");
+    let runs = [
+        Run {
+            label: "jim-flag",
+            text: JIM_PROGRAM,
+            arguments: &["--dialect", "jim"],
+            exit: 0,
+            codes: &[],
+        },
+        Run {
+            label: "jim-shebang",
+            text: &shebang,
+            arguments: &[],
+            exit: 0,
+            codes: &[],
+        },
+        Run {
+            label: "jim-tcl86",
+            text: JIM_PROGRAM,
+            arguments: &["--dialect", "tcl8.6"],
+            exit: 1,
+            codes: &["E003", "W002"],
+        },
+    ];
+    for run in runs {
+        let label = run.label;
+        let (code, found) = diag_severities(label, run.text, run.arguments);
+        assert_eq!(code, Some(run.exit), "{label}: {found:?}");
+        if run.exit == 0 {
+            assert_eq!(
+                problems(&found),
+                Vec::<&(String, String)>::new(),
+                "{label}: {found:?}"
+            );
+        }
+        let codes: Vec<&str> = found.iter().map(|(_, code)| code.as_str()).collect();
+        for wanted in run.codes {
+            assert!(codes.contains(wanted), "{label}: {wanted} in {found:?}");
+        }
+    }
 }
 
 /// A tool shell's alias is accepted as the dialect.

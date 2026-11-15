@@ -702,8 +702,11 @@ mod original_arm_parser_purpose_tests {
         // naming.source.original-configured-script-completeness
         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
         // Heuristic body shape only; static edit eligibility is independent.
-        let profile = tcl_dialect::DialectProfile::plain_tcl();
-        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let config_for = |release| {
+            let profile = tcl_registry::model::ingress::resolve_environment(release).unit_profile();
+            LexerConfig::for_file_grammar(profile.grammar)
+        };
+        let config = config_for("tcl9.0");
         assert!(
             matches!(parse_set_or_return("set x value", config), Some(SetOrReturn::Set(name)) if name == "x")
         );
@@ -712,18 +715,31 @@ mod original_arm_parser_purpose_tests {
             segment_commands_with_offset_and_config("\u{feff}set x value", 0, config)[0].name(),
             "set"
         );
-        let mut first_close = config;
-        first_close.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
-        assert!(matches!(
-            parse_set_or_return("return ${a{b}", first_close),
-            Some(SetOrReturn::Return)
-        ));
-        assert!(parse_set_or_return("return ${a{b}", config).is_none());
+        // `${a{b}` names `a{b` on Tcl 8.4.20 and 8.6.18 (the first close
+        // brace ends it); 9.0.4 and 9.1.0 nest and report "missing
+        // close-brace for variable name".
+        for (release, complete) in [
+            ("tcl8.4", true),
+            ("tcl8.6", true),
+            ("tcl9.0", false),
+            ("tcl9.1", false),
+        ] {
+            assert_eq!(
+                matches!(
+                    parse_set_or_return("return ${a{b}", config_for(release)),
+                    Some(SetOrReturn::Return)
+                ),
+                complete,
+                "{release}"
+            );
+        }
     }
     #[test]
     fn if_suggestions_use_actual_selected_source_schema_and_refuse_shadowed_heads() {
         for head in ["if", "::if", "\"if\""] {
-            let source = format!("{head} {{$host eq a || $host eq b}} {{drop}}");
+            // A bare word is no expr operand (Tcl 8.6.18, 9.0.4: `invalid
+            // bareword "a"`), so the operands are braced.
+            let source = format!("{head} {{$host eq {{a}} || $host eq {{b}}}} {{drop}}");
             let analysis = crate::tools::analyse(&source, "tcl8.6");
             let found = suggest_for_analysis(&source, &analysis);
             assert_eq!(found.len(), 1, "{source}");
@@ -740,9 +756,9 @@ mod original_arm_parser_purpose_tests {
             assert!(suggest_for_analysis(&source, &missing).is_empty());
         }
         for source in [
-            "proc if args {return NOOP}; if {$host eq a || $host eq b} {drop}",
-            "rename if original_if; proc if args {return NOOP}; if {$host eq a || $host eq b} {drop}",
-            "{*}{if {$host eq a || $host eq b} {drop}}",
+            "proc if args {return NOOP}; if {$host eq {a} || $host eq {b}} {drop}",
+            "rename if original_if; proc if args {return NOOP}; if {$host eq {a} || $host eq {b}} {drop}",
+            "{*}{if {$host eq {a} || $host eq {b}} {drop}}",
         ] {
             let analysis = crate::tools::analyse(source, "tcl8.6");
             assert!(
