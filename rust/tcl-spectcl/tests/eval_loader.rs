@@ -631,6 +631,24 @@ fn a_pack_calling_clock_fails_closed_with_the_determinism_notice() {
 }
 
 #[test]
+fn a_pack_calling_rand_or_srand_fails_closed_with_the_randomness_axis() {
+    for call in ["rand()", "srand(7)"] {
+        let source = format!(
+            "speclib dice 2.0 {{\n    command fine {{ arity 1 }}\n    \
+             set x [expr {{{call}}}]\n}}\n"
+        );
+        let pack = evaluate_pack(&source);
+        assert!(
+            matches!(&pack.load_error, Some(LoadError::Determinism(message))
+                if message.contains("randomness")),
+            "{call}: {:?}",
+            pack.load_error
+        );
+        assert!(pack.commands.is_empty(), "registration is transactional");
+    }
+}
+
+#[test]
 fn a_caught_denial_still_fails_closed_as_a_determinism_error() {
     let source = "speclib sly 2.0 {\n    command fine { arity 1 }\n    \
                   catch {clock seconds}\n    error {unrelated failure}\n}\n";

@@ -136,6 +136,10 @@ const DENIED_COMMANDS: &[(&str, &str)] = &[
     ("coroutine", "sandbox containment"),
     ("yield", "sandbox containment"),
     ("yieldto", "sandbox containment"),
+    // Swept from the sandbox, so `expr {rand()}` reaches `unknown` under its
+    // math-function command name, as a missing function does in C Tcl.
+    ("tcl::mathfunc::rand", "randomness"),
+    ("tcl::mathfunc::srand", "randomness"),
 ];
 
 /// The determinism axis `name` is denied on, when it is a denied command
@@ -653,29 +657,30 @@ mod tests {
     /// `rand` is swept from the sandbox, so `rand()` meets `unknown` exactly as
     /// a missing math function does in C Tcl (`tclsh9.0.4`: with
     /// `proc unknown args {return U:$args}`, `expr {foo()}` is
-    /// `U:tcl::mathfunc::foo`) and the random generator is never reached.
+    /// `U:tcl::mathfunc::foo`). There it is a randomness denial, so the
+    /// random generator is never reached and nothing is registered.
     #[test]
-    fn rand_is_unreachable_from_expr() {
-        let (seen, vocabulary, unknown) = capture_all();
-        let outcome = run_pack_program(
-            "register [expr {rand()}]\n",
-            &vocabulary,
-            &unknown,
-            &PackEvalConfig::default(),
-        );
-        let rows = seen.borrow();
-        assert!(
-            rows.iter().any(|row| row[0] == "?"
-                && tcl_syntax::naming::unroot_rooted_key(&row[1]).unwrap_or(&row[1])
-                    == "tcl::mathfunc::rand"),
-            "{outcome:?} {rows:?}"
-        );
-        assert!(
-            rows.iter()
-                .filter(|row| row[0] == "register")
-                .all(|row| row.get(1).is_none_or(|value| value.parse::<f64>().is_err())),
-            "no random value may be registered: {rows:?}"
-        );
+    fn rand_and_srand_are_randomness_denials() {
+        for call in ["rand()", "srand(1)"] {
+            let (seen, vocabulary, unknown) = capture_all();
+            let outcome = run_pack_program(
+                &format!("register [expr {{{call}}}]\n"),
+                &vocabulary,
+                &unknown,
+                &PackEvalConfig::default(),
+            );
+            assert!(
+                matches!(&outcome, Err(PackEvalFailure::Script(message))
+                    if message.contains("randomness")),
+                "{call}: {outcome:?}"
+            );
+            assert!(
+                seen.borrow().iter().all(|row| row[0] != "register"),
+                "{call}: no random value may be registered: {:?}",
+                seen.borrow()
+            );
+        }
+        assert_eq!(denied_axis("::tcl::mathfunc::rand"), Some("randomness"));
     }
 
     #[test]
