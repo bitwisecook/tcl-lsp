@@ -5348,8 +5348,12 @@ mod tests {
     use crate::cfg::{Block, BlockId, Function, Terminator};
     use crate::expr_ast::ExprNode;
 
+    /// The Tcl 8.6 registry: a fixture here is release-invariant unless it
+    /// names another release.
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     /// [`evaluate_fixture_def_with_folds`] under a module that mutates no command
@@ -5614,7 +5618,7 @@ mod tests {
     /// it does for `Barrier`.
     #[test]
     fn existence_fold_abstains_for_a_live_upframe() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {} { uplevel 0 { set created 1 }; if {[info exists created]} { return yes } else { return no } }",
             &registry,
@@ -5641,7 +5645,7 @@ mod tests {
     /// and its true arm is unreachable. tclsh 8.4 to 9.1 print `no`.
     #[test]
     fn set_unset_info_exists_decides_zero() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {} { set x 1; unset x; if {[info exists x]} { puts yes } else { puts no } }",
             &registry,
@@ -5692,7 +5696,7 @@ mod tests {
     /// never refined: both its reads stay may-bound.
     #[test]
     fn the_existence_guard_refines_its_edges() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {c} { if {$c} { set x 1 }; if {[info exists x]} { puts $x } else { puts none }; puts $x }\n\
              proc g {c} { if {$c} { set x 1 }; if {![info exists x]} { puts none } else { puts $x }; puts $x }\n\
@@ -5742,7 +5746,7 @@ mod tests {
     /// through an alias before the edge is taken.
     #[test]
     fn an_impure_operand_ends_the_facts_before_it() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {c} { if {$c} { set x 1; set y 1 }; if {[info exists x] && [info exists y]} { puts $x$y } }\n\
              proc g {c} { if {$c} { set x 1 }; if {[otherproc] && [info exists x]} { puts $x } }\n\
@@ -5769,7 +5773,7 @@ mod tests {
     /// the object's variable without any barrier.
     #[test]
     fn an_externally_mutable_place_is_never_refined() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "if {[info exists ::errorInfo]} {puts $::errorInfo}\n\
              proc p {} { if {[info exists ::errorInfo]} {puts $::errorInfo} }\n\
@@ -5814,7 +5818,7 @@ mod tests {
     /// opaque barrier, `eval $script`, widens it.
     #[test]
     fn a_return_that_leaves_the_procedure_widens_nothing() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let value_of_es = |body: &str| {
             let source = format!("proc r {{script}} {{\n    set es abc\n    {body}\n}}\n");
             let cu = crate::compilation_unit::CompilationUnit::build_for(&source, &registry, false);
@@ -5837,7 +5841,7 @@ mod tests {
     /// barrier, and may-bound after it — the script may have unset it.
     #[test]
     fn a_barrier_ends_the_refinement() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc m {script c} { if {$c} {set x 1}; if {[info exists x]} { puts $x; eval $script; puts $x } }\n",
             &registry,
@@ -6133,7 +6137,7 @@ mod tests {
     /// without a new version — ends it, in its own block and after.
     #[test]
     fn a_value_refinement_holds_where_every_path_carries_it() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc p {x c} {if {$x eq \"a\"} {if {$c} {puts 1} else {puts 2}; puts $x}; puts $x}\n\
              proc m {x script} {if {$x eq \"a\"} {puts $x; time $script; puts $x}}\n",
@@ -6180,7 +6184,7 @@ mod tests {
         // aliases that frame's parameter and unsets it, so Tcl observes the else
         // branch. The no-uplevel twin proves the branch is otherwise foldable;
         // this is a mutation test of the exact fact the fold must block.
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let stable = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {local} { if {[info exists local]} { return yes } else { return no } }",
             &registry,
@@ -6233,8 +6237,8 @@ mod tests {
         // unset alias}}; caller` returns 0. The literal UpFrame body therefore
         // carries a real caller-frame mutation, not merely a control-flow
         // wrapper, and is a separate vector from the nested local-frame test.
-        let registry = CommandRegistry::build_default()
-            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let registry =
+            registry().project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {} { uplevel 1 { upvar 0 caller_value alias; unset alias } }",
             &registry,
@@ -6483,8 +6487,8 @@ mod tests {
     /// module resolves leaves the local's existence decided.
     #[test]
     fn an_unseen_call_leaves_no_name_with_a_settled_existence() {
-        let registry = CommandRegistry::build_default()
-            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let registry =
+            registry().project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         for (source, function) in [
             (
                 "set x 1\nfoo\nif {[info exists x]} { puts a } else { puts b }\n",
@@ -8478,11 +8482,7 @@ p
     }
 
     fn cu(src: &str) -> crate::compilation_unit::CompilationUnit {
-        crate::compilation_unit::CompilationUnit::build_for(
-            src,
-            &tcl_registry::CommandRegistry::build_default(),
-            false,
-        )
+        crate::compilation_unit::CompilationUnit::build_for(src, &registry(), false)
     }
 
     /// A condition resolves a nested pure command through the driver's
@@ -8737,7 +8737,7 @@ p
     /// puts $fresh }` called with `q1`, and fail on `$fresh` with `zz`.
     #[test]
     fn an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         for arm in ["-glob", "-nocase", "-regexp"] {
             let cu = crate::compilation_unit::CompilationUnit::build_for(
                 &format!(
@@ -8767,7 +8767,7 @@ p
     /// writes only a global leaves a local alone.
     #[test]
     fn an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettled() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         for source in [
             "proc zero {v} {upvar 1 $v x; set x 0}\nproc f {s} { set go 1; switch -glob -- $s { q* { zero go } }; puts $go }",
             "proc f {s} { set go 1; switch -glob -- $s { q* { dict with d { set go 0 } } }; puts $go }",
@@ -8799,7 +8799,7 @@ p
     /// alike, and a callback that writes a computed name makes every name so.
     #[test]
     fn the_names_a_callback_writes_are_never_constant() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         for source in [
             "set go 1\nafter idle {set ::go 0}\nputs $go\n",
             "set go 1\nafter 100 { set go 0 }\nputs $go\n",
@@ -8833,7 +8833,7 @@ p
     /// The values the solver gives the last definitions of `names` in the
     /// function `name` of `source`.
     fn last_values(source: &str, name: &str, names: &[&str]) -> Vec<LatticeValue> {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
         let f = cu.function(name).expect("function analysed");
         names
@@ -8903,7 +8903,7 @@ p
             "proc p {} {set x 1; set r [expr {$x + [incr x] + (0 && [foo])}]; return $r}\n";
         assert_eq!(last_values(skipped, "::p", &["r"]), [int(3)], "{skipped}");
         let preserved = "proc p {} {set x 1; set r [expr {0 && [incr x]}]; return $x}\n";
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(preserved, &registry, false);
         let f = cu.function("::p").expect("analysed");
         let x = f.ssa.var_symbol("x").expect("x");
@@ -9079,7 +9079,7 @@ p
     /// keeps its constant.
     #[test]
     fn an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one() {
-        let registry = CommandRegistry::build_default();
+        let registry = registry();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "set x 1\nputs $x\nfoo\nputs $x\nset y 2\nset x 3\nputs $x$y\n",
             &registry,
