@@ -23,6 +23,7 @@ use tcl_lexer::word_parts::NativeWord;
 use tcl_lexer::{LexerConfig, SourceImage, SourceMap, Span};
 use tcl_registry::native_compilation::{
     NativeCompilationContext, NativeCompilationSelection, NativeCompilationSpec,
+    NativeCompilationWordShape,
 };
 use tcl_registry::native_compiler_words::NativeCompilerWords;
 use tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingCompilation;
@@ -101,6 +102,12 @@ pub(crate) fn original_native_compilation(
     let Ok(captured) = NativeCompilerWords::capture(&original, protocol) else {
         return Some((NativeCompilationSelection::Unknown, None));
     };
+    if !spec.requires_original_word_preparation_of(
+        captured.shapes()[invocation.operand_from.min(captured.shapes().len())..]
+            .contains(&NativeCompilationWordShape::Expanded),
+    ) {
+        return None;
+    }
     let selection = spec.select_native_words(
         &captured,
         invocation.operand_from,

@@ -2402,6 +2402,18 @@ impl NativeCompilationSpec {
         }
     }
 
+    /// [`Self::requires_original_word_preparation`] for one command whose
+    /// operands include an expanded word when `expanded` is set.
+    ///
+    /// `TclCompileListCmd` sees a literal `{*}{a b}` only after the parser
+    /// has flattened it, a projection the List recipe does not take yet; such
+    /// a `list` keeps its expanded emission.
+    #[must_use]
+    pub const fn requires_original_word_preparation_of(self, expanded: bool) -> bool {
+        self.requires_original_word_preparation()
+            && !(expanded && matches!(self.grammar, NativeCompilationGrammar::ArgumentList))
+    }
+
     /// Whether compilation prepares original source operands through a shared
     /// instruction recipe. This capability supplies neither a selected hook
     /// nor permission to execute a generic handler after compilation fails.

@@ -1861,7 +1861,11 @@ impl CodegenCtx<'_> {
         else {
             return false;
         };
-        if !plan.spec.requires_original_word_preparation() {
+        if !plan.spec.requires_original_word_preparation_of(
+            original
+                .get(plan.operand_from..)
+                .is_some_and(|words| words.iter().any(|word| word.group().expand)),
+        ) {
             return false;
         }
         self.emit_native_words(&original);
