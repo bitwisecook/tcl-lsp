@@ -1033,9 +1033,36 @@ fn record_global_upframe_body(
     // lattice so an alias prefix such as `interp alias {} put {} set x`
     // contributes `x` even when the source call's lower-time `defs` is empty.
     // The body runs at #0, so bare command heads resolve in the global namespace.
-    let projection = project_script_writes(body, semantics, &ExecutionNamespace::exact("::"));
+    let namespace = ExecutionNamespace::exact("::");
+    let projection = project_script_writes(body, semantics, &namespace);
+    // A name the body links to another global (`upvar 0 g local`, `global`,
+    // `upvar #0`) writes that global too: tclsh 8.4 to 9.1 print 1 for
+    // `proc p {} {uplevel #0 {upvar 0 g local; set local 1}}; set g 0; p; puts $g`.
+    let mut aliases = OuterAliasProjection {
+        frame_is_global: true,
+        ..OuterAliasProjection::default()
+    };
+    accumulate_state(
+        body,
+        &mut State::default(),
+        &mut aliases,
+        semantics,
+        &namespace,
+    );
+    let writes = !projection.literal_names.is_empty();
     for name in projection.literal_names {
         record_global_frame_write(&name, info);
+        let root = literal_root(&name);
+        for outer in aliases.targets.get(root).into_iter().flatten() {
+            record_global_frame_write(outer, info);
+        }
+        info.opaque_global_frame |= aliases.opaque_locals.contains(root);
+    }
+    if writes {
+        for outer in &aliases.dynamic_local_targets {
+            record_global_frame_write(outer, info);
+        }
+        info.opaque_global_frame |= aliases.dynamic_local_opaque;
     }
     info.opaque_global_frame |= projection.opaque_variable_frame;
 }
@@ -1066,15 +1093,7 @@ fn record_literal_global_body(
     // the freshly lowered body through the original module's closed bindings:
     // a later `interp alias {} put {} set x` must be just as visible here as
     // it is for a directly lowered `Statement::UpFrame`.
-    let projection = project_script_writes(
-        &module.top_level,
-        semantics,
-        &ExecutionNamespace::exact("::"),
-    );
-    for name in projection.literal_names {
-        record_global_frame_write(&name, info);
-    }
-    info.opaque_global_frame |= projection.opaque_variable_frame;
+    record_global_upframe_body(&module.top_level, semantics, info);
     true
 }
 
@@ -1292,6 +1311,9 @@ struct OuterAliasProjection {
     dynamic_local_targets: BTreeSet<String>,
     /// A runtime-selected local name aliases a non-enumerable outer cell.
     dynamic_local_opaque: bool,
+    /// The script runs at the global frame, so an alias into its own frame
+    /// (`upvar 0 g local`) is an alias of a global.
+    frame_is_global: bool,
 }
 
 enum OuterAliasTarget {
@@ -1322,6 +1344,7 @@ fn collect_renamed_outer_alias(
 fn selected_outer_alias_target(
     target: &tcl_registry::VariableAliasTarget,
     semantics: &GlobalWriteSemantics<'_>,
+    frame_is_global: bool,
 ) -> Option<OuterAliasTarget> {
     let literal = |variable: &tcl_registry::TransitionSubject| {
         variable.literal().map_or(OuterAliasTarget::Opaque, |name| {
@@ -1364,7 +1387,11 @@ fn selected_outer_alias_target(
                 level.as_bytes(),
                 dialect,
             ) {
-                Some(Some(level)) if level.is_global_frame() => Some(literal(variable)),
+                Some(Some(level))
+                    if level.is_global_frame() || (frame_is_global && level.is_current_frame()) =>
+                {
+                    Some(literal(variable))
+                }
                 // Invalid literal levels install no alias; other known levels
                 // belong to the caller-frame summary instead of this one.
                 Some(_) => None,
@@ -1397,7 +1424,9 @@ fn collect_renamed_outer_alias_transition(
     renamed_aliases: &mut OuterAliasProjection,
     semantics: &GlobalWriteSemantics<'_>,
 ) {
-    let Some(outer) = selected_outer_alias_target(&alias.target, semantics) else {
+    let Some(outer) =
+        selected_outer_alias_target(&alias.target, semantics, renamed_aliases.frame_is_global)
+    else {
         return;
     };
     match (alias.local.literal(), outer) {
@@ -3131,6 +3160,27 @@ mod tests {
                 .unwrap()
                 .opaque_global_frame
         );
+    }
+
+    /// A global-frame script that links a name to a global writes that
+    /// global: tclsh 8.4 to 9.1 print `1 1` for
+    /// `proc p {} {uplevel #0 {upvar 0 g local; set local 1}}; set g 0; p;
+    /// puts -nonewline "$g "; proc q {} {uplevel #0 {upvar #0 h local2; set
+    /// local2 1}}; set h 0; q; puts $h`.
+    #[test]
+    fn a_global_frame_script_writes_the_global_its_own_alias_names() {
+        for (body, global) in [
+            ("upvar 0 g local; set local 1", "g"),
+            ("::upvar 0 g local; ::set local 1", "g"),
+            ("upvar #0 h local2; set local2 1", "h"),
+        ] {
+            let m = module(&format!("proc ::p {{}} {{ uplevel #0 {{ {body} }} }}"));
+            let info = detect_global_write_procs(&m);
+            assert!(
+                info[&summary_id(&m, "::p")].names.contains(global),
+                "{body}: {info:?}"
+            );
+        }
     }
 
     #[test]
