@@ -873,6 +873,33 @@ mod require_ordering_tests {
     /// index lists, so with no index entry the import links exactly what the
     /// namespace exports.
     ///
+    /// A quoted word with no substitution is one pushed literal, and a word
+    /// of several parts is a fresh string; neither can carry an abstract
+    /// list representation whose length callback might run anything.
+    ///
+    /// tclsh 8.6.18, 9.0.4 and 9.1.0: `tcl::unsupported::disassemble script
+    /// {llength "a b"; llength {a b}}` pushes the same literal index for
+    /// both, and `tcl::unsupported::representation "a b $n"` reports a
+    /// string object with a refcount of 1.
+    #[test]
+    fn a_quoted_or_compound_list_operand_keeps_the_command_world() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for operand in ["\"a b\"", "\"a\\tb $n\"", "{a b}"] {
+                let source = format!("set n 1\nset m [llength {operand}]\nnosuch\n");
+                let result = crate::analyser::Analyser::new().analyse(&source, release);
+                assert_eq!(
+                    result
+                        .diagnostics
+                        .iter()
+                        .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W123)
+                        .count(),
+                    1,
+                    "{release}: {operand}"
+                );
+            }
+        }
+    }
+
     /// A catalogued package publishes its export list with its commands, so
     /// a wildcard import brings them in and the bare head keeps its spec.
     ///

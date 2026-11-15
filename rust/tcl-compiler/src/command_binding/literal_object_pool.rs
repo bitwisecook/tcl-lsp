@@ -270,6 +270,23 @@ impl SourceStockLiteralObject {
     }
 }
 
+/// A word the compiler pushes as one literal object: bare, braced, or a
+/// quoted or compound word made of text alone (its backslash sequences are
+/// folded at compile time).
+fn pushes_one_literal(word: &crate::ir::WordExpr) -> bool {
+    match word {
+        crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. } => true,
+        crate::ir::WordExpr::Template {
+            parts,
+            rejected: None,
+            ..
+        } => parts
+            .iter()
+            .all(|part| matches!(part, crate::ir::WordPart::Text { .. })),
+        _ => false,
+    }
+}
+
 impl SourceOrdinaryLiteralObject {
     pub(super) fn capture_original_word(
         word: &crate::ir::WordExpr,
@@ -280,10 +297,7 @@ impl SourceOrdinaryLiteralObject {
         if !state.ordinary_literal_pool.as_ref()?.effects_current() {
             return None;
         }
-        if !matches!(
-            word,
-            crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
-        ) {
+        if !pushes_one_literal(word) {
             return None;
         }
         let origin = state.current_source_origin.as_ref()?;
@@ -304,11 +318,7 @@ impl SourceOrdinaryLiteralObject {
         if !pool.authored_objects() {
             return None;
         }
-        matches!(
-            word,
-            crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
-        )
-        .then_some(SourceStockLiteralObject {
+        pushes_one_literal(word).then_some(SourceStockLiteralObject {
             representation: tcl_syntax::value::ValueRepresentation::Unknown,
             alternatives: None,
             integer_contents: pool.integer_contents,
@@ -373,10 +383,7 @@ impl SourceOrdinaryLiteralObject {
         context.written_representations?;
         super::native_result::numeric_call_arguments(context, native.target)?;
         let word = native.script_operands().written_word(argument)?;
-        if !matches!(
-            word,
-            crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
-        ) {
+        if !pushes_one_literal(word) {
             return None;
         }
         let value = native.invocation.arguments().literal_at(argument)?;

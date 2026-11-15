@@ -347,6 +347,17 @@ fn current_input_protocol(
     if !original_operand_is_current(native, argument, context) {
         return ObjectInputProtocol::Unknown;
     }
+    // A word of two or more parts is concatenated into a fresh string object
+    // each time; no earlier holder gave it a list or abstract representation.
+    if let Some(crate::ir::WordExpr::Template {
+        parts,
+        rejected: None,
+        ..
+    }) = native.script_operands().written_word(argument)
+        && parts.len() >= 2
+    {
+        return ObjectInputProtocol::Ordinary;
+    }
     let Some(place) =
         super::argument_reads::current_argument_place(native, argument, state, context)
     else {
