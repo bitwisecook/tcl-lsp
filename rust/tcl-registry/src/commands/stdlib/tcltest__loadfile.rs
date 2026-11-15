@@ -34,6 +34,7 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("tcltest"),
         deprecated_replacement: Some("tcltest::configure"),
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }

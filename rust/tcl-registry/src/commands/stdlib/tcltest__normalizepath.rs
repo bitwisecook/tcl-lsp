@@ -38,6 +38,7 @@ pub fn spec() -> CommandSpec {
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::WRITES_A_HOST_PATH,
         ),
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }

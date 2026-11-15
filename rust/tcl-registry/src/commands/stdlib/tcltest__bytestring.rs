@@ -35,6 +35,7 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("tcltest"),
         deprecated_replacement: Some("encoding convertfrom identity"),
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }

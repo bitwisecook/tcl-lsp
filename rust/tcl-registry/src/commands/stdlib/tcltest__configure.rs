@@ -280,6 +280,7 @@ pub fn spec() -> CommandSpec {
             dynamic_fallback: WorldEffectDynamicFallback::Declared(CONFIGURATION_WRITES),
             ..WorldEffectDescriptor::EMPTY
         }),
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }

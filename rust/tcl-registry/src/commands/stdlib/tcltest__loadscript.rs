@@ -41,6 +41,7 @@ pub fn spec() -> CommandSpec {
         // stop}; set ::reached 1 }` sets `::reached`.
         traits: Traits::DEFERS_BODY,
         deprecated_replacement: Some("tcltest::configure"),
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }

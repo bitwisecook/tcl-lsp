@@ -44,6 +44,7 @@ pub fn spec() -> CommandSpec {
                 .with_detail(1)
                 .defined_when_present(1),
         ),
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }

@@ -33,6 +33,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("tcltest"),
+        is_namespace_exported: true,
         ..CommandSpec::DEFAULT
     }
 }
