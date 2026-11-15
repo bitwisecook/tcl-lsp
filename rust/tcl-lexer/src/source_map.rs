@@ -111,6 +111,10 @@ pub struct SourceImage {
 struct SourceImageGeometry {
     byte_hash: std::sync::OnceLock<u64>,
     line_index: std::sync::OnceLock<Option<LineIndex>>,
+    /// The image's bytes as text, in the same allocation, for an image built
+    /// from text: its Unicode view is never validated again. Held here so
+    /// the image itself stays three words.
+    text: Option<std::sync::Arc<str>>,
 }
 
 /// Document images one thread keeps for [`SourceImage::document`]: a
@@ -328,14 +332,19 @@ impl SourceImage {
     #[must_use]
     pub fn document(text: &str) -> Self {
         RECENT_DOCUMENTS.with_borrow_mut(|recent| {
-            if let Some(found) = recent
-                .iter()
-                .position(|image| image.bytes() == text.as_bytes())
-            {
+            if let Some(found) = recent.iter().position(|image| image.has_bytes_of(text)) {
                 recent[..=found].rotate_right(1);
                 return recent[0].clone();
             }
-            let image = Self::from_bytes(text.as_bytes(), SourceChannel::Document);
+            let text = std::sync::Arc::<str>::from(text);
+            let image = Self {
+                bytes: std::sync::Arc::from(std::sync::Arc::clone(&text)),
+                channel: SourceChannel::Document,
+                geometry: std::sync::Arc::new(SourceImageGeometry {
+                    text: Some(text),
+                    ..SourceImageGeometry::default()
+                }),
+            };
             if recent.len() == RECENT_DOCUMENT_LIMIT {
                 recent.pop();
             }
@@ -348,6 +357,21 @@ impl SourceImage {
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    /// Whether `text` is exactly this image's bytes. Text borrowed from this
+    /// image's own buffer answers by address, without reading the bytes.
+    #[must_use]
+    pub fn has_bytes_of(&self, text: &str) -> bool {
+        std::ptr::eq(self.bytes.as_ref(), text.as_bytes()) || *self.bytes == *text.as_bytes()
+    }
+
+    /// This image's text in the same allocation as its bytes, when the image
+    /// was built from text. A consumer that reads the document through this
+    /// handle lets [`Self::has_bytes_of`] answer by address.
+    #[must_use]
+    pub fn shared_text(&self) -> Option<std::sync::Arc<str>> {
+        self.geometry.text.clone()
     }
 
     /// Length of the original source in bytes.
@@ -379,7 +403,10 @@ impl SourceImage {
     /// # Errors
     /// Returns the original decoding error for opaque byte scripts.
     pub fn try_text(&self) -> Result<&str, std::str::Utf8Error> {
-        std::str::from_utf8(&self.bytes)
+        match &self.geometry.text {
+            Some(text) => Ok(text),
+            None => std::str::from_utf8(&self.bytes),
+        }
     }
 
     /// Index this image in its original byte coordinates.
@@ -422,7 +449,7 @@ impl From<std::sync::Arc<str>> for SourceImage {
 }
 impl PartialEq<str> for SourceImage {
     fn eq(&self, text: &str) -> bool {
-        self.bytes() == text.as_bytes()
+        self.has_bytes_of(text)
     }
 }
 impl PartialEq<&str> for SourceImage {
@@ -644,14 +671,18 @@ impl<'src> SourceMap<'src> {
     /// context, source correspondence or execution authority is cached here.
     #[must_use]
     pub fn from_image(source: &'src SourceImage) -> Self {
-        Self::from_bytes_with_line_index(
-            source.bytes(),
-            source.channel(),
-            source
+        Self {
+            source: source.bytes(),
+            channel: source.channel(),
+            line_index: source
                 .line_index()
                 .cloned()
                 .unwrap_or_else(|| LineIndex::from_bytes(source.bytes())),
-        )
+            base_offset: 0,
+            base_line: 0,
+            base_col: 0,
+            text: source.try_text(),
+        }
     }
 
     /// Resolve a byte offset to a full `SourcePosition`. O(log n).
@@ -1052,6 +1083,7 @@ mod source_image_hash_tests {
         second.geometry = std::sync::Arc::new(super::SourceImageGeometry {
             byte_hash: std::sync::OnceLock::from(first.byte_hash()),
             line_index: std::sync::OnceLock::new(),
+            text: None,
         });
         assert_eq!(hash(&first), hash(&second));
         assert_ne!(first, second);
@@ -1077,13 +1109,40 @@ mod immutable_image_geometry_tests {
     }
 
     #[test]
+    fn a_document_image_answers_for_its_own_text_by_address() {
+        let image = SourceImage::document("set x é");
+        let text = image.shared_text().expect("an image built from text");
+        assert!(std::ptr::eq(text.as_bytes(), image.bytes()));
+        assert!(image.has_bytes_of(&text));
+        assert!(image.has_bytes_of(&String::from("set x é")));
+        assert!(!image.has_bytes_of("set x e"));
+        assert!(!image.has_bytes_of("set x"));
+        assert_eq!(image.try_text(), Ok("set x é"));
+        assert_eq!(image.clone().shared_text().as_deref(), Some("set x é"));
+        assert_eq!(
+            SourceMap::from_image(&image).text(crate::Span::new(0, 3)),
+            "set"
+        );
+
+        let native = SourceImage::native(b"p\xff".as_slice());
+        assert!(native.shared_text().is_none());
+        assert!(native.try_text().is_err());
+        let bytes = SourceImage::from_bytes("set x é".as_bytes(), SourceChannel::Document);
+        assert!(bytes.shared_text().is_none());
+        assert_eq!(bytes.try_text(), Ok("set x é"));
+        assert_eq!(bytes, image);
+    }
+
+    #[test]
     fn original_image_positions_reuse_immutable_geometry_without_changing_identity() {
         // naming.source.original-immutable-image-geometry
         // docs/design/analysis/name-resolution-proofs/original-immutable-image-geometry.md
         let text = "first\r\né\n😀\0last";
         let original = SourceImage::document(text);
         let clone = original.clone();
-        let independent = SourceImage::document(text);
+        // `document` returns the thread's recent image of the same text, so
+        // an independently built image comes from the bytes.
+        let independent = SourceImage::from_bytes(text.as_bytes(), SourceChannel::Document);
         let before = hash(&original);
         assert!(original.line_index().is_some());
         let direct = SourceMap::new(text);
