@@ -2294,7 +2294,16 @@ impl Interp {
                 frame.cmd = artifact.image.bytes()[command.source_extent.as_range()].to_vec();
                 frame.original_command = None;
             }
+            // An embedder's limits hold for a command this body runs without
+            // a dispatch, as C counts a compiled command where it starts.
+            if let Some(code) = self.charge_tick() {
+                return code;
+            }
+            let counted = self.cmd_count.get();
             let code = self.execute_body_instruction(artifact, command, execution);
+            if self.cmd_count.get() == counted {
+                self.cmd_count.set(counted + 1);
+            }
             if execution.done {
                 return code;
             }

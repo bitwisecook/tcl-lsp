@@ -187,8 +187,8 @@ impl Interp {
     }
 
     /// Charge one iteration of a loop that may dispatch nothing (`while 1 {}`):
-    /// the clock, every [`TICKS_PER_CLOCK_READ`] iterations, and a limit
-    /// already exceeded.
+    /// the command count its body has reached, the clock every
+    /// [`TICKS_PER_CLOCK_READ`] iterations, and a limit already exceeded.
     pub(crate) fn charge_tick(&mut self) -> Option<Code> {
         let kind = {
             let mut budget = self.budget.borrow_mut();
@@ -197,6 +197,14 @@ impl Interp {
             }
             match budget.exceeded {
                 Some(kind) => Some(kind),
+                // A body command the loop runs without a dispatch (a compiled
+                // `incr`) is counted where it runs and charged here.
+                None if budget
+                    .commands
+                    .is_some_and(|limit| self.cmd_count().saturating_sub(budget.start) > limit) =>
+                {
+                    Some(LimitKind::Commands)
+                }
                 None => {
                     budget.since_clock += 1;
                     (budget.deadline.is_some() && budget.since_clock >= TICKS_PER_CLOCK_READ)
