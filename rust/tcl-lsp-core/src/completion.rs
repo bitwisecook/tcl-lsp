@@ -2948,6 +2948,7 @@ fn extend_original_own_method_items(
         ) else {
             continue;
         };
+        let spelling = insertable_source_word(spelling, input.bytes(), declaration.config());
         let label =
             std::str::from_utf8(input.bytes()).map_or_else(|_| spelling.clone(), str::to_owned);
         if !label.starts_with(partial) && !spelling.starts_with(partial) {
@@ -3308,6 +3309,8 @@ fn extend_original_property_method_items(
                 ) else {
                     continue;
                 };
+                let spelling =
+                    insertable_source_word(spelling, name.as_bytes(), key.lexer_config());
                 let Some(item) = original_method_candidate_item(
                     analysis,
                     name.as_bytes(),
@@ -3323,6 +3326,22 @@ fn extend_original_property_method_items(
                 items.push(item);
             }
         }
+    }
+}
+
+/// The spelling a completion inserts for a native value: the bare word when
+/// the value is ASCII and the bare word alone reads back as exactly that
+/// value under the document's grammar, otherwise the checked quoted word.
+fn insertable_source_word(quoted: String, value: &[u8], config: tcl_lexer::LexerConfig) -> String {
+    match std::str::from_utf8(value) {
+        Ok(text)
+            if text.is_ascii()
+                && tcl_syntax::word_rules::lexical_unicode_source_word(text, config).as_deref()
+                    == Some(text) =>
+        {
+            text.to_owned()
+        }
+        _ => quoted,
     }
 }
 
@@ -3346,6 +3365,11 @@ fn push_native_proc_candidate(
     ) else {
         return;
     };
+    let spelling = insertable_source_word(
+        spelling,
+        &tcl_syntax::naming::native_command_full_name_bytes(slot),
+        original.lexer_config(),
+    );
     let label = if slot.simple == declaration.name().slot().simple && original.display().is_some() {
         proc_def.name.clone()
     } else {
@@ -5220,7 +5244,7 @@ mod tests {
         // the command is dialect-gated out.
         let registry = CommandRegistry::build_default();
         let src = "package require Tk\nbutt\n";
-        let analysis = analyse(src);
+        let analysis = analyse_for(src, "f5-irules");
         let items = completions(
             src,
             1,
