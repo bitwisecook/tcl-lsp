@@ -7150,13 +7150,41 @@ mod tests {
     /// { again}` keeps its leading space (#2052).
     #[test]
     fn evaluate_def_append_var_piece_reads_the_lattice_exactly() {
+        // tclsh 8.6.18 and 9.0.4 print `<hello again> <a b {c d}>
+        // <helloCHANGED>` for these three bodies: a read trace may replace
+        // the piece, so a traced piece settles nothing.
+        let text = |value: &str| LatticeValue::Const(ConstValue::String(value.to_owned()));
         assert_eq!(
             settled(
                 "tcl8.6",
                 "proc p {} {set s hello; set p { again}; append s $p; return $s}",
                 "s"
             ),
-            LatticeValue::Const(ConstValue::String("hello again".into()))
+            text("hello again")
+        );
+        assert_eq!(
+            settled(
+                "tcl8.6",
+                "proc p {} {set l {a b}; set e {c d}; lappend l $e; return $l}",
+                "l"
+            ),
+            text("a b {c d}")
+        );
+        assert_eq!(
+            settled(
+                "tcl8.6",
+                "proc t args {}\nproc p {} {set s hello; set q x; trace add variable q read t; append s $q; return $s}",
+                "s"
+            ),
+            LatticeValue::Overdefined
+        );
+        assert_eq!(
+            settled(
+                "tcl8.6",
+                "proc p {q} {set s hello; append s $q; return $s}",
+                "s"
+            ),
+            LatticeValue::Overdefined
         );
     }
 

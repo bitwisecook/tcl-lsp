@@ -229,7 +229,14 @@ impl<'a> NativeSummaryContext<'a> {
         for (index, word) in operation.effective.words.iter().enumerate() {
             if Some(index) == stored {
                 n17_native_option("store.sole-child", word.sole_command_substitution())?;
-            } else if n17_native_decline("store.nonliteral-argv", !literal_word(word)) {
+            } else if n17_native_decline(
+                "store.nonliteral-argv",
+                // A substituted word is admitted only as a whole scalar read
+                // that no trace the module installs may name: the read runs
+                // no code, and the consumer takes its value from the lattice
+                // at this statement or abstains when the lattice has none.
+                !(literal_word(word) || self.untraced_scalar_read(word)),
+            ) {
                 return None;
             }
         }
