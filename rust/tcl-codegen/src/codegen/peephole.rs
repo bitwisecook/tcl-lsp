@@ -77,10 +77,18 @@ impl CodegenCtx<'_> {
     /// Replace `push1 N; pop` with `nop; nop; nop`.
     ///
     /// tclsh constant-folds `expr` commands that aren't the script's
-    /// last statement into 3 nops.  Skip pairs inside a `startCommand`
+    /// last statement into 3 nops. From 8.6 the optimiser's
+    /// `ConvertZeroEffectToNOP` also blanks a discarded empty result, such as
+    /// an empty `for` clause's, unless the `pop` is a jump target.  Skip pairs inside a `startCommand`
     /// wrapper — tclsh keeps those so the epoch check spans a real
     /// instruction sequence.
     pub fn fold_const_push_pop_nops(&mut self) {
+        let optimised = self
+            .native_entry
+            .and_then(|entry| entry.execution_point?.tcl_version())
+            .is_some_and(
+                tcl_registry::native_compiler_pass::native_optimizer_blanks_discarded_pushes,
+            );
         let mut i = 0;
         while i + 1 < self.instructions.len() {
             let after_start_cmd = i > 0 && self.instructions[i - 1].op == Op::START_CMD;
@@ -102,11 +110,19 @@ impl CodegenCtx<'_> {
                 // traces, or errors. Only an explicitly finished value is a
                 // discardable constant; the literal pool alone is no proof.
                 && self.instructions[i].push_verbatim
-                && (self.instructions[i].comment != "\"\"" || after_unset)
+                && (self.instructions[i].comment != "\"\""
+                    || after_unset
+                    || (optimised && !self.label_positions.values().any(|&at| at == i + 1)))
                 && !self.instructions[i].no_fold
                 && !after_start_cmd
             {
-                self.instructions[i] = Instruction::new(Op::NOP, vec![]);
+                // The first nop stays the command's own instruction, so a
+                // command marker can still hand its replay over to it.
+                let blanked = &mut self.instructions[i];
+                blanked.op = Op::NOP;
+                blanked.operands.clear();
+                blanked.comment.clear();
+                blanked.push_verbatim = false;
                 self.instructions[i + 1] = Instruction::new(Op::NOP, vec![]);
                 self.instructions
                     .insert(i + 2, Instruction::new(Op::NOP, vec![]));

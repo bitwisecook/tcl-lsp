@@ -170,3 +170,36 @@ fn procedure_bodies_place_start_command_like_c() {
     }
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
+
+/// `for {} {$i > 0} {incr i -1} {puts $i}` on tclsh: 8.5.19 keeps the empty
+/// start's `push1; pop`, which the optimiser of 8.6.18 and 9.0.4 blanks to
+/// three `nop`s ahead of the first jump. No release has a marker there.
+#[test]
+fn the_optimiser_blanks_an_empty_for_start_from_8_6() {
+    let case = Case {
+        name: "count_down",
+        params: "i",
+        body: "for {} {$i > 0} {incr i -1} {puts $i}",
+        skeleton: "",
+        compact: None,
+    };
+    for (profile, blanked) in [("tcl8.5", false), ("tcl8.6", true), ("tcl9.0", true)] {
+        let asm = compiled_body(profile, &case);
+        let start: Vec<_> = asm
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .take_while(|op| !matches!(*op, Op::JUMP1 | Op::JUMP4))
+            .collect();
+        let nops = start.iter().filter(|op| **op == Op::NOP).count();
+        assert_eq!(
+            (
+                start.contains(&Op::POP),
+                nops >= 3,
+                start.contains(&Op::START_CMD)
+            ),
+            (!blanked, blanked, false),
+            "{profile}: {start:?}"
+        );
+    }
+}

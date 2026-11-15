@@ -77,6 +77,15 @@ pub fn native_compiler_replays(
         .any(|hazard| hazard != NativeCompilerPassHazard::YieldTo || version >= TclVersion::V9_0)
 }
 
+/// Whether the release runs `TclOptimizeBytecode` over every compiled body
+/// (`TclCreateInterp` installs it from 8.6.18 through 9.1.0; 8.5.19 has no
+/// optimiser), whose `ConvertZeroEffectToNOP` blanks a literal push that the
+/// next `pop` discards unless that `pop` is a jump target.
+#[must_use]
+pub fn native_optimizer_blanks_discarded_pushes(version: TclVersion) -> bool {
+    version >= TclVersion::V8_6
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
