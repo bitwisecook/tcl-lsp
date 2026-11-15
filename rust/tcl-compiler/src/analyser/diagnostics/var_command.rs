@@ -370,11 +370,15 @@ impl Analyser {
         let mut prepended_total: u16 = 0;
         let mut arity = None;
         for _ in 0..MAX_HOPS {
-            if method_def.kind != "forward" {
+            let Some((target, prepended)) = method_def.forward_target.as_ref() else {
+                // A forward whose target could not be read has no body of its
+                // own, and so no formals to hold the call to.
+                if method_def.body_span == method_def.name_span {
+                    return None;
+                }
                 arity = Some(method_def.arity());
                 break;
-            }
-            let (target, prepended) = method_def.forward_target.as_ref()?;
+            };
             if self.registry.as_deref().is_some_and(|registry| {
                 registry.method_dispatch_keyword(target)
                     == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
