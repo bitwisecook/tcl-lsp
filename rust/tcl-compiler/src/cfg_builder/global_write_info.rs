@@ -3003,19 +3003,25 @@ mod tests {
         assert!(info[&summary_id(&m, "::caller")].opaque_global_frame);
     }
 
+    /// #1797. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: after
+    /// `rename p old` and a redefinition of `p`, `caller` sets `::g` through
+    /// the new generation and `caller_old` sets nothing through the old one.
     #[test]
-    fn redefined_procedure_generation_is_an_opaque_global_effect() {
-        let registry = CommandRegistry::build_default();
-        let m = module_with_registry(
+    fn each_call_joins_only_its_own_global_write_generation() {
+        let m = module(
             "proc p {} {}\n\
              rename p old\n\
              proc p {} {global g; set g 1}\n\
-             proc caller {} {p}",
-            &registry,
+             proc caller {} {p}\n\
+             proc caller_old {} {old}",
         );
-        let info = detect_global_write_procs_with_registry(&m, &registry);
-        assert!(info[&summary_id(&m, "::p")].opaque_global_frame);
-        assert!(info[&summary_id(&m, "::caller")].opaque_global_frame);
+        let info = detect_global_write_procs(&m);
+        let caller = &info[&summary_id(&m, "::caller")];
+        assert!(!caller.opaque_global_frame);
+        assert!(caller.names.contains("g"));
+        let caller_old = &info[&summary_id(&m, "::caller_old")];
+        assert!(!caller_old.opaque_global_frame);
+        assert!(caller_old.names.is_empty());
     }
 
     #[test]

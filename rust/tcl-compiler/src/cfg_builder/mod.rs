@@ -7020,47 +7020,55 @@ mod tests {
         assert!(upvar_procs[&summary_id(&module, "p2")].is_empty());
     }
 
+    /// #1797. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all print `2 0`
+    /// for `list [caller] [caller_old]`, with
+    /// `proc caller {} {p; return $x}` and
+    /// `proc caller_old {} {old; info exists x}`: each call reaches its own
+    /// generation, and only the redefined one writes the caller's `x`.
     #[test]
-    fn redefined_procedure_generation_is_an_opaque_frame_effect() {
+    fn each_call_joins_only_its_own_procedure_generation() {
         let module = lower_module(
             "proc p {} {}\n\
              rename p old\n\
              proc p {} {upvar 1 x y; set y 2}\n\
-             proc caller {} {p}",
+             proc caller {} {p}\n\
+             proc caller_old {} {old}",
         );
         let summaries = detect_upvar_procs(&module);
-        let writer_start = u32::try_from(
-            module
-                .source
-                .try_text()
-                .unwrap()
-                .rfind("proc p {} {upvar")
-                .unwrap(),
-        )
-        .expect("fixture source offset fits u32");
-        let writer: Vec<_> = module
-            .procedures
-            .iter()
-            .filter(|(_, procedure)| procedure.span.start() == writer_start)
-            .collect();
-        assert_eq!(writer.len(), 1);
-        assert_eq!(
-            module
+        let generation = |needle: &str| {
+            let start = u32::try_from(module.source.try_text().unwrap().find(needle).unwrap())
+                .expect("fixture source offset fits u32");
+            let (id, _) = module
                 .procedures
-                .values()
-                .filter(|procedure| procedure.qualified_name == "::p")
-                .count(),
-            2
+                .iter()
+                .find(|(_, procedure)| procedure.span.start() == start)
+                .expect("authored generation");
+            *id
+        };
+        let original = generation("proc p {} {}");
+        let redefined = generation("proc p {} {upvar");
+        assert!(summaries[&original].is_empty());
+        assert_eq!(
+            summaries[&redefined]
+                .literal_targets
+                .get("y")
+                .map(String::as_str),
+            Some("x")
         );
-        assert!(summaries[writer[0].0].caller_frame_barrier().writes);
+        assert!(!summaries[&redefined].caller_frame_barrier().writes);
+
         let cfg = build_cfg(&module, false);
-        assert!(
+        let function = |name: &str| {
             cfg.procedures
-                .get(&fixture_id(&cfg.procedures, "::caller"))
+                .get(&fixture_id(&cfg.procedures, name))
                 .expect("authored fixture body")
-                .caller_frame_barrier
-                .writes
-        );
+        };
+        let caller = function("::caller");
+        assert!(!caller.caller_frame_barrier.writes);
+        assert!(caller.alias_observed_vars.contains("x"));
+        let caller_old = function("::caller_old");
+        assert!(!caller_old.caller_frame_barrier.writes);
+        assert!(!caller_old.alias_observed_vars.contains("x"));
     }
 
     #[test]
