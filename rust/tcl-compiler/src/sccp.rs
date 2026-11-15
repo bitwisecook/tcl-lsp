@@ -6829,7 +6829,7 @@ mod tests {
                 ),
             )
         };
-        let cases: [(&str, &str, LatticeValue); 17] = [
+        let cases: [(&str, &str, LatticeValue); 14] = [
             ("tcl8.4", r#""x""#, text("x")),
             ("f5-irules", r#""x""#, text("x")),
             ("tcl9.0", r#"1 ? "yes" : "no""#, text("yes")),
@@ -6845,10 +6845,7 @@ mod tests {
             ("tcl9.0", r#""010""#, int(10)),
             ("tcl8.6", r#""08""#, text("08")),
             ("tcl9.0", "1/0", LatticeValue::Overdefined),
-            ("tcl9.0", "1 << 70", text("1180591620717411303424")),
             ("tcl8.6", "2 ** 64", text("18446744073709551616")),
-            ("tcl8.4", "1 << 70", LatticeValue::Overdefined),
-            ("f5-irules", "1 << 70", LatticeValue::Overdefined),
             ("tcl9.0", "[string length abc] * 2", int(6)),
             ("tcl9.0", "0 && [error never]", int(0)),
         ];
@@ -6869,6 +6866,33 @@ mod tests {
             evaluate_pristine(&stmt, &HashMap::new(), &ssa, FoldPolicy::from_octal(None)),
             LatticeValue::Overdefined
         );
+    }
+
+    /// A shift past the wide boundary is the release's own answer. tclsh
+    /// 8.4.20 prints 0 for `puts [expr {1 << 70}]`, where the count runs off
+    /// its fixed-width integer; tclsh 8.5 to 9.1 print
+    /// 1180591620717411303424. The `f5-irules` row waits on BIG-IP check 10
+    /// and on handler bodies lowering with plain names.
+    #[test]
+    fn a_wide_shift_settles_what_each_release_prints() {
+        let big = LatticeValue::Const(ConstValue::String("1180591620717411303424".into()));
+        for (dialect, want) in [
+            ("tcl8.4", LatticeValue::Const(ConstValue::Int(0))),
+            ("tcl8.5", big.clone()),
+            ("tcl8.6", big.clone()),
+            ("tcl9.0", big.clone()),
+            ("tcl9.1", big),
+        ] {
+            assert_eq!(
+                settled(
+                    dialect,
+                    "proc p {} {set r [expr {1 << 70}]; return $r}",
+                    "r"
+                ),
+                want,
+                "{dialect}"
+            );
+        }
     }
 
     /// A quoted `expr` word is substituted as text before the expression is
