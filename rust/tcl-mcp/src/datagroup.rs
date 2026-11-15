@@ -581,6 +581,18 @@ mod tests {
     fn original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility() {
         // Implementation contract: naming.mcp.original-datagroup-suggestion-eligibility
         // docs/design/analysis/name-resolution-proofs/original-datagroup-suggestion-eligibility.md
+        const OUTPUTS: &[tcl_registry::SubCommand] = &[
+            tcl_registry::SubCommand {
+                name: "match",
+                arity: tcl_registry::Arity::exact(3),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+            tcl_registry::SubCommand {
+                name: "lookup",
+                arity: tcl_registry::Arity::exact(2),
+                ..tcl_registry::SubCommand::DEFAULT
+            },
+        ];
         let source = "if {$host eq \"a.com\"} {pool p} elseif {$host eq \"b.com\"} {pool p} elseif {$host eq \"c.com\"} {pool p}";
         let hosted = crate::tools::analyse(source, DIALECT);
         let native = crate::tools::analyse(source, "tcl8.6");
@@ -591,23 +603,25 @@ mod tests {
             assert!(suggest_for_analysis(&format!("# changed\n{source}"), analysis).is_empty());
         }
 
-        let point =
-            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79);
-        let profile = tcl_dialect::DialectProfile::projected_from_point(
-            "datagroup-explicit-lexical",
-            &[],
-            "Logical data-group source advice",
-            point,
-        )
-        .intern();
-        let registry = hosted.resolved_registry().unwrap();
-        let context = tcl_lsp_core::context_for_dialect_profile(profile)
-            .with_command_store(registry.snapshot().shared_registry());
+        // Static extraction writes `class match` / `class lookup`, so it is
+        // offered only where a `class` with those members is available at the
+        // analysed point. iRules' own `class` is not on a Tcl 9.0 line, so the
+        // fixture authors one there, as the extractor's own tests do.
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "class",
+            surface: Some(tcl_dialect::model::SpecSurface::TCL90_PLUS),
+            subcommands: OUTPUTS,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.0")
+            .with_command_store(std::sync::Arc::new(registry));
         let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
             std::sync::Arc::new(context),
-            LexerConfig::for_profile(Some(profile)),
+            LexerConfig::from_grammar(profile.grammar),
         );
         let mut lexical = tcl_compiler::analyser::Analyser::new()
             .with_resolved_input(input)
@@ -676,8 +690,10 @@ mod tests {
     fn original_switch_suggestions_keep_selected_alias_and_current_analysis() {
         // Implementation contract: naming.refactor.original-datagroup-variable-subject
         // docs/design/analysis/name-resolution-proofs/original-datagroup-variable-subject.md
+        // The rule loader refuses `interp` (`IRULES_COMPILER_REFUSED`), so
+        // a rule cannot hold this alias; the document is Tcl 8.6.
         let source = "interp alias {} select {} switch -exact --\nselect ${café} {GET {drop} POST {drop} PUT {drop}}";
-        let mut analysis = crate::tools::analyse(source, DIALECT);
+        let mut analysis = crate::tools::analyse(source, "tcl8.6");
         let c = suggest_for_analysis(source, &analysis);
         assert_eq!(c.len(), 1);
         assert_eq!(c[0]["variable"], "café");
