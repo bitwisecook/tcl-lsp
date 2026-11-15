@@ -121,19 +121,6 @@ fn folds_to_integer(fa: &FunctionAsm, value: i64) -> bool {
     })
 }
 
-/// The body of procedure `name` from a module lowered with no interpreter.
-/// The unit a live Tcl 8.6 interpreter compiles for these bodies does not yet
-/// match tclsh8.6 (`break` and `continue` inside a compiled loop are `jump4`
-/// there), so their tests stay on the module path until it does.
-fn module_proc_asm(source: &str, name: &str) -> FunctionAsm {
-    let mut module = asm_for(source);
-    let id = fixture_id(&module.procedures, name);
-    module
-        .procedures
-        .remove(&id)
-        .unwrap_or_else(|| panic!("procedure {name} not found"))
-}
-
 /// The opcode stream of a `FunctionAsm`.
 fn opcodes(fa: &FunctionAsm) -> Vec<Op> {
     fa.instructions.iter().map(|i| i.op).collect()
@@ -550,6 +537,39 @@ fn a_math_function_behind_a_false_conjunct_is_still_compiled_in_tcl_8_6() {
             .iter()
             .any(|value| value == "tcl::mathfunc::missing")
     );
+}
+
+#[test]
+fn break_and_continue_in_a_compiled_loop_follow_the_release() {
+    // `tcl::unsupported::disassemble proc spin` for
+    //   proc spin {} { while {1} { break } }
+    // tclsh8.5:  startCommand; break; pop; jump1; push1; done
+    // tclsh8.6 and 9.0:  jump4 +8; pop; jump1 -6; push1; done
+    // and for `proc skip {} { for {set i 0} {$i < 3} {incr i} { continue } }`
+    // tclsh8.5 emits `continue`, tclsh8.6 and 9.0 `jump4` to the next clause.
+    // Inside `catch` the catch range is innermost, so every release keeps
+    // the instruction: `while {1} { catch {break} }` has `break` in 8.6 too.
+    let spin = "proc spin {} { while {1} { break } }";
+    let skip = "proc skip {} { for {set i 0} {$i < 3} {incr i} { continue } }";
+    let caught = "proc caught {} { while {1} { catch {break}; return } }";
+    for (release, jumps) in [("tcl8.5", false), ("tcl8.6", true), ("tcl9.0", true)] {
+        let breaks = opcodes(&crate::vm_compiled::procedure(release, spin, "::spin"));
+        assert_eq!(breaks.contains(&Op::JUMP4), jumps, "{release}: {breaks:?}");
+        assert_eq!(breaks.contains(&Op::BREAK), !jumps, "{release}: {breaks:?}");
+        let continues = opcodes(&crate::vm_compiled::procedure(release, skip, "::skip"));
+        assert_eq!(
+            continues.contains(&Op::JUMP4),
+            jumps,
+            "{release}: {continues:?}"
+        );
+        assert_eq!(
+            continues.contains(&Op::CONTINUE),
+            !jumps,
+            "{release}: {continues:?}"
+        );
+        let in_catch = opcodes(&crate::vm_compiled::procedure(release, caught, "::caught"));
+        assert!(in_catch.contains(&Op::BREAK), "{release}: {in_catch:?}");
+    }
 }
 
 #[test]
@@ -1241,7 +1261,7 @@ fn switch_a_release_may_scan_as_an_option_routes_through_generic_invoke() {
 #[test]
 fn break_in_while() {
     let src = "proc find_first {lst target} { set i 0; while {$i < 100} { if {$i == $target} { break }; incr i }; return $i }";
-    let ops = opcodes(&module_proc_asm(src, "::find_first"));
+    let ops = opcodes(&proc_asm(src, "::find_first"));
     assert!(has_cond_jump(&ops));
     assert!(
         ops.contains(&Op::JUMP4),
@@ -1252,7 +1272,7 @@ fn break_in_while() {
 #[test]
 fn continue_in_for() {
     let src = "proc sum_odd {n} { set total 0; for {set i 0} {$i < $n} {incr i} { if {$i % 2 == 0} { continue }; set total [expr {$total + $i}] }; return $total }";
-    let ops = opcodes(&module_proc_asm(src, "::sum_odd"));
+    let ops = opcodes(&proc_asm(src, "::sum_odd"));
     assert!(ops.contains(&Op::JUMP4), "continue → jump");
 }
 
@@ -1385,7 +1405,7 @@ fn for_loop_registered_in_loop_nodes() {
 #[test]
 fn while_constant_true() {
     let src = "proc spin {} { while {1} { break } }";
-    let ops = opcodes(&module_proc_asm(src, "::spin"));
+    let ops = opcodes(&proc_asm(src, "::spin"));
     assert!(ops.contains(&Op::JUMP4), "break");
 }
 

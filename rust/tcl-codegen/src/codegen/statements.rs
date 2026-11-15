@@ -126,6 +126,12 @@ enum NativeEmissionTask {
         tcl_lexer::LexerConfig,
     ),
     ControlContext(tcl_registry::native_compilation::NativeCompilationContext),
+    /// The break and continue labels of the loop whose body script follows.
+    NativeLoopTargets(String, Option<String>),
+    /// The innermost body's loop targets are no longer in reach.
+    LeaveNativeLoop,
+    /// `break` (true) or `continue`, resolved against the loop in reach.
+    NativeLoopExit(bool, tcl_dialect::TclVersion),
     BeginNativeCatch(String),
     BeginNativeCatchAt(String, String, String),
     BeginSpeculativeNativeCompilation(std::rc::Rc<std::cell::Cell<bool>>),
@@ -1934,6 +1940,9 @@ impl CodegenCtx<'_> {
                 | Task::Label(..)) => self.emit_native_literal_task(selected),
                 selected @ (Task::ControlContext(..)
                 | Task::ControlScript(..)
+                | Task::NativeLoopTargets(..)
+                | Task::LeaveNativeLoop
+                | Task::NativeLoopExit(..)
                 | Task::BeginNativeCatch(..)
                 | Task::BeginNativeCatchAt(..)
                 | Task::BeginSpeculativeNativeCompilation(..)
@@ -2085,7 +2094,54 @@ impl CodegenCtx<'_> {
         use NativeEmissionTask as Task;
         match task {
             Task::ControlContext(context) => self.native_compilation = context,
+            Task::NativeLoopTargets(break_target, continue_target) => {
+                self.pending_native_loop = Some((break_target, continue_target));
+            }
+            Task::LeaveNativeLoop => {
+                self.native_loop_targets.pop();
+            }
+            // `TclCompileBreakCmd` and `TclCompileContinueCmd` from 8.6: inside
+            // the loop's own exception range, at the body's stack depth, the
+            // command is a `jump4` to the loop's target. Elsewhere, and in
+            // 8.5, it is the instruction the enclosing range catches.
+            Task::NativeLoopExit(is_break, version) => {
+                let target = (version >= tcl_dialect::TclVersion::V8_6)
+                    .then(|| self.native_loop_targets.last().cloned().flatten())
+                    .flatten()
+                    .and_then(|(break_target, continue_target)| {
+                        if is_break {
+                            Some(break_target)
+                        } else {
+                            continue_target
+                        }
+                    });
+                match target {
+                    // The comment keeps the four-byte form, which C never
+                    // narrows for a break or continue jump.
+                    Some(label) => {
+                        self.emit_comment(
+                            Op::JUMP4,
+                            vec![Operand::Label(label)],
+                            if is_break { "break" } else { "continue" },
+                        );
+                    }
+                    None if is_break => {
+                        self.emit(Op::BREAK, vec![]);
+                    }
+                    None => {
+                        self.emit(Op::CONTINUE, vec![]);
+                    }
+                }
+            }
             Task::ControlScript(image, body, context, config) => {
+                // A body keeps the loop in reach only where C keeps the loop's
+                // range innermost: the loop's own body, and a body that
+                // inherits its context (`if`). Every other body masks it.
+                let targets = self.pending_native_loop.take();
+                if context != tcl_registry::native_compilation::NativeCompiledBodyContext::Inherit {
+                    self.native_loop_targets.push(targets);
+                    pending.push(Task::LeaveNativeLoop);
+                }
                 let saved = self.native_compilation;
                 let entered = match context {
                     tcl_registry::native_compilation::NativeCompiledBodyContext::Inherit => saved,
@@ -2550,6 +2606,10 @@ impl CodegenCtx<'_> {
                         }
                     }
                     ExecutablePart::Command { body } => {
+                        // A substituted command runs above the loop body's
+                        // stack depth, so the loop is out of its reach.
+                        self.native_loop_targets.push(None);
+                        pending.push(Task::LeaveNativeLoop);
                         // Runs once the script's commands are all emitted.
                         pending.push(Task::StampSubstitution(
                             self.instructions.len(),
@@ -3019,7 +3079,7 @@ impl CodegenCtx<'_> {
             | NativeInstructionPlan::Break
             | NativeInstructionPlan::Continue
             | NativeInstructionPlan::StringMap(_)) => {
-                Self::append_native_leaf_tasks(command, selected, operations)
+                Self::append_native_leaf_tasks(command, selected, version, operations)
             }
 
             NativeInstructionPlan::NamespaceBindings(recipe) => {
@@ -3115,6 +3175,7 @@ impl CodegenCtx<'_> {
     fn append_native_leaf_tasks(
         command: &tcl_lexer::NativeScriptCommandWords,
         instruction: tcl_registry::native_instruction_plan::NativeInstructionPlan,
+        version: tcl_dialect::TclVersion,
         operations: &mut Vec<NativeEmissionTask>,
     ) -> bool {
         use NativeEmissionTask as Task;
@@ -3124,9 +3185,9 @@ impl CodegenCtx<'_> {
                 Op::CLOCK_READ,
                 vec![Operand::Imm(i32::from(which))],
             )),
-            NativeInstructionPlan::Break => operations.push(Task::Operation(Op::BREAK, vec![])),
+            NativeInstructionPlan::Break => operations.push(Task::NativeLoopExit(true, version)),
             NativeInstructionPlan::Continue => {
-                operations.push(Task::Operation(Op::CONTINUE, vec![]));
+                operations.push(Task::NativeLoopExit(false, version));
             }
             NativeInstructionPlan::StringMap(recipe) => {
                 use tcl_registry::native_string_map_compilation::NativeStringMapInstruction as Map;

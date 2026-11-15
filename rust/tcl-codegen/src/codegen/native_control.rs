@@ -354,6 +354,14 @@ impl CodegenCtx<'_> {
             ));
         }
         tasks.push(Task::Label(start.clone()));
+        tasks.push(Task::NativeLoopTargets(
+            done.clone(),
+            Some(if test == NativeControlTest::Constant(true) {
+                start.clone()
+            } else {
+                condition.clone()
+            }),
+        ));
         tasks.push(source.script(body, NativeCompiledBodyContext::Loop));
         tasks.push(Task::Operation(Op::POP, vec![]));
         tasks.push(Task::Label(body_end.clone()));
@@ -417,6 +425,10 @@ impl CodegenCtx<'_> {
             vec![Operand::Label(condition.clone())],
         ));
         tasks.push(Task::Label(body_start.clone()));
+        tasks.push(Task::NativeLoopTargets(
+            done.clone(),
+            Some(next_start.clone()),
+        ));
         tasks.push(source.script(body, NativeCompiledBodyContext::Loop));
         tasks.push(Task::Operation(Op::POP, vec![]));
         tasks.push(Task::Label(body_end.clone()));

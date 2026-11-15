@@ -261,6 +261,11 @@ pub struct CodegenCtx<'r> {
     /// Actual instruction regions emitted inside a source command. Labels
     /// survive peephole edits and select the same native loop completion door.
     inline_loop_regions: Vec<InlineLoopRegion>,
+    /// The break and continue labels each open native body can jump to;
+    /// `None` where a body puts the enclosing loop out of reach.
+    native_loop_targets: Vec<Option<(String, Option<String>)>>,
+    /// Targets a loop emitter announced for the body script that follows.
+    pending_native_loop: Option<(String, Option<String>)>,
     /// Catch nesting depth for `beginCatch4` operand.
     pub catch_depth: u32,
     /// Whether a generic invoke (`invokeStk1`) has been seen.
@@ -493,6 +498,8 @@ impl<'r> CodegenCtx<'r> {
             break_target: None,
             continue_target: None,
             inline_loop_regions: Vec::new(),
+            native_loop_targets: Vec::new(),
+            pending_native_loop: None,
             catch_depth: 0,
             seen_generic_invoke: false,
             used_generic_invoke: false,
