@@ -36219,10 +36219,15 @@ impl LanguageServer for Backend {
             .original_source_view_navigation_route(&uri, pos, Some(include_decl))
             .await?
         {
-            let Some(sourced) = self.original_source_reference_supplement(&uri).await? else {
-                return Ok(locations);
-            };
-            settled = Some((locations.unwrap_or_default(), sourced));
+            match self.original_source_reference_supplement(&uri).await? {
+                Some(sourced) => settled = Some((locations.unwrap_or_default(), sourced)),
+                // A view that lists something is the answer. One that lists
+                // nothing leaves the ordinary listing to answer.
+                None if locations.as_ref().is_some_and(|found| !found.is_empty()) => {
+                    return Ok(locations);
+                }
+                None => {}
+            }
         }
         let ordinary = self.ordinary_references(&uri, pos, include_decl).await?;
         let Some((mut locations, sourced)) = settled else {
