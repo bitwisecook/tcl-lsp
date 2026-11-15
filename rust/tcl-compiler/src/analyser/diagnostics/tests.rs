@@ -2262,6 +2262,41 @@ fn a_concatenated_or_joined_string_is_checked_at_every_read() {
     }
 }
 
+/// A plain `lsort` of a literal has known bytes, so its out-of-range reads
+/// are checked; a comparator command could run any script and is not (#2437).
+#[test]
+fn a_sorted_literal_is_checked_at_every_read() {
+    let w230 = |src: &str, dialect: &str| {
+        Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W230)
+            .map(|d| src[d.span.as_range()].to_owned())
+            .collect::<Vec<_>>()
+    };
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        assert_eq!(
+            w230("lindex [lsort {c b a}] 9\n", dialect),
+            ["9"],
+            "{dialect}"
+        );
+        assert_eq!(
+            w230(
+                "set l [lsort -decreasing {c b a}]\nlindex $l 9\nputs [lindex $l 9]\n",
+                dialect
+            ),
+            ["9", "9"],
+            "{dialect}"
+        );
+        assert_eq!(
+            w230("lindex [lsort -command cmp {c b a}] 9\n", dialect),
+            Vec::<String>::new(),
+            "{dialect}"
+        );
+    }
+}
+
 /// Converting a variable index keeps the stock objects it may share, so a
 /// second read through the same index is checked as the first is (#2387),
 /// a loop counter `incr` left numeric included.

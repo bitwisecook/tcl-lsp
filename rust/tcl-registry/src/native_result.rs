@@ -181,6 +181,9 @@ pub enum NativeResultContract {
     /// Increment publishes a numeric object into its captured receiver before
     /// write callbacks. The eventual returned value needs separate proof.
     IncrementStore,
+    /// Sort the final list operand under only byte-ordered `-ascii` options.
+    /// Every release builds the nonempty result as an ordinary list object.
+    ListSort,
     /// Repeat the retained operands after a count operand into one list.
     /// C Tcl 9.1 returns its abstract `lrepeatType` from 100 elements.
     ListRepeat {
@@ -954,6 +957,36 @@ mod tests {
         );
     }
 
+    /// A plain byte-ordered sort selects its list and builds an ordinary list.
+    #[test]
+    fn a_plain_sort_is_an_ordinary_list_with_sorted_bytes() {
+        use tcl_dialect::TclVersion;
+        use tcl_syntax::value::ValueRepresentation::{List, Unknown};
+        let contract = NativeResultContract::ListSort;
+        let compilation = crate::native_compilation::NativeCompilationContext::default();
+        for version in TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let selected = |words: &[&str]| {
+                let args = InvocationArguments::literals(words).with_dialect(dialect);
+                let selection = contract.select(args, 0);
+                (
+                    selection.created_representation(dialect, compilation),
+                    selection.sorted_literal_result(args),
+                )
+            };
+            assert_eq!(
+                selected(&["-decreasing", "a c b"]),
+                (List, Some("c b a".to_owned()))
+            );
+            assert_eq!(selected(&[""]), (Unknown, Some(String::new())));
+            assert_eq!(selected(&["-integer", "2 1"]), (Unknown, None));
+        }
+        assert_eq!(
+            contract.select(InvocationArguments::literals(&[]), 0),
+            NativeResultSelection::InvalidArguments
+        );
+    }
+
     /// `concat` builds a fresh string once a nonempty pool literal forces its
     /// string path; `join` does for two or more elements and a nonempty separator.
     #[test]
@@ -1026,6 +1059,15 @@ pub enum NativeResultSelection {
         first_at: usize,
         /// Effective post-head last-index operand index.
         last_at: usize,
+    },
+    /// A native byte-ordered sort of a literal list.
+    ListSort {
+        /// Effective post-head first option index.
+        options_from: usize,
+        /// Effective post-head list operand index.
+        list_at: usize,
+        /// Number of elements in the literal list operand.
+        len: usize,
     },
     /// A native list repeating a contiguous retained value range.
     ListRepeat {
@@ -1115,6 +1157,18 @@ impl NativeResultSelection {
                     .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5))
             {
                 ValueRepresentation::Dict
+            } else {
+                ValueRepresentation::Unknown
+            };
+        }
+        if let Self::ListSort { len, .. } = self {
+            // 8.5–9.1 `Tcl_NewListObj`; 8.4 appends into the empty interp
+            // result, which the first element converts to a list.
+            return if len > 0
+                && dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+                && dialect.tcl_version.is_some()
+            {
+                ValueRepresentation::List
             } else {
                 ValueRepresentation::Unknown
             };
@@ -1258,6 +1312,23 @@ impl NativeResultSelection {
         let selected = &elements[first..=last];
         let bytes = dialect.list_result_serialization()?.render(selected);
         String::from_utf8(bytes).ok()
+    }
+
+    /// Sorted bytes of a selected byte-ordered `lsort` of a literal list.
+    #[must_use]
+    pub fn sorted_literal_result(self, arguments: InvocationArguments<'_>) -> Option<String> {
+        let Self::ListSort {
+            options_from,
+            list_at,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let words = (options_from..=list_at)
+            .map(|at| arguments.literal_at(at))
+            .collect::<Option<Vec<_>>>()?;
+        crate::const_fold::fold_lsort(&words)
     }
 
     /// Bytes of a result that C Tcl builds as a fresh stock string object.
@@ -1605,6 +1676,29 @@ impl NativeResultContract {
         argument_offset: usize,
     ) -> NativeResultSelection {
         match self {
+            Self::ListSort => {
+                let Some(list_at) = count.checked_sub(1).filter(|at| *at >= argument_offset) else {
+                    return NativeResultSelection::InvalidArguments;
+                };
+                let plain = (argument_offset..list_at).all(|at| {
+                    matches!(
+                        args.literal_at(at),
+                        Some("-ascii" | "-increasing" | "-decreasing" | "-unique")
+                    )
+                });
+                let len = args
+                    .literal_at(list_at)
+                    .and_then(crate::const_fold::split_list)
+                    .map(|elements| elements.len());
+                match len {
+                    Some(len) if plain => NativeResultSelection::ListSort {
+                        options_from: argument_offset,
+                        list_at,
+                        len,
+                    },
+                    _ => NativeResultSelection::Unknown,
+                }
+            }
             Self::ListConcat { from } => {
                 let from = argument_offset + usize::from(from);
                 count
@@ -1701,7 +1795,8 @@ impl NativeResultContract {
                 first_at,
                 last_at,
             } => select_list_range(count, argument_offset, [list_at, first_at, last_at]),
-            Self::ListConcat { .. }
+            Self::ListSort
+            | Self::ListConcat { .. }
             | Self::StringJoin { .. }
             | Self::ListReverse { .. }
             | Self::ListRepeat { .. } => self.select_list_result(args, count, argument_offset),

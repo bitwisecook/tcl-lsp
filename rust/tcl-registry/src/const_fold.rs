@@ -356,6 +356,41 @@ pub(crate) fn fold_lreverse(args: &[&str]) -> Option<String> {
     Some(list_join(&elems))
 }
 
+/// `lsort ?-ascii? ?-increasing|-decreasing? ?-unique? list`. Every release
+/// compares `-ascii` bytes (8.x `strcmp`, 9.x `TclUtfCmp`), which agree on
+/// NUL-free strings; equal elements are identical, so stability and the kept
+/// duplicate do not change the bytes. Any other option declines, as does a
+/// leading `#`, whose quoting differs between 8.4 and later list objects.
+pub(crate) fn fold_lsort(args: &[&str]) -> Option<String> {
+    let (list, options) = args.split_last()?;
+    let mut decreasing = false;
+    let mut unique = false;
+    for option in options {
+        match *option {
+            "-ascii" => {}
+            "-increasing" => decreasing = false,
+            "-decreasing" => decreasing = true,
+            "-unique" => unique = true,
+            _ => return None,
+        }
+    }
+    let mut elems = split_list(list)?;
+    if elems.iter().any(|elem| elem.contains('\0')) {
+        return None;
+    }
+    elems.sort_unstable();
+    if unique {
+        elems.dedup();
+    }
+    if decreasing {
+        elems.reverse();
+    }
+    if elems.first().is_some_and(|first| first.starts_with('#')) {
+        return None;
+    }
+    Some(list_join(&elems))
+}
+
 /// `join list ?joinString?` — flatten elements with the separator.
 pub(crate) fn fold_join(args: &[&str]) -> Option<String> {
     let (l, sep) = match args {
@@ -857,10 +892,37 @@ mod tests {
     /// the folds that re-render a list must not quote it everywhere. Each row
     /// is the byte-exact output of `tclsh8.6.16` and `tclsh9.0.4`, which agree.
     #[test]
+    fn lsort_folds_only_byte_ordered_ascii_sorts() {
+        assert_eq!(fold_lsort(&["c b a"]).as_deref(), Some("a b c"));
+        assert_eq!(
+            fold_lsort(&["-ascii", "-increasing", "B a b"]).as_deref(),
+            Some("B a b")
+        );
+        assert_eq!(
+            fold_lsort(&["-decreasing", "-unique", "b a b"]).as_deref(),
+            Some("b a")
+        );
+        assert_eq!(fold_lsort(&["{b c} a"]).as_deref(), Some("a {b c}"));
+        for option in [
+            "-integer",
+            "-real",
+            "-dictionary",
+            "-nocase",
+            "-command",
+            "-index",
+        ] {
+            assert_eq!(fold_lsort(&[option, "b a"]), None, "{option}");
+        }
+        assert_eq!(fold_lsort(&[]), None);
+    }
+
+    #[test]
     fn folded_lists_quote_a_leading_hash_only_in_position_zero() {
         assert_eq!(fold_list(&["a", "#"]).as_deref(), Some("a #"));
         assert_eq!(fold_list(&["#", "a"]).as_deref(), Some("{#} a"));
         assert_eq!(fold_lreverse(&["# a"]).as_deref(), Some("a #"));
+        assert_eq!(fold_lsort(&["a #"]), None);
+        assert_eq!(fold_lsort(&["-decreasing", "a #"]).as_deref(), Some("a #"));
         assert_eq!(fold_lrepeat(&["2", "#"]).as_deref(), Some("{#} #"));
         // A version-neutral fold cannot choose between native C84's bare
         // leading hash and the protected C85+/Jim list-object bytes.

@@ -989,6 +989,7 @@ fn selected_result(
                 .collect::<Option<Vec<_>>>()?;
             tcl_syntax::list::join_list(std::iter::repeat_n(values, repetitions).flatten())
         }
+        NativeResultSelection::ListSort { .. } => selection.sorted_literal_result(arguments)?,
         NativeResultSelection::ListRange { .. }
         | NativeResultSelection::ListReverse { .. }
         | NativeResultSelection::ListConcat { .. }

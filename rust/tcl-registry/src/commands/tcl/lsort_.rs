@@ -194,6 +194,8 @@ pub fn spec() -> CommandSpec {
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         runtime_backing: RuntimeBacking::shipped("lsort"),
+        const_fold: Some(crate::const_fold::fold_lsort),
+        native_result: Some(crate::native_result::NativeResultContract::ListSort),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // NOT `Traits::PURE` / `Traits::CSE_CANDIDATE`: unlike `lsearch`
         // (which has no comparator option), `-command cmdPrefix` lets a
