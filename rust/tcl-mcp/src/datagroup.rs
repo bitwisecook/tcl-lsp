@@ -33,7 +33,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use serde_json::{Value, json};
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_compiler::segmenter::segment_script_image_with_offset_and_config;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::SourceSyntaxStructure;
 use tcl_lsp_core::refactor::equality_source::{scalar_string_disjunction, scalar_string_equality};
@@ -239,11 +239,20 @@ enum SetOrReturn {
 /// Parse a single-command arm body via the segmenter (like the Rust static
 /// extractor's `parse_set_or_return`, keeping only the kind + `set` variable).
 fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
-    let commands = segment_commands_with_offset_and_config(text, 0, config.nested());
-    if commands.len() != 1 || commands[0].is_partial || commands[0].texts.is_empty() {
+    // The checked script entry: the editor segmenter keeps an unterminated
+    // word whole, so it cannot say that the body is one complete command.
+    let image = tcl_lexer::SourceImage::document(text);
+    let script = segment_script_image_with_offset_and_config(&image, 0, config.nested()).ok()?;
+    if script.fatal_tail.is_some() {
         return None;
     }
-    let texts = &commands[0].texts;
+    let [command] = script.commands.as_slice() else {
+        return None;
+    };
+    if command.is_partial || command.texts.is_empty() {
+        return None;
+    }
+    let texts = &command.texts;
     // registry-axis-ok: irreducible — `set` and `return` are recognised as
     // Tcl's own primitive syntax for this one-command-body shape, not as a
     // pack-authorable command; until never
@@ -712,7 +721,12 @@ mod original_arm_parser_purpose_tests {
         );
         assert!(parse_set_or_return("\u{feff}set x value", config).is_none());
         assert_eq!(
-            segment_commands_with_offset_and_config("\u{feff}set x value", 0, config)[0].name(),
+            tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+                "\u{feff}set x value",
+                0,
+                config
+            )[0]
+            .name(),
             "set"
         );
         // `${a{b}` names `a{b` on Tcl 8.4.20 and 8.6.18 (the first close

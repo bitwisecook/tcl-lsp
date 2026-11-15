@@ -384,7 +384,7 @@ Measuring: a probe test that builds the input and times `analyse` (the task brie
 
 ## iRules, registry, SpecTcl and tooling area, 15 November 2026
 
-Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 51, `tcl-spectcl` 38, `tcl-spec-studio` 11, `tcl-diagram` 17, `tcl-explorer` 16, `tcl-mcp` 7, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
+Measured on `c02a1743` plus this area's commit, `cargo nextest`, test profile `opt-level 1`, the ten area crates in one selection (17,343 tests, the 1,200 s `codegen_stamps::every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site` excluded). Against the baseline taken at `454068e6` (2,843 failing): 0 new failures. Failing now: `tcl-compiler` 2,495, `tcl-cli` 51, `tcl-spectcl` 38, `tcl-spec-studio` 11, `tcl-diagram` 17, `tcl-explorer` 16, `tcl-mcp` 6, `tcl-registry` 0, `tcl-irules` 3 of 105, `tcl-sslictcl` 1.
 
 Fixed:
 
@@ -438,7 +438,7 @@ Classification of what still fails (first failing assertion, one run):
 | `tcl-explorer` | `supplied_analysis_input_controls_the_document_pipeline`, `source_function_rows_preserve_duplicate_names_and_named_top` | 2 | this area |
 | `tcl-mcp` | `policy_tests` (W242, noqa, review families, lone-CR optimise) | 4 | Analyser and Dataflow |
 | `tcl-mcp` | fixed 3: the fixtures compared against bare words (`$host eq a`), which `expr` refuses on 8.6.18 and 9.0.4 (`invalid bareword "a"`); the operands are braced | 0 | done |
-| `tcl-mcp` | `original_datagroup_arm_parser_preserves_body_bom_and_actual_grammar_overrides`: now a per-release table; `return ${a{b}` is complete on 8.4.20 and 8.6.18 and incomplete on 9.0.4 and 9.1.0 ("missing close-brace for variable name"), but the segmenter under the Tcl 9.0 file grammar still reports it complete | 1 | Lexer/segmenter |
+| `tcl-mcp` | fixed: `parse_set_or_return` asks the checked script segmenter whether an arm body is one complete command (the editor segmenter keeps an unterminated `${` whole on every release); the per-release table passes on 8.4, 8.6, 9.0 and 9.1 | 0 | done |
 | `tcl-mcp` | `original_datagroup_suggestions_separate_heuristics_from_current_edit_eligibility` (no static extraction under an explicit lexical profile), `original_switch_suggestions_keep_selected_alias_and_current_analysis` (`interp alias {} select {} switch -exact --` gives no suggestion) | 2 | this area, open |
 
 ## Scope and publication
