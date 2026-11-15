@@ -1159,25 +1159,25 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 
 | Dialect | Rows |
 |---|---|
-| bpf | 2618 |
-| cadence-eda-tcl | 1192 |
-| expect | 2539 |
-| f5-iapps | 1018 |
+| bpf | 2619 |
+| cadence-eda-tcl | 1193 |
+| expect | 2540 |
+| f5-iapps | 1019 |
 | f5-irules | 1071 |
-| f5-tmsh | 999 |
-| intel-quartus-eda-tcl | 2571 |
-| mentor-eda-tcl | 2836 |
-| microchip-libero-eda-tcl | 2752 |
-| spectcl | 2716 |
-| sslictcl | 2656 |
-| synopsys-eda-tcl | 2741 |
-| tcl8.4 | 969 |
-| tcl8.5 | 2346 |
-| tcl8.6 | 2525 |
-| tcl9.0 | 2594 |
-| tcl9.1 | 2611 |
-| tk | 2634 |
-| xilinx-eda-tcl | 3284 |
+| f5-tmsh | 1000 |
+| intel-quartus-eda-tcl | 2572 |
+| mentor-eda-tcl | 2837 |
+| microchip-libero-eda-tcl | 2753 |
+| spectcl | 2717 |
+| sslictcl | 2657 |
+| synopsys-eda-tcl | 2742 |
+| tcl8.4 | 970 |
+| tcl8.5 | 2347 |
+| tcl8.6 | 2526 |
+| tcl9.0 | 2595 |
+| tcl9.1 | 2612 |
+| tk | 2635 |
+| xilinx-eda-tcl | 3285 |
 
 ## Hand-written command knowledge outside the registry
 

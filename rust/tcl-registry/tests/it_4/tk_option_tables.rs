@@ -112,3 +112,69 @@ fn ttk_panedwindow_weight_is_a_pane_option() {
         }
     }
 }
+
+const METHOD_RELEASES: &[(&str, &str, &str)] = &[
+    (
+        "tcl8.5",
+        "8.5",
+        include_str!("../data/tk_option_tables/tk8.5.19.methods.txt"),
+    ),
+    (
+        "tcl8.6",
+        "8.6",
+        include_str!("../data/tk_option_tables/tk8.6.18.methods.txt"),
+    ),
+    (
+        "tcl9.0",
+        "9.0",
+        include_str!("../data/tk_option_tables/tk9.0.4.methods.txt"),
+    ),
+    (
+        "tcl9.1",
+        "9.1",
+        include_str!("../data/tk_option_tables/tk9.1.0.methods.txt"),
+    ),
+];
+
+/// Each themed widget's instance methods are exactly the `Ttk_Ensemble`
+/// its `WidgetSpec` registers, in Tk 8.5 to 9.1.
+#[test]
+fn ttk_widget_methods_match_the_c_ensembles() {
+    let mut report = Vec::new();
+    for &(tcl, tk, table) in METHOD_RELEASES {
+        let mut registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find(tcl).expect("Tcl release"));
+        registry.insert_ambient_package("Tk", tk);
+        for line in table.lines() {
+            let mut words = line.split_whitespace();
+            let widget = words.next().expect("widget");
+            let c_methods: Vec<&str> = words.collect();
+            let class = registry
+                .get(widget)
+                .and_then(|spec| spec.object_class)
+                .unwrap_or_else(|| panic!("Tk {tk} {widget} has an instance class"));
+            let declared: Vec<&str> = class
+                .instance_methods
+                .iter()
+                .filter(|method| method.lifecycle.available_at(Some(tk)))
+                .map(|method| method.name)
+                .collect();
+            let missing: Vec<&str> = c_methods
+                .iter()
+                .copied()
+                .filter(|name| !declared.contains(name))
+                .collect();
+            let extra: Vec<&str> = declared
+                .iter()
+                .copied()
+                .filter(|name| !c_methods.contains(name))
+                .collect();
+            if !missing.is_empty() || !extra.is_empty() {
+                report.push(format!(
+                    "Tk {tk} {widget}: missing {missing:?} extra {extra:?}"
+                ));
+            }
+        }
+    }
+    assert!(report.is_empty(), "{}", report.join("\n"));
+}

@@ -1095,7 +1095,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::exact(2),
         detail: "Move a displayed column's right edge to the given x coordinate while resizing.",
         synopsis: "pathName drag column xposition",
-        lifecycle: Lifecycle::introduced_in("9.0"),
+        lifecycle: Lifecycle::introduced_in("8.5"),
         mutator: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS_WRITES,
@@ -1106,7 +1106,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::exact(0),
         detail: "Finish an interactive column resize and redistribute column widths.",
         synopsis: "pathName drop",
-        lifecycle: Lifecycle::introduced_in("9.0"),
+        lifecycle: Lifecycle::introduced_in("8.6"),
         mutator: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS_WRITES,
@@ -1576,10 +1576,16 @@ mod tests {
     #[test]
     fn treeview_subcommands_and_versioned_signatures_match_tk() {
         assert_eq!(SUBCOMMANDS.len(), 48);
-        for name in ["drag", "drop"] {
+        // `TreeviewCommands` lists `drag` from Tk 8.5.19 and `drop` from
+        // 8.6.18 (generic/ttk/ttkTreeview.c), not from 9.0.
+        for (name, first, before) in [("drag", "8.5", None), ("drop", "8.6", Some("8.5"))] {
             let sub = sub(name);
-            assert!(!sub.available_for_version(Some("8.6")), "{name}");
-            assert!(sub.available_for_version(Some("9.0")), "{name}");
+            for release in [first, "9.0", "9.1"] {
+                assert!(sub.available_for_version(Some(release)), "{name} {release}");
+            }
+            if let Some(before) = before {
+                assert!(!sub.available_for_version(Some(before)), "{name} {before}");
+            }
         }
         for name in ["id", "identifier", "search", "sort"] {
             let sub = sub(name);

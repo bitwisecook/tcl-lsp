@@ -1,0 +1,18 @@
+ttk::button cget configure identify instate invoke state
+ttk::checkbutton cget configure identify instate invoke state
+ttk::combobox bbox cget configure current delete get icursor identify index insert instate selection set state validate xview
+ttk::entry bbox cget configure delete get icursor identify index insert instate selection state validate xview
+ttk::frame cget configure identify instate state
+ttk::label cget configure identify instate state
+ttk::labelframe cget configure identify instate state
+ttk::menubutton cget configure identify instate state
+ttk::notebook add cget configure forget hide identify index insert instate select state tab tabs
+ttk::panedwindow add cget configure forget identify insert instate pane panes sashpos state
+ttk::progressbar cget configure identify instate start state step stop
+ttk::radiobutton cget configure identify instate invoke state
+ttk::scale cget configure coords get identify instate set state
+ttk::scrollbar cget configure delta fraction get identify instate set state
+ttk::separator cget configure identify instate state
+ttk::sizegrip cget configure identify instate state
+ttk::spinbox bbox cget configure delete get icursor identify index insert instate selection set state validate xview
+ttk::treeview bbox cget children column configure delete detach drag drop exists focus heading identify index insert instate item move next parent prev see selection set state tag xview yview

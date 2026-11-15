@@ -239,6 +239,18 @@ super::common::ttk_widget_class!(
     SUBCOMMANDS,
     CLASS,
     "ttk::combobox",
+    // `ComboboxCommands` reuses ttkEntry.c's `EntryValidateCommand`.
+    SubCommand {
+        name: "validate",
+        arity: Arity::exact(0),
+        detail: "Force revalidation of the current value.",
+        synopsis: "pathName validate",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::Boolean),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
     SubCommand {
         name: "bbox",
         arity: Arity::exact(1),
