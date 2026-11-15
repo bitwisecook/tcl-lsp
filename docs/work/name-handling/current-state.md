@@ -315,6 +315,11 @@ Server e2e at `c1b4cae1`, one thread (`cargo nextest run -p tcl-lsp-server -E 't
 
 Measuring: a probe test that builds the input and times `analyse` (the task brief's probe, or the same body as a `tcl-compiler` integration test), `TCL_LSP_TRACE_WORKSPACE_SCAN=1` for the `ANALYSER_PHASE` lines, and `gdb -p <pid> -batch -x` with a Python loop that prints `thread apply all bt` and continues for 30 ms. Comparing a function's sampled share times wall-clock at N=200 and N=800 ranks what grows faster than the input. `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget` is within about 7 KB of its stack budget: a field added to `SourceImage` or to the bindings handle shows up there first.
 
+## iRules area, 15 November 2026
+
+- #2528 (handler `set` never lowered, so no I230/W220 in `when` bodies): blocked on an expression-parser axis. `InvocationDialect::expression_parse_context` gives F5 iRules `NativeExprSyntax::Unknown`, so a handler condition never gets a preparation witness and SCCP declines every handler branch. The F5 8.4 parser exists as `logical_expression_parse_context(Tcl84CoreSimulation, …)`, but only the VM installs it. The compiler needs an explicit provider threaded like `compiled_variable_provider` (source entry, baseline, `FoldPolicy::preparation_context`). The lowering, entered-walk and naming-gate changes are on branch `issues/irules` (no `it_2` regression); they land with the provider. Details in the issue.
+- #2165 (`!`/`not` before a custom comparison) and #2151 (F5 character model): need an appliance run. Probes: `scripts/dev/bigip-probes/irules/expr-prefix-grouping/` and `scripts/dev/bigip-probes/irules/character-model/`.
+
 ## Scope and publication
 
 Work is paused at the user's request after finishing the current autoload repair. All parallel investigations are stopped. Source/status checkpoints have been published to work and the periodic publisher is stopped. The final one-shot sync publishes this paused snapshot. The release verdict remains unchanged.
