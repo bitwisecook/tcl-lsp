@@ -7056,7 +7056,9 @@ impl WorkspaceIndex {
         let links = self.command_link_map();
         let wci = WildcardImportIndex::build(self);
         match self.settle_invocation(invocation, &defined, Some(&links), &wci) {
-            Some(SettledCommandTarget::Authored(name)) => vec![format!("::{name}")],
+            Some(SettledCommandTarget::Authored(name)) => {
+                vec![tcl_syntax::naming::root_unrooted_key(&name)]
+            }
             Some(SettledCommandTarget::OriginalSlot(slot, policy)) => {
                 let names = self
                     .original_procedure_declarations()

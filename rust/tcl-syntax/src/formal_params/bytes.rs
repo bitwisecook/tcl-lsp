@@ -205,7 +205,7 @@ fn validate_name(name: &[u8]) -> Result<(), ByteFormalParameterError> {
         if name[index] == b'(' && name.last() == Some(&b')') {
             return Err(ByteFormalParameterError::ArrayElement(name.to_vec()));
         }
-        if name[index..].starts_with(b"::") {
+        if crate::naming::is_absolute_bytes(&name[index..]) {
             return Err(ByteFormalParameterError::NotSimpleName(name.to_vec()));
         }
     }

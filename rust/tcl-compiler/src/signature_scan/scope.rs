@@ -59,9 +59,8 @@ impl SignatureNamespaceScope {
             Self::C(path) => tcl_syntax::native_string::resident_name_label(
                 &tcl_syntax::naming::native_namespace_full_name_bytes(path),
             ),
-            Self::Jim(value) => format!(
-                "::{}",
-                tcl_syntax::native_string::resident_name_label(value.as_bytes()),
+            Self::Jim(value) => tcl_syntax::naming::root_unrooted_key(
+                &tcl_syntax::native_string::resident_name_label(value.as_bytes()),
             ),
         }
     }

@@ -2817,39 +2817,37 @@ mod tests {
         assert_eq!(tail(b"a:b"), b"a:b");
     }
 
+    /// `qualify` joins by the canonical rule. tclsh 8.6 and 9.0 pinned the
+    /// lone-colon and trailing-separator rows; the rule is invariant from C
+    /// Tcl 8.4 to 9.1 (`TclGetNamespaceForQualName`).
     #[test]
-    fn qualify_joins_relative_names_under_rooted_and_unrooted_prefixes() {
-        assert_eq!(qualify("::ns", "C"), "::ns::C");
-        assert_eq!(qualify("ns", "C"), "::ns::C");
-        assert_eq!(qualify("::a::b", "c::D"), "::a::b::c::D");
-        assert_eq!(qualify("", "C"), "::C");
-        assert_eq!(qualify("::", "C"), "::C");
-    }
-
-    #[test]
-    fn qualify_names_the_empty_entity_with_a_trailing_separator() {
-        // `proc {} {} {}` — the empty-name command is the `{}` entity the
-        // trailing separator denotes.
-        assert_eq!(qualify("", ""), "::");
-        assert_eq!(qualify("::ns", ""), "::ns::");
-    }
-
-    // Names carrying lone colons (`proc :`, `namespace eval :`)
-    // and written colon runs.  tclsh 8.6/9.0-pinned; C 8.4→9.1-invariant
-    // (`TclGetNamespaceForQualName`).
-
-    #[test]
-    fn qualify_keeps_a_lone_colon_name_distinct() {
-        // `proc :` at the root is `"::" + ":"` — never collapsed into the
-        // empty-name `"::"` key.
-        assert_eq!(qualify("::", ":"), ":::");
-        // ... inside a namespace named `:` (key `":::"`).
-        assert_eq!(qualify(":::", ":"), "::::::");
-        // Written runs in the name still collapse (`a:::b` names `a::b`).
-        assert_eq!(qualify("::ns", "a:::b"), "::ns::a::b");
-        // A written trailing run names the `{}` command in that namespace.
-        assert_eq!(qualify("::", "x::"), "::x::");
-        assert_eq!(qualify("::", "x:::"), "::x::");
+    fn qualify_joins_by_the_canonical_rule() {
+        for (prefix, name, key) in [
+            // A relative name resolves under a rooted or unrooted prefix.
+            ("::ns", "C", "::ns::C"),
+            ("ns", "C", "::ns::C"),
+            ("::a::b", "c::D", "::a::b::c::D"),
+            ("", "C", "::C"),
+            ("::", "C", "::C"),
+            // An absolute name is never re-prefixed.
+            ("::ns", "::other::C", "::other::C"),
+            ("ns", "::C", "::C"),
+            // `proc {} {} {}`: the empty name is the entity a trailing
+            // separator denotes.
+            ("", "", "::"),
+            ("::ns", "", "::ns::"),
+            // `proc :` at the root is `"::" + ":"`, never the empty-name key,
+            // and likewise inside a namespace named `:` (key `":::"`).
+            ("::", ":", ":::"),
+            (":::", ":", "::::::"),
+            // Written runs in the name collapse (`a:::b` names `a::b`); a
+            // written trailing run names the `{}` command there.
+            ("::ns", "a:::b", "::ns::a::b"),
+            ("::", "x::", "::x::"),
+            ("::", "x:::", "::x::"),
+        ] {
+            assert_eq!(qualify(prefix, name), key, "{prefix:?} {name:?}");
+        }
     }
 
     #[test]
@@ -2928,14 +2926,6 @@ mod tests {
     }
 
     #[test]
-    fn qualify_keeps_absolute_names_absolute() {
-        // The class-lattice regression: an absolute name must never be
-        // re-prefixed under the current namespace.
-        assert_eq!(qualify("::ns", "::other::C"), "::other::C");
-        assert_eq!(qualify("ns", "::C"), "::C");
-    }
-
-    #[test]
     fn is_absolute_reads_a_leading_colon_run_of_two_or_more() {
         for (name, absolute) in [
             ("::a", true),
@@ -2991,9 +2981,22 @@ mod tests {
     }
     use super::*;
 
+    /// The variable a written reference names: the `$`, a `${…}` wrapper and
+    /// an array index are spelling, not name. Release-invariant.
     #[test]
-    fn simple_dollar() {
-        assert_eq!(normalise_var_name("$foo"), "foo");
+    fn normalise_var_name_strips_the_sigil_braces_and_index() {
+        for (written, name) in [
+            ("$foo", "foo"),
+            ("${bar}", "bar"),
+            ("$arr(idx)", "arr"),
+            ("${arr(idx)}", "arr"),
+            ("plain", "plain"),
+            ("$ns::var", "ns::var"),
+            ("", ""),
+            ("$", ""),
+        ] {
+            assert_eq!(normalise_var_name(written), name, "{written:?}");
+        }
     }
 
     #[test]
@@ -3121,71 +3124,22 @@ mod tests {
         }
     }
 
-    #[test]
-    fn braced_dollar() {
-        assert_eq!(normalise_var_name("${bar}"), "bar");
-    }
-
-    #[test]
-    fn array_stripped() {
-        assert_eq!(normalise_var_name("$arr(idx)"), "arr");
-    }
-
-    #[test]
-    fn braced_array_stripped() {
-        assert_eq!(normalise_var_name("${arr(idx)}"), "arr");
-    }
-
-    #[test]
-    fn no_prefix() {
-        assert_eq!(normalise_var_name("plain"), "plain");
-    }
-
-    #[test]
-    fn namespace_qualified() {
-        assert_eq!(normalise_var_name("$ns::var"), "ns::var");
-    }
-
-    #[test]
-    fn empty_string() {
-        assert_eq!(normalise_var_name(""), "");
-    }
-
-    #[test]
-    fn bare_dollar() {
-        assert_eq!(normalise_var_name("$"), "");
-    }
-
     // normalise_qualified_name tests
 
+    /// A reporting key is rooted once and its written colon runs collapse;
+    /// the empty name stays empty. Release-invariant.
     #[test]
-    fn qualified_bare() {
-        assert_eq!(normalise_qualified_name("foo"), "::foo");
-    }
-
-    #[test]
-    fn qualified_already() {
-        assert_eq!(normalise_qualified_name("::bar"), "::bar");
-    }
-
-    #[test]
-    fn qualified_nested() {
-        assert_eq!(normalise_qualified_name("ns::sub"), "::ns::sub");
-    }
-
-    #[test]
-    fn qualified_empty() {
-        assert_eq!(normalise_qualified_name(""), "");
-    }
-
-    #[test]
-    fn qualified_just_colons() {
-        assert_eq!(normalise_qualified_name("::"), "::");
-    }
-
-    #[test]
-    fn qualified_extra_colons() {
-        assert_eq!(normalise_qualified_name("::::x"), "::x");
+    fn normalise_qualified_name_roots_once_and_collapses_colon_runs() {
+        for (written, key) in [
+            ("foo", "::foo"),
+            ("::bar", "::bar"),
+            ("ns::sub", "::ns::sub"),
+            ("", ""),
+            ("::", "::"),
+            ("::::x", "::x"),
+        ] {
+            assert_eq!(normalise_qualified_name(written), key, "{written:?}");
+        }
     }
 
     // qualifier_segments / is_qualified

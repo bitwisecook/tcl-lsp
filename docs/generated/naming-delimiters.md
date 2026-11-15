@@ -10,21 +10,16 @@
 | `rust/f5-cli/src/commands/irule.rs` | 1 |
 | `rust/tcl-bigip/src/parser/driver.rs` | 1 |
 | `rust/tcl-bigip/src/redact.rs` | 1 |
-| `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 2 |
+| `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/scope.rs` | 3 |
 | `rust/tcl-compiler/src/command_binding/source_declared_method_template.rs` | 1 |
-| `rust/tcl-compiler/src/signature_scan/scope.rs` | 1 |
-| `rust/tcl-compiler/src/state_ssa.rs` | 1 |
-| `rust/tcl-compiler/src/var_resolve/cell_key.rs` | 2 |
-| `rust/tcl-lsp-core/src/workspace_index.rs` | 1 |
+| `rust/tcl-compiler/src/var_resolve/cell_key.rs` | 1 |
 | `rust/tcl-registry/src/f5/rule_identity.rs` | 6 |
-| `rust/tcl-registry/src/model/namespace_ownership.rs` | 1 |
 | `rust/tcl-registry/src/native_argument_role_hook.rs` | 2 |
 | `rust/tcl-spec-studio/src/render_rs.rs` | 3 |
 | `rust/tcl-spec-studio/src/render_spectcl.rs` | 6 |
 | `rust/tcl-spectcl/src/catalogue.rs` | 1 |
 | `rust/tcl-spectcl/src/loader.rs` | 8 |
 | `rust/tcl-spectcl/src/loader/semantics.rs` | 1 |
-| `rust/tcl-syntax/src/formal_params/bytes.rs` | 1 |
 
-44 site(s) in 20 file(s).
+37 site(s) in 15 file(s).

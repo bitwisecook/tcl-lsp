@@ -257,10 +257,8 @@ impl VariableCellKey {
                 if namespace == "::" {
                     tcl_syntax::naming::is_absolute(root)
                 } else {
-                    root.starts_with(namespace)
-                        && root
-                            .get(namespace.len()..)
-                            .is_some_and(|tail| tail.starts_with("::"))
+                    root.strip_prefix(namespace)
+                        .is_some_and(tcl_syntax::naming::is_absolute)
                 }
             }
             (Self::RetainedSlot(slot), namespace) => match slot.as_ref() {

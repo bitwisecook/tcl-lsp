@@ -1117,7 +1117,7 @@ pub mod adapters {
                         || root == "::"
                         || candidate
                             .strip_prefix(root)
-                            .is_some_and(|rest| rest.starts_with("::"))
+                            .is_some_and(tcl_syntax::naming::is_absolute)
                 }
             }
         }

@@ -77,7 +77,7 @@ impl NamespacePackageOwnership {
             .iter()
             .filter(|(namespace, _)| {
                 key.strip_prefix(namespace.as_bytes())
-                    .is_some_and(|tail| tail.starts_with(b"::"))
+                    .is_some_and(tcl_syntax::naming::is_absolute_bytes)
             })
             .max_by_key(|(namespace, _)| namespace.len())
             .and_then(|(_, package)| *package)

@@ -403,7 +403,11 @@ impl Analyser {
                 .result
                 .all_procs
                 .get(target)
-                .or_else(|| self.result.all_procs.get(&format!("::{target}")))
+                .or_else(|| {
+                    self.result
+                        .all_procs
+                        .get(&tcl_syntax::naming::root_unrooted_key(target))
+                })
                 .map(super::types::ProcDef::arity)
                 .or_else(|| {
                     if tcl_syntax::naming::is_qualified(target.as_bytes()) {
