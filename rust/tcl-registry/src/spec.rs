@@ -5684,19 +5684,20 @@ mod tests {
     #[test]
     fn optional_trailing_arg_names_narrows_with_the_dialect() {
         let registry = CommandRegistry::build_default();
-        let spec = registry.get("catch").expect("catch is a registry command");
+        // The C Tcl row, selected by release: Jim has a row of its own.
+        let names = |release| {
+            let query = Some(SurfaceQuery::core(Family::Tcl, release));
+            registry
+                .get_for_surface("catch", query)
+                .expect("catch is a registry command")
+                .optional_trailing_arg_names(query, None)
+        };
         // Tcl 8.5 onward documents `catch script ?resultVarName? ?optionsVarName?`.
-        assert_eq!(
-            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), None),
-            vec!["resultVarName", "optionsVarName"]
-        );
+        assert_eq!(names("9.0"), vec!["resultVarName", "optionsVarName"]);
         // Tcl 8.4's `catch script ?varName?` has no options dictionary, so a
         // consumer running under that dialect never offers a word the release
         // has no argument slot for.
-        assert_eq!(
-            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "8.4")), None),
-            vec!["varName"]
-        );
+        assert_eq!(names("8.4"), vec!["varName"]);
     }
 
     // `FormSpec` lifecycle in the form-selection queries.

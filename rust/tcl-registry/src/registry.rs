@@ -7929,12 +7929,10 @@ impl CommandRegistry {
         args: &[&str],
         wanted: &[ArgRole],
     ) -> Vec<(usize, ArgRole)> {
-        self.arg_role_assignments_words(
-            name,
-            InvocationArguments::literals(args).with_profile(self.profile()),
-            wanted,
-        )
-        .unwrap_or_default()
+        // The words carry no engine of their own, so the registry's query
+        // selects (see `arg_role_assignments_words_for_dialect`).
+        self.arg_role_assignments_words(name, InvocationArguments::literals(args), wanted)
+            .unwrap_or_default()
     }
 
     /// Project selected roles once, retaining the execution dialect and

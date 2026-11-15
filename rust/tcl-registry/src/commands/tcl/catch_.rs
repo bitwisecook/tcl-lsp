@@ -187,6 +187,16 @@ fn jim_roles(arguments: &[&str]) -> Vec<(u8, ArgRole)> {
     roles
 }
 
+/// Jim's one form; the C Tcl forms belong to releases this row never reaches.
+const JIM_FORMS: &[FormSpec] = &[FormSpec {
+    synopsis: "catch ?-?no?code ...? ?--? script ?resultVarName? ?optionsVarName?",
+    surface: Some(surface![SpecSurface::core_in(
+        Family::Jim,
+        &[("0.84", None)]
+    )]),
+    ..FormSpec::DEFAULT
+}];
+
 /// Jim's completion-switch grammar and positional capture variables.
 pub fn jim_spec() -> CommandSpec {
     CommandSpec {
@@ -194,6 +204,7 @@ pub fn jim_spec() -> CommandSpec {
             Family::Jim,
             &[("0.84", None)]
         )]),
+        forms: JIM_FORMS,
         arity: Arity::at_least(1),
         arg_roles: &[],
         arg_role_resolver: Some(jim_roles),

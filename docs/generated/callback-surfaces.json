@@ -1038,8 +1038,7 @@
     "appended_arity": null,
     "callback_taint_inputs": [],
     "forms": [
-      "catch script ?resultVarName? ?optionsVarName? [all known owning-package versions]",
-      "catch script ?varName? [all known owning-package versions]"
+      "catch ?-?no?code ...? ?--? script ?resultVarName? ?optionsVarName? [all known owning-package versions]"
     ],
     "registry_derived": true,
     "registry_owner": "catch",

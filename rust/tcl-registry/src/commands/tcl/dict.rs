@@ -237,8 +237,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_elements: Some(ReturnElements::DictOfPairs { from: 0 }),
         // Unknown key objects still require string materialisation. Only the
         // successful-handler projection closes this phase for known keys;
-        // unknown values are retained without coercion.
+        // unknown values are retained without coercion. An open world
+        // contract cannot carry the referentially transparent result claim.
         world_effects: None,
+        result_stability: None,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
