@@ -2497,12 +2497,18 @@ impl Interp {
                     self.refuse_native_execution(first);
                     crate::frame::VarError::NameProtocolUnavailable
                 })?;
-            return reached.map(Some).map_err(|error| {
+            let reached = reached.map_err(|error| {
                 // The captured owner has already retained the full first cause;
                 // VarError is only the existing outer diagnostic unwind port.
                 self.report_cmd_error(error);
                 crate::frame::VarError::NameProtocolUnavailable
-            });
+            })?;
+            self.refuse_confined_receiver(&reached.1, purpose)?;
+            return Ok(Some(reached));
+        }
+        // Asked by name before the capture, which may create the entry.
+        if Self::changes_a_variable(purpose) && self.store_escapes(&selected.root) {
+            return Err(crate::frame::VarError::Confined);
         }
         let captured = crate::vars::capture_original_c_selected_receiver(
             &mut self.frames.borrow_mut(),
@@ -2536,7 +2542,46 @@ impl Interp {
                 receiver.retain_original_element_key(retained_key.as_ref().map(Owned::as_ptr));
             }
         }
+        if let Some((_, home)) = &captured {
+            self.refuse_confined_receiver(home, purpose)?;
+        }
         Ok(captured)
+    }
+
+    const fn changes_a_variable(purpose: NativeVariableNameLookupPurpose) -> bool {
+        use NativeVariableNameLookupPurpose as Purpose;
+        matches!(
+            purpose,
+            Purpose::Write
+                | Purpose::QuietWrite
+                | Purpose::IncrementRead
+                | Purpose::IncrementExisting
+                | Purpose::ArrayMake
+                | Purpose::Define
+                | Purpose::Unset
+                | Purpose::QuietUnset
+        )
+    }
+
+    /// Refuse a receiver a confined interpreter may not change: every store,
+    /// increment, definition and unset passes here with the cell it selected,
+    /// and only a cell of the running procedure's own frame is its to change.
+    /// A link or a reference changes nothing by itself; the store through it
+    /// selects the cell it reaches and is asked then.
+    fn refuse_confined_receiver(
+        &self,
+        home: &crate::vars::TraceHome,
+        purpose: NativeVariableNameLookupPurpose,
+    ) -> Result<(), crate::frame::VarError> {
+        if !self.stores_confined() || !Self::changes_a_variable(purpose) {
+            return Ok(());
+        }
+        let frames = self.frames.borrow();
+        if frames.in_proc() && home.level == Some(frames.current_level()) {
+            Ok(())
+        } else {
+            Err(crate::frame::VarError::Confined)
+        }
     }
 
     fn original_c_variable_error_without_operand_using(

@@ -730,6 +730,21 @@ fn unset_original(
             Ok(original) => original,
             Err(error) => return interp.report_cmd_error(error),
         };
+        // A confined interpreter refuses the unset before any name policy
+        // looks the variable up, and `-nocomplain` does not excuse it.
+        if interp.stores_confined() {
+            let name = match arguments.bytes(index) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            match interp.variable_name_parts(&name) {
+                Ok((base, _)) if interp.store_escapes(&base) => {
+                    return interp.confined_unset_error(&name);
+                }
+                Ok(_) => {}
+                Err(error) => return var_error(interp, &name, error),
+            }
+        }
         if interp.observed_name_policy_selected() {
             let name = match arguments.bytes(index) {
                 Ok(name) => name,

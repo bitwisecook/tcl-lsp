@@ -100,6 +100,25 @@ impl Interp {
         complain: bool,
         frame: &UnsetFrame,
     ) -> Result<(), Code> {
+        // A confined interpreter refuses the unset by name before the lookup;
+        // a quiet unset is refused as a complaining one is.
+        if self.stores_confined() {
+            let name = self
+                .native_string_bytes(&original)
+                .map(|bytes| bytes.to_vec())
+                .map_err(|error| self.report_cmd_error(error.into()))?;
+            let root = match element {
+                Some(_) => name.clone(),
+                None => {
+                    self.variable_name_parts(&name)
+                        .map_err(|error| crate::builtins::var_error(self, &name, error))?
+                        .0
+                }
+            };
+            if self.store_escapes(&root) {
+                return Err(self.confined_unset_error(&name));
+            }
+        }
         let purpose = unset_purpose(complain);
         let element_bytes = element
             .map(|element| {

@@ -676,14 +676,7 @@ pub(crate) fn confine_stores_refuses_every_store_outside_the_activation<E: Engin
             .confine_stores()
             .expect("the runtime confines its stores");
         let answer = run(&mut engine, body);
-        // The runtime's `regexp` reports a store it could not make in words of
-        // its own, where C Tcl leaves the variable's error; the store is still
-        // refused, which is what this asserts for it.
-        let expected = if body.starts_with("regexp") {
-            "couldn't set match variable"
-        } else {
-            "stores are confined to the activation"
-        };
+        let expected = "stores are confined to the activation";
         assert!(
             answer
                 .as_ref()
