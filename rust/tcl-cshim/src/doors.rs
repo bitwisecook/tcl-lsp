@@ -146,10 +146,20 @@ fn bridge_name(
     })
 }
 
-/// An error's message with the name the shim rooted given back as the C code
-/// spelt it, since C Tcl reports a `TCL_GLOBAL_ONLY` name as it was given.
+/// An error's message and `-errorcode` with the name the shim rooted given
+/// back as the C code spelt it, since C Tcl reports a `TCL_GLOBAL_ONLY` name as
+/// it was given: tclsh 9.0.4 answers `set nsnone::q 1` with the code
+/// `TCL LOOKUP VARNAME nsnone::q`.
 fn unrooted(mut error: TclError, rooted: &str, asked: &str) -> TclError {
     if rooted != asked {
+        if let Some(code) = error.code.as_mut()
+            && let Some(kept) = code.len().checked_sub(rooted.len())
+            && code.ends_with(rooted.as_bytes())
+            && code[..kept].ends_with(b" ")
+        {
+            code.truncate(kept);
+            code.extend_from_slice(asked.as_bytes());
+        }
         let (rooted, asked) = (format!("\"{rooted}\""), format!("\"{asked}\""));
         if let Some(at) = error
             .message

@@ -507,20 +507,19 @@ const CASES: &[(&str, i64, &str, &str)] = &[
         "can't read \"nosuch\": no such variable",
         "TCL LOOKUP VARNAME nosuch",
     ),
+    (
+        "doors_global_set nsnone::q 1",
+        1,
+        "can't set \"nsnone::q\": parent namespace doesn't exist",
+        "TCL LOOKUP VARNAME nsnone::q",
+    ),
 ];
 
 /// Where this host's error code is not C Tcl's, and why: the script, its code and
 /// result (which agree), the `-errorcode` C Tcl gave, the one given here and the
 /// reason. Each is a gap of the engine and not of the shim; when one closes, the
 /// row moves to [`CASES`].
-const DIVERGENCES: &[(&str, i64, &str, &str, &str, &str)] = &[(
-    "doors_global_set nsnone::q 1",
-    1,
-    "can't set \"nsnone::q\": parent namespace doesn't exist",
-    "TCL LOOKUP VARNAME nsnone::q",
-    "TCL LOOKUP VARNAME ::nsnone::q",
-    "the VM names the variable by its rooted key where C Tcl keeps the written name",
-)];
+const DIVERGENCES: &[(&str, i64, &str, &str, &str, &str)] = &[];
 
 #[test]
 fn every_call_answers_what_c_tcl_answers() {
