@@ -617,20 +617,22 @@ fn st_range_variant_restarts_delta_from_first_surviving_token() {
 #[test]
 fn st_diff_appends_a_single_token_via_provider() {
     // Drive `diff` with two real provider streams (not synthetic vectors):
-    // appending one trailing argument (`set x 1` → `set x 1 2`) appends exactly
-    // one token after the common prefix, deleting nothing. (The in-module tests
+    // appending one trailing argument (`list x 1` → `list x 1 2`) appends
+    // exactly one token after the common prefix, deleting nothing. Both
+    // commands run on tclsh; a fourth word to `set` would be an arity error,
+    // which changes how the earlier words are coloured. (The in-module tests
     // use hand-built vectors; this exercises the encoder + diff together.)
     // Note: a same-length value edit (`1`→`2`) leaves the stream byte-identical
     // — the encoding carries position/length/type, not the literal — so `diff`
     // returns `None`; we change the token *count* instead.
     let before = full(
-        "set x 1\n",
+        "list x 1\n",
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     )
     .data;
     let after = full(
-        "set x 1 2\n",
+        "list x 1 2\n",
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     )
@@ -640,11 +642,11 @@ fn st_diff_appends_a_single_token_via_provider() {
     assert_eq!(edit.start % 5, 0, "{edit:?}");
     assert_eq!(edit.delete_count, 0, "append deletes nothing: {edit:?}");
     assert_eq!(edit.data.len(), 5, "exactly one token appended: {edit:?}");
-    // The common prefix is the three unchanged tokens (`set`, `x`, `1`).
+    // The common prefix is the three unchanged tokens (`list`, `x`, `1`).
     assert_eq!(edit.start, 15, "{edit:?}");
     // A same-length literal edit produces an identical stream → no diff.
     let same_len = full(
-        "set x 2\n",
+        "list x 2\n",
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     )

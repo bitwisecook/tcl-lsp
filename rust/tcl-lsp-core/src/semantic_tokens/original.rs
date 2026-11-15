@@ -1145,10 +1145,11 @@ fn insert_logical_definition_overrides(
     use tcl_registry::ArgRole;
     // A hosted iRules document has no Logical head; its rule-load declarations
     // (`when`, `proc`) are still read from the selected schema. Written words
-    // have no head receipt at all and are display only.
+    // have no head receipt at all and are display only, except in an iRules
+    // document, where the rule loader's own boundary decides what declares.
     let logical = match words {
         ArgumentWords::Original(original) => original_logical_head(ctx, original).is_some(),
-        ArgumentWords::Written => true,
+        ArgumentWords::Written => !ctx.dialect.is_irules(),
     };
     if !logical && !ctx.dialect.is_irules() {
         return;

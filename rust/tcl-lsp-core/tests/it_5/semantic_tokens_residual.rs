@@ -850,8 +850,10 @@ fn st_expr_math_function_carries_default_library() {
     // A recognised math function inside `expr` (`abs`) is a `function` with the
     // `defaultLibrary` modifier; a user-ish function name would not be. Assert
     // the modifier via the packed stream.
+    // `a` is set first: tclsh raises on the unset read before it looks the
+    // function up, so nothing about `abs` is known in a script that stops there.
     let st = full(
-        "set y [expr {abs($a)}]\n",
+        "set a -3\nset y [expr {abs($a)}]\n",
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
@@ -1047,20 +1049,24 @@ fn st_irules_custom_registry_proc_is_a_declaration() {
 }
 
 #[test]
-fn st_irules_event_fallback_survives_generic_tcl_registry() {
-    // `when EVENT` has intentionally been event-coloured in generic Tcl
-    // buffers for years.  The active generic registry has no iRules `when`
-    // spec, so the declaration-boundary candidate set must retain the
-    // built-in iRules fallback as well as workspace extensions.
+fn st_event_selector_colour_follows_the_document_dialect() {
+    // `when` is an iRules command. tclsh 8.6.18 answers `invalid command name
+    // "when"`, so a Tcl 8.6 document has no event there; an iRules document
+    // does.
     let src = "when HTTP_REQUEST {}\n";
-    let toks = decode(src, "tcl8.6");
-    assert_eq!(
-        toks.iter()
-            .find(|t| t.line == 0 && t.character == 5)
-            .map(|t| t.ttype.as_str()),
-        Some("event"),
-        "generic Tcl must retain dialect-independent event colouring: {toks:?}",
-    );
+    let irules = irules_registry();
+    for (dialect, registry, expected) in
+        [("tcl8.6", reg(), "string"), ("f5-irules", &irules, "event")]
+    {
+        let toks = decode_with(src, dialect, registry);
+        assert_eq!(
+            toks.iter()
+                .find(|t| t.line == 0 && t.character == 5)
+                .map(|t| t.ttype.as_str()),
+            Some(expected),
+            "{dialect}: {toks:?}",
+        );
+    }
 }
 
 #[test]
@@ -1346,14 +1352,16 @@ fn st_binary_non_format_subcommand_has_no_field_override() {
     let toks = decode("binary encode base64 $d\n", "tcl8.6");
     assert!(of_type(&toks, "binarySpec").is_empty(), "{toks:?}");
     assert!(of_type(&toks, "binaryCount").is_empty(), "{toks:?}");
-    // `encode` is a recognised subcommand keyword; `base64` is the format-name
-    // argument, closed over exactly base64/hex/uuencode
-    // (`ENCODE_DECODE_FORMAT_VALUES` in `binary_.rs`) and so classified
-    // `enumMember` — a separate, legitimate override from the `BinaryFormat`
-    // one this test is otherwise about, not a plain string.
-    assert!(
-        toks.iter()
-            .any(|t| t.ttype == "enumMember" && t.length == 6),
-        "`base64` is the closed-set format-name arg, not a plain string; got {toks:?}",
+    // `binary encode` is itself an ensemble, so `base64` is a subcommand word
+    // like `encode`. tclsh 8.6.18 and 9.0.4: `namespace ensemble exists
+    // ::tcl::binary::encode` is 1, and `binary encode nope x` answers
+    // `unknown subcommand "nope": must be base64, hex, or uuencode`.
+    assert_eq!(
+        of_type(&toks, "keyword")
+            .iter()
+            .map(|t| t.character)
+            .collect::<Vec<_>>(),
+        [7, 14],
+        "`encode` and `base64` are both subcommand words; got {toks:?}",
     );
 }
