@@ -66,6 +66,26 @@ fn sourced_scripts() -> std::path::PathBuf {
     dir
 }
 
+/// A wrong-argument error of `if` sets `TCL WRONGARGS` from 8.6; 8.4 and 8.5
+/// leave `NONE`. The words are evaluated, not compiled, so the command's own
+/// handler raises each error.
+#[test]
+fn if_wrong_arguments_set_the_release_error_code() {
+    let src = r"set r {}
+foreach s {{if} {if 1} {if 1 {} else} {if 1 {} else {} x} {if 0 {} elseif}} {catch $s m; lappend r $::errorCode}
+set r";
+    assert_releases(
+        &[TclVersion::V8_4, TclVersion::V8_5],
+        src,
+        "NONE NONE NONE NONE NONE",
+    );
+    assert_releases(
+        &[TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1],
+        src,
+        "{TCL WRONGARGS} {TCL WRONGARGS} {TCL WRONGARGS} {TCL WRONGARGS} {TCL WRONGARGS}",
+    );
+}
+
 /// `return` reads TIP 90's options dictionary from 8.5; 8.4 takes only
 /// `-code`, `-errorinfo` and `-errorcode` and rejects any other name.
 #[test]

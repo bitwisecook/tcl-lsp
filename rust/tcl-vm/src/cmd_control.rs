@@ -46,8 +46,20 @@ pub(crate) fn register(vm: &mut Vm) {
 }
 
 /// `wrong # args: no script following "<token>" argument` (C's `missingScript`).
+/// A wrong-argument error of `if`, with `TCL WRONGARGS` where the emulated
+/// release sets it: tclsh 8.6.18 and 9.0.4 report it for `if`, `if 1`,
+/// `if 1 {} else` and `if 1 {} else {} x`; tclsh 8.5.19 reports `NONE`.
+fn wrong_arguments(message: impl AsRef<[u8]>) -> Completion<Value> {
+    const CODE: &str = "TCL WRONGARGS";
+    if tcl_syntax::expr::errors::ambient_release().sets_error_code(CODE.as_bytes()) {
+        crate::command::err_with_code(message, CODE)
+    } else {
+        err(message)
+    }
+}
+
 fn no_script_following(token: &str) -> Completion<Value> {
-    err(format!(
+    wrong_arguments(format!(
         "wrong # args: no script following \"{token}\" argument"
     ))
 }
@@ -678,7 +690,7 @@ impl ControlState {
                     }
                 }
                 if *cursor + 1 < arguments.len() {
-                    return ControlStep::Complete(err(
+                    return ControlStep::Complete(wrong_arguments(
                         "wrong # args: extra words after \"else\" clause in \"if\" command",
                     ));
                 }
@@ -688,7 +700,7 @@ impl ControlState {
                 break;
             }
             if *cursor >= arguments.len() {
-                return ControlStep::Complete(err(format!(
+                return ControlStep::Complete(wrong_arguments(format!(
                     "wrong # args: no expression after \"{clause}\" argument"
                 )));
             }
