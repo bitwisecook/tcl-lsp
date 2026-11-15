@@ -2297,6 +2297,24 @@ fn a_sorted_literal_is_checked_at_every_read() {
     }
 }
 
+/// C8.6–9.1 compile a constant `list` in a procedure body into one shared
+/// literal list object, which every later read finds as stock as a source
+/// literal; C8.4/8.5 build a fresh list. Either way both reads are checked (#2437).
+#[test]
+fn a_compiled_constant_list_is_checked_at_every_read() {
+    let src = "proc p {} {\n    set l [list a b]\n    lindex $l 9\n    puts [lindex $l 9]\n}\n";
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let findings = Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W230)
+            .map(|d| src[d.span.as_range()].to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(findings, ["9", "9"], "{dialect}");
+    }
+}
+
 /// Converting a variable index keeps the stock objects it may share, so a
 /// second read through the same index is checked as the first is (#2387),
 /// a loop counter `incr` left numeric included.

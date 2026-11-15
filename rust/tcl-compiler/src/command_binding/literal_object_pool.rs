@@ -314,6 +314,16 @@ impl SourceOrdinaryLiteralObject {
             integer_contents: pool.integer_contents,
         })
     }
+    /// C8.6–9.1 `TclCompileListCmd` pushes a compile-time-known list as one
+    /// literal object built by `Tcl_ListObjAppendElement`. Every execution
+    /// shares it, and only stock commands convert it, so it is a stock-class
+    /// object whose current intrep is unknown.
+    pub(super) fn compiled_constant_list(
+        state: &ModuleCommandBindings,
+    ) -> Option<SourceStockLiteralObject> {
+        Self::list_element(state)
+    }
+
     /// An element parsed from an authored literal list is a fresh untyped
     /// object; later conversions leave it a stock-class object.
     pub(super) fn list_element(state: &ModuleCommandBindings) -> Option<SourceStockLiteralObject> {

@@ -547,18 +547,34 @@ pub(super) fn retain_created_result(
     } else {
         Vec::new()
     };
-    let representation = if selection.list_construction(
+    let construction = selection.list_construction(
         dialect,
         context.compilation(),
         *native.compilation_selection,
         &shapes,
-    ) == tcl_registry::native_result::ListResultConstruction::Fresh
-    {
-        ValueRepresentation::List
-    } else {
-        conditional
-            .unwrap_or_else(|| selection.created_representation(dialect, context.compilation()))
-    };
+    );
+    if construction == tcl_registry::native_result::ListResultConstruction::SharedLiteral {
+        let normal = outcomes.normal.as_mut().unwrap();
+        let Some(object) =
+            super::literal_object_pool::SourceOrdinaryLiteralObject::compiled_constant_list(normal)
+        else {
+            return;
+        };
+        if normal.source_variables.representation_epoch.is_none() {
+            Arc::make_mut(&mut normal.source_variables).establish_created_representation_epoch();
+        }
+        outcomes.normal_representation =
+            FrozenSourceRepresentation::capture_stock_literal(object, &normal.source_variables)
+                .map(Arc::new);
+        return;
+    }
+    let representation =
+        if construction == tcl_registry::native_result::ListResultConstruction::Fresh {
+            ValueRepresentation::List
+        } else {
+            conditional
+                .unwrap_or_else(|| selection.created_representation(dialect, context.compilation()))
+        };
     let list_method_provider = facts
         .normal_list_method_provider(native.invocation.arguments())
         .or_else(|| {
