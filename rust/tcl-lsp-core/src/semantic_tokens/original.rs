@@ -1655,18 +1655,33 @@ pub(super) fn collect_parameter_fields(
     let Some(analysis) = ctx.analysis else {
         return collect_written_parameter_fields(ctx, tok, entries);
     };
-    let formal = analysis
-        .original_procedure_declarations()
-        .find_map(|declaration| {
-            let formal = analysis.original_procedure_formals(declaration, ctx.registry)?;
-            formal
-                .original_input()
-                .original_word()
-                .tokens()
-                .first()
-                .is_some_and(|first| first.span == tok.span)
-                .then_some(formal)
+    // One pass over the declarations for the whole walk; the first declaration
+    // whose parameter word starts at a token keeps that key.
+    let formal = ctx
+        .walk
+        .procedure_formals
+        .get_or_init(|| {
+            let mut index = FxHashMap::default();
+            for declaration in analysis.original_procedure_declarations() {
+                let Some(formal) = analysis.original_procedure_formals(declaration, ctx.registry)
+                else {
+                    continue;
+                };
+                let Some(first) = formal
+                    .original_input()
+                    .original_word()
+                    .tokens()
+                    .first()
+                    .map(|first| first.span)
+                else {
+                    continue;
+                };
+                index.entry((first.start(), first.end())).or_insert(formal);
+            }
+            index
         })
+        .get(&(tok.span.start(), tok.span.end()))
+        .cloned()
         .or_else(|| {
             let input = ctx.operand?.input.as_ref()?.original_word_key()?;
             let dialect = match ctx.original_roles.formal_dialects.get(&tok.span.start()) {

@@ -3100,6 +3100,14 @@ struct WalkFacts<'a> {
     /// The script regions this walk entered, with their nesting depth. Their
     /// commands are coloured as script, so their comments are comments.
     entered_scripts: std::cell::RefCell<Vec<(Span, u32)>>,
+    /// The analysed formals of every procedure declaration, keyed by the
+    /// extent of the first token of its parameter word. Built on first use.
+    procedure_formals: std::cell::OnceCell<
+        FxHashMap<
+            (u32, u32),
+            tcl_compiler::signature_scan::formal_parameters::SignatureSourceFormalParameters,
+        >,
+    >,
 }
 
 impl<'a> WalkFacts<'a> {
@@ -3118,6 +3126,7 @@ impl<'a> WalkFacts<'a> {
             shell,
             rebound_tails,
             entered_scripts: std::cell::RefCell::new(Vec::new()),
+            procedure_formals: std::cell::OnceCell::new(),
         }
     }
 }

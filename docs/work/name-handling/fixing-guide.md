@@ -46,7 +46,7 @@ Measured on a 4-core, 15 GB host, `tcl-compiler` library tests (the worst case):
 | `opt-level 0`, incremental on | 5.5 min | 50 s | 49 min |
 | `opt-level 1`, incremental on (use this) | 14 min | 51 s | 10 min |
 
-So keep `opt-level 1` and leave incremental on: an edit-to-test cycle is about a minute and the pre-push suite is a 1 minute rebuild plus its run. `agent-build-env.sh` now turns incremental on; it costs about 5 GB of target directory.
+So keep `opt-level 1` and leave incremental on: an edit-to-test cycle is about a minute and the pre-push suite is a 1 minute rebuild plus its run. `agent-build-env.sh` now turns incremental on; it costs 5 to 10 GB of target directory, depending on how many test binaries the selection builds.
 
 - Build only the binary you need in the loop: `--lib`, or one `--test it_4`. A nextest `-E` filter alone still builds every test binary of the selected packages.
 - Keep one package selection per target directory (`-p a -p b …`). A different selection resolves different features (`syn`, `tokio`, `hashbrown`, and the workspace's own `test-support`, `html` and `truth-table` features) and rebuilds most of the tree.
@@ -82,6 +82,8 @@ Stay inside your area's crates so sessions do not collide; a fix that needs anot
 | Compiler analysis | `tcl-compiler` (analyser, diagnostics, binding, CFG, SSA, SCCP, taint, optimiser) |
 | Execution | `tcl-codegen`, `tcl-vm`, `tcl-engine-*`, `tcl-cmd-core`, `runtime/rust`, `tcl-cshim` |
 | LSP features | `tcl-lsp-core` and `tcl-lsp-server` outside semantic tokens, `tcl-lsp-db` |
-| Tokens, owner, tooling | semantic tokens, `tcl-syntax::naming`, `tcl-registry`, `tcl-spectcl`, `tcl-cli`, `tcl-mcp`, `tcl-irules`, `tcl-explorer`, `tcl-diagram`, `tcl-spec-studio`, `xtask` |
+| Tokens, owner | semantic tokens, `tcl-syntax::naming`, `tcl-lexer`, `xtask` |
+| iRules, registry, SpecTcl, tooling | `tcl-irules`, `tcl-registry`, `tcl-spectcl`, `tcl-sslictcl`, `tcl-cli`, `tcl-mcp`, `tcl-explorer`, `tcl-diagram`, `tcl-spec-studio`, the iRules rule-loader paths of `tcl-compiler` |
+| Analysis performance | hot paths of `tcl-compiler` and `tcl-lexer`; behaviour must not change |
 
 Record what you fixed, what is still open and why in [current state](current-state.md) under your area, as a short current snapshot.
