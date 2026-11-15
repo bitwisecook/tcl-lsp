@@ -1242,6 +1242,32 @@ pub(crate) fn original_logical_realm_from_source_bindings(
     )
 }
 
+/// The realm of a release unit's authored simulation, under the unit's own
+/// analysis input: the original bindings and registry the Logical realm
+/// carries, without a Logical name-advice input.
+pub(crate) fn original_authored_realm_from_source_bindings(
+    bindings: &SourceCommandBindings,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> Option<CommandBindingRealm> {
+    let config = bindings.original_source_lexer_config()?;
+    let image = bindings.source_origin()?.source_image();
+    if bindings.source_metadata_owner().source_analysis_input() != Some(input)
+        || config != input.lexer_config()
+        || !bindings.matches_original_source_image(image, config)
+    {
+        return None;
+    }
+    let context = input.borrowed_context_registry();
+    crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        context.commands(),
+        input,
+    )?;
+    Some(
+        realm_from_source_bindings(bindings.clone(), context.commands())
+            .with_resolved_analysis_input(input.clone()),
+    )
+}
+
 pub(crate) fn conditional_region_realm(
     region: &crate::command_binding::OriginalSourceConditionalRegion,
 ) -> CommandBindingRealm {

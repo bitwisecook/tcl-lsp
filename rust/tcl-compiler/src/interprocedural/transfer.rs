@@ -2298,7 +2298,7 @@ fn alias_facts(
         return Some((Vec::new(), None));
     }
     let operation = source.operation(tokens)?;
-    let transitions = operation.facts.state_transitions.declared()?;
+    let transitions = source.transitions(tokens)?;
     Some((
         transitions
             .facts()

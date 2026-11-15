@@ -18,6 +18,7 @@
 
 //! Conditional transfer queries over one unchanged original Logical source world.
 
+use crate::command_binding::OriginalInvocationSourcePurpose;
 use crate::ir::{CommandTokens, Module, Procedure, Script, Statement};
 use crate::registry_invocation::{
     EffectiveCommandWords, InvocationMetadataContext, ResolvedStatementInvocation,
@@ -102,6 +103,10 @@ pub(super) struct SourceSummaryContext<'a> {
     registry: &'a CommandRegistry,
     config: LexerConfig,
     realm: crate::realm::CommandBindingRealm,
+    /// The source model the module was read under: the Logical survey, or a
+    /// release unit's authored simulation. Every original query answers only
+    /// under this purpose.
+    purpose: OriginalInvocationSourcePurpose,
 }
 
 impl<'a> SourceSummaryContext<'a> {
@@ -117,24 +122,42 @@ impl<'a> SourceSummaryContext<'a> {
                 .retained_source_bindings
                 .as_ref()?
                 .matches_module(module, registry)
-            || module.original_invocation_source_purpose(
-                registry,
-                InvocationMetadataContext::for_module(registry, module)?,
-            ) != Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical)
         {
             return None;
         }
+        let purpose = module.original_invocation_source_purpose(
+            registry,
+            InvocationMetadataContext::for_module(registry, module)?,
+        )?;
+        let bindings = module
+            .retained_source_bindings
+            .as_deref()?
+            .positioned_for_module(module, registry)?;
+        let realm = match purpose {
+            OriginalInvocationSourcePurpose::Logical => {
+                crate::realm::original_logical_realm_from_source_bindings(bindings)?
+            }
+            OriginalInvocationSourcePurpose::AuthoredSimulation => {
+                crate::realm::original_authored_realm_from_source_bindings(
+                    bindings,
+                    module.source_metadata_input.as_ref()?,
+                )?
+            }
+            _ => return None,
+        };
         Some(Self {
             module,
             registry,
             config,
-            realm: crate::realm::original_logical_realm_from_source_bindings(
-                module
-                    .retained_source_bindings
-                    .as_deref()?
-                    .positioned_for_module(module, registry)?,
-            )?,
+            realm,
+            purpose,
         })
+    }
+
+    /// Whether the module was read under the Logical survey, whose
+    /// navigation and variable scopes the operand queries read.
+    fn logical(&self) -> bool {
+        self.purpose == OriginalInvocationSourcePurpose::Logical
     }
 
     pub(super) const fn registry(&self) -> &'a CommandRegistry {
@@ -156,11 +179,48 @@ impl<'a> SourceSummaryContext<'a> {
         &'w self,
         tokens: &'w CommandTokens,
     ) -> Option<InvocationMetadataContext<'w>> {
-        self.variable_operands().metadata(tokens)
+        if self.logical() {
+            return self.variable_operands().metadata(tokens);
+        }
+        let binding = tokens.source_binding.as_ref()?;
+        let metadata =
+            binding.original_invocation_metadata_for_module(tokens, self.module, self.registry)?;
+        (binding.original_invocation_source_purpose(tokens, metadata, self.registry)?
+            == self.purpose)
+            .then_some(metadata)
     }
 
     pub(super) fn operation(&self, tokens: &CommandTokens) -> Option<ResolvedStatementInvocation> {
-        self.variable_operands().operation(tokens)
+        if self.logical() {
+            return self.variable_operands().operation(tokens);
+        }
+        crate::registry_invocation::original_source_model_operation_invocation_with_metadata_context(
+            self.registry,
+            self.metadata(tokens)?,
+            tokens,
+            self.purpose,
+        )
+    }
+
+    /// The closed state transitions of the selected operation: the
+    /// registry's declaration, or, for a release unit's authored simulation
+    /// whose descriptor declares none, the authored source view's.
+    pub(super) fn transitions(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<tcl_registry::StateTransitions> {
+        let operation = self.operation(tokens)?;
+        if let Some(declared) = operation.facts.state_transitions.declared() {
+            return Some(declared.clone());
+        }
+        (!self.logical()).then_some(())?;
+        self.with_operation(tokens, |operation, schema| {
+            Some(
+                schema
+                    .authored_source_effects_and_state_transitions(operation.dialect?)
+                    .1,
+            )
+        })
     }
 
     pub(super) fn with_operation<T>(
@@ -180,11 +240,19 @@ impl<'a> SourceSummaryContext<'a> {
 
     pub(super) fn procedure_call(&self, tokens: &CommandTokens) -> Option<ProcedureCall<'a>> {
         self.metadata(tokens)?;
-        let calls = crate::registry_invocation::original_logical_procedure_calls_for_module(
-            tokens,
-            self.module,
-            self.registry,
-        )?;
+        let calls = if self.logical() {
+            crate::registry_invocation::original_logical_procedure_calls_for_module(
+                tokens,
+                self.module,
+                self.registry,
+            )?
+        } else {
+            crate::registry_invocation::original_authored_procedure_calls_for_module(
+                tokens,
+                self.module,
+                self.registry,
+            )?
+        };
         let mut selected: Option<ProcedureCall<'a>> = None;
         for call in calls {
             let procedure = self.procedure(&call.id())?;
@@ -221,6 +289,7 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         written: usize,
     ) -> Option<tcl_lexer::NativeWord> {
+        self.logical().then_some(())?;
         self.variable_operands()
             .original_argument_word(tokens, written)
     }
@@ -231,6 +300,7 @@ impl<'a> SourceSummaryContext<'a> {
         written: usize,
         form: tcl_registry::resolved_invocation::VariableReceiverOperandForm,
     ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        self.logical().then_some(())?;
         self.variable_operands()
             .argument_source_place(tokens, written, form)
     }
@@ -240,6 +310,7 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         alias: &tcl_registry::VariableCellAliasTransition,
     ) -> Option<tcl_core_types::NameBytes> {
+        self.logical().then_some(())?;
         self.variable_operands().alias_local(tokens, alias)
     }
 
@@ -248,6 +319,7 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         alias: &tcl_registry::VariableCellAliasTransition,
     ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        self.logical().then_some(())?;
         self.variable_operands().alias_source_place(tokens, alias)
     }
 
@@ -256,6 +328,7 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         local: &str,
     ) -> Option<tcl_registry::resolved_invocation::VariableReceiverOperandForm> {
+        self.logical().then_some(())?;
         let operation = self.operation(tokens)?;
         let words = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
             self.module, self.registry, tokens,
@@ -579,6 +652,47 @@ mod tests {
     use crate::interprocedural::test_body_identity::fixture_id;
 
     use super::*;
+
+    /// A release unit's authored simulation has its own summary context: its
+    /// call to a module procedure resolves to that procedure, and `set`,
+    /// whose registry descriptor declares no state transitions, has the
+    /// closed, empty transitions of the authored source view. The answer is
+    /// the same under every release; this runs under Tcl 8.6.
+    #[test]
+    fn a_release_unit_has_an_authored_summary_context() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "proc a {} {set x 0; return $x}\nproc e {} {a}\n",
+            context.commands(),
+            false,
+            "tcl8.6",
+        );
+        let module = &unit.ir_module;
+        let source =
+            SourceSummaryContext::for_module(module, context.commands(), module.lexer_config)
+                .expect("the authored simulation's summary context");
+        let a = fixture_id(&module.procedures, "::a");
+        let e = fixture_id(&module.procedures, "::e");
+        let callees: Vec<_> = source
+            .body_commands(&e)
+            .expect("e's commands")
+            .iter()
+            .filter_map(|tokens| source.procedure_call(tokens))
+            .map(|call| call.id)
+            .collect();
+        assert_eq!(callees, [a]);
+        let commands = source.body_commands(&a).expect("a's commands");
+        let set = commands
+            .iter()
+            .find(|tokens| tokens.argv_texts.first().map(String::as_str) == Some("set"))
+            .expect("the set command");
+        assert!(source.procedure_call(set).is_none());
+        assert!(
+            source
+                .transitions(set)
+                .is_some_and(|transitions| transitions.facts().is_empty())
+        );
+    }
 
     #[test]
     fn original_expression_fused_top_level_retains_its_existing_parent_record() {
@@ -1056,19 +1170,42 @@ mod tests {
             SourceSummaryContext::for_module(&observed, context.commands(), observed.lexer_config)
                 .is_none()
         );
-        let native_context =
+        // A release unit's authored simulation is a source model and has a
+        // summary context; a Standalone unit, which no source model owns,
+        // has none.
+        let release_context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-        let native = crate::compilation_unit::CompilationUnit::build_for_dialect(
-            "proc p {} {return 1}",
-            native_context.commands(),
-            false,
-            "tcl8.6",
+        let registry = release_context.commands();
+        let text = "proc p {} {return 1}";
+        let release = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            text, registry, false, "tcl8.6",
         );
+        let module = &release.ir_module;
+        assert!(
+            SourceSummaryContext::for_module(module, registry, module.lexer_config).is_some_and(
+                |source| source.purpose == OriginalInvocationSourcePurpose::AuthoredSimulation
+            )
+        );
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let standalone =
+            crate::compilation_unit::CompilationUnit::build_standalone_with_analysis_input(
+                text,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    config: module.lexer_config,
+                    dialect: Some(input.unit_profile()),
+                    defer_top_level: false,
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                input,
+            )
+            .unwrap();
         assert!(
             SourceSummaryContext::for_module(
-                &native.ir_module,
-                native_context.commands(),
-                native.ir_module.lexer_config
+                &standalone.ir_module,
+                registry,
+                standalone.ir_module.lexer_config
             )
             .is_none()
         );
