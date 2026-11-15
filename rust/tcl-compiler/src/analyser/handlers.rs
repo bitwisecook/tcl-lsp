@@ -9346,13 +9346,39 @@ impl Analyser {
             if self.static_statement_falls_through(&seg, depth) {
                 continue;
             }
+            let completion = match self.segment_invocation_completion(&seg) {
+                // An untyped body's statements may have no source point of
+                // their own on a release profile. Reading the written head
+                // there can only make this walk abstain, never claim.
+                tcl_registry::registry::InvocationCompletion::Unknown => {
+                    self.written_head_completion(&seg)
+                }
+                completion => completion,
+            };
             return matches!(
-                self.segment_invocation_completion(&seg),
+                completion,
                 tcl_registry::registry::InvocationCompletion::Terminates
                     | tcl_registry::registry::InvocationCompletion::ReturnsResult(_)
             );
         }
         false
+    }
+
+    /// The registry's completion for the statement's written words, with no
+    /// lookup behind it. Only the abstaining direction may read it.
+    fn written_head_completion(
+        &self,
+        seg: &SegmentedCommand,
+    ) -> tcl_registry::registry::InvocationCompletion {
+        let Some(context) = self.retained_static_source_context() else {
+            return tcl_registry::registry::InvocationCompletion::Unknown;
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        context.commands().invocation_completion(
+            seg.name(),
+            &args,
+            Some(context.context().authoring_query()),
+        )
     }
 
     fn control_arms_for_segment(&self, seg: &SegmentedCommand) -> ControlArms {
@@ -10080,10 +10106,16 @@ impl Analyser {
         depth: u32,
     ) -> Option<String> {
         if let Some(proc_def) = self.original_static_procedure_at(seg) {
-            // The position's own lookup proves the implementation, so the
-            // document-wide trust scan of the lexical path is not consulted.
+            // The position's own lookup proves the implementation. The
+            // head must still be that procedure's own name (an alias does
+            // not lend it), and a command-table mutation that may name it
+            // anywhere in the document blocks the fold, as on the lexical
+            // path.
             let qname = proc_def.qualified_name.clone();
-            if stack.iter().any(|seen| seen == &qname) {
+            if tcl_syntax::naming::key_tail(seg.name()) != tcl_syntax::naming::key_tail(&qname)
+                || !self.static_provenance_command_is_trusted(&qname)
+                || stack.iter().any(|seen| seen == &qname)
+            {
                 return None;
             }
             stack.push(qname);
@@ -10091,8 +10123,9 @@ impl Analyser {
             stack.pop();
             return result;
         }
-        self.original_static_builtin_at(seg)
-            .then(|| self.static_registry_fold(seg.name(), args))?
+        (self.original_static_builtin_at(seg)
+            && self.static_provenance_command_is_trusted(&crate::naming::qualify("::", seg.name())))
+        .then(|| self.static_registry_fold(seg.name(), args))?
     }
 
     /// Whether this position is proved to dispatch to the registry builtin
@@ -10125,6 +10158,21 @@ impl Analyser {
                     && target.prepended.is_empty()
                     && crate::naming::qualify("::", segment.name()) == target.command
             })
+    }
+
+    /// On a release profile a call of a command the registry does not
+    /// describe has no schema to read; its body, if the document declares
+    /// one, is a definition body the trust scan skips.
+    fn release_call_has_no_schema(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        seg: &SegmentedCommand,
+    ) -> bool {
+        self.result
+            .resolved_input
+            .as_ref()
+            .is_some_and(|input| !input.has_logical_source_name_context())
+            && registry.get(seg.name()).is_none()
     }
 
     /// Whether `query` still denotes its declared builtin/procedure for the
@@ -10171,6 +10219,9 @@ impl Analyser {
                     &seg,
                 )
             else {
+                if self.release_call_has_no_schema(registry, &seg) {
+                    continue;
+                }
                 return false;
             };
             let Some(transitions) = original.with_source_schema(&context, |schema| {
@@ -10194,10 +10245,15 @@ impl Analyser {
                 Some(input.unit_profile()),
             );
             let overlap = |subject: &tcl_registry::TransitionSubject| {
-                crate::dynamic_names::original_command_name_overlap(
-                    original.original_argument_word(subject.argument_index()?)?,
-                    query,
-                    metadata,
+                let word = original.original_argument_word(subject.argument_index()?)?;
+                crate::dynamic_names::original_command_name_overlap(word, query, metadata).or_else(
+                    || {
+                        // Outside the Logical domain no fragment of a
+                        // computed word is read: it may name anything.
+                        (!input.has_logical_source_name_context()).then(|| {
+                            crate::dynamic_names::release_command_name_overlap(word, query)
+                        })
+                    },
                 )
             };
             for transition in transitions.command_bindings() {

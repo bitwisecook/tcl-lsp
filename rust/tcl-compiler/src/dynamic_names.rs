@@ -365,6 +365,39 @@ pub(crate) struct OriginalCommandNameOverlap {
     pub(crate) empty: bool,
 }
 
+/// The same question for a release profile, where no fragment of a computed
+/// word is read: a static word compares by value and any other word may
+/// name every command.
+pub(crate) fn release_command_name_overlap(
+    word: &tcl_lexer::NativeWord,
+    coordinate: &str,
+) -> OriginalCommandNameOverlap {
+    let dynamic = OriginalCommandNameOverlap {
+        may_equal: true,
+        dynamic: true,
+        empty: false,
+    };
+    if word.group().expand {
+        return dynamic;
+    }
+    let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word) else {
+        return dynamic;
+    };
+    let Ok(value) = std::str::from_utf8(&value) else {
+        return dynamic;
+    };
+    if value.contains('\0') {
+        return dynamic;
+    }
+    OriginalCommandNameOverlap {
+        may_equal: tcl_syntax::naming::qualify("::", value) == coordinate
+            || (!tcl_syntax::naming::is_qualified(value.as_bytes())
+                && tcl_syntax::naming::key_tail(coordinate) == value),
+        dynamic: false,
+        empty: value.is_empty(),
+    }
+}
+
 pub(crate) fn original_command_name_overlap(
     word: &tcl_lexer::NativeWord,
     coordinate: &str,
