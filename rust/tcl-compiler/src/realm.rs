@@ -443,6 +443,24 @@ impl CommandBindingRealm {
         }
     }
 
+    /// Contents the interpretation froze for the whole written word at `span`.
+    /// Advice only; see the binding owner.
+    #[must_use]
+    pub fn frozen_written_word_value_at_span_in_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<String> {
+        self.bindings
+            .frozen_written_word_value_at_span_in_source_with(
+                image,
+                span,
+                config,
+                Some(&self.query_memo),
+            )
+    }
+
     /// Purpose-specific readonly C array operand root. Genuine whole-vector
     /// ownership and the unknown index remain independent of value/cell lookup.
     #[must_use]

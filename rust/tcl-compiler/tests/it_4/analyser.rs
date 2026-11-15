@@ -2463,15 +2463,27 @@ mod rename {
         assert_eq!(renamed.get("::foo"), Some(&"::foo_impl".to_string()));
     }
 
+    /// A name built from a parameter folds from the call that reaches the
+    /// `rename`. tclsh 8.4.20 to 9.1.0 print `impl` for the first source
+    /// followed by `puts [foo]`; a second call with another argument raises
+    /// `can't rename "::foo_other": command doesn't exist` and leaves `foo`
+    /// in place; with no call there is no `foo`.
     #[test]
-    fn proc_parameter_is_not_constant_folded() {
-        // FN (expected, documented — explicitly out of scope: closing this
-        // needs interprocedural single-call-site literal-argument
-        // propagation, a materially larger, separate feature).
-        let src = "proc ::foo_impl {} { return impl }\n\
-             proc activate {key} { rename ::foo_$key ::foo }\n\
-             activate impl\n";
-        assert!(!renamed_commands(src).contains_key("::foo"));
+    fn a_rename_through_a_parameter_folds_from_the_call_that_reaches_it() {
+        let declared = "proc ::foo_impl {} { return impl }\n\
+             proc activate {key} { rename ::foo_$key ::foo }\n";
+        for (calls, renamed) in [
+            ("activate impl\n", true),
+            ("activate impl\nactivate other\n", true),
+            ("", false),
+        ] {
+            let src = format!("{declared}{calls}");
+            assert_eq!(
+                renamed_commands(&src).get("::foo").map(String::as_str),
+                renamed.then_some("::foo_impl"),
+                "{calls:?}"
+            );
+        }
     }
 
     #[test]
@@ -8619,11 +8631,12 @@ mod const_cmd_subst_set_rhs {
     }
 
     #[test]
-    fn a_shadowing_proc_definition_blocks_the_fold() {
-        // FP guard — a user `proc namespace …` anywhere in the module
-        // shadows the builtin, so `[namespace qualifiers …]` no longer has
-        // builtin semantics (flow-insensitive: cross-proc call order is
-        // not statically known).
+    fn a_shadowing_proc_definition_replaces_the_builtin_fold() {
+        // A user `proc namespace …` shadows the builtin for every call made
+        // after the file is loaded, so `[namespace qualifiers …]` is whatever
+        // that procedure returns, never `::tc`. tclsh 8.4.20 and 9.0.4 raise
+        // `invalid command name "::evil::setdef"` for `user` after this
+        // source.
         let src = concat!(
             "namespace eval tc { proc setdef {a b} { return 1 } }\n",
             "proc user {} {\n",
@@ -8635,8 +8648,8 @@ mod const_cmd_subst_set_rhs {
         let r = analysis(src, "tcl8.6");
         assert_eq!(
             resolutions_of(&r, "${ns}"),
-            ["::${ns}::setdef"],
-            "a shadowed builtin must not const-fold"
+            ["::evil::setdef"],
+            "the head is built from what the shadowing procedure returns"
         );
     }
 

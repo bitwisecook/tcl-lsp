@@ -2243,6 +2243,24 @@ impl Analyser {
         String::from_utf8(bytes).ok()
     }
 
+    /// The value the interpretation froze for the whole word at `token`, on
+    /// a profile whose words it evaluates. A word it never reached, or
+    /// reached with two values, has none.
+    pub(super) fn frozen_value_word(&self, token: Token) -> Option<String> {
+        let config = self.file_lexer_config();
+        let image = crate::registry_invocation::source_structure::original_query_document_image(
+            &self.source,
+            &self.result,
+            config,
+        );
+        self.result
+            .matches_original_source_image(&image, config)
+            .then_some(())?;
+        self.result
+            .retained_command_realm()?
+            .frozen_written_word_value_at_span_in_source(&image, token.span, config)
+    }
+
     pub(super) fn retain_readonly_dictionary_keys(
         &mut self,
         value: &str,

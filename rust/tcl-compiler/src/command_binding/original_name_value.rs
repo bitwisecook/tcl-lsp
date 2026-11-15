@@ -2147,6 +2147,44 @@ impl super::SourceCommandBindings {
         selected
     }
 
+    /// Contents the interpretation froze for the whole written word at `span`,
+    /// when every dispatch that reached its command agrees on them. This is
+    /// advice for declaration records and diagnostics: it grants no dispatch,
+    /// store or edit authority.
+    pub(crate) fn frozen_written_word_value_at_span_in_source_with(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        memo: Option<&OriginalRealmQueryMemo>,
+    ) -> Option<String> {
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let mut selected: Option<String> = None;
+        for (_, ordinal, binding, site) in
+            self.original_written_word_observations_at_span_with(span, config, memo)?
+        {
+            (site.source.source_image() == image).then_some(())?;
+            // A declaration preview runs a body no call has entered yet, under
+            // the command world of its declaration rather than of a call.
+            self.dispatch_points_at(site.offset)
+                .any(|point| !point.declaration_preview)
+                .then_some(())?;
+            let value = match ordinal.checked_sub(1) {
+                Some(argument) => binding.evaluated_written_argument_value(argument),
+                None => binding.evaluated_command_word(),
+            }?;
+            if selected
+                .as_deref()
+                .is_some_and(|previous| previous != value)
+            {
+                return None;
+            }
+            selected = Some(value.to_owned());
+        }
+        selected
+    }
+
     /// Genuine ordinal-zero original whole head at this source occurrence.
     /// Token/content extents do not identify the head's ordinal or site. This
     /// geometry grants no handler, lookup, value, class or edit authority.

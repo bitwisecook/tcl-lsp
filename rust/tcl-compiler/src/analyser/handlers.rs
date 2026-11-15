@@ -2257,7 +2257,8 @@ impl Analyser {
             TokenType::Str | TokenType::Esc => Some(text.to_string()),
             TokenType::Var => self
                 .lookup_logical_const_substitution(tok)
-                .map(|(value, _)| value.to_owned()),
+                .map(|(value, _)| value.to_owned())
+                .or_else(|| self.frozen_value_word(tok)),
             _ => None,
         }
     }
@@ -6526,6 +6527,7 @@ impl Analyser {
             return Some(text.to_owned());
         }
         self.resolve_logical_value_word(tok)
+            .or_else(|| self.frozen_value_word(tok))
     }
 
     /// Handle `rename OLD NEW` — record a static rename so calls to
