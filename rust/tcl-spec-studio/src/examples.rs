@@ -69,37 +69,34 @@ const FIELD_ARG_ROLE_RESOLVER_ROLES: Example = Example {
 mod catalogues;
 mod fields_behaviour;
 mod fields_core;
-mod groups;
 
 use catalogues::{
-    CATALOGUE_ARG_ROLE, CATALOGUE_CONFIGURATION_REFERENCE, CATALOGUE_DEFINITION_BODY,
-    CATALOGUE_DIALECT, CATALOGUE_EFFECT, CATALOGUE_HOOK, CATALOGUE_OPTION, CATALOGUE_PREFIX,
-    CATALOGUE_PRESENTATION, CATALOGUE_SCRIPT_LOOKUP_SCOPE, CATALOGUE_TAINT, CATALOGUE_TYPE,
+    CATALOGUE_CONFIGURATION_REFERENCE, CATALOGUE_CONNECTION_SIDE, CATALOGUE_DEFINITION_BODY,
+    CATALOGUE_SCRIPT_LOOKUP_SCOPE,
 };
 use fields_behaviour::{FIELD_SCRIPT_TIMING, FIELD_TRAITS, FIELD_VARIABLE_SCOPE};
-use groups::{
-    ADVANCED, ARGUMENTS, AVAILABILITY, BEHAVIOUR, DEPRECATION, DOCUMENTATION, EFFECTS, HOOKS,
-    IDENTITY, OPTIONS, SUBCOMMANDS, TAINT, TYPES,
-};
 
 /// The example inherited by every field in a form group.
+/// The example for one form group: the example of the field that best
+/// stands for what the group is about.
 fn group_template(group: &str) -> Option<Example> {
-    match group {
-        "Identity" => Some(IDENTITY),
-        "Availability" => Some(AVAILABILITY),
-        "Arity and arguments" => Some(ARGUMENTS),
-        "Types" => Some(TYPES),
-        "Subcommands" => Some(SUBCOMMANDS),
-        "Documentation" => Some(DOCUMENTATION),
-        "Options and values" => Some(OPTIONS),
-        "Behaviour" => Some(BEHAVIOUR),
-        "Side effects" => Some(EFFECTS),
-        "Compiler hooks" => Some(HOOKS),
-        "Taint and security" => Some(TAINT),
-        "Deprecation and translation" => Some(DEPRECATION),
-        "Advanced" => Some(ADVANCED),
-        _ => None,
-    }
+    let field = match group {
+        "Identity" => "name",
+        "Availability" => "surface",
+        "Arity and arguments" => "arity",
+        "Types" => "return_type",
+        "Subcommands" => "subcommands",
+        "Documentation" => "hover",
+        "Options and values" => "options",
+        "Behaviour" => "completion",
+        "Side effects" => "side_effects",
+        "Compiler hooks" => "codegen_hook",
+        "Taint and security" => "taint_source",
+        "Deprecation and translation" => "deprecation_fix",
+        "Advanced" => "arg_role_layout_resolver",
+        _ => return None,
+    };
+    field_template(field)
 }
 
 /// The example for one spec field.
@@ -119,39 +116,52 @@ fn field_template(key: &str) -> Option<Example> {
         .map(|(_, example)| *example)
 }
 
+/// The example for one catalogue: the example of the field whose values the
+/// catalogue supplies, so it shows a real command using one of them.
 fn catalogue_template(id: &str) -> Option<Example> {
-    match id {
-        "tclType" | "storageType" | "byteArrayEffect" => Some(CATALOGUE_TYPE),
-        "bodyKind" | "argPresentation" => Some(CATALOGUE_PRESENTATION),
-        "scriptTiming" => Some(FIELD_SCRIPT_TIMING),
-        "irulesSourceFlow" => field_template("irules_source_flow"),
-        "sourceConfigurationReference" => Some(CATALOGUE_CONFIGURATION_REFERENCE),
-        "variableScope" => Some(FIELD_VARIABLE_SCOPE),
-        "commandTableEffect" | "definedSymbolKind" | "sideEffectTarget" | "connectionSide"
-        | "formKind" => Some(CATALOGUE_EFFECT),
-        // The plain "pick one variant" shape: every closed catalogue whose
-        // example is just "here is one of its values".
-        "argRole"
-        | "patternType"
-        | "formatType"
-        | "sourceDeprecationAdvice"
-        | "sourcePathOperation"
-        | "sourceIndexBounds"
-        | "channelConfiguration"
-        | "defaultFormFirstWord"
-        | "prefixMatching"
-        | "optionPlacement" => Some(CATALOGUE_ARG_ROLE),
-        "loweringHook" | "codegenHook" | "inlineCodegenHook" | "analyserHook"
-        | "returnTypeHook" | "semanticOperation" => Some(CATALOGUE_HOOK),
-        "definitionBody" => Some(CATALOGUE_DEFINITION_BODY),
-        "scriptLookupScope" => Some(CATALOGUE_SCRIPT_LOOKUP_SCOPE),
-        "traits" => Some(FIELD_TRAITS),
-        "taintColour" | "taintTransformCondition" | "taintNumericCoercion" => Some(CATALOGUE_TAINT),
-        "dialects" => Some(CATALOGUE_DIALECT),
-        "appendedArity" => Some(CATALOGUE_PREFIX),
-        "optionArity" => Some(CATALOGUE_OPTION),
-        _ => None,
-    }
+    let field = match id {
+        "scriptTiming" => return Some(FIELD_SCRIPT_TIMING),
+        "variableScope" => return Some(FIELD_VARIABLE_SCOPE),
+        "traits" => return Some(FIELD_TRAITS),
+        "sourceConfigurationReference" => return Some(CATALOGUE_CONFIGURATION_REFERENCE),
+        "definitionBody" => return Some(CATALOGUE_DEFINITION_BODY),
+        "scriptLookupScope" => return Some(CATALOGUE_SCRIPT_LOOKUP_SCOPE),
+        "connectionSide" => return Some(CATALOGUE_CONNECTION_SIDE),
+        "irulesSourceFlow" => "irules_source_flow",
+        "tclType" => "return_type",
+        "storageType" => "inferred_storage_type",
+        "byteArrayEffect" => "byte_array_effect",
+        "bodyKind" => "body_kind",
+        "argPresentation" => "arg_presentation",
+        "commandTableEffect" => "command_table_effect",
+        "definedSymbolKind" => "defines_symbol",
+        "sideEffectTarget" => "side_effects",
+        "formKind" => "forms",
+        "argRole" => "arg_roles",
+        "patternType" => "pattern_type",
+        "formatType" => "format_string_type",
+        "sourceDeprecationAdvice" => "source_deprecation_advice",
+        "sourcePathOperation" => "source_path_operation",
+        "sourceIndexBounds" => "source_index_bounds",
+        "channelConfiguration" => "channel_configuration",
+        "defaultFormFirstWord" => "default_form_first_word",
+        "prefixMatching" => "prefix_matching",
+        "optionPlacement" => "option_placement",
+        "loweringHook" => "lowering_hook",
+        "codegenHook" => "codegen_hook",
+        "inlineCodegenHook" => "inline_codegen_hook",
+        "analyserHook" => "analyser_hook",
+        "returnTypeHook" => "return_type_hook",
+        "semanticOperation" => "semantic_operation",
+        "taintColour" => "taint_transform",
+        "taintTransformCondition" => "taint_transform_when",
+        "taintNumericCoercion" => "taint_numeric_coercion",
+        "dialects" => "surface",
+        "appendedArity" => "command_prefixes",
+        "optionArity" => "options",
+        _ => return None,
+    };
+    field_template(field)
 }
 
 fn example_json(example: Example, subject: &str) -> Value {
@@ -615,30 +625,431 @@ mod tests {
             })
     }
 
-    /// Every trait example's carrier resolves, under at least one Tcl
-    /// release from 8.4 to 9.1 (with Tk of the same release ambient), to an
-    /// invocation whose registry facts contain that trait.
-    #[test]
-    fn every_trait_carrier_resolves_to_an_invocation_with_that_trait() {
+    /// Tcl 8.4 to 9.1 (each with the same Tk release provided), `f5-irules`,
+    /// `sslictcl`, and the unprojected catalogue.
+    fn audit_registries() -> Vec<std::sync::Arc<tcl_registry::CommandRegistry>> {
         let releases = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];
-        let registries: Vec<_> = releases
+        releases
             .iter()
             .map(|release| {
                 let profile = tcl_dialect::DialectProfile::find(release).expect("Tcl release");
                 let mut registry =
                     tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
                 registry.insert_ambient_package("Tk", &release[3..]);
-                registry
+                std::sync::Arc::new(registry)
             })
-            .chain(["f5-irules", "sslictcl"].iter().map(|dialect| {
-                tcl_registry::CommandRegistry::build_default().project_for_profile(
-                    tcl_dialect::DialectProfile::find(dialect).expect("dialect"),
+            .chain(
+                ["f5-irules", "f5-iapps", "f5-tmsh", "sslictcl"]
+                    .iter()
+                    .map(|dialect| {
+                        std::sync::Arc::new(
+                            tcl_registry::CommandRegistry::build_default().project_for_profile(
+                                tcl_dialect::DialectProfile::find(dialect).expect("dialect"),
+                            ),
+                        )
+                    }),
+            )
+            .chain(["jim", "spectcl"].iter().map(|dialect| {
+                std::sync::Arc::clone(
+                    tcl_registry::model::ingress::static_context_for(dialect).commands(),
                 )
             }))
-            .chain(std::iter::once(
+            .chain(std::iter::once(std::sync::Arc::new(
                 tcl_registry::CommandRegistry::build_default(),
-            ))
-            .collect();
+            )))
+            .collect()
+    }
+
+    /// Every command an example runs: each line's first command and each
+    /// command substitution, as `(head, args)`.
+    fn example_commands(code: &str) -> Vec<(String, Vec<String>)> {
+        let mut out = Vec::new();
+        for line in code.lines() {
+            let starts = std::iter::once(line.len() - line.trim_start().len())
+                .chain(line.match_indices('[').map(|(index, _)| index + 1))
+                .chain(line.match_indices("{ ").map(|(index, _)| index + 2));
+            for start in starts {
+                let mut words = carrier_command_words(&line[start..]);
+                if !words.is_empty() {
+                    let head = words.remove(0);
+                    out.push((head, words));
+                }
+            }
+        }
+        out
+    }
+
+    /// The command each annotation's needle starts, as `(head, args)`.
+    fn annotated_commands(example: &DocumentationExample) -> Vec<(String, Vec<String>)> {
+        example
+            .annotations
+            .iter()
+            .filter_map(|annotation| {
+                let line = example.code.lines().nth(annotation.line)?;
+                let start = line.find(annotation.needle)?;
+                let text = line[start..].strip_prefix('[').unwrap_or(&line[start..]);
+                let mut words = carrier_command_words(text);
+                (!words.is_empty()).then(|| {
+                    let head = words.remove(0);
+                    (head, words)
+                })
+            })
+            .collect()
+    }
+
+    /// Every side-effect target's worked example annotates at least one
+    /// command that declares an effect on that target, under at least one
+    /// of [`audit_registries`].
+    #[test]
+    fn every_side_effect_example_annotates_a_command_declaring_that_target() {
+        let registries = audit_registries();
+        let declares = |effects: &[tcl_registry::side_effects::SideEffect], target| {
+            effects.iter().any(|effect| effect.target == target)
+        };
+        let declared_anywhere = |target| {
+            registries.iter().any(|registry| {
+                registry.command_names().any(|name| {
+                    registry.get(name).is_some_and(|spec| {
+                        declares(spec.side_effects, target)
+                            || spec
+                                .subcommands
+                                .iter()
+                                .any(|sub| declares(sub.side_effects, target))
+                            || spec.object_class.is_some_and(|class| {
+                                class
+                                    .instance_methods
+                                    .iter()
+                                    .any(|method| declares(method.side_effects, target))
+                            })
+                    })
+                })
+            })
+        };
+        let mut errors = Vec::new();
+        for &target in SideEffectTarget::ALL {
+            let example = target.example();
+            let commands = annotated_commands(&example);
+            if !declared_anywhere(target) {
+                // Pack-only vocabulary must not be pinned on a shipped command.
+                if let Some((head, _)) = commands.iter().find(|(head, _)| {
+                    registries
+                        .iter()
+                        .any(|registry| registry.get(head).is_some())
+                }) {
+                    errors.push(format!(
+                        "{}: pack-only, yet annotates `{head}`",
+                        target.name()
+                    ));
+                }
+                continue;
+            }
+            let found = commands.iter().any(|(head, args)| {
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+                let class = example.code.lines().find_map(|earlier| {
+                    let mut words = earlier.split_whitespace();
+                    let class = words.next()?;
+                    (words.next() == Some(head.as_str())).then_some(class)
+                });
+                registries.iter().any(|registry| {
+                    let facts = match (registry.get(head), class) {
+                        (Some(spec), _) => {
+                            let sub = args.first().and_then(|word| spec.resolve_subcommand(word));
+                            if declares(spec.side_effects, target)
+                                || sub.is_some_and(|sub| declares(sub.side_effects, target))
+                            {
+                                return true;
+                            }
+                            registry.resolve_invocation(head, &args, None)
+                        }
+                        (None, Some(class)) => {
+                            registry.resolve_instance_invocation(class, head, &args, None)
+                        }
+                        (None, None) => None,
+                    };
+                    facts.is_some_and(|invocation| {
+                        declares(&invocation.facts().effects.legacy().side_effects, target)
+                    })
+                })
+            });
+            if !found {
+                errors.push(format!(
+                    "{}: {}",
+                    target.name(),
+                    example.code.replace('\n', "; ")
+                ));
+            }
+        }
+        assert!(
+            errors.is_empty(),
+            "side-effect examples with no annotated command declaring the target:\n{}",
+            errors.join("\n")
+        );
+    }
+
+    /// Every taint colour's worked example shows what really produces it.
+    ///
+    /// A registry colour must sit on an annotated command, as the colour its
+    /// result is sourced with, a transform it adds, or the colour its sink
+    /// accepts; `TAINTED` may also come from a `TAINT_SOURCE` command. Two
+    /// colours are derived by the compiler's taint pass itself, and their
+    /// examples must annotate the construct it reads: a literal non-dash
+    /// prefix (`leading_literal_prefix_char`) and a `string match` branch
+    /// guard (`compute_branch_guard_map`). A colour no shipped spec produces
+    /// is shown on a pack's own `mypkg::` command.
+    #[test]
+    fn every_taint_colour_example_annotates_what_produces_it() {
+        const ANALYSER_DERIVED: &[(&str, &str)] = &[
+            ("NON_DASH_PREFIXED", "value:$user"),
+            ("PATH_BOUNDED", "string match"),
+        ];
+        let registries = audit_registries();
+        let produces = |spec: &tcl_registry::CommandSpec,
+                        sub: Option<&tcl_registry::spec::SubCommand>,
+                        colour: tcl_registry::TaintColour| {
+            [
+                spec.taint_source,
+                spec.taint_transform,
+                spec.taint_sink_safe_colour,
+                sub.and_then(|sub| sub.taint_transform),
+            ]
+            .into_iter()
+            .flatten()
+            .any(|declared| declared.contains(colour))
+        };
+        let shipped = |colour| {
+            registries.iter().any(|registry| {
+                registry.command_names().any(|name| {
+                    registry.get(name).is_some_and(|spec| {
+                        produces(spec, None, colour)
+                            || spec
+                                .subcommands
+                                .iter()
+                                .any(|sub| produces(spec, Some(sub), colour))
+                    })
+                })
+            })
+        };
+        let mut errors = Vec::new();
+        for atom in TaintColourAtom::ALL {
+            let colour = atom.colour();
+            let example = atom.example();
+            if let Some((_, needle)) = ANALYSER_DERIVED
+                .iter()
+                .find(|(name, _)| *name == atom.name())
+            {
+                if !example
+                    .annotations
+                    .iter()
+                    .any(|annotation| annotation.needle.contains(needle))
+                {
+                    errors.push(format!("{}: does not annotate `{needle}`", atom.name()));
+                }
+                continue;
+            }
+            let commands = annotated_commands(&example);
+            if !shipped(colour) {
+                if !commands.iter().any(|(head, _)| head.starts_with("mypkg::")) {
+                    errors.push(format!(
+                        "{}: no shipped producer, so show a pack command",
+                        atom.name()
+                    ));
+                }
+                continue;
+            }
+            let found = commands.iter().any(|(head, args)| {
+                registries.iter().any(|registry| {
+                    let Some(spec) = registry.get(head) else {
+                        return false;
+                    };
+                    let sub = args.first().and_then(|word| spec.resolve_subcommand(word));
+                    produces(spec, sub, colour)
+                        || (atom.name() == "TAINTED"
+                            && spec.traits.contains(tcl_registry::Traits::TAINT_SOURCE))
+                })
+            });
+            if !found {
+                errors.push(format!(
+                    "{}: {}",
+                    atom.name(),
+                    example.code.replace('\n', "; ")
+                ));
+            }
+        }
+        assert!(
+            errors.is_empty(),
+            "taint-colour examples that misstate their producer:\n{}",
+            errors.join("\n")
+        );
+    }
+
+    /// Every argument role's worked example annotates a command that can
+    /// assign that role: statically, through its resolver's declared roles,
+    /// through an option's value, or in its resolved invocation.
+    #[test]
+    fn every_arg_role_example_annotates_a_command_assigning_it() {
+        let registries = audit_registries();
+        let assigns = |spec: &tcl_registry::CommandSpec, role: ArgRole| {
+            let options = spec.options.iter().any(|option| {
+                option.value_role() == Some(role) || option.value_also_role() == Some(role)
+            });
+            spec.arg_roles.iter().any(|(_, held)| *held == role)
+                || spec.arg_role_resolver_roles.contains(&role)
+                || options
+                || spec.subcommands.iter().any(|sub| {
+                    sub.arg_roles.iter().any(|(_, held)| *held == role)
+                        || sub.arg_role_resolver_roles.contains(&role)
+                        || sub
+                            .options
+                            .iter()
+                            .any(|option| option.value_role() == Some(role))
+                })
+        };
+        let shipped = |role| {
+            registries.iter().any(|registry| {
+                registry
+                    .command_names()
+                    .any(|name| registry.get(name).is_some_and(|spec| assigns(spec, role)))
+            })
+        };
+        let mut errors = Vec::new();
+        for &role in ArgRole::ALL {
+            let example = role.example();
+            let commands = example_commands(example.code);
+            // Structural roles come from the command's tables, not its role
+            // rows: a declared subcommand name, and a declared `--` option.
+            let structural = match role {
+                ArgRole::Subcommand => example.carrier.is_some_and(|carrier| {
+                    commands.iter().any(|(head, _)| {
+                        registries.iter().any(|registry| {
+                            registry.get(head).is_some_and(|spec| {
+                                spec.resolve_subcommand(carrier.needle).is_some()
+                            })
+                        })
+                    })
+                }),
+                ArgRole::OptionTerminator => commands.iter().any(|(head, _)| {
+                    registries.iter().any(|registry| {
+                        registry.get(head).is_some_and(|spec| {
+                            spec.options.iter().any(|option| option.name == "--")
+                        })
+                    })
+                }),
+                _ => false,
+            };
+            if structural {
+                continue;
+            }
+            let found = commands.iter().any(|(head, args)| {
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+                registries.iter().any(|registry| {
+                    registry.get(head).is_some_and(|spec| assigns(spec, role))
+                        || registry.resolve_invocation(head, &args, None).is_some_and(
+                            |invocation| {
+                                invocation
+                                    .facts()
+                                    .arg_roles
+                                    .iter()
+                                    .chain(&invocation.authored_source_argument_roles().0)
+                                    .any(|(_, held)| *held == role)
+                            },
+                        )
+                })
+            });
+            if !found && !shipped(role) {
+                // Pack-only vocabulary must not be pinned on a shipped command.
+                if let Some((head, _)) = commands.iter().find(|(head, _)| {
+                    head != "set"
+                        && registries
+                            .iter()
+                            .any(|registry| registry.get(head).is_some())
+                }) {
+                    errors.push(format!("{role:?}: pack-only, yet shown on `{head}`"));
+                }
+                continue;
+            }
+            if !found {
+                errors.push(format!("{role:?}: {}", example.code.replace('\n', "; ")));
+            }
+        }
+        assert!(
+            errors.is_empty(),
+            "argument-role examples with no annotated command assigning the role:\n{}",
+            errors.join("\n")
+        );
+    }
+
+    /// The geometry examples state what each manager's registry descriptor
+    /// declares, in every Tk release from 8.4 to 9.1. `tkGrid.c`,
+    /// `tkPack.c` and `tkPlace.c` agree: only `grid` has `remove`, and only
+    /// `pack` and `grid` claim their container (Tk 8.6 onwards checks it).
+    #[test]
+    fn geometry_examples_match_the_manager_descriptors() {
+        use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
+
+        for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
+            let profile =
+                tcl_dialect::DialectProfile::find(&format!("tcl{release}")).expect("Tcl release");
+            let mut registry =
+                tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+            registry.insert_ambient_package("Tk", release);
+            let manager = |name: &str| {
+                registry
+                    .get(name)
+                    .and_then(|spec| spec.tk_geometry)
+                    .unwrap_or_else(|| panic!("Tk {release} {name} geometry"))
+            };
+            for key in [
+                "tk_geometry",
+                "container_policy",
+                "container_option",
+                "direct_form",
+                "placement_subcommand",
+                "release_subcommands",
+            ] {
+                let example = field_template(key).expect("geometry example");
+                for focus in example.focuses {
+                    let line = example.code.lines().nth(focus.line).expect("line");
+                    let mut words = line.split_whitespace();
+                    let Some(head) = words.next() else { continue };
+                    let Some(spec) = registry.get(head).and_then(|spec| spec.tk_geometry) else {
+                        continue;
+                    };
+                    let word = focus.needle.split_whitespace().next().unwrap_or_default();
+                    if word.starts_with('-') {
+                        assert_eq!(spec.container_option, Some(word), "Tk {release} {key}");
+                    } else if !word.starts_with('.') && word != head {
+                        assert!(
+                            spec.placement_subcommand == Some(word)
+                                || spec.release_subcommands.contains(&word),
+                            "Tk {release} {key}: `{head} {word}` is neither a placement nor a release subcommand"
+                        );
+                    }
+                    if focus.note.contains("Exclusive") {
+                        assert_eq!(spec.container_policy, TkGeometryContainerPolicy::Exclusive);
+                    }
+                    if focus.note.starts_with("Independent") {
+                        assert_eq!(
+                            spec.container_policy,
+                            TkGeometryContainerPolicy::Independent
+                        );
+                    }
+                }
+            }
+            assert!(manager("grid").release_subcommands.contains(&"remove"));
+            assert!(!manager("pack").release_subcommands.contains(&"remove"));
+            assert_eq!(
+                manager("place").container_policy,
+                TkGeometryContainerPolicy::Independent
+            );
+        }
+    }
+
+    /// Every trait example's carrier resolves, under at least one Tcl
+    /// release from 8.4 to 9.1 (with Tk of the same release ambient), to an
+    /// invocation whose registry facts contain that trait.
+    #[test]
+    fn every_trait_carrier_resolves_to_an_invocation_with_that_trait() {
+        let registries = audit_registries();
 
         let mut errors = Vec::new();
         for &item in Trait::ALL {
@@ -675,19 +1086,24 @@ mod tests {
                 .iter()
                 .all(|registry| registry.get(head).is_none())
             {
-                // A widget path, object, class or procedure the example
-                // itself creates carries an instance-level trait; it must
-                // be introduced on an earlier line, never assumed.
-                let name = head.trim_start_matches('$');
-                let name = name.split('(').next().unwrap_or(name);
-                let introduced = example
-                    .code
-                    .lines()
-                    .take(carrier.line)
-                    .any(|earlier| earlier.split_whitespace().any(|word| word.ends_with(name)));
-                if !introduced {
+                // A widget path carries an instance-method trait: resolve the
+                // method through the class whose constructor created that
+                // path on an earlier line. Any other head must be registered.
+                let class = example.code.lines().take(carrier.line).find_map(|earlier| {
+                    let mut words = earlier.split_whitespace();
+                    let class = words.next()?;
+                    (words.next() == Some(head.as_str())).then_some(class)
+                });
+                let instance_carries = class.is_some_and(|class| {
+                    registries.iter().any(|registry| {
+                        registry
+                            .resolve_instance_invocation(class, head, &args, None)
+                            .is_some_and(|invocation| invocation.facts().traits.contains(flag))
+                    })
+                });
+                if !instance_carries {
                     errors.push(format!(
-                        "{}: `{head}` is neither registered nor defined",
+                        "{}: `{head}` is neither registered nor an instance whose class method carries the trait",
                         item.name()
                     ));
                 }
@@ -804,6 +1220,31 @@ mod tests {
                 assert!(!focus.note.contains("fold"), "{key}: {}", focus.note);
                 assert!(!focus.note.contains("removable"), "{key}: {}", focus.note);
             }
+        }
+    }
+
+    /// Every group and catalogue example shows a real command, and no two
+    /// catalogues share one snippet: a shared placeholder is how a vocabulary
+    /// ships illustrated by something other than itself.
+    #[test]
+    fn group_and_catalogue_examples_are_real_and_distinct() {
+        let mut seen = std::collections::HashMap::new();
+        for (id, _, _) in crate::help::CATALOGUE_HELP {
+            let example = catalogue_template(id).expect("catalogue example");
+            assert!(
+                !example.code.contains("mycommand"),
+                "{id} uses a placeholder"
+            );
+            if let Some(other) = seen.insert(example.code, *id) {
+                panic!("{id} and {other} share one example");
+            }
+        }
+        for group in schema::GROUPS {
+            let example = group_template(group).expect("group example");
+            assert!(
+                !example.code.contains("mycommand"),
+                "{group} uses a placeholder"
+            );
         }
     }
 

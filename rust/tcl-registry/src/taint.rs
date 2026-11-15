@@ -233,7 +233,7 @@ impl TaintColourAtom {
                 taint_flow!("set user [gets stdin]\nset clean [string map {\"\\r\" {} \"\\n\" {}} $user]\nHTTP::header replace X-Value $clean"; (0, "[gets stdin]", "may contain header delimiters"), (1, "string map", "removes CR and LF"), (2, "$clean", "is safe from header splitting at the sink"))
             }
             Self::ShellAtom => {
-                taint_flow!("set user [gets stdin]\nif {![regexp {^[[:alnum:]_.-]+$} $user]} { error invalid }\nexec helper -- $user"; (0, "[gets stdin]", "introduces attacker-controlled text"), (1, "regexp", "proves one shell-safe atom"), (2, "-- $user", "passes that atom as one process argument"))
+                taint_flow!("set host [gets stdin]\nset atom [mypkg::shell_atom $host]\nexec ping -c 1 $atom"; (0, "[gets stdin]", "introduces attacker-controlled text"), (1, "mypkg::shell_atom", "a pack validator declares SHELL_ATOM as its transform; no shipped command proves it"), (2, "exec ping -c 1 $atom", "accepts SHELL_ATOM as its safe colour, so T100 stays quiet"))
             }
             Self::ListCanonical => {
                 taint_flow!("set user [gets stdin]\nset command [list puts $user]\neval $command"; (0, "[gets stdin]", "introduces attacker-controlled text"), (1, "list puts $user", "quotes it into canonical list form"), (2, "eval $command", "evaluates fixed structure with the value as one word"))
@@ -245,31 +245,31 @@ impl TaintColourAtom {
                 taint_flow!("set user [gets stdin]\nset normal [file normalize $user]\nopen $normal r"; (0, "[gets stdin]", "may contain traversal components"), (1, "file normalize $user", "canonicalises the path shape"), (2, "open $normal r", "still needs a bounded-root check before access"))
             }
             Self::PathBounded => {
-                taint_flow!("set user [gets stdin]\nset path [file normalize [file join /srv/data $user]]\nif {![string match /srv/data/* $path]} { error outside-root }\nopen $path r"; (0, "[gets stdin]", "supplies an untrusted relative path"), (1, "file normalize", "resolves traversal"), (2, "/srv/data/*", "proves the result remains under the intended root"), (3, "open $path r", "uses the bounded path"))
+                taint_flow!("set user [gets stdin]\nset path [file normalize [file join /srv/data $user]]\nif {![string match /srv/data/* $path]} { error outside-root }\nopen $path r"; (0, "[gets stdin]", "supplies an untrusted relative path"), (1, "file normalize", "resolves traversal"), (2, "string match /srv/data/* $path", "is the branch guard that proves the path stays under the root"), (3, "open $path r", "receives the bounded path"))
             }
             Self::HeaderTokenSafe => {
-                taint_flow!("set user [gets stdin]\nif {![regexp {^[!#$%&'*+.^_`|~0-9A-Za-z-]+$} $user]} { error invalid }\nHTTP::header replace $user value"; (0, "[gets stdin]", "may contain invalid header-name bytes"), (1, "regexp", "validates the HTTP token grammar"), (2, "$user", "is safe in the header-name position"))
+                taint_flow!("set name [HTTP::header value X-Name]\nset token [mypkg::header_token $name]\nHTTP::header replace $token value"; (0, "HTTP::header value X-Name", "returns a client-controlled header value"), (1, "mypkg::header_token", "a pack validator declares HEADER_TOKEN_SAFE; no shipped command proves it"), (2, "HTTP::header replace $token", "accepts it in the header-name position, so IRULE3002 stays quiet"))
             }
             Self::HtmlEscaped => {
-                taint_flow!("set user [gets stdin]\nset escaped [string map {& &amp; < &lt; > &gt; \" &quot;} $user]\nHTTP::respond 200 content \"<p>$escaped</p>\""; (0, "[gets stdin]", "may contain HTML markup"), (1, "string map", "escapes HTML text-context metacharacters"), (2, "$escaped", "is emitted in HTML text context"))
+                taint_flow!("set term [HTTP::query]\nset shown [HTML::encode $term]\nHTTP::respond 200 content \"<p>$shown</p>\""; (0, "HTTP::query", "returns client-controlled query text"), (1, "HTML::encode $term", "adds HTML_ESCAPED"), (2, "$shown", "is emitted in HTML text context without IRULE3001"))
             }
             Self::UrlEncoded => {
-                taint_flow!("set user [gets stdin]\nset encoded [uri::encode $user]\nHTTP::redirect \"/search?q=$encoded\""; (0, "[gets stdin]", "may contain URL delimiters"), (1, "uri::encode $user", "percent-encodes the component"), (2, "$encoded", "is inserted as one query value"))
+                taint_flow!("set term [HTTP::query]\nset encoded [URI::encode $term]\nHTTP::redirect \"/search?q=$encoded\""; (0, "HTTP::query", "may contain URL delimiters"), (1, "URI::encode $term", "percent-encodes the component and adds URL_ENCODED"), (2, "$encoded", "is inserted as one query value"))
             }
             Self::IpAddress => {
-                taint_flow!("set user [gets stdin]\nif {![string is entier -strict [string map {. {}} $user]]} { error invalid-ip }\nsocket $user 443"; (0, "[gets stdin]", "supplies an untrusted address"), (1, "invalid-ip", "rejects values outside the accepted IP grammar"), (2, "socket $user 443", "uses the validated address"))
+                taint_flow!("when CLIENT_ACCEPTED {\n    set client [IP::client_addr]\n    log local0. \"from $client\"\n}"; (1, "IP::client_addr", "returns client-influenced data already carrying IP_ADDRESS"), (2, "$client", "keeps the validated-address proof into the log"))
             }
             Self::Port => {
-                taint_flow!("set user [gets stdin]\nif {![string is integer -strict $user] || $user < 0 || $user > 65535} { error invalid-port }\nsocket example.test $user"; (0, "[gets stdin]", "supplies an untrusted port"), (1, "$user > 65535", "bounds it to the port domain"), (2, "$user", "is used as a validated port"))
+                taint_flow!("when CLIENT_ACCEPTED {\n    set port [TCP::client_port]\n    log local0. \"port $port\"\n}"; (1, "TCP::client_port", "returns client-influenced data already carrying PORT"), (2, "$port", "keeps the port-domain proof"))
             }
             Self::Fqdn => {
-                taint_flow!("set user [gets stdin]\nif {![regexp {^(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$} $user]} { error invalid-host }\nsocket $user 443"; (0, "[gets stdin]", "supplies an untrusted hostname"), (1, "regexp", "validates a fully-qualified domain name"), (2, "$user", "is used as the validated endpoint"))
+                taint_flow!("when CLIENTSSL_CLIENTHELLO {\n    set name [SSL::sni name]\n    log local0. \"sni $name\"\n}"; (1, "SSL::sni name", "returns the client's server name already carrying FQDN"), (2, "$name", "keeps the domain-name proof"))
             }
             Self::PathJoined => {
                 taint_flow!("set user [gets stdin]\nset path [file join /srv/data $user]\nopen $path r"; (0, "[gets stdin]", "supplies an untrusted path component"), (1, "file join", "assembles a portable path but does not bound traversal"), (2, "open $path r", "still requires normalisation and a root check"))
             }
             Self::Channel => {
-                taint_flow!("set path ./data.txt\nset channel [open $path r]\nset data [read $channel]\nputs $data"; (1, "open $path r", "returns a channel handle"), (2, "$channel", "is accepted in channel position"), (3, "$data", "contains tainted bytes read through the handle"))
+                taint_flow!("set feed [mypkg::connect upstream]\nset line [gets $feed]\nputs $line"; (0, "mypkg::connect", "a pack source declares CHANNEL with TAINTED; no shipped command returns it"), (1, "gets $feed", "reads from the handle that colour marks"), (2, "$line", "is ordinary tainted text again"))
             }
         }
     }

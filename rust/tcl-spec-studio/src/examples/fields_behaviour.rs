@@ -728,6 +728,8 @@ append log $line",
         },
     ),
     (
+        // No shipped command needs this hook; it exists for packs, so the
+        // example is a pack's own command.
         "constraints",
         Example {
             code: "mycommand -from 3 -to 1",
@@ -1771,7 +1773,7 @@ append log $line",
                 focus(
                     1,
                     "grid .b -in .panel",
-                    "a second Exclusive claim on the same container: TK1001",
+                    "a second Exclusive claim on the same container: TK1001 (Tk 8.6 to 9.1 raise an error; 8.4 and 8.5 never check)",
                 ),
                 focus(
                     2,

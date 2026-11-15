@@ -25,9 +25,9 @@ use tcl_dialect::model::SpecSurface;
 /// What kind of external state a command affects.
 ///
 /// Variant names match the consumer's
-/// `tcl_compiler::side_effects::SideEffectTarget`. `Process` /
-/// `ChannelIo` are registry-only — kept for the existing `exec` /
-/// `open` (pipeline form) / `chan` core specs.
+/// `tcl_compiler::side_effects::SideEffectTarget`. `Process` is
+/// registry-only, for `exec` and `open`'s pipeline form; `ChannelIo` is
+/// declared by no shipped spec.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SideEffectTarget {
     /// Tcl variable read or write.
@@ -98,7 +98,9 @@ pub enum SideEffectTarget {
     ApmState,
     /// Application Security Manager state (`ASM::enable/disable`, …).
     AsmState,
-    /// BIG-IP configuration change (iApps, `tmsh::` commands).
+    /// BIG-IP configuration state. Shipped specs declare reads only, by the
+    /// iRules profile, policy, pool-member and CMP queries; the iApps
+    /// `tmsh::` commands declare no effects yet.
     BigipConfig,
     /// Defines or removes a procedure (`proc`, `rename`).
     ProcDefinition,
@@ -109,15 +111,15 @@ pub enum SideEffectTarget {
     /// Process management (registry-only; `exec`, and `open`'s command-
     /// pipeline form).
     Process,
-    /// Channel I/O (registry-only; `chan`).
+    /// Channel I/O. No shipped spec declares it: the core channel commands
+    /// (`chan`, `read`, `gets`, `puts`, `open`) declare [`Self::FileIo`]. It
+    /// remains for `SpecTcl` packs whose own commands own a stream.
     ChannelIo,
     /// Event-handler flow control: abandons the remaining script in the
     /// *current* event invocation without affecting the connection, other
-    /// events, or other rules (iRules `return` inside a `when` body;
-    /// shares the category with `event NAME disable`, a stronger version
-    /// of the same idea). Distinct from [`Self::ConnectionControl`], which
-    /// is a connection-terminating action (drop/reject/discard) — this
-    /// isn't one.
+    /// events, or other rules (iRules `return` inside a `when` body).
+    /// Distinct from [`Self::ConnectionControl`], which is a
+    /// connection-terminating action (drop/reject/discard) — this isn't one.
     EventControl,
     /// Unknown or unclassified effect.
     Unknown,
@@ -445,7 +447,7 @@ impl SideEffectTarget {
                 effect!("set before [ASM::status]\nASM::disable\nlog local0. $before"; (0, "ASM::status", "reads ASM state"), (1, "ASM::disable", "writes it"), (2, "$before", "retains the prior result"))
             }
             Self::BigipConfig => {
-                effect!("set old [tmsh::get_config /ltm/pool/app]\ntmsh::modify /ltm/pool/app members add {node:80}\nlog local0. $old"; (0, "tmsh::get_config", "reads BIG-IP configuration"), (1, "tmsh::modify", "writes it"), (2, "$old", "contains the previous configuration"))
+                effect!("when HTTP_REQUEST {\n    if {[PROFILE::exists http]} {\n        set up [members -list app_pool]\n        log local0. $up\n    }\n}"; (1, "[PROFILE::exists http]", "reads whether the configuration attaches an HTTP profile"), (2, "members -list app_pool", "reads the pool's configured members"), (3, "$up", "carries configuration state, not request data"))
             }
             Self::ProcDefinition => {
                 effect!("proc greet {} {return hello}\nrename greet welcome\nputs [welcome]"; (0, "proc greet", "creates command-table state"), (1, "rename greet welcome", "rewrites it"), (2, "welcome", "uses the new definition"))
@@ -460,13 +462,13 @@ impl SideEffectTarget {
                 effect!("set input [gets stdin]\nset output [exec helper -- $input]\nputs $output"; (0, "[gets stdin]", "supplies external data"), (1, "exec helper -- $input", "creates a process and passes the value"), (2, "$output", "observes process output"))
             }
             Self::ChannelIo => {
-                effect!("set channel [open data.txt r]\nset data [chan read $channel]\nputs $data"; (0, "open data.txt r", "creates a channel"), (1, "chan read $channel", "reads channel state"), (2, "$data", "carries the external bytes"))
+                effect!("set stream [mypkg::stream open feed]\nset frame [mypkg::stream read $stream]\nputs $frame"; (0, "mypkg::stream open", "a pack's own channel-like command opens its stream"), (1, "mypkg::stream read", "declares ChannelIo for the read"), (2, "$frame", "carries the bytes it read"))
             }
             Self::EventControl => {
-                effect!("when HTTP_REQUEST {\n    event disable all\n    log local0. current-event-continues\n}"; (0, "HTTP_REQUEST", "starts event execution"), (1, "event disable all", "disables future event processing"), (2, "current-event-continues", "still runs in this event invocation"))
+                effect!("when HTTP_REQUEST {\n    if {[HTTP::uri] eq \"/health\"} {\n        HTTP::respond 200 content ok\n        return\n    }\n    pool app_pool\n}"; (1, "[HTTP::uri]", "selects the health-check path"), (3, "return", "abandons the rest of this HTTP_REQUEST invocation only"), (5, "pool app_pool", "is skipped for /health; the connection and later events continue"))
             }
             Self::Unknown => {
-                effect!("set before [opaque state]\nunknown_effect $before\nputs [opaque state]"; (0, "opaque state", "reads unclassified state"), (1, "unknown_effect", "may read or write any external domain"), (2, "opaque state", "must be treated as changed"))
+                effect!("ttk::button .save -command {set ::saved 1}\n.save invoke\nputs $::saved"; (0, "-command {set ::saved 1}", "stores an arbitrary script"), (1, ".save invoke", "runs it synchronously, so its reads and writes are unknown"), (2, "$::saved", "observes the write the callback made"))
             }
         }
     }

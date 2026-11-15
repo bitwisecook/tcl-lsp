@@ -861,18 +861,17 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
     (
         "min_abbrev",
         Example {
-            code: "mycommand configure -width 10\nmycommand conf -width 10\nmycommand co -width 10",
+            code: "namespace delete ::app\nnamespace del ::app",
             focuses: &[
-                focus(0, "configure", "the full subcommand name"),
                 focus(
-                    1,
-                    "conf",
-                    "meets a documented minimum of 4 characters, so it resolves",
+                    0,
+                    "delete",
+                    "Jim 0.84 defines this as the procedure {namespace delete}, so its minimum is the full name",
                 ),
                 focus(
-                    2,
-                    "co",
-                    "is unique yet shorter than the documented minimum, so it is rejected",
+                    1,
+                    "del",
+                    "unique among the subcommands, yet shorter than that minimum, so Jim rejects it",
                 ),
             ],
         },

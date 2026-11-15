@@ -1799,7 +1799,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `SETS_EVENT_PRIORITY` | sets the inherited iRules event priority |
 | `IS_OO_METACLASS` | a TclOO metaclass factory |
 | `OBJECT_COMMAND_SURFACE` | a TclOO object-command method surface |
-| `CONFIGURES_BY_PROPERTY` | answers `configure`/`cget` from declared properties |
+| `CONFIGURES_BY_PROPERTY` | answers `configure` from declared properties |
 | `ABSTRACT_CLASS_FACTORY` | manufactures classes that cannot create instances |
 | `DIAGRAM_ACTION` | an action node in extracted diagrams |
 | `NEEDS_START_CMD` | needs an explicit start command |

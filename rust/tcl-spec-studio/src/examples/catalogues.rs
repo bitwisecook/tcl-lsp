@@ -20,38 +20,6 @@
 
 use super::{Example, focus};
 
-pub(super) const CATALOGUE_ARG_ROLE: Example = Example {
-    code: "mycommand ARGUMENT",
-    focuses: &[focus(0, "ARGUMENT", "classifies this argument word")],
-};
-pub(super) const CATALOGUE_TYPE: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(0, "$value", "describes the value at this position")],
-};
-pub(super) const CATALOGUE_PRESENTATION: Example = Example {
-    code: "mycommand {script body}",
-    focuses: &[focus(
-        0,
-        "{script body}",
-        "controls how this script is laid out",
-    )],
-};
-pub(super) const CATALOGUE_EFFECT: Example = Example {
-    code: "mycommand $state",
-    focuses: &[focus(
-        0,
-        "mycommand $state",
-        "classifies the effect of this invocation",
-    )],
-};
-pub(super) const CATALOGUE_HOOK: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(
-        0,
-        "[mycommand $value]",
-        "selects special handling for this call",
-    )],
-};
 pub(super) const CATALOGUE_DEFINITION_BODY: Example = Example {
     code: "oo::class create Stack {\n    method push {x} { lappend items $x }\n}",
     focuses: &[
@@ -62,37 +30,6 @@ pub(super) const CATALOGUE_DEFINITION_BODY: Example = Example {
         ),
         focus(1, "method", "a member row: its effect declares a callable"),
     ],
-};
-pub(super) const CATALOGUE_TAINT: Example = Example {
-    code: "set checked [validate $user_input]\nmy_sink $checked",
-    focuses: &[
-        focus(0, "$user_input", "starts as data that may be untrusted"),
-        focus(1, "$checked", "carries the selected proof into this sink"),
-    ],
-};
-pub(super) const CATALOGUE_DIALECT: Example = Example {
-    code: "mycommand value",
-    focuses: &[focus(
-        0,
-        "mycommand",
-        "is available in the selected language surface",
-    )],
-};
-pub(super) const CATALOGUE_OPTION: Example = Example {
-    code: "mycommand -option VALUE",
-    focuses: &[focus(
-        0,
-        "-option VALUE",
-        "controls these option value words",
-    )],
-};
-pub(super) const CATALOGUE_PREFIX: Example = Example {
-    code: "mycommand callback\nproc callback {appended args} { ... }",
-    focuses: &[focus(
-        0,
-        "callback",
-        "receives the selected appended-argument shape",
-    )],
 };
 pub(super) const CATALOGUE_CONFIGURATION_REFERENCE: Example = Example {
     code: "class match -- $item equals /Common/allowed",
@@ -122,6 +59,22 @@ pub(super) const CATALOGUE_SCRIPT_LOOKUP_SCOPE: Example = Example {
             3,
             "recount",
             "TriggerFrame: resolved in the frame of whichever write fires the trace",
+        ),
+    ],
+};
+/// iRules header writes land on the side of the event that runs them.
+pub(super) const CATALOGUE_CONNECTION_SIDE: Example = Example {
+    code: "when HTTP_REQUEST {\n    HTTP::header insert X-Seen 1\n}\nwhen HTTP_RESPONSE {\n    HTTP::header insert X-Served 1\n}",
+    focuses: &[
+        focus(
+            1,
+            "HTTP::header insert",
+            "Client: in HTTP_REQUEST it edits the request from the client",
+        ),
+        focus(
+            4,
+            "HTTP::header insert",
+            "Server: in HTTP_RESPONSE the same write edits the response from the server",
         ),
     ],
 };
