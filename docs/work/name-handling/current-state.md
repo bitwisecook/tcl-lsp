@@ -190,6 +190,32 @@ Changed result since the baseline from commits outside this area, by bisect over
 - e2e `issue1331_crossfile_diagnostics::a_genuinely_unknown_command_still_draws_w123` passes and fails alternately alone on one thread, with and without this area's changes: a W123 that is sometimes not published. Not located.
 - The intermittent `-32602 conditional source advice for <uri> is unavailable` on rename, definition and references is fixed. `Backend::rehomed_index_guard` took one source-view settlement and then polled for its views to reach the workspace index; a settlement taken while another publication was in flight names views that publication replaces, so they never arrive and the request was refused after the poll. Each attempt now settles again. Under load (the `tcloo_navigation`, `rename`, `rename_safety`, `references`, `definition` and `navigation` e2e groups in parallel) the refusal appeared in 5 runs of 9 before and 0 of 7 after, and the last three runs fail the same 106 tests. No e2e test pins it: the interleaving needs a publication to land between the settlement and the index read, and the server has no seam to hold one there. `references::tests::idx63_two_block_class_my_dispatch_already_fixed_by_idx52` fails in an unoptimised build and passes at `opt-level 1`.
 
+`tcl-lsp-core` library failures outside semantic tokens, one run at `opt-level 1` after `9e5a94a0`: 535. "Unentered body" is the gap described above (no registry words or invocation for a command in a body the analysis did not enter); "not traced" means no cause is established yet, not that there is none in this area.
+
+| Module | Failing | Cause as far as established | Owner |
+| --- | --- | --- | --- |
+| `workspace_index` | 62 | Cross-file import conflict and ordering, `oo::define` retraction and arrival across files, package provider order, export gates; fail on the release and the unversioned profile alike | LSP features, not traced per test |
+| `references` | 52 | Mixed: variable occurrences the compiler does not record (`foreach` list, `catch` result reuse), callers in unentered bodies, callback and ensemble sites | Compiler binding for the occurrence gaps; rest LSP features, not traced |
+| `rename` | 41 | Member rename refused on a release (the code behind the refusals reads reporting class maps, so it needs `original_member_rename`); array-element and alias edits | LSP features |
+| `minify::tests`, `minify::original` | 42 | The release minifier has no local renaming, quote stripping or expression rewrite (`MissingAlphaRenameContract`) | LSP features |
+| `code_actions` | 33 | Follows the refactors (`brace_expr`, `switch_to_dict`, `if_to_switch`, inline) and package suggestions | LSP features; unentered body for the `if` chain ones |
+| `definition` | 29 | Import and export ordering (shares `workspace_index` causes), `foreach` loop variable, tk ensemble splice, lambda-body barewords | Compiler binding for `foreach`; rest LSP features |
+| `rename_safety` | 21 | Not traced | LSP features |
+| `hover` | 18 | Object typing (widget path, captured widget, `foreach`-installed method), linked members under `tcl9.0`, variable inference cards, special variables | Compiler dataflow for typing; rest LSP features |
+| `call_hierarchy` | 15 | Callers inside method and classmethod bodies: unentered body | Compiler binding |
+| `refactor::extract_proc` | 13 | Selections the walk does not offer, `${a{b}c}` capture, loop-carried reads (`foreach` gap), fresh name with an unknown command table | LSP features; compiler binding for `foreach` |
+| `refactor::if_to_switch` | 11 | Unentered arm makes the checked visit incomplete | Compiler binding |
+| `completion::*` | 18 | `destroy` not offered on the release path, widget subcommands (typing), per-object members, iRules version gating | LSP features; compiler dataflow for widgets |
+| `refactor::switch_to_dict` | 10 | Fresh-store and insertion obligation always refuses | LSP features, needs evidence per shape |
+| `type_hierarchy`, `implementation`, `type_definition` | 23 | Not traced; several build an unversioned fixture and assert logical records | LSP features |
+| `code_lens` | 8 | Method and classmethod reference counts: unentered body and typing | Compiler binding and dataflow |
+| `refactor::inline_proc`, `extract_variable`, `brace_expr`, `source_rewrite`, `original_frame_walk_tests` | 23 | Nested command grammar unavailable (unentered body); expression-bracing obligation | Compiler binding; LSP features for bracing |
+| `receiver_identity`, `original_oo`, `method_symbol`, `oo_body` | 19 | Receiver entries for classes never instantiated | Compiler binding |
+| `diagnostic_subject`, `diagnostic_report` | 12 | Not traced; they read compiler diagnostics | Compiler diagnostics |
+| `namespace_rename`, `namespace_symbol` | 12 | Not traced | LSP features |
+| `document_symbols`, `declaration_outline`, `declaration` | 13 | `tcltest` symbols after a wildcard import (5); recovery of a tail procedure; `global` and `upvar` declaration sites | Compiler binding for the import; rest LSP features |
+| `formatting`, `linked_editing_range`, `irules_object_refs`, `package_resolver`, `inlay_hints`, `original_context`, `executable_regions`, `variable_symbol`, `graphs`, `completion::logical_scoped_environment_tests` | 43 | Not traced | LSP features |
+
 Measured and not applied: lifting every release-profile refusal in one display module at a time. `call_hierarchy` 2 fixed and 18 new, `code_lens` 0 and 43, `inlay_hints` 0 and 13, `type_hierarchy` 0 and 8, `implementation` 0 and 7; `declaration`, `folding`, `linked_editing_range` and `graphs` unchanged. The refusals in those modules are not what fails their tests, and removing them breaks the tests that pin the release-profile answers.
 
 `tcl-lsp-db` (80 failing in the last full run), by where the failing assertion reads from: `value_transfer_parity` 11 and `class_factory_fixpoint` 7 compare compiler queries with each other; `compiler_check_corpus` 4, of which two need the pinned Tcllib 2.0 inputs (`#1956 requires the pinned Tcllib 2.0 HTTPD input`, `#2243 … IMAP4 input`: the session hook could not download tcllib, so these are environment failures here); `project_token_inputs::tests` 9 belong with the token work; the lib `tests` module 28 and `cross_file_call_sites` 4 are Salsa wrappers over the compiler's file analysis and declarations. None was traced to code in `tcl-lsp-db` itself; not worked.
