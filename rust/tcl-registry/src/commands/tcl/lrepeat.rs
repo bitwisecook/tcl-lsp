@@ -110,6 +110,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
+        native_result: Some(crate::native_result::NativeResultContract::ListRepeat { count_at: 0 }),
         runtime_backing: RuntimeBacking::shipped("lrepeat"),
         const_fold: Some(crate::const_fold::fold_lrepeat),
         // `lrepeat count {a b} {c d}` — a call with exactly two element

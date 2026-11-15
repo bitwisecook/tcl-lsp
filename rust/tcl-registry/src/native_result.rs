@@ -181,6 +181,12 @@ pub enum NativeResultContract {
     /// Increment publishes a numeric object into its captured receiver before
     /// write callbacks. The eventual returned value needs separate proof.
     IncrementStore,
+    /// Repeat the retained operands after a count operand into one list.
+    /// C Tcl 9.1 returns its abstract `lrepeatType` from 100 elements.
+    ListRepeat {
+        /// Count operand relative to the selected form; the values follow it.
+        count_at: u8,
+    },
 }
 
 #[cfg(test)]
@@ -817,6 +823,59 @@ mod tests {
             NativeResultSelection::InvalidArguments
         );
     }
+
+    /// `lrepeat` builds an ordinary list in C Tcl 8.5–9.0 when it has
+    /// elements; 9.1 switches to `lrepeatType` from 100 elements.
+    #[test]
+    fn list_repeat_is_an_ordinary_list_below_the_abstract_threshold() {
+        use tcl_dialect::TclVersion;
+        use tcl_syntax::value::ValueRepresentation::{List, Unknown};
+        let contract = NativeResultContract::ListRepeat { count_at: 0 };
+        let compilation = crate::native_compilation::NativeCompilationContext::default();
+        let represent = |count: &str, values: usize, version| {
+            let mut words = vec![count];
+            words.extend(std::iter::repeat_n("a", values));
+            contract
+                .select(InvocationArguments::literals(&words), 0)
+                .created_representation(crate::InvocationDialect::for_version(version), compilation)
+        };
+        for version in TclVersion::ALL {
+            let at_least_8_5 = version >= TclVersion::V8_5;
+            assert_eq!(
+                represent("3", 2, version),
+                if at_least_8_5 { List } else { Unknown }
+            );
+            assert_eq!(represent("0", 1, version), Unknown);
+            assert_eq!(represent("3", 0, version), Unknown);
+            assert_eq!(
+                represent("50", 2, version),
+                if at_least_8_5 && version < TclVersion::V9_1 {
+                    List
+                } else {
+                    Unknown
+                }
+            );
+            assert_eq!(
+                represent("99", 1, version),
+                if at_least_8_5 { List } else { Unknown }
+            );
+            for count in ["010", "+3", " 3", "0x3", "3.0"] {
+                assert_eq!(represent(count, 1, version), Unknown, "{count}");
+            }
+        }
+        assert_eq!(
+            contract.select(InvocationArguments::literals(&[]), 0),
+            NativeResultSelection::InvalidArguments
+        );
+        assert_eq!(
+            contract.select(InvocationArguments::literals(&["2", "a", "b"]), 0),
+            NativeResultSelection::ListRepeat {
+                repetitions: 2,
+                from: 1,
+                len: 2
+            }
+        );
+    }
 }
 
 /// Structural result dependency after the exact native argv shape is selected.
@@ -849,6 +908,15 @@ pub enum NativeResultSelection {
         first_at: usize,
         /// Effective post-head last-index operand index.
         last_at: usize,
+    },
+    /// A native list repeating a contiguous retained value range.
+    ListRepeat {
+        /// Repetitions, from a canonical decimal count operand.
+        repetitions: usize,
+        /// Effective post-head first repeated value index.
+        from: usize,
+        /// Number of repeated values.
+        len: usize,
     },
     /// A native dictionary retaining a contiguous even key/value operand range.
     DictionaryArguments {
@@ -910,6 +978,27 @@ impl NativeResultSelection {
                     .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5))
             {
                 ValueRepresentation::Dict
+            } else {
+                ValueRepresentation::Unknown
+            };
+        }
+        if let Self::ListRepeat {
+            repetitions, len, ..
+        } = self
+        {
+            let total = repetitions.saturating_mul(len);
+            // `Tcl_NewListObj(totalElems, NULL)` (8.5–9.0 Tcl_LrepeatObjCmd,
+            // tclCmdIL.c) has no list rep when empty; 9.1 Tcl_ListObjRepeat
+            // (tclListTypes.c) builds `lrepeatType` at LREPEAT_LENGTH_THRESHOLD.
+            const ABSTRACT_FROM_9_1: usize = 100;
+            let fresh = total > 0
+                && dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+                && dialect.tcl_version.is_some_and(|version| {
+                    version >= tcl_dialect::TclVersion::V8_5
+                        && (version < tcl_dialect::TclVersion::V9_1 || total < ABSTRACT_FROM_9_1)
+                });
+            return if fresh {
+                ValueRepresentation::List
             } else {
                 ValueRepresentation::Unknown
             };
@@ -1313,6 +1402,23 @@ impl NativeResultContract {
                 first_at,
                 last_at,
             } => select_list_range(count, argument_offset, [list_at, first_at, last_at]),
+            Self::ListRepeat { count_at } => {
+                let count_at = argument_offset + usize::from(count_at);
+                let from = count_at + 1;
+                let Some(len) = count.checked_sub(from) else {
+                    return NativeResultSelection::InvalidArguments;
+                };
+                args.literal_at(count_at)
+                    .and_then(canonical_decimal_count)
+                    .filter(|repetitions| repetitions.checked_mul(len).is_some())
+                    .map_or(NativeResultSelection::Unknown, |repetitions| {
+                        NativeResultSelection::ListRepeat {
+                            repetitions,
+                            from,
+                            len,
+                        }
+                    })
+            }
             Self::DictionaryArguments { from } => {
                 let from = argument_offset + usize::from(from);
                 match count.checked_sub(from) {
@@ -1353,6 +1459,19 @@ impl NativeResultContract {
             | Self::ScalarMath(_) => NativeResultSelection::Unknown,
         }
     }
+}
+
+/// A count every native integer reader of 8.5–9.1 reads alike: no sign,
+/// whitespace, radix prefix or leading zero (8.x reads `010` as octal).
+fn canonical_decimal_count(text: &str) -> Option<usize> {
+    let digits = text.as_bytes();
+    if digits.is_empty()
+        || !digits.iter().all(u8::is_ascii_digit)
+        || (digits.len() > 1 && digits[0] == b'0')
+    {
+        return None;
+    }
+    text.parse().ok()
 }
 
 fn select_list_range(count: usize, offset: usize, positions: [u8; 3]) -> NativeResultSelection {

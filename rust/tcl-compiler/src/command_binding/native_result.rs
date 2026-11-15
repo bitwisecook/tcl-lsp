@@ -973,6 +973,22 @@ fn selected_result(
                 return None;
             }
         }
+        NativeResultSelection::ListRepeat {
+            repetitions,
+            from,
+            len,
+        } => {
+            // Retained bytes let a later literal conversion prove itself
+            // disjoint from this fresh object, as a range result's do.
+            const MAX_REPEATED_ELEMENTS: usize = 1000;
+            if repetitions.checked_mul(len)? > MAX_REPEATED_ELEMENTS {
+                return None;
+            }
+            let values = (from..from.checked_add(len)?)
+                .map(|index| arguments.literal_at(index))
+                .collect::<Option<Vec<_>>>()?;
+            tcl_syntax::list::join_list(std::iter::repeat_n(values, repetitions).flatten())
+        }
         NativeResultSelection::ListRange { .. }
         | NativeResultSelection::InvalidArguments
         | NativeResultSelection::Unknown => return None,

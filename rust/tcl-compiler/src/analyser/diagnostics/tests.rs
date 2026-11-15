@@ -2199,6 +2199,24 @@ fn a_container_built_by_a_command_is_checked() {
     }
 }
 
+/// An `lrepeat` result is an ordinary list (8.5–9.0 `Tcl_LrepeatObjCmd`, 9.1
+/// `Tcl_ListObjRepeat` below 100 elements), so reading it twice runs no object
+/// method the module cannot see and both reads are checked (#2437).
+#[test]
+fn a_repeated_list_is_checked_at_every_read() {
+    let src = "set l [lrepeat 3 a]\nlindex $l 9\nputs [lindex $l 9]\n";
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let findings = Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W230)
+            .map(|d| src[d.span.as_range()].to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(findings, ["9", "9"], "{dialect}");
+    }
+}
+
 /// Converting a variable index keeps the stock objects it may share, so a
 /// second read through the same index is checked as the first is (#2387),
 /// a loop counter `incr` left numeric included.
