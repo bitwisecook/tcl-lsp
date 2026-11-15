@@ -1963,6 +1963,18 @@ impl super::SourceCommandBindings {
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
     ) -> Option<crate::signature_scan::original_name::SourceOriginalNamespaceOperand> {
+        self.original_namespace_operand_at_span_in_source_with(image, span, config, None)
+    }
+
+    /// As [`Self::original_namespace_operand_at_span_in_source`], sharing the
+    /// per-site geometry of one immutable realm through `memo`.
+    pub(crate) fn original_namespace_operand_at_span_in_source_with(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        memo: Option<&OriginalRealmQueryMemo>,
+    ) -> Option<crate::signature_scan::original_name::SourceOriginalNamespaceOperand> {
         self.matches_original_source_image(image, config)
             .then_some(())?;
         let logical = self.original_logical_source_name_advice_input();
@@ -1975,7 +1987,7 @@ impl super::SourceCommandBindings {
         };
         let mut found = None;
         for (input, binding, site) in
-            self.original_written_name_observations_at_span_with(span, config, None)?
+            self.original_written_name_observations_at_span_with(span, config, memo)?
         {
             let scope = match (logical, tape.as_ref()) {
                 (Some(owner), Some(tape)) => tape
@@ -2052,11 +2064,24 @@ impl super::SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<SignatureSourceNameInput> {
+        self.original_c_array_operand_root_at_span_in_source_with(image, span, config, policy, None)
+    }
+
+    /// As [`Self::original_c_array_operand_root_at_span_in_source`], sharing
+    /// the per-site geometry of one immutable realm through `memo`.
+    pub(crate) fn original_c_array_operand_root_at_span_in_source_with(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        memo: Option<&OriginalRealmQueryMemo>,
+    ) -> Option<SignatureSourceNameInput> {
         self.matches_original_source_image(image, config)
             .then_some(())?;
         let mut selected = None;
         for (word, _, binding, _) in
-            self.original_written_word_observations_at_span(span, config)?
+            self.original_written_word_observations_at_span_with(span, config, memo)?
         {
             if binding
                 .variable_context
@@ -2164,14 +2189,6 @@ impl super::SourceCommandBindings {
             selected = Some(current);
         }
         selected
-    }
-
-    fn original_written_word_observations_at_span(
-        &self,
-        span: tcl_lexer::Span,
-        config: tcl_lexer::LexerConfig,
-    ) -> Option<Vec<OriginalWrittenWordObservation>> {
-        self.original_written_word_observations_at_span_with(span, config, None)
     }
 
     /// Every root-origin site at or before `span`, latest first. Only a site
@@ -2592,7 +2609,7 @@ mod graph_tests {
             span
         );
         let observations = bindings
-            .original_written_word_observations_at_span(span, config)
+            .original_written_word_observations_at_span_with(span, config, None)
             .expect("independently retained point geometry");
         assert!(observations.iter().all(|(_, _, binding, _)| {
             binding
@@ -2642,7 +2659,7 @@ mod graph_tests {
         let start = u32::try_from(source.find("after idle $cb").unwrap() + "after ".len()).unwrap();
         let span = tcl_lexer::Span::new(start, start + 4);
         let observations = bindings
-            .original_written_word_observations_at_span(span, owner.lexer_config())
+            .original_written_word_observations_at_span_with(span, owner.lexer_config(), None)
             .expect("genuine retained receiver source vector");
         let (word, written, binding, _) = observations.iter().find(|(_, _, binding, _)| {
             binding.declaration_layout_observations.as_deref().is_some_and(|rows| {

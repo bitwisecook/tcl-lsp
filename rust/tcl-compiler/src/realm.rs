@@ -454,7 +454,13 @@ impl CommandBindingRealm {
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
         self.bindings
-            .original_c_array_operand_root_at_span_in_source(image, span, config, policy)
+            .original_c_array_operand_root_at_span_in_source_with(
+                image,
+                span,
+                config,
+                policy,
+                Some(&self.query_memo),
+            )
     }
 
     /// Original operand and independent caller namespace geometry retained by
@@ -468,7 +474,12 @@ impl CommandBindingRealm {
         config: tcl_lexer::LexerConfig,
     ) -> Option<crate::signature_scan::original_name::SourceOriginalNamespaceOperand> {
         self.bindings
-            .original_namespace_operand_at_span_in_source(image, span, config)
+            .original_namespace_operand_at_span_in_source_with(
+                image,
+                span,
+                config,
+                Some(&self.query_memo),
+            )
     }
 
     /// Attach retained original-source receipts to unchanged command tokens.

@@ -113,6 +113,15 @@ struct SourceImageGeometry {
     line_index: std::sync::OnceLock<Option<LineIndex>>,
 }
 
+/// Document images one thread keeps for [`SourceImage::document`]: a
+/// document and the few nested scripts a consumer alternates with it.
+const RECENT_DOCUMENT_LIMIT: usize = 4;
+
+std::thread_local! {
+    static RECENT_DOCUMENTS: std::cell::RefCell<Vec<SourceImage>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
 impl PartialEq for SourceImage {
     fn eq(&self, other: &Self) -> bool {
         // One shared allocation is trivially the same bytes; only distinct
@@ -310,9 +319,29 @@ impl SourceImage {
     }
 
     /// Retain Unicode document bytes with source-channel continuation rules.
+    ///
+    /// Consumers ask for the image of one document many times over. The most
+    /// recent images built on this thread are kept, so a repeat request costs
+    /// one byte comparison and returns the same allocation; every later
+    /// equality between those images is then a pointer test, and their line
+    /// positions and digest are computed once.
     #[must_use]
     pub fn document(text: &str) -> Self {
-        Self::from_bytes(text.as_bytes(), SourceChannel::Document)
+        RECENT_DOCUMENTS.with_borrow_mut(|recent| {
+            if let Some(found) = recent
+                .iter()
+                .position(|image| image.bytes() == text.as_bytes())
+            {
+                recent[..=found].rotate_right(1);
+                return recent[0].clone();
+            }
+            let image = Self::from_bytes(text.as_bytes(), SourceChannel::Document);
+            if recent.len() == RECENT_DOCUMENT_LIMIT {
+                recent.pop();
+            }
+            recent.insert(0, image.clone());
+            image
+        })
     }
 
     /// Borrow the exact original script bytes.
@@ -737,6 +766,24 @@ pub(crate) fn token_bytes_in(source: &[u8], tok: Token) -> &[u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn repeated_document_images_share_one_allocation() {
+        let first = SourceImage::document("set a 1");
+        let other = SourceImage::document("set b 2");
+        let again = SourceImage::document(&String::from("set a 1"));
+        assert!(std::sync::Arc::ptr_eq(&first.bytes, &again.bytes));
+        assert!(!std::sync::Arc::ptr_eq(&first.bytes, &other.bytes));
+        assert_eq!(first, again);
+        assert_ne!(first, other);
+        // Texts beyond the retained few are rebuilt, and still compare equal.
+        for index in 0..RECENT_DOCUMENT_LIMIT {
+            let _ = SourceImage::document(&format!("set filler {index}"));
+        }
+        let rebuilt = SourceImage::document("set a 1");
+        assert!(!std::sync::Arc::ptr_eq(&first.bytes, &rebuilt.bytes));
+        assert_eq!(first, rebuilt);
+    }
 
     #[test]
     fn text_slicing() {
