@@ -504,6 +504,9 @@ impl BytecodeCompileService {
         );
         let mut options = entry.options();
         options.compilation_scope = ModuleEmissionScope::WholeModule;
+        // The VM's embedder can register commands the profile's catalogue
+        // does not describe (`Vm::enable_threads` installs `thread::id`).
+        options.host_extensible_command_table = true;
         // `tclsh file.tcl` compiles the file as one script object
         // (`Tcl_EvalObjEx` without `TCL_EVAL_DIRECT`): its commands take
         // their release's compilers rather than direct evaluation. A hosted

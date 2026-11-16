@@ -140,6 +140,10 @@ pub struct SourceAnalysisOptions<'a> {
     pub trusted_source_modules: &'a [TrustedSourceModuleLoader],
     /// Prior interpreter history is unavailable; no fresh-table proof applies.
     pub unknown_entry: bool,
+    /// The embedding host may register commands no catalogue describes
+    /// (`Vm::enable_threads`), so catalogue absence proves nothing about a
+    /// head: an undefined name is not bounded by the stock `unknown`.
+    pub host_extensible_command_table: bool,
     /// Logical handler, value and frame policies supplied by the entry owner.
     /// Physical compiler support is queried separately with `native_compiler_dialect`.
     pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
@@ -439,6 +443,10 @@ pub struct SourceAnalysisEntry {
     pub trusted_source_modules: Vec<TrustedSourceModuleLoader>,
     /// Whether prior interpreter history is unavailable.
     pub unknown_entry: bool,
+    /// The embedding host may register commands no catalogue describes
+    /// (`Vm::enable_threads`), so catalogue absence proves nothing about a
+    /// head: an undefined name is not bounded by the stock `unknown`.
+    pub host_extensible_command_table: bool,
     /// Explicit runtime policies independent of catalogue metadata.
     pub invocation_dialect: Option<tcl_registry::InvocationDialect>,
     /// Explicit authored compiler-local provider, separate from physical engine evidence.
@@ -584,6 +592,7 @@ impl SourceAnalysisEntry {
             trusted_package_loaders: &self.trusted_package_loaders,
             trusted_source_modules: &self.trusted_source_modules,
             unknown_entry: self.unknown_entry,
+            host_extensible_command_table: self.host_extensible_command_table,
             invocation_dialect: self.invocation_dialect,
             compiled_variable_provider: self.compiled_variable_provider,
             expression_parser: self.expression_parser,

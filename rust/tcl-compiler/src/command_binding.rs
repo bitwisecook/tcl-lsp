@@ -980,6 +980,7 @@ struct BindingBaseline {
     expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     invocation_realm: tcl_dialect::model::InvocationRealm,
     unknown_entry: bool,
+    host_extensible_command_table: bool,
     native_entry: Option<Arc<tcl_runtime_api::NativeCompilationEntry>>,
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     fingerprint: u64,
@@ -1012,6 +1013,7 @@ impl PartialEq for BindingBaseline {
             && self.invocation_realm == other.invocation_realm
             && self.execution_name_policy == other.execution_name_policy
             && self.unknown_entry == other.unknown_entry
+            && self.host_extensible_command_table == other.host_extensible_command_table
             && self.registry_snapshot == other.registry_snapshot
             && self
                 .registry_owner
@@ -1104,6 +1106,7 @@ impl BindingBaseline {
                 .map(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe),
             invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             unknown_entry: false,
+            host_extensible_command_table: false,
             native_entry: None,
             compiled_variable_provider: None,
             expression_parser: None,
@@ -1163,6 +1166,7 @@ impl BindingBaseline {
         self.expression_parser.hash(&mut state);
         self.invocation_realm.hash(&mut state);
         self.unknown_entry.hash(&mut state);
+        self.host_extensible_command_table.hash(&mut state);
         self.declared_commands.hash(&mut state);
         self.declared_surface.hash(&mut state);
         self.catalogue_commands.hash(&mut state);
@@ -9237,13 +9241,12 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
     ) -> bool {
-        if self.final_state.baseline.source_point_entry.is_some() {
+        let baseline = &self.final_state.baseline;
+        if baseline.source_point_entry.is_some() {
             return false;
         }
 
-        let loaders = self
-            .final_state
-            .baseline
+        let loaders = baseline
             .trusted_loaders
             .values()
             .cloned()
@@ -9276,6 +9279,7 @@ impl SourceCommandBindings {
             trusted_package_loaders: &loaders,
             trusted_source_modules: &self.final_state.baseline.trusted_source_modules,
             unknown_entry: false,
+            host_extensible_command_table: baseline.host_extensible_command_table,
             invocation_dialect: self.final_state.baseline.dialect,
             hosted_execution_context: self.final_state.baseline.hosted_execution_context,
             execution_name_policy: self.final_state.baseline.execution_name_policy,
@@ -16974,6 +16978,7 @@ impl ModuleCommandBindings {
         baseline.expression_parser = options.expression_parser;
         baseline.invocation_realm = options.invocation_realm;
         baseline.unknown_entry = options.unknown_entry;
+        baseline.host_extensible_command_table = options.host_extensible_command_table;
         baseline.native_entry = options.native_entry.cloned().map(Arc::new);
         baseline.declared_surface = options.retained_declared_command_contracts();
         // A declared command's stated frame effect binds it in every walk's
@@ -22492,6 +22497,7 @@ fn autoload_defines_nothing(state: &ModuleCommandBindings, command: Option<&str>
     if state.loader_handler_unknown
         || state.baseline.native_entry.is_some()
         || state.baseline.unknown_entry
+        || state.baseline.host_extensible_command_table
         || command.is_some_and(|command| {
             state.baseline.registry_owner.as_ref().is_some_and(|owner| {
                 let registry = owner.registry();

@@ -2183,18 +2183,8 @@ mod tests {
         // ``catch [build] res`` — single-token but command-subst,
         // not brace-literal.  Must hit the Barrier path.
         let m = lower_to_ir("catch [build] res", &reg());
-        assert!(matches!(
-            &m.top_level.statements[0],
-            Statement::Barrier { command, .. } if command == "catch"
-        ));
-        // #2427: an autoload index entry for `build` may rewrite the command
-        // table before `catch` is looked up, so the call stays runtime-opaque.
-        let m = lower_to_ir(
-            "set ::auto_index(build) {source lib.tcl}\ncatch [build] res",
-            &reg(),
-        );
         super::super::tests::assert_runtime_opaque_call(
-            m.top_level.statements.last().unwrap(),
+            &m.top_level.statements[0],
             &reg(),
             "catch",
         );

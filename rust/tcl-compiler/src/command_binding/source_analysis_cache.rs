@@ -94,6 +94,7 @@ impl SourceAnalysisCacheKey {
                 trusted_package_loaders: options.trusted_package_loaders.to_vec(),
                 trusted_source_modules: options.effective_source_modules().to_vec(),
                 unknown_entry: options.unknown_entry,
+                host_extensible_command_table: options.host_extensible_command_table,
                 invocation_dialect: options.invocation_dialect,
                 compiled_variable_provider: options.compiled_variable_provider,
                 expression_parser: options.expression_parser,
@@ -167,6 +168,7 @@ impl SourcePointHistoryKey {
             trusted_package_loaders,
             trusted_source_modules,
             unknown_entry,
+            host_extensible_command_table,
             invocation_dialect,
             compiled_variable_provider,
             expression_parser,
@@ -193,6 +195,7 @@ impl SourcePointHistoryKey {
             && &self.entry.trusted_package_loaders == trusted_package_loaders
             && &self.entry.trusted_source_modules == trusted_source_modules
             && &self.entry.unknown_entry == unknown_entry
+            && &self.entry.host_extensible_command_table == host_extensible_command_table
             && &self.entry.invocation_dialect == invocation_dialect
             && &self.entry.compiled_variable_provider == compiled_variable_provider
             && &self.entry.expression_parser == expression_parser
@@ -217,6 +220,7 @@ fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
         trusted_package_loaders,
         trusted_source_modules,
         unknown_entry,
+        host_extensible_command_table,
         invocation_dialect,
         compiled_variable_provider,
         expression_parser,
@@ -238,6 +242,7 @@ fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
         trusted_package_loaders: trusted_package_loaders.clone(),
         trusted_source_modules: trusted_source_modules.clone(),
         unknown_entry: *unknown_entry,
+        host_extensible_command_table: *host_extensible_command_table,
         invocation_dialect: *invocation_dialect,
         compiled_variable_provider: *compiled_variable_provider,
         expression_parser: *expression_parser,

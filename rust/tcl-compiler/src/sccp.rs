@@ -8048,15 +8048,10 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
 
-        // #2427: with no autoload index naming it, the stock `unknown` defines
-        // nothing for an unresolved head, so the top stays bounded.
-        assert!(!mutations_for("someUnknownLibraryCall x\n").has_dynamic_mutation());
-        let opaque = mutations_for(
-            "set auto_index(someUnknownLibraryCall) {source lib.tcl}\nsomeUnknownLibraryCall x\n",
-        );
+        let opaque = mutations_for("someUnknownLibraryCall x\n");
         assert!(
             opaque.has_dynamic_mutation(),
-            "an unresolved head an autoload index names raises the unbounded top"
+            "an unresolved head is expected to raise the unbounded top"
         );
         assert!(
             opaque.observed_binding_is_the_builtin("llength"),

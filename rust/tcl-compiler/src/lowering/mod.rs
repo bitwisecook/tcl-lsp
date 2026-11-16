@@ -1059,6 +1059,27 @@ impl SourceBodyMode {
     }
 }
 
+/// Whether the catalogue describes every command the host can register.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HostCommandTable {
+    Catalogue,
+    Extensible,
+}
+
+impl HostCommandTable {
+    const fn of(extensible: bool) -> Self {
+        if extensible {
+            Self::Extensible
+        } else {
+            Self::Catalogue
+        }
+    }
+
+    const fn is_extensible(self) -> bool {
+        matches!(self, Self::Extensible)
+    }
+}
+
 #[cfg(test)]
 #[derive(Clone, Copy)]
 enum SourceBodySyntaxCacheVerification {
@@ -1087,6 +1108,8 @@ pub struct Lowerer<'r> {
     trusted_source_modules: Vec<crate::command_binding::TrustedSourceModuleLoader>,
     /// Whether prior interpreter history prevents a fresh entry proof.
     unknown_entry: bool,
+    /// The host may register commands outside the catalogue.
+    host_command_table: HostCommandTable,
     /// An explicit entry contract replaces the default authoring assumption.
     source_entry_origin: SourceEntryOrigin,
     supplied_source: Option<crate::command_binding::SuppliedSourceAnalysisIssuance>,
@@ -1430,6 +1453,7 @@ impl<'r> Lowerer<'r> {
             trusted_package_loaders: Vec::new(),
             trusted_source_modules: Vec::new(),
             unknown_entry: false,
+            host_command_table: HostCommandTable::Catalogue,
             source_entry_origin: SourceEntryOrigin::Authoring,
             supplied_source: None,
             invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
@@ -1595,6 +1619,9 @@ impl<'r> Lowerer<'r> {
             Some(input.unit_profile()),
         );
         lowerer.dialect_context = Some(input.context_registry());
+        // A rewrite of standalone source must hold wherever it later runs,
+        // including under a host that registers its own commands.
+        lowerer.host_command_table = HostCommandTable::Extensible;
         lowerer.retain_standalone_source_metadata(input);
         lowerer
     }
@@ -1609,6 +1636,14 @@ impl<'r> Lowerer<'r> {
             self.metadata_input = Some(input);
             self.metadata_origin = LoweringMetadataOrigin::Supplied;
         }
+    }
+
+    /// The host may register commands the catalogue does not describe, so an
+    /// undefined head is not bounded by the stock `unknown`.
+    #[must_use]
+    pub const fn with_host_extensible_command_table(mut self) -> Self {
+        self.host_command_table = HostCommandTable::Extensible;
+        self
     }
 
     /// Use the caller's complete availability context for conditional source
@@ -1935,6 +1970,7 @@ impl<'r> Lowerer<'r> {
             trusted_package_loaders: self.trusted_package_loaders.clone(),
             trusted_source_modules: self.effective_source_modules().to_vec(),
             unknown_entry: self.unknown_entry,
+            host_extensible_command_table: self.host_command_table.is_extensible(),
             invocation_dialect: self.invocation_dialect,
             compiled_variable_provider: self.compiled_variable_provider,
             expression_parser: self.expression_parser,
@@ -2364,6 +2400,7 @@ impl<'r> Lowerer<'r> {
                 metadata_context:
                     crate::registry_invocation::InvocationMetadataInput::SuppliedSource(None),
                 unknown_entry: true,
+                host_extensible_command_table: options.host_extensible_command_table,
                 ..SourceAnalysisOptions::default()
             }
         } else {
@@ -2378,6 +2415,7 @@ impl<'r> Lowerer<'r> {
         self.trusted_package_loaders = options.trusted_package_loaders.to_vec();
         self.trusted_source_modules = options.trusted_source_modules.to_vec();
         self.unknown_entry = options.unknown_entry;
+        self.host_command_table = HostCommandTable::of(options.host_extensible_command_table);
         self.source_entry_origin = SourceEntryOrigin::Driver;
         self.config = options.native_lexer_config(self.config);
         self.invocation_dialect = options.source_invocation_dialect(self.config);
@@ -2488,6 +2526,7 @@ impl<'r> Lowerer<'r> {
                 trusted_package_loaders: &self.trusted_package_loaders,
                 trusted_source_modules: self.effective_source_modules(),
                 unknown_entry: self.unknown_entry || self.nest_depth > 1,
+                host_extensible_command_table: self.host_command_table.is_extensible(),
                 invocation_dialect: self.invocation_dialect,
                 compiled_variable_provider: self.compiled_variable_provider,
                 expression_parser: self.expression_parser,
@@ -6885,12 +6924,14 @@ pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
     // document's own config. The command world fails closed on a lexer
     // config that differs from its profile's, so the config follows the
     // registry's profile.
+    // Its IR is executed by hosts that register their own commands (a VM's
+    // `enable_threads`), so the catalogue does not close its command table.
     let profile = registry.profile();
-    lower_to_ir_with_dialect(
+    lower_with(
+        Lowerer::with_config(registry, tcl_lexer::LexerConfig::for_profile(profile))
+            .with_dialect(profile)
+            .with_host_extensible_command_table(),
         source,
-        registry,
-        tcl_lexer::LexerConfig::for_profile(profile),
-        profile,
     )
 }
 
@@ -10601,17 +10642,6 @@ mod tests {
         // Same guard for a `[cmd]` body — single-token but a Cmd
         // substitution, not a braced literal.
         let m = lower_to_ir("foreachLine line /etc/hosts [build-body]", &reg());
-        let last = m.top_level.statements.last().expect("top-level statement");
-        assert!(matches!(
-            last,
-            crate::ir::Statement::Barrier { command, .. } if command == "foreachLine"
-        ));
-        // #2427: an autoload index entry for `build-body` may rewrite the
-        // command table first, so the call stays runtime-opaque.
-        let m = lower_to_ir(
-            "set ::auto_index(build-body) {source lib.tcl}\nforeachLine line /etc/hosts [build-body]",
-            &reg(),
-        );
         let last = m.top_level.statements.last().expect("top-level statement");
         assert_runtime_opaque_call(last, &reg(), "foreachLine");
     }

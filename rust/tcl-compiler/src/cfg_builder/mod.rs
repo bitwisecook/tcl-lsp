@@ -7945,11 +7945,7 @@ mod tests {
         for (src, host) in [
             ("set cmd puts\n$cmd hi", "${cmd}"),
             ("set suffix _hi\nfoo$suffix", "foo${suffix}"),
-            // #2427: an autoload index entry keeps an undefined `get` unseen.
-            (
-                "set ::auto_index(get) {source lib.tcl}\nset a 1\nget $a",
-                "get",
-            ),
+            ("set a 1\nget $a", "get"),
             ("set f x.tcl\nsource $f", "source"),
         ] {
             let cfg = build_cfg(&lower_module(src), false);
@@ -7960,10 +7956,6 @@ mod tests {
                 "{src}"
             );
         }
-        // With no autoload index in view, the stock `unknown` defines nothing
-        // for an undefined head: the call runs no unseen code (#2427).
-        let cfg = build_cfg(&lower_module("set a 1\nget $a"), false);
-        assert_eq!(calls_in_order(&cfg.top_level), [("get", &[][..])]);
     }
 
     /// A computed head runs whatever its value names, so it is code the module
