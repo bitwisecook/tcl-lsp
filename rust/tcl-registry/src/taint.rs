@@ -408,8 +408,17 @@ pub fn taint_source_colour(
     let indexed = registry
         .taint_source(command)
         .unwrap_or(TaintColour::TAINTED);
-    // The path/IP/port/FQDN colours describe the getter (0-arg) form only.
-    let base = if args.is_empty() {
+    // The path/IP/port/FQDN colours describe the getter form only: no
+    // operand, or nothing but the command's own flags (`HTTP::path
+    // -normalized` still returns a path).
+    let only_flags = registry.get(command).is_some_and(|spec| {
+        args.iter().all(|arg| {
+            spec.options.iter().any(|option| {
+                option.name == *arg && matches!(option.value, crate::hover::OptionValue::Flag)
+            })
+        })
+    });
+    let base = if args.is_empty() || only_flags {
         indexed
     } else {
         TaintColour::TAINTED
@@ -1150,6 +1159,16 @@ mod tests {
         assert!(colour.contains(TaintColour::TAINTED));
         assert!(colour.contains(TaintColour::PATH_PREFIXED));
         assert!(colour.contains(TaintColour::NON_DASH_PREFIXED));
+    }
+
+    #[test]
+    fn a_getter_called_with_only_its_own_flags_keeps_its_colour() {
+        let registry = CommandRegistry::build_default();
+        let flagged = taint_source_colour(&registry, "HTTP::path", &["-normalized"], None).unwrap();
+        assert!(flagged.contains(TaintColour::TAINTED | TaintColour::PATH_PREFIXED));
+        // An operand that is not one of the command's flags is not the getter form.
+        let other = taint_source_colour(&registry, "HTTP::header", &["host"], None).unwrap();
+        assert_eq!(other, TaintColour::TAINTED);
     }
 
     #[test]
