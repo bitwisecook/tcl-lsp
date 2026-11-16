@@ -38197,7 +38197,7 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
-        let pos = params.text_document_position_params.position;
+        let pos = position_within_line(&doc.text, params.text_document_position_params.position);
         let disabled_commands = self.resolved_signature_help_disabled_commands(&uri).await;
         // Per-dialect cached registry — same source the
         // completion handler uses.  Threading it through lets
@@ -38425,6 +38425,24 @@ fn materialise_selection_range(
         });
     }
     wrapped.into_iter().next().flatten()
+}
+
+/// The protocol's reading of a position whose character lies beyond its
+/// line: the end of that line. A line beyond the document stays as sent.
+fn position_within_line(source: &str, position: Position) -> Position {
+    let index = tcl_lexer::LineIndex::new_lsp(source);
+    if position.line as usize >= index.line_count() {
+        return position;
+    }
+    let end = index.position_at_utf16(
+        index.offset_at_utf16(position.line, tcl_lexer::Utf16Col::new(u32::MAX), source),
+        source,
+    );
+    if end.line == position.line && position.character > end.character.get() {
+        Position::new(position.line, end.character.get())
+    } else {
+        position
+    }
 }
 
 /// Byte offset of the LSP `(line, character)` cursor in `source`.
