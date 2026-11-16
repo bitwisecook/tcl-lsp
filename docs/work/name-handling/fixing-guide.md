@@ -68,7 +68,7 @@ cargo xtask registry-axes          # regenerates docs/generated/registry-axes.md
 cargo xtask value-transfers --check
 cargo xtask owner-resolution
 cargo xtask callback-inventory --check
-make xtask-gates                   # all 37 drift gates in one process, about four minutes; run it when you touched tcl-registry, tcl-dialect, xtask or a generated file
+make xtask-gates                   # all 38 drift gates in one process, about four minutes; run it when you touched tcl-registry, tcl-dialect, xtask or a generated file
 git fetch --depth=50 origin work && git rebase origin/work   # then rerun registry-axes if anything moved
 git push -u origin work
 ```

@@ -118,7 +118,7 @@ fn module_declarations(text: &str, every: bool) -> Vec<String> {
             .iter()
             .rev()
             .take_while(|above| above.starts_with("#[") || above.starts_with("///"))
-            .any(|above| *above == "#[cfg(test)]");
+            .any(|above| *above == "#[cfg(test)]" || above.starts_with("#[cfg(all(test,"));
         if every || guarded {
             names.push(name.to_owned());
         }
@@ -167,6 +167,8 @@ mod tests {
             ["plain", "tests", "fixtures"]
         );
         assert_eq!(declared_module("mod inline {"), None);
+        let narrowed = "#[cfg(all(test, not(target_family = \"wasm\")))]\nmod controls;\n";
+        assert_eq!(module_declarations(narrowed, false), ["controls"]);
     }
 
     #[test]

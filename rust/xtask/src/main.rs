@@ -41,6 +41,8 @@
 //!   documents exactly the builtins `tcl-bigip-query` registers.
 //! - `bigip-data-schema` — verify the hand-maintained BIG-IP object-spec data
 //!   is internally consistent.
+//! - `file-sizes` — hold every hand-written Rust file to 2,000 lines; the
+//!   ledger of files already over it only shrinks.
 //! - `catalogue-callers` — hold every spelling of `DialectProfile::all()`,
 //!   `KNOWN_DIALECTS` and `available_dialects(` to an allowlist (`--check` is
 //!   accepted for symmetry; the gate only verifies).
@@ -95,6 +97,7 @@ mod dialect_drift;
 mod editor_extensions;
 mod environment;
 mod f5query_builtins_doc;
+mod file_sizes;
 mod fp_sweep;
 mod gen_ai;
 mod gen_bigip_grammars;
@@ -461,6 +464,16 @@ enum Command {
         check: bool,
     },
 
+    /// Hold every hand-written Rust file to 2,000 lines. The files already
+    /// over it are listed in `docs/generated/rust-file-sizes.md`; the list
+    /// only shrinks. Without `--check`, drops listed files that now fit.
+    #[command(name = "file-sizes")]
+    FileSizes {
+        /// Verify only: fail when the ledger lists a file that now fits.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Hold every caller of `DialectProfile::all()`, `KNOWN_DIALECTS` and
     /// `available_dialects(` to the allowlist in `rust/xtask/src/catalogue_callers.rs`: a list of names
     /// shown to a user reads the environment registry, not the catalogue.
@@ -682,6 +695,7 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::ObjectRecipeGate { check } => Ok(object_recipe_gate::run(check)),
         Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
+        Command::FileSizes { check } => file_sizes::run(check),
         Command::OwnerResolution => owner_resolution::run(),
         Command::ValueTransfers { check } => value_transfers::run(check),
         Command::RegistryAxes { check } => registry_axes::run(check),
