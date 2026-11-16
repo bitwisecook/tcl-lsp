@@ -620,7 +620,7 @@ fn case_list_command(
                 })
         })
         .unwrap_or("switch");
-    let mut letters = command.trim_start_matches(':').chars();
+    let mut letters = tcl_syntax::naming::without_leading_colons(command).chars();
     letters.next().map_or_else(String::new, |first| {
         first.to_uppercase().chain(letters).collect()
     })

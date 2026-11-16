@@ -1690,6 +1690,37 @@ pub fn unroot_rooted_key_bytes(key: &[u8]) -> Option<&[u8]> {
     key.strip_prefix(b"::")
 }
 
+/// A written name without its leading colons, for a display label or a
+/// registry spelling: `::a::b` is `a::b`, `:::a` is `a`. It drops a single
+/// leading colon too, so it is not a lookup key; a lookup uses
+/// [`unroot_rooted_key`] or [`canonical_written_command`].
+///
+/// ```
+/// use tcl_syntax::naming::without_leading_colons;
+/// assert_eq!(without_leading_colons("::switch"), "switch");
+/// assert_eq!(without_leading_colons(":::a::b"), "a::b");
+/// assert_eq!(without_leading_colons("plain"), "plain");
+/// ```
+#[must_use]
+pub fn without_leading_colons(name: &str) -> &str {
+    name.trim_start_matches(':')
+}
+
+/// A literal fragment of a partly dynamic name without the colons at either
+/// end, which belong to the separators joining it to its neighbours:
+/// `::ns::` is `ns`, `a::b` stays `a::b`.
+///
+/// ```
+/// use tcl_syntax::naming::without_surrounding_colons;
+/// assert_eq!(without_surrounding_colons("::ns::"), "ns");
+/// assert_eq!(without_surrounding_colons("a::b"), "a::b");
+/// assert_eq!(without_surrounding_colons("::"), "");
+/// ```
+#[must_use]
+pub fn without_surrounding_colons(fragment: &str) -> &str {
+    fragment.trim_matches(':')
+}
+
 /// The analyser's flat key for a variable held by a named scope: the scope's
 /// own key, one separator, the variable's base name. The scope key is used
 /// verbatim, so this is a pair rendered flat and not a Tcl name.

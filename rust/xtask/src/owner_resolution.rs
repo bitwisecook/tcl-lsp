@@ -1650,6 +1650,21 @@ const NAME_DELIMITER_METHODS: &[&str] = &[
     "trim_end_matches",
 ];
 
+/// String methods that trim colons off a name.
+const NAME_COLON_TRIM_METHODS: &[&str] =
+    &["trim_start_matches", "trim_end_matches", "trim_matches"];
+
+/// Whether `literal` is a single colon as a character, string or byte.
+fn colon_literal(literal: &str) -> bool {
+    match syn::parse_str::<syn::Lit>(literal) {
+        Ok(syn::Lit::Char(value)) => value.value() == ':',
+        Ok(syn::Lit::Str(value)) => value.value() == ":",
+        Ok(syn::Lit::Byte(value)) => value.value() == b':',
+        Ok(syn::Lit::ByteStr(value)) => value.value() == b":",
+        _ => false,
+    }
+}
+
 /// Whether `literal` is exactly the namespace separator.
 fn name_separator_literal(literal: &str) -> bool {
     match syn::parse_str::<syn::Lit>(literal) {
@@ -1710,6 +1725,19 @@ fn name_delimiter_recipes(source: &str) -> usize {
             && tokens
                 .get(index + 3)
                 .is_some_and(|argument| name_separator_literal(argument.text))
+        {
+            count += 1;
+        }
+        if token.kind == TokenKind::Dot
+            && tokens
+                .get(index + 1)
+                .is_some_and(|method| NAME_COLON_TRIM_METHODS.contains(&method.text))
+            && tokens
+                .get(index + 2)
+                .is_some_and(|open| open.kind == TokenKind::OpenParen)
+            && tokens
+                .get(index + 3)
+                .is_some_and(|argument| colon_literal(argument.text))
         {
             count += 1;
         }
@@ -1780,7 +1808,7 @@ fn render_name_delimiter_ledger(counts: &std::collections::BTreeMap<String, usiz
          # Qualified-name delimiter recipes outside the naming owner\n\n\
          `tcl_syntax::naming` owns how a Tcl name is split, tested and joined. Each row is a \
          production file that still does it by hand: a string method given the literal `::`, \
-         or a format template that only joins holes with `::`. A count may only fall; a new \
+         a colon trim, or a format template that only joins holes with `::`. A count may only fall; a new \
          site fails `cargo xtask owner-resolution`. Call the owner instead, then rerun the \
          gate, which lowers the count here.\n\n| File | Sites |\n|---|---|\n",
     );
@@ -3220,6 +3248,8 @@ mod tests {
                 let _ = name.split("::").count();
                 let _ = name.as_bytes().starts_with(b"::");
                 let _ = name.split(':').count();
+                let _ = name.trim_start_matches(':');
+                let _ = name.as_bytes().trim_ascii();
                 let _ = name.contains("tcl::mathop");
                 let _ = format!("no namespace named ::{ns}");
                 format!("::{ns}::{name}")
@@ -3227,7 +3257,7 @@ mod tests {
             // name.rfind("::");
             #[cfg(test)] mod tests { fn fixture(s: &str) { s.split("::"); } }
         "#;
-        assert_eq!(name_delimiter_recipes(source), 3);
+        assert_eq!(name_delimiter_recipes(source), 4);
         for (template, joins) in [
             ("\"::{}\"", true),
             ("\"{}::{}\"", true),

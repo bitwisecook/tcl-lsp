@@ -2,7 +2,7 @@
 
 # Qualified-name delimiter recipes outside the naming owner
 
-`tcl_syntax::naming` owns how a Tcl name is split, tested and joined. Each row is a production file that still does it by hand: a string method given the literal `::`, or a format template that only joins holes with `::`. A count may only fall; a new site fails `cargo xtask owner-resolution`. Call the owner instead, then rerun the gate, which lowers the count here.
+`tcl_syntax::naming` owns how a Tcl name is split, tested and joined. Each row is a production file that still does it by hand: a string method given the literal `::`, a colon trim, or a format template that only joins holes with `::`. A count may only fall; a new site fails `cargo xtask owner-resolution`. Call the owner instead, then rerun the gate, which lowers the count here.
 
 | File | Sites |
 |---|---|

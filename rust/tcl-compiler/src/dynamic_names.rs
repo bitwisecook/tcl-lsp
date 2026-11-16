@@ -433,7 +433,9 @@ pub(crate) fn original_command_name_overlap(
                         empty: false,
                     });
                 }
-                let literal = tcl_syntax::naming::canonical_written_command(text.trim_matches(':'));
+                let literal = tcl_syntax::naming::canonical_written_command(
+                    tcl_syntax::naming::without_surrounding_colons(text),
+                );
                 let Some(offset) = rest.find(&literal) else {
                     return Some(OriginalCommandNameOverlap {
                         may_equal: false,
@@ -524,8 +526,9 @@ fn name_word_pattern(word: &str, config: LexerConfig) -> Vec<NamePiece> {
             .into_iter()
             .filter_map(|piece| match piece {
                 NamePiece::Literal(text) => {
-                    let literal =
-                        tcl_syntax::naming::canonical_written_command(text.trim_matches(':'));
+                    let literal = tcl_syntax::naming::canonical_written_command(
+                        tcl_syntax::naming::without_surrounding_colons(&text),
+                    );
                     (!literal.is_empty()).then_some(NamePiece::Literal(literal))
                 }
                 NamePiece::Wildcard => Some(NamePiece::Wildcard),
