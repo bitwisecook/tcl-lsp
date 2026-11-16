@@ -693,6 +693,9 @@ Handler bodies under `f5-irules`, state after the first code batch (whole `tcl-c
 
 Second batch, whole suite: 13,229 run, 2,264 failing; this area 210 (298 before); `it_3` `taint` and `it_4` `taint_depth` 79 of 505 (170 before the handler work). No test newly failing from this area; `taint_depth::interproc_depth::sanitising_helper_result_via_var_clears_t101` fails since upstream's `return [cmd …]` lowering exposed the summary defect below.
 
+Paused on 16 November at `6adf3d2f` (third batch: procedure return summaries; whole suite 13,230 run, 2,257 failing, fixed 7, new 0). Everything finished is pushed. Held locally, unverified: the `uri_split` unit-test helper rebuilt on the `f5-irules` document unit with fixtures wrapped in a handler (its registry had no profile, so the handler was never visited).
+Found and not fixed: a braced reference in a hosted template (`"src=${addr}:80"`) has no SSA read reference (sent to the hosted-walk author); T102 has no hosted path in `option_injection_arguments`; a rule's own procedure called from a handler has no proved target, so its summary does not apply.
+
 Open, in the order this area takes them:
 
 1. Procedure return summaries. `proc len {x} {set r [string length $x]; return $r}` carries the argument's taint to the caller instead of the result's colour (`set n [len $raw]; puts $n` reports T101; `set n [string length $raw]` does not), and a helper's sanitiser or getter colour does not reach a handler (`set safe [call clean $raw]`). Seven tests (`interprocedural_colours`, `interprocedural_taint`, `interproc_depth`).
