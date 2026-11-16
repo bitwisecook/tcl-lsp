@@ -1,0 +1,29 @@
+# The facade keeps the advice cache, the prepared tapes, the catalogue and
+# transition-value advice built on them, and the registry barrier and
+# interpreter queries.
+file = "rust/tcl-compiler/src/realm/source_transition_advice.rs"
+
+[[module]]
+name = "logical_source"
+doc = "Advice over the Logical source model: variable scopes, procedure calls and navigation."
+items = [
+    "impl:super::CommandBindingRealm::original_conditional_lambda_formatting_body..impl:super::CommandBindingRealm::original_logical_variable_formal_name_is_unrepresented",
+    "impl:super::CommandBindingRealm::original_logical_math_function_at..impl:super::CommandBindingRealm::original_logical_catalogue_word_at_span",
+]
+
+[[module]]
+name = "class_advice"
+doc = "Class advice: Jim classes, class declarations, references, constructors and instances."
+items = [
+    "impl:super::CommandBindingRealm::original_source_registered_instance_words..impl:super::CommandBindingRealm::original_source_class_instance_words",
+    "impl:super::CommandBindingRealm::original_source_class_publications",
+    "impl:super::CommandBindingRealm::original_class_display_publications",
+]
+
+[[module]]
+name = "procedure_advice"
+doc = "Procedure calls and publications, callback targets and command prefixes."
+items = [
+    "impl:super::CommandBindingRealm::original_native_procedure_body_commands..impl:super::CommandBindingRealm::original_source_procedure_publications",
+    "impl:super::CommandBindingRealm::original_source_callback_targets_for_tokens..impl:super::CommandBindingRealm::original_authored_command_prefix",
+]

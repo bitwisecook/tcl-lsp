@@ -1,0 +1,123 @@
+# The facade keeps `Value`, the object and representation types (`Obj`,
+# `IntRep`, `DictRep`, `ByteArrayRep`, the cache structs: every module reads
+# their private fields), lifetime leases, the plain constructors (`string`,
+# `int`, `double`, `bool`, `list`, native string constructors), the shared
+# stage checks and `replace_primary*`, and the invocation-list views used for
+# error context.
+file = "rust/tcl-vm/src/value.rs"
+
+[[module]]
+name = "jim_object_context"
+doc = "The Jim allocator context an object is bound to: its object pool, result publication, numeric stages and source information."
+items = [
+    "impl:NativeJimObjectContext::new..impl:NativeJimObjectContext::replace_current_filename",
+    "impl:Drop for NativeJimObjectContext",
+    "impl:Value::bind_native_jim_context..impl:Value::retain_source_location",
+]
+
+[[module]]
+name = "native_header"
+doc = "The native object header behind a value: liveness, lifetime pins and references, adopting a bridge mirror, and duplication."
+items = [
+    "impl:Value::native_object_is_live..impl:Value::duplicate_native_object",
+    "impl:Value::native_duplicate_into_checked",
+]
+
+[[module]]
+name = "byte_array"
+doc = "The byte-array representation: construction, inspection, string-to-bytes conversion and binary decoder input."
+items = [
+    "impl:Value::byte_array..impl:Value::binary_decode_input",
+    "impl:Value::from_native_byte_array..impl:Value::from_byte_array_recipe",
+]
+
+[[module]]
+name = "native_string"
+doc = "The native String representation: resident bytes and their storage, the string updater that materialises them, character counts and Unicode units."
+items = [
+    "impl:Value::existing_string_representation..impl:Value::with_resident_string_bytes",
+    "impl:Value::retain_native_string_representation..impl:Value::from_native_string_cache",
+    "impl:Value::native_character_count_with_protocol..impl:Value::native_c_string_storage_checked",
+    "impl:Value::native_unicode_units..impl:Value::native_character_count",
+]
+
+[[module]]
+name = "native_append"
+doc = "In-place native append: the `VmAppendObjects` adapter and the binary and string append kernels."
+items = [
+    "struct:VmAppendObjects..impl:tcl_cmd_core::native_cat::NativeCatObjects for VmAppendObjects",
+    "impl:Value::capture_native_binary_storage..impl:Value::native_append_string_using",
+]
+
+[[module]]
+name = "cached_representations"
+doc = "Internal representations cached on an object besides numbers and containers: expressions, command names, indexes, array searches, bytecode, substitutions, end offsets, regular expressions, completion codes and frame levels."
+items = [
+    "impl:Value::native_expression_cache_present..impl:Value::cache_expression_checked",
+    "impl:Value::native_command_name_cache..impl:Value::clear_native_procedure_bytecode_context",
+    "impl:Value::native_instruction_name..impl:Value::install_native_regexp",
+    "impl:Value::completion_code_cache..impl:Value::install_native_frame_level_cache",
+]
+
+[[module]]
+name = "observation"
+doc = "Observing an object without changing it: the native snapshot, `tcl::unsupported::representation` and measured size."
+items = [
+    "impl:Value::native_object_type_name",
+    "impl:Value::native_object_snapshot..impl:Value::native_named_primary_snapshot",
+    "impl:Value::representation..impl:Value::representation_payload",
+    "impl:Value::measured_bytes..impl:Value::measured_bytes_at_depth",
+    "fn:measure_elements",
+]
+
+[[module]]
+name = "scalar_cache"
+doc = "The numeric cache of an object: inspecting it, reconstructing it from a transported cache, and adopting a conversion."
+items = [
+    "impl:Value::native_scalar_cache..impl:Value::adopt_native_expression_number_if_untyped",
+    "impl:Value::native_integer_primary",
+    "impl:Value::native_scalar_descriptor_origin..impl:Value::adopt_native_scalar_cache_using",
+    "impl:Value::plain_truth..impl:Value::cache_numeric_representation_using",
+]
+
+[[module]]
+name = "native_scalar_getters"
+doc = "Native scalar conversion on the original object: probes, primitive getters and their failure presentation, the C 8.4 expression integer and the increment stores."
+items = [
+    "impl:Value::native_scalar_probe..impl:Value::native_number_probe_using",
+    "impl:Value::native_scalar_getter..impl:Value::native_scalar_failure_presentation_using",
+]
+
+[[module]]
+name = "list_representation"
+doc = "The List representation: native construction, replacement, append and copy, retained backing, and conversion of a value to its elements."
+items = [
+    "impl:Value::native_list_constructor..impl:Value::list_with_native_canonical_in",
+    "impl:Value::as_list..impl:Value::native_object_list_elements_using",
+]
+
+[[module]]
+name = "dictionary_representation"
+doc = "The Dictionary representation: construction, cached members, copy-on-write preparation and member updates, searches and cursors, and conversion of a value to its pairs."
+items = [
+    "impl:OriginalNativeDictionaryCursor::check..impl:OriginalNativeDictionaryCursor::member",
+    "impl:NativeDictionarySearch::next_pair..impl:NativeDictionarySearch::original_root",
+    "impl:Drop for NativeDictionarySearch",
+    "impl:PreparedNativeDictionary::invalidate_string..impl:PreparedNativeDictionary::into_value",
+    "impl:Value::cached_dictionary_representation..impl:Value::native_object_dict_pairs_using",
+    "impl:Value::dict..impl:Value::native_dictionary_constructor_using",
+    "impl:Value::native_dict_pairs..impl:Value::dict_hash_bucket_count",
+]
+
+[[module]]
+name = "string_rendering"
+doc = "Generating the string of a typed value: `to_str`, `string_bytes` and the renderer for scalars, byte arrays, lists and native caches."
+items = [
+    "impl:Value::to_str..impl:Value::string_bytes",
+    "impl:Value::try_to_str..impl:Value::render_list_bytes_using",
+]
+
+[[module]]
+name = "numeric_conversion"
+doc = "The value as a number or boolean: `as_int`, `as_wide`, `as_i128`, `as_double`, `as_bool` and the native integer and boolean getters."
+items = ["impl:Value::numeric_conversion_current..impl:Value::as_bool_with_stages"]

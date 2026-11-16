@@ -1,0 +1,43 @@
+# The facade keeps `DiagnosticPass` and the ledger types whose private fields every
+# module reads, the cache receipt types, the current-input lookup with its registry
+# selection, and the `current_diagnostics` command itself.
+file = "rust/tcl-lsp-server/src/current_diagnostics.rs"
+
+[[module]]
+name = "diagnostic_pass"
+doc = "One diagnostic pass: its capture from the inputs, its entry in the publisher ledger, the delivery of its completion and the currency checks made against it."
+items = [
+    "impl:DiagInputs::capture_diagnostic_pass",
+    "impl:DiagnosticPublisher::begin_diagnostic_pass..impl:DiagnosticPublisher::finish_diagnostic_pass",
+    "impl:DeliveryCtx<'_>::deliver_suppressed_if_current..impl:DeliveryCtx<'_>::complete_diagnostic_pass",
+    "impl:DiagnosticPass::matches_source_publication..impl:DiagnosticPass::matches_completed_analysis",
+    "impl:OrphanCommandDependencies::from_pass",
+]
+
+[[module]]
+name = "proposal"
+doc = "Diagnostics for proposed full source, analysed in an isolated project projection and revalidated against the live capture."
+items = [
+    "struct:ProposalDiagnosticExpectation..fn:proposal_diagnostic_result_id",
+    "impl:Backend::proposal_diagnostics_command..impl:Backend::revalidate_suppressed_proposal",
+]
+
+[[module]]
+name = "published_reports"
+doc = "Reports reborrowed from the publisher ledger: each is validated against its current source before it is handed out."
+items = [
+    "struct:DiagnosticPublicationExpectation",
+    "struct:CurrentPublishedReportBatch..struct:CurrentPublishedReportFinalization",
+    "impl:Backend::validate_diagnostic_publication_command",
+    "impl:Backend::current_cached_diagnostic_reports..impl:Backend::finish_current_published_reports",
+]
+
+[[module]]
+name = "direct_report"
+doc = "The direct report: produced by the checked provider computation for a pull, under its own provider receipt."
+items = [
+    "impl:Backend::diagnostic_report_unavailable..impl:Backend::publish_direct_diagnostic_report",
+    "enum:DirectDiagnosticProductionFailure..struct:ProducedDirectDiagnosticReport",
+    "fn:direct_diagnostic_analyser_path",
+    "impl:Backend::produce_direct_diagnostic_report..impl:Backend::produce_direct_tcl_diagnostics",
+]

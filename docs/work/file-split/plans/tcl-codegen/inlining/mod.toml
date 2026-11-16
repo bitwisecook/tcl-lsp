@@ -1,0 +1,30 @@
+# The facade keeps the inlining summaries, the public decision and
+# profitability types with `classify_proc`, `InlineSpec`, the inlinable-map
+# construction and the public `inline_module` and `inline_reference_bodies`
+# entry points.
+file = "rust/tcl-codegen/src/inlining/mod.rs"
+
+[[module]]
+name = "eligibility"
+doc = "Which procedure bodies may be spliced: namespace invariance, splice-eligible statements and the parameterised (v3) rules."
+items = ["fn:command_is_namespace_invariant..fn:v3_script_eligible"]
+
+[[module]]
+name = "rewrite"
+doc = "The rewrite walk: each statement kind's recursion into its bodies, and what becomes of the value a call stands in."
+items = ["enum:Tail..fn:rewrite_switch_stmt"]
+
+[[module]]
+name = "splice"
+doc = "The replacement for one call site: the expansion, the renamed body and the local names it writes."
+items = ["struct:InlineExpansion..fn:with_span", "fn:collect_local_names..fn:walk_local_writes"]
+
+[[module]]
+name = "return_routing"
+doc = "`return` inside a spliced body: finding it, the one-shot loop that routes it and the stored result."
+items = ["fn:has_nested_irreturn..fn:substitute_irreturn_stmt"]
+
+[[module]]
+name = "parameter_bindings"
+doc = "The statements that bind a spliced body's parameters: positional words, declared defaults and verbatim-splice safety."
+items = ["fn:build_param_bindings..fn:list_clean_for_splice"]

@@ -1,0 +1,64 @@
+# First of two levels. The facade keeps the object-system types (`Method`,
+# `Class`, `Object`, `CallStep`, `OoFrame`, `OoState`, `OoExec` and the
+# publication records: every part reads their private fields), the
+# `oo_original_*` macros, the error helpers and the small `Interp` accessors
+# (`active_def_target`, `oo_next_id`, `oo_refused_publication`).
+# `introspection` and `engine` are split again by
+# `plans/runtime/cmd_oo/introspection.toml` and `plans/runtime/cmd_oo/engine.toml`.
+file = "runtime/rust/src/cmd_oo.rs"
+
+[[module]]
+name = "installation"
+doc = "Registering the `oo::*` commands, the root classes, the definition namespaces and the singleton and abstract support classes."
+items = ["fn:install..fn:register_define_ns_commands", "fn:install_abstract_singleton"]
+
+[[module]]
+name = "configurable"
+doc = "TIP 558 configurable objects: the `oo::configurable` metaclass, the `property` definition command, the `configure` method and the property sets."
+items = ["fn:install_configurable", "fn:prop_define_class..fn:write_property_set"]
+
+[[module]]
+name = "slots"
+doc = "TIP 380 slots: the `::oo::Slot` class and its built-in instances, their accessors over the definition target, and the list operations."
+items = ["fn:install_slot_class..fn:slot_m_unknown", "enum:SlotOp..fn:slot_m_clear"]
+
+[[module]]
+name = "definition"
+doc = "`oo::define` and `oo::objdefine`: running a definition body and the definition-script commands, from `method` and `forward` to `definitionnamespace`."
+items = [
+    "fn:oo_define_cmd..fn:oo_objdefine_cmd",
+    "fn:def_target..fn:def_destructor",
+    "fn:apply_method_visibility..fn:def_export",
+    "impl:Interp::oo_run_def..impl:Interp::definition_namespace_for",
+]
+
+[[module]]
+name = "copying"
+doc = "`oo::copy` and the `<cloned>` built-in: cloning an object, its methods and its namespace."
+items = ["fn:oo_object_cloned..fn:oo_copy_cmd", "impl:Interp::oo_clone_namespace"]
+
+[[module]]
+name = "method_context"
+doc = "Commands that run inside a method: `self`, `my`, `myclass`, `next`, `nextto` and `classvariable`, and the per-object namespace bindings."
+items = [
+    "fn:self_cmd..fn:object_namespace_command_names",
+    "impl:Interp::oo_register_my",
+    "fn:my_cmd..fn:classvariable_original",
+]
+
+[[module]]
+name = "introspection"
+doc = "`info object` and `info class`, called from `cmd_info`."
+items = ["fn:variable_info_options..fn:set_oo_list"]
+
+[[module]]
+name = "engine"
+doc = "The object-system engine: creating objects and classes, dispatch and method chains, running method bodies, destruction and class linearisation."
+items = [
+    "impl:Interp::oo_unknown_method",
+    "fn:oo_object_unknown",
+    "impl:Interp::retire_original_oo_object_record..impl:Interp::oo_make_class",
+    "impl:Interp::oo_class_factory..impl:Interp::private_storage_name",
+    "impl:Interp::oo_name..impl:Interp::c3_linearize",
+    "fn:c3_merge",
+]

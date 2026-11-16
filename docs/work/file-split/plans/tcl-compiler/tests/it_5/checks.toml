@@ -1,0 +1,92 @@
+# Each child file holds whole inline modules, unchanged and under their names
+# (no child is named like a module it holds: `clippy::module_inception`).
+# The parent keeps the module documentation, the diagnostic runners (`codes`,
+# `fires`, `count`, `of_code`, `taint_of_code`) and the two cross-cutting
+# modules `integration` and `edge_cases`.
+file = "rust/tcl-compiler/tests/it_5/checks.rs"
+
+[[module]]
+name = "injection"
+doc = "Security checks: code injection, pipelines, paths, sourced variables, script concatenation, credentials and ReDoS."
+items = [
+    "mod:eval_injection",
+    "mod:subst_injection",
+    "mod:open_pipeline",
+    "mod:path_concatenation",
+    "mod:source_variable",
+    "mod:uplevel_injection",
+    "mod:redos",
+    "mod:eval_subst_double_substitution",
+    "mod:hardcoded_credentials",
+    "mod:interp_eval_injection",
+    "mod:destructive_file_ops",
+    "mod:script_concatenation",
+]
+
+[[module]]
+name = "quoting"
+doc = "Quoting and shape checks: unbraced expressions and bodies, string and list confusion, unmatched closers and orphaned keywords."
+items = [
+    "mod:unbraced_expr",
+    "mod:string_list_confusion",
+    "mod:string_compare_in_expr",
+    "mod:unbraced_body",
+    "mod:non_ascii",
+    "mod:name_vs_value",
+    "mod:unmatched_close_bracket",
+    "mod:unmatched_close_brace",
+    "mod:orphaned_keyword",
+]
+
+[[module]]
+name = "argument_checks"
+doc = "Checks on a command's arguments: option terminators, expected literals, abbreviations, channels, binary formats and addresses."
+items = [
+    "mod:catch_ignore",
+    "mod:missing_option_terminator",
+    "mod:unset_option_only",
+    "mod:literal_expected",
+    "mod:non_literal_command",
+    "mod:unset_nocomplain",
+    "mod:invalid_subnet_mask",
+    "mod:mistyped_ipv4",
+    "mod:channel_validation",
+    "mod:binary_format_modifiers",
+    "mod:binary_field_letters",
+    "mod:encoding_mismatch",
+    "mod:ambiguous_abbreviation",
+]
+
+[[module]]
+name = "variable_flow"
+doc = "Variable-flow checks: read before set, dead stores, unused parameters and variables, and the body scopes that must not raise them falsely."
+items = [
+    "mod:unused_proc_parameters",
+    "mod:read_before_set_correct",
+    "mod:catch_body_defs_no_false_w210",
+    "mod:undescribed_script_word_bindings_no_false_w210",
+    "mod:unset_global_does_not_suppress_w210",
+    "mod:dead_store_and_unused",
+    "mod:structural_body_isolation",
+    "mod:namespace_eval_body_scope",
+    "mod:call_by_name_dynamic_name_local",
+    "mod:caller_uniform_literal_seed",
+]
+
+[[module]]
+name = "commands"
+doc = "Command checks: unknown methods, shadowed builtins, the private `::tcl` namespace, `package require` and declared calls."
+items = [
+    "mod:tcloo_unknown_method",
+    "mod:builtin_shadow",
+    "mod:private_tcl_namespace",
+    "mod:interpreter_provided_package_require",
+    "mod:declared_package_require",
+    "mod:recursive_call_command_world",
+    "mod:declared_command_call",
+]
+
+[[module]]
+name = "irules"
+doc = "The iRules-specific checks and the event lifecycle."
+items = ["mod:irules_checks", "mod:event_lifecycle"]

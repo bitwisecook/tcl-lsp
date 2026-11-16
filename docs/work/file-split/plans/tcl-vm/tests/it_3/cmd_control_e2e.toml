@@ -1,0 +1,61 @@
+# The parent keeps the module documentation and the shared fixtures: the
+# output capture, `run`, and the plain-dispatch compile service with
+# `run_with_plain_runtime_compiler`.
+file = "rust/tcl-vm/tests/it_3/cmd_control_e2e.rs"
+
+[[module]]
+name = "catch_bodies"
+doc = "`catch` and nested `try` bodies: command order, stale-command replay, result and options variables, and dynamic words the compiler declines."
+items = [
+    "fn:literal_catch_multicommand_proc_body_executes_in_order..fn:multiline_catch_epilogue_does_not_replay_the_enclosing_command",
+    "fn:nested_catch_try_multicommand_phases_preserve_results..fn:catch_declines_unbraced_script_body",
+]
+
+[[module]]
+name = "deferred_parse_errors"
+doc = "Bodies that do not parse: the complete prefix runs before the fatal tail, and the error is raised on entry and names the malformed command."
+items = [
+    "fn:literal_catch_reports_incomplete_body_before_substitution_side_effects..fn:a_deferred_parse_error_is_raised_before_the_activation_is_torn_down",
+    "fn:control_runtime_body_parse_errors..fn:control_runtime_condition_parse_error",
+    "fn:a_deferred_parse_error_names_the_malformed_command..fn:an_inner_construct_failure_logs_the_command_up_to_it",
+]
+
+[[module]]
+name = "try_throw"
+doc = "`try` and `throw` through the registered builtins (`cmd_try.rs`): handlers, `trap`, `finally`, grammar errors and the `-during` chain."
+items = [
+    "fn:try_body_only_passes_through..fn:try_literal_form_on_error_handler",
+    "fn:try_body_parse_error_is_catchable..fn:throw_bad_type_list",
+    "fn:try_add_during_replaces_in_nested_chain",
+    "fn:try_handler_var_bind_array_on_scalar_should_fail",
+]
+
+[[module]]
+name = "if_while_for"
+doc = "The `if`, `while` and `for` runtime fallbacks (`cmd_control.rs`), loop jumps across compiled and runtime loops, and deeply nested dynamic controls."
+items = [
+    "fn:runtime_loop_break_after_an_inner_compiled_loop_exits_the_outer_loop..fn:native_option_loop_breaks_through_an_aliased_if",
+    "fn:if_runtime_then_elseif_else..fn:for_runtime_return_propagates",
+    "fn:deeply_nested_dynamic_if_uses_retained_vm_continuations..fn:deeply_nested_command_substitution_is_unaffected",
+]
+
+[[module]]
+name = "foreach_lmap"
+doc = "The `foreach` and `lmap` runtime fallbacks (`cmd_control.rs`): list words, arity, control flow and error frames."
+items = [
+    "fn:foreach_runtime_variants..fn:foreach_runtime_bad_list_value",
+    "fn:foreach_runtime_var_write_failure..fn:foreach_runtime_bad_varlist_list",
+]
+
+[[module]]
+name = "switch_command"
+doc = "`switch` on its runtime path (`cmd_switch.rs`): matching modes, fallthrough, match variables and error paths."
+items = [
+    "fn:switch_glob_with_default..fn:switch_body_control_propagates",
+    "fn:switch_runtime_bad_body_list..fn:switch_runtime_body_parse_error",
+]
+
+[[module]]
+name = "inline_compiled_forms"
+doc = "`catch`, `info exists` and `return` where the compiler inlines them and where it must leave them dispatched."
+items = ["fn:a_catch_body_write_is_visible_after_the_catch..fn:a_braced_return_value_runs_no_substitution"]

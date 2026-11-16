@@ -1,0 +1,96 @@
+# The facade keeps `MemberKind`, retraction, the `MemberSpec` row with the
+# private builders and shared role layouts every family table (and the
+# existing `clay` module) is written with, `DefinerFamily`, the
+# `DefinitionBodyGrammar` struct and its general queries. The family tables
+# sit beside `clay`, one module per class system or document DSL.
+file = "rust/tcl-registry/src/definer.rs"
+
+[[module]]
+name = "property_accessors"
+doc = "Source property declarations and the accessor methods a family generates for them."
+items = [
+    "enum:SourcePropertyAccessorMode..impl:SourcePropertyAccessorAdvice",
+    "struct:SourcePropertyDeclaration",
+    "impl:SourcePropertyDeclaration",
+    "impl:DefinitionBodyGrammar::source_property_declarations_bytes..impl:DefinitionBodyGrammar::source_property_accessor_layout",
+]
+
+[[module]]
+name = "slots"
+doc = "TclOO slot operations (`-append`, `-set`, ...) and how a slot applies them to its list."
+items = ["enum:SlotOp..impl:SlotSpec"]
+
+[[module]]
+name = "member_effect"
+doc = "What a member declares: visibility, the effect vocabulary and its receivers, roles and scopes."
+items = ["enum:MemberVisibility..enum:InitTiming"]
+
+[[module]]
+name = "member_arguments"
+doc = "Selecting the member row of one call and the argument indices of its bodies, roles, references and options."
+items = [
+    "struct:UnreadableLayout",
+    "impl:MemberSpec::indices_for..impl:MemberSpec::call_index",
+    "enum:SourceDefinitionMemberBodyPresentation..impl:SourceDefinitionMemberScriptArgument",
+    "struct:Wrapping..fn:slot_op_at",
+    "impl:DefinitionBodyGrammar::member..impl:DefinitionBodyGrammar::source_wrapper_indices_where",
+]
+
+[[module]]
+name = "native_declarations"
+doc = "How the native TclOO definition workers treat a selected member: lookup, receiver layout, deferred setters, inheritance, constructors and lifecycle bodies."
+items = [
+    "enum:MemberConstructionEffect..enum:DefinitionReceiver",
+    "struct:ReceiverMethodLayout..struct:DefinitionMemberLookup",
+    "impl:DefinitionBodyGrammar::definition_member_lookup..impl:DefinitionBodyGrammar::manufacture_member_effect",
+]
+
+[[module]]
+name = "command_installation"
+doc = "How a class command installs and names what it manufactures: dispatchers, manufacturer methods and factory initialisers."
+items = [
+    "struct:BareWordConstructionSourceHint",
+    "impl:BareWordConstructionSourceHint",
+    "struct:SourceTwoWordFactoryInitialiser..struct:ManufacturerMethod",
+    "impl:DefinitionBodyGrammar::source_two_word_factory_initialisers",
+    "impl:DefinitionBodyGrammar::command_installation..impl:DefinitionBodyGrammar::conditional_construction_name_at",
+    "impl:DefinitionBodyGrammar::manufacturer",
+]
+
+[[module]]
+name = "builtin_methods"
+doc = "The object methods a family provides without a declaration and who can reach them."
+items = [
+    "struct:BuiltinObjectMethod..enum:MethodReach",
+    "impl:DefinitionBodyGrammar::is_builtin_type_method..impl:DefinitionBodyGrammar::builtin_method_terminates",
+]
+
+[[module]]
+name = "tcloo"
+doc = "TclOO: the `oo::class` / `oo::define` member table, built-in object methods, manufacturers and grammars."
+items = [
+    "const:TCLOO_METHOD_VISIBILITY_OPTIONS..const:DEFINITION_NAMESPACE_ROLES",
+    "const:TCL90_MEMBERS",
+    "const:TCLOO_MEMBERS..const:TCLOO_DERIVED_METACLASS_MANUFACTURERS",
+    "const:TCLOO_MEMBER_BODY_NAMESPACE_PATH..const:TCLOO_RECEIVER_NAMESPACE_COMMANDS",
+]
+
+[[module]]
+name = "snit"
+doc = "snit: the `snit::type` / `snit::widget` member tables, built-in methods and grammars."
+items = ["const:SNIT_MANUFACTURERS", "const:ONCONFIGURE_ROLES..const:SNIT_WIDGET_GRAMMAR"]
+
+[[module]]
+name = "itcl"
+doc = "[incr Tcl]: the `itcl::class` member table, built-in methods and grammar."
+items = ["const:ITCL_VAR_ROLES..const:ITCL_GRAMMAR"]
+
+[[module]]
+name = "spectcl"
+doc = "SpecTcl: the member tables and grammars of the `.tclspec` spec-pack DSL's declaration bodies."
+items = ["const:SPECTCL_NAMED_BLOCK_ROLES..const:SPECTCL_GRAMMARS"]
+
+[[module]]
+name = "sslictcl"
+doc = "SslicTcl: the member tables and grammars of the `.sslictcl` TLS-assurance DSL."
+items = ["const:SSLICTCL_BLOCK_ROLES..const:SSLICTCL_GRAMMARS"]

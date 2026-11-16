@@ -1,0 +1,67 @@
+# Second level of `tests.toml`. The inline `native_pattern_hover` module becomes its own file;
+# the facade keeps `register_namespace_path_workspace`, which the definition and references
+# tests share.
+file = "rust/tcl-lsp-server/src/tests/navigation.rs"
+hoist = ["native_pattern_hover"]
+
+[[module]]
+name = "declaration_identity"
+doc = "Retained declaration identities behind implementations, lenses and hierarchies."
+items = [
+    "fn:original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal..fn:original_workspace_references_and_lenses_share_owned_byte_declarations",
+    "fn:original_hierarchy_and_lens_wire_data_require_retained_current_declarations",
+]
+
+[[module]]
+name = "hierarchies"
+doc = "Type hierarchy and call hierarchy across documents."
+items = [
+    "fn:original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source",
+    "fn:incoming_calls_span_multiple_documents..fn:logical_incoming_source_owner_withdrawal_cannot_be_recovered_from_a_title",
+]
+
+[[module]]
+name = "definition"
+doc = "Go-to-definition: the command-head gate and cross-document fallbacks."
+items = [
+    "fn:original_variable_queries_keep_opaque_slots_across_documents..fn:cross_document_definition_skipped_when_local_match_exists",
+    "fn:cross_document_definition_follows_namespace_path_not_collision",
+]
+
+[[module]]
+name = "method_targets"
+doc = "Object-method queries."
+items = [
+    "fn:assert_current_original_method_owner..fn:original_method_queries_preserve_lexical_variable_provider_priority",
+]
+
+[[module]]
+name = "namespaces"
+doc = "Namespace queries across documents."
+items = ["fn:original_namespace_queries_keep_opaque_slots_across_documents"]
+
+[[module]]
+name = "declaration_sources"
+doc = "Declaration targets revalidated against their current documents."
+items = [
+    "fn:original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners..fn:assert_stale_original_indexed_source_is_withdrawn",
+    "fn:resolve_target_locations_groups_by_uri_and_preserves_site_order..fn:resolve_target_locations_drops_unresolvable_targets_and_keeps_the_rest",
+]
+
+[[module]]
+name = "workspace_symbols"
+doc = "`workspace/symbol`: indexed hits, pending buffers and closed sources."
+items = [
+    "fn:pending_open_workspace_symbols_use_live_text_1854..fn:workspace_symbols_revalidate_closed_source_snapshot_1854",
+    "fn:workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file..fn:workspace_symbol_caps_its_answer",
+]
+
+[[module]]
+name = "references"
+doc = "References across documents, namespaces paths and imports."
+items = [
+    "fn:original_workspace_reference_misses_never_reparse_reporting_names",
+    "fn:cross_document_references_finds_sibling_call_sites..fn:cross_document_references_reach_caller_from_nested_self_redefinition",
+    "fn:cross_document_references_resolve_namespace_path_collision..fn:cross_document_references_from_imported_call_reach_source",
+    "fn:references_handler_merges_local_and_cross_document..fn:references_handler_bigip_conf_finds_path_occurrences",
+]

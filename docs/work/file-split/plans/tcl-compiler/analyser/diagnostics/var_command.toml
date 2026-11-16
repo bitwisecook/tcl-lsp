@@ -1,0 +1,70 @@
+# The facade keeps the module docs, the post-pass driver
+# (`emit_var_command_diagnostics`, `diagnose_var_command_site`) and the context
+# types the driver fills and the checks read (`W308DiagnosticSite`, `W307Ctx`,
+# `W307FunctionRange`, `FactoryObjectAdvice`).
+file = "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs"
+
+[[module]]
+name = "computed_command_names"
+doc = "W307: a command word that is not literal, the constant sets that prove it safe and the shapes that excuse it."
+items = [
+    "fn:w307_function_ranges",
+    "impl:Analyser::command_slot_is_present..impl:Analyser::w307_site_suppressed",
+    "impl:Analyser::is_namespaced_ensemble_dispatch",
+    "fn:parse_namespaced_ensemble..fn:is_callback_array_slot",
+    "fn:harvest_array_element_set_constants..fn:harvest_dict_with_constants",
+    "fn:build_tainted_by_scope..fn:aggregate_constsets",
+    "fn:lattice_command_values..fn:declaration_head_value_version",
+]
+
+[[module]]
+name = "method_dispatch"
+doc = "W308 and E001 on `$obj` and `[cmd]` receivers: an unknown method, or no method word at all."
+items = [
+    "impl:Analyser::oo_self_method_returns_literal..impl:Analyser::oo_original_literal_return_operand",
+    "impl:Analyser::w308_for_object_var..impl:Analyser::w308_for_logical_object_var",
+    "impl:Analyser::w308_diagnostic..impl:Analyser::live_instance_at_dispatch",
+    "impl:Analyser::emit_cmd_command_diagnostics",
+    "impl:Analyser::method_word_is_literal..impl:Analyser::cmd_head_return_type",
+]
+
+[[module]]
+name = "self_dispatch"
+doc = "W308 on `my`, `[self]` and the other receivers that name the object whose method is running."
+items = [
+    "impl:Analyser::enclosing_class_at_offset",
+    "impl:Analyser::w308_for_self_receiver..impl:Analyser::logical_receiver_relation_providers",
+]
+
+[[module]]
+name = "method_resolution"
+doc = "Whether a method is callable on a class through its hierarchy, and whether a call's argument count fits it."
+items = [
+    "impl:Analyser::method_arity_diagnostic",
+    "impl:Analyser::canonicalise_class_name..impl:Analyser::method_set_unknowable",
+    "const:OO_BASE",
+]
+
+[[module]]
+name = "factory_objects"
+doc = "The object types constructors and factory procedures return."
+items = [
+    "impl:Analyser::nominal_object_result..impl:Analyser::compute_factory_object_ranges",
+    "fn:returned_scalar_reference_name",
+    "struct:FactoryMaps..fn:propagate_object_returning",
+]
+
+[[module]]
+name = "abstract_instantiation"
+doc = "W250: instantiating an `oo::abstract` class."
+items = [
+    "impl:Analyser::abstract_source_instantiation_diagnostic..impl:Analyser::emit_abstract_instantiation_diagnostics",
+]
+
+[[module]]
+name = "dispatch_tables"
+doc = "Command references for the procedure names held in dispatch-table literals."
+items = [
+    "impl:Analyser::emit_dispatch_table_command_references",
+    "type:TableCommandValue..fn:dispatch_table_head",
+]

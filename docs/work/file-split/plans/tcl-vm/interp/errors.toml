@@ -1,0 +1,24 @@
+# Second level: applies to the `errors` module that plans/tcl-vm/interp.toml
+# creates. The facade keeps the logged flag, raising parse and compilation
+# failures, seeding and taking `errorInfo`, the TIP 348 error stack, and
+# publishing `errorInfo` and `errorCode`.
+file = "rust/tcl-vm/src/interp/errors.rs"
+
+[[module]]
+name = "error_info_frames"
+doc = "The frames of `errorInfo`: `while executing` and `invoked from within`, body, clause, procedure and lambda frames, and the error line."
+items = [
+    "fn:key_holder_and_tail_unrooted",
+    "impl:Vm::log_command_info..impl:Vm::set_error_line",
+    "impl:Vm::append_frame_text",
+]
+
+[[module]]
+name = "jim_errors"
+doc = "Jim's error state: the private return state and its receipts, return options, the error stack and `stacktrace`, and script parse failures."
+items = ["impl:Vm::set_jim_return_state..impl:Vm::jim_stacktrace"]
+
+[[module]]
+name = "host_refusals"
+doc = "Refusals kept outside every guest completion: expression refusals, host-command and host failures, and taking the refusal at the host boundary."
+items = ["impl:Vm::refuse_expression..impl:Vm::take_host_boundary_refusal"]

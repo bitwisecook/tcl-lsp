@@ -1,0 +1,24 @@
+# The facade keeps the edge, point and navigation-order types, the document
+# sequence structs (their private fields are read by the capture and by
+# `SourceOrderContext`) and `SourceOrderContext` itself.
+file = "rust/tcl-lsp-core/src/source_graph.rs"
+
+[[module]]
+name = "source_paths"
+doc = "Resolving literal `source` path arguments and associating them with a declared project base."
+items = ["fn:resolve_source_target..fn:relative_source_path"]
+
+[[module]]
+name = "package_requirements"
+doc = "The `package require`s a document gains from its source ancestors and descendants, and the `package prefer latest` latch."
+items = ["fn:ancestor_requires..fn:descendant_requirements", "fn:ancestor_prefer_latest_raised"]
+
+[[module]]
+name = "sequence_capture"
+doc = "Capturing one document's straight-line sequence: which commands run now, defer their scripts or may exit early."
+items = ["enum:ScriptScheduling..impl:DocumentSequence"]
+
+[[module]]
+name = "run_order"
+doc = "`RunOrder`: the source-order model over a source forest and the comparisons made under it."
+items = ["type:UriMap..impl:RunOrder"]

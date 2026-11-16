@@ -1,0 +1,25 @@
+# The facade keeps `LiftedCall`, its private collection, the `lifted_calls*`
+# entry points and the word, surface-text and expression walkers that push
+# substitutions, and the entered-expression evaluations (their fields are read
+# by the tests); the original-source inventories built on them move out.
+file = "rust/tcl-compiler/src/word_subst.rs"
+
+[[module]]
+name = "dependency_regions"
+doc = "The original syntax regions of a command that can contribute memo-summary dependencies."
+items = ["struct:OriginalSourceDependencyRegions..fn:dependency_parts"]
+
+[[module]]
+name = "checked_inventory"
+doc = "Complete, bounded substitution inventories over original source: argument words, authored body scopes and selected expression roles."
+items = ["fn:checked_lifted_calls..fn:collect_original_braced_expression_calls_in_image"]
+
+[[module]]
+name = "nested_words"
+doc = "The structured words of a `[...]` command substitution and of a word that is exactly one."
+items = ["enum:NestedWordsDecline..fn:whole_word_command_tokens"]
+
+[[module]]
+name = "source_expressions"
+doc = "Nested native expressions selected through invocation proofs, with their verbatim source anchors."
+items = ["struct:LiftedSourceExpression..fn:selected_lifted_expressions"]

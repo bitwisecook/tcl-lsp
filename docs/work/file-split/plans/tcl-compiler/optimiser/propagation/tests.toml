@@ -1,0 +1,67 @@
+# The parent keeps the shared harness (`registry`, `proc_fold_context`,
+# `run_pass`, `fold`) and the one test of the facade's own pass dispatch.
+file = "rust/tcl-compiler/src/optimiser/propagation/tests.rs"
+
+[[module]]
+name = "return_folds"
+doc = "Folding the operand of a `return`: the replacement word, constant variables, expressions and the bindings that withdraw the fold."
+items = [
+    "fn:return_literal_replacement_keeps_original_head_and_result_word_owner..fn:return_source_word_constructor_keeps_head_and_rejects_multiple_words",
+    "fn:return_literal_and_compound_names_do_not_borrow_scalar_constants..fn:return_terminator_folds_constant_variable",
+    "fn:return_expr_does_not_fold_stale_pre_loop_constant..fn:return_expr_folds_argument_sensitive_constant",
+    "fn:shadowed_mathfunc_return_value_not_folded",
+    "fn:renamed_expr_return_value_not_folded",
+]
+
+[[module]]
+name = "constant_substitution"
+doc = "O100: constants substituted into call words, `$var` references and interpolated strings under the release's grammar."
+items = [
+    "fn:propagation_literal_words_retain_selected_grammar_and_exact_unicode_value",
+    "fn:substitute_dollar_refs_follows_the_release_close_rule..fn:interpolation_element_indices_keep_literal_braced_names_and_dynamic_refusal",
+    "fn:simple_var_ref_parses_bare_and_braced..fn:braced_var_reference_also_propagated",
+    "fn:string_interpolation_const_is_inlined",
+    "fn:string_interpolation_unknown_var_skipped..fn:list_constant_not_inlined_into_string_cmd_sub",
+]
+
+[[module]]
+name = "proc_folds"
+doc = "O103: calls to pure procedures folded to their constant return, name resolution and the rebindings that withdraw the fold."
+items = [
+    "fn:resolve_proc_qname_walks_namespace_chain..fn:resolve_proc_qname_relative_dotted_word_prefers_current_namespace",
+    "fn:static_proc_call_folds_to_constant_return",
+    "fn:o103_cmd_subst_fires_applicable_rewrite..fn:parse_cmd_subst_head_rejects_metachars",
+]
+
+[[module]]
+name = "store_to_load_forwarding"
+doc = "O127: a computed single-use assignment forwarded into its use, and what between them stops it."
+items = ["fn:o127..fn:o127_skips_literal_assignment"]
+
+[[module]]
+name = "load_forwarding"
+doc = "O102: a single reaching literal forwarded to its uses, name arguments, globals a callee reassigns and hidden writes."
+items = [
+    "fn:load_forwarding_fires_o102_for_single_reaching_def..fn:o102_falls_back_to_hint_only_when_var_is_inside_interpolation",
+    "fn:o100_and_o102_never_forward_a_literal_a_hidden_write_may_have_replaced",
+    "fn:o100_and_o102_still_forward_a_literal_no_hidden_write_can_replace",
+]
+
+[[module]]
+name = "command_substitution_folds"
+doc = "`[cmd …]` folds in call words and interpolated strings: `expr` arguments, O115 nested `expr` and O129 pure builtins."
+items = [
+    "fn:braced_expr_cmd_sub_arg_folds_under_constants..fn:shadowed_mathfunc_cmd_sub_arg_not_folded",
+    "fn:quoted_expr_cmd_sub_arg_not_folded_under_constants..fn:ordinary_expr_cmd_sub_arg_still_folds_under_mutation_scan",
+    "fn:o115_collapses_redundant_nested_expr_in_value_positions..fn:o115_value_position_is_sound",
+    "fn:profiled_registry..fn:o129_uses_the_actual_binding_before_and_after_a_rebinder",
+]
+
+[[module]]
+name = "retained_substitutions"
+doc = "Folds over the retained substitution inventory: availability, namespace paths, missing receipts, object callbacks and procedure arguments."
+items = [
+    "fn:retained_substitution_inventory_keeps_module_input_config_and_availability",
+    "fn:retained_substitution_folds_use_the_selected_namespace_path_procedure..fn:retained_substitution_procedure_folding_preserves_arity_and_argument_effects",
+    "fn:retained_substitution_native_object_callbacks_withdraw_builtin_erasure..fn:retained_recursive_folding_preserves_actual_availability",
+]

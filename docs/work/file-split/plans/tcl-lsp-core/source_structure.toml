@@ -1,0 +1,37 @@
+# The facade keeps `SourceStructure` and its capture walk, with the private
+# structs the walk fills (`DefinitionCursorRegion`, `PackageCensusState`), and
+# the document analysis entry points.
+file = "rust/tcl-lsp-core/src/source_structure.rs"
+
+[[module]]
+name = "definition_grammar"
+doc = "The definition-body vocabulary selected at a cursor, and the opaque script operands open to authoring."
+items = [
+    "impl:DefinitionCursorRegion",
+    "struct:OpaqueScriptAuthoringContext..impl:SourceDefinitionGrammar",
+    "impl:SourceStructure::opaque_script_authoring_at..impl:SourceStructure::definition_grammar_at",
+]
+
+[[module]]
+name = "syntax_coverage"
+doc = "The checked inventory of selected script syntax, how complete it is and the package census read from it."
+items = ["enum:SourceSyntaxCoverageApplicability..impl:SourcePackagePresenceCensus"]
+
+[[module]]
+name = "syntax_structure"
+doc = "Readonly script geometry of one document: commands, script regions, lexical tokens and definition members."
+items = ["struct:SourceSyntaxStructure..impl:SourceSyntaxStructure"]
+
+[[module]]
+name = "cursor_syntax"
+doc = "Source syntax at a cursor: variable references, word prefixes, complete words and method sites."
+items = ["struct:SourceVariableReference..fn:template_variable_reference_at"]
+
+[[module]]
+name = "command_bodies"
+doc = "Which operands of a command are script bodies under each capture purpose, and the geometry of declared bodies."
+items = [
+    "struct:BodyGeometry",
+    "impl:SourceStructure::readonly_command_bodies..impl:SourceStructure::census_command_bodies",
+    "fn:original_positioned_absent_head..fn:retain_member_bodies",
+]

@@ -1,0 +1,19 @@
+# The facade keeps the engine version constants, the container tables, the
+# path and field helpers every part uses, `build_apps`, the insights,
+# `collect_device` and the public `collect_model*` entry points.
+file = "rust/bigip-report-gen/rust/src/model.rs"
+
+[[module]]
+name = "diagnostics"
+doc = "iApp and configuration diagnostics gathered for the report."
+items = ["fn:is_iapp_presentation_uri..fn:add_config_diagnostics"]
+
+[[module]]
+name = "shaping"
+doc = "Per-type shaping of engine objects into report rows: LTM, GTM, firewall, NAT, profiles and policies."
+items = ["fn:shape_virtual..fn:shape_policy"]
+
+[[module]]
+name = "rule_links"
+doc = "iRule links: resolved rule references, procedure calls, rule contexts and reachability."
+items = ["fn:resolve_rule..fn:annotate_rule_reachability"]

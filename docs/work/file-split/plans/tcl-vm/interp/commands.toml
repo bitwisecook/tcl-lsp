@@ -1,0 +1,67 @@
+# Second level: applies to the `commands` module that
+# plans/tcl-vm/interp.toml creates. The facade keeps the lookup error type,
+# the methods of the command key, handle, rename-transaction and generation
+# types, and the invocation state of the running native command (its invoked
+# name, handler metadata and usage scope).
+file = "rust/tcl-vm/src/interp/commands.rs"
+
+[[module]]
+name = "builtin_registration"
+doc = "Registering builtins: host handlers, stock builtins and stock namespace ensembles, guarded builtins and spec builtins."
+items = ["impl:Vm::register..impl:Vm::install_spec_semantic_guards"]
+
+[[module]]
+name = "command_guards"
+doc = "Command guards: attested intrinsic identities, the backing report, preparing, checking and releasing a guard, and executing an intrinsic."
+items = [
+    "impl:Vm::attest..impl:Vm::release_command_guard",
+    "impl:Vm::builtin_identity_for_key..impl:Vm::is_host_builtin",
+]
+
+[[module]]
+name = "command_tokens"
+doc = "Command slots, storage keys, generations and token identity: where one exact command token lives in the visible, hidden and retained tables."
+items = [
+    "impl:Vm::mint_command_generation..impl:Vm::materialise_retained_binding",
+    "impl:Vm::intern_cmd..impl:Vm::command_sidecar_key",
+]
+
+[[module]]
+name = "native_publication"
+doc = "The native publication service: committing prepared native registrations and deletions, and capturing and retaining registered command tokens."
+items = ["impl:Vm::native_publication_service..impl:Vm::retain_registered_command_tokens"]
+
+[[module]]
+name = "publication"
+doc = "Publishing a command into a slot: registration from the host and from scripts, replacement, ensembles, and the publication slots of procedures, aliases and objects."
+items = [
+    "impl:Vm::register_command..impl:Vm::native_object_publication_slot",
+    "impl:Vm::define_proc_binding..impl:Vm::define_proc_binding_with_jim_key_and_namespace_helper",
+]
+
+[[module]]
+name = "rename"
+doc = "Renaming a command as a transaction: prepare, install the new half, retire or delete the source, and commit."
+items = ["impl:Vm::prepare_command_rename..impl:Vm::commit_renamed_command"]
+
+[[module]]
+name = "removal"
+doc = "Removing a command: by name, by exact key, by lifecycle key, and unlinking its sidecar for retirement."
+items = [
+    "impl:Vm::registered_command_entries..impl:Vm::take_command",
+    "impl:Vm::take_command_unchecked..impl:Vm::remove_command_exact",
+]
+
+[[module]]
+name = "ensemble_dispatch"
+doc = "Dispatching a `namespace ensemble` call: subcommand resolution, the wrong-arguments message and the `-unknown` handler."
+items = ["impl:Vm::native_namespace_match..impl:Vm::native_ensemble_map_prefix_input"]
+
+[[module]]
+name = "resolution"
+doc = "Command lookup and resolution: resolving a name from a namespace to its slot, in any interpreter, with the resolution cache epochs and the command kind."
+items = [
+    "impl:Vm::command_kind..impl:Vm::command_kind_bytes_checked",
+    "impl:Vm::lookup_command_bytes_checked..impl:Vm::visible_command_exists_exact",
+    "impl:InterpState::ns_path..impl:InterpState::resolve_command_bytes_checked",
+]

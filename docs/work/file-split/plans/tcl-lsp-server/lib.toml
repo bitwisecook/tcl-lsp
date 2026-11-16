@@ -1,0 +1,294 @@
+# First of two levels. The crate root keeps the crate docs, `Backend`, `BackendState`
+# (every module reads its fields), `DocumentState` and the constructors; each module
+# below is one subsystem and is split again by the plan named after it.
+# `language_server` is the one `impl LanguageServer for Backend` (3,376 lines): a trait
+# impl moves whole, so it stays over the limit until its handler bodies become
+# inherent methods.
+file = "rust/tcl-lsp-server/src/lib.rs"
+
+[[module]]
+name = "documents"
+doc = "Open documents: their state, the map that holds them, the order edits apply in and the reads requests take."
+items = [
+    "enum:DocumentPathAdmission..impl:DocumentPathAdmission",
+    "impl:DocumentState",
+    "enum:DocumentPublication..impl:DocumentReadiness",
+    "const:EDIT_BARRIER_STALL_WARN..const:EDIT_BARRIER_STALL_LOG",
+    "struct:DocumentStore..struct:DocumentsContention",
+    "const:DOCUMENTS_CONTENTION_SAMPLE_GAP",
+    "struct:PerUriCaches..impl:Drop for EditTurn<'_>",
+    "impl:Backend::attach_open_disk_decode_report..impl:Backend::apply_document_content_changes",
+    "impl:Backend::published_document_path_admission..impl:Backend::document_path_admission",
+    "impl:Backend::edits_settled..impl:Backend::decode_report_for_matching_disk_text",
+    "impl:Backend::per_uri_caches..impl:Backend::retire_renamed_uri",
+    "fn:apply_content_change..fn:apply_content_change_indexed",
+    "fn:canonical_file_uri..fn:constructed_file_uri",
+]
+
+[[module]]
+name = "tracked_locks"
+doc = "Locks with holder and waiter attribution for the query database and the workspace index, and the census of live database snapshots."
+items = ["fn:cancellable_catch..impl:<T> TrackedRwLock<T>"]
+
+[[module]]
+name = "source_publication"
+doc = "Publishing sources to the query database and the workspace index: lock bundles, live buffers and disk files."
+items = [
+    "struct:PublishedSourcePath..struct:IndexPublicationSites",
+    "struct:LiveSourceContents",
+    "enum:DiskPublicationOutcome..struct:AdmittedDiskBatch",
+    "const:INDEX_SEED_DEBOUNCE",
+    "struct:PublicationLocks..enum:DiskRemovalPolicy",
+    "impl:Backend::set_db_sources_locked..impl:Backend::revive_or_create_db_source",
+    "impl:Backend::try_publication_locks..impl:Backend::mark_live_dialect_publication",
+    "impl:Backend::commit_live_dialect..impl:Backend::commit_closed_live_state",
+    "impl:Backend::sync_db_project..impl:Backend::changed_disk_uris",
+    "struct:DiskPublicationSelection",
+    "impl:Backend::check_disk_removal_admissions..impl:Backend::unavailable_disk_publication",
+]
+
+[[module]]
+name = "analysis"
+doc = "Analyses of one document: query-database reads, fresh analysers and the registry they run under."
+items = [
+    "struct:FreshAnalysisSeed",
+    "struct:FreshAnalysisDriver..impl:FreshAnalysisDriver",
+    "impl:Backend::published_class_factories",
+    "impl:Backend::class_factories_for..impl:Backend::cross_file_evidence_for",
+    "impl:Backend::sync_db_config",
+    "impl:Backend::db_document_symbols..impl:Backend::cached_analysis",
+    "impl:Backend::analysis_for..impl:Backend::fresh_index_seed_is_current",
+    "impl:Backend::export_snapshot",
+    "impl:Backend::configured_analyser..impl:Backend::registry_for_dialect",
+    "fn:default_analyser_config",
+]
+
+[[module]]
+name = "dialects"
+doc = "Dialect resolution for open and closed documents: overrides, folder defaults, language ids and in-source hints."
+items = [
+    "const:IRULES_DIALECT..const:IAPPS_DIALECT",
+    "fn:session_dialect_from..fn:merged_folder_dialect_overrides",
+    "struct:LanguageDialect..impl:LanguageDialect",
+    "impl:Backend::resolve_dirty_open_document_dialect..impl:Backend::reresolve_open_document_dialects",
+    "impl:Backend::apply_initialization_options..impl:Backend::dialect_from_language_id",
+    "impl:Backend::dialect_for_closed..impl:Backend::dialect_for_closed_sync",
+    "const:DEFAULT_SESSION_DIALECT..fn:unknown_dialect_error",
+    "const:DIALECT_HINT_LINE_MARGIN..fn:contains_dialect_hint_marker",
+    "fn:is_known_dialect_name..fn:folder_dialect_for",
+]
+
+[[module]]
+name = "configuration"
+doc = "Editor and project settings: the pull, the layers, per-folder overrides and the values a document resolves."
+items = [
+    "const:CONFIG_RELOAD_DEBOUNCE..struct:ConfigReloadSlot",
+    "struct:PolicyLayers..impl:PolicyLayers",
+    "struct:FeatureToggles..fn:longest_folder_match",
+    "impl:Backend::pull_and_apply_config..impl:Backend::cross_file_resolution_enabled",
+    "impl:Backend::resolved_analysis_settings..impl:Backend::resolved_style_line_length",
+    "fn:default_optimiser_profile",
+    "fn:parse_non_ascii_mode..fn:formatter_config_from",
+    "fn:read_ini_layer..fn:normalize_config_payload",
+    "fn:settings_non_ascii_mode..fn:workspace_trust_in",
+    "fn:parse_folder_formatting..fn:parse_ilx_plugins",
+    "enum:BigipVersionSetting..fn:provided_package_names",
+]
+
+[[module]]
+name = "spec_packs"
+doc = "The workspace's `SpecTcl` packs: discovery, reload, the registrations they claim and the notices they publish."
+items = [
+    "fn:install_pack_overlays..fn:sync_overlay_epoch",
+    "enum:ReloadTrigger..impl:PackConfigurationPublication",
+    "impl:Backend::load_pack_configuration..impl:Backend::install_reload_pack_overlays",
+    "impl:Backend::pack_reload_hold_channels",
+    "impl:Backend::next_spec_pack_reload_sequence",
+    "impl:Backend::spec_pack_report..impl:Backend::spec_packs",
+    "impl:Backend::spec_pack_discovery..impl:Backend::prepare_spec_pack_notice",
+    "const:STARTUP_RELOAD_HOLD_ENV..fn:startup_reload_hold",
+    "struct:SpecPacksReloaded..impl:tower_lsp_server::ls_types::notification::Notification for SpecPacksReloaded",
+    "fn:whole_line_range",
+]
+
+[[module]]
+name = "workspace"
+doc = "The workspace beyond open documents: folder scans, disk reindexing, watched files, libraries and project-wide facts."
+items = [
+    "struct:LibraryPublicationSource..impl:LibraryPublicationSource",
+    "enum:DiskScanOutcome..enum:WorkspaceScanCandidate",
+    "struct:ScanAnalysisInputs..impl:ScannedDocument",
+    "enum:RehomingDocumentSnapshot",
+    "const:WORKSPACE_WARM_MAX_CONCURRENCY..const:SCAN_MERGE_BATCH_SIZE",
+    "fn:refresh_cross_file_evidence..fn:publish_factory_index_seeds",
+    "struct:EvidenceHandles",
+    "struct:CrossFileEvidenceSnapshot..fn:files_with_covered_load_targets",
+    "struct:WorkspaceScanReadiness..impl:OneShotSignal",
+    "fn:run_bounded",
+    "impl:Backend::partition_open_watched_paths..impl:Backend::refresh_watched_configuration",
+    "impl:Backend::watched_closed_badge_uris..impl:Backend::restore_revived_live_documents",
+    "impl:Backend::capture_watched_event_admissions",
+    "impl:Backend::current_scanned_rows..impl:Backend::apply_workspace_folders",
+    "impl:Backend::drop_index_under_folders..impl:Backend::reindex_index_from_disk_using",
+    "impl:Backend::ensure_logical_library_candidates..impl:Backend::ensure_original_library_indexed",
+    "impl:Backend::register_file_watchers",
+    "impl:Backend::refresh_source_rehoming..impl:Backend::wait_for_workspace_scan",
+    "impl:Backend::scan_workspace_folders..impl:Backend::warm_open_documents",
+    "impl:Backend::update_watched_open_paths..impl:Backend::settle_deleted_open_paths",
+    "impl:Backend::scan_folder_roots..impl:Backend::trace_workspace_scan_stage",
+    "struct:WorkspaceScanTaskWindow..struct:PublishedWorkspaceScanBatch",
+    "impl:Backend::enqueue_workspace_scan_candidate..impl:Backend::unavailable_scan_worker",
+    "const:PROJECT_CONFIG_GLOB",
+    "fn:is_spec_pack_file..struct:WatchedFileChanges",
+    "fn:resolve_source_uri..fn:entry_point_uri",
+    "const:WORKSPACE_SCAN_FILE_CAP..fn:document_auto_path_dirs",
+    "fn:effective_auto_path..fn:uri_under_folder",
+]
+
+[[module]]
+name = "diagnostics"
+doc = "The diagnostics pipeline: scheduling, the analysis passes, workspace refinement, the report and its publication."
+items = [
+    "const:DIAGNOSTICS_DEBOUNCE",
+    "const:DIAG_INPUTS_RESOLVE_ATTEMPTS",
+    "const:DIAGNOSTICS_FAST_TIER_BUDGET",
+    "const:FORCE_DIAGNOSTICS_FAST_TIER_ENV",
+    "static:FORCE_DIAGNOSTICS_FAST_TIER_ENABLED..fn:take_force_diagnostics_fast_tier",
+    "const:DIAGNOSTICS_FAST_TIER_MIN_LINES",
+    "const:CLOSED_DIAG_BADGE_CAP",
+    "enum:DiagCurrency..struct:PullDiagEntry",
+    "fn:next_pull_diag_result_id",
+    "struct:DiagSlot..fn:sync_evaluator_epoch",
+    "fn:compute_base_analysis..fn:stable_diagnostics_generation",
+    "fn:spawn_diagnostics_worker",
+    "fn:reschedule_peers..fn:refresh_can_change_result",
+    "impl:DiagInputs#2..fn:publish_fast_tier",
+    "fn:document_policy..fn:log_publish_timing",
+    "impl:Backend::publish_closed_file_diagnostics",
+    "impl:Backend::next_closed_diag_generation..impl:Backend::clear_closed_diagnostics",
+    "impl:Backend::evict_diag_slot..impl:Backend::reschedule_all_open_documents",
+    "impl:Backend::diag_inputs..impl:Backend::w120_inheritance_config",
+    "impl:Backend::diagnostics_excluded..impl:Backend::schedule_diagnostics_impl",
+    "fn:analysis_tcl_version..fn:w120_metadata_roots",
+    "const:BIGIP_DEFAULT_PARTITION..fn:refine_w120_diagnostics",
+    "struct:W120Availability..fn:original_ambient_requirements",
+    "fn:w120_required_package",
+]
+
+[[module]]
+name = "semantic_tokens"
+doc = "Semantic tokens: the budgeted full and range requests, their convergence continuations and the refresh they ask for."
+items = [
+    "struct:SemanticTokenCoreData..fn:coarse_semantic_source_changed",
+    "const:SEMANTIC_TOKENS_FAST_PATH_BUDGET",
+    "const:FORCE_SEMANTIC_TOKENS_COARSE_ENV",
+    "static:FORCE_SEMANTIC_TOKENS_COARSE_ENABLED..fn:rearm_semantic_tokens_test_seam",
+    "const:SEMANTIC_TOKENS_REFRESH_DEBOUNCE",
+    "enum:SemanticTokensRefreshReason..impl:FullSettleOutcome",
+    "impl:Backend::non_tcl_range_tokens..impl:Backend::spawn_full_convergence",
+    "impl:Backend::race_range_enriched_reads..impl:Backend::inline_range_settlement",
+    "enum:RangeSettleOutcome..fn:unindexed_semantic_tokens_for_range",
+    "impl:Backend::resolve_pending_token_dialect..impl:Backend::semantic_tokens_full_delta_attempt",
+    "fn:semantic_token_delta_edits",
+    "fn:next_semantic_tokens_id..fn:lift_semantic_token_data",
+]
+
+[[module]]
+name = "navigation"
+doc = "Go-to-definition, hover, references, hierarchies and workspace symbols across documents."
+items = [
+    "type:CrossDocumentSourceRows",
+    "enum:WorkspaceSymbolPurpose..struct:OpenWorkspaceSymbolSnapshot",
+    "enum:LogicalNamespaceLocationsPurpose..struct:AutoloadQueryObservation",
+    "struct:OpenDocumentTexts",
+    "impl:tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts",
+    "struct:FactoryHoverSources",
+    "impl:Backend::conditional_foreign_factory_sources..impl:Backend::conditional_foreign_factory_source_hover",
+    "impl:Backend::type_hierarchy_walk..impl:Backend::lift_original_type_hierarchy_items",
+    "impl:Backend::ilx_method_at..impl:Backend::autoload_definition",
+    "impl:Backend::hover_for_original_declaration..impl:Backend::cross_document_variable_references",
+    "impl:Backend::cross_document_incoming_calls..impl:Backend::cross_document_outgoing_calls",
+    "impl:Backend::reported_ilx_plugin_roots..impl:Backend::ilx_plugin_roots",
+    "impl:Backend::closed_workspace_symbol_source..impl:Backend::capture_open_workspace_symbol_snapshot",
+    "impl:Backend::workspace_symbol_attempt..impl:Backend::position_hover_before_method",
+    "impl:Backend::hover_workspace_fallback",
+    "impl:Backend::hover_worker_error",
+    "fn:position_is_command_head..fn:implementation_inventory",
+    "fn:dedup_span_targets..fn:dedup_locations",
+]
+
+[[module]]
+name = "method_families"
+doc = "Object methods across files: the override family, its consumers and the navigation and rename built on them."
+items = [
+    "enum:ConsumerCoverage..struct:ConsumerDoc",
+    "impl:Backend::analyse_with_workspace_classes..impl:Backend::method_family_rename_tier",
+    "impl:Backend::method_rename_refusal",
+    "impl:Backend::cross_file_method_rename..impl:Backend::cross_file_method_hover",
+]
+
+[[module]]
+name = "rename"
+doc = "Rename: the tiers a request tries, the workspace edits they plan and file renames."
+items = [
+    "type:OriginalDocumentSnapshot",
+    "struct:RenameContext",
+    "fn:describe_variable_collision..struct:WorkspaceSourcePlanToken",
+    "impl:Backend::in_document_rename_edits..impl:Backend::cross_document_original_namespace_rename",
+    "impl:Backend::cross_document_original_variable_rename",
+    "impl:Backend::add_cross_document_rename_edits..impl:Backend::merge_rename_intents",
+    "impl:Backend::refresh_stale_complete_host_inventory_for_rename..impl:Backend::workspace_source_plan_is_current",
+    "impl:Backend::rename_attempt",
+    "impl:Backend::lift_local_rename_edits..impl:Backend::guarded_rename_source_tiers",
+    "struct:FileRenameInputSnapshot..type:HeldFileRename",
+    "impl:Backend::file_rename_paths..impl:Backend::file_rename_workspace_edit",
+    "impl:Backend::conditional_variable_prepare_tier..impl:Backend::ordinary_rename_edit",
+    "fn:original_command_rename_refusal_error..fn:merge_span_edits",
+    "fn:client_supports_conditional_rename..fn:annotated_conditional_variable_edit",
+    "impl:Backend::publish_conditional_if_current",
+    "fn:coalesce_conditional_variable_edits",
+]
+
+[[module]]
+name = "code_actions"
+doc = "Code actions: the report the lightbulb reads and the lift of its actions."
+items = [
+    "struct:CodeActionReportInputs..fn:push_context_code_actions",
+    "struct:CodeActionWorkerInputs",
+    "impl:Backend::code_action_source_for_range..impl:Backend::build_document_code_actions",
+    "impl:Backend::code_action_attempt",
+    "fn:lift_context_diagnostics..fn:attach_source_action_data",
+    "fn:action_command_to_lsp",
+]
+
+[[module]]
+name = "commands"
+doc = "The `workspace/executeCommand` handlers."
+items = [
+    "fn:sha256_hex..fn:sha256_digest_hex",
+    "struct:ExplorerDocumentInput",
+    "const:FIX_ALL_MAX_PASSES..struct:BulkFix",
+    "impl:Backend::minify_document_command..impl:Backend::compiler_explorer_view_command",
+    "impl:Backend::list_subcommands_command..impl:Backend::render_config_ini",
+    "fn:config_ini_path..fn:non_ascii_mode_str",
+    "enum:TclInstallationSelectionUnavailable..fn:tcl_installation_selection_paths",
+]
+
+[[module]]
+name = "language_server"
+doc = "The `LanguageServer` implementation: every LSP request and notification handler."
+items = ["impl:LanguageServer for Backend"]
+
+[[module]]
+name = "protocol"
+doc = "The wire: capability negotiation, bounded client requests and lifts into LSP types."
+items = [
+    "const:CLIENT_REQUEST_TIMEOUT..fn:bounded_client_request_with_timeout",
+    "fn:lift_completion_kind..fn:line_col_to_byte_offset_indexed",
+    "fn:lift_lsp_range",
+    "fn:lift_bigip_range",
+    "fn:lsp_severity",
+    "fn:lift_span",
+    "fn:negotiate_position_encoding..fn:semantic_tokens_capability",
+    "fn:lift_parameter_information..fn:lift_folding_range",
+]

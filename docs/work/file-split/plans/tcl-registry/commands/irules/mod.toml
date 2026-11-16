@@ -1,0 +1,8 @@
+# The facade keeps the thousand `mod` declarations (one file per command,
+# which cannot move) and `irules_command_specs`; only the table moves.
+file = "rust/tcl-registry/src/commands/irules/mod.rs"
+
+[[module]]
+name = "spec_table"
+doc = "The compile-time table of every iRules command specification, in command-name order."
+items = ["fn:http_context", "const:IRULES_SPECS"]

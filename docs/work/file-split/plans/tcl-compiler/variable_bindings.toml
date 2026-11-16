@@ -1,0 +1,64 @@
+# The facade keeps `OriginalVariableInvocation`, `ConditionalLogicalScalarStore`,
+# `PointResolveContexts` with its accessors, and the solver that builds the
+# per-point contexts; the transfer functions it drives move out by concern.
+# `AliasBindingValues` stays too: the tests build it field by field.
+file = "rust/tcl-compiler/src/variable_bindings.rs"
+
+[[module]]
+name = "invocation_transfer"
+doc = "The successful continuation of one statement or resolved invocation: outputs, contents writes, transitions and destroyed roots."
+items = [
+    "fn:transfer_statement..fn:apply_transition",
+    "fn:conditional_contents_write",
+    "fn:normal_output_is_written_impl",
+]
+
+[[module]]
+name = "alias_binding"
+doc = "Binding one cell to another: caller-reference formals, alias validity, closed registrations and installing the link."
+items = [
+    "enum:CallerReferenceBinding",
+    "fn:bind_caller_reference",
+    "enum:AliasBindingValidity..fn:alias_registration_is_closed",
+    "fn:alias_registration_address_is_closed..fn:original_alias_destination",
+]
+
+[[module]]
+name = "alias_targets"
+doc = "The cell an alias operand names: original targets, namespace slots and selected frames."
+items = ["fn:original_alias_target..fn:selected_frame_target"]
+
+[[module]]
+name = "variable_traces"
+doc = "Variable-trace registrations: whether one is closed, and applying a trace transition to the retained observers."
+items = [
+    "fn:variable_trace_registration_is_closed..fn:variable_trace_registration_is_closed_impl",
+    "fn:apply_trace..fn:update_trace_registration",
+]
+
+[[module]]
+name = "source_places"
+doc = "The cells a resolved source invocation reads, writes or destroys, with the lookup order of its outputs."
+items = ["fn:contents_write_operand..fn:scoped_world_write_places", "fn:output_commitment"]
+
+[[module]]
+name = "namespace_retirement"
+doc = "Namespace deletion: the places it destroys and the retirement of cells, observers and links in the original namespace tree."
+items = [
+    "fn:namespace_destruction_places..fn:namespace_destruction_from_facts",
+    "fn:apply_namespace..fn:retire_namespace_observers_and_links",
+]
+
+[[module]]
+name = "cell_lifetimes"
+doc = "Establishing a written cell's lifetime and destroying roots, captured cells and retained destructions."
+items = ["fn:establish_written_lifetime..fn:invalidate_literal_writes"]
+
+[[module]]
+name = "namespace_cells"
+doc = "Projecting a proved source invocation onto the shared namespace-cell allocation: literal stores, contents writes and state transitions."
+items = [
+    "fn:source_literal_store",
+    "fn:source_increment_contents",
+    "fn:transfer_source_namespace_cells..fn:fresh_namespace_cells",
+]

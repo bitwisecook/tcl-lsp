@@ -1,0 +1,70 @@
+# Second level of `tests.toml`. The facade is the module list.
+file = "rust/tcl-lsp-server/src/tests/configuration.rs"
+
+[[module]]
+name = "feature_toggles"
+doc = "Feature toggles, their folder overlay and the providers they gate."
+items = [
+    "fn:feature_toggles_default_on_and_merge..fn:folder_config_maps_xc_diagnostics_section_to_toggle",
+    "fn:will_save_format_respects_per_folder_opt_in..fn:disabled_workspace_symbols_toggle_yields_none",
+]
+
+[[module]]
+name = "folder_settings"
+doc = "Per-folder configuration: parse, isolation and analyser handles."
+items = [
+    "fn:folder_config_parses_entry_points..fn:iruleslx_paths_resolve_against_the_folder_root",
+    "fn:a_folder_matching_the_session_shares_its_analyser_handle",
+    "fn:a_configured_folder_resolves_its_own_three_layers..fn:a_secondary_root_does_not_inherit_the_primary_project_file",
+    "fn:folder_db_config_handle_is_retired_and_revived",
+    "fn:resource_analyser_inputs_apply_every_field",
+    "fn:per_folder_config_overrides_global_settings..fn:per_folder_extra_commands_and_patterns_are_isolated",
+]
+
+[[module]]
+name = "resolved_settings"
+doc = "The values one document resolves."
+items = [
+    "fn:resolved_formatting_applies_through_global_config..fn:resolved_edit_line_ending_defaults_to_the_documents_own",
+    "fn:resource_scoped_analyser_inputs_resolve_per_folder",
+    "fn:declared_package_provides_resolve_per_folder",
+    "fn:resolved_analysis_settings_falls_back_to_global_defaults",
+    "fn:resolved_generic_variable_patterns_three_state",
+]
+
+[[module]]
+name = "global_settings"
+doc = "Applying a configuration section to the session."
+items = [
+    "fn:signature_help_disabled_commands_apply_and_clear",
+    "fn:generic_variable_patterns_apply_through_global_config..fn:config_precedence_project_over_editor_over_global",
+    "fn:salsa_script_encoding..fn:source_encoding_reaches_the_session_and_the_salsa_config_2129",
+    "fn:apply_global_config_populates_the_editor_layer",
+    "fn:apply_global_config_applies_every_knob",
+    "fn:workspace_scan_budget_defaults_to_the_built_in_cap..fn:apply_global_config_ignores_non_object",
+]
+
+[[module]]
+name = "reload"
+doc = "The configuration pull, its failure modes and the coalesced reload."
+items = [
+    "fn:the_session_skip_is_the_layers_production_skip",
+    "fn:did_change_configuration_applies_inline_settings",
+    "fn:a_configuration_burst_coalesces_into_one_reload..fn:the_last_generation_of_a_burst_still_runs_to_completion",
+    "fn:a_failed_scoped_pull_refreshes_what_a_folder_inherits",
+    "fn:primary_project_signature_exclusions_do_not_leak_into_sibling_root..fn:scoped_pull_failure_keeps_primary_project_signature_exclusions_isolated",
+]
+
+[[module]]
+name = "setting_parsers"
+doc = "Payload shapes and individual setting readers."
+items = [
+    "fn:collapse_inlay_alias_resolves_per_layer..fn:normalize_config_payload_survives_mixed_shape_collision",
+    "fn:parse_non_ascii_mode_maps_settings..fn:environment_kind_setting_is_read_from_every_payload_shape",
+    "fn:workspace_trust_comes_from_the_client_and_never_from_a_setting",
+]
+
+[[module]]
+name = "formatter_settings"
+doc = "The formatter configuration built from settings."
+items = ["fn:formatter_config_honours_request_indent..fn:formatter_config_round_trips_docstring_settings"]

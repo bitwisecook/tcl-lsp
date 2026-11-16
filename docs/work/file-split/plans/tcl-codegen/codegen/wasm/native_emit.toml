@@ -1,0 +1,25 @@
+# The facade keeps the frame and local layout constants, `NativeImports`, the
+# entry table and constant pool, `Emitter` with its instruction primitives
+# (every part reads its fields), `emit_function`, the function body and the
+# structurisation of its control tree.
+file = "rust/tcl-codegen/src/codegen/wasm/native_emit.rs"
+
+[[module]]
+name = "shape"
+doc = "The structural facts the relooper needs about a lowered function's control-flow graph."
+items = ["struct:Shape..fn:intersect"]
+
+[[module]]
+name = "function_plan"
+doc = "What is fixed per function before emission: its locals, its largest argv, where each statement's result comes from and whether it may be a procedure entry."
+items = ["struct:LocalPlan..fn:argv_slots"]
+
+[[module]]
+name = "operations"
+doc = "Statements and their operations: result materialisation, completions, error sites and `emit_op`."
+items = ["impl:Emitter<'_, '_>::emit_statement..impl:Emitter<'_, '_>::copy_value"]
+
+[[module]]
+name = "arithmetic"
+doc = "Integer arithmetic with Tcl rounding and overflow checks, and the dynamic binary, compare and unary operations."
+items = ["impl:Emitter<'_, '_>::int_binary..impl:Emitter<'_, '_>::checked_int_op_at", "fn:compare_op"]

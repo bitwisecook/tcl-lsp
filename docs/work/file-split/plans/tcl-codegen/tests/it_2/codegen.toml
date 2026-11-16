@@ -1,0 +1,70 @@
+# The parent keeps the shared helpers: the registry, the `asm_for`/`top_asm`/
+# `proc_asm` compilers, the opcode queries and the hand-built CFG emitters.
+file = "rust/tcl-codegen/tests/it_2/codegen.rs"
+
+[[module]]
+name = "simple_commands"
+doc = "The literal and local tables and the simplest statements: `set`, `puts`, `incr`, `return` and quoted literals."
+items = ["fn:literal_table_intern_new..fn:quoted_close_bracket_is_string_literal", "fn:backslash_in_set_value"]
+
+[[module]]
+name = "expressions"
+doc = "Expression compilation: operators, constant folding, math functions and the iRules operators."
+items = ["fn:expr_binary_add..fn:irule_word_not", "fn:ternary_in_expr..fn:partial_fold_mixed_const_var"]
+
+[[module]]
+name = "bytecoded_commands"
+doc = "Commands the release compiles to instructions: math functions, loop exits, `string length`, the list commands and variable access."
+items = [
+    "fn:a_math_function_call_is_invoked_not_folded_in_tcl_8_6..fn:lappend_proc_is_bytecoded",
+    "fn:proc_array_ref..fn:a_stamp_declared_from_9_0_declines_under_a_profile_spanning_8_6",
+]
+
+[[module]]
+name = "disassembly_format"
+doc = "The disassembly text: sections, offsets, labels and literal escaping."
+items = [
+    "fn:format_header..fn:literal_with_embedded_stx_appears_escaped_in_disassembly",
+    "fn:labels_point_to_valid_offsets",
+]
+
+[[module]]
+name = "procedures"
+doc = "Procedures: parameters and locals, calls between procedures, and the two top-level shapes a unit carries."
+items = [
+    "fn:proc_params_in_lvt..fn:proc_with_default_args",
+    "fn:a_unit_carries_its_top_level_as_a_script_and_as_a_proc_body..fn:a_procedure_records_the_body_word_it_was_compiled_from",
+]
+
+[[module]]
+name = "control_flow"
+doc = "Branches, `switch`, loop exits, `catch` and `try`, and conditions that hold command substitutions."
+items = [
+    "fn:if_branch_has_cond_jump..fn:fallthrough_elimination",
+    "fn:if_inside_for..fn:foreach_inside_for",
+    "fn:switch_fallthrough_stays_irswitch..fn:try_on_error_with_finally",
+    "fn:catch_in_if_condition..fn:catch_in_while_condition",
+]
+
+[[module]]
+name = "loops"
+doc = "`for`, `while`, `foreach` and `dict for`: clause edge cases, iterator groups and frozen conditions."
+items = [
+    "fn:empty_init_clause..fn:dict_for_lowers_to_loop_cfg_for_analysis_but_barriers_for_codegen",
+    "fn:foreach_iter_count..fn:frozen_while_cmd_subst_condition",
+]
+
+[[module]]
+name = "lowering_and_cfg"
+doc = "The CFG's structure and the IR statements lowering produces."
+items = ["fn:linear_script_single_block..fn:switch_modes_tracked"]
+
+[[module]]
+name = "end_to_end"
+doc = "Whole programs through the pipeline: recursive procedures, sorting, state machines and a stress script."
+items = ["fn:fibonacci_proc..fn:deeply_nested_procs_do_not_crash", "fn:kitchen_sink..fn:codegen_module_empty_has_top"]
+
+[[module]]
+name = "fold_trust"
+doc = "Folds and inline hooks under whole-unit mutation: renamed, shadowed and deleted builtins keep their runtime binding."
+items = ["fn:top_lits..fn:the_fold_gate_holds_through_the_simplified_value_emitter"]

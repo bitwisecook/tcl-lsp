@@ -1,0 +1,60 @@
+# The parent keeps the hand assembler (`Asm`), the drivers (`run`,
+# `run_fresh`, `eval`), the result helpers and the inline `compiler` module
+# (a compile service for the tests that need real Tcl setup). Modules follow
+# the opcode families of the file's section comments.
+file = "rust/tcl-vm/tests/it_5/opcode_c_parity.rs"
+
+[[module]]
+name = "variable_access"
+doc = "Load, store, `incr`, `append` and `lappend` opcodes in their stack, array and list forms."
+items = ["fn:load_store_scalar_stk_round_trip..fn:check_empty_lappend"]
+
+[[module]]
+name = "variable_state"
+doc = "Variable existence and lifecycle opcodes: `existArray`, `unsetArray*`, `arrayMake*`, `variable` and `const*`."
+items = [
+    "fn:exist_array_forms_never_error..fn:variable_rejects_a_missing_parent_namespace",
+    "fn:const_imm_defines_and_redefines_silently..fn:const_blocks_later_writes",
+    "fn:unset_array_flag_clear_is_silent..fn:unset_array_trace_only_miss_kind_precedes_callback_mutation",
+]
+
+[[module]]
+name = "context_queries"
+doc = "Opcodes that read the execution context: `currentNamespace`, `infoLevel*`, `resolveCmd`, `originCmd` and `clockRead`."
+items = ["fn:current_namespace_and_info_level_number..fn:clock_read_units_agree"]
+
+[[module]]
+name = "lists_and_dicts"
+doc = "`dictGetDef`, `dictRecombineStk`, argument expansion, `listIndex` and `lindexMulti`."
+items = [
+    "fn:dict_get_def_reads_or_defaults..fn:dict_recombine_stk_drops_unset_keys",
+    "fn:invoke_expanded_with_no_words_returns_empty_success..fn:expand_drop_leaves_marker_stack_clean",
+    "fn:list_index_implements_tcl_lindex_list..fn:list_index_matches_lindex_command",
+]
+
+[[module]]
+name = "strings"
+doc = "String opcodes: `strmap`, `strfind`, the case operators, `tryCvtToBoolean`, `strindex` and `strrange`."
+items = [
+    "fn:str_map_stack_order_and_mapping..fn:str_map_matches_string_map_command",
+    "fn:str_find_empty_needle_is_minus_one..fn:try_cvt_to_boolean_pushes_flag_and_keeps_value",
+    "fn:str_index_and_range_reject_bad_indices..fn:str_index_and_range_still_clamp_valid_indices",
+]
+
+[[module]]
+name = "irules_operators"
+doc = "The iRules dialect operators under an authored F5 policy: string tests, glob and regex matching and the word logic operators."
+items = ["fn:authored_f5_vm..fn:irule_operators_agree_with_the_core_commands"]
+
+[[module]]
+name = "coroutines_and_tcloo"
+doc = "`yield`, `yieldToInvoke` and `coroName`, and the TclOO opcodes (`tclooIsObject`, `tclooClass`, `tclooSelf`, `tclooNext*`)."
+items = [
+    "fn:vm_with_seeded_proc",
+    "fn:coro_name_outside_and_inside_a_coroutine..fn:tcloo_opcodes_reject_a_nested_ordinary_procedure",
+]
+
+[[module]]
+name = "expr_and_return"
+doc = "`exprStk` syntax errors and the `returnImm` and `returnStk` forms."
+items = ["fn:expr_stk_raises_c_syntax_errors..fn:top_level_return_ends_the_script"]

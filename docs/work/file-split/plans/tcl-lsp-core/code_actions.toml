@@ -1,0 +1,37 @@
+# The facade keeps `CodeAction` and its kinds, the `code_actions*` entry points,
+# the diagnostic-fix lifting and the small selection actions they call directly
+# (continuation comments, IP conversion, the refactor-engine bridge).
+file = "rust/tcl-lsp-core/src/code_actions.rs"
+
+[[module]]
+name = "package_suggestions"
+doc = "`Add 'package require <pkg>'` suggestions for an unresolved command head."
+items = ["fn:package_require_actions..fn:head_is_unresolved"]
+
+[[module]]
+name = "expression_rewrites"
+doc = "Rewrites of a selected expression: De Morgan and comparison inversion."
+items = ["fn:expr_rewrite_actions..fn:find_top_level"]
+
+[[module]]
+name = "docstring_stub"
+doc = "The action that inserts a generated docstring stub for a procedure."
+items = ["fn:docstring_actions..fn:body_docstring_edit"]
+
+[[module]]
+name = "irules_profiles"
+doc = "The `# Profiles:` source action for an iRules file."
+items = ["fn:compute_required_profiles..fn:profiles_action"]
+
+[[module]]
+name = "spec_pack_fixes"
+doc = "Did-you-mean quick fixes for `SpecTcl` pack-load notices."
+items = ["const:SPEC_PACK_DIAGNOSTIC_CODE..fn:statement_head_at"]
+
+[[module]]
+name = "context_diagnostics"
+doc = "Source actions for the diagnostics a code-action request carries in its context."
+items = [
+    "struct:ContextDiagnostic..const:CRLF_STRIP_MAP",
+    "fn:context_diagnostic_actions..fn:subst_nocommands_action",
+]

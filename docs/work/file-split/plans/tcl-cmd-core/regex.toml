@@ -1,0 +1,37 @@
+# The facade keeps the engine contract (`RegMatch`, `RegexFlags`,
+# `RegexEngine`, the precision and error types), the per-thread pattern cache
+# with `Run` (the `thread_local!` cannot move), `decode_utf8` and the option
+# plumbing both commands share.
+file = "rust/tcl-cmd-core/src/regex.rs"
+
+[[module]]
+name = "regexp_command"
+doc = "`regexp`: its option tables and scan, the byte and original-object entry points, `-about` and the match items."
+items = ["const:REGEXP_USAGE..fn:regexp_original", "fn:regexp..fn:build_match_item"]
+
+[[module]]
+name = "jim"
+doc = "Jim's `regexp` and `regsub` over original objects: options, captures and substitution callbacks."
+items = [
+    "static:JIM_REGEXP_NAMES..fn:regexp_jim_original",
+    "fn:jim_substitution_bytes..fn:regsub_jim_original",
+]
+
+[[module]]
+name = "original_pattern"
+doc = "Patterns compiled and executed over original objects: the native source and object traits, the prepared artifact and the native `regexp` run."
+items = ["trait:NativeRegexSource..fn:regexp_native_selected"]
+
+[[module]]
+name = "regsub_original"
+doc = "`regsub` over original objects: option preparation, native Unicode substitution and the C9 command prefix."
+items = [
+    "struct:OriginalRegsubPreparation..trait:NativeRegsubObjects",
+    "enum:OriginalRegexConsumerError",
+    "struct:NativeRegsubResult..fn:regsub_eval_original",
+]
+
+[[module]]
+name = "regsub_command"
+doc = "`regsub` over bytes: its option tables and scan, the entry points for each path and substitution-spec expansion."
+items = ["const:REGSUB_USAGE..fn:regsub_option_scan", "fn:regsub_start..fn:apply_subspec"]

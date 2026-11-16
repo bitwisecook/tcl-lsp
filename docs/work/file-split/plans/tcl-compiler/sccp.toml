@@ -1,0 +1,19 @@
+# First of two levels. The facade keeps the module docs, the lattice join,
+# the result types (`SccpResult`, `ConstantBranch`, `EdgeRefinement`, …), the
+# run inputs (`TraceInputs`, `BuiltinFoldInputs`, `ExistenceEntry`,
+# `ModuleRun`), the `sccp*` entry points and `BranchFold`, whose private field
+# both children fill. `solver` is split again by `sccp/solver.toml`.
+file = "rust/tcl-compiler/src/sccp.rs"
+
+[[module]]
+name = "solver"
+doc = "The solver: its rounds, the sweep over the blocks, the existence rung, refinements, loop enumeration and the settled post-passes."
+items = ["struct:RunHazards..fn:record_condition_preserves"]
+
+[[module]]
+name = "evaluation"
+doc = "Evaluating a statement's definitions and a branch condition over the lattice, and the literal and `foreach` list ingress."
+items = [
+    "enum:DefValues..fn:simple_var_ref_key",
+    "fn:evaluate_branch_under..fn:parse_literal_value",
+]

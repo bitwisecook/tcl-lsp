@@ -1,0 +1,43 @@
+# The parent keeps the fixtures every group builds on: `entry`, `namespace`,
+# `binding`, `install_original_target_fixture` and `source_module`.
+file = "rust/tcl-compiler/src/native_byte_compilation/tests.rs"
+
+[[module]]
+name = "namespace_workers"
+doc = "Plans for `namespace` workers: the legacy `upvar` form and the captured 8.5 root with and without hooks."
+items = [
+    "fn:original_namespace_legacy_declines_non_upvar_before_emitter_admission",
+    "fn:captured_c85_namespace_root_retains_accepted_and_partial_upvar_preparation..fn:captured_namespace_no_hook_workers_retain_original_named_rewrites",
+]
+
+[[module]]
+name = "registered_commands"
+doc = "Plans for registered byte compilers: shared recipes, registration guards, unsupported recipes and nested hook obligations."
+items = [
+    "fn:original_monolithic_match_retains_real_hook_and_registration_guards..fn:registered_concat_uses_shared_recipe_and_original_worker_authority",
+    "fn:target_unknown..fn:registered_recipe_without_shared_instruction_remains_unavailable",
+    "fn:byte_compiler_plan_retains_original_registration_for_opaque_ordinary_operands..fn:registered_certificate_keeps_nested_original_hook_obligations",
+]
+
+[[module]]
+name = "generic_certificate"
+doc = "The closed generic byte-compilation certificate: absent hooks, search paths, bracket children and dynamic heads."
+items = [
+    "fn:original_generic_selection_precedes_inline_emitter_availability..fn:byte_generic_certificate_requires_original_absent_hook_or_closed_absence",
+    "fn:byte_generic_certificate_uses_search_path_and_retained_namespace_incarnations..fn:byte_generic_certificate_keeps_native_constant_head_rules_by_release",
+]
+
+[[module]]
+name = "ensemble_workers"
+doc = "Plans for a selected ensemble worker: its installed named compiler and the named fallbacks that keep the original operands."
+items = ["fn:configured_byte_worker_uses_its_installed_named_compiler..fn:string_map_dynamic_fallback_retains_worker_and_ordered_original_operands"]
+
+[[module]]
+name = "private_declines"
+doc = "Declines that stay private to one worker and admit no other ensemble worker."
+items = ["fn:dynamic_string_is_decline_is_private_and_does_not_admit_ensemble_workers..fn:ascii_failindex_decline_is_private_and_does_not_admit_ensemble_workers"]
+
+[[module]]
+name = "worker_selection"
+doc = "Which ensemble worker a call selects: trace vetoes, the map cache, literal expansion and priming."
+items = ["fn:original_selected_worker_trace_veto_and_dictionary_operation_are_distinct..fn:configured_byte_worker_priming_keeps_original_token_despite_reported_colons"]

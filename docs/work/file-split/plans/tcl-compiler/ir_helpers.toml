@@ -1,0 +1,48 @@
+# `ir_helpers.rs` keeps the module docs, the `materialized_footprint`
+# re-exports and the `mod` declarations; every family of queries gets the
+# module named for what it answers.
+file = "rust/tcl-compiler/src/ir_helpers.rs"
+
+[[module]]
+name = "nested_bodies"
+doc = "The script bodies a structured statement contains, the namespace each runs in and whether a runtime-selected namespace can change command resolution."
+items = ["fn:nested_bodies..fn:requires_runtime_command_namespace"]
+
+[[module]]
+name = "variable_effects"
+doc = "Variable writes and reads: structural defs of IR scripts, possible name writes of original statements, and the cells recovered command substitutions read or write."
+items = [
+    "const:MAX_DEFS_COLLECT_DEPTH..fn:retain_original_write_roles",
+    "struct:VariableWriteEffects..fn:conditionally_writes",
+    "fn:statement_substituted_reads..fn:condition_substituted_reads",
+]
+
+[[module]]
+name = "condition_out_vars"
+doc = "Out-variables assigned by the command substitutions of a condition expression."
+items = ["fn:condition_command_out_vars..fn:script_text_out_vars_at", "fn:tokenise_to_words"]
+
+[[module]]
+name = "substitution_surfaces"
+doc = "Where command substitutions sit: the commands inside an expression tree and the value and expression surfaces of one statement whose `[…]` run while it is evaluated."
+items = [
+    "fn:expr_has_command..fn:collect_expr_commands_at",
+    "fn:unbraced_words..fn:invoked_word_surfaces",
+]
+
+[[module]]
+name = "command_words"
+doc = "One tokenised command as words: reconstructed text, written geometry and whether the value comes from run-time data."
+items = [
+    "enum:WrittenWordGeometry..impl:CommandWord",
+    "fn:tokenise_command_words",
+    "fn:command_written_spans..fn:word_substitutes",
+]
+
+[[module]]
+name = "evaluated_substitutions"
+doc = "The commands the `[…]` substitutions of one statement or expression run: the inventory, its entry points and the walk that recovers them in evaluation order."
+items = [
+    "enum:CommandSubstitutionIndex..fn:source_expression_indices",
+    "fn:command_substitutions_in_surfaces_with_replay..fn:expression_command_substitutions_with_replay_and_metadata_context",
+]

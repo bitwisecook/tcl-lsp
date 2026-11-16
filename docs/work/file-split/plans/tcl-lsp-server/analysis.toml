@@ -1,0 +1,25 @@
+# Second level of `lib.toml`. The facade keeps `FreshAnalysisSeed` and the project oracles an
+# analysis runs under (class factories, cross-file evidence, namespace exports).
+file = "rust/tcl-lsp-server/src/analysis.rs"
+
+[[module]]
+name = "queries"
+doc = "Memoised reads of one document from the query database."
+items = ["impl:Backend::db_document_symbols..impl:Backend::cached_analysis"]
+
+[[module]]
+name = "fresh"
+doc = "Analyses run outside the query database: the seed, the driver and their currency checks."
+items = [
+    "struct:FreshAnalysisDriver..impl:FreshAnalysisDriver",
+    "impl:Backend::analysis_for..impl:Backend::fresh_index_seed_is_current",
+]
+
+[[module]]
+name = "analysers"
+doc = "The configured analyser, the dialect registry and the analyser configuration input."
+items = [
+    "impl:Backend::sync_db_config",
+    "impl:Backend::configured_analyser..impl:Backend::registry_for_dialect",
+    "fn:default_analyser_config",
+]

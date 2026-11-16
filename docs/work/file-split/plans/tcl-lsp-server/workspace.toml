@@ -1,0 +1,108 @@
+# Second level of `lib.toml`. The facade keeps the structs that cross its parts: scan inputs
+# and rows, the scan worker, the evidence handles and the class-factory sync records.
+file = "rust/tcl-lsp-server/src/workspace.rs"
+
+[[module]]
+name = "folders"
+doc = "The workspace folder set and what leaving a folder retires."
+items = ["impl:Backend::workspace_folder_urls..impl:Backend::drop_index_under_folders"]
+
+[[module]]
+name = "folder_scan"
+doc = "The on-disk scan of the workspace folders into the index and the project, and the signal that its first pass has finished."
+items = [
+    "const:WORKSPACE_ANALYSIS_MAX_CONCURRENCY..const:SCAN_MERGE_BATCH_SIZE",
+    "struct:WorkspaceScanReadiness..impl:OneShotSignal",
+    "impl:Backend::wait_for_workspace_scan..impl:Backend::merge_workspace_scan_results",
+    "impl:Backend::scan_folder_roots..impl:Backend::trace_workspace_scan_stage",
+]
+
+[[module]]
+name = "scan_batches"
+doc = "The bounded worker window a scan analyses files through, and the batches it publishes."
+items = [
+    "enum:WorkspaceScanCandidate",
+    "struct:WorkspaceScanTaskWindow..mod:workspace_scan_task_window_controls",
+    "impl:Backend::enqueue_workspace_scan_candidate..impl:Backend::unavailable_scan_worker",
+]
+
+[[module]]
+name = "disk_reindex"
+doc = "Reading and reindexing closed files from disk."
+items = [
+    "enum:DiskScanOutcome",
+    "fn:run_bounded",
+    "impl:Backend::current_scanned_rows",
+    "impl:Backend::scan_disk_file..impl:Backend::reindex_index_from_disk_using",
+]
+
+[[module]]
+name = "source_files"
+doc = "Which paths are Tcl sources: extensions, globs and the directory walk."
+items = [
+    "const:WORKSPACE_SCAN_FILE_CAP..const:WORKSPACE_SCAN_DIR_CAP",
+    "fn:is_skipped_scan_dir..fn:uri_under_folder",
+]
+
+[[module]]
+name = "package_database"
+doc = "The package resolver and the `auto_path` it searches."
+items = ["fn:build_package_resolver..fn:effective_auto_path"]
+
+[[module]]
+name = "source_graph"
+doc = "The workspace index's `source`-path resolution and constant folding."
+items = ["fn:resolve_source_uri..fn:entry_point_uri"]
+
+[[module]]
+name = "library_indexing"
+doc = "On-demand indexing of library and package files a query reaches."
+items = [
+    "struct:LibraryPublicationSource..impl:LibraryPublicationSource",
+    "impl:Backend::ensure_logical_library_candidates..impl:Backend::ensure_original_library_indexed",
+]
+
+[[module]]
+name = "source_rehoming"
+doc = "Reconciling files with the namespaces their `source` sites run them in."
+items = [
+    "enum:RehomingDocumentSnapshot",
+    "impl:Backend::refresh_source_rehoming..impl:Backend::rehoming_document_snapshot",
+]
+
+[[module]]
+name = "warm"
+doc = "The background warm of the memoised analysis for open documents."
+items = [
+    "const:WORKSPACE_WARM_MAX_CONCURRENCY",
+    "impl:Backend::spawn_workspace_warm..impl:Backend::warm_open_documents",
+]
+
+[[module]]
+name = "watched_files"
+doc = "`workspace/didChangeWatchedFiles`: classification of a batch and its effect on open and closed files."
+items = [
+    "impl:Backend::partition_open_watched_paths..impl:Backend::capture_watched_event_admissions",
+    "impl:Backend::register_file_watchers",
+    "impl:Backend::update_watched_open_paths..impl:Backend::settle_deleted_open_paths",
+    "const:PROJECT_CONFIG_GLOB..struct:WatchedFileChanges",
+]
+
+[[module]]
+name = "project_inputs"
+doc = "Workspace-derived inputs of every project file: call-site evidence, declared commands, source modules and subclass methods."
+items = [
+    "fn:refresh_cross_file_evidence",
+    "struct:CrossFileEvidenceSnapshot..fn:sync_cross_file_evidence",
+    "fn:sync_workspace_declared_commands..fn:files_with_covered_load_targets",
+]
+
+[[module]]
+name = "class_factories"
+doc = "The workspace class-factory oracle and its fixpoint publication."
+items = [
+    "fn:reindex_unopened_factory_consumers..fn:publish_factory_index_seeds",
+    "const:CLASS_FACTORY_SYNC_ROUNDS..fn:sync_workspace_class_factories",
+    "fn:published_factory_names",
+    "enum:ClassFactoryRound..fn:apply_workspace_class_factories_if_current",
+]

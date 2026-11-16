@@ -1,0 +1,59 @@
+# First of two levels. The facade keeps the module docs and re-exports, the
+# loaded-pack types (`Pack`, `PackCommand`, `LoadError` and the pack rows), the
+# hook declarations, interning, the vocabulary version constants, and the
+# private structs several modules read fields of: `Log`, `IncludeContext`,
+# `PackDefaults`, `PackTables` and the `arg` row structs. `value_parsers`,
+# `block_descriptors` and `command` are split again by the plans in `loader/`.
+file = "rust/tcl-spectcl/src/loader.rs"
+
+[[module]]
+name = "notices"
+doc = "The notices a load reports: what was dropped, words newer than the declared vocabulary, and the log that accumulates them."
+items = [
+    "struct:Notice..impl:fmt::Display for Notice",
+    "impl:Log",
+    "const:QUOTABLE_WIDTH..fn:quotable",
+]
+
+[[module]]
+name = "statement_reader"
+doc = "The statement reader: a pack source segmented into statements and words, with the byte-order mark and the `speclib` version span."
+items = ["struct:Word..fn:speclib_version_span"]
+
+[[module]]
+name = "pack_scope"
+doc = "Pack-scope statements: environments, dialects and surface rosters, the package, special-variable and file-extension rows, `include` resolution and the pack-level tables."
+items = [
+    "fn:read_environment..fn:finish_pack_cores",
+    "const:AMBIENT_SCOPE_FLAG..fn:file_extension_row",
+    "struct:IncludeSourceObservation..fn:check_vocabulary_version",
+    "impl:PackTables..fn:value_rows",
+]
+
+[[module]]
+name = "value_parsers"
+doc = "Parsers for one word or value: flags, dialect sets, lifecycles and stamp gates, the closed vocabularies and the descriptor values a row carries."
+items = ["fn:next_text..fn:object_class_row"]
+
+[[module]]
+name = "body_rows"
+doc = "The rows a command, subcommand and refinement body share: `arg`, `option` with its effects, and `hover` with its examples."
+items = [
+    "const:MAX_ARG_INDEX",
+    "impl:ArgRows..fn:documentation_example",
+]
+
+[[module]]
+name = "block_descriptors"
+doc = "Block-valued descriptors: case lists, clause grammars, definition bodies with their members, the iRules event rows and scoped bodies."
+items = ["fn:event_requires_block..fn:scoped_command_row"]
+
+[[module]]
+name = "command"
+doc = "Loading one `command`: its accumulator and sealing, the body statements, effect and relation rows, state transitions and `refine` forms."
+items = ["struct:CommandAcc..fn:selector_row"]
+
+[[module]]
+name = "subcommand"
+doc = "Loading one `subcommand` or `method`: its accumulator and sealing, the body statements and `sub_subcommand` rows."
+items = ["struct:SubAcc..fn:versioned_arg_value_row"]

@@ -1,0 +1,41 @@
+# Second level: apply `ssa.toml` first. `construction.rs` keeps the pipeline
+# (`build_ssa_inner`, terminator reads, source names, array-root refresh and
+# the assembled blocks) and the records its phases share: the identity
+# buckets, `VarInterner`, `ArrayElems` and the `RenameWalk` state.
+file = "rust/tcl-compiler/src/ssa/construction.rs"
+
+[[module]]
+name = "phi_placement"
+doc = "Where φ nodes go: the non-local names and their definition sites, array elements expanded beside their roots and source-may calls."
+items = [
+    "fn:original_source_may_call..fn:original_source_may_call_from_inventory",
+    "fn:compute_phi_vars..fn:compute_phi_vars_with_config",
+    "fn:collect_array_elems..fn:nonlocal_names_and_defsites",
+]
+
+[[module]]
+name = "read_references"
+doc = "The reads a function retains: the cells each source read binds, and the read references, script source points and contents origins built from them."
+items = [
+    "fn:source_read_name_with_config..fn:represented_contents_origins",
+    "fn:additional_read_bindings..fn:scope_read_bindings",
+]
+
+[[module]]
+name = "statement_symbols"
+doc = "The symbols a statement's source words, assignments and native operands retain while it is renamed."
+items = [
+    "fn:definition_source_name..fn:original_structural_definition_key_at",
+    "impl:<'a> RenameWalk<'a>::preserve_unknown_read_liveness..impl:<'a> RenameWalk<'a>::retain_native_operand_symbols",
+]
+
+[[module]]
+name = "rename"
+doc = "The renaming walk over the dominator tree: version stacks, each statement's reads and definitions, and the φ operands of successor blocks."
+items = [
+    "fn:record_destruction_predecessor",
+    "impl:<'a> RenameWalk<'a>::new..impl:<'a> RenameWalk<'a>::visible_versions",
+    "impl:<'a> RenameWalk<'a>::classify_statement_reads..impl:<'a> RenameWalk<'a>::enter_block",
+    "fn:rename_dominator_tree",
+    "fn:demote_reads_beside_writes..fn:drop_reads_of_own_writes",
+]

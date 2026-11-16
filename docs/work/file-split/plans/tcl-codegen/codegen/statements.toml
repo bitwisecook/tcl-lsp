@@ -1,0 +1,57 @@
+# The facade keeps the module list, the native emission task types its
+# existing child modules build (`NativeEmissionTask` and its companions), and
+# the statement entry points: `emit_stmt*`, the statement dispatch and the
+# placeholder calls.
+file = "rust/tcl-codegen/src/codegen/statements.rs"
+
+[[module]]
+name = "assignments"
+doc = "Assignments, increments and expression-result statements: the static store target and the shared `set` storage path."
+items = ["struct:StoreTarget", "impl:CodegenCtx<'_>::store_target..impl:CodegenCtx<'_>::emit_assign_value"]
+
+[[module]]
+name = "value_words"
+doc = "Values in word position: interpolation, retained templates and expressions, and whole-word command substitutions."
+items = ["impl:CodegenCtx<'_>::emit_value_interpolated..impl:CodegenCtx<'_>::try_emit_whole_cmd_subst_inner"]
+
+[[module]]
+name = "calls"
+doc = "Command calls: variable references for stores, argument words, `{*}` expansion and the call itself."
+items = ["impl:CodegenCtx<'_>::push_var_ref..impl:CodegenCtx<'_>::emit_call_inner"]
+
+[[module]]
+name = "native_emission"
+doc = "The native emission work list: its entry points for original words and expressions, and the emitter of each task kind."
+items = ["impl:CodegenCtx<'_>::emit_retained_native_expression..impl:CodegenCtx<'_>::emit_native_expression_task"]
+
+[[module]]
+name = "native_schedule"
+doc = "Scheduling one original command onto the work list as a generic, named or registered-compiler invocation, with its replay boundary."
+items = [
+    "impl:CodegenCtx<'_>::emit_script_parse_error..impl:CodegenCtx<'_>::native_registered_guard",
+    "impl:CodegenCtx<'_>::install_native_registered_boundary..impl:CodegenCtx<'_>::begin_original_compiler_selection",
+]
+
+[[module]]
+name = "registered_tasks"
+doc = "The task sequence of a registered native compiler: the dispatch over instruction plans and the dictionary, list, `uplevel`, namespace, TclOO and `return` families."
+items = [
+    "impl:CodegenCtx<'_>::append_native_registered_tasks..impl:CodegenCtx<'_>::append_native_list_tasks",
+    "impl:CodegenCtx<'_>::native_namespace_word_task",
+]
+
+[[module]]
+name = "variable_tasks"
+doc = "Task sequences of the variable compilers: load, store, `append` and `incr`."
+items = [
+    "impl:CodegenCtx<'_>::append_native_variable_tasks",
+    "impl:CodegenCtx<'_>::prepare_native_variable_tasks..impl:CodegenCtx<'_>::append_native_load_store_tasks",
+]
+
+[[module]]
+name = "value_tasks"
+doc = "Task sequences of compilers that build a value: `string is`, `dict create`, `const`, `format` and concatenation."
+items = [
+    "impl:CodegenCtx<'_>::append_native_string_is_tasks..impl:CodegenCtx<'_>::append_native_constant_tasks",
+    "impl:CodegenCtx<'_>::native_format_tasks..impl:CodegenCtx<'_>::native_concat_tasks",
+]

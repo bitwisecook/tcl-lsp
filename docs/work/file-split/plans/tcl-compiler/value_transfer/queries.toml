@@ -1,0 +1,24 @@
+# Second level, for the `queries` module that `value_transfer.toml` creates.
+# The facade keeps `StructureInputs` with its `AnalysisInputs` impl, the inputs
+# every structure-only question below reads its source words through.
+file = "rust/tcl-compiler/src/value_transfer/queries.rs"
+
+[[module]]
+name = "proven_values"
+doc = "The exact value a word has at its statement, over solved facts: statement words, `return` words and words of nested command substitutions."
+items = ["struct:StatementId..fn:proven_substitution"]
+
+[[module]]
+name = "resolved_calls"
+doc = "What a call over literal words resolves to: cell updates, keyed dictionary updates, iteration plans and whether a body absorbs its completion."
+items = ["fn:typed_incr_creates_absent..fn:cell_update_range_model"]
+
+[[module]]
+name = "dict_bodies"
+doc = "What a dictionary body command binds on entry: the dictionary operand, its binders and their key paths."
+items = ["enum:DictBinder..fn:dict_value_at"]
+
+[[module]]
+name = "templates_and_selections"
+doc = "Template-word plans and case-list selections a caller asks for over words whose values it already holds."
+items = ["fn:source_template_plan..fn:statement_selection"]

@@ -1,0 +1,14 @@
+# Second level, after `loader.toml`. `block_descriptors.rs` keeps the case
+# lists and event requirements, the shipped descriptors a pack may name, the
+# result-stability, event-priority and data-collection rows and scoped bodies.
+file = "rust/tcl-spectcl/src/loader/block_descriptors.rs"
+
+[[module]]
+name = "clause_grammar"
+doc = "`clause_grammar` blocks: the clause rows with their shapes, flags and slots, and the hook behaviours a grammar derives."
+items = ["fn:record_clause_grammar_derivations..fn:clause_slots"]
+
+[[module]]
+name = "definition_body"
+doc = "`definition_body` blocks: members with their options, effects and wrapper shifts, construction hints, built-in object methods and manufacturers."
+items = ["fn:definition_body_block..fn:manufacturer_row"]

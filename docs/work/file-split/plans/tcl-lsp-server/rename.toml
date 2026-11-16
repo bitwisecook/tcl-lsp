@@ -1,0 +1,56 @@
+# Second level of `lib.toml`. The facade keeps `RenameContext`, the caller and source-plan
+# tokens, the refusal errors and `merge_span_edits`.
+file = "rust/tcl-lsp-server/src/rename.rs"
+
+[[module]]
+name = "tiers"
+doc = "The order rename tiers are tried in, against one workspace source plan."
+items = [
+    "impl:Backend::in_document_rename_edits..impl:Backend::gated_rename_tiers",
+    "impl:Backend::refresh_stale_complete_host_inventory_for_rename..impl:Backend::workspace_source_plan_is_current",
+    "impl:Backend::rename_attempt",
+    "impl:Backend::lift_local_rename_edits..impl:Backend::guarded_rename_source_tiers",
+    "impl:Backend::ordinary_rename_edit",
+]
+
+[[module]]
+name = "namespace_cells"
+doc = "Renames of namespaces and namespace variables across the workspace."
+items = [
+    "fn:describe_variable_collision",
+    "impl:Backend::cross_document_namespace_rename..impl:Backend::cross_document_original_variable_rename",
+]
+
+[[module]]
+name = "original_commands"
+doc = "Renames of commands and members planned from their retained declarations."
+items = [
+    "type:OriginalDocumentSnapshot",
+    "impl:Backend::original_rename_documents_are_current..impl:Backend::original_procedure_expression_coverage_is_editable",
+]
+
+[[module]]
+name = "cross_document"
+doc = "Cross-document edits for a renamed procedure or class."
+items = [
+    "impl:Backend::add_cross_document_rename_edits..impl:Backend::add_workspace_resolved_rename_edits",
+    "impl:Backend::extend_rename_with_cross_document_edits..impl:Backend::merge_rename_intents",
+]
+
+[[module]]
+name = "conditional_variables"
+doc = "Variable renames whose edits are conditional on the client's confirmation."
+items = [
+    "impl:Backend::conditional_variable_prepare_tier..impl:Backend::conditional_variable_rename_tier",
+    "fn:client_supports_conditional_rename..fn:annotated_conditional_variable_edit",
+    "impl:Backend::publish_conditional_if_current",
+    "fn:coalesce_conditional_variable_edits",
+]
+
+[[module]]
+name = "file_rename"
+doc = "`workspace/willRenameFiles`: edits to the `source` literals that name a moved file."
+items = [
+    "struct:FileRenameInputSnapshot..type:HeldFileRename",
+    "impl:Backend::file_rename_paths..impl:Backend::file_rename_workspace_edit",
+]

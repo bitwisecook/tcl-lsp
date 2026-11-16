@@ -1,0 +1,23 @@
+# The crate root keeps the index and string-class encodings and the assembled
+# units: `FunctionAsm`, `ErrorRegion`, `ModuleAsm` and `ProcedureProvenance`.
+file = "rust/tcl-bytecode/src/lib.rs"
+
+[[module]]
+name = "op"
+doc = "The opcode set: mnemonics per release, encoded sizes and the operator mapping."
+items = ["enum:Op..impl:fmt::Display for Op"]
+
+[[module]]
+name = "instruction"
+doc = "One instruction: its operand, error context, source command boundary and the command sites it enters."
+items = ["enum:Operand..impl:NativeOperationSelectionSite"]
+
+[[module]]
+name = "literals"
+doc = "The literal table: native string and number literals, their allocations and the compiler's actions on the object array."
+items = ["enum:NativeExpressionNumberLiteral..impl:LiteralTable"]
+
+[[module]]
+name = "local_vars"
+doc = "The local variable table: names to compiled local slots."
+items = ["struct:LocalVarTable", "impl:LocalVarTable"]

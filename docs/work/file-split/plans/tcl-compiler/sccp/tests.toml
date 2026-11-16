@@ -1,0 +1,83 @@
+# The parent keeps the fixtures: `registry`, `evaluate_pristine`,
+# `sccp_no_traces`, `sccp_pristine`, `cu`, `folds_for`, the CFG, SSA and
+# statement builders, and the settled-run readers (`settled`, `settled_at`,
+# `settled_body`, `last_value`, `puts_reads`).
+file = "rust/tcl-compiler/src/sccp/tests.rs"
+
+[[module]]
+name = "lattice"
+doc = "The lattice join, `set_value`, predecessors and the block order."
+items = [
+    "fn:join_unknown_absorbs..fn:cfg_order_starts_at_entry",
+    "fn:cfg_order_appends_unreachable_blocks",
+]
+
+[[module]]
+name = "existence"
+doc = "The existence rung: up-frame bodies, `set`/`unset` then `info exists`, and calls to unseen code."
+items = [
+    "fn:existence_fold_abstains_for_a_live_upframe..fn:set_unset_info_exists_decides_zero",
+    "fn:existence_fold_abstains_for_nested_upframe_alias_unset_mutation..fn:upframe_body_models_upvar_alias_unset_in_the_caller_frame",
+    "fn:an_unseen_call_leaves_no_name_with_a_settled_existence",
+]
+
+[[module]]
+name = "refinements"
+doc = "Edge refinements: what an existence guard or a value comparison proves on each edge, and what ends the fact."
+items = ["fn:the_existence_guard_refines_its_edges..fn:a_value_refinement_holds_where_every_path_carries_it"]
+
+[[module]]
+name = "solver"
+doc = "The solver end to end: φ joins, executable edges, constant branches, loop summaries and widening across aliases and up-frames."
+items = [
+    "fn:phi_join_widens_version_zero_livein_to_overdefined..fn:phi_join_defaults_missing_version_zero_feed_to_overdefined",
+    "fn:sccp_marks_entry_executable_and_propagates_const..fn:sccp_unknown_branch_executes_both_targets",
+    "fn:evaluate_branch_resolves_a_nested_command..fn:sccp_widens_across_upframe_from_literal_uplevel",
+    "fn:a_contradiction_drops_only_its_own_loop",
+]
+
+[[module]]
+name = "statements"
+doc = "What a statement leaves in the values: opaque `switch` arms, callback writes, nested writes, a raise in the middle and unseen calls."
+items = [
+    "fn:typed_element_base_keeps_literal_name_data_and_distinct_root_symbols",
+    "fn:an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence..fn:the_names_a_callback_writes_are_never_constant",
+    "fn:last_values..fn:an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one",
+]
+
+[[module]]
+name = "definition_values"
+doc = "The value one definition takes: constants, expressions and fused expressions, route explanations and variable references."
+items = [
+    "fn:a_literal_keeps_its_surrounding_whitespace",
+    "fn:evaluate_def_assign_const_produces_int_or_string..fn:a_wide_shift_settles_what_each_release_prints",
+    "fn:sccp_records_a_route_explanation_per_statement..fn:resolve_simple_var_ref_accepts_bare_and_braced",
+    "fn:value_and_constant..fn:a_fused_expression_has_a_value_and_maybe_an_execution_constant",
+]
+
+[[module]]
+name = "cell_updates"
+doc = "`incr`, `append`, `lappend` and `dict incr`: the value a cell update leaves, and the trust and plan it needs."
+items = [
+    "fn:incr_stmt..fn:cell_update_call",
+    "fn:evaluate_def_append_call_folds_through_the_cell_update..fn:a_missing_use_declines_the_prior_store",
+]
+
+[[module]]
+name = "foreach_lists"
+doc = "`foreach` iteration values: literal lists, nested braces and lists resolved through the lattice."
+items = ["fn:foreach_stmt..fn:evaluate_def_foreach_multi_var_binds_each_its_elements"]
+
+[[module]]
+name = "assignment_folds"
+doc = "Folding an assigned value word: literals, variable references, reads in value position and pure command substitutions."
+items = [
+    "fn:evaluate_def_set_read_in_value_position_folds..fn:evaluate_def_assign_value_folds_string_range_under_the_release",
+    "fn:evaluate_def_assign_value_plain_literal..fn:evaluate_def_assign_value_folds_string_length",
+    "fn:string_length_fold_counts_in_the_selected_dialects_character_model..fn:parse_literal_value_prefers_int",
+]
+
+[[module]]
+name = "fold_trust"
+doc = "The fold arms answer to the command-binding trust fact: renames, shadowing procedures and unnameable subjects."
+items = ["fn:mutations_for..fn:an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts"]

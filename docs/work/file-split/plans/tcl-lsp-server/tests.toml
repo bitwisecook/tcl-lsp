@@ -1,0 +1,279 @@
+# First of two levels, mirroring the modules `lib.toml` plans. The parent keeps the
+# fixtures several modules use (`test_backend*`, `TmpWs`, `register`, `pos`,
+# `diag_codes`, `unique_scratch_dir`, `wait_for`, ...); a helper with one user module
+# moves with it.
+file = "rust/tcl-lsp-server/src/tests.rs"
+
+[[module]]
+name = "documents"
+doc = "Open documents: path admission, the document map, edit order, content changes and reads."
+items = [
+    "fn:canonical_file_uri_declines_opaque_actual_path_without_replacement_alias..fn:constructed_product_alias_retains_the_original_counted_path_for_admission",
+    "fn:apply_content_change_full_replacement..fn:apply_content_change_ranged_edits",
+    "fn:apply_content_change_sequence_matches_full_text..fn:edit_introduces_bare_cr_detects_boundary_and_internal_lone_cr",
+    "fn:read_document_hands_out_analysis_text_and_keeps_the_raw_bytes",
+    "fn:large_document_source..fn:a_dropped_waiter_does_not_wedge_the_edit_order",
+    "fn:a_barrier_that_has_caught_up_is_not_reported_as_a_stall",
+    "fn:a_stalled_turn_names_the_await_it_is_suspended_at..fn:the_open_document_map_names_its_holder",
+    "fn:the_document_map_counts_acquisitions_and_remembers_its_last_holder..fn:the_line_does_not_call_an_earlier_phase_longest_than_the_running_one",
+    "fn:a_contention_snapshot_never_mixes_two_states..fn:a_barrier_that_catches_up_during_the_sample_window_is_not_reported",
+    "fn:the_stall_report_names_the_workspace_index_holder..fn:the_watchdog_step_nudges_only_a_wedged_store",
+    "fn:did_close_hands_its_edit_turn_on_before_the_reindex_tail..fn:did_change_hands_its_edit_turn_on_before_the_scheduling_tail",
+    "fn:semantic_tokens_do_not_wait_for_did_open_index_seed_1854..fn:local_providers_do_not_wait_for_did_open_index_seed_1854",
+    "fn:repeated_analysis_normalisation_preserves_original_source_receipts",
+    "fn:rename_params..fn:did_rename_forgets_every_per_uri_cache_1298",
+]
+
+[[module]]
+name = "tracked_locks"
+doc = "Tracked lock contention reports and the snapshot census."
+items = [
+    "fn:salsa_store_contention_names_holder_and_waiter_1849",
+    "fn:a_cancelled_clone_unwinds_at_the_next_compiler_checkpoint..fn:snapshot_census_retires_only_after_the_wrapped_clone_drops_1800",
+    "fn:the_workspace_index_clause_names_holders_phases_and_waiters",
+]
+
+[[module]]
+name = "source_publication"
+doc = "Publication of live buffers and disk files to the query database and the workspace index."
+items = [
+    "fn:db_remove_source_retires_input_for_reuse",
+    "fn:did_open_waiting_for_db_leaves_requests_serviceable_1849",
+    "fn:did_open_waiting_for_db_files_leaves_requests_serviceable_1849..fn:did_change_waiting_for_snapshot_releases_salsa_stores_1854",
+    "fn:did_close_waiting_for_index_leaves_requests_serviceable_1849..fn:disk_reindex_yields_to_a_racing_live_buffer_1800",
+    "fn:did_change_does_not_evict_the_document_from_the_workspace_index",
+    "fn:wait_for_publication_intents_1854..fn:superseded_open_index_replacement_is_rolled_back_1907",
+    "fn:open_index_seed_retries_after_factory_oracle_change_1854..fn:unrelated_invalidation_refreshes_fair_queue_generation_1854",
+    "fn:reopen_clears_prior_semantic_token_lifecycle_1854",
+    "fn:did_change_supersedes_a_pending_did_open_index_seed_1854..fn:assert_superseding_edit_database_and_index",
+]
+
+[[module]]
+name = "analysis"
+doc = "Fresh analysis seeds, the configured analyser and the dialect registry."
+items = [
+    "fn:fresh_analysis_driver_preserves_native_send_boundary",
+    "fn:configured_analyser_threads_mode_and_disabled",
+    "fn:recovery_widening_is_reused_across_edits_and_invalidated_by_the_index",
+    "fn:registry_for_dialect_reuses_cached_registry",
+    "fn:fresh_open_index_seed_normalises_lone_cr_1854..fn:fresh_open_index_seed_carries_file_path_1854",
+    "fn:fresh_open_index_seed_carries_workspace_class_factories_1854",
+]
+
+[[module]]
+name = "dialects"
+doc = "Dialect resolution: language ids, folder defaults, in-source hints and dialect changes."
+items = [
+    "fn:environment_kind_setting_reaches_the_notice",
+    "fn:dialect_hint_gate_skips_a_deep_plain_edit_but_catches_a_directive..fn:dialect_hint_gate_catches_deleting_a_deep_marker_line",
+    "fn:dialect_from_language_id_recognises_editor_ids..fn:dialect_from_language_id_covers_every_selectable_environment",
+    "fn:unknown_dialect_error_lists_every_selectable_name..fn:a_session_dialect_naming_no_environment_falls_back_with_a_warning",
+    "fn:dialect_for_closed_honours_directive_basename_and_extension",
+    "fn:folder_dialect_overrides_prefer_initialisation_options",
+    "fn:resolve_folder_dialect_picks_deepest_prefix..fn:resolve_folder_dialect_respects_directory_boundary",
+    "fn:folder_dialect_for_prefers_deepest_match",
+    "fn:dialect_for_open_falls_back_to_folder_dialect..fn:dialect_config_change_reresolves_open_documents",
+    "fn:default_dialect_change_retries_after_concurrent_edit_1854..fn:dialect_change_invalidates_rehoming_seed_before_reconciliation_1854",
+    "fn:bigip_routing_uses_the_profile_availability_fact",
+]
+
+[[module]]
+name = "configuration"
+doc = "Settings: toggles, per-folder overrides, the global apply, reloads and resolved values."
+items = [
+    "fn:signature_help_disabled_commands_apply_and_clear..fn:config_precedence_project_over_editor_over_global",
+    "fn:folder_config_parses_entry_points..fn:iruleslx_paths_resolve_against_the_folder_root",
+    "fn:parse_non_ascii_mode_maps_settings..fn:settings_non_ascii_mode_nested_and_flat",
+    "fn:environment_kind_setting_is_read_from_every_payload_shape",
+    "fn:feature_toggles_default_on_and_merge..fn:explicit_new_inlay_key_wins_over_legacy_alias",
+    "fn:feature_toggles_resolved_map_covers_known_keys..fn:folder_config_maps_xc_diagnostics_section_to_toggle",
+    "fn:formatter_config_honours_request_indent..fn:resolved_docstring_style_reads_the_global_config",
+    "fn:resolved_edit_line_ending_defaults_to_the_documents_own",
+    "fn:salsa_script_encoding..fn:source_encoding_reaches_the_session_and_the_salsa_config_2129",
+    "fn:a_folder_matching_the_session_shares_its_analyser_handle..fn:folder_db_config_handle_is_retired_and_revived",
+    "fn:did_change_configuration_applies_inline_settings..fn:the_last_generation_of_a_burst_still_runs_to_completion",
+    "fn:apply_global_config_applies_every_knob",
+    "fn:resource_scoped_analyser_inputs_resolve_per_folder..fn:declared_package_provides_resolve_per_folder",
+    "fn:workspace_scan_budget_defaults_to_the_built_in_cap..fn:resolved_analysis_settings_falls_back_to_global_defaults",
+    "fn:per_folder_config_overrides_global_settings..fn:parse_folder_config_reads_and_validates_the_dialect",
+    "fn:parse_folder_config_reads_extra_library_and_generic_patterns..fn:resolved_generic_variable_patterns_three_state",
+    "fn:will_save_format_respects_per_folder_opt_in..fn:will_save_format_is_opt_in",
+    "fn:backend_with_feature_disabled..fn:enabled_semantic_tokens_toggle_yields_some",
+    "fn:disabled_code_actions_toggle_yields_none..fn:disabled_workspace_symbols_toggle_yields_none",
+]
+
+[[module]]
+name = "spec_packs"
+doc = "Spec-pack reloads, overlay epochs and what a document reads from the packs."
+items = [
+    "fn:a_manifest_or_lockfile_change_reloads_the_packs..fn:a_wish_document_reads_the_workspace_packs_like_any_other",
+]
+
+[[module]]
+name = "workspace"
+doc = "Folder scans, disk reindexing, watched files, libraries, rehoming and project-wide facts."
+items = [
+    "fn:is_config_file_recognises_project_and_user_config",
+    "fn:effective_auto_path_layers_editor_project_and_discovery..fn:build_package_resolver_picks_up_a_discovered_installation_package",
+    "fn:source_uri_resolution_matches_from_file_path",
+    "fn:entry_point_paths_resolve_relative_and_absolute",
+    "fn:scan_workspace_folders_surveys_a_pinned_discovered_installation..fn:a_versioned_require_indexes_the_release_it_asks_for",
+    "fn:reindex_stores_source_directed_dialect",
+    "fn:package_resolver_revision_tracks_mutations",
+    "fn:watched_change_refreshes_closed_file_badge..fn:watched_files_batch_applies_created_changed_and_deleted_together",
+    "fn:factory_round_waits_for_snapshot_admission_without_holding_locks..fn:coverage_loss_marks_the_driving_diagnostics_dirty_1854",
+    "fn:cross_file_evidence_clears_local_only_orphans_1854",
+    "fn:cross_file_evidence_rejects_a_stale_write_revision_1854..fn:watched_delete_then_create_reuses_source_input",
+    "fn:watched_files_deletion_drops_index_entry..fn:folder_removal_reschedules_open_xc_documents",
+    "type:CapturedWorkspaceScanInputs..fn:dropping_one_factory_reindexes_its_consumers_while_retaining_others",
+    "fn:scan_workspace_folders_skips_open_documents..fn:reindex_from_disk_does_not_clobber_open_document",
+    "fn:reindex_from_disk_drops_entry_when_file_is_gone",
+    "fn:uri_under_folder_handles_trailing_slash_and_boundary",
+    "fn:is_tcl_source_matches_the_full_tcl_family_extension_set..fn:is_tcl_source_ignores_extension_case",
+    "fn:watcher_and_rename_globs_cover_every_indexed_extension..fn:the_source_watch_glob_covers_spec_packs",
+    "fn:is_skipped_scan_dir_skips_vendor_and_hidden",
+    "fn:collect_tcl_files_walks_recursively_and_skips_vendor..fn:collect_tcl_files_respects_cap",
+    "fn:autoload_merge_makes_references_reach_the_library_m8..fn:rehoming_never_waits_for_live_publication_that_needs_its_gate_1854",
+    "fn:mark_open_buffer_deleted_while_publication_waits_1854..fn:watched_delete_transaction_precedes_later_revive_1854",
+    "fn:rehoming_snapshot_releases_documents_and_rechecks_open_1854",
+    "fn:computed_source_paths_fold_statically_m9..fn:autoload_merge_is_dropped_when_the_package_database_rebuilds",
+]
+
+[[module]]
+name = "diagnostics"
+doc = "The diagnostics pipeline, from scheduling to publication, and its workspace refinements."
+items = [
+    "fn:w123_command_name..fn:w123_math_function_name",
+    "fn:diagnostics_debounce_waits_for_a_quiet_window..fn:diagnostics_clean_slot_retires_before_waiter_returns",
+    "fn:w120_diag..fn:has_w120",
+    "fn:original_package_procedures_use_shared_conditional_source_slots..fn:fast_tier_excludes_only_workspace_refined_codes",
+    "fn:refine_w120_conservative_drops_all_for_unknowable_require..fn:ws_index",
+    "fn:auto_source_graph_inherits_entry_requires..fn:sourcing_a_non_tk_file_contributes_nothing",
+    "fn:default_off_w242_hidden_by_default_enableable_via_config..fn:the_report_keeps_one_squiggle_where_w110_and_o120_coincide",
+    "fn:lifted_style_set..fn:the_report_places_w107_on_the_lsp_line_model",
+    "fn:f5_model_set..fn:xc_findings_surface_and_the_report_filters_codes",
+    "fn:xc_findings_refuse_an_analysis_of_other_source..fn:xc_diagnostics_are_opt_in_on_irules_documents",
+    "fn:original_callback_push_and_pull_share_source_signature_advice..fn:original_callback_push_and_pull_keep_known_source_barriers",
+    "fn:original_workspace_w123_preserves_native_absence_with_project_matching..fn:explicit_entry_point_config_suppresses_w120_project_wide",
+    "fn:load_only_pkg_index_declares_a_known_package..fn:requiring_a_load_only_package_keeps_other_w120s",
+    "fn:publish_analyser_diagnostics_caches_tcl_diagnostics..fn:style_diagnostics_line_numbers_follow_the_client_model_on_a_cr_document",
+    "fn:publish_analyser_diagnostics_routes_bigip_dialect_to_pull_cache",
+    "fn:did_close_drops_the_diagnostics_slot..fn:publish_closed_is_noop_for_open_document",
+    "fn:superseded_closed_run_does_not_publish..fn:reschedule_closed_file_diagnostics_clears_badge_when_master_off",
+    "fn:the_pass_after_a_quarantine_takes_the_evaluator_epoch",
+    "fn:declared_package_provides_makes_tk_available_to_diagnostics..fn:declared_package_provides_survive_an_incomplete_buffer",
+    "fn:a_disabled_fact_code_is_reported_disabled_but_computed",
+    "fn:pull_diagnostics_include_compiler_and_optimiser_codes..fn:pull_diagnostics_share_the_push_paths_byte_evidence_contract",
+    "fn:pull_diagnostic_returns_unchanged_when_result_id_matches..fn:workspace_diagnostic_reports_cached_documents",
+    "fn:pull_diagnostic_recomputes_after_edit_bumps_revision",
+    "fn:stale_diagnostics_worker_cannot_overwrite_current_analysis",
+    "fn:unassociated_delivery..fn:diagnostics_publish_rechecks_currency_after_waiting_for_the_index",
+    "fn:cross_file_resolves_against_disk_backed_file..fn:cross_file_arity_survives_w123_disabled_on_pull_path",
+    "fn:an_overlay_miss_is_reported_with_its_key_and_what_waits",
+    "fn:a_parked_deep_pass_does_not_strand_the_lock_the_fast_tier_needs_1657..fn:the_fast_tier_gate_orders_the_deep_publication_after_the_fast_tier",
+    "fn:pending_diagnostic_summary..fn:diagnostic_mailbox_is_latest_wins_and_preserves_surviving_order",
+    "fn:an_edit_during_a_config_apply_re_resolves_its_diagnostics_inputs..fn:a_late_resolve_cannot_stamp_the_slot_backwards",
+    "fn:diagnostics_publish_waits_for_rehomed_navigation_snapshot..fn:assert_rehomed_diagnostics_publisher_resumes",
+    "fn:diagnostics_master_switch_clears_the_report..fn:o111_survives_a_disabled_w100",
+    "fn:style_line_length_setting_drives_w111",
+]
+
+[[module]]
+name = "semantic_tokens"
+doc = "Semantic tokens: tiers, convergence claims and refresh requests."
+items = [
+    "fn:semantic_tokens_full_serves_a_well_defined_tier_when_indexed..fn:convergence_guard_releases_on_cancellation",
+]
+
+[[module]]
+name = "navigation"
+doc = "Definition, references, hierarchies, hover routing and workspace symbols across documents."
+items = [
+    "mod:native_pattern_hover",
+    "fn:original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal..fn:original_implementation_queries_keep_workspace_method_and_class_owners",
+    "fn:original_workspace_references_and_lenses_share_owned_byte_declarations..fn:original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source",
+    "fn:original_namespace_queries_keep_opaque_slots_across_documents..fn:assert_stale_original_indexed_source_is_withdrawn",
+    "fn:assert_current_original_method_owner..fn:original_variable_queries_keep_opaque_slots_across_documents",
+    "fn:command_head_gate_distinguishes_head_from_argument..fn:cross_document_wildcard_import_does_not_resolve_unexported_sibling",
+    "fn:cross_document_definition_prefers_class_creation_over_define_stub..fn:cross_document_definition_skipped_when_local_match_exists",
+    "fn:resolve_target_locations_groups_by_uri_and_preserves_site_order..fn:cross_document_references_reach_caller_from_shadowed_duplicate_decl",
+    "fn:cross_document_references_reach_caller_from_nested_self_redefinition",
+    "fn:pending_open_workspace_symbols_use_live_text_1854..fn:workspace_symbols_revalidate_closed_source_snapshot_1854",
+    "fn:register_namespace_path_workspace..fn:cross_document_definition_follows_namespace_path_not_collision",
+    "fn:references_handler_merges_local_and_cross_document..fn:references_handler_bigip_conf_finds_path_occurrences",
+    "fn:workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file..fn:workspace_symbol_caps_its_answer",
+    "fn:original_hierarchy_and_lens_wire_data_require_retained_current_declarations",
+    "fn:incoming_calls_span_multiple_documents..fn:logical_incoming_source_owner_withdrawal_cannot_be_recovered_from_a_title",
+]
+
+[[module]]
+name = "method_families"
+doc = "Object methods across files: families, consumers, navigation and rename."
+items = [
+    "fn:workspace_class_cache_key_covers_bare_word_and_factory_oracles",
+    "fn:method_rename_spans_override_family_across_documents..fn:goto_definition_from_consumer_cursor_finds_cross_file_method",
+]
+
+[[module]]
+name = "rename"
+doc = "Rename tiers, workspace edits and file renames."
+items = [
+    "fn:namespace_coordinates_without_original_variable_symbols_do_not_start_workspace_edits",
+    "fn:original_workspace_procedure_rename_requires_expression_edit_coverage",
+    "fn:original_workspace_command_rename_uses_atomic_current_owners..fn:original_workspace_member_rename_uses_shared_roster_and_atomic_owner_guards",
+    "fn:original_namespace_rename_uses_typed_workspace_collisions_and_source_plans",
+    "fn:original_variable_rename_shares_source_plans_and_typed_workspace_collisions",
+    "fn:a_collision_refusal_names_where_the_cell_already_lives",
+    "fn:cross_document_rename_reaches_caller_from_shadowed_duplicate_decl",
+    "fn:cross_document_rename_reaches_caller_from_nested_self_redefinition",
+    "fn:rename_edits_span_multiple_documents..fn:rename_from_a_consumer_document_refuses_a_workspace_collision",
+    "fn:rename_to_builtin_blocked_cross_document..fn:did_rename_reindexes_moved_document",
+    "fn:logical_namespace_rename_collision_uses_constructed_colon_holder",
+]
+
+[[module]]
+name = "code_actions"
+doc = "Code actions: the published report, action commands and dialect actions."
+items = [
+    "fn:action_command_forwards_string_args_for_bigip_rename_partition..fn:action_command_preserves_integer_position_args",
+    "fn:original_callback_code_action_demands_current_source_header_projection",
+    "fn:code_action_handler_bigip_conf_offers_partition_rename",
+    "fn:the_lightbulb_reads_the_published_report",
+]
+
+[[module]]
+name = "commands"
+doc = "The `workspace/executeCommand` handlers."
+items = [
+    "fn:tcl_installation_picker_selection_refuses_unrepresentable_native_paths",
+    "fn:list_irule_events_command_returns_sorted_known_events..fn:unminify_error_command_echoes_original_and_flags_change",
+    "fn:non_ascii_mode_str_renders_null_for_default..fn:config_ini_path_honours_xdg",
+    "fn:xc_translate_document_uses_the_current_open_document",
+    "fn:list_dialects_command_reports_every_selectable_environment",
+    "fn:effective_config_labels_come_from_the_resolved_environment",
+    "fn:a_session_dialect_override_survives_a_config_pull..fn:a_document_dialect_override_rejects_bad_arguments",
+    "fn:fix_all_safe_issues_applies_only_shown_fixes..fn:apply_global_config_inlay_alias_reaches_effective_config",
+    "fn:minify_document_command_returns_minified_source..fn:unminify_error_command_translates_names",
+]
+
+[[module]]
+name = "language_server"
+doc = "Handlers exercised directly: text synchronisation, code lenses, selection ranges and document links."
+items = [
+    "fn:did_open_stores_document..fn:did_close_removes_document_and_clears_pull_cache",
+    "fn:did_change_on_unopened_document_is_dropped..fn:selection_range_returns_one_entry_per_position",
+    "fn:code_lens_resolve_wires_show_references_command..fn:no_code_lens_ever_carries_an_inert_empty_command",
+    "fn:document_link_handler_bigip_conf_links_irule_pool_ref",
+]
+
+[[module]]
+name = "protocol"
+doc = "Capability negotiation, bounded client requests and lifts."
+items = [
+    "fn:bounded_client_request_errors_once_its_deadline_elapses",
+    "fn:semantic_tokens_capability_advertises_delta_and_range..fn:message_capability_detection",
+    "fn:lsp_position_helpers_use_utf16_columns",
+    "fn:lift_folding_range_preserves_kind_and_lines..fn:lift_document_symbol_preserves_fields_and_recurses",
+    "fn:materialise_selection_range_none_falls_back_to_cursor",
+    "fn:rename_filter_matches_case_insensitively",
+]

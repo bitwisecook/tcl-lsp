@@ -1,0 +1,59 @@
+# The parent keeps the module documentation, the output capture and the
+# drivers every topic shares: `profile_output`, `vm_for_profile`, `vm_output`
+# and the real-`tclsh` oracle `tclsh_output`.
+file = "rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs"
+
+[[module]]
+name = "compile_service_profiles"
+doc = "A named profile or command-surface override against the compile service: fixed, mislabelled and narrower services are refused."
+items = [
+    "struct:FixedFallbackCompilerSvc..impl:CompileService for WrongProfileCompilerSvc",
+    "fn:named_profiles_reject_fixed_or_mislabelled_compile_services..fn:compatible_irules_host_surface_override_remains_accepted",
+]
+
+[[module]]
+name = "release_surface"
+doc = "The command surface follows the emulated release: the per-release vectors, checked against real `tclsh` when it is available."
+items = [
+    "struct:Vector..fn:command_surface_follows_the_emulated_release",
+    "fn:expansion_parse_error_inside_catch_is_catchable_at_8_4",
+    "fn:vectors_match_real_tclsh_when_available",
+]
+
+[[module]]
+name = "hide_expose"
+doc = "Builtins a release hides stay hidden through rename, children, imports and aliases; `interp hide` and `expose` collisions keep bindings and traces."
+items = [
+    "fn:hidden_builtin_cannot_escape_through_rename_or_hide..fn:hidden_builtin_stays_hidden_through_children_imports_and_aliases",
+    "fn:hide_and_expose_collisions_preserve_bindings_and_traces..fn:child_hide_expose_moves_traces_for_named_and_by_id_forms",
+]
+
+[[module]]
+name = "profile_mutation"
+doc = "Changing the release or profile of a live interpreter: cached bodies recompile, live continuations are refused, and imports recheck their source identity."
+items = [
+    "struct:CountingCompilerSvc..impl:CompileService for CountingCompilerSvc",
+    "fn:version_mutation_rechecks_an_existing_imports_source_identity..fn:tcloo_method_profile_refresh_is_persisted_after_the_first_call",
+    "fn:imported_proc_refresh_preserves_renamed_source_replacement",
+]
+
+[[module]]
+name = "rename_provenance"
+doc = "Rename and import provenance across releases: nested imports, hidden sources, refused alias renames, and deletion through an empty destination."
+items = ["fn:renamed_imports_preserve_origin_through_nested_imports..fn:namespace_path_resolved_coroutine_rename_and_delete_keep_state_in_sync"]
+
+[[module]]
+name = "self_mutating_commands"
+doc = "A running coroutine or traced command that hides, exposes, renames or deletes itself, checked against real `tclsh` when it is available."
+items = [
+    "const:SELF_HIDING_COROUTINE..fn:self_hide_vectors_match_real_tcl_when_available",
+    "fn:deleted_hidden_enter_trace_matches_real_tclsh",
+]
+
+[[module]]
+name = "pinned_context"
+doc = "The context a VM is pinned to: vendor profile masks, the trace gate, the identity a module states for its pin, and contexts the ingress refuses."
+items = [
+    "fn:vendor_profile_masks_differ_from_the_plain_release",
+    "fn:the_trace_gate_reads_the_pinned_profile_not_the_release_name..fn:a_module_compiled_for_tk_states_tk_and_runs_under_a_tk_pin",
+]

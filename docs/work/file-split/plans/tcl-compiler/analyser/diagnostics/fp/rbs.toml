@@ -1,0 +1,56 @@
+# The parent keeps the family's module doc and its `use super::{D, codes,
+# fires}`; every catalogue entry moves with its reproducer constant.
+file = "rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs"
+
+[[module]]
+name = "guards_and_output_variables"
+doc = "FP-RBS-01, 02, 06, 12 and 20: `info exists` guards and the variables a command substitution or a condition writes."
+items = [
+    "const:FP_RBS_01_REPRO..fn:fp_rbs_call_by_name_info_exists_dynamic_target_not_caller_read",
+    "const:FP_RBS_06_REPRO..fn:fp_rbs_06_unrelated_inside_expr_still_fires",
+    "const:FP_RBS_12_REPRO..fn:fp_rbs_12_regexp_match_arm_read_silent",
+    "fn:fp_rbs_20_set_in_if_condition_defines_its_target..fn:fp_rbs_20_literal_head_named_like_the_variable_still_harvests",
+]
+
+[[module]]
+name = "aliases"
+doc = "FP-RBS-04, 05 and 08 and the call-by-name entries: qualified names, `namespace upvar` and `upvar` aliases."
+items = [
+    "const:FP_RBS_04_REPRO..fn:fp_rbs_05_alias_exists_guard_is_not_constant",
+    "const:FP_RBS_08_REPRO..fn:fp_rbs_08_unrelated_local_still_fires",
+    "fn:fp_rbs_callbyname_scan_target_not_caller_alias..fn:fp_rbs_callbyname_upvar_alias_still_suppresses",
+]
+
+[[module]]
+name = "loops"
+doc = "FP-RBS-03, 11, 16, 17, 18, 19 and 21: loop bodies that run at least once, frozen loops and expanded loops."
+items = [
+    "const:FP_RBS_03_REPRO..fn:fp_rbs_03_genuine_unset_in_body_still_fires",
+    "const:FP_RBS_11_REPRO..fn:fp_rbs_11_genuine_unset_in_body_still_fires",
+    "const:FP_RBS_16_REPRO..fn:fp_rbs_19_while_and_for_may_run_silent",
+    "fn:fp_rbs_21_expanded_loops_bind_their_literal_loop_variables..fn:fp_rbs_21b_resolved_substituted_var_list_binds_the_original_name",
+]
+
+[[module]]
+name = "switch_arms"
+doc = "FP-RBS-09, 13, 14 and 15: un-lowered `switch` arms, and arms and `tailcall`s that cannot complete normally."
+items = [
+    "const:FP_RBS_09_REPRO..fn:fp_rbs_09_genuine_unset_in_arm_still_fires",
+    "const:FP_RBS_13_REPRO..fn:fp_rbs_15_continue_in_opaque_switch_loop_silent",
+]
+
+[[module]]
+name = "evaluated_scripts"
+doc = "FP-RBS-07 and 10 and the `uplevel` entries: reads and writes inside scripts that `eval`, `namespace eval` and `uplevel` run."
+items = [
+    "const:FP_RBS_07_REPRO..fn:fp_rbs_07_static_ns_eval_still_works",
+    "const:FP_RBS_10_REPRO..fn:fp_rbs_10_namespace_eval_does_not_recover_reads",
+    "fn:idx24_uplevel_one_list_built_set_is_not_read_before_set..fn:idx38_tp_w212_still_fires_on_a_directly_written_looped_name",
+]
+
+[[module]]
+name = "braced_words"
+doc = "Issues 1078, 1142, 1237, 1260 and 1266: a braced word is a literal name or plain data, not a read."
+items = [
+    "fn:issue_1078_braced_write_does_not_define_the_plain_name..fn:issue_1266_braced_switch_pattern_is_not_a_read",
+]

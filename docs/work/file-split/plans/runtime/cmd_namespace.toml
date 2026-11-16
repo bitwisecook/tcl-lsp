@@ -1,0 +1,14 @@
+# The facade keeps `install`, the stock member table, the `namespace`
+# dispatcher, the lifecycle, name-query, path, `inscope`/`code`/`origin`/`upvar`
+# subcommands and the shared error publication.
+file = "runtime/rust/src/cmd_namespace.rs"
+
+[[module]]
+name = "import_export"
+doc = "`namespace export`, `import` and `forget`, and the pattern words they share."
+items = ["fn:namespace_pattern..fn:ns_forget", "fn:dest_has_own", "fn:glob_match_bytes"]
+
+[[module]]
+name = "ensemble_subcommand"
+doc = "`namespace ensemble create`, `configure` and `exists`, and the ensemble option table."
+items = ["fn:ns_ensemble..fn:ens_exists"]

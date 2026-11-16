@@ -1,0 +1,56 @@
+# Second level of `lib.toml`. The facade keeps the lock-bundle structs, `LiveSourceContents`,
+# the published-path types and `DiskRemovalPolicy`: several parts build or destructure them.
+file = "rust/tcl-lsp-server/src/source_publication.rs"
+
+[[module]]
+name = "db_sources"
+doc = "The query database's source inputs and project membership."
+items = [
+    "impl:Backend::set_db_sources_locked..impl:Backend::revive_or_create_db_source",
+    "impl:Backend::sync_db_project..impl:Backend::sync_db_project_membership_with_configurations",
+]
+
+[[module]]
+name = "lock_bundles"
+doc = "The write sets a publication acquires optimistically."
+items = [
+    "impl:Backend::try_publication_locks..impl:Backend::update_snapshot_drain",
+    "impl:Backend::try_close_publication_locks",
+]
+
+[[module]]
+name = "dependency_waits"
+doc = "Fair waits on the dependency that defeated an optimistic bundle."
+items = [
+    "enum:LivePublicationWait..impl:LivePublicationWait",
+    "impl:Backend::invalidate_live_publication..impl:Backend::refresh_live_publication_generation",
+    "impl:Backend::pause_open_publication..impl:Backend::join_live_publication_queue",
+]
+
+[[module]]
+name = "disk_files"
+doc = "Publication of disk-backed analyses to the query database and the workspace index."
+items = [
+    "enum:DiskPublicationOutcome..struct:AdmittedDiskBatch",
+    "impl:Backend::publish_disk_results..impl:Backend::apply_disk_publication",
+    "impl:Backend::sync_disk_index..impl:Backend::changed_disk_uris",
+    "struct:DiskPublicationSelection",
+    "impl:Backend::check_disk_removal_admissions..impl:Backend::unavailable_disk_publication",
+]
+
+[[module]]
+name = "live_index"
+doc = "The workspace-index view of an open document's current revision."
+items = [
+    "struct:IndexPublicationSites",
+    "const:INDEX_SEED_DEBOUNCE",
+    "impl:Backend::mark_open_salsa_published_if_current..impl:Backend::publish_changed_document",
+]
+
+[[module]]
+name = "live_buffers"
+doc = "Publication of an editor buffer: its source, a dialect change and its close."
+items = [
+    "impl:Backend::commit_open_document..impl:Backend::commit_closed_live_state",
+    "impl:Backend::set_live_db_source_locked",
+]

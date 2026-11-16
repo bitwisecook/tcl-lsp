@@ -1,0 +1,76 @@
+# The parent keeps the shared fixtures: the policy and namespace entries, the
+# profile registries, the span-stripping helper and the procedure-target body.
+file = "rust/tcl-codegen/src/compile_service/tests.rs"
+
+[[module]]
+name = "command_plans"
+doc = "Byte command plans: fatal tails, opaque prefixes, entry lookup and the release grammar a runtime script is planned under."
+items = [
+    "fn:fatal_tail_preserves_distinct_native_runtime_and_compilation_extents..fn:byte_command_plan_preserves_native_and_document_channel_rules",
+    "fn:runtime_script_command_plan_uses_the_requested_release_grammar",
+]
+
+[[module]]
+name = "entry_policy"
+doc = "The compile entry's policy: logical engine, lexical evidence, live policy and the namespace a runtime entry selects."
+items = [
+    "fn:native_entry_keeps_logical_engine_and_lexical_evidence_independent..fn:direct_source_options_cannot_fill_missing_live_policy_from_authoring",
+    "fn:runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic",
+]
+
+[[module]]
+name = "dispatch_modes"
+doc = "Plain and specialising dispatch: what plain dispatch leaves generic and what a projected profile keeps in both modes."
+items = [
+    "fn:service_marks_plain_dispatch_and_preserves_profile..fn:plain_procedure_dispatch_does_not_specialise_internal_dict_loops",
+    "fn:tcl84_profile_projection_preserves_owned_hooks_in_fast_and_plain_modes",
+]
+
+[[module]]
+name = "entered_source"
+doc = "Entered source scopes: deferred procedure bodies and namespace children, and whole-module artifacts."
+items = ["fn:runtime_targets_leave_unentered_procedure_bodies_in_original_source..fn:entered_source_keeps_native_structured_body_preflight"]
+
+[[module]]
+name = "procedure_targets"
+doc = "Procedure targets: seeded parameters, parity with a static `proc` across profiles and constructed namespaces."
+items = [
+    "fn:procedure_target_seeds_params_and_supports_both_dispatch_modes..fn:same_name_projected_profiles_keep_cache_policies_and_artifact_handles",
+    "fn:procedure_target_matches_static_proc_across_profiles_and_dispatches..fn:procedure_target_roots_literal_colon_constructed_namespace_once",
+]
+
+[[module]]
+name = "profiles"
+doc = "Profile-backed services: shared registries, pack overlays, fresh-interpreter modules and the world a module states."
+items = [
+    "fn:profile_backed_service_follows_a_new_profiles_shared_registry..fn:a_module_states_the_world_it_was_compiled_for",
+    "fn:a_profile_less_whole_module_compiles_for_a_fresh_interpreter..fn:a_fresh_whole_module_defines_its_procedures_and_specialises_its_commands",
+    "fn:an_entry_less_pipeline_is_admitted_and_an_unknown_entry_is_not",
+]
+
+[[module]]
+name = "retained_bindings"
+doc = "The command bindings and native selections a compiled unit retains: escaped heads, inline bodies, hooks and inlined callees."
+items = [
+    "fn:retained_string_selection_captures_a_private_name_without_a_public_token..fn:lowering_fallback_keeps_the_native_compiler_selection",
+    "fn:catch_keeps_its_binding_and_exact_replay_boundary_after_cfg_lowering..fn:nested_inline_bodies_retain_every_consumed_command_binding",
+    "fn:native_operation_metadata_is_specialisation_scoped..fn:return_expr_alias_retains_the_source_binding_identity",
+    "fn:foreach_line_binding_dependency_follows_the_resolved_release_profile..fn:inlining_preserves_callee_structured_bindings_through_cfg_and_codegen",
+]
+
+[[module]]
+name = "command_boundaries"
+doc = "Command boundaries of structured commands: start-command owners, constant-`if` boundaries and bodies left for runtime compilation."
+items = [
+    "fn:structured_commands_after_a_generic_invoke_own_their_start_command",
+    "fn:cfg_edges_keep_ranges_but_are_not_runtime_recompile_sites..fn:generic_eval_keeps_its_body_for_runtime_compilation",
+    "fn:synthetic_structured_boundaries_have_the_exact_owning_command..fn:proc_constant_if_owner_is_absent_without_an_earlier_generic_invoke",
+]
+
+[[module]]
+name = "word_compilation"
+doc = "How words compile: live variables in native operands, `string cat` literal folding and where a variable reference ends."
+items = [
+    "fn:native_operand_words_in_a_substitution_keep_their_variables_live",
+    "fn:string_cat_compiles_with_its_literal_runs_folded..fn:a_variable_reference_ends_where_the_release_scanner_ends_it",
+]

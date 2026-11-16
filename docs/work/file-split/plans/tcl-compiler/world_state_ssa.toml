@@ -1,0 +1,22 @@
+# The facade keeps the module docs, `TransitionStateIntent`,
+# `WorldStateSsaDecline`, `build_executable_world_state_ssa`, the `Planner`
+# with its planning half and the token and edge records both halves read.
+file = "rust/tcl-compiler/src/world_state_ssa.rs"
+
+[[module]]
+name = "transition_intents"
+doc = "Projecting registry transition facts into version-free state intents: packages, objects, command bindings, interpreters, aliases, namespaces and traces, and the regions they name."
+items = ["type:InvocationIntents..fn:domain_wildcards"]
+
+[[module]]
+name = "instruction_intents"
+doc = "The state intents of an instruction that is not a transition: variable cells, lowered footprints, expressions and word evaluation."
+items = ["fn:cell_region..fn:word_evaluation_runs_commands"]
+
+[[module]]
+name = "renaming"
+doc = "The renaming half of the planner: versions per symbol, joins at block entry and the definitions materialised on each edge."
+items = [
+    "impl:<'a> Planner<'a>::rename..impl:<'a> Planner<'a>::materialise_definition",
+    "enum:Symbol..fn:version_of",
+]

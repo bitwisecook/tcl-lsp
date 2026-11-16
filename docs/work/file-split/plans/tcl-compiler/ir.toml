@@ -1,0 +1,51 @@
+# `ir.rs` becomes a pure facade: the module docs, the `mod` declarations, the
+# re-exports and the structured-IR stack guard (its `thread_local!` cannot
+# move, so `with_structured_ir_stack` and its constants stay beside it) and
+# the feature-gated `native_call_for_test` constructor.
+file = "rust/tcl-compiler/src/ir.rs"
+
+[[module]]
+name = "provenance"
+doc = "Node identities and the provenance of an IR site."
+items = ["struct:NodeId..impl:SourceSite"]
+
+[[module]]
+name = "word_expr"
+doc = "The lexical word expression the semantic-IR compatibility layer retains."
+items = ["enum:WordExpr..enum:WordOpacity"]
+
+[[module]]
+name = "synthetic_marker"
+doc = "The statements the CFG builder synthesises to state an analysis effect or a codegen placeholder."
+items = ["enum:SyntheticMarker..enum:WordEffectsHost"]
+
+[[module]]
+name = "command_tokens"
+doc = "The original parsed tokens of one command invocation and the proofs carried beside them."
+items = ["struct:CommandTokens", "impl:CommandTokens"]
+
+[[module]]
+name = "script"
+doc = "A script of statements, its command-resolution namespace, the binding sites kept beside it and the statement visitors."
+items = [
+    "enum:ExecutionNamespace..impl:std::hash::Hash for Script",
+    "struct:CommandBindingSites..fn:for_each_statement_inner",
+]
+
+[[module]]
+name = "statement"
+doc = "The IR statement, its clause types and `switch` modes."
+items = ["struct:IfClause..impl:SwitchMode"]
+
+[[module]]
+name = "definitions"
+doc = "Procedure, iRules event body, method and class-relation definitions."
+items = ["struct:Procedure..struct:OoDefinitionEvidence", "struct:ClassRelation"]
+
+[[module]]
+name = "module"
+doc = "The top-level module: its procedures, deferred writes, reference bodies and the queries over them."
+items = [
+    "enum:TopLevelKind..static:NO_DEFERRED_WRITES",
+    "struct:Module..fn:when_event_name",
+]

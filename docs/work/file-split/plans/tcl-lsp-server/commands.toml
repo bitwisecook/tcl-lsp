@@ -1,0 +1,74 @@
+# Second level of `lib.toml`. Every handler moves; the facade is the module list.
+file = "rust/tcl-lsp-server/src/commands.rs"
+
+[[module]]
+name = "source_transforms"
+doc = "Minify, optimise and unminify."
+items = [
+    "impl:Backend::minify_document_command",
+    "impl:Backend::optimise_document_command..impl:Backend::unminify_error_command",
+]
+
+[[module]]
+name = "document_views"
+doc = "Read-only views of a document: Tk preview, diagram data and the compiler explorer."
+items = [
+    "fn:sha256_hex..struct:ExplorerDocumentInput",
+    "impl:Backend::tk_preview_command",
+    "impl:Backend::diagram_data_command",
+    "impl:Backend::capture_explorer_document_input..impl:Backend::compiler_explorer_view_command",
+]
+
+[[module]]
+name = "catalogue_queries"
+doc = "Queries over the command registry and the discovered packages and installations."
+items = [
+    "impl:Backend::describe_irule_event_command..impl:Backend::list_irule_events_command",
+    "impl:Backend::list_subcommands_command..impl:Backend::suggest_packages_for_symbol_command",
+    "enum:TclInstallationSelectionUnavailable..fn:tcl_installation_selection_paths",
+]
+
+[[module]]
+name = "bigip_rules"
+doc = "iRules embedded in a BIG-IP configuration: list, extract and write back."
+items = ["impl:Backend::rule_info..impl:Backend::apply_rule_body_edit"]
+
+[[module]]
+name = "bigip_objects"
+doc = "BIG-IP object graphs: linked objects, cleanup and partition rename."
+items = [
+    "impl:Backend::extract_linked_objects_command..impl:Backend::bigip_cleanup_command",
+    "impl:Backend::rename_partition_command..impl:Backend::rename_partition_outcome",
+]
+
+[[module]]
+name = "fix_all"
+doc = "Fix all safe issues: repeated passes of the provably safe fixes."
+items = [
+    "const:FIX_ALL_MAX_PASSES..struct:BulkFix",
+    "impl:Backend::fix_all_safe_issues_command..impl:Backend::bulk_applicable_fixes",
+]
+
+[[module]]
+name = "minimize_diagnostic"
+doc = "The smallest document that still reports one diagnostic."
+items = ["impl:Backend::reproduces_diagnostic..impl:Backend::minimize_diagnostic_command"]
+
+[[module]]
+name = "xc_translate"
+doc = "Translation of iRules to F5 Distributed Cloud constructs."
+items = ["impl:Backend::xc_translate_command..impl:Backend::xc_translate_document_command"]
+
+[[module]]
+name = "config_reports"
+doc = "The effective configuration and its INI export."
+items = [
+    "impl:Backend::reported_docstring_style..impl:Backend::get_effective_config_command",
+    "impl:Backend::export_config_command..impl:Backend::render_config_ini",
+    "fn:config_ini_path..fn:non_ascii_mode_str",
+]
+
+[[module]]
+name = "dialect_selection"
+doc = "Setting and listing dialects."
+items = ["impl:Backend::set_dialect_command..impl:Backend::list_dialects_command"]

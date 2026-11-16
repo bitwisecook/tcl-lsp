@@ -1,0 +1,101 @@
+# The parent keeps the fixtures several groups share: the registry, the
+# `evidence`/`seed` builders, `uniform`/`slot`, the loaded-source and
+# supplied-unit fixtures and `native_argument_caller_unit`.
+file = "rust/tcl-compiler/src/unit_scope/tests.rs"
+
+[[module]]
+name = "source_scan"
+doc = "Cross-file caller scans: file entries, loaded declarations and supplied source inputs."
+items = [
+    "fn:independent_caller_ingresses_keep_their_actual_sources_and_loader_identity..fn:sourced_partial_errors_and_redefinition_preserve_real_target_identity",
+    "fn:supplied_native_caller_scan_retains_source_input_without_entry_or_frame_donation",
+    "fn:source_entry_caller_metadata_requires_an_independent_supplied_input",
+]
+
+[[module]]
+name = "param_seeds"
+doc = "The parameter-constant seed: formal layouts, omitted and trailing arguments, and boundary gating."
+items = [
+    "fn:native_seed",
+    "fn:native_formal_seed_distinguishes_zero_arguments_from_an_opaque_caller",
+    "fn:native_formal_seed_requires_a_proved_ordinary_activation_layout",
+    "fn:an_omitted_argument_stops_a_position_being_uniform",
+    "fn:only_a_trailing_args_stops_the_seed",
+    "fn:boundary_gating_distinguishes_publishing_from_loading",
+    "fn:an_omitted_defaulted_argument_poisons_its_slot",
+    "fn:supplied_unit_callers",
+    "fn:unit_caller_seeds_require_the_retained_metadata_owner",
+]
+
+[[module]]
+name = "call_recording"
+doc = "What the scan records for a call, opaque callers included, and how the evidence merges, slices and converges."
+items = [
+    "fn:a_declared_expression_role_reaches_the_call_site_walk",
+    "fn:finite_dispatch_evidence_converges_beyond_six_dependencies",
+    "fn:merging_only_ever_widens",
+    "fn:slice_for_keeps_only_the_named_callees",
+    "fn:deferred_global_callers_retract_only_their_retained_possible_targets",
+    "fn:literal_call_sites_are_recorded_and_nothing_is_withdrawn",
+    "fn:the_unseen_call_marker_is_not_a_zero_argument_caller",
+    "fn:known_external_name_does_not_prove_a_runtime_procedure_binding..fn:a_rebinding_call_is_recorded_as_an_opaque_caller",
+    "fn:a_dispatch_through_a_literal_variable_is_recorded_as_a_call_site..fn:normal_procedure_invoker_retains_operand_offsets_and_real_uncertainty",
+    "fn:a_callback_prefix_poisons_every_parameter_of_its_target",
+    "fn:a_trace_callback_registration_is_a_call_site",
+    "fn:command_prefix_head_treats_literal_brackets_as_list_data",
+    "fn:original_callback_callers_share_source_horizons_without_parameter_seeds",
+]
+
+[[module]]
+name = "unresolved_dispatch"
+doc = "Command words that resolve to no procedure: the module's `unknown` handler and unenumerable dispatches."
+items = [
+    "fn:an_unresolved_word_is_a_call_site_of_the_modules_unknown_handler_1044..fn:only_one_command_carries_the_unresolved_handler_trait",
+    "fn:runtime_selected_method_command_poisons_cross_file_param_evidence",
+    "fn:absolute_only_method_keeps_cross_file_param_evidence_exact",
+    "fn:an_unenumerable_dispatch_marks_the_module_non_enumerable",
+    "fn:an_unenumerable_dispatch_withdraws_this_units_seeds..fn:an_unenumerable_dispatch_does_not_reach_an_unlinked_project_file",
+    "fn:a_script_the_scan_cannot_read_makes_the_module_non_enumerable",
+]
+
+[[module]]
+name = "nested_callers"
+doc = "Callers inside nested scripts: `namespace eval`, `catch` and `uplevel` bodies, command substitutions and script values."
+items = [
+    "fn:a_namespace_eval_body_resolves_against_its_own_namespace..fn:a_catch_body_is_still_walked_with_the_callers_namespace",
+    "fn:a_retained_script_value_records_its_actual_caller..fn:whole_substitution_recognises_only_a_single_reference",
+]
+
+[[module]]
+name = "scope_var_facts"
+doc = "Literal-value facts for a scope's variables: unknown writes, computed names and scope aliases."
+items = [
+    "fn:scope_var_facts_separate_literal_from_unknown_writes..fn:a_scope_alias_declaration_makes_the_aliased_name_unknown",
+    "fn:scope_variable_facts_keep_actual_availability_and_refuse_missing_or_foreign_owners",
+]
+
+[[module]]
+name = "unit_linkage"
+doc = "Unit boundaries scanned from the lowered IR under supplied availability."
+items = [
+    "fn:unit_linkage_is_scanned_from_the_lowered_ir_not_the_raw_text",
+    "fn:unit_linkage_keeps_supplied_availability_without_inventing_missing_boundaries",
+]
+
+[[module]]
+name = "original_cfg_callers"
+doc = "The caller inventory of original CFG statements and nested bodies under their retained owners."
+items = ["fn:original_caller_fixture..fn:original_body_caller_inventory_requires_each_original_child_sidecar"]
+
+[[module]]
+name = "original_argument_callers"
+doc = "Callers in original argument words and terminators: argument counts, child roles and owner refusals."
+items = [
+    "fn:original_argument_caller_phase_keeps_real_return_and_direct_argument_counts..fn:original_native_procedure_argv_roles_keep_authentic_alias_prefix_counts",
+    "fn:original_direct_return_keeps_terminator_argv_without_captured_phase_marker",
+]
+
+[[module]]
+name = "alias_effects"
+doc = "Alias creation covered by an original effect: publication, prefix owners and refusals."
+items = ["fn:alias_creation_tokens..fn:original_covered_alias_effect_requires_original_entered_continuation"]

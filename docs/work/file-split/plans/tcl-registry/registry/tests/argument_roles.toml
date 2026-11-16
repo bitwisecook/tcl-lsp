@@ -1,0 +1,23 @@
+# Second level: the file `registry/tests.toml` creates. The parent keeps the
+# general role queries (static and trailing roles, repeated layouts, option
+# values, `unset`, `trace` and `dict` roles, source role queries).
+file = "rust/tcl-registry/src/registry/tests/argument_roles.rs"
+
+[[module]]
+name = "role_capabilities"
+doc = "Every dynamic role resolver declares the roles it can produce, swept over each argument shape."
+items = ["fn:registry_with_every_resolver_surface..fn:sweep_resolver"]
+
+[[module]]
+name = "format_and_pattern_arguments"
+doc = "Format-string and pattern arguments: families, source-aware layouts behind options, and the `lsearch` pattern resolver."
+items = ["fn:format_string_args_cover_every_family..fn:source_aware_lsearch_dynamic_prefix_and_suffix_have_distinct_obligations"]
+
+[[module]]
+name = "command_prefixes"
+doc = "Command-prefix arguments and their arities, and which Tk options and bindings take a prefix or a script body."
+items = [
+    "fn:command_prefix_option_is_captured_but_never_a_body..fn:arg_indices_for_role_command_prefix_matches_command_prefixes",
+    "fn:bind_script_form_recurses_only_the_trailing_script..fn:canvas_bind_subcommand_script_is_a_body",
+    "fn:text_tag_bind_script_is_a_body..fn:selection_handle_command_is_a_command_prefix",
+]

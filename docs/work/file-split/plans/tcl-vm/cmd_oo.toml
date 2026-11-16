@@ -1,0 +1,68 @@
+# The facade keeps the object model (`Method`, `Class`, `Object`, `Step`,
+# `OoFrame`, `OoState`, `OoExec`: their private fields are read by every
+# module here), the name and method-key helpers, `register`, the bootstrap of
+# the two root classes, the `oo_dispatch` entry point, `err_code`, and the
+# class-relation predicates of `OoState`.
+file = "rust/tcl-vm/src/cmd_oo.rs"
+
+[[module]]
+name = "configurable_properties"
+doc = "TIP 558 configurable properties: the property slots, the `property` definition command, the `configure` method and accessor calls."
+items = [
+    "fn:property_slot_operation..fn:slot_of_obj",
+    "fn:configure_props",
+    "fn:cmd_property",
+    "fn:apply_property_bytes..fn:accessor_result",
+    "fn:slot_ref_class..fn:slot_ref_obj",
+]
+
+[[module]]
+name = "construction"
+doc = "Creating objects and classes: the `create`/`new` factory, the constructor chain and `oo::class create`."
+items = ["fn:factory..fn:oo_new", "fn:make_class_bytes..fn:evaluate_class_definition"]
+
+[[module]]
+name = "method_resolution"
+doc = "Method resolution order: class linearisation, object precedence, visibility and the method chain of one invocation."
+items = [
+    "impl:OoState::linearise_maps..impl:OoState::visible_methods",
+    "fn:class_steps..fn:keep_last",
+    "fn:invocation_method_chain..fn:unknown_method",
+]
+
+[[module]]
+name = "method_invocation"
+doc = "Invoking a method: running each step of the chain, intrinsic, property and forwarded methods, and the object built-ins `variable`, `varname` and `eval`."
+items = ["fn:oo_invoke..fn:oo_invoke_value_with_head", "fn:run_step..fn:builtin_variable"]
+
+[[module]]
+name = "activation_commands"
+doc = "The commands of a running method activation: `my`, `self`, `next` and `nextto`."
+items = ["fn:cmd_my..fn:cmd_nextto_original"]
+
+[[module]]
+name = "destruction"
+doc = "`destroy`, the destructor chain, record teardown, and the object's response to its command being renamed, hidden, deleted or replaced."
+items = ["fn:oo_destroy..fn:oo_command_replaced"]
+
+[[module]]
+name = "definition"
+doc = "`oo::define` and `oo::objdefine`: the definition script and the definition-body commands."
+items = [
+    "fn:cmd_private",
+    "fn:cmd_oo_define..fn:active_target",
+    "fn:def_body_cmd..fn:def_forward",
+]
+
+[[module]]
+name = "declared_variables"
+doc = "`variable` declarations of a class or object and the storage names of private variables."
+items = ["fn:declared_variable_error", "fn:read_declared_variable_selection..fn:frame_private_storage_name"]
+
+[[module]]
+name = "introspection"
+doc = "`info object` and `info class`, and the object lookups the TclOO opcodes share with them."
+items = [
+    "fn:is_object..fn:info_properties_options",
+    "fn:method_info_options..fn:params_value",
+]

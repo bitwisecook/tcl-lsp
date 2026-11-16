@@ -1,0 +1,54 @@
+# The parent keeps the module documentation (the C-Tcl proof model), the shared
+# helpers and the N05 parity fixtures that hold rename and find-references to
+# the same occurrence set.
+file = "rust/tcl-lsp-core/tests/it_2/references_rename.rs"
+
+[[module]]
+name = "reference_sets"
+doc = "Find-references for procedures and variables, with the non-symbol and out-of-range cases."
+items = [
+    "fn:references_proc_from_definition_includes_decl_and_both_calls..fn:references_var_scoped_to_its_proc_not_a_same_named_local_elsewhere",
+    "fn:references_variable_held_command_name_is_not_resolved_documented_limitation..fn:references_out_of_range_and_empty_file_do_not_panic",
+]
+
+[[module]]
+name = "namespaces"
+doc = "References and renames across namespaces: qualified and short calls, nested namespaces and the caller's namespace at a call site."
+items = [
+    "fn:references_namespaced_proc_matches_qualified_and_short_calls..fn:rename_class_rewrites_its_superclass_and_mixin_sites",
+    "fn:rename_namespaced_proc_rewrites_qualified_and_short_forms..fn:rename_second_same_named_proc_resolves_to_that_proc_not_the_first",
+    "const:NS_COLLISION_PROC_SRC..fn:class_rename_from_callsite_targets_caller_namespace",
+]
+
+[[module]]
+name = "rename_edits"
+doc = "Renames of procedures and variables, the new-name safety gate, `prepare_rename` and `is_safe_symbol_name`."
+items = [
+    "fn:rename_proc_updates_definition_and_all_call_sites..fn:rename_var_rejected_on_same_scope_collision",
+    "fn:rename_rejects_syntactically_unsafe_new_names..fn:is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest",
+]
+
+[[module]]
+name = "variable_cells"
+doc = "Which variable cell a name reaches: object variables, `uplevel` bodies, cells shared across procedures, role-read name words and list-built bodies."
+items = [
+    "const:OBJECT_VAR_SRC..fn:uplevel_nonzero_body_local_resolves_within_body",
+    "fn:object_var_references_unify_across_methods..fn:namespace_variables_in_different_namespaces_do_not_unify",
+    "const:ROLE_READ_SRC..fn:the_parameter_declaration_hovers_as_a_variable_not_the_file_command",
+]
+
+[[module]]
+name = "command_dispatch"
+doc = "Command names carried in variables and dispatch tables, [incr Tcl] class procedures and namespace-scoped class dispatch."
+items = [
+    "fn:references_include_a_const_cmd_dispatch_site_m7",
+    "fn:rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945..fn:rename_classmethod_is_scoped_in_the_other_direction_too",
+]
+
+[[module]]
+name = "brace_literal_names"
+doc = "A brace-quoted name that contains `$` is its own variable cell for every provider."
+items = [
+    "const:BRACE_LITERAL_MIX..const:BRACE_LITERAL_ONLY",
+    "fn:every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell..fn:genuinely_inert_dollar_shapes_still_resolve_to_nothing",
+]

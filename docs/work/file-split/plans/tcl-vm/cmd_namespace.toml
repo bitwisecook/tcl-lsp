@@ -1,0 +1,22 @@
+# The facade keeps registration, the `namespace` dispatcher (`cmd_namespace_in`),
+# the member table macro, `namespace upvar`, the name-text subcommands and the
+# shared lookup-error reporter. The doc comment above
+# `namespace_command_lookup_error` describes `ns_ensemble_create_entered`
+# (misplaced before the split); it stays where it is.
+file = "rust/tcl-vm/src/cmd_namespace.rs"
+hoist = ["original_c_parent_current_holder_tests"]
+
+[[module]]
+name = "body_evaluation"
+doc = "Running a script body in a namespace frame: `namespace eval` and `namespace inscope`."
+items = ["fn:eval_in_ns..fn:namespace_frame_arguments", "fn:ns_inscope..fn:ns_eval"]
+
+[[module]]
+name = "import_export"
+doc = "`namespace export` and `namespace import` over the namespace's export patterns."
+items = ["fn:ns_export..fn:ns_import"]
+
+[[module]]
+name = "ensemble"
+doc = "`namespace ensemble create`, `configure` and `exists`: option parsing, the subcommand map and configuration reports."
+items = ["fn:ns_ensemble..fn:apply_ensemble_map", "fn:ns_ensemble_create_entered..fn:ensemble_option_value"]

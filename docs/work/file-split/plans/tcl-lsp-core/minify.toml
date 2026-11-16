@@ -1,0 +1,47 @@
+# The facade keeps `MinifyResult`, the public `minify_*` entry points and the
+# tier drivers behind them, `MinifyEnv`, `minify_body` and the edit list every
+# pass applies.
+file = "rust/tcl-lsp-core/src/minify.rs"
+
+[[module]]
+name = "symbol_map"
+doc = "The map from original to compacted names and its report format."
+items = ["struct:SymbolMap..impl:SymbolMap"]
+
+[[module]]
+name = "unminify"
+doc = "Error messages translated back from minified names and line numbers."
+items = ["fn:unminify_error..fn:try_remap_procline", "fn:is_word_byte"]
+
+[[module]]
+name = "name_compaction"
+doc = "The compact tier: short names for procedure-local variables, parameters and isolated procedures."
+items = [
+    "fn:child_scope_label..fn:rename_params_in_list",
+    "fn:slice..fn:rmw_target_var_names",
+]
+
+[[module]]
+name = "aliasing"
+doc = "The aggressive tier's aliases for repeated commands, arguments and string literals, and keyword abbreviation."
+items = ["fn:is_clause_keyword..fn:find_subslice"]
+
+[[module]]
+name = "static_folding"
+doc = "The aggressive tier's folding of quoted strings whose value is statically proven."
+items = ["fn:safe_taint_colours..fn:parse_var_ref"]
+
+[[module]]
+name = "command_rendering"
+doc = "One command parsed and re-emitted in its shortest form: words, variable references, quoting and lambda bodies."
+items = ["fn:parse_commands..fn:reconstruct_arg"]
+
+[[module]]
+name = "case_lists"
+doc = "Minifying the braced clause list of a `switch`-shaped command."
+items = ["struct:CaseElement..fn:minify_case_list"]
+
+[[module]]
+name = "expressions"
+doc = "`expr` bodies: whitespace compression and size-reducing rewrites of the expression tree."
+items = ["enum:ExprTok..fn:tokenise_expr_with_script_compaction"]

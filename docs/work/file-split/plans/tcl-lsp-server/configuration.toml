@@ -1,0 +1,52 @@
+# Second level of `lib.toml`. The facade keeps `PolicyLayers`, the folder override types
+# (`FolderConfig`, `ResourceAnalyserInputs`, `IlxPluginSpec`) and the folder-scope lookup
+# every per-document accessor resolves through.
+file = "rust/tcl-lsp-server/src/configuration.rs"
+
+[[module]]
+name = "feature_toggles"
+doc = "The `tclLsp.features.*` toggles and their per-folder resolution."
+items = [
+    "struct:FeatureToggles..impl:FeatureToggles",
+    "impl:Backend::resolved_feature_toggles..impl:Backend::cross_file_resolution_enabled",
+]
+
+[[module]]
+name = "folder_settings"
+doc = "One workspace folder's overrides: their shape, their parse and their application."
+items = [
+    "impl:Backend::apply_folder_configs..impl:Backend::clear_retired_folder_configuration",
+    "fn:parse_folder_formatting..fn:parse_ilx_plugins",
+]
+
+[[module]]
+name = "resolved_settings"
+doc = "The setting values in force for one document: folder override, else the global value."
+items = ["impl:Backend::resolved_analysis_settings..impl:Backend::resolved_style_line_length"]
+
+[[module]]
+name = "global_settings"
+doc = "Applying a pulled `tclLsp` section onto the session's global state."
+items = ["impl:Backend::apply_global_config..impl:Backend::apply_global_analyser_knobs"]
+
+[[module]]
+name = "reload"
+doc = "The configuration pull and the coalesced reload a `didChangeConfiguration` burst runs."
+items = [
+    "const:CONFIG_RELOAD_DEBOUNCE..struct:ConfigReloadSlot",
+    "impl:Backend::pull_and_apply_config..impl:Backend::run_config_reload",
+]
+
+[[module]]
+name = "setting_parsers"
+doc = "Readers of individual settings and payload shapes shared by the global and per-folder parses."
+items = [
+    "fn:default_optimiser_profile..fn:parse_non_ascii_mode",
+    "fn:read_ini_layer..fn:workspace_trust_in",
+    "enum:BigipVersionSetting..fn:provided_package_names",
+]
+
+[[module]]
+name = "formatter_settings"
+doc = "The formatter configuration built from `tclLsp.formatting`."
+items = ["fn:apply_formatting_object..fn:formatter_config_from"]

@@ -1,0 +1,45 @@
+# The parent keeps `registry` and the inline `mod call_site_param_constants`
+# (1,356 lines): an inline module cannot be moved by the tool. Hoisting it by
+# hand to `tests/call_site_param_constants.rs` would leave the parent a stub.
+file = "rust/tcl-compiler/src/compilation_unit/tests.rs"
+
+[[module]]
+name = "source_inputs"
+doc = "The source input a unit is built under: standalone and supplied inputs, metadata currency, grammar and the selected entry."
+items = [
+    "fn:assert_standalone_currency_withdrawals..fn:function_consumers_keep_the_actual_generation_and_grammar",
+    "fn:supplied_source_input_retains_axes_and_independent_logical_entry..fn:supplied_hosted_source_entry_retains_advice_without_activation",
+    "fn:semantic_value_projection_uses_actual_jim_entry_over_c_catalogue",
+]
+
+[[module]]
+name = "interprocedural_analysis"
+doc = "The interprocedural pass: original taint replay under its owners, and results retired on a refused module realm."
+items = ["fn:assert_original_taint_owner_withdrawals..fn:module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results"]
+
+[[module]]
+name = "memory_and_semantic_facts"
+doc = "Memory SSA and semantic sidecars: retained availability, source owners, memoised overlays and deep analysis."
+items = [
+    "fn:semantic_bundle_has_source_metadata..fn:memoised_source_facts_retain_nested_bom_and_lexer_overlays",
+    "fn:test_context",
+    "fn:with_memory_ssa_populates_optional..fn:deep_semantic_analysis_materialises_every_retained_body_sidecar",
+]
+
+[[module]]
+name = "unit_build"
+doc = "What a build produces: the top level, procedures and method units, fixture lookup and the complexity guards."
+items = [
+    "fn:fixture_method..fn:authored_fixture_lookup_refuses_duplicate_reporting_labels",
+    "fn:prepare_cfg_context_retains_same_tailed_body_parameters..fn:build_for_single_statement",
+    "fn:complexity_guard_flags_byte_huge_proc..fn:runtime_selected_method_commands_guard_deep_cfg_analysis",
+    "fn:functions_iterator_yields_top_plus_procs",
+]
+
+[[module]]
+name = "function_facts"
+doc = "Facts of one built function: callee global writes, the existence tier, parameter uses and return types."
+items = [
+    "fn:assert_callee_global_write_is_positioned..fn:existence_is_unavailable_at_the_fast_tier",
+    "fn:switch_subject_counts_as_param_use..fn:return_type_partial_return_widens_via_fallthrough",
+]

@@ -1,0 +1,59 @@
+# The facade keeps `TclObj`, `TclObjType` and the C layout assertion, the
+# allocator and its side tables (their `thread_local!` cannot move), the small
+# cache structs several modules read (`NativeStringRep`, `NativeArraySearchRep`,
+# `NativeFrameLevelRep`, `NativeCommandNameRep`), the scalar object context,
+# `native_object_snapshot`, string buffers, the plain constructors, the
+# refcount pair and `get_string`.
+file = "runtime/rust/src/obj.rs"
+
+[[module]]
+name = "string_representations"
+doc = "The native string and Unicode representations: character counts, C string storage, Jim's string counts and in-place append."
+items = [
+    "fn:native_string_free..fn:native_character_count_using",
+    "fn:native_c_string_storage_checked..fn:jim_character_count",
+    "fn:new_native_unicode_obj..fn:native_unicode_units_using",
+    "fn:native_string_available",
+    "fn:set_native_append_string..fn:string_append_inplace",
+]
+
+[[module]]
+name = "scalar_types"
+doc = "The integer, double and word-boolean object types: constructors, string updaters, double precision, and the scalar caches a getter reads and adopts."
+items = [
+    "static:TCL_INT_TYPE..fn:int_update_string",
+    "fn:install_double_string_policy..fn:double_update_string",
+    "fn:wide_of..fn:double_of",
+    "fn:may_cache_parsed_rep..fn:native_scalar_descriptor_origin",
+    "fn:native_scalar_cache..fn:adopt_native_scalar_cache_using",
+    "fn:new_wide_int_obj..fn:new_boolean_obj",
+]
+
+[[module]]
+name = "lifetime_handles"
+doc = "Handles that own or observe an object's lifetime: `Owned`, `NativeObjectLifetime`, `ProcedureObject` and the two receipts."
+items = [
+    "struct:NativePrimaryReceipt..impl:NativePrimaryReceipt",
+    "struct:RetiringResultHeader..impl:Drop for NativeObjectLifetime",
+    "struct:Owned..impl:Drop for Owned",
+]
+
+[[module]]
+name = "internal_representation"
+doc = "Typed internal-rep plumbing: installing, changing and discarding an object's internal representation, and invalidating or setting its string rep."
+items = ["fn:alloc_typed..fn:set_native_updater_string_rep"]
+
+[[module]]
+name = "lookup_caches"
+doc = "Internal representations that cache a lookup: array searches, frame levels, command names and completion codes."
+items = [
+    "static:COMPLETION_KEYWORD_TYPE..static:JIM_RETURN_CODE_TYPE",
+    "static:NATIVE_ARRAY_SEARCH_TYPE..fn:install_native_array_search_cache",
+    "static:NATIVE_FRAME_LEVEL_TYPE",
+    "fn:command_name_free..fn:adopt_completion_code_cache",
+]
+
+[[module]]
+name = "duplication"
+doc = "Duplicating an object, and duplicating into an existing receiver, with the staged currency checks."
+items = ["fn:duplicate..fn:duplicate_into"]

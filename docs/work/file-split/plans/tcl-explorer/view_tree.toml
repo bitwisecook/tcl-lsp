@@ -1,0 +1,61 @@
+# The facade keeps `ViewRange`, `ViewNode`, the label and detail formatters every
+# builder shares, `per_function`, `unavailable_source_view` and `build_view`.
+# The modules take the names of the `serialise` modules whose JSON they read; `aot`
+# holds the trees of the `semantic` and `aot` views together, which are small.
+file = "rust/tcl-explorer/src/view_tree.rs"
+
+[[module]]
+name = "front_end"
+doc = "Trees for the front-end views: the IR, the structural index and the source map."
+items = ["fn:ir_nodes", "fn:build_ir", "fn:build_structural_index", "fn:build_source_map"]
+
+[[module]]
+name = "cfg"
+doc = "Trees for the control-flow views: the pre-SSA and post-SSA graphs, dominators and loops."
+items = ["fn:term_label..fn:build_dominators", "fn:build_loops"]
+
+[[module]]
+name = "value_lattices"
+doc = "Trees for the per-value lattice views: SCCP, types, intervals, rendered properties and taint facts."
+items = [
+    "fn:selection_leaf..fn:build_sccp",
+    "fn:build_types",
+    "fn:build_intervals",
+    "fn:build_rendered",
+    "fn:build_taint_facts",
+]
+
+[[module]]
+name = "def_use"
+doc = "Trees for the def-use views: liveness and the data-flow graph."
+items = ["fn:build_liveness", "fn:build_dataflow"]
+
+[[module]]
+name = "warnings"
+doc = "Trees for the views that list warnings: bounds, shimmer, taint sinks and the source callouts."
+items = ["fn:build_bounds", "fn:build_shimmer", "fn:build_taint", "fn:build_callouts"]
+
+[[module]]
+name = "optimiser"
+doc = "Trees for the optimiser's views: rewrites, per-pass output and redundancy hints."
+items = ["fn:opt_leaf", "fn:build_opt", "fn:build_optimiser_passes", "fn:build_gvn"]
+
+[[module]]
+name = "interprocedural"
+doc = "Trees for the `interproc` and `unitScope` views."
+items = ["fn:build_interproc", "fn:build_unit_scope"]
+
+[[module]]
+name = "irules"
+doc = "Trees for the iRules views: flow warnings, the connection scope and event order."
+items = ["fn:build_connection_scope..fn:build_event_order"]
+
+[[module]]
+name = "world_ssa"
+doc = "The tree for the world-state SSA view."
+items = ["fn:world_location_label..fn:build_world_ssa"]
+
+[[module]]
+name = "aot"
+doc = "Trees for the `semantic` view and the AOT plan the WASM emitter selects over it."
+items = ["fn:build_semantic", "fn:build_aot..fn:aot_site_label"]

@@ -1,0 +1,95 @@
+# The facade keeps the module docs, the existing `original_*` and `logical_*`
+# modules and their re-exports, `AnalysisResult` with its equality (the two
+# `macro_rules!` and the `PartialEq` impl that uses them) and
+# `ScopedBodyRegion`. The `bitflags!` block of stub flags cannot be moved by the
+# tool: move it into `stubs` by hand after applying.
+file = "rust/tcl-compiler/src/analyser/types.rs"
+
+[[module]]
+name = "diagnostic"
+doc = "`Diagnostic`: one finding with its span, severity, fixes and owned subject."
+items = ["struct:Diagnostic..impl:Diagnostic"]
+
+[[module]]
+name = "scopes"
+doc = "The scope tree: `ScopeKind`, `Scope` and the `VarDef` records it holds."
+items = [
+    "enum:ScopeKind..impl:ScopeKind",
+    "struct:VarDef..impl:VarDef",
+    "enum:InterpreterSourceBody..impl:Scope",
+    "impl:Default for Scope",
+]
+
+[[module]]
+name = "procedures"
+doc = "Procedure records: `ProcDef` and its parameter traits, `DefinedSymbol`, the pending arity checks and the `unknown` handler's dispatch shape."
+items = [
+    "struct:EnsembleSubcommandTarget..struct:PendingNextArity",
+    "enum:ProcArgTrait..struct:DefinedSymbol",
+    "struct:UnknownProcInfo",
+]
+
+[[module]]
+name = "class_members"
+doc = "The members of a class: methods, properties and per-object state, the side they sit on, and the retraction and rename records behind definition aborts."
+items = ["struct:MethodDef..impl:DefinitionAbort"]
+
+[[module]]
+name = "class_factories"
+doc = "Class factories: the manufacturer layout a metaclass publishes, deferred creations and the workspace indices built from them."
+items = ["enum:FactoryWord..fn:rehome_member"]
+
+[[module]]
+name = "class_def"
+doc = "`ClassDef`: one class's declarations, the merge of two records of the same class and the provenance of its metaclass and name."
+items = ["enum:MetaclassProvenance..impl:ClassCommandFallback"]
+
+[[module]]
+name = "result_caches"
+doc = "The caches an `AnalysisResult` carries: the class hierarchy and the memoised source words."
+items = ["struct:HierarchyCache..impl:AnalysisResult"]
+
+[[module]]
+name = "original_declarations"
+doc = "`AnalysisResult` queries over the original declarations it retains: symbols, namespace exports and patterns, vendor source names, procedures and their formals, classes."
+items = [
+    "impl:AnalysisResult::original_symbol_declarations..impl:AnalysisResult::original_procedure_formal_name_sources",
+    "impl:AnalysisResult::original_class_declarations..impl:AnalysisResult::original_namespace_scope_at",
+]
+
+[[module]]
+name = "variable_renames"
+doc = "`AnalysisResult` queries for renaming a variable: the original symbol, root and frame at a cursor, alias coverage and the alpha-rename equivalences."
+items = [
+    "enum:ScalarAlphaFormalSelection",
+    "impl:AnalysisResult::original_scalar_body_alpha_rename..impl:AnalysisResult::original_local_store_alpha_rename",
+    "impl:AnalysisResult::original_variable_symbol_at_offset..impl:AnalysisResult::original_variable_frame_in_source",
+]
+
+[[module]]
+name = "source_world"
+doc = "`AnalysisResult` queries over its retained inputs: the optimiser request, analysis entry and region, the command realm, profile and registry, and math functions in source."
+items = [
+    "impl:AnalysisResult::matches_optimiser_source_origin..impl:AnalysisResult::resolved_profile",
+    "impl:AnalysisResult::matches_original_source_image..impl:AnalysisResult::resolved_registry",
+]
+
+[[module]]
+name = "definition_queries"
+doc = "`AnalysisResult` queries over definitions: ensembles, class factories and hierarchy, the declaration a call reaches and the body enclosing an offset."
+items = [
+    "impl:AnalysisResult::retain_class_declaration..impl:AnalysisResult::enclosing_definition_qualified_name",
+]
+
+[[module]]
+name = "occurrence_records"
+doc = "Records of single source occurrences: package provides and `ifneeded` scripts, `auto_path` entries, qualified variable and namespace references, instance bindings and regex patterns."
+items = [
+    "struct:PackageProvide..struct:AutoPathEntry",
+    "struct:RegexPattern",
+]
+
+[[module]]
+name = "stubs"
+doc = "The `# tcl-lsp: stub` directive records and the declared surface built from them."
+items = ["struct:StubArgDef..struct:StubExprDef"]

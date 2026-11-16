@@ -1,0 +1,36 @@
+# The facade keeps `HookFamily`, the call model (`HookSlot`, `HookCall`,
+# `HookAnswer`, `PackHookHost`), slot allocation with the `CacheMode` it
+# stores, the thread-local state and `DialectScope`, and the slot-table macros
+# with the `*_fn` accessors they serve. `dispatch` moves with the shape cache
+# it reads and writes.
+file = "rust/tcl-registry/src/pack_hooks.rs"
+
+[[module]]
+name = "native_catalogues"
+doc = "The per-family tables of shipped implementations a pack names with `-native ID`."
+items = ["const:ARG_ROLE_RESOLVER_NATIVE..const:FACTS_NATIVE"]
+
+[[module]]
+name = "hook_inputs"
+doc = "The inputs a hook body declares it reads, and whether a declaration is shape-only or content-cacheable."
+items = ["enum:HookInput..impl:HookInputs", "fn:kind_word"]
+
+[[module]]
+name = "host_installation"
+doc = "Installing, replacing and clearing this thread's hook host, and the evaluator generation that names it."
+items = ["static:ANY_HOST..fn:slot_available"]
+
+[[module]]
+name = "tabulation"
+doc = "Answers tabulated ahead of time for one published plan."
+items = ["struct:TabulationPlan..impl:TableObservation"]
+
+[[module]]
+name = "dispatch"
+doc = "Dispatching one hook call: a tabulated answer first, then the host, behind the shape-keyed answer cache."
+items = ["struct:ShapeKey..const:MAX_CACHE_ENTRIES", "fn:dispatch"]
+
+[[module]]
+name = "thunks"
+doc = "The per-family thunks: each turns a shipped hook signature into a `HookCall` and reads the answer back."
+items = ["fn:intern..fn:stated_alias"]

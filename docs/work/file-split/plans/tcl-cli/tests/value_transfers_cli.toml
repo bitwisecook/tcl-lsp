@@ -1,0 +1,39 @@
+# The crate root keeps the spawn helpers and the reference-interpreter oracle every
+# module shares: `tcl`, `run_tcl`, `RELEASES`, `run_tclsh`, `tclshs_from`,
+# `diagnostics_at`, `opt_under` and `statements_of`.
+file = "rust/tcl-cli/tests/value_transfers_cli/main.rs"
+move_from = "rust/tcl-cli/tests/value_transfers_cli.rs"
+
+[[module]]
+name = "transfer_routes"
+doc = "The route each statement's value transfer takes, as `tcl explore --show sccp` prints it and `tcl opt` forwards it."
+items = ["fn:explore_sccp_prints_the_route_tally..fn:opt_keeps_a_global_a_nested_increment_writes"]
+
+[[module]]
+name = "pack_completion_surfaces"
+doc = "The design's tenant pack example: its completion test on the CLI and the pack surfaces."
+items = ["const:TENANT_PACK..fn:the_completion_test_reaches_every_surface"]
+
+[[module]]
+name = "decided_branches"
+doc = "Branches and loops the solver decides: the `switch` selection of program (4), dead arms, loop headers, nested equalities and the loop witnesses."
+items = [
+    "const:PROGRAM_FOUR_BUILD..const:PROGRAM_FOUR_SHARED",
+    "fn:program_four_reaches_diag_and_opt_in_every_form..fn:diag_reads_the_decided_loop_header_and_the_dead_respond",
+    "const:NESTED_EQUALITY..fn:the_eleven_loop_witnesses",
+]
+
+[[module]]
+name = "ordered_state"
+doc = "The ordered evaluation state: what a statement stores before an error, what a `catch` completed with and the prefix rule, against `tclsh`."
+items = ["fn:explore_sccp_prints_the_ordered_state..fn:opt_keeps_what_the_issue_2141_programs_read"]
+
+[[module]]
+name = "procedure_summaries"
+doc = "Procedure summaries: computed returns, name-argument writes and the summary witnesses."
+items = ["fn:o103_summary_path_folds_a_computed_return..fn:two_callers_share_one_summary"]
+
+[[module]]
+name = "release_spellings"
+doc = "What the folder may write for each release: double spellings, operators the release lacks, `tcl_precision` and the script encoding."
+items = ["fn:opt_under_jim..fn:opt_folds_a_non_ascii_literal_under_the_declared_script_encoding"]

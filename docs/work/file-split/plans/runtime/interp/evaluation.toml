@@ -1,0 +1,46 @@
+# Second level: apply `plans/runtime/interp.toml` first; it creates this file.
+# The facade keeps source frames (`info frame`, argument lines and the line
+# helpers), the body-evaluation records and the coroutine context swap.
+file = "runtime/rust/src/interp/evaluation.rs"
+
+[[module]]
+name = "return_state"
+doc = "The pending `return` state and options, control-body completion options, and the procedure and source return boundaries."
+items = ["impl:Interp::set_return_state..impl:Interp::settle_source_return"]
+
+[[module]]
+name = "entry_points"
+doc = "Entering evaluation from outside: `eval_str` and the completion forms, `tclsh`'s script file and stdin, and `source`."
+items = [
+    "impl:Interp::eval_sourced_boundary..impl:Interp::current_source_file",
+    "impl:Interp::eval_str_boundary..impl:Interp::eval_stdin",
+]
+
+[[module]]
+name = "script_loop"
+doc = "The command loop: a framed script, one command and the substitution and dispatch of its words."
+items = [
+    "impl:Interp::eval_framed..impl:Interp::inherited_cmd_frame",
+    "impl:Interp::eval_command..impl:Interp::eval_words",
+]
+
+[[module]]
+name = "control_bodies"
+doc = "Evaluating the body of a control command, `eval`, `uplevel` or a definition: located and unlocated bodies, body objects and command substitution."
+items = [
+    "impl:Interp::eval_def_body..impl:Interp::eval_uplevel",
+    "impl:Interp::eval_compiled_control_body..impl:Interp::eval_uplevel_obj",
+]
+
+[[module]]
+name = "release_compilation"
+doc = "What the emulated release compiles: index and literal words, control commands, compiled locals and the 8.4 compile failure."
+items = [
+    "struct:CompiledArgv..impl:Drop for CompiledArgv",
+    "impl:Interp::compiled_index_argv..impl:Interp::arg_loc",
+]
+
+[[module]]
+name = "substitution"
+doc = "Substituting a word: expression sugar, variable and command substitution, located `subst` and array indices."
+items = ["impl:Interp::eval_word_expression..impl:Interp::subst_index"]

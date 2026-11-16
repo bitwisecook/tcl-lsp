@@ -1,0 +1,50 @@
+# The parent keeps the three fixtures every module uses: `analyse`,
+# `source_proof` and `allocation_source`.
+file = "rust/tcl-compiler/src/command_binding/tests.rs"
+
+[[module]]
+name = "cfg_lattice"
+doc = "The flow-sensitive lattice: baselines, renames, destroys, redefinitions and exception edges."
+items = [
+    "fn:catalogue_baseline_retains_rootability_and_exact_descriptor_coordinates",
+    "fn:consumed_cfg_commands_retain_the_original_native_entry_baseline..fn:dynamic_rename_collapses_to_wildcard",
+    "fn:try_handler_joins_command_mutation_from_exception_edge..fn:seed_marks_module_procs_as_proc",
+    "fn:deeply_nested_if_survives_walk_body_calls",
+]
+
+[[module]]
+name = "compilation_lookup_advice"
+doc = "A Logical command layout keeps unknown physical frames separate."
+items = ["fn:logical_command_layout_keeps_unknown_physical_frames_separate"]
+
+[[module]]
+name = "evaluated_bodies"
+doc = "Readable evaluated bodies: constructed argv, `apply`, `namespace eval`, `uplevel` and TclOO."
+items = [
+    "fn:constructed_builder_argv_preserves_retained_lexer_overlays",
+    "fn:static_apply_replays_binding_changes_in_default_and_explicit_namespaces..fn:unavailable_direct_or_alias_prefixed_proc_body_is_opaque",
+]
+
+[[module]]
+name = "source_walk"
+doc = "Source interpretation: origins, derived scripts, lambdas, abrupt completions and imports."
+items = [
+    "fn:literal_procedure_returns_preserve_later_dispatch_points..fn:source_repeated_body_joins_future_rebindings_before_specialisation",
+]
+
+[[module]]
+name = "mutation_summary"
+doc = "The module mutation summary: frame opacity, trust snapshots and procedure-binding trust."
+items = [
+    "fn:an_import_shadowing_a_declared_proc_distrusts_only_its_namespace..fn:independently_analysed_summaries_are_semantically_equal",
+    "fn:module_mutations_distrust_rebound_builtins_only",
+    "fn:trusts_proc_binding_true_for_untouched_proc..fn:module_mutations_do_not_distrust_proc_named_like_mathop_word",
+]
+
+[[module]]
+name = "module_bindings"
+doc = "The may-state: copy-on-write forks, procedure deltas, embedded heads and namespace resolution."
+items = [
+    "fn:binding_state_forks_copy_procedure_inventory_only_for_a_new_body..fn:narrow_proc_binding_projection_retains_static_namespace_candidates",
+    "fn:expanded_embedded_rename_widens_module_bindings..fn:indeterminate_ensemble_dispatch_widens_direct_and_embedded_bodies",
+]

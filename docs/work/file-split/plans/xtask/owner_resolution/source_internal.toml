@@ -1,0 +1,35 @@
+# The facade keeps the manifest row, the module table and the visitor structs (their
+# private fields are built in one module and read in another), `parse`, `validate`
+# and the foreign-route check.
+file = "rust/xtask/src/owner_resolution/source_internal.rs"
+
+[[module]]
+name = "module_resolution"
+doc = "Loading a crate's modules from source and resolving a path, or a field's type, through them."
+items = [
+    "impl:CrateModules::load..impl:CrateModules::field_type_reference",
+    "impl:<'ast> Visit<'ast> for FieldTypeReferences<'_>",
+]
+
+[[module]]
+name = "row_checks"
+doc = "The check of one manifest row: its owner declaration, the owner's accessibility and the consumer's reference to it."
+items = ["impl:CrateModules::supports_row_route..impl:CrateModules::check_row"]
+
+[[module]]
+name = "declarations"
+doc = "What a source item declares: its name, its imports, the generics and attributes a route supports, and the scope its visibility grants."
+items = [
+    "fn:item_name..fn:flatten_use_with_local_precedence",
+    "fn:source_constant_is_literal..fn:pattern_bindings",
+]
+
+[[module]]
+name = "consumer_identity"
+doc = "The identity of a path, field, binding or expression in a consumer body."
+items = ["impl:ConsumerReferences<'_>::option_map_applies_target..impl:ConsumerReferences<'_>::expression_identity"]
+
+[[module]]
+name = "consumer_walk"
+doc = "The walk over a consumer body that records each reference to the owner."
+items = ["impl:<'ast> Visit<'ast> for ConsumerReferences<'_>"]

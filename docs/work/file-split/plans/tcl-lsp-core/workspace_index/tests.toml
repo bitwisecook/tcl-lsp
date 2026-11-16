@@ -1,0 +1,89 @@
+# The parent keeps the shared helpers (`sourced_index`, `test_resolve`, the
+# call-site builders) and the tests of the document lifecycle that
+# `workspace_index.rs` itself keeps: removal, re-indexing, generation and
+# revisions. Modules carry the production module names; the `namespace_imports`
+# tests are divided by what they pin (`import_*`, `forced_import_shadow`,
+# `wildcard_index`).
+file = "rust/tcl-lsp-core/src/workspace_index/tests.rs"
+
+[[module]]
+name = "declarations"
+doc = "Procedure and class declarations: inventory ownership, literal-colon namespace keys and lookups across documents."
+items = [
+    "fn:original_declaration_inventory_retains_bytes_and_document_ownership",
+    "fn:literal_colon_namespace_keys_keep_definitions_and_variables_distinct",
+    "fn:indexes_procs_from_multiple_documents..fn:proc_definitions_resolves_cross_document",
+    "fn:indexes_classes",
+]
+
+[[module]]
+name = "class_dispatch"
+doc = "The class graph across documents: visibility along dispatch chains, retractions, arrivals, member enumeration and override families."
+items = [
+    "fn:subclass_provided_methods_matches_the_per_class_linearisation..fn:a_superseded_export_does_not_outrank_the_last_unexport",
+    "fn:cross_file_supertypes_and_subtypes..fn:method_inheritor_abstains_on_disjoint_definer_ancestor",
+    "fn:cross_file_oo_define_stub_does_not_hide_superclass",
+]
+
+[[module]]
+name = "command_settlement"
+doc = "The command a call settles to: links and aliases, position-sensitive invocations, retired names and the cached derived views."
+items = [
+    "fn:literal_colon_import_sources_survive_workspace_ingestion..fn:positioned_definition_precedes_later_forced_import_assistance",
+    "fn:indexes_invocation_sites_per_document..fn:glob_import_introduces_no_command_link",
+    "fn:wildcard_import_call_site_is_a_reference_to_the_source_command..fn:oo_forward_target_is_a_reference_to_the_command",
+    "fn:workspace_command_exists_covers_procs_and_classes..fn:nested_proc_flagged_and_workspace_command_exists_for_call_excludes_it_from_a_builtin",
+    "fn:top_level_proc_workspace_command_exists_for_call_regardless_of_builtin..fn:nested_alias_workspace_command_exists_for_call_excludes_it_from_a_builtin",
+    "fn:command_names_are_cached_until_the_index_changes..fn:defined_command_names_are_cached_per_reading_and_dropped_on_mutation",
+]
+
+[[module]]
+name = "load_order"
+doc = "What the `source` graph and `package require` order: sourced exports, providers, imported path constants and source ancestors."
+items = [
+    "fn:original_requirement_graph_keeps_constraints_preference_and_unknowns",
+    "fn:retained_source_routes_share_original_plans_across_graph_consumers..fn:a_cross_file_import_conflict_is_decided_by_the_source_order",
+    "fn:indexes_and_removes_package_requires..fn:package_prefers_are_dropped_with_their_document",
+]
+
+[[module]]
+name = "import_resolution"
+doc = "Wildcard and exact `namespace import` resolution across documents, the export gate at each import site and conditional import advice."
+items = [
+    "fn:resolve_wildcard_import_resolves_exported_proc_cross_document..fn:resolve_wildcard_import_survives_a_later_export_clear_in_the_import_file",
+    "fn:resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import..fn:wildcard_import_inside_a_body_still_refuses_an_export_in_that_same_body",
+    "fn:a_global_rooted_exact_import_is_export_gated..fn:a_global_rooted_glob_import_is_export_gated",
+    "fn:exact_import_of_an_unexported_name_installs_no_link..fn:alias_and_rename_links_are_never_export_gated",
+    "fn:conditional_namespace_horizon_keeps_binding_and_report_purposes_separate..fn:conditional_namespace_forget_preserves_unknowns_and_current_index_owner",
+]
+
+[[module]]
+name = "import_lifecycle"
+doc = "The life of an import alias across documents: `namespace forget`, source deletion and rename, and where the call sits relative to the install."
+items = [
+    "fn:cross_file_forget_after_the_import_stops_resolving..fn:a_same_file_forget_after_the_import_still_revokes",
+    "fn:a_top_level_call_before_its_own_import_does_not_resolve..fn:the_body_span_column_matches_the_per_offset_lookup",
+]
+
+[[module]]
+name = "import_conflicts"
+doc = "Import conflicts between glob and exact imports, exact-link liveness and import chains."
+items = ["fn:two_exporting_sources..fn:a_mutually_importing_pair_terminates_cross_file"]
+
+[[module]]
+name = "forced_import_shadow"
+doc = "The two-file `namespace import -force` shadow: the document tier and the workspace tier must agree."
+items = ["const:MAIN..fn:the_export_snapshot_answers_unknown_for_a_namespace_no_file_declares"]
+
+[[module]]
+name = "wildcard_index"
+doc = "The precomputed import index: settlement cost, export gates, the registry-builtin gate and the admission index."
+items = ["fn:wildcard_import_heavy_workspace..fn:an_import_of_an_unexporting_namespace_admits_no_word"]
+
+[[module]]
+name = "symbol_occurrences"
+doc = "Namespace declarations and references, namespace variables and cell aliases across documents."
+items = [
+    "fn:namespace_declarations_and_refs_are_indexed_across_documents..fn:a_relative_namespace_word_is_indexed_rooted",
+    "fn:indexes_a_cell_alias_written_from_another_namespace..fn:proc_locals_are_not_indexed_as_namespace_variables",
+]

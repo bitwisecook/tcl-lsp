@@ -1,0 +1,73 @@
+# The parent keeps the shared `context` helper, the two expression-compiler
+# tests and the hook-table sweep (its `include_str!` path is relative to this
+# file). Modules take the names of the production modules they exercise.
+file = "rust/tcl-registry/src/native_compilation/tests.rs"
+
+[[module]]
+name = "hook_registration"
+doc = "Which stock commands register a compiler hook, and what a command without one keeps."
+items = [
+    "fn:selected_no_hook_registration_keeps_generic_argv_under_unknown_mode",
+    "fn:namespace_no_hook_registration_keeps_public_and_terminal_body_policy..fn:no_hook_implementation_paths_keep_direct_body_and_reject_inconsistent_descriptors",
+    "fn:stock_tcloo_commands_have_generic_dispatch_without_native_compiler_hooks..fn:error_hook_accepts_retained_operands_only_from_its_authored_release",
+    "fn:actual_stock_hook_availability_and_return_catch_context_are_version_aware",
+]
+
+[[module]]
+name = "name_effects"
+doc = "Name effects of original-argument preparation."
+items = ["fn:original_literal_set_compiler_effects_do_not_grant_opcode_admission..fn:original_named_compiler_effects_require_separate_fixed_lookup"]
+
+[[module]]
+name = "grammar_selection"
+doc = "Arity gates, guards and control-flow compilers: coroutine, uplevel, return and rejected selections."
+items = [
+    "fn:coroutine_compilation_preserves_native_arity_and_expansion_gates",
+    "fn:uplevel_compiler_preserves_original_frame_probe_and_release_floor..fn:checked_arity_retains_native_entry_error_and_argument_timing",
+    "fn:known_return_options_have_their_actual_versioned_compiler_protocol",
+    "fn:compiler_rejection_keeps_native_usage_after_command_renaming",
+    "fn:selected_opcode_guard_precedes_substituted_arguments",
+]
+
+[[module]]
+name = "successful_handler"
+doc = "Successful-handler metadata, variable output binding and possible handler bodies."
+items = [
+    "fn:possible_handler_bodies_share_grammar_without_native_compiler_licence..fn:catch_output_binding_phase_and_legacy_arity_stay_explicit",
+    "fn:sequence_normal_effects_require_no_native_expression_callback..fn:successful_handler_effects_do_not_select_compiler_or_body_protocol",
+]
+
+[[module]]
+name = "variable_and_list_grammars"
+doc = "The variable and list compilers: array, global, upvar, unset, assignment, insertion, index and concat."
+items = [
+    "fn:array_specialised_compilation_retains_workers_and_shape_protocols",
+    "fn:global_alias_compilation_requires_a_local_table_and_known_scalar_tail..fn:list_index_compilation_requires_the_native_hook_and_original_word_count",
+    "fn:concat_compiler_accepts_retained_variadic_operands_from_c86",
+    "fn:upvar_compiler_uses_literal_probe_and_local_scalar_destinations",
+    "fn:unset_hook_proves_literal_operands_and_retains_dynamic_order_uncertainty",
+    "fn:procedure_only_variable_hook_declines_script_frames",
+    "fn:physical_caller_frame_does_not_invent_a_compiler_local_table",
+]
+
+[[module]]
+name = "compiled_bodies"
+doc = "Compiled literal bodies: boolean pruning, expansion, exception ranges and body boundaries."
+items = [
+    "fn:expanded_no_body_compilation_is_independent_of_runtime_argv_length..fn:compiled_bodies_use_literal_boolean_pruning_instead_of_runtime_folding",
+    "fn:inline_exception_ranges_preserve_unknown_depth_and_checked_overflow",
+    "fn:selected_interpreter_controls_independent_body_boundaries",
+]
+
+[[module]]
+name = "string_grammars"
+doc = "The `string equal`, `string length`, `regexp` and `regsub` compilers."
+items = [
+    "fn:string_equal_retains_raw_member_and_versioned_private_fallback..fn:string_length_requires_exact_member_shape_and_retains_native_arity_fallback",
+    "fn:regexp_capture_and_option_forms_decline_native_compilation..fn:regexp_options_preserve_original_operand_layout",
+]
+
+[[module]]
+name = "introspection_grammars"
+doc = "The `namespace` and `info` introspection compilers."
+items = ["fn:namespace_code_distinguishes_original_literal_builder_and_worker_fallback..fn:existence_hook_accepts_substituted_names_without_a_local_frame"]

@@ -1,0 +1,63 @@
+# The parent keeps the fixtures more than one group uses: `registry`,
+# `original_factory_tokens` and `standalone_factory_metadata`.
+file = "rust/tcl-compiler/src/type_infer/tests.rs"
+
+[[module]]
+name = "source_metadata"
+doc = "Typing under retained source metadata: selected owners, availability, and facts withdrawn for foreign or changed sources."
+items = [
+    "fn:original_generic_precision_uses_current_builtin_alias_and_rename_selection..fn:original_generic_precision_retains_the_independent_declared_transition_predicate",
+    "fn:original_type_metadata_retains_actual_availability_and_independent_source_grammar..fn:constructor_types_follow_current_namespace_and_written_name_grammar",
+]
+
+[[module]]
+name = "caller_safe_factories"
+doc = "The caller-safe factory proof over original class declarations."
+items = ["fn:assert_unsupported_caller_factories..fn:original_nested_factory_precision_requires_actual_child_tokens"]
+
+[[module]]
+name = "literals"
+doc = "Literal classification: original literal contents, numerals per release and the integer tower."
+items = [
+    "fn:original_literal_contents_keep_point_grammar_and_withdraw_stale_owners",
+    "fn:original_literal_contents_do_not_borrow_numeric_grammar_or_substituted_values",
+    "fn:float_literal_infers_double..fn:literal_classifiers_follow_the_release_numeral_matrix",
+    "fn:bignum_literal_classifies_on_the_tower",
+]
+
+[[module]]
+name = "propagation"
+doc = "The solver over hand-built SSA: constants, phi joins, folded-type refinement and parameters."
+items = [
+    "fn:a_folded_type_refines_only_what_the_static_typing_leaves_unknown..fn:integer_literal_infers_int",
+    "fn:phi_joins_types_from_executable_preds",
+    "fn:conditionally_assigned_param_merges_to_overdefined",
+    "fn:unconditionally_assigned_param_still_typed",
+]
+
+[[module]]
+name = "definition_types"
+doc = "How single statements type their definitions: `incr`, destructuring writers, `catch`, value assignments and nested command results."
+items = [
+    "fn:eval_def",
+    "fn:incr_infers_int..fn:var_write_typing_shapes_destructure_target_types",
+    "fn:assign_value_pure_var_ref_inherits_type..fn:normal_result_representation_does_not_require_an_opcode",
+]
+
+[[module]]
+name = "expression_types"
+doc = "Expression typing: operators, math functions, literal operands and deep nesting."
+items = ["fn:infer_str..fn:bitnot_coerces_to_int"]
+
+[[module]]
+name = "scope_aliases"
+doc = "Scope-alias commands and what an aliased store still proves about a variable's type."
+items = ["fn:scope_alias_commands_detected..fn:expression_types_follow_actual_alias_spellings_at_each_read"]
+
+[[module]]
+name = "container_elements"
+doc = "Element facts of lists, dictionaries and arrays through builders, retrievals, `lassign`, `foreach` and in-place writes."
+items = [
+    "fn:dict_of_objects_retrieval_types_element..fn:heterogeneous_object_collection_drops_element_class",
+    "fn:type_of..fn:assert_dict_value_effects",
+]

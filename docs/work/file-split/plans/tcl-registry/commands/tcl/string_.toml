@@ -1,0 +1,13 @@
+# The facade keeps `spec()`, the `string match` option row and `SUBCOMMANDS`,
+# one 1,533-line static that is a single item and so stays whole.
+file = "rust/tcl-registry/src/commands/tcl/string_.rs"
+
+[[module]]
+name = "constant_folds"
+doc = "Compile-time folds of the pure `string` subcommands."
+items = ["fn:fold_toupper..fn:fold_string_map_impl"]
+
+[[module]]
+name = "is_classes"
+doc = "`string is`: the class table, the membership tests behind its fold and the type each class proves."
+items = ["fn:fold_is..static:IS_CLASSES"]

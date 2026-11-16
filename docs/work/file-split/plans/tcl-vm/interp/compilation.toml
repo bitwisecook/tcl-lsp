@@ -1,0 +1,49 @@
+# Second level: applies to the `compilation` module that
+# plans/tcl-vm/interp.toml creates. The facade keeps `CommandSemantics` and
+# the initial compilation epochs; everything else is one of the modules below.
+file = "rust/tcl-vm/src/interp/compilation.rs"
+
+[[module]]
+name = "binding_freshness"
+doc = "Whether compiled code still holds: command bindings against the live table, inlined facts, identity manifests and spec-pack claims."
+items = ["impl:Vm::function_resolution_namespace_matches..impl:Vm::procedure_binding_matches"]
+
+[[module]]
+name = "invalidation"
+doc = "Invalidation: the compilation epochs and lookup stamps, the native compiler policy stamp, and the mutations that outdate the native compiler cache."
+items = [
+    "impl:Vm::enable_command_semantics_tracking..impl:Vm::native_cache_stamp",
+    "impl:Vm::source_namespace_path..impl:Vm::set_native_ensemble_compiler_attachment",
+]
+
+[[module]]
+name = "procedures"
+doc = "Procedure bodies: capturing the declaration body, compiling it with its entry and command plan, merging compiled procedures, and making a procedure ready to run."
+items = [
+    "impl:<'a> ProcedureCompilationInputs<'a>::new..impl:<'a> ProcedureCompilationInputs<'a>::target",
+    "impl:ProcedureCompilationTarget<'_>::target",
+    "impl:Vm::capture_procedure_body_value..impl:Vm::prepare_procedure_body_with_entry",
+    "impl:Vm::merge_procs..impl:Vm::ensure_proc_ready_in",
+]
+
+[[module]]
+name = "script_compilation"
+doc = "Compiling scripts and substitutions through the compile service: the script cache, plain-dispatch modules, module profile and namespace validation, and service errors."
+items = [
+    "impl:Vm::prepare_original_substitution..impl:Vm::compile_original_substitution",
+    "impl:Vm::compile_plain_module..impl:Vm::legacy_source_namespace",
+    "impl:Vm::compile_cached..impl:Vm::compile_service_error_bytes",
+]
+
+[[module]]
+name = "native_prerequisites"
+doc = "The prerequisites a native compiler selection recorded: the fixed math table, command, procedure-header and ensemble compiler registrations, checked against the live interpreter."
+items = ["impl:Vm::native_math_function_table..impl:Vm::native_compiler_binding_at_lookup"]
+
+[[module]]
+name = "native_entry"
+doc = "The native compilation entry: exporting the visible interpreter world (namespaces, commands, aliases, builtins, compiler hooks, variable tables) at a compilation boundary."
+items = [
+    "impl:Vm::native_compilation_entry_for_namespace..impl:Vm::native_compilation_binding",
+    "fn:created_without_compile_procedure",
+]

@@ -1,0 +1,56 @@
+# First level of two. The facade keeps the activation model (`Frame`, the
+# deferred request structs, `Tick`, `RunExit`), the `variable_try_*` macros,
+# the public `run_*` entry points and the original-scope settlement helpers
+# every module below calls. `activation`, `instructions` and `dispatch` are
+# split again by plans/tcl-vm/exec/<name>.toml.
+file = "rust/tcl-vm/src/exec.rs"
+
+[[module]]
+name = "activation"
+doc = "Activation records: building a `Frame`, the trampoline that drives the activation stack, parked and stale activations, and procedure entry."
+items = [
+    "impl:Frame::lambda_registration..impl:Frame::take_entered_command",
+    "fn:pair_foreach",
+    "fn:proc_usage..fn:procedure_usage_message",
+    "impl:Vm::run_activation..impl:Vm::push_frame",
+    "impl:Vm::install_tick..impl:Vm::validate_unwind_boundary",
+    "impl:Vm::procedure_argument_bindings..impl:Vm::bind_proc_arguments",
+    "impl:Vm::oo_run_method..impl:Vm::enter_oo_method",
+]
+
+[[module]]
+name = "completion"
+doc = "Settling a completion: catch ranges, error logging, unwinding activations and procedure frames, and return information."
+items = [
+    "fn:logged_command..type:LoggedCommand",
+    "impl:Vm::settle_completion..impl:Vm::deliver_tailcall_completion",
+    "impl:Vm::settle_unexpected_proc_completion..impl:Vm::check_oo_proc_exit",
+]
+
+[[module]]
+name = "control_activations"
+doc = "Scanner-driven activations that execute no bytecode: `subst`, each-loops, expressions and control commands, and folding a child completion back into them."
+items = [
+    "impl:Vm::settle_control_activation..impl:Vm::settle_expression_substitution_error",
+    "impl:Vm::fold_subst_bracket",
+    "impl:Vm::tick_subst..impl:Vm::fold_each_loop",
+]
+
+[[module]]
+name = "instructions"
+doc = "Executing bytecode instructions: the step prologue, the opcode dispatch, variable access, and the operand and classification helpers."
+items = [
+    "type:FrameIndexes..fn:pop",
+    "fn:ilen..fn:label_to_idx",
+    "fn:jump_target..fn:irule",
+    "impl:Vm::capture_native_command..impl:Vm::tick_local_array_variable_instruction",
+    "fn:native_numeric_type",
+]
+
+[[module]]
+name = "dispatch"
+doc = "Dispatching commands: invoking instructions, word-list dispatch, execution traces, command invocation from the host and from commands, and `tailcall`."
+items = [
+    "impl:Vm::tick_invoke..impl:Vm::invoke_selected_command_worker",
+    "impl:Vm::tick_original_invocation..impl:Vm::dispatch_tailcall",
+]

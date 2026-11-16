@@ -1,0 +1,100 @@
+# The crate root keeps the crate documentation, the database (`TclDb`, `TclDatabase`,
+# the overlay generations and the two epochs), the inputs (`SourceFile`,
+# `AnalyserConfig`, `Project`), `ProjectSourceInputMode` and `CheckSolve`, whose
+# private `unit` the diagnostics module reads.
+# After the move `tests.rs` still calls `LexerCfgKey::to_config`: it needs `pub(super)`.
+file = "rust/tcl-lsp-db/src/lib.rs"
+
+[[module]]
+name = "document_analysis"
+doc = "Whole-file analysis: the checked document input, the per-item incremental path and each procedure body's memoised isolated analysis."
+items = [
+    "fn:document_analyser_without_factory_oracle..fn:file_analysis",
+    "struct:ItemBodyKey",
+    "fn:item_body_analysis",
+    "fn:file_analysis_incremental",
+]
+
+[[module]]
+name = "declarations"
+doc = "Declaration queries: original procedure facts, the item tree and its signatures, declared procedure names and class factories."
+items = [
+    "struct:FileOriginalProcedureFacts..fn:file_decls",
+    "fn:project_proc_names..fn:merge_class_factories",
+]
+
+[[module]]
+name = "project_calls"
+doc = "The cross-file call view: `source` targets, the dispatch components they connect and the call-site evidence each file contributes."
+items = ["struct:FileSourceTarget..fn:file_external_call_sites"]
+
+[[module]]
+name = "command_signatures"
+doc = "Project-wide command signatures and arities from source headers: the original lookup's per-slot queries and the logical source arities."
+items = ["fn:proc_arity..fn:logical_source_command_arity"]
+
+[[module]]
+name = "arity_diagnostics"
+doc = "Cross-file wrong-argument-count diagnostics for calls and callbacks, from the project's source headers."
+items = [
+    "fn:cross_file_arity_diagnostic",
+    "fn:callback_exact_arity_diagnostic",
+    "fn:callback_source_target_signatures..fn:project_callback_diagnostics",
+]
+
+[[module]]
+name = "function_lattices"
+doc = "The memoised per-procedure baseline lattice and the interned keys that identify it."
+items = ["struct:CfgContext..fn:function_lattice_fallback"]
+
+[[module]]
+name = "memoised_units"
+doc = "A compilation unit assembled from the per-body memos: lowered procedure bodies, lattice keys and lattice candidates."
+items = ["struct:ProcBodyKey..fn:lattice_request_key"]
+
+[[module]]
+name = "check_solve"
+doc = "The checks-path solve: the interprocedural taint cascade, procedure summaries and the per-procedure checks."
+items = [
+    "struct:TaintSummaryKey..fn:function_checks",
+    "fn:rebase_check..fn:solve_checks_for_unit",
+    "fn:proc_taint_solve_for_config",
+]
+
+[[module]]
+name = "optimisation_solve"
+doc = "The per-procedure optimisation memo and the document's optimisations assembled from it."
+items = ["enum:ConstReturnKey..fn:top_level_only_unit"]
+
+[[module]]
+name = "compilation_units"
+doc = "The shared compilation unit of a document, with the lexer policy and the registry it resolves under."
+items = [
+    "struct:LexerCfgKey..fn:abstain",
+    "fn:token_registry",
+    "fn:unit_build_options",
+    "fn:compilation_unit",
+    "fn:compilation_unit_for_config",
+    "fn:supplied_unit_build_options",
+    "fn:document_compilation_unit",
+    "fn:document_compilation_unit_for",
+]
+
+[[module]]
+name = "declared_commands"
+doc = "The command declarations a document's unit builds under: its own stubs and the workspace procedures that leave the command world unchanged."
+items = ["fn:own_declared_command_surface..fn:world_preserving_procedure_stubs"]
+
+[[module]]
+name = "compiler_diagnostics"
+doc = "The compiler-check and optimiser diagnostics of one document, memoised and uncached."
+items = ["fn:abstain_diagnostics", "struct:CompilerDiagnostics..fn:compiler_check_diagnostics_uncached_from_analysis"]
+
+[[module]]
+name = "display_queries"
+doc = "The queries whose values the editor displays: the outline, folding ranges and semantic tokens, with the per-file and project token facts the tokens classify against."
+items = [
+    "fn:document_symbols",
+    "fn:semantic_tokens",
+    "struct:FileTokenFacts..fn:folding_ranges",
+]

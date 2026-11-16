@@ -1,0 +1,52 @@
+# The facade keeps the advice vocabulary (name inputs, naming policy,
+# obligations, cells) and the transition, tape, graph and invocation structs
+# that the existing child modules read.
+file = "rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+
+[[module]]
+name = "command_advice"
+doc = "What the transition advice of one command answers: sources, contexts and catalogue bodies."
+items = ["fn:trace_jim_member_earlier_operation..impl:OriginalSourceCommandTransitionAdvice"]
+
+[[module]]
+name = "conditional_declarations"
+doc = "Conditional procedure declarations and the declaration values an advice tape selects."
+items = [
+    "impl:OriginalSourceProcedureDeclarationValues..type:ConditionalProcedureDeclarationSelections",
+    "fn:conditional_procedure_declaration_selections",
+    "impl:OriginalSourceTransitionAdviceTape::procedure_declaration_values",
+    "struct:OriginalConditionalProcedureDeclaration..fn:original_conditional_procedure_declaration",
+]
+
+[[module]]
+name = "advice_tape"
+doc = "The advice tape: lookups, Logical original commands and the inventories it extends."
+items = [
+    "enum:OriginalSourceTransitionAdviceLookup",
+    "impl:OriginalSourceTransitionAdviceTape::native_procedure_calls..impl:OriginalSourceTransitionAdviceTape::interpreter_paths",
+    "impl:OriginalSourceTransitionAdviceTape::blocks_registry_source..impl:OriginalSourceTransitionAdviceTape::extend_inventory",
+    "fn:merge_receipt_inventory",
+]
+
+[[module]]
+name = "advice_graph"
+doc = "The advice graph: head lookup, publication keys, cell resolution and applied transitions."
+items = ["fn:root_context..fn:lookup_key", "impl:AdviceGraph"]
+
+[[module]]
+name = "transition_capture"
+doc = "Capturing an invocation's transition: its original words, registry words and subjects."
+items = [
+    "fn:original_words..fn:original_transition_subject_matches",
+    "fn:capture_jim_alias_prefix..fn:capture_transition",
+]
+
+[[module]]
+name = "invocation_advice"
+doc = "Advice for one invocation: schema transitions, retained inventories and original operands."
+items = ["impl:AdviceInvocationContext<'_>..impl:AdviceInvocationContext<'_>#2"]
+
+[[module]]
+name = "tape_preparation"
+doc = "Preparing the advice tape of a source: its seed, the initial graph and the entry points."
+items = ["impl:super::SourceCommandBindings..impl:OriginalSourceTransitionSeed#2"]

@@ -1,0 +1,34 @@
+# The crate root keeps `VmHandle`, the private shim, registrar, original-object
+# and receipt structs (several parts build and read their fields), the variable
+# and evaluation helpers and the failure projections both the registrar and
+# the engine use, and `TclVmEngine` with its `Engine` implementation.
+file = "rust/tcl-engine-tclvm/src/lib.rs"
+
+[[module]]
+name = "original_object"
+doc = "The original-object door a running host command gets: identity, caches, list backing and members."
+items = ["impl:tcl_engine_api::OriginalObject for VmOriginalObject"]
+
+[[module]]
+name = "registration"
+doc = "Command registration: the checked publication service, prepared and plain host commands and the registrar a host command registers through."
+items = [
+    "struct:VmPublicationService..fn:remove_prepared_host_command",
+    "fn:define_host_command..impl:CommandRegistrar for VmRegistrar<'_>",
+    "fn:register_host_command",
+]
+
+[[module]]
+name = "host_command"
+doc = "The shim that runs a host command as a VM native command: projected invocation, retirement and the completions a host outcome becomes."
+items = ["fn:host_outcome_completion", "fn:host_error_completion..fn:error_options"]
+
+[[module]]
+name = "original_recovery"
+doc = "Recovering a host command's original results into VM values: leaves, residents, list and dictionary children and the name and string caches."
+items = ["fn:recover_original_result..fn:recover_native_string_cache"]
+
+[[module]]
+name = "value_conversion"
+doc = "Conversion between interface values and VM values: scalars, versions, storage and scalar caches."
+items = ["struct:ActualScalarImport..fn:native_string_bytes"]

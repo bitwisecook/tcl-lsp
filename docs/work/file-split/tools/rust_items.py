@@ -44,8 +44,12 @@ def _skip_trivia(text: str, index: int) -> int:
     return index
 
 
-def _item_end(text: str, head: int) -> tuple[int, tuple[int, int] | None]:
-    """End of the item starting at `head`: a `;` or a balanced `{...}` at depth 0."""
+def _item_end(text: str, head: int, to_semicolon: bool = False) -> tuple[int, tuple[int, int] | None]:
+    """End of the item starting at `head`: a `;` or a balanced `{...}` at depth 0.
+
+    A `const`, `static` or `type` item always ends at its `;`, whatever
+    braces its value holds.
+    """
     depth = 0
     index = head
     while index < len(text):
@@ -64,6 +68,8 @@ def _item_end(text: str, head: int) -> tuple[int, tuple[int, int] | None]:
             depth += 1
         elif char in ")]":
             depth -= 1
+        elif char == "{" and depth == 0 and to_semicolon:
+            index = matching_brace(text, index)
         elif char == "{" and depth == 0:
             close = matching_brace(text, index)
             tail = close + 1
@@ -137,7 +143,7 @@ def parse_items(text: str, start: int = 0, stop: int | None = None, owner: str =
         header_stop = min(x for x in (line_end, semicolon, stop) if x >= 0)
         header = text[head:header_stop]
         match = ITEM.match(header)
-        end, body = _item_end(text, head)
+        end, body = _item_end(text, head, bool(match) and match.group("kind") in ("const", "static", "type"))
         if match:
             kind = match.group("kind").rstrip("!")
             rest = match.group("rest").strip()

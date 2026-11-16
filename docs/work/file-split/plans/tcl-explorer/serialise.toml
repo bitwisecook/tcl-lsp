@@ -1,0 +1,88 @@
+# The facade keeps the retained-source ingress, `serialise_meta`, `serialise_stats`,
+# the body keys every per-function view shares and the `serialise_result*` entry
+# points that assemble the contract object from the per-view modules.
+file = "rust/tcl-explorer/src/serialise.rs"
+
+[[module]]
+name = "front_end"
+doc = "The views of the front end: segments, the structural index, the source map and the IR tree."
+items = [
+    "fn:serialise_script",
+    "fn:serialise_children",
+    "fn:serialise_ir",
+    "fn:serialise_segments",
+    "fn:serialise_structural_index..fn:serialise_source_map_units",
+]
+
+[[module]]
+name = "wasm"
+doc = "The `wasm`, `aot` and `semanticOptimisations` views: the codegen plan, the native tier and the mixed-region plan."
+items = ["fn:wasm_codegen_plan..fn:argv_identity"]
+
+[[module]]
+name = "cfg"
+doc = "The control-flow views: the pre-SSA and post-SSA graphs, their routed edges, the dominator artefacts and the loop forest."
+items = [
+    "fn:terminator_dict",
+    "fn:completion_route_dict",
+    "fn:block_successors..fn:serialise_cfg_pre_ssa",
+    "fn:ssa_value_detail..fn:serialise_dominators",
+    "fn:post_ssa_analysis",
+    "fn:serialise_loops",
+]
+
+[[module]]
+name = "world_ssa"
+doc = "The world-state SSA view: typed regions, operations, invocations and availability."
+items = ["fn:world_domain_name..fn:serialise_world_ssa"]
+
+[[module]]
+name = "value_lattices"
+doc = "The per-value lattice views: SCCP, types, intervals, the taint lattice and rendered properties."
+items = [
+    "fn:serialise_rendered_properties",
+    "fn:serialise_intervals",
+    "fn:serialise_taint_tracking",
+    "fn:route_json..fn:serialise_sccp",
+    "fn:serialise_types",
+]
+
+[[module]]
+name = "def_use"
+doc = "The def-use views: liveness, the data-flow graph and memory SSA."
+items = ["fn:serialise_liveness..fn:use_class_label", "fn:serialise_dataflow..fn:serialise_memory_ssa"]
+
+[[module]]
+name = "executable_semantics"
+doc = "The `semantic` view: target-neutral executable semantics and every typed decline."
+items = ["fn:executable_instruction_kind..fn:serialise_semantic"]
+
+[[module]]
+name = "warnings"
+doc = "The views that list warnings: shimmer and thunking, taint sinks with their replays, and interval bounds."
+items = [
+    "fn:shimmer_severity",
+    "fn:serialise_shimmer",
+    "fn:taint_severity..fn:serialise_taint_replays",
+    "fn:serialise_bounds",
+]
+
+[[module]]
+name = "optimiser"
+doc = "The optimiser's views: the rewrites found, each pass's output and the redundancy hints."
+items = ["fn:serialise_gvn", "fn:serialise_optimisations", "fn:serialise_optimiser_passes"]
+
+[[module]]
+name = "interprocedural"
+doc = "The `unitScope` and `interprocedural` views: who can call a procedure and each procedure's summary."
+items = ["fn:arity_str", "fn:serialise_unit_scope", "fn:serialise_interproc"]
+
+[[module]]
+name = "irules"
+doc = "The iRules views: flow warnings, the cross-event connection scope and event order."
+items = ["fn:serialise_irules_flow..fn:serialise_connection_scope", "fn:serialise_event_order..fn:serialise_event_handlers"]
+
+[[module]]
+name = "annotations"
+doc = "The `annotations` source-callout views, with the compiler barriers they mark."
+items = ["struct:Ann..fn:serialise_annotations"]

@@ -1,0 +1,114 @@
+# The facade keeps `FunctionUnit` and `CompilationUnit` with their fact
+# structs, `UnitBuildOptions`, the input structs one stage builds for another
+# (`FunctionBuildInputs`, `ModuleWideFacts`, `BodyUnitContext`,
+# `DeclaredBodyMemoContext`, `ProcedureBuildContext`, the original-body cache
+# inputs) and the debug-only pipeline trace, whose thread-local cannot move.
+# The two large impls are split by concern, one impl block a file.
+file = "rust/tcl-compiler/src/compilation_unit.rs"
+
+[[module]]
+name = "lattice_request"
+doc = "`LatticeRequest`: one procedure's baseline-lattice build request for the memo callback, and the encoding of its parameter seeds."
+items = ["struct:LatticeRequest..type:ProcLatticeCache", "fn:encode_param_constants", "fn:decode_param_constants"]
+
+[[module]]
+name = "function_build"
+doc = "Building a `FunctionUnit`: the `build*` constructors and the shared full pipeline behind them (SSA, SCCP, derived artefacts)."
+items = [
+    "struct:FullSccpInputs..fn:build_full_derived_artifacts",
+    "impl:FunctionUnit::build..impl:FunctionUnit::trivial_guarded",
+    "fn:extend_existence_folds..fn:function_source_entry",
+]
+
+[[module]]
+name = "function_queries"
+doc = "`FunctionUnit` accessors: retained source metadata, semantic values, existence facts and source positions."
+items = [
+    "impl:FunctionUnit::with_body_id..impl:FunctionUnit::requires_native_math_binding_validation",
+    "impl:FunctionUnit::existence..impl:FunctionUnit::word_at",
+]
+
+[[module]]
+name = "template_instantiation"
+doc = "Instantiating a body template: restoring source proofs and relocating variable proofs through an alpha-renaming."
+items = [
+    "fn:relocate_statement_variable_proofs",
+    "impl:FunctionUnit::restored_source_proofs..impl:FunctionUnit::relocated_variable_proofs",
+]
+
+[[module]]
+name = "memory_and_semantic_facts"
+doc = "Memory SSA and semantic facts attached on demand, for one function and for the whole unit."
+items = [
+    "impl:FunctionUnit::with_memory_ssa..impl:FunctionUnit::semantic_facts_with_metadata",
+    "impl:CompilationUnit::with_memory_ssa..impl:CompilationUnit::with_deep_semantic_analysis",
+]
+
+[[module]]
+name = "interprocedural_analysis"
+doc = "The interprocedural pass over a finished unit: summaries, the memoised taint cascade and per-body taint reruns."
+items = [
+    "impl:FunctionUnit::interproc_taints",
+    "impl:FunctionUnit::interproc_taints_with_source",
+    "impl:CompilationUnit::original_interproc_taints_for_body",
+    "impl:CompilationUnit::with_interprocedural..impl:CompilationUnit::with_interprocedural_callback",
+]
+
+[[module]]
+name = "module_facts"
+doc = "Whole-module facts every per-function build shares: the class roster, known classes and connection-scoped names."
+items = [
+    "fn:connection_scoped_names",
+    "struct:RetainedSourceClassFacts",
+    "impl:RetainedSourceClassFacts",
+    "impl:ModuleWideFacts",
+    "fn:collect_known_classes",
+]
+
+[[module]]
+name = "source_lowering"
+doc = "Lowering the source to IR and CFGs, with the original-body caches, and resolving the unit's caller scope."
+items = [
+    "fn:lower_and_build_cfg",
+    "type:SourceSyntaxInputs",
+    "fn:lower_and_build_cfg_with_original_caches..fn:prepared_command_trust",
+]
+
+[[module]]
+name = "body_units"
+doc = "Units for bodies that are not procedures: `TclOO` methods, `apply` lambdas, `namespace eval` bodies and the cross-event connection scope."
+items = [
+    "struct:BodyMemoBuildInputs..fn:body_unit_request_scope",
+    "impl:CompilationUnit::build_method_units..impl:CompilationUnit::drop_cross_event_existence_folds",
+]
+
+[[module]]
+name = "procedure_units"
+doc = "One `FunctionUnit` per procedure: parameter seeds, the complexity guard and the lattice memo."
+items = ["struct:ProcedureMemoInputs..struct:BuiltProcedureUnits"]
+
+[[module]]
+name = "build_stages"
+doc = "The stages of a unit build and the driver that runs them, from retained lowering to post-analysis and assembly."
+items = [
+    "struct:RetainedLoweredSource..fn:build_retained_analysis_stage",
+    "impl:CompilationUnit::build_with_retained_entry_and_source_syntax",
+]
+
+[[module]]
+name = "build_entry"
+doc = "The `CompilationUnit::build*` entry points, which all reach the retained-entry build."
+items = ["impl:CompilationUnit::from_branch_folding_fixture..impl:CompilationUnit::build_with_retained_entry"]
+
+[[module]]
+name = "unit_queries"
+doc = "Selecting the functions, bodies, declarations and prepared CFGs of a finished unit."
+items = [
+    "impl:CompilationUnit::function_for_body..impl:CompilationUnit::retained_source_class_names",
+    "impl:CompilationUnit::analysable_functions..impl:CompilationUnit::analysable_methods_and_body_units",
+]
+
+[[module]]
+name = "conditional_original_body"
+doc = "Conditional CFG and lattice facts for an authentic original child body."
+items = ["impl:CompilationUnit::conditional_original_body_input", "impl:CompilationUnit::conditional_original_body_unit"]

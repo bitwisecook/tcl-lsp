@@ -1,0 +1,218 @@
+# First level of two. The facade keeps the interpreter model: `Vm`,
+# `InterpState` and every state struct (the existing `interp/` modules and
+# the modules below read their private fields, so the structs stay while
+# their methods move), the `Deref` from `Vm` to the current `InterpState`,
+# `ok`/`err`, and `standard_host`.
+#
+# `configuration`, `interpreters`, `commands`, `namespaces`, `traces`,
+# `variables`, `errors`, `compilation` and `runtime_api` are split again by
+# plans/tcl-vm/interp/<name>.toml; the other modules are final.
+file = "rust/tcl-vm/src/interp.rs"
+
+[[module]]
+name = "configuration"
+doc = "What an interpreter is configured with: the pinned release and dialect profile, logical providers, the command surface, native protocols, the host and compiler, debug hooks and channels."
+items = [
+    "impl:Vm::native_object_bridge_identity..impl:Vm::escape_syntax",
+    "impl:InterpState::source_profile..impl:InterpState::actual_native_name_protocol",
+    "impl:InterpState::native_scalar_carrier_dialect..impl:InterpState::expression_quote_control",
+    "impl:InterpState::builtin_command_visible_for_surface..impl:InterpState::profile_admits_registry_builtin",
+    "impl:Vm::set_debug_hook..impl:Vm::set_host",
+    "fn:run_observer_probe..fn:run_observer_probe#2",
+    "impl:DebugHookActivation::enter",
+    "impl:Drop for DebugHookActivation",
+    "impl:Vm::reset_standard_channel_configs..impl:Vm::remove_channel",
+]
+
+[[module]]
+name = "bootstrap"
+doc = "Building an interpreter: the constructors, fresh interpreter state, the native core bootstrap, host globals, the autoloader and the script libraries."
+items = [
+    "impl:Vm::with_native_core..impl:Vm::with_shared_output_bootstrap",
+    "impl:InterpState::fail_closed_guards..impl:InterpState::fresh_in_environment",
+    "const:AUTO_LOAD_BOOTSTRAP",
+    "impl:Vm::write_release_globals..impl:Vm::try_init_library",
+    "impl:Vm::register_bootstrap_procedure..impl:Vm::install_selected_scripted_library",
+    "impl:Default for InterpreterCounters",
+]
+
+[[module]]
+name = "interpreters"
+doc = "The interpreter tree: the arena and switching the current interpreter, child interpreters and their command form, aliases, hidden commands and safe interpreters."
+items = [
+    "enum:CommandVisibilityError",
+    "fn:native_visibility_completion",
+    "impl:CommandVisibilityError::into_completion",
+    "const:DEBUG_OPTIONS",
+    "impl:InterpSlot::is_root",
+    "impl:Vm::cur_interp..impl:Vm::drop_alias_backref_key",
+    "impl:Vm::interp_alias_create..impl:Vm::alias_chain_loops_for_rename",
+    "impl:Vm::fork_child_state..impl:Vm::bgerror_apply",
+    "impl:Vm::child_names..impl:Vm::mark_interp_trusted",
+    "impl:Vm::command_visibility_policy..impl:Vm::delete_interp",
+    "impl:Vm::child_wrong_arguments..impl:Vm::invoke_own_hidden_in_namespace",
+]
+
+[[module]]
+name = "commands"
+doc = "The command table: registration and guards, command tokens and generations, publication, rename and removal, lookup and resolution, ensemble dispatch and the invocation state of a running native command."
+items = [
+    "enum:NativeCommandLookupUnavailable..impl:std::error::Error for NativeCommandLookupUnavailable",
+    "impl:NativeRegisteredCommandToken::generation..impl:NativeRegisteredCommandToken::slot",
+    "enum:CommandSidecarKey",
+    "impl:CommandSidecarHandle::key..impl:CommandSidecarHandle::is_attached",
+    "impl:CommandSidecarKey::visible..impl:CommandSidecarKey::into_name",
+    "impl:CommandRenameTransaction::old_key..impl:CommandRenameTransaction::new_key",
+    "enum:CommandPublicationOutcome",
+    "impl:CommandPublicationOutcome::into_key",
+    "impl:CommandGenerations::insert..impl:CommandGenerations::is_bound",
+    "impl:Vm::register..impl:Vm::release_command_guard",
+    "impl:Vm::mint_command_generation..impl:Vm::remove_command_exact",
+    "impl:Vm::command_kind..impl:Vm::command_kind_bytes_checked",
+    "impl:Vm::builtin_identity_for_key..impl:Vm::is_host_builtin",
+    "impl:Vm::native_namespace_match..impl:Vm::ensemble_unknown_in_original_name",
+    "impl:Vm::native_ensemble_map_prefix_input..impl:Vm::visible_command_exists_exact",
+    "impl:InterpState::ns_path..impl:InterpState::resolve_command_bytes_checked",
+    "impl:Vm::intern_cmd..impl:Vm::command_sidecar_key",
+    "impl:Vm::enter_native_usage_scope..impl:Vm::invoked_name",
+    "impl:Vm::define_proc_binding..impl:Vm::define_proc_binding_with_jim_key_and_namespace_helper",
+]
+
+[[module]]
+name = "namespaces"
+doc = "Namespaces: paths and the unknown handler, namespace identity and operands, the resolution stack, declaration, exports and imports, and deletion."
+items = [
+    "enum:NativeNamespaceAddress..enum:NativeNamespaceAddressError",
+    "fn:root_hash_order",
+    "impl:RetainedNamespace::new",
+    "fn:retained_children_of",
+    "impl:OriginalCImportPreload::command..impl:OriginalCImportPreload::install_invoked_head",
+    "enum:NamespaceImportError",
+    "impl:NamespaceImportError::completion",
+    "impl:Default for NamespaceResolutionStacks",
+    "impl:InterpState::current_ns_id..impl:InterpState::current_ns",
+    "impl:Vm::ns_path_tokens..impl:Vm::definition_namespace_token_at_path",
+    "impl:Vm::activate_namespace_key..impl:Vm::forget_imports",
+    "impl:Vm::untrack_namespace_ensemble..impl:Vm::child_namespace_ids_hash_order",
+    "impl:Vm::enter_ns_script..impl:Vm::leave_ns_script",
+]
+
+[[module]]
+name = "native_result"
+doc = "The native interpreter result and C return state: borrowing, resetting and adopting the result object, the Jim object context, and native list and dictionary conversion at ingress."
+items = ["impl:InterpState::native_jim_object_context..impl:InterpState::native_object_dict_pairs_in"]
+
+[[module]]
+name = "packages"
+doc = "The package database: provided versions, `package ifneeded` scripts, loading markers, the unknown handler and the version preference."
+items = [
+    "fn:initial_package_prefer..fn:initial_package_prefer#2",
+    "impl:Vm::provide_package..impl:Vm::prefer_latest_packages",
+]
+
+[[module]]
+name = "limits"
+doc = "Resource limits and confinement: the `time`, `commands` and value-size limits, `interp limit`, and confining stores to the running procedure."
+items = [
+    "const:LIMIT_TYPES..fn:bad_limit_value",
+    "enum:LimitKind",
+    "impl:LimitKind::message",
+    "impl:Default for LimitSet",
+    "impl:Vm::time_limit_exceeded..impl:Vm::limit_time",
+]
+
+[[module]]
+name = "traces"
+doc = "Traces: variable and command trace registration, the native `env` and `tcl_precision` observers, command-trace firing and relocation, and firing variable traces."
+items = [
+    "impl:VarTraceCell::array_id",
+    "impl:CmdTraceEntry::new..impl:CmdTraceEntry::firing",
+    "impl:Vm::save_native_interp_trace_result..impl:Vm::restore_native_interp_trace_result",
+    "impl:Vm::step_trace_active..impl:Vm::publish_native_inline_trace_transition",
+    "fn:is_step_capable",
+    "impl:Vm::trace_cell_bytes..impl:Vm::detach_active_sidecars",
+    "impl:Vm::fire_var_traces_from_cell_bytes..impl:Vm::fire_var_traces_inner",
+    "fn:settle_trace_failure_code",
+]
+
+[[module]]
+name = "variables"
+doc = "Variables: resolving a name to its cell, links, traced reads, scalar and array access, unset, the read-modify-write updates (`append`, `lappend`, `incr`) and procedure statics."
+items = [
+    "enum:UpvarLinkError",
+    "fn:elem_ref",
+    "impl:Vm::ns_var_global_fallback",
+    "impl:Vm::var_trace_info_bytes..impl:Vm::discard_undefined_array_shell",
+    "impl:Vm::set_local_bytes..impl:Vm::validate_link_binding",
+    "impl:Vm::variable_table_recipe..impl:Vm::array_elem_exists_at_id",
+]
+
+[[module]]
+name = "frames"
+doc = "Call frames and flows: pushing and destroying a call frame, procedure owners, coroutine flow swaps, recursion depth, the `source` script stack, evaluation at a level and tailcall requests."
+items = [
+    "const:OO_DISPATCH_DEPTH_LIMIT",
+    "impl:ParkedFlow::original_tailcall_currencies..impl:ParkedFlow::current_namespace_token",
+    "impl:Vm::with_timer_metadata..impl:Vm::eval_retained_frame",
+    "impl:Vm::install_native_oo_unknown..impl:Vm::frame_var_name_bytes",
+    "impl:Vm::schedule_tailcall..impl:Vm::take_frame_tailcall",
+]
+
+[[module]]
+name = "errors"
+doc = "Error state: `errorInfo` frames, the logged flag, parse and compilation failures, Jim return state and error stack, the TIP 348 error stack, publishing `errorInfo`/`errorCode`, and host refusals."
+items = [
+    "fn:key_holder_and_tail_unrooted",
+    "impl:Default for NativeCReturnState",
+    "enum:ErrorLogged",
+    "impl:ErrorLogged::is_logged..impl:ErrorLogged::marked",
+    "impl:Default for NativeErrorState",
+    "impl:Vm::log_command_info..impl:Vm::set_error_line",
+    "impl:Vm::command_error_is_logged..impl:Vm::publish_error_info",
+    "impl:Vm::refuse_expression..impl:Vm::take_host_boundary_refusal",
+]
+
+[[module]]
+name = "expressions"
+doc = "Expressions: preparing and evaluating expression source, the fixed math-function table, `rand`, and expression syntax errors."
+items = [
+    "impl:Vm::rand_seed_set..impl:Vm::rand_next",
+    "impl:Vm::invoke_fixed_math_builtin..impl:Vm::retain_native_fixed_math_calls",
+    "impl:Vm::math_function_names",
+    "impl:Vm::eval_expr..impl:Vm::native_refusal_namespace",
+    "impl:Vm::seed_parsing_expression_frame..impl:Vm::seed_parsing_expression_frame_bytes",
+]
+
+[[module]]
+name = "compilation"
+doc = "Runtime compilation: whether compiled bindings still hold, invalidation epochs and compiler policy stamps, procedure bodies, the native compilation entry, and the script compile cache."
+items = [
+    "enum:CommandSemantics",
+    "impl:Default for NativeCompilationEpochs",
+    "impl:<'a> ProcedureCompilationInputs<'a>::new..impl:<'a> ProcedureCompilationInputs<'a>::target",
+    "impl:ProcedureCompilationTarget<'_>::target",
+    "impl:Vm::function_resolution_namespace_matches..impl:Vm::procedure_binding_matches",
+    "impl:Vm::enable_command_semantics_tracking..impl:Vm::set_native_ensemble_compiler_attachment",
+    "impl:Vm::capture_procedure_body_value..impl:Vm::ensure_proc_ready_in",
+    "impl:Vm::native_math_function_table..impl:Vm::compile_service_error_bytes",
+    "fn:created_without_compile_procedure",
+]
+
+[[module]]
+name = "evaluation"
+doc = "Evaluating source: the `eval_source*` and `eval_file` entry points, level-zero settlement, direct evaluation, and preparing a script value's commands."
+items = [
+    "enum:OriginalScriptRun",
+    "impl:Vm::eval_source_as..impl:Vm::prepare_script_commands_value_for",
+    "fn:stdin_chunks",
+]
+
+[[module]]
+name = "runtime_api"
+doc = "The `tcl_runtime_api` traits over `Vm`: `VarStore`, `Introspect`, `Procs`, `Commands`, `Traces`, `Frames`, `Aliases`, `Namespaces` and the array-search backend."
+items = [
+    "impl:VarStore for Vm",
+    "impl:Vm::array_read_elem_bytes_native_at",
+    "impl:Introspect for Vm..impl:Namespaces for Vm",
+    "impl:tcl_cmd_core::native_array_search::NativeArraySearchBackend for Vm",
+]

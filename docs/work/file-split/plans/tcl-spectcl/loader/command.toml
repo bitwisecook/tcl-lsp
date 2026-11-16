@@ -1,0 +1,34 @@
+# Second level, after `loader.toml`. `command.rs` keeps the command
+# accumulator and `command_from_parts`, the hook-source readers and the
+# block-or-name resolution every block statement shares.
+file = "rust/tcl-spectcl/src/loader/command.rs"
+
+[[module]]
+name = "containment"
+doc = "The lifecycle containment pass: every child lifecycle of a finished command or subcommand stays inside its parent's window."
+items = ["fn:check_command_containment..fn:check_subcommand_containment"]
+
+[[module]]
+name = "body_statements"
+doc = "One statement of a `command` body, with its `repeat` and `form` rows."
+items = ["fn:apply_command_stmt", "fn:repeat_row..fn:form_row"]
+
+[[module]]
+name = "role_resolvers"
+doc = "Argument-role resolvers: the closed native count and layout descriptors and the capability set a resolver must state."
+items = ["fn:index_list..fn:native_id"]
+
+[[module]]
+name = "effect_rows"
+doc = "The `effects`, `side_effect`, option-relation and `frame_effect` rows, and the knowledge they state together."
+items = ["enum:StatedKnowledge..fn:frame_effect_row"]
+
+[[module]]
+name = "world_state"
+doc = "`world_effects` and `state_transitions`: resolvers, widening, coverage and the derivation from a frame effect."
+items = ["fn:world_effects_value..fn:derive_transitions_from_frame_effect"]
+
+[[module]]
+name = "refinements"
+doc = "`refine` blocks: the invocation form a refinement describes, its statements, options and selector."
+items = ["struct:RefineAcc..fn:selector_row"]

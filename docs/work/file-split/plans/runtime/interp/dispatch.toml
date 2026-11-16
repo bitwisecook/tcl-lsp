@@ -1,0 +1,56 @@
+# Second level: apply `plans/runtime/interp.toml` first; it creates this file.
+# The facade keeps the call descriptions other modules build (`CallMeta`,
+# `ProcFrame`, `MethodFrameWhat`), the dispatch selection types, the depth
+# bounds and the math-function calls.
+file = "runtime/rust/src/interp/dispatch.rs"
+
+[[module]]
+name = "traces"
+doc = "Command and execution traces: `rename` and `delete` traces, `enter`, `leave` and step traces, and the traced dispatch path."
+items = [
+    "impl:Interp::fire_cmd_trace_of_token..impl:Interp::move_cmd_traces",
+    "impl:Interp::dispatch_traced..impl:Interp::fire_step",
+]
+
+[[module]]
+name = "command_dispatch"
+doc = "The central dispatch boundary: lookup, the selected binding, and the `unknown` path for a missing command."
+items = [
+    "impl:Interp::dispatch..impl:Interp::dispatch_prebound_inner",
+    "impl:Interp::dispatch_inner_at_with_source..impl:Interp::dispatch_missing_command",
+]
+
+[[module]]
+name = "bound_invocation"
+doc = "Invoking what a name is bound to: builtins, object commands, Jim evaluation scopes, aliases and parent aliases."
+items = [
+    "struct:JimInvocationScope..impl:Drop for JimInvocationScope",
+    "impl:Interp::invoke_bound..impl:Interp::invoke_obj_cmd",
+    "impl:Interp::dispatch_parent_alias",
+    "impl:Interp::dispatch_alias",
+]
+
+[[module]]
+name = "procedure_calls"
+doc = "Calling a procedure: preparing the call, binding the formals, running the selected body and the `wrong # args` usage."
+items = [
+    "enum:PreparedProcedureBody..struct:PreparedProcedureCall",
+    "impl:Interp::call_bound_proc..impl:Interp::call_proc",
+    "impl:Interp::run_proc..impl:Interp::native_proc_dispatches",
+    "impl:Interp#2",
+    "fn:proc_usage_words..fn:proc_usage",
+]
+
+[[module]]
+name = "tailcalls"
+doc = "`tailcall`: scheduling the replacement command and draining it after the frame pops."
+items = ["impl:Interp::schedule_tailcall..impl:Interp::drain_tailcalls"]
+
+[[module]]
+name = "ensembles"
+doc = "The ensemble trampoline: the rewrite record, subcommand resolution, the target dispatch and the `-unknown` handler."
+items = [
+    "enum:EnsembleUnknown",
+    "impl:Interp::begin_ensemble_rewrite..impl:Interp::reset_native_ensemble_rewrite",
+    "impl:Interp::ensemble_wrong_args_for_invocation..impl:Interp::ensemble_unknown",
+]

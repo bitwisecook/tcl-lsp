@@ -1,0 +1,31 @@
+# Second level: apply `lowering/mod.toml` first. `commands.rs` keeps the
+# selection for one command: `lower_command`, `select_command_lowering`, its
+# step types, namespace directives and the registered (non-structured) hooks.
+file = "rust/tcl-compiler/src/lowering/commands.rs"
+
+[[module]]
+name = "invocation_metadata"
+doc = "The original tokens of one invocation and the registry metadata context it is resolved in."
+items = [
+    "fn:arg_token_kind",
+    "impl:<'r> Lowerer<'r>::logical_structured_invocation..impl:<'r> Lowerer<'r>::arg_kinds",
+    "impl:<'r> Lowerer<'r>::retained_metadata_descriptor_label..impl:<'r> Lowerer<'r>::invocation_metadata_context",
+]
+
+[[module]]
+name = "structured_hooks"
+doc = "Dispatching a structured lowering hook: argv-shape commitment, expansion barriers and the consumed command binding."
+items = [
+    "struct:StructuredHookSelection",
+    "impl:<'r> Lowerer<'r>::hook_commits_to_argv_shape..impl:<'r> Lowerer<'r>::try_lower_foreach_line_structured",
+]
+
+[[module]]
+name = "default_call"
+doc = "The default lowering of a command to a call: argument roles, uninitialised-target safety and the reads hidden in a value word."
+items = [
+    "impl:Lowerer<'_>",
+    "impl:<'r> Lowerer<'r>::nested_expr_reads_in_set_value",
+    "impl:<'r> Lowerer<'r>::lower_default..impl:<'r> Lowerer<'r>::lower_default_with_tokens",
+    "fn:untyped_call..impl:RoleIndices",
+]

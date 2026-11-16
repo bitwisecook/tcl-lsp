@@ -1,0 +1,50 @@
+# The facade keeps `Container` and `root_container`, entry building and kind
+# placement, the `project_fields` dispatcher with the `Fields` builder and the
+# reference and list helpers every per-module projection uses, and
+# `resolve_pathref`.
+file = "rust/tcl-bigip-query/src/projection.rs"
+
+[[module]]
+name = "kinds"
+doc = "The module names and object kinds the query language documents, and their labels."
+items = ["const:MODULE_NAMES..fn:kind_to_label"]
+
+[[module]]
+name = "object_refs"
+doc = "Object references: the stanza an object came from, its source range and the byte slots of its scalar fields."
+items = ["fn:build_object_ref..fn:brace_depth_after_line"]
+
+[[module]]
+name = "ltm"
+doc = "Field projection of LTM objects: virtuals, pools, nodes, rules, profiles, monitors, persistence, policies and data groups."
+items = ["fn:project_virtual..fn:project_snat_translation"]
+
+[[module]]
+name = "net"
+doc = "Field projection of the L2/L3 underlay: routes, VLANs, self IPs, route domains, interfaces and tunnels."
+items = ["fn:project_net_route..fn:project_net_stp"]
+
+[[module]]
+name = "sys"
+doc = "Field projection of system objects: DNS, NTP, SNMP, provisioning, folders and certificate files."
+items = ["fn:project_sys_dns..fn:project_sys_management_route"]
+
+[[module]]
+name = "cm"
+doc = "Field projection of device-cluster objects: certificates, devices, device groups and traffic groups."
+items = ["fn:project_cm_cert..fn:project_cm_trust_domain"]
+
+[[module]]
+name = "apm"
+doc = "Field projection of APM objects: access policies, policy items and agents."
+items = ["fn:project_apm_access_policy..fn:project_apm_default_report"]
+
+[[module]]
+name = "gtm"
+doc = "Field projection of GTM objects: data centres, servers, pools, wide IPs and listeners."
+items = ["fn:project_gtm_datacenter..fn:project_gtm_listener"]
+
+[[module]]
+name = "security"
+doc = "Field projection of AFM firewall and NAT objects."
+items = ["fn:fw_endpoint..fn:project_nat_destination_translation"]

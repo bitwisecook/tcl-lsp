@@ -1,0 +1,30 @@
+# The facade keeps the module list, `CodegenCtx` with its constructors (every
+# part reads its fields), the lexer queries and the emission primitives:
+# `emit`, labels and `into_function_asm`.
+file = "rust/tcl-codegen/src/codegen/mod.rs"
+
+[[module]]
+name = "release_evaluation"
+doc = "How the emulated release evaluates and binds the command being emitted, and whether it compiles locals there."
+items = ["impl:<'r> CodegenCtx<'r>::command_evaluation..impl:<'r> CodegenCtx<'r>::inside_same_frame_eval"]
+
+[[module]]
+name = "site_bindings"
+doc = "The command bindings, pack claims and native-compilation dependencies a specialised site relies on."
+items = [
+    "impl:<'r> CodegenCtx<'r>::set_resolution_namespace_path..impl:<'r> CodegenCtx<'r>::invocation_specialisation_proved",
+    "impl:<'r> CodegenCtx<'r>::trusts_builtin..impl:<'r> CodegenCtx<'r>::inline_lowering_hook",
+]
+
+[[module]]
+name = "source_sites"
+doc = "The source the context emits from and the command boundary each instruction is stamped with."
+items = [
+    "impl:<'r> CodegenCtx<'r>::set_source..impl:<'r> CodegenCtx<'r>::set_control_source_span",
+    "impl:<'r> CodegenCtx<'r>::clear_source_site..impl:<'r> CodegenCtx<'r>::begin_consumed_inline_command",
+]
+
+[[module]]
+name = "error_info"
+doc = "The command text and line `errorInfo` names: span text, substitution stamps and source lines."
+items = ["impl:<'r> CodegenCtx<'r>::span_text..impl:<'r> CodegenCtx<'r>::span_line"]

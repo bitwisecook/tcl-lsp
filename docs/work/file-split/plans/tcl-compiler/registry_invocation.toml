@@ -1,0 +1,128 @@
+# The facade keeps the module docs, the word and resolved-statement types
+# (`EffectiveCommandWords`, `ResolvedStatementInvocation` and their impls), the
+# `resolved_*_invocation` entry points and the structs the existing child
+# modules read.
+file = "rust/tcl-compiler/src/registry_invocation.rs"
+
+[[module]]
+name = "structured_invocation"
+doc = "Structured source invocations: Logical roles, simulation support and declared layouts."
+items = [
+    "struct:LogicalStructuredInvocation..fn:static_body_evaluator_is_supported",
+    "fn:original_structured_operands_are_supported..fn:original_structured_invocation_with_metadata_context",
+    "fn:original_declared_structured_invocation..fn:original_inline_control_structured_invocation",
+]
+
+[[module]]
+name = "source_coverage"
+doc = "Source-coverage queries: quiet stores, source loads, completions and source-cut declarations."
+items = [
+    "struct:OriginalQuietScalarStoreSourceCoverage..fn:original_authored_quiet_store_for_source_coverage",
+    "impl:OriginalConditionalSourceLoadCoverage<'_>..fn:original_conditional_source_load_for_coverage",
+    "impl:OriginalAuthoredResultCompletionSourceCoverage<'_>..fn:original_authored_result_completion_for_source_coverage",
+    "impl:<'a> OriginalSourceCutProcedureDeclaration<'a>..fn:source_cut_body_refused",
+    "impl:SourceCutDeclarationWordCorrespondence..fn:original_authored_procedure_declaration_for_source_coverage",
+]
+
+[[module]]
+name = "source_model_operations"
+doc = "Original source-model operations: variable footprints, substitution purity and layouts."
+items = ["fn:conditional_option_arguments_with_metadata_context..fn:resolve_original_source_layout"]
+
+[[module]]
+name = "native_compilation"
+doc = "Native compilation of an invocation: compiler admission, inline operations and dependencies."
+items = [
+    "impl:AdmittedNativeCompilerInvocation..impl:<'a> SelectedLoweringBindingIdentity<'a>",
+    "fn:native_compilation_word_shape..fn:native_compilation_dependency",
+    "struct:NativeProcedureNoOpPlan..fn:native_named_command_words",
+]
+
+[[module]]
+name = "normal_transfer"
+doc = "The normal transfer of an invocation: variable outputs, container writes and operand places."
+items = [
+    "struct:NormalTransferInvocation..fn:normal_transfer_invocation_with_metadata_context",
+    "fn:normal_alias_frame..fn:normal_output_compilation",
+]
+
+[[module]]
+name = "variable_transitions"
+doc = "Variable-side transitions an invocation may make: namespace directives, aliases and traces."
+items = [
+    "struct:NamespaceDirectiveFootprint..fn:namespace_directive_footprint_for_invocation",
+    "impl:PossibleVariableAliasTransitions..fn:possible_name_operand_word",
+    "impl:VariableNameOperands..fn:variable_name_operands",
+]
+
+[[module]]
+name = "normal_representation"
+doc = "The normal representation of an invocation: results, index accesses, patterns and taint."
+items = [
+    "struct:NormalValueAssignment..struct:ConditionalIndexAccessAdvice",
+    "fn:conditional_index_access_advice_with_metadata_context..fn:normal_statement_representation_with_metadata_context",
+]
+
+[[module]]
+name = "handler_invocation"
+doc = "Invocations of a selected handler: callbacks, declared assistance and completion routes."
+items = [
+    "fn:possible_normal_handler_effect_regions_with_metadata_context..fn:resolved_handler_invocation_with_metadata_context",
+    "struct:DeclaredInvocationAssistance..fn:resolved_declared_assistance",
+    "fn:normal_handler_completion_route..fn:normal_user_procedure_invocation_with_metadata_context",
+]
+
+[[module]]
+name = "effective_words"
+doc = "Effective words of an invocation: alias prefixes, expansions and frozen argument values."
+items = [
+    "fn:effective_command_words",
+    "fn:original_logical_prefix_for_tokens..fn:source_effective_words_for_target",
+    "fn:discard_named_selection_operands..fn:frozen_argument_words",
+]
+
+[[module]]
+name = "invocation_assistance"
+doc = "The registry shape of an invocation and the argument, value and catalogue assistance on it."
+items = ["impl:RegistryInvocationShape..fn:invocation_argument_role_consensus"]
+
+[[module]]
+name = "body_assistance"
+doc = "What body assistance answers: caller templates, parameter roles, traits and lambda owners."
+items = [
+    "impl:ParameterRoleAdvice",
+    "impl:BodyParameterSourceInvocation",
+    "impl:<'a> ConditionalParameterSourceInvocation<'a>",
+    "impl:ConditionalParameterSourceAliasLayout..impl:InvocationBodyAssistance",
+]
+
+[[module]]
+name = "body_candidates"
+doc = "Preparing and publishing the body candidates of an invocation and their parameter advice."
+items = ["struct:PreparedBodyCandidate..fn:retain_conditional_body_invocation"]
+
+[[module]]
+name = "logical_parameter_bodies"
+doc = "Body assistance for the parameters of Logical procedures and lambdas."
+items = ["struct:LogicalParameterSourceFacts..fn:unpositioned_body_assistance"]
+
+[[module]]
+name = "word_resolution"
+doc = "Effective invocation words and their resolution to a registry invocation in a realm."
+items = ["enum:EffectiveInvocationWord..fn:require_native_implementation_lookup"]
+
+[[module]]
+name = "body_topology"
+doc = "Possible body invocations and the conditional body topology advice of a handler."
+items = [
+    "struct:PossibleBodyInvocation",
+    "fn:possible_body_invocation..fn:conditional_runtime_body_topology_advice",
+    "fn:original_compilation_body_topology_advice..fn:original_layout_body_topology_advice",
+]
+
+[[module]]
+name = "expression_operand_advice"
+doc = "Original expression operands: the context and advice of a selected word."
+items = [
+    "struct:OriginalExpressionOperandAdvice..fn:original_expression_operand_advice_selected_word",
+]

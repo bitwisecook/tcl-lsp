@@ -1,0 +1,116 @@
+# The parent keeps the imports and the fixture registry (completion codes,
+# world-effect descriptors, dispatch dependencies) that several modules share.
+# Modules take the names of the production modules of `resolved_invocation`.
+file = "rust/tcl-registry/src/resolved_invocation/tests.rs"
+
+[[module]]
+name = "source_scripts"
+doc = "Executable values, retained callbacks, control arms, option variable scope and frame scripts in the authored source."
+items = [
+    "fn:source_executable_value_absence_keeps_data_role_ambiguity_separate..fn:frozen_source_retention_does_not_drop_body_valued_callback_options",
+    "fn:selected_source_control_arms_require_actual_roles_and_complete_grammar",
+    "fn:selected_option_variable_scope_shares_availability_prefix_and_value_geometry",
+    "fn:original_frame_script_advice_keeps_selected_and_logical_layouts_separate",
+]
+
+[[module]]
+name = "source_operands"
+doc = "List, enum, pattern, format and expression operands in the authored source."
+items = [
+    "fn:conditional_list_argument_layout_keeps_values_expansion_and_other_descriptors_distinct",
+    "fn:source_list_operand_templates_keep_splices_separate_from_argv_and_results",
+    "fn:source_enum_projection_keeps_literal_and_native_byte_facets_separate",
+    "fn:authored_source_patterns_keep_selected_context_and_option_languages..fn:authored_source_formats_keep_selected_context_and_effective_ordinals",
+    "fn:source_expression_roles_keep_selected_tail_and_unknown_cardinality",
+]
+
+[[module]]
+name = "source_options"
+doc = "Teardown and destructive-path targets, possible and available options, file arguments and diagnostic options."
+items = [
+    "fn:original_teardown_source_layout_uses_selected_effective_argv..fn:original_destructive_source_paths_refuse_unknown_widths_and_unselected_descriptors",
+    "fn:source_possible_options_branch_over_admitted_widths_and_terminators..fn:source_completion_options_require_actual_nested_selector",
+    "fn:original_source_file_argument_keeps_available_forms_and_unknown_selectors",
+    "fn:original_invokehidden_options_keep_the_path_prefix_and_actual_availability",
+    "fn:source_diagnostic_options_keep_nested_prefixes_and_unknown_boundaries",
+]
+
+[[module]]
+name = "operation_resolution"
+doc = "What the descriptors select: completion descriptors and their precedence, and semantic operations."
+items = [
+    "fn:original_selected_completion_keeps_descriptor_and_argument_grammar_independent",
+    "fn:completion_descriptor_precedence_is_form_then_subcommand_then_command..fn:registry_exposes_standard_code_descriptors_and_conservative_invoke_fallback",
+    "fn:semantic_operations_keep_structural_lowering_and_precise_leaf_intrinsics_distinct",
+]
+
+[[module]]
+name = "case_clauses"
+doc = "Case pattern layout, presentation and clause projection, clause roles and clause-shape advice."
+items = [
+    "fn:original_case_pattern_layout_keeps_unknown_payloads_and_actual_option_windows",
+    "fn:source_clause_roles_keep_resolver_roles_and_actual_availability",
+    "fn:authored_case_presentation_keeps_incomplete_list_separate_from_invocation..fn:authored_case_layout_retains_dynamic_subject_and_exact_control_words",
+    "fn:source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection..fn:authored_source_shape_advice_keeps_unknown_payloads_and_selected_dialect",
+]
+
+[[module]]
+name = "argument_roles"
+doc = "Argument roles: logical role projection, the Jim core layout, optional, repeating, resolver-backed and cardinality roles."
+items = [
+    "fn:original_logical_case_role_projection_keeps_selected_options_and_body_residuals",
+    "fn:authored_jim_core_layout_uses_source_grammar_in_shared_registry..fn:authored_jim_layout_does_not_infer_a_core_descriptor_from_proc_hook",
+    "fn:repeating_target_roles_do_not_require_a_literal_container_value",
+    "fn:optional_roles_follow_proved_argv_presence",
+    "fn:resolver_backed_arg_roles..fn:invocation_facts_keep_dynamic_resolver_roles_incomplete",
+    "fn:cardinality_roles_preserve_dynamic_foreach_operands_and_unknown_expansion..fn:cardinality_scan_roles_preserve_unknown_values_and_expansion_uncertainty",
+]
+
+[[module]]
+name = "source_definitions"
+doc = "Definition bodies, procedure parameter roles, static lists and the `proc` hook declaration."
+items = [
+    "fn:source_enum_values_and_definition_bodies_use_the_selected_invocation",
+    "fn:authored_source_procedure_roles_do_not_supply_native_definition_acceptance",
+    "fn:authored_source_static_list_position_rejects_duplicate_or_overlapping_roles..fn:authored_proc_hook_declaration_requires_exact_source_roles_and_transition",
+]
+
+[[module]]
+name = "invocation_options"
+doc = "Selected option tables: reserved positional values, option value roles and the structured option boundary."
+items = [
+    "fn:selected_subcommand_options_preserve_reserved_positional_values",
+    "fn:selected_option_value_roles_reach_owned_facts_without_classifying_result_data..fn:selected_option_value_role_width_is_independent_of_unknown_payload",
+    "fn:structured_boundary_options..fn:structured_option_boundary_shares_alias_abbreviation_and_value_span_rules",
+]
+
+[[module]]
+name = "invocation_facts"
+doc = "`InvocationFacts`: coercions, result types, argument hints, scalar-math and list-length protocols, purity and dispatch dependencies."
+items = [
+    "fn:selected_operand_coercions_preserve_shared_object_hazards..fn:selected_regexp_result_uses_available_flags_before_unknown_values",
+    "fn:selected_argument_hints_retain_member_options_and_transparency..fn:selected_argument_hints_decline_unresolved_argv_and_rejected_arity",
+    "fn:retained_result_types_respect_option_forms_and_unknown_slots..fn:dictionary_constructor_coerces_keys_and_retains_unknown_value_objects",
+    "fn:scalar_math_shape_requires_the_selected_native_protocol..fn:list_length_abstract_method_obligation_retains_native_axes",
+    "fn:invocation_facts_are_owned_and_target_neutral..fn:clock_result_dependencies_are_selected_by_subcommand",
+    "fn:successful_frame_facts_are_separate_from_possible_argument_error_facts",
+    "fn:invocation_facts_keep_conservative_dispatch_dependencies_by_default..fn:invocation_facts_own_composed_command_subcommand_and_form_dependencies",
+]
+
+[[module]]
+name = "argument_count"
+doc = "Argument counting: arity count layout, positional arity behind an option boundary and reserved tails."
+items = [
+    "fn:source_arity_count_layout_keeps_axis_prefix_data_and_expansion_bounds",
+    "fn:positional_arity_uses_proved_option_boundary_without_inventing_dynamic_values..fn:leading_flags_are_not_positionals_and_the_final_word_never_is_one",
+    "fn:positional_count_preserves_native_reserved_tail_and_case_layout",
+]
+
+[[module]]
+name = "effects_and_transitions"
+doc = "World-effect composition, state-transition facts, alias transitions and transition coverage."
+items = [
+    "fn:world_effect_descriptors_compose_by_default_and_can_explicitly_refine..fn:dynamic_effect_arguments_stay_conservative_without_exposing_a_value",
+    "fn:transition_facts_keep_literal_subjects_precise_and_dynamic_operands_scoped..fn:frame_and_namespace_alias_transitions_follow_registry_layouts",
+    "fn:transition_coverage_replaces_only_the_duplicate_legacy_write..fn:no_value_append_forms_do_not_donate_mutation_contracts",
+]

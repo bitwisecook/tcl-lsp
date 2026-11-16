@@ -1,0 +1,42 @@
+# The facade keeps the module docs and the visibility model itself:
+# `SourceInterpreterVisibilitySnapshot` with its slots, hide, expose and
+# observe, the reporting domain, the obligations and the conditional subject a
+# diagnostic carries.
+file = "rust/tcl-compiler/src/analyser/interp_visibility.rs"
+
+[[module]]
+name = "child_visibility"
+doc = "The analyser side of child visibility: the declaration an `interp` command selects, its hide and expose deltas and the observation of each invocation."
+items = [
+    "struct:OriginalInterpreterInvocation..impl:OriginalInterpreterInvocation",
+    "impl:Analyser::original_interp_namespace_source_scope..impl:Analyser::original_interp_procedure_source_name",
+    "impl:Analyser::original_interp_state_key..impl:Analyser::observe_interp_visibility",
+    "impl:Analyser::emit_interp_visibility..impl:Analyser::safe_interp_ctx_snapshot",
+]
+
+[[module]]
+name = "lambda_bodies"
+doc = "The source namespace of a literal lambda body under a child declaration."
+items = [
+    "struct:OriginalInterpreterLambdaBody..impl:OriginalInterpreterLambdaBody",
+    "impl:SourceInterpreterVisibilitySnapshot::literal_lambda_body",
+    "impl:Analyser::original_interp_apply_body..impl:Analyser::original_logical_apply_namespace",
+]
+
+[[module]]
+name = "source_loads"
+doc = "The `source` edges retained under a child interpreter's declaration."
+items = [
+    "impl:Analyser::retain_original_interp_source_loads",
+    "struct:OriginalInterpreterSourceLoad..impl:OriginalInterpreterSourceLoad",
+]
+
+[[module]]
+name = "source_schemas"
+doc = "The command schema possible at a source origin, and the list-quoted producers observed through it."
+items = ["struct:OriginalSourceAsciiListValue..impl:Analyser#2"]
+
+[[module]]
+name = "command_transitions"
+doc = "How rename, alias, binding and namespace transitions move a child's visible slots."
+items = ["impl:SourceInterpreterVisibilitySnapshot#4..impl:Analyser#3"]

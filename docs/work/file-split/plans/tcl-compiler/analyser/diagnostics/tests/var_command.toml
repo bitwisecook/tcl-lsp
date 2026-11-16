@@ -1,0 +1,36 @@
+# Second level of `diagnostics/tests.toml`; the file exists once that plan is
+# applied. Modules carry the names planned for `diagnostics/var_command.rs`.
+# The parent keeps `w30x_codes`, which the W307 and W308 groups share.
+file = "rust/tcl-compiler/src/analyser/diagnostics/tests/var_command.rs"
+
+[[module]]
+name = "computed_command_names"
+doc = "W307: a variable or command substitution as the command word, and the constants, parameters and aliases that excuse it."
+items = [
+    "fn:w307_selected_alias_slot_does_not_require_a_live_terminal_command..fn:w307_absence_advice_does_not_override_custom_fallback_uncertainty",
+    "fn:tn_w307_expanded_runtime_command_list_stays_abstaining..fn:analyse_w307_suppressed_for_my_self_dispatch",
+    "fn:w307_reads_element_and_body_bindings..fn:emit_cfg_ssa_diagnostics_cmd_command_sites_recorded_during_walk",
+]
+
+[[module]]
+name = "method_dispatch"
+doc = "W308 and the TclOO form of E001: objects typed by constructors, factories, renames and aliases, and calls with an unknown or missing method."
+items = [
+    "fn:analyse_w307_suppressed_for_known_class_constructor_chain..fn:w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method",
+    "fn:w308_transitive_alias_of_constructor_object..fn:tp_e001_bare_dispatch_on_method_return_captured_handle",
+]
+
+[[module]]
+name = "self_dispatch"
+doc = "W308 on `[self]` receivers and the bareword `my` dispatch."
+items = [
+    "fn:analyse_w308_tp_1324_bare_self_receiver_unknown_method..fn:analyse_w308_tp_1324_self_object_receiver_unknown_method",
+    "fn:dispatch_diags_both_paths..fn:analyse_w308_1330_quick_fix_span_matches_the_diagnostic",
+]
+
+[[module]]
+name = "dispatch_tables"
+doc = "References recorded for the procedure names in dispatch-table literals and dictionaries."
+items = [
+    "fn:dispatch_table_value_becomes_a_reference_when_consumed_m7..fn:dispatch_table_constructed_list_cannot_borrow_a_later_argument_as_its_head",
+]

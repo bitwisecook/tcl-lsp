@@ -1,0 +1,64 @@
+# The facade keeps the declared-body, header and source-geometry types that
+# the existing child modules read, and the authored source geometry query.
+file = "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+
+[[module]]
+name = "static_read_alternatives"
+doc = "The static read alternatives of an original procedure and the read flow behind each."
+items = [
+    "fn:trace_static_read_refusal..impl:OriginalProcedureReadFlowEntry",
+    "impl:SourceCommandBindings::original_procedure_static_read_alternatives..impl:SourceCommandBindings::original_procedure_read_flow_entry",
+    "struct:OriginalProcedureReadFlowRequest..fn:procedure_read_flow_for_target",
+]
+
+[[module]]
+name = "declared_body"
+doc = "A declared procedure body: its standalone and Logical recipes and what its preview answers."
+items = [
+    "impl:DeclaredProcedureBody",
+    "impl:SourceCommandBindings::original_declared_procedure_at..impl:SourceCommandBindings::logical_called_procedure_body",
+    "fn:declared_body..fn:logical_procedure_static_facet",
+    "fn:procedure_body_recipe",
+    "fn:standalone_procedure_words..fn:capture_logical_procedure_words",
+    "fn:declared_procedure_frame",
+]
+
+[[module]]
+name = "read_declaration"
+doc = "The declaration a procedure read resolves against: Logical declarations and native recipes."
+items = [
+    "impl:LogicalProcedureDeclaration..impl:OriginalProcedureReadDeclaration",
+    "impl:SourceCommandBindings::original_logical_procedure_declaration..impl:SourceCommandBindings::original_procedure_read_declaration",
+    "fn:native_procedure_read_recipe",
+    "fn:original_braced_procedure_read_source",
+]
+
+[[module]]
+name = "source_operand_layout"
+doc = "Source operand layouts retained for an original declaration and their continuations."
+items = [
+    "impl:PartialEq for OriginalDeclarationSourceOperandAttachment..fn:original_source_operation_continuation",
+]
+
+[[module]]
+name = "nested_layouts"
+doc = "Layouts retained for the commands nested in a declared body, and when parents agree on them."
+items = [
+    "struct:NestedDeclarationLayoutKey..struct:NestedLayoutSyntaxKey",
+    "impl:NestedLayoutCommand",
+    "impl:NestedLayoutSyntax..fn:nested_layout_segments",
+    "impl:OriginalDeclarationLayout..impl:NestedLayoutTrace",
+    "impl:SourceCommandBindings::retain_uninstalled_declaration_body_layouts..impl:SourceCommandBindings::retain_declared_body_layouts_from_snapshot",
+    "fn:unanimous_nested_layouts..fn:condition_retains_original_lookup",
+    "fn:retains_successor_layout",
+]
+
+[[module]]
+name = "procedure_header"
+doc = "Procedure declaration headers: operands, formal names and parameter topology."
+items = [
+    "impl:SourceCommandBindings::conditional_native_procedure_formal_names_at..impl:SourceCommandBindings::original_logical_formal_topology_at",
+    "fn:declaration_tokens",
+    "fn:original_declaration_operand_input..fn:procedure_declaration_header",
+    "fn:conditional_native_formal_for_target..fn:original_procedure_parameter_topology",
+]

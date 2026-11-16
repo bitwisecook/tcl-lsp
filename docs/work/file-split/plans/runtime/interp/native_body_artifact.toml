@@ -1,0 +1,41 @@
+# The facade keeps the artifact model (`NativeBodyArtifact`, `Script`, the
+# instruction structs, `Operation`, `Builder`, `BodyExecution`: the operation
+# modules beside it read their private fields), the bytecode object type and
+# the cache install. The core builder and executor methods move; the existing
+# `native_*` children keep their per-operation halves.
+file = "runtime/rust/src/interp/native_body_artifact.rs"
+
+[[module]]
+name = "operand_building"
+doc = "The builder's operands: compilation reports, literals and command literals, locals, word arenas and variable targets."
+items = ["impl:Builder<'_>::reject_native_compilation..impl:Builder<'_>::target"]
+
+[[module]]
+name = "operation_building"
+doc = "Selecting the operation for one command, with its namespace operands and format strings."
+items = ["impl:Builder<'_>::operation..impl:Builder<'_>::namespace_operation"]
+
+[[module]]
+name = "script_building"
+doc = "Building the instruction list of one script."
+items = ["impl:Builder<'_>::script"]
+
+[[module]]
+name = "preparation"
+doc = "Preparing a procedure's body artifact (the cache stamp and the local table) and entering it."
+items = ["impl:Interp::original_procedure_artifact_is_current..impl:Interp::execute_original_c_body"]
+
+[[module]]
+name = "word_evaluation"
+doc = "Evaluating the words of a body: regions, arenas, substitution targets, syntax objects and concatenation."
+items = ["impl:Interp::execute_body_region..impl:Interp::concatenate_body_values_using"]
+
+[[module]]
+name = "variable_targets"
+doc = "A body's variable targets: capturing the cell, reading and storing through it, and the stage checks around each."
+items = ["impl:Interp::body_target..impl:Interp::body_helper_operand"]
+
+[[module]]
+name = "instruction_execution"
+doc = "Executing one instruction: source revalidation, the generic invocation and the opcode dispatch."
+items = ["impl:Interp::execute_body_instruction..impl:Interp::execute_body_opcode"]

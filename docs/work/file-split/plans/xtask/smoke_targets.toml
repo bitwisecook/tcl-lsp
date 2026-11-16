@@ -1,0 +1,65 @@
+# The facade keeps the manifest path, every record type (their private fields are read
+# across the modules, `Fixture` included), `command_output`, `check_contract`,
+# `self_test` and `run`.
+file = "rust/xtask/src/smoke_targets.rs"
+
+[[module]]
+name = "cargo_metadata"
+doc = "What Cargo reports about the workspace: its targets, the features each is built with, package environments and link-path closures."
+items = ["fn:rustc_host..fn:load_targets"]
+
+[[module]]
+name = "manifest"
+doc = "The smoke manifest: its rows, the target that owns each smoke source and the validation of both."
+items = ["fn:ownership_rank..fn:validate_manifest"]
+
+[[module]]
+name = "source_scan"
+doc = "The scan of target sources for smoke tests: module trees, include macros, smoke markers and the source inventory."
+items = ["fn:tracked_rust_sources..fn:check_source_inventory"]
+
+[[module]]
+name = "test_artifacts"
+doc = "The test executables Cargo builds and the runtime environment each needs: build-script output, linked paths and the profile's library paths."
+items = [
+    "fn:target_key..fn:cargo_test_executables",
+    "impl:CargoTestArtifacts::executable..impl:CargoTestArtifacts::needs_explicit_target",
+    "fn:matching_build_environments..fn:cargo_profile_library_paths",
+]
+
+[[module]]
+name = "execution"
+doc = "Running the manifest: the Cargo target selection for each group and the harness run of every smoke test."
+items = [
+    "fn:harness_environment",
+    "fn:target_selector..fn:combined_cargo_target_args",
+    "fn:harness_command..fn:execute_manifest",
+]
+
+[[module]]
+name = "cargo_fixture"
+doc = "The Cargo workspace fixture the self-test builds: its files, its scratch directory and the rustc probe."
+items = [
+    "fn:create_fixture",
+    "impl:Fixture::new..impl:Fixture::write_executable",
+    "impl:Drop for Fixture",
+    "fn:rustc_probe_config..const:CARGO_FIXTURE_FILES",
+]
+
+[[module]]
+name = "fixture_self_test"
+doc = "The self-test over the Cargo fixture: metadata, runtime environments, library path order, collisions and the subprocess it runs in."
+items = [
+    "fn:verify_fixture_metadata..fn:cargo_fixture_self_test_inner",
+    "fn:configure_cargo_fixture_subprocess..fn:cargo_fixture_self_test#2",
+    "fn:cargo_profile_library_paths_self_test",
+    "fn:fixture_collision_self_test",
+]
+
+[[module]]
+name = "scanner_self_test"
+doc = "The self-tests of the source scanner and the manifest: modules, include macros, owners and duplicate rows."
+items = [
+    "fn:smoke_module_scanner_self_test..fn:literal_include_scanner_self_test",
+    "fn:smoke_scanner_self_test..fn:duplicate_manifest_row_self_test",
+]

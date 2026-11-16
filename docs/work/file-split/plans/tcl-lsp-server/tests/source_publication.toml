@@ -1,0 +1,51 @@
+# Second level of `tests.toml`. The facade keeps `wait_for_publication_intents_1854`, which the
+# lock-bundle and disk-file tests share.
+file = "rust/tcl-lsp-server/src/tests/source_publication.rs"
+
+[[module]]
+name = "db_sources"
+doc = "Retiring and reviving source inputs."
+items = ["fn:db_remove_source_retires_input_for_reuse"]
+
+[[module]]
+name = "lock_bundles"
+doc = "Snapshot-drain intent shared by live and disk publication."
+items = [
+    "fn:live_publication_intent_stops_new_snapshots_until_drain_1854",
+    "fn:live_publication_shares_disk_snapshot_drain_intent_1854",
+]
+
+[[module]]
+name = "dependency_waits"
+doc = "Fair waits behind a contended publication dependency."
+items = [
+    "fn:disk_publication_releases_gates_while_waiting_fairly_1854",
+    "fn:live_publication_releases_gate_while_waiting_fairly_1854..fn:unrelated_invalidation_refreshes_fair_queue_generation_1854",
+]
+
+[[module]]
+name = "disk_files"
+doc = "Disk publication: what it holds, what it yields to and what it serialises."
+items = [
+    "fn:disk_reindex_waiting_for_the_index_never_holds_documents_1800..fn:disk_reindex_yields_to_a_racing_live_buffer_1800",
+    "fn:disk_publication_intent_stops_new_snapshots_until_drain_1854",
+    "fn:disk_publication_serialises_captured_replacements_1854",
+    "fn:disk_publication_establishes_intent_before_db_bundle_1854",
+]
+
+[[module]]
+name = "live_index"
+doc = "The open document's index seed: publication, rollback and retries."
+items = [
+    "fn:did_change_does_not_evict_the_document_from_the_workspace_index",
+    "fn:open_index_publish_releases_documents_while_an_index_reader_drains_1854..fn:open_index_seed_retries_after_analyser_input_change_1854",
+    "fn:did_change_supersedes_a_pending_did_open_index_seed_1854..fn:assert_superseding_edit_database_and_index",
+]
+
+[[module]]
+name = "live_buffers"
+doc = "`didOpen`, `didChange` and `didClose` publication under contention."
+items = [
+    "fn:did_open_waiting_for_db_leaves_requests_serviceable_1849..fn:did_close_waiting_for_index_leaves_requests_serviceable_1849",
+    "fn:reopen_clears_prior_semantic_token_lifecycle_1854",
+]

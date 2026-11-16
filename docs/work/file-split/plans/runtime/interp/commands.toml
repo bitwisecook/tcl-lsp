@@ -1,0 +1,87 @@
+# Second level: apply `plans/runtime/interp.toml` first; it creates this file.
+# The facade keeps the command model: `Command`, `OoCommandRole` and its
+# retirement order, the visibility outcomes and the surface-visibility memo.
+file = "runtime/rust/src/interp/commands.rs"
+
+[[module]]
+name = "surface_visibility"
+doc = "The selected dialect's command surface: the builtins and bound commands a release exposes, the TclOO root gate, and a namespace's visible names."
+items = [
+    "impl:Interp::builtin_command_visible_for_surface..impl:Interp::resolve_dispatchable_with_generation",
+    "impl:Interp::command_names",
+    "impl:Interp::visible_command_names_in..impl:Interp::imported_command_tails",
+]
+
+[[module]]
+name = "registration"
+doc = "Registering builtins and object commands: publication, attestation of semantic identities and the backing report."
+items = [
+    "impl:Interp::register_builtin..impl:Interp::attested_command_identity",
+    "impl:Interp::create_obj_command..impl:Interp::ns_register",
+]
+
+[[module]]
+name = "guards"
+doc = "Command guards: issuing, re-checking and releasing a guard, executing an intrinsic under one, and invalidating guard domains."
+items = ["impl:Interp::prepare_command_guard..impl:Interp::invalidate_command_environment"]
+
+[[module]]
+name = "rename_and_delete"
+doc = "`rename` and command deletion: moving a bound command, deleting it, and keeping only a selected set."
+items = [
+    "impl:Interp::rename_command..impl:Interp::delete_bound_command",
+    "impl:Interp::delete_command..impl:Interp::delete_command_generation",
+    "impl:Interp::retain_commands..impl:Interp::retain_command_tokens",
+]
+
+[[module]]
+name = "aliases"
+doc = "`interp alias`: installing same-interpreter and parent aliases from original objects, querying their prefix and target path, and listing them."
+items = [
+    "impl:Interp::install_alias..impl:Interp::alias_target_path",
+    "impl:Interp::alias_names",
+]
+
+[[module]]
+name = "ensemble_creation"
+doc = "Creating an ensemble command in its selected slot, and reading an ensemble's configuration."
+items = [
+    "impl:Interp::create_ensemble..impl:Interp::create_ensemble_in_slot_entered",
+    "impl:Interp::is_ensemble..impl:Interp::ensemble_config_at",
+]
+
+[[module]]
+name = "procedure_definition"
+doc = "Defining a procedure: original parameter and body storage, the chosen slot and its publication."
+items = [
+    "impl:Interp::define_proc..impl:Interp::install_proc_chosen_storage_with_original_key_entered",
+    "impl:Interp::proc_def",
+]
+
+[[module]]
+name = "command_replacement"
+doc = "Binding a fresh command token over an existing binding: the publication stages and the checks that a retained publication is still current."
+items = ["impl:Interp::bind_command_replacement..impl:Interp::on_bound_command_replaced"]
+
+[[module]]
+name = "identity_retirement"
+doc = "Retiring command identities when their owner or source goes away: TclOO command roles, imports and ensembles."
+items = [
+    "impl:Interp::oo_command_locations..impl:Interp::fire_delete_traces_of_token",
+    "impl:Interp::retarget_import_sources..impl:Interp::remove_imports_for_deleted_origins",
+]
+
+[[module]]
+name = "command_tokens"
+doc = "Finding a command by token: generations, interned ids, import chains and queries, `info cmdtype` and the resolved name."
+items = [
+    "impl:Interp::resolve_cmd_token..impl:Interp::remove_cmd_traces_of_token",
+    "impl:Interp::intern_cmd..impl:Interp::import_metadata_in",
+    "impl:Interp::command_exists",
+    "impl:Interp::cmdtype..impl:Interp::resolve_cmd_fqn",
+]
+
+[[module]]
+name = "hidden_commands"
+doc = "`interp hide`, `expose`, `invokehidden` and `hidden`: moving a command between the command table and the hidden table."
+items = ["impl:Interp::hide_command..impl:Interp::hidden_names"]

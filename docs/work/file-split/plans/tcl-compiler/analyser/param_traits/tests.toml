@@ -1,0 +1,48 @@
+# The parent keeps the inference and environment fixtures several groups use:
+# `assert_trait`, `infer`, `infer_owned`, `with_receipt`, `env_for`,
+# `env_with_declarations`, `make_declarations`, `stub_sig` and
+# `realm_for_body`. Modules carry the names planned in `param_traits.toml`
+# where the tests line up.
+file = "rust/tcl-compiler/src/analyser/param_traits/tests.rs"
+
+[[module]]
+name = "original_parameter_roles"
+doc = "Which formal input a body occurrence still denotes: original and Logical parameter roles, nested frames, replaced formals and callback mutations."
+items = [
+    "fn:assert_logical_parameter_shape_refusals..fn:nested_command_reads_do_not_name_the_outer_argument",
+]
+
+[[module]]
+name = "command_traits"
+doc = "The trait each command gives a parameter: evaluation, loops, `upvar`, dynamic-name locals, command substitutions, reference components and value copies."
+items = [
+    "fn:lexical_reference_values..fn:upvar_records_var_read_and_aliases_writes",
+    "fn:upvar_my_var_slot_param_is_callee_local_not_var_write..fn:empty_body_returns_empty_map",
+]
+
+[[module]]
+name = "caller_frame"
+doc = "The parameters and literal targets bound in the caller's frame."
+items = [
+    "fn:caller_frame_upvar_params_accepts_only_the_caller_frame_level..fn:dynamic_level_word_keeps_parity_pairing_but_claims_no_frame",
+    "fn:caller_frame_scans_follow_the_resolved_head",
+    "fn:caller_frame_parameter_templates_reach_navigation_without_entered_caller",
+]
+
+[[module]]
+name = "body_scan"
+doc = "The deep pass: descent through bodies and lambdas, its depth bound and the merge with the shallow pass."
+items = [
+    "fn:selected_lambda_source_refuses_a_foreign_document_image",
+    "fn:infer_deep..fn:deep_pass_empty_params_returns_empty_map",
+]
+
+[[module]]
+name = "resolved_heads"
+doc = "Traits through declared stubs and resolved heads: document declarations, aliases, renames, shadowed built-ins and positioned bodies."
+items = [
+    "fn:declarations_shallow_surface_the_declared_body_role..fn:no_declarations_matches_an_empty_declaration_set",
+    "fn:traits_under..fn:param_traits_abstain_for_a_dynamic_binding",
+    "fn:positioned_own_body_tracks_local_symbolic_copy_without_a_caller..fn:conditional_own_body_traits_reach_whole_and_per_item_proc_consumers",
+    "fn:declared_roles_cannot_restore_a_replaced_or_opaque_slot",
+]

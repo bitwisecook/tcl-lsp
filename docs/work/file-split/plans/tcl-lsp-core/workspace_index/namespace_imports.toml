@@ -1,0 +1,23 @@
+# Second level: apply `workspace_index.toml` first. The facade keeps the public
+# import-resolution entry points on `WorkspaceIndex`, the import-chain walk, the
+# advice types, `ImportSite` and `CallSite`, and the wildcard index structs
+# whose private fields the walk reads.
+file = "rust/tcl-lsp-core/src/workspace_index/namespace_imports.rs"
+
+[[module]]
+name = "wildcard_index"
+doc = "Building the per-namespace import index and answering it: export gates, forced shadows, removal events and alias liveness."
+items = [
+    "struct:ExportGate..impl:<'a> ExportGate<'a>",
+    "impl:<'a> NamespaceImports<'a>..impl:<'a> ExactImportRow<'a>",
+    "type:CommandDeletionsByName..type:DeclarationSitesByName",
+    "impl:<'a> WildcardImportIndex<'a>::build..impl:<'a> WildcardImportIndex<'a>::exports_name_at",
+]
+
+[[module]]
+name = "export_snapshot"
+doc = "The whole-program `namespace export` oracle the single-document tier consults."
+items = [
+    "impl:WorkspaceIndex::export_snapshot",
+    "struct:NamespaceExportSnapshot..impl:crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot",
+]

@@ -1,0 +1,118 @@
+# The parent keeps the projections every module reads a publication through:
+# `codes`, `has_code`, `on_line`, `code_str`, `message`, `with_code` and `diag_range`.
+# `e2e.rs` loads this file through `#[path]`: each `mod` the tool adds needs
+# `#[path = "diagnostics/<name>.rs"]`, as `spec_packs.rs` does for its child.
+file = "rust/tcl-lsp-server/tests/e2e/diagnostics.rs"
+
+[[module]]
+name = "code_canaries"
+doc = "One or two cases for each basic code, locked to the published output and its anchor: W100, W302, W128, W212, W126, W101, W216 and T101."
+items = [
+    "fn:unbraced_expr_is_w100..fn:catch_without_result_is_w302",
+    "fn:clean_file_has_no_diagnostics..fn:unbraced_expr_inside_tcltest_body_is_w100",
+    "fn:while_true_with_throw_or_tailcall_is_not_infinite..fn:w216_upvar_local_indirect_array_is_silent",
+    "fn:puts_tainted_data_has_tight_argument_span",
+]
+
+[[module]]
+name = "syntax_errors"
+doc = "Malformed `if` (E004) and the stray-closer and recovery diagnostics (E100 to E103): what each names and where it anchors."
+items = [
+    "fn:e004_bare_if_names_the_invoked_command_and_anchors_on_it..fn:e004_no_duplicate_e002_for_the_same_malformed_if",
+    "fn:range_of..fn:e103_abstains_when_missing_brace_swallows_more_than_one_statement",
+]
+
+[[module]]
+name = "arity"
+doc = "Argument-count and argument-shape diagnostics for builtins and for same-file procs, aliases, TclOO calls and lambdas."
+items = [
+    "fn:arity_error_is_e002_with_error_severity",
+    "fn:invalid_literal_formal_parameter_list_is_e006",
+    "fn:file_link_symbolic_has_no_arity_error..fn:global_and_variable_zero_args_have_no_arity_error",
+    "fn:same_file_proc_call_too_many_args_is_e003..fn:switch_flat_unpaired_pattern_is_checked",
+    "fn:opt_proc_real_call_draws_no_false_arity_diagnostic_end_to_end",
+    "fn:opt_proc_arity_is_deliberately_unchecked_in_both_directions_end_to_end",
+]
+
+[[module]]
+name = "subcommand_dispatch"
+doc = "Missing subcommands and methods (E001), disabled commands (W002) and unknown subcommands (W001), with the shadowing that silences them."
+items = ["fn:bare_string_is_e001_with_tight_command_head_span..fn:bare_snit_instance_dispatch_is_not_e001"]
+
+[[module]]
+name = "variable_flow"
+doc = "Read-before-set (W210), dead stores (W220), variables in command position (W307) and unused or unset variables, with the control flow that decides them."
+items = [
+    "fn:w210_read_before_set_on_path_merge..fn:clean_dataflow_has_no_diagnostics",
+    "fn:tailcall_terminated_branch_silent..fn:break_arm_escaping_loop_still_fires",
+    "fn:omitted_default_arg_does_not_hide_read_before_set..fn:try_body_earlier_conditional_throw_fires",
+    "fn:an_unmatched_brace_in_a_quoted_string_keeps_the_read_923_idx64",
+    "fn:w300_w103_silent_when_var_provably_literal..fn:w214_nested_proc_names_its_defining_namespace_and_anchors_on_the_param",
+]
+
+[[module]]
+name = "style_checks"
+doc = "The style checks that must stay silent on idiomatic code: indirect array names, overridden library procs, single-variable bodies and regex end anchors."
+items = ["fn:set_indirect_array_silent..fn:quoted_pure_var_pattern_no_w306"]
+
+[[module]]
+name = "constant_conditions"
+doc = "Always-true and always-false conditions (I230) and forwarded constants (O102): what the interprocedural seed may assume about callers, dispatch and other files."
+items = ["fn:when_body_not_analysed_under_plain_tcl..fn:an_unrelated_file_reusing_a_proc_name_does_not_clear_i230"]
+
+[[module]]
+name = "publication"
+doc = "What is published when: an edit clears or introduces a diagnostic, and a large file publishes its fast tier before its deep tier."
+items = [
+    "fn:fixing_the_source_clears_the_diagnostic",
+    "fn:introducing_an_error_publishes_it",
+    "fn:big_tcl_with_split_markers",
+    "fn:large_file_publishes_fast_tier_before_deep_tier",
+]
+
+[[module]]
+name = "command_resolution"
+doc = "Unknown commands (W123, W143) and what resolves one: created objects, scoped command environments, `tclIndex` autoload, package indexes and renames."
+items = [
+    "fn:w307_silent_for_create_named_objects_iterated..fn:a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72",
+    "static:AUTOLOAD_REFS_N",
+    "fn:autoload_library_command_references_and_rename_m8",
+    "static:WS_FOLDER_RENAME_N",
+    "fn:consumer_rename_resolves_through_a_real_workspace_folder_m8",
+    "fn:direct_private_tcl_namespace_call_is_w143_with_suggestion..fn:own_proc_in_a_private_namespace_is_not_w143",
+    "fn:w123_rename_of_a_nonexistent_command_is_published..fn:w123_rename_of_an_existing_command_is_silent",
+]
+
+[[module]]
+name = "shimmer"
+doc = "Shimmer and shared-value diagnostics (S100, S101, S103): their ranges, the bodies they reach and the `# noqa` that silences them."
+items = [
+    "fn:shimmer_committed_value_with_lindex_is_s100_info_with_tight_range..fn:commit_dataflow_path_dependent_merge_message",
+    "fn:ordering_compare_on_strings_has_no_s100..fn:s103_noqa_suppresses_and_shimmer_toggle_disables",
+]
+
+[[module]]
+name = "dialect_gating"
+doc = "What the active dialect admits: options (W004), `expr` operators (W003), math functions and each vendor profile's command set."
+items = [
+    "fn:lsearch_stride_on_tcl86_is_w004..fn:user_proc_shadowing_lsearch_suppresses_w004",
+    "fn:w003_tight_span_covers_only_the_operator..fn:w003_f5_tmsh_flags_string_relational_operators",
+    "fn:iapps_embedded_84_trunk_gates_the_85_core_end_to_end..fn:issue_968_user_defined_mathfunc_override_still_resolves_end_to_end",
+]
+
+[[module]]
+name = "method_bodies"
+doc = "Method bodies are analysed end to end: TclOO, `oo::objdefine`, snit and itcl."
+items = [
+    "fn:method_body_unbound_sibling_parameter_read_flags_w210_end_to_end",
+    "fn:method_body_instance_variable_and_own_parameter_reads_stay_clean_end_to_end",
+    "fn:objdefine_method_body_w210_reaches_the_client..fn:itcl_method_bodies_are_analysed_end_to_end",
+]
+
+[[module]]
+name = "caller_frame_injection"
+doc = "Variables written into the caller's frame through `upvar` and `uplevel`: no false W210 or W212, and the controls that still fire."
+items = [
+    "fn:an_upvar_out_parameter_draws_no_false_read_before_set_end_to_end..fn:a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end",
+    "fn:w210_not_published_for_a_multi_frame_uplevel_assignment..fn:w212_still_published_for_a_directly_written_looped_name",
+]

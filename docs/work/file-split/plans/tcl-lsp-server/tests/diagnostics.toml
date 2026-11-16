@@ -1,0 +1,121 @@
+# Second level of `tests.toml`. The facade keeps `ws_index`, `has_code` and
+# `unassociated_delivery`, which several modules share.
+file = "rust/tcl-lsp-server/src/tests/diagnostics.rs"
+
+[[module]]
+name = "inputs"
+doc = "Diagnostics inputs re-resolved across configuration changes."
+items = [
+    "fn:reopen_after_master_switch_off_reresolves_diagnostics_inputs",
+    "fn:an_edit_during_a_config_apply_re_resolves_its_diagnostics_inputs..fn:a_late_resolve_cannot_stamp_the_slot_backwards",
+]
+
+[[module]]
+name = "scheduling"
+doc = "The debounce and the per-document slot."
+items = [
+    "fn:diagnostics_debounce_waits_for_a_quiet_window..fn:diagnostics_clean_slot_retires_before_waiter_returns",
+    "fn:did_close_drops_the_diagnostics_slot",
+]
+
+[[module]]
+name = "publisher"
+doc = "The diagnostics mailbox and a stalled client."
+items = ["fn:pending_diagnostic_summary..fn:diagnostic_mailbox_is_latest_wins_and_preserves_surviving_order"]
+
+[[module]]
+name = "run"
+doc = "The master switch, exclusions and the fast tier."
+items = [
+    "fn:fast_tier_excludes_only_workspace_refined_codes",
+    "fn:a_parked_deep_pass_does_not_strand_the_lock_the_fast_tier_needs_1657..fn:the_fast_tier_gate_orders_the_deep_publication_after_the_fast_tier",
+    "fn:diagnostics_master_switch_clears_the_report..fn:diagnostics_exclude_folder_list_replaces_the_global_one",
+]
+
+[[module]]
+name = "analysis_passes"
+doc = "Evaluator epochs and overlay misses in the analysis passes."
+items = [
+    "fn:the_pass_after_a_quarantine_takes_the_evaluator_epoch",
+    "fn:an_overlay_miss_is_reported_with_its_key_and_what_waits",
+]
+
+[[module]]
+name = "report"
+doc = "The published report: codes, policy, style and XC findings."
+items = [
+    "fn:default_off_w242_hidden_by_default_enableable_via_config..fn:report_publication_retains_unavailable_generation_status",
+    "fn:the_report_surfaces_compiler_check_codes..fn:the_report_places_w107_on_the_lsp_line_model",
+    "fn:report_driven_abstention_survives_a_disabled_w109..fn:xc_diagnostics_are_opt_in_on_irules_documents",
+    "fn:diagnostics_treat_a_lone_cr_as_a_command_terminator..fn:style_diagnostics_line_numbers_follow_the_client_model_on_a_cr_document",
+    "fn:a_disabled_fact_code_is_reported_disabled_but_computed",
+    "fn:o111_brace_expr_hint_pairs_with_w100..fn:style_line_length_setting_drives_w111",
+]
+
+[[module]]
+name = "f5_models"
+doc = "BIG-IP configuration and iApp APL reports."
+items = [
+    "fn:f5_model_set..fn:f5_pull_paths_compose_byte_and_bidi_integrity_with_model_diagnostics",
+    "fn:publish_analyser_diagnostics_routes_bigip_dialect_to_pull_cache",
+]
+
+[[module]]
+name = "consumers"
+doc = "Which documents a changed workspace fact wakes."
+items = [
+    "fn:retain_default_orphan_query_fixture",
+    "fn:indexed_signature_changes_select_only_their_callers..fn:every_consumer_set_together_still_names_an_orphaned_caller",
+]
+
+[[module]]
+name = "publication"
+doc = "Publication currency while the index is contended."
+items = [
+    "fn:stale_diagnostics_worker_cannot_overwrite_current_analysis",
+    "fn:spawn_diagnostics_publish..fn:diagnostics_publish_rechecks_currency_after_waiting_for_the_index",
+    "fn:diagnostics_publish_waits_for_rehomed_navigation_snapshot..fn:assert_rehomed_diagnostics_publisher_resumes",
+]
+
+[[module]]
+name = "package_refinement"
+doc = "W120 against packages, declared provides and the `source` graph."
+items = [
+    "fn:w120_diag..fn:has_w120",
+    "fn:original_package_consumers_keep_constraints_and_dependency_preference",
+    "fn:refine_w120_conservative_drops_all_for_unknowable_require..fn:refine_w120_kept_when_resolvable_require_does_not_provide_tk",
+    "fn:auto_source_graph_inherits_entry_requires..fn:explicit_entry_points_override_source_graph",
+    "fn:placed_requires_are_only_available_after_the_source_statement..fn:sourcing_a_non_tk_file_contributes_nothing",
+    "fn:source_graph_inheritance_suppresses_w120_in_sourced_module..fn:requiring_a_load_only_package_keeps_other_w120s",
+    "fn:declared_package_provides_makes_tk_available_to_diagnostics..fn:declared_package_provides_survive_an_incomplete_buffer",
+]
+
+[[module]]
+name = "command_refinement"
+doc = "W123 against the workspace, and cross-file argument counts."
+items = [
+    "fn:w123_command_name..fn:w123_math_function_name",
+    "fn:original_package_procedures_use_shared_conditional_source_slots..fn:original_package_classes_use_shared_current_factory_slots",
+    "fn:settle..fn:cross_file_arity_honours_a_disabled_code",
+    "fn:original_workspace_w123_preserves_native_absence_with_project_matching..fn:original_workspace_mathfunc_rejects_foreign_namespace_report_tails",
+    "fn:autoload_library_command_suppresses_w123_issue_832..fn:pkgindex_package_source_command_suppresses_w123",
+    "fn:cross_file_resolves_against_disk_backed_file..fn:cross_file_arity_survives_w123_disabled_on_pull_path",
+]
+
+[[module]]
+name = "pull"
+doc = "Pull diagnostics and the reports shared by push and pull."
+items = [
+    "fn:original_callback_push_and_pull_share_source_signature_advice..fn:original_callback_push_and_pull_keep_known_source_barriers",
+    "fn:pull_path_honours_folder_generic_variable_patterns..fn:pull_path_applies_w120_package_refinement",
+    "fn:publish_analyser_diagnostics_caches_tcl_diagnostics",
+    "fn:pull_diagnostics_include_compiler_and_optimiser_codes..fn:pull_diagnostic_recomputes_after_edit_bumps_revision",
+]
+
+[[module]]
+name = "closed_files"
+doc = "Closed-file badges."
+items = [
+    "fn:closed_diag_badge_cache_is_capped..fn:closed_diag_badge_cap_spares_reopened_documents",
+    "fn:did_close_retains_diagnostics_for_on_disk_file_with_problems..fn:reschedule_closed_file_diagnostics_clears_badge_when_master_off",
+]

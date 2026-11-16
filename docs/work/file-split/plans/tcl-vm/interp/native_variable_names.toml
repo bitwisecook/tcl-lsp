@@ -1,0 +1,22 @@
+# The facade keeps the preparation types, the name protocols, the preparation
+# of an original variable name into its parts and binding (the path every
+# other operation starts from), and unset.
+file = "rust/tcl-vm/src/interp/native_variable_names.rs"
+
+[[module]]
+name = "owner_installation"
+doc = "Installing the native variable-name owners and the procedure, compiled and selected variable caches of an activation."
+items = ["impl:Vm::publish_original_local_name_table..impl:Vm::install_selected_original_variable_cache"]
+
+[[module]]
+name = "links"
+doc = "Linking through original C names: namespace variables, `upvar` aliases and compiled upvar links."
+items = ["impl:Vm::link_original_c_namespace_variable..impl:Vm::link_original_c_compiled_upvar"]
+
+[[module]]
+name = "value_access"
+doc = "Reading and storing a variable through its original C name: scalars, array members, property and regex variables, and the C 8.4 global error objects."
+items = [
+    "impl:Vm::store_original_c84_global_error_code",
+    "impl:Vm::read_original_c_variable..impl:Vm::store_original_c_variable_in",
+]

@@ -1,0 +1,18 @@
+# The facade keeps `DialectProfile` and `DialectProfileKey` with their
+# identity rules, snapshot interning and projection, the catalogue lookups
+# (`all`, `find`, `irules`, `plain_tcl`, `tk`) and the library questions.
+file = "rust/tcl-dialect/src/profile.rs"
+
+[[module]]
+name = "catalog"
+doc = "The catalogue data: the library pins and lexing grammars the profiles share, one profile per canonical dialect, the plain-Tcl fallback and the Tk ingress."
+items = [
+    "const:LIBS_TCL84_85..const:GRAMMAR_F5_TCL",
+    "const:F5_FORK_MEASURED",
+    "static:CATALOG..static:TK_PROFILE",
+]
+
+[[module]]
+name = "engine_policy"
+doc = "The execution-engine policies a profile selects: variable lookup and storage, parameters, packages, indices, interpreters and level grammars."
+items = ["impl:DialectProfile::namespace_var_global_fallback..impl:DialectProfile::character_model"]

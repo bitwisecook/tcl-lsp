@@ -1,0 +1,35 @@
+# The facade keeps the frame layout constants, the import index structs and
+# `WasmEmitter` (every part reads their fields), the emitter's constructors and
+# instruction primitives, the direct-procedure prelude, `finish_function` and
+# the `emit_wasm` entry point with its mode.
+file = "rust/tcl-codegen/src/codegen/wasm/backend.rs"
+
+[[module]]
+name = "leaf_statements"
+doc = "One leaf statement: the typed attempt, the prebuilt-argv invocation, its word plans and the adoption of its completion."
+items = ["impl:WasmEmitter::attempt..impl:WasmEmitter::emit_word_error_guard"]
+
+[[module]]
+name = "semantic_invoke"
+doc = "The semantic invocation mode and its guarded intrinsic attempt."
+items = ["impl:WasmEmitter::finish_semantic_invoke..impl:WasmEmitter::guarded_intrinsic_function"]
+
+[[module]]
+name = "structured_walk"
+doc = "Completion dispatch, condition expressions and the `Emit` implementation the structured walk drives."
+items = ["impl:WasmEmitter::emit_generic_argv_invoke..impl:WasmEmitter::emit_code_eq_branch", "impl:Emit for WasmEmitter"]
+
+[[module]]
+name = "function_facts"
+doc = "What the emitter may assume about a function: direct-procedure eligibility, shadow obligations, trusted assignments and leaf statement plans."
+items = ["fn:span_key..fn:plan_leaf_statement", "struct:ProcedurePlan", "fn:procedure_plan"]
+
+[[module]]
+name = "imports"
+doc = "Registration of the host imports each emission mode calls."
+items = ["fn:abi_value_type..fn:add_aot_imports"]
+
+[[module]]
+name = "module_assembly"
+doc = "Assembling the module: native-tier lowering, the function table install, the runtime chunk, the special modes and the `_start` entry."
+items = ["struct:NativeTier..fn:start_function"]

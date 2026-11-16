@@ -1,0 +1,39 @@
+# The facade keeps the module docs, `LoweringInput`, `lower_function`, the
+# `Lowerer` struct with its value, buffer and cell primitives, the per-block
+# driver (`lower`, `prescan`, `lower_instruction`, terminators) and the block
+# ordering and completion helpers.
+file = "rust/tcl-compiler/src/native_lowering/lower.rs"
+
+[[module]]
+name = "invocations"
+doc = "Lowering an invocation: its native recipe, definition-time commands and cell updates such as `incr`."
+items = [
+    "impl:<'a> Lowerer<'a>::lower_invoke..impl:<'a> Lowerer<'a>::lower_incr",
+    "fn:cells_unobserved",
+    "fn:is_written_literal..fn:definition_words_are_written_out",
+]
+
+[[module]]
+name = "lowered_statements"
+doc = "Statements the registry already lowered structurally: name places, original operands and native constants."
+items = [
+    "impl:<'a> Lowerer<'a>::source_absent_model..impl:<'a> Lowerer<'a>::as_int_operand",
+    "fn:value_word",
+]
+
+[[module]]
+name = "words"
+doc = "Lowering one word to a boxed value: which words are lowerable, variable reads and command substitutions."
+items = [
+    "impl:<'a> Lowerer<'a>::words_lowerable..impl:<'a> Lowerer<'a>::command_trusted",
+    "fn:variable_place..fn:nested_words",
+]
+
+[[module]]
+name = "expressions"
+doc = "Lowering expressions natively: conditions and truth, literals, binary and unary operators, math calls and merging arms."
+items = [
+    "impl:<'a> Lowerer<'a>::lower_expression..impl:<'a> Lowerer<'a>::box_into",
+    "fn:hull",
+    "fn:mixed_compare_is_exact",
+]

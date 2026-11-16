@@ -1,0 +1,31 @@
+# The parent keeps what every `tcl spec` test shares: the reused process, `Tree`,
+# `run`, `command_block`, the `Described` package fixture and the demo package.
+file = "rust/tcl-cli/tests/it_5/spec_verbs.rs"
+
+[[module]]
+name = "import_release_history"
+doc = "`tcl spec import` over release snapshots: the range each command is introduced and retired in."
+items = ["const:V1", "const:V2", "fn:a_command_added_in_the_second_release_is_introduced_there..fn:the_github_flags_require_github"]
+
+[[module]]
+name = "upgrade"
+doc = "`tcl spec upgrade`: the 1.x `dialects` vocabulary rewritten in place, restyled and verified."
+items = ["fn:spec_upgrade_translates_dialects_rows_and_moves_the_version_word..fn:spec_upgrade_defers_environment_membership_tokens"]
+
+[[module]]
+name = "export"
+doc = "`tcl spec export`: a programmed pack expanded into canonical source."
+items = ["const:PROGRAM..fn:spec_export_reports_a_pack_whose_evaluation_failed"]
+
+[[module]]
+name = "test_against_package"
+doc = "`tcl spec test`: a pack compared with the package it describes, in a real shell under the project's policy."
+items = [
+    "fn:spec_test_reports_an_arity_divergence..fn:spec_test_stops_a_package_that_does_not_finish_in_time",
+    "fn:spec_test_presence_keeps_literal_colons_and_wildcards",
+]
+
+[[module]]
+name = "import_scan_and_probe"
+doc = "`tcl spec import` describing an extension: the C source scan, the shell probe and their merge."
+items = ["fn:pkga_source_dir..fn:spec_import_names_the_pack_by_the_package_flag", "impl:Described#2"]

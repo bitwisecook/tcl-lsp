@@ -1,0 +1,30 @@
+# The facade keeps the selection and proof types, `select_invocation` with the
+# initial selection it starts from, and `successful_handler_transfer`.
+file = "rust/tcl-compiler/src/command_binding/compiled_invocation.rs"
+
+[[module]]
+name = "compiler_targets"
+doc = "The compiler registrations a lookup reaches: native compiler targets, imports and snapshots."
+items = ["struct:NativeCompilationSnapshot..impl:ModuleCommandBindings"]
+
+[[module]]
+name = "target_selection"
+doc = "Selection for one compiler target: ensemble, inline, named and no-op operations."
+items = [
+    "fn:select_target",
+    "fn:basic_member_invoked_by_its_private_name..fn:closed_surface_catalogue_dispatch",
+    "fn:select_actual_ensemble_target..fn:implementation_dependency",
+]
+
+[[module]]
+name = "registered_compiler"
+doc = "A registered compiler's selection: its compilation point, preparations and dependencies."
+items = [
+    "struct:RegisteredCompilerSelection",
+    "fn:registered_compiler_selection..fn:compiler_dependencies",
+]
+
+[[module]]
+name = "execution_proofs"
+doc = "What a compiled invocation proves about execution: handler path, lookup, targets and joins."
+items = ["impl:SourceInvocationBinding#2..fn:join_argument_words"]

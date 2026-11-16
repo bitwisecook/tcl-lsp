@@ -1,0 +1,29 @@
+# The parent keeps the two report fixtures every test builds on.
+file = "rust/tcl-compiler/src/command_binding/declaration_flow/tests.rs"
+
+[[module]]
+name = "representation_plan"
+doc = "Conditional representation plans: naming, substitutions, loop receipts and body contexts."
+items = [
+    "fn:conditional_root_naming_is_scoped_to_the_original_command..fn:conditional_root_representation_flow_covers_reported_foreach",
+]
+
+[[module]]
+name = "selection"
+doc = "Source scopes and declaration selections: original parents, absent dispatch and reached owners."
+items = [
+    "fn:conditional_root_source_scope_uses_its_original_parent_and_input",
+    "fn:declaration_selection_keeps_absent_dispatch_separate_from_invalid_reached_owner..fn:source_read_scope_preserves_reached_owner_refusal_after_loop",
+]
+
+[[module]]
+name = "command_flow"
+doc = "Lifecycle subcommands schedule their original phase scripts."
+items = ["fn:lifecycle_subcommand_schedules_its_original_phase_scripts"]
+
+[[module]]
+name = "evaluation"
+doc = "Evaluated reports: retained inventory, missing reads, overwrites and zero-trip paths."
+items = [
+    "fn:original_declaration_flow_cache_retains_full_inventory_and_query_identity..fn:original_call_entry_precedes_its_unknown_dispatch",
+]

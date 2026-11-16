@@ -1,0 +1,19 @@
+# Second level: apply `plans/runtime/cmd_oo.toml` first; it creates this file.
+# The facade keeps what `info object` and `info class` share: the method
+# reports (`forward`, `definition`, `methodtype`) and the list-result helpers.
+file = "runtime/rust/src/cmd_oo/introspection.rs"
+
+[[module]]
+name = "object_info"
+doc = "`info object subcommand object ?arg?` and its option tables."
+items = ["fn:variable_info_options..fn:original_info_target"]
+
+[[module]]
+name = "call_chain_reports"
+doc = "`info object call` and `info class call`: selecting the call-chain records and rendering them."
+items = ["fn:info_call..fn:render_call_chain"]
+
+[[module]]
+name = "class_info"
+doc = "`info class subcommand class ?arg?`."
+items = ["fn:info_class"]

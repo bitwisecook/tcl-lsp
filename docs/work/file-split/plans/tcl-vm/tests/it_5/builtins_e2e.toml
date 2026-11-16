@@ -1,0 +1,99 @@
+# The parent keeps the module documentation, the output capture, `run` and
+# `out_eq`. The file had no sections; tests are grouped by the command family
+# they exercise.
+file = "rust/tcl-vm/tests/it_5/builtins_e2e.rs"
+
+[[module]]
+name = "lists_arrays_dicts"
+doc = "List, array and dictionary builtins and their compiled inline forms."
+items = [
+    "fn:list_basics..fn:lsort_shared_core",
+    "fn:arrays..fn:dict_filter",
+    "fn:linsert_lreplace_inline",
+    "fn:dict_incr_append_lappend",
+    "fn:array_element_incr_append_lappend",
+    "fn:lappend_no_values_preserves_string_rep..fn:list_element_quoting_balanced_braces",
+    "fn:list_constant_fold_decodes_and_quotes",
+    "fn:compiled_unset_array_element_removes_it..fn:dict_inline_return_body_falls_back_cleanly",
+    "fn:dictionary_original_fallback_preserves_order_and_rebinding",
+]
+
+[[module]]
+name = "strings_and_substitution"
+doc = "String, `regexp`, `format`, `scan` and `binary` builtins, and the substitution of command words: escapes, brackets, braces and `subst`."
+items = [
+    "fn:string_ops..fn:append_builtin",
+    "fn:subst_command",
+    "fn:regexp_regsub..fn:regexp_shared_features",
+    "fn:cmd_subst_substitutes_proc_param",
+    "fn:format_command",
+    "fn:braced_literal_not_substituted",
+    "fn:scan_command..fn:string_map_nocase",
+    "fn:string_is_failindex_is_written..fn:backslash_substituted_command_arguments",
+    "fn:an_escaped_bracket_in_an_expr_operand_is_data..fn:escaped_brackets_not_double_substituted",
+    "fn:bare_dollar_literal_decodes..fn:brace_wrapped_command_substitution_runs",
+    "fn:binary_format_rejects_invalid_integer",
+    "fn:format_dynamic_decimal_and_float_generic_fallback_preserves_dispatch..fn:dynamic_format_word_zero_and_two_values_keep_order_and_rebinding",
+]
+
+[[module]]
+name = "control_flow_and_errors"
+doc = "`foreach`, `switch`, `expr`, `catch` and `uplevel`, and the error stack and `errorInfo` a caught error reports."
+items = [
+    "fn:foreach_single..fn:expr_math_functions",
+    "fn:switch_shared_core",
+    "fn:expr_ternary_string_branches..fn:expr_in_operator",
+    "fn:switch_glob_and_default",
+    "fn:catch_body_suppressed_until_eval",
+    "fn:uplevel_command",
+    "fn:catch_reports_structured_error_stack..fn:try_handler_receives_error_metadata",
+]
+
+[[module]]
+name = "namespaces_and_variables"
+doc = "Namespaces, ensembles, `upvar` links, variable traces and namespace variables."
+items = [
+    "fn:ensemble_resolved_body_commands_execute",
+    "fn:namespace_nav_shared",
+    "fn:namespace_export_import..fn:upvar_to_array_element",
+    "fn:variable_traces..fn:namespace_introspection",
+    "fn:namespace_variables..fn:namespace_code_inscope",
+    "fn:rename_rejects_existing_destination",
+]
+
+[[module]]
+name = "introspection"
+doc = "`info`: commands, procedures, variables, defaults, `info exists` and `info complete`, and procedure bodies built at run time."
+items = [
+    "fn:info_introspection",
+    "fn:dynamic_proc_body..fn:info_complete",
+    "fn:info_vars_locals_globals..fn:info_commands_procs_namespaced",
+    "fn:info_default..fn:proc_body_command_subst",
+    "fn:info_exists_local_scalar",
+    "fn:info_exists_local_array_elem",
+]
+
+[[module]]
+name = "option_words"
+doc = "Option, subcommand and type words resolve as `Tcl_GetIndexFromObj` resolves them: abbreviations, ambiguity and the error wording, per command."
+items = [
+    "fn:subst_option_words_resolve_like_tcl_get_index_from_obj..fn:interp_limit_type_word_resolves_like_tcl_get_index_from_obj",
+    "fn:glob_option_words_resolve_like_tcl_get_index_from_obj..fn:seek_origin_resolves_like_tcl_get_index_from_obj",
+]
+
+[[module]]
+name = "packages"
+doc = "`package`: require, loaders, `package unknown`, version preference, circular loaders and the bad-result completions."
+items = ["fn:package_stubs..fn:package_forget_clears_active_loader_marker"]
+
+[[module]]
+name = "host_and_io"
+doc = "Commands that reach the host: `exec`, `file`, `source`, `clock`, channels and the bootstrap globals, with a synthetic host."
+items = [
+    "struct:SyntheticHost..impl:tcl_platform::Host for SyntheticHost",
+    "fn:exec_command_capability",
+    "fn:file_path_ops..fn:bootstrap_platform_schema_comes_from_the_shared_owner",
+    "fn:source_command",
+    "fn:clock_shared_core",
+    "fn:channel_io",
+]

@@ -1,0 +1,54 @@
+# The facade keeps the contract paths and markers, the two row types (their private
+# fields are read by the parser and by the checks), `run`, `read`, `owner_crate` and the
+# manifest validation that drives every other check. `source_internal` is already a child.
+file = "rust/xtask/src/owner_resolution.rs"
+
+[[module]]
+name = "command_consumers"
+doc = "Consumer checks for the command owners: command objects, namespace objects and command guards."
+items = ["fn:validate_command_object_consumers..fn:command_object_projection_is_owned"]
+
+[[module]]
+name = "variable_consumers"
+doc = "Consumer checks for the variable owners: variable tables, variable callbacks, array searches and the variable command grammars."
+items = [
+    "fn:validate_variable_table_consumers",
+    "fn:validate_native_variable_callback_consumers..fn:variable_inventory_is_owned",
+]
+
+[[module]]
+name = "interpreter_consumers"
+doc = "Consumer checks for the interpreter's shared owners: bootstrap, packages, lookups, instruction names, error headers, the compiler pass, list storage, coroutines, string trim, name policy and the F5 string predicates."
+items = [
+    "fn:validate_f5_string_predicate_consumers",
+    "fn:validate_jim_original_lookup_consumers..fn:validate_private_error_header_consumers",
+    "fn:validate_native_compiler_pass_consumers..fn:validate_execution_name_policy_consumers",
+]
+
+[[module]]
+name = "name_delimiters"
+doc = "The naming-owner checks: counted-name facade consumers, and the per-file ledger of hand-written name-delimiter recipes."
+items = ["const:COUNTED_NAME_FACADES..fn:validate_workspace_name_delimiters"]
+
+[[module]]
+name = "manifest"
+doc = "Parsing the marked Markdown tables of the contract: the owner manifest, the internal manifest and the owner headings."
+items = [
+    "fn:parse_manifest..fn:single_code_token",
+    "fn:split_row..fn:declared_owner_bullets",
+]
+
+[[module]]
+name = "internal_manifest"
+doc = "The internal-owner manifest: each row's entry is reachable from its consumer module and its receiver returns the owner."
+items = ["struct:InternalModule..fn:direct_import"]
+
+[[module]]
+name = "entry_declarations"
+doc = "Whether a source file declares a manifest row's entry point: items, fields, exports and re-exports."
+items = ["fn:entry_is_declared..fn:use_declares"]
+
+[[module]]
+name = "drift_gates"
+doc = "The drift gate a row names: the Makefile target, the `cargo xtask` verb it runs and the naming proof gate."
+items = ["fn:xtask_dispatches", "fn:naming_proof_gate_is_current..fn:gate_prerequisites"]

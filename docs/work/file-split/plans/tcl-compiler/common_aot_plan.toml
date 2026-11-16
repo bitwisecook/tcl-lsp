@@ -1,0 +1,46 @@
+# The facade keeps the stable identities, `CommonAotEnvironment`,
+# `CommonAotProofPlan` with its builders and accessors, the excluded-coverage
+# list and the call-site enumeration every collector shares.
+file = "rust/tcl-compiler/src/common_aot_plan.rs"
+
+[[module]]
+name = "direct_calls"
+doc = "Direct procedure calls: the evidence and decline types, formal binding, body specialisation and the collector."
+items = [
+    "struct:DirectProcEvidence..impl:DirectProcBodyDecline",
+    "enum:DirectProcDecline..enum:DirectProcDecision",
+    "struct:DirectCollection..fn:propagate_actual_types",
+    "struct:DirectInputs..fn:closed_integer_add_expression",
+    "fn:actual_fact..fn:direct_call_argument_value",
+]
+
+[[module]]
+name = "semantic_calls"
+doc = "Registry semantic calls: the evidence and decline types, the collector, and the binding and trace queries on one semantic operation."
+items = [
+    "fn:semantic_operation_binding_is_trusted",
+    "enum:SemanticCallArgument..enum:SemanticCallDecision",
+    "fn:collect_semantic_calls..fn:command_has_execution_trace",
+    "fn:semantic_operation_has_execution_trace",
+]
+
+[[module]]
+name = "materialisable_slots"
+doc = "Materialisable SSA slots: the evidence, recipe and decline types, slot allocation and the collector."
+items = [
+    "struct:MaterialisableSlotEvidence..enum:MaterialisableSlotDecision",
+    "fn:ssa_value_keys..fn:materialisable_decision",
+]
+
+[[module]]
+name = "closed_program_coverage"
+doc = "Exact statement accounting of one sealed top-level program."
+items = [
+    "struct:CfgStatementId..enum:ClosedProgramCoverageDecision",
+    "fn:closed_program_linear_entry..fn:prove_closed_program_coverage",
+]
+
+[[module]]
+name = "native_premises"
+doc = "The premises of the sealed native integer addition and why one was rejected."
+items = ["enum:NativePremise..struct:NativeDecline"]

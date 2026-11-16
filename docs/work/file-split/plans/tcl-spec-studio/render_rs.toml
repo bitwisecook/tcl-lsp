@@ -1,0 +1,25 @@
+# The facade keeps the copyright banner, the JSON accessors and string
+# escaping, the `field_expr` dispatch with the row literals it renders
+# directly, the file parts (`TODO` notes, imports, hoisted tables, module doc)
+# and the public `render` and `suggested_path`.
+file = "rust/tcl-spec-studio/src/render_rs.rs"
+
+[[module]]
+name = "definition_grammar"
+doc = "Descriptor literals for grammars as data: Tk geometry, clause grammars, definition bodies with their members, runtime backing and semantic operations."
+items = ["fn:tk_geometry_expr..fn:semantic_operation_expr"]
+
+[[module]]
+name = "field_values"
+doc = "Literals for one field value: surfaces and dialect sets, slices and flag unions, arity, role and type maps and argument values."
+items = ["fn:surface_expr..fn:integer_domain_expr"]
+
+[[module]]
+name = "options_and_forms"
+doc = "Option and form literals: arity hooks, lifecycles, option effects and values, knowledge, side effects and `CommandForm` rows."
+items = ["fn:hook_expr..fn:command_form_expr"]
+
+[[module]]
+name = "pack_module"
+doc = "The `commands/<pack>/mod.rs` that declares each command's module, whole or as an addition to an existing pack."
+items = ["enum:ModuleForm..fn:module_stem"]

@@ -1,0 +1,82 @@
+# The crate root keeps the spawn helpers every module shares: the reused `tcl`
+# process, the isolated configuration home, `Scratch` and the `diag --json` readers.
+file = "rust/tcl-cli/tests/cli/main.rs"
+move_from = "rust/tcl-cli/tests/cli.rs"
+
+[[module]]
+name = "inspection_verbs"
+doc = "The verbs that print what the toolchain knows about a command or a snippet: `command-info` and `explore`."
+items = [
+    "fn:command_info_preserves_exact_command_names",
+    "fn:explore_json_emits_the_contract_keys..fn:explore_text_renders_box_drawing_trees",
+]
+
+[[module]]
+name = "project_spec_packs"
+doc = "The current project's spec pack reaches every verb that reads the registry."
+items = ["fn:command_info_discovers_the_current_projects_spec_pack..fn:highlight_uses_the_current_projects_spec_pack_registry"]
+
+[[module]]
+name = "source_transforms"
+doc = "What the transforming verbs read and write: `minimize`, `minify`, the lossy-source refusal and tabs under a redirected stdout."
+items = [
+    "fn:minimize_missing_code_errors..fn:minify_symbol_map_written_for_plain_minify",
+    "fn:opt_writes_a_tab_as_a_tab_under_a_redirected_stdout",
+    "fn:highlight_writes_a_tab_as_a_tab_under_a_redirected_stdout",
+]
+
+[[module]]
+name = "diag_findings"
+doc = "What `tcl diag` reports: cross-file call sites, release-dependent findings, source-style rows and the inline and file directives."
+items = [
+    "fn:diag_shares_call_sites_across_inputs",
+    "fn:diag_reports_an_lset_at_the_length_under_tcl_8_5_and_not_8_6",
+    "fn:diag_honours_noqa_directives_the_way_the_editor_does",
+    "fn:diag_messages",
+    "fn:diag_reports_the_source_style_findings_the_editor_publishes..fn:diag_honours_a_file_directive_on_an_abstaining_document",
+]
+
+[[module]]
+name = "opt_folds"
+doc = "What `tcl opt` folds: over builtins, detected dialects, several inputs, the committed samples and each release's arithmetic edges."
+items = [
+    "fn:opt_folds_a_builtin_over_a_folded_builtin_result..fn:opt_does_not_fold_a_store_across_a_file_boundary",
+    "fn:samples_optimiser_profiles_are_regenerated",
+    "const:FOLD_DIALECTS..fn:opt_keeps_in_range_doubles_and_declines_an_8_4_range_error_literal",
+]
+
+[[module]]
+name = "cr_terminated_documents"
+doc = "A document terminated with lone carriage returns reads, under every verb, the way the editor reads it."
+items = [
+    "fn:diag_reads_a_cr_terminated_sslictcl_document_the_way_the_editor_does",
+    "fn:without_line_ending_lint..fn:multi_file_diag_text",
+    "fn:run_tcl_on_scratch_doc..fn:compwasm_compiles_a_cr_terminated_document_the_way_the_editor_does",
+]
+
+[[module]]
+name = "policy_layers"
+doc = "The diagnostic policy layers (global file, project file, profile, flags) as `tcl diag` and `tcl opt` resolve them."
+items = [
+    "const:UNPROVABLE_LOOP..fn:diag_a_project_file_turns_a_code_back_on",
+    "fn:opt_keeps_a_store_a_noqa_o109_marks",
+    "fn:opt_applies_only_the_rewrites_the_policy_shows..fn:opt_runs_the_passes_of_the_profile_in_force",
+]
+
+[[module]]
+name = "show_suppressed"
+doc = "`tcl diag --show-suppressed`: every hidden finding and declared gap, with its reason."
+items = [
+    "fn:diag_suppressed_rows",
+    "fn:diag_show_suppressed_lists_every_hidden_finding_with_its_reason..fn:diag_show_suppressed_text_rows_keep_the_exit_status",
+]
+
+[[module]]
+name = "policy_truth_table"
+doc = "The diagnostic-policy truth table's rows, run through the built `tcl diag` and `tcl opt`."
+items = ["fn:truth_table_scratch..fn:truth_table_rewrite_rows_render_through_tcl_opt"]
+
+[[module]]
+name = "dialect_flag"
+doc = "`--dialect`: the canonical ids, pack-declared environments, aliases and the refusal of every other name."
+items = ["fn:the_dialect_flag_takes_the_registry_names_and_rejects_the_rest..fn:diag_lists_exactly_the_selectable_ids_for_an_unknown_dialect"]

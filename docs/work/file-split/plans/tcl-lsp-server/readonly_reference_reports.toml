@@ -1,0 +1,82 @@
+# The facade keeps the captured-source types (their private fields are read in every
+# module), `ReadonlyTransaction`, `OriginalReadonlyReferenceReport`, the coverage
+# helpers, the retry loop and its thread-local attempt counter. `source_views` is
+# already a child module.
+file = "rust/tcl-lsp-server/src/readonly_reference_reports.rs"
+
+[[module]]
+name = "capture"
+doc = "Capturing what a readonly answer reads: a source document, a reference document with its analysis, a workspace-symbol analysis and a fresh-source analysis."
+items = ["impl:Backend::capture_readonly_source_document..impl:Backend::capture_fresh_source_analysis_diagnostic"]
+
+[[module]]
+name = "snapshot_currency"
+doc = "Whether a captured document, analysis or fresh input still describes the current snapshot."
+items = [
+    "impl:OriginalReadonlyReferenceDocument::matches_current_snapshot..impl:OriginalReadonlyReferenceDocument::matches_request_snapshot",
+    "fn:open_document_advanced",
+    "fn:original_readonly_analysis_matches_input",
+    "impl:WorkspaceSymbolSourceAnalysis::analysis..impl:WorkspaceSymbolSourceAnalysis::matches_request_snapshot",
+    "impl:WorkspaceSymbolFreshInput::recompute_snapshot_matches..impl:WorkspaceSymbolFreshInput::matches_input_state",
+    "impl:ReadonlySourceDocument::matches_current_snapshot",
+]
+
+[[module]]
+name = "publication_transactions"
+doc = "The final transactions that publish a readonly answer only while its captured sources are current: documents, factory sources and library analyses."
+items = [
+    "impl:Backend::publish_factory_source_if_current..impl:Backend::library_analyses_transaction",
+]
+
+[[module]]
+name = "coarse_semantic_source"
+doc = "The source a coarse semantic-token answer is issued from, and its transaction."
+items = ["impl:Backend::capture_coarse_semantic_source..impl:Backend::coarse_source_recompute_snapshot"]
+
+[[module]]
+name = "code_action_source"
+doc = "The source an ordinary code action is computed from, and the transaction its response is finished under."
+items = [
+    "impl:Backend::capture_code_action_source..impl:Backend::code_action_response_transaction",
+    "fn:code_action_document_matches",
+]
+
+[[module]]
+name = "workspace_symbols"
+doc = "Workspace-symbol responses: the rows that are current, their source inputs and the transaction the response is projected under."
+items = [
+    "impl:WorkspaceSymbolPublication<'_>::current_rows..impl:WorkspaceSymbolPublication<'_>::source_inputs",
+    "impl:Backend::finish_workspace_symbol_response..impl:Backend::workspace_symbol_source_admissions",
+    "fn:workspace_symbol_index_snapshot_is_current",
+    "fn:workspace_symbol_snapshot_advanced",
+]
+
+[[module]]
+name = "namespace_advice"
+doc = "Conditional namespace-import advice, projected under its original input and publication owners."
+items = ["impl:Backend::finish_conditional_namespace_advice..impl:Backend::finish_conditional_namespace_advice_attempt"]
+
+[[module]]
+name = "logical_calls"
+doc = "Logical call lenses and the call hierarchy: the publication stamp a session keeps, and the prepare, walk and resolve answers."
+items = [
+    "struct:LogicalCallPublicationStamp..impl:std::fmt::Debug for LogicalCallPublicationStamp",
+    "impl:LogicalCallPublicationStamp::capture",
+    "struct:LogicalCallProjection..fn:lift_logical_call_item",
+    "impl:Backend::logical_call_documents..impl:Backend::finish_logical_call_advice",
+]
+
+[[module]]
+name = "logical_hierarchy"
+doc = "The logical type hierarchy and implementation answers."
+items = ["impl:Backend::finish_logical_hierarchy_projection..impl:Backend::finish_logical_implementation_advice"]
+
+[[module]]
+name = "declaration_references"
+doc = "Reference reports for an original declaration: the source occurrences, their coverage and the locations lifted from them."
+items = [
+    "impl:Backend::finish_readonly_reference_report",
+    "impl:Backend::readonly_original_declaration_reference_report..impl:Backend::readonly_original_method_reference_locations_at",
+    "fn:lift_readonly_reference_targets",
+    "fn:original_declaration_owner_is_unique",
+]

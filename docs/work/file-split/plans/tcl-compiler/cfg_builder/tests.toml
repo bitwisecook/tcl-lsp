@@ -1,0 +1,81 @@
+# The parent keeps the shared fixtures: `summary_id`, `native_registry`,
+# `build_test_cfg_function`, `lower_module` and the CFG queries
+# (`find_call_defs`, `find_call_with_def`, `calls_in_order`, `position_of`).
+# Tests move to modules named for the production module they exercise.
+file = "rust/tcl-compiler/src/cfg_builder/tests.rs"
+
+[[module]]
+name = "command_classes"
+doc = "Registry-derived command classes: completion routes, custom registry traits and procedure-exit host commands."
+items = [
+    "fn:proc_exit_host_commands..fn:observed_completion_never_manufactures_a_procedure_return",
+    "fn:whole_module_cfg_uses_the_exact_custom_registry_traits",
+    "fn:cfg_class_helpers_keep_site_normalisation..fn:proc_exit_host_barriers_terminate_direct_and_opaque_switch_forms",
+]
+
+[[module]]
+name = "prepared_context"
+doc = "The prepared module context: source metadata, `detect_upvar_procs` propagation and the compatibility entry point."
+items = [
+    "fn:cfg_and_binding_analysis_retain_the_same_registry_generation..fn:prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners",
+    "fn:prepared_cfg_refuses_changed_module_profile_and_body_configuration..fn:prepared_cfg_source_metadata_is_shared_by_module_and_body_builders",
+    "fn:prepared_context_cfg_matches_compatibility_entry_point",
+    "fn:detect_upvar_procs_retains_issued_body_effects..fn:prepare_cfg_context_registers_params_for_all_procs",
+]
+
+[[module]]
+name = "script_lowering"
+doc = "Lowering plain scripts into blocks: straight-line code, `return`, `if`, structured writes and loop initialisers."
+items = [
+    "fn:structured_cfg_writes_keep_literal_name_data_and_dynamic_unknowns..fn:build_cfg_module",
+    "fn:foreach_synthetic_call_records_iterator_group_sizes",
+    "fn:try_handler_return_options_terminates",
+]
+
+[[module]]
+name = "opaque_constructs"
+doc = "Constructs kept opaque: `catch` and `try` that stay one statement, their body effects and frozen loops."
+items = [
+    "fn:drop_word_keeps_structured_words_aligned..fn:straight_line_catch_script",
+    "fn:dedup_preserves_order",
+    "fn:an_opaque_catch_states_what_its_body_writes_as_may_definitions_ahead_of_the_call..fn:a_callee_an_opaque_catch_body_calls_may_define_the_name_it_writes",
+    "fn:a_deferred_try_states_what_its_scripts_write_as_may_definitions",
+    "fn:frozen_while_condition_carries_upvar_proc_defs..fn:frozen_while_condition_with_no_upvar_proc_omits_synthetic_cond",
+]
+
+[[module]]
+name = "flow_facts"
+doc = "`escaping_loop_jumps` over un-lowered scripts: `try` propagation, early stop and deep nesting."
+items = ["fn:escaping_loop_jumps_follows_try_but_not_catch..fn:deeply_nested_if_survives_escaping_loop_jumps"]
+
+[[module]]
+name = "upvar_invalidation"
+doc = "Call statements widened with the caller-side names an `upvar` or `uplevel` callee writes."
+items = [
+    "fn:rooted_regexp_value_form_does_not_widen_runtime_selected_method_frame",
+    "fn:literal_upvar_proc_call_augments_defs..fn:build_cfg_function_does_not_apply_upvar_wiring",
+]
+
+[[module]]
+name = "callee_frame_effects"
+doc = "Procedure summaries selected per body: alias targets, parameters and summary keys."
+items = [
+    "fn:distinct_body_summaries_preserve_conflicting_alias_targets..fn:body_summary_selection_declines_foreign_id_at_the_original_declaration",
+    "fn:summary_keys_decline_one_changed_member_and_foreign_module_source",
+]
+
+[[module]]
+name = "unseen_code"
+doc = "Calls and substitutions that reach code the module cannot see, and the markers and barriers they leave."
+items = ["fn:a_top_level_replay_loads_a_supplied_package_from_the_entry_state..fn:a_substitution_marks_the_unseen_code_in_every_word_its_command_runs"]
+
+[[module]]
+name = "embedded_substitutions"
+doc = "Effects of `[…]` substitutions in values, arguments, `return`, `switch` words and conditions."
+items = [
+    "fn:cfg_condition_possible_writes_keep_original_aliases_and_replacements",
+    "fn:condition_var_writes_use_the_exact_custom_registry_roles",
+    "fn:embedded_subst_in_assign_value_emits_its_word_effects..fn:the_call_carrying_a_write_leaves_a_place_its_statement_never_reads_alone",
+    "fn:embedded_subst_in_return_emits_its_word_effects_before_terminator..fn:condition_out_vars_recovers_catch_scan_gets_regexp_and_upvar_procs",
+    "fn:read_beside_writes_uses_original_roles_and_preserves_refusals",
+]

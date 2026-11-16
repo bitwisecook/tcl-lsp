@@ -1,0 +1,70 @@
+# The parent keeps the token and context fixtures shared across modules and
+# the one native operation plan test.
+file = "rust/tcl-compiler/src/registry_invocation/tests.rs"
+
+[[module]]
+name = "structured_invocation"
+doc = "Hosted and Logical structured source: original lookup, case roles and refused owners."
+items = [
+    "fn:assert_hosted_source_shape_keeps_its_receipt..fn:hosted_original_source_assistance_keeps_metadata_and_execution_uncertainty_separate",
+    "fn:logical_source_structure_uses_original_lookup_without_a_physical_frame..fn:logical_source_shape_cannot_substitute_for_missing_native_entry",
+]
+
+[[module]]
+name = "expression_operand_advice"
+doc = "Original expression contexts and operand advice: sites, availability and refusals."
+items = [
+    "fn:original_expression_context_keeps_logical_input_and_written_operands..fn:default_return_operand_advice_preserves_generic_calls_and_replacements",
+]
+
+[[module]]
+name = "variable_transitions"
+doc = "Possible variable name operands: alias prefixes, expansions and method names."
+items = [
+    "fn:possible_name_operands_preserve_alias_prefix_and_missing_binding_residual..fn:possible_method_name_operands_do_not_create_normal_store_proof",
+]
+
+[[module]]
+name = "normal_representation"
+doc = "Normal representation and taint: handler proofs, value contracts and pattern layouts."
+items = [
+    "fn:normal_ensemble_leaf_requires_the_actual_release_worker..fn:normal_taint_source_properties_decline_replaced_or_unproved_handlers",
+]
+
+[[module]]
+name = "normal_transfer"
+doc = "Normal handler transfer and stores: frozen targets, alias destinations and refused licences."
+items = [
+    "fn:normal_handler_transfer_preserves_unknown_compiler_protocol..fn:normal_handler_transfer_rejects_mutation_and_body_licences",
+]
+
+[[module]]
+name = "invocation_assistance"
+doc = "Registry shapes and advisory assistance: frozen values, unanimous words and declared roles."
+items = [
+    "fn:argument_values_are_frozen_before_later_substitutions..fn:role_assistance_maps_alias_prefixes_to_only_original_operands",
+    "fn:definite_roles_require_closed_actual_alternatives_and_original_positions..fn:nested_dispatch_inheritance_never_recovers_a_missing_point",
+    "fn:advisory_metadata_tokens..fn:advisory_value_metadata_shares_supplied_availability_and_store_refusal",
+]
+
+[[module]]
+name = "body_assistance"
+doc = "Body assistance: navigation, prepared views, packaged availability and unprofiled entries."
+items = [
+    "fn:body_assistance_keeps_navigation_separate_from_unanimous_context..fn:unprofiled_body_assistance_uses_retained_entry_without_definite_offset_free_facts",
+]
+
+[[module]]
+name = "word_resolution"
+doc = "Effective and registry words: alias composition, literals, compiled local names and dynamics."
+items = [
+    "fn:decoded_native_byte_words_preserve_cardinality_and_checked_text..fn:static_command_word_decodes_only_original_static_values",
+    "fn:alias_composition_preserves_original_evaluation_and_inserted_origins..fn:dynamic_head_stays_typed_unresolved",
+]
+
+[[module]]
+name = "metadata_context"
+doc = "Invocation metadata contexts: availability, generation and retained script ordinals."
+items = [
+    "fn:original_metadata_context_keeps_actual_availability_and_generation..fn:retained_invocation_context_keeps_availability_without_donating_handler_proof",
+]

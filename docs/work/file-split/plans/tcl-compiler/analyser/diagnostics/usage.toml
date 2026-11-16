@@ -1,0 +1,41 @@
+# The facade keeps the module docs, the `source_channel` module and
+# `original_expression_parser_context`, which the expression checks share.
+file = "rust/tcl-compiler/src/analyser/diagnostics/usage.rs"
+
+[[module]]
+name = "unbraced_words"
+doc = "Unbraced expressions (W100), script bodies (W105) and `switch` bodies (W106)."
+items = [
+    "struct:UnbracedSourceExpression..fn:original_word_is_hex_conversion",
+    "fn:original_word_has_substitution",
+    "impl:Analyser::emit_w105_unbraced_body..impl:Analyser::push_w100",
+    "impl:Analyser::emit_w106_unbraced_switch_body..impl:Analyser::push_w106",
+    "fn:is_safe_literal..fn:is_safe_literal_expr_in_context",
+]
+
+[[module]]
+name = "literal_contents"
+doc = "What a literal argument holds: `binary` template gates (W200, W202), a subnet mask (W121) and non-ASCII text (W108)."
+items = [
+    "impl:Analyser::emit_binary_field_version_gates..impl:Analyser::emit_w108_non_ascii",
+    "fn:is_standard_ascii..fn:nearest_valid_mask",
+]
+
+[[module]]
+name = "variable_arguments"
+doc = "Arguments that name or extend a variable: `lappend` on a non-list (W104), a value where a name belongs (W212) and a broken `${name}(...)` element (W216)."
+items = [
+    "fn:original_word_has_pad_space",
+    "impl:Analyser::emit_w104_append_list..impl:Analyser::w104_lappend_fix",
+    "impl:Analyser::variable_name_positions..impl:Analyser::emit_w216_brace_then_paren",
+    "fn:build_w216_replacement",
+]
+
+[[module]]
+name = "expression_rewrites"
+doc = "A redundant nested `expr` (W114) and `==` / `!=` on strings (W110), with their rewrites."
+items = [
+    "impl:Analyser::emit_w114_original_nested_expr..impl:Analyser::w110_operator_span",
+    "enum:W110Anchor",
+    "fn:first_nested_expr..fn:node_extent",
+]

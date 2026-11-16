@@ -1,0 +1,49 @@
+# The facade keeps the inventory, report, node and state types (the builder
+# modules all read their fields), the `Builder` struct and the entry points on
+# `SourceCommandBindings` and `SourceInvocationBinding` that build a report.
+file = "rust/tcl-compiler/src/command_binding/declaration_flow.rs"
+
+[[module]]
+name = "report_queries"
+doc = "The questions a finished declaration-flow report answers for diagnostics."
+items = ["fn:original_procedure_entry_matches..impl:DeclarationFlowReport"]
+
+[[module]]
+name = "representation_plan"
+doc = "Conditional representation plans: naming scopes, body contexts, targets, loops and captures."
+items = [
+    "impl:Builder<'_>::representation_root_naming_scope..impl:Builder<'_>::conditional_substitution_context",
+]
+
+[[module]]
+name = "selection"
+doc = "The declaration layout a command's reads select: selection scopes, read points and layouts."
+items = [
+    "impl:DeclarationReadPointScope<'_>",
+    "impl:Builder<'_>::selection_scopes..impl:Builder<'_>::original_layout_selection_checked",
+]
+
+[[module]]
+name = "command_flow"
+doc = "The flow graph of a script: command nodes and their handler, lifecycle, branch and loop flow."
+items = [
+    "impl:Builder<'_>::completion_frame..impl:Builder<'_>::literal_local_setter",
+    "impl:Builder<'_>::command..impl:Builder<'_>::retain_representation_loop",
+]
+
+[[module]]
+name = "events"
+doc = "The read and write events of words, variables, expressions and bodies."
+items = [
+    "fn:logical_boolean_literal_condition",
+    "impl:Builder<'_>::events_before..impl:Builder<'_>::substitution",
+    "enum:Event..fn:strict_expression_owner",
+]
+
+[[module]]
+name = "evaluation"
+doc = "Evaluating the graph: strict and declared states, their transfer and the observations recorded."
+items = [
+    "impl:State",
+    "impl:Builder<'_>::conditional_list_sites..impl:Builder<'_>::declared_successors",
+]

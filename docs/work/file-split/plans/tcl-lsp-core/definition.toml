@@ -1,0 +1,60 @@
+# The facade keeps `ProgramExports`, `CallResolution`, `LspRange`, the
+# `definition*` entry points with the cursor walk behind them, and the position
+# and namespace-context conversions every provider calls.
+file = "rust/tcl-lsp-core/src/definition.rs"
+
+[[module]]
+name = "object_dispatch"
+doc = "Method declarations a receiver dispatches to: class members, per-object state, visibility masks and self-dispatch."
+items = ["fn:instance_method_definition..fn:original_self_receiver_head"]
+
+[[module]]
+name = "method_receivers"
+doc = "The class and method bucket of the receiver at the cursor, and `next`/`nextto` targets."
+items = ["fn:enclosing_class_at..fn:lattice_singleton_class"]
+
+[[module]]
+name = "command_heads"
+doc = "The command head at the cursor: indirection, ensemble subcommands, recorded invocations and autoload requests."
+items = [
+    "fn:command_indirection..fn:resolved_indirect_head_proc",
+    "struct:OriginalAutoloadRequest..fn:command_head_and_namespace_at",
+]
+
+[[module]]
+name = "variables"
+doc = "Variable lookup at the cursor: scope extents and chains, declaration offsets, parameter lists and visible names."
+items = [
+    "fn:variable_scope_extent..fn:source_frame_extent",
+    "fn:lookup_var_in_scope_chain..fn:global_vars_needing_qualification",
+    "fn:qualified_var_name..fn:scope_body_spans_at",
+]
+
+[[module]]
+name = "itcl_class_procs"
+doc = "[incr Tcl] class-scoped procedures and the class-definer family they are read under."
+items = [
+    "fn:class_definer_family..fn:itcl_self_qualified_candidate",
+    "fn:itcl_class_proc_declaration..fn:itcl_class_proc_target_at",
+]
+
+[[module]]
+name = "namespace_imports"
+doc = "Whether a call reaches a procedure through `namespace import`: wildcard imports, forced imports and export verdicts."
+items = [
+    "fn:proc_visible_via_wildcard_import..fn:live_import_over_candidates",
+    "fn:import_chain_target",
+]
+
+[[module]]
+name = "import_slot_events"
+doc = "The ordered import, forget and definition events on one namespace slot, and the alias live at a call."
+items = ["enum:SlotEvent..fn:exported_original_slot_at_import_in"]
+
+[[module]]
+name = "call_resolution"
+doc = "The procedure or class a written call denotes under Tcl's command resolution."
+items = [
+    "fn:proc_visible_from_namespace..fn:resolved_command_name",
+    "fn:resolve_called_proc..fn:name_token_in_document",
+]

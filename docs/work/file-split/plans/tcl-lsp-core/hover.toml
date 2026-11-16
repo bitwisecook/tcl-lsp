@@ -1,0 +1,63 @@
+# The facade keeps `Hover`, the public `hover*` entry points and `hover_impl`
+# with the stages that only order other answers, the cross-document cards the
+# server renders, and the word-at-cursor lookups other providers call.
+file = "rust/tcl-lsp-core/src/hover.rs"
+
+[[module]]
+name = "source_documentation"
+doc = "Cards from source documentation: schema and root declarations, original procedures and native formals."
+items = ["fn:source_documentation_hover..fn:conditional_native_formal_hover"]
+
+[[module]]
+name = "procedures"
+doc = "Cards for user commands: procedures with their docstrings, ensemble subcommands and aliases."
+items = [
+    "fn:ensemble_subcommand_hover",
+    "fn:proc_hover_at",
+    "fn:alias_hover_at..fn:lexical_alias_hover_text",
+    "fn:proc_hover_text..fn:format_docstring",
+]
+
+[[module]]
+name = "variables"
+doc = "Cards for variables: reads and declarations, special variables, inferred type and taint."
+items = [
+    "fn:variable_hover..enum:PositionHover",
+    "fn:current_special_variable_source_hover..fn:navigation_variable_hover",
+    "fn:var_type_annotations",
+    "fn:caller_frame_hover_text..fn:infer_var_taint",
+]
+
+[[module]]
+name = "embedded_operands"
+doc = "Which pattern or format language an argument word holds, and the card for it."
+items = ["fn:registry_pattern_format_hover..fn:original_embedded_operand"]
+
+[[module]]
+name = "builtin_commands"
+doc = "The card for a built-in command and its iRules valid-event guidance."
+items = ["fn:resolve_imported_command..fn:valid_events"]
+
+[[module]]
+name = "format_specifiers"
+doc = "Specifier tables for `clock format`, `format` and `binary format`, with the byte ruler."
+items = ["const:CLOCK_SPEC_DESC..fn:center"]
+
+[[module]]
+name = "pattern_syntax"
+doc = "Component tables for `regsub` substitutions, glob patterns and regular expressions."
+items = ["fn:regsub_backref_desc..fn:scan_regex_single_meta", "fn:regex_hover_text"]
+
+[[module]]
+name = "classes"
+doc = "Cards for classes: hierarchy details, properties and counted class sources."
+items = ["fn:append_class_hierarchy_details..fn:class_hover_text"]
+
+[[module]]
+name = "class_members"
+doc = "Cards for class members: declarations, constructors, method dispatch and resolution-order notes."
+items = [
+    "fn:declared_member_hover..fn:declared_class_hover",
+    "fn:source_constructor_hover",
+    "fn:original_linked_member_hover_text..fn:oo_resolution_note_for_provider",
+]

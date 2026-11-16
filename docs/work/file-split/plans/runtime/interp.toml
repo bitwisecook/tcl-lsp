@@ -1,0 +1,146 @@
+# First of two levels. The facade keeps the module contract, `Interp`,
+# `InterpState` and the types whose private fields the existing `interp/*`
+# children read (`Code`, `CmdFrame`, `ExceptionState`, the error snapshots,
+# `CoroContext`, `ObjCommand`, `ProcDef`, the publication records,
+# `EnsembleRewrite`), the `thread_local!` block, and a handful of accessors
+# (`in_proc`, the pending `exit`, `events_mut`, `clone_handle`, the PRNG).
+# `setup`, `commands`, `variables`, `errors`, `evaluation` and `dispatch` are
+# split again by the plans under `plans/runtime/interp/`.
+file = "runtime/rust/src/interp.rs"
+
+[[module]]
+name = "setup"
+doc = "Constructing an interpreter and selecting the world it runs in: host, release, pinned context, invocation protocols and the bootstrap."
+items = [
+    "const:DEFAULT_RUNTIME_VERSION..fn:default_host",
+    "impl:Interp::new..impl:Interp::lexer_config",
+    "impl:Interp::write_release_globals",
+    "impl:Interp::set_startup_globals..impl:Interp::init_library_completion",
+]
+
+[[module]]
+name = "commands"
+doc = "The command model and the command table: surface visibility, registration, guards, rename, aliases, ensembles, procedures, hidden commands and imports."
+items = [
+    "enum:CommandVisibilityOutcome..enum:CommandVisibilityOp",
+    "struct:BuiltinSurfaceVisibility..impl:Command",
+    "impl:Interp::builtin_command_visible_for_surface..impl:Interp::resolve_dispatchable_with_generation",
+    "impl:Interp::register_builtin..impl:Interp::remove_cmd_traces_of_token",
+    "impl:Interp::is_ensemble..impl:Interp::alias_names",
+    "impl:Interp::retain_commands..impl:Interp::retain_command_tokens",
+    "impl:Interp::visible_command_names_in..impl:Interp::proc_def",
+    "impl:Interp::intern_cmd..impl:Interp::import_metadata_in",
+    "impl:Interp::command_exists",
+    "impl:Interp::create_obj_command..impl:Interp::ns_register",
+    "impl:Interp::cmdtype..impl:Interp::resolve_cmd_fqn",
+    "impl:Interp::hide_command..impl:Interp::remove_imports_for_deleted_origins",
+]
+
+[[module]]
+name = "variables"
+doc = "Variable access through the resolver: reads and stores, selected cells, constants and confinement, traces, unset, array targets and links."
+items = [
+    "impl:Interp::var_is_traced",
+    "impl:Interp::var_get..impl:Interp::confined_generator_error",
+    "impl:Interp::is_constant..impl:Interp::fire_var_traces_for",
+    "impl:Interp::var_is_array..impl:Interp::finish_generic_variable_link",
+    "impl:Interp::cell_unset_traces..impl:Interp::fire_unset_callbacks",
+    "impl:Interp::var_exists..impl:Interp::array_names",
+    "impl:Interp::prepare_upvar_target..impl:Interp::make_upvar_in",
+    "impl:Interp::read_var..impl:Interp::read_miss_msg",
+]
+
+[[module]]
+name = "namespaces"
+doc = "The interpreter's side of the namespace tree: the current namespace, activations, `namespace eval` frames, creating namespaces and tearing them down."
+items = [
+    "impl:Interp::current_ns..impl:Interp::set_current_ns",
+    "impl:Interp::enter_namespace_activation..impl:Interp::leave_namespace_activation",
+    "impl:Interp::namespaces..impl:Interp::namespaces_mut",
+    "impl:Interp::ns_eval_framed..impl:Interp::with_namespace_frame_command",
+    "impl:Interp::resolve_namespace_name..impl:Interp::sweep_dying_namespace",
+    "impl:Interp::find_namespace_id",
+    "impl:Interp::ns_qualified_name",
+]
+
+[[module]]
+name = "results"
+doc = "The interpreter result: setting, appending, reading and resetting it, and the byte views of a value."
+items = [
+    "impl:Interp::binary_bytes..impl:Interp::native_binary_bytes_with",
+    "impl:Interp::new_list_object..impl:Interp::reset_result",
+    "impl:Interp::append_result_bytes_checked..impl:Interp::result_obj",
+]
+
+[[module]]
+name = "errors"
+doc = "Raising and reporting errors: error codes, command and background errors, `errorInfo`, Jim's error stack, snapshots and error episodes."
+items = [
+    "impl:Interp::log_current_command",
+    "impl:Interp::release_error_code..impl:Interp::note_c_api_error",
+    "impl:Interp::error..impl:Interp::report_bg_error_original",
+    "impl:Interp::process_bg_errors..impl:Interp::restore_error",
+    "impl:Interp::error_snapshot..impl:Interp::during_opts",
+    "impl:Interp::invalid_command..impl:Interp::unknown_command",
+    "impl:Interp::set_error..impl:Interp::wrong_arguments_message",
+]
+
+[[module]]
+name = "evaluation"
+doc = "Evaluating scripts: return state, sourced files, the command loop, control bodies, compiled forms, substitution, source frames and coroutines."
+items = [
+    "fn:line_of..fn:scan_list_offsets",
+    "enum:OriginalBodyEvaluation..struct:PreparedOriginalBodyEvaluation",
+    "struct:CompiledArgv..impl:Drop for CompiledArgv",
+    "impl:Interp::current_cmd_line..impl:Interp::set_arg_lines",
+    "impl:Interp::set_return_state..impl:Interp::eval_uplevel",
+    "impl:Interp::coros_mut..impl:Interp::coro_swap_generation",
+    "impl:Interp::cmd_frame_depth..impl:Interp::cmd_frame_info",
+    "impl:Interp::eval_str_boundary..impl:Interp::arg_loc",
+    "impl:Interp::eval_word_expression..impl:Interp::subst_index",
+]
+
+[[module]]
+name = "dispatch"
+doc = "Invoking a command: the dispatch boundary, traces, missing commands, bound invocation, procedure calls, tailcalls, ensembles and aliases."
+items = [
+    "enum:ProcFrame..impl:<'a> CallMeta<'a>",
+    "enum:PreparedProcedureBody..struct:PreparedProcedureCall",
+    "enum:EnsembleUnknown",
+    "struct:JimInvocationScope..impl:Drop for JimInvocationScope",
+    "enum:CommandDispatchSelection..impl:From<Option<(Vec<u8>, CommandBinding)>> for CommandDispatchSelection",
+    "const:MAX_ALIAS_DISPATCH_DEPTH..const:MAX_CROSS_INTERP_DEPTH",
+    "impl:Interp::eval_fixed_math_call",
+    "impl:Interp::begin_ensemble_rewrite..impl:Interp::reset_native_ensemble_rewrite",
+    "impl:Interp::fire_cmd_trace_of_token..impl:Interp::move_cmd_traces",
+    "impl:Interp::dispatch..impl:Interp::invoke_obj_cmd",
+    "impl:Interp::dispatch_parent_alias..impl:Interp::dispatch_alias",
+    "impl:Interp#3",
+    "fn:proc_usage_words..fn:proc_usage",
+]
+
+[[module]]
+name = "child_interpreters"
+doc = "Child interpreters: the child command, creation and deletion, addressing by path, and safe interpreters."
+items = [
+    "impl:Interp::child_wrong_args..impl:Interp::with_child_path",
+    "impl:Interp::make_safe..impl:Interp::mark_trusted",
+    "impl:Interp::child_names..impl:Interp::delete_child",
+]
+
+[[module]]
+name = "limits"
+doc = "`interp limit`, `interp recursionlimit` and `interp debug`: the limit set, the evaluation depth bounds and the time-limit tick."
+items = [
+    "struct:LimitSet..fn:bad_limit_value",
+    "impl:Interp::debug_apply..impl:Interp::limit_check_tick",
+]
+
+[[module]]
+name = "compiled_frames"
+doc = "What generated code enters and leaves: compiled activations, the procedure frame, and its indexed local slots."
+items = [
+    "impl:Interp::codegen_body_has_invoke_headroom..impl:Interp::codegen_activation_leave_unpublished",
+    "impl:Interp::pop_native_call_frame..impl:Interp::codegen_slot_name",
+    "impl:Interp::codegen_slot_is_traced..impl:Interp::codegen_slot_scalar",
+]

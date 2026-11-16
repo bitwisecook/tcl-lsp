@@ -1,0 +1,62 @@
+# Second level: apply `sccp.toml` first. `solver.rs` keeps the rounds
+# (`drive`, `solve`, `settled_result`), the run hazards and escaping names,
+# and the records more than one phase fills or reads: `SweepContext`,
+# `SweepState`, `BlockExit`, `ExistenceAt`, `ExistenceRun`, `RungResults`,
+# `Clobber` and the statement and terminator inputs.
+file = "rust/tcl-compiler/src/sccp/solver.rs"
+
+[[module]]
+name = "sweep"
+doc = "The optimistic fixpoint over the blocks in reverse post-order: seeds, φ joins and the per-block step."
+items = [
+    "impl:SweepContext<'_>",
+    "fn:seeded_values..fn:seed_live_in_roots",
+    "fn:sccp_process_phis..fn:record_phi_folded_types",
+]
+
+[[module]]
+name = "existence"
+doc = "The existence rung: the fact each place enters with, its forward propagation through statements and handler regions, and the places only a query names."
+items = [
+    "impl:ExistenceAt<'_>",
+    "fn:join_state..impl:ExistenceRun",
+    "fn:query_only_places..fn:linked_elsewhere",
+    "fn:handler_regions",
+    "fn:assignment_existence",
+]
+
+[[module]]
+name = "frame_clobbers"
+doc = "Whole-frame effects on the existence rung: the places a statement, a terminator or a body run in this frame may define or destroy."
+items = ["fn:statement_clobber..fn:place_base"]
+
+[[module]]
+name = "refinements"
+doc = "Facts that hold on one branch edge: the existence and value refinements, their order, the flow while sweeping and the narrowing once settled."
+items = [
+    "fn:narrowed..fn:external_places",
+    "fn:value_refinements..fn:refined_value",
+]
+
+[[module]]
+name = "loop_enumeration"
+doc = "Running a loop, or an opaque `catch` body, to its exit over the exact state the settled run proves it starts from."
+items = ["fn:enumerate_loops..fn:slot_of_existence", "fn:catch_body_answer"]
+
+[[module]]
+name = "statements"
+doc = "Evaluating the statements of one block: definitions, barriers, calls to unseen code and statements that certainly raise."
+items = [
+    "fn:process_early_statement..fn:sccp_process_statements",
+    "fn:clobber_at_unseen_call..fn:n17_source_only_definition",
+    "fn:held_value..fn:typed_element_write_base",
+    "fn:pair_answer..fn:prior_version",
+]
+
+[[module]]
+name = "branches"
+doc = "Terminators: which outgoing edges are executable, and the constant branches and settled statement records the post-passes collect."
+items = [
+    "fn:branch_deferrable",
+    "fn:sccp_process_terminator..fn:record_condition_preserves",
+]

@@ -1,0 +1,29 @@
+# The facade keeps `IndexReading`, the `resolve*`/`read*` entry points for C
+# Tcl and Jim indices and the `bad_index*` errors.
+file = "rust/tcl-cmd-core/src/index.rs"
+
+[[module]]
+name = "native_ops"
+doc = "The host boundary: `NativeIndexOps`, the index result constructors and the entered-operation runners."
+items = ["enum:ListNumericKind..fn:native_sort_with_host"]
+
+[[module]]
+name = "compiler_encoding"
+doc = "Literal index words as each release's compiler encodes them ahead of the length they index."
+items = [
+    "fn:compiles_apart..fn:settle_string_replace",
+    "fn:compiler_encodable_in..fn:c9_index_encode",
+]
+
+[[module]]
+name = "drill"
+doc = "`-index` paths of `lsearch` and `lsort`: checking each element and drilling into nested lists."
+items = [
+    "struct:IndexPathError..fn:drill_in_release",
+    "struct:IndexedKey..fn:encodable",
+]
+
+[[module]]
+name = "reading"
+doc = "One index word as each release reads it: 8.4, 8.5 and 8.6, 9.0 on, and Jim, with their integer ranges."
+items = ["enum:Range..fn:parse_int_whole"]

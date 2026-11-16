@@ -1,0 +1,19 @@
+# Second level, after `loader.toml`. `value_parsers.rs` keeps the word
+# parsers: flags and tri-states, versions, availability, dialect, trait and
+# taint sets, and enum values by name.
+file = "rust/tcl-spectcl/src/loader/value_parsers.rs"
+
+[[module]]
+name = "lifecycles"
+doc = "Lifecycle flags and their checks: arity and stamp windows, stamp gates, option-effect families and containment in a parent's window."
+items = ["fn:lifecycle_flag..fn:check_contained"]
+
+[[module]]
+name = "vocabularies"
+doc = "The closed vocabularies a pack names by variant: completion codes, types, side-effect targets, frame layouts, hooks and intrinsics."
+items = ["const:COMPLETION_CODES..const:INTRINSICS"]
+
+[[module]]
+name = "descriptor_values"
+doc = "Descriptor values a row carries: arity, integer domains, typing and representation effects, deprecation fixes, symbol definitions, semantic operations, handle bindings and object classes."
+items = ["fn:parse_arity..fn:object_class_row"]

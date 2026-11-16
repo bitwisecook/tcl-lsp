@@ -1,0 +1,109 @@
+# The parent keeps the module docs, the full registry, `TestInputs` with its
+# `AnalysisInputs` impl and the small builders and assertions many modules
+# share (`literal`, `held`, `absent`, `keyed_update`, `evaluated`, `raised`,
+# `target`, `word`, `read`, `completed`, `planned`, ...). `PINNED_ROUTE_STAMPS`
+# is one 1,199-line table and has a module to itself.
+# `shipped_builtins_stay_on_the_direct_route` stays: its `include_str!` path is
+# relative to this file.
+file = "rust/tcl-registry/tests/it_4/value_transfers.rs"
+
+[[module]]
+name = "derived_transfers"
+doc = "What a declaration derives: expression assembly, abstention at each scope, bind and unbind transfers and scope-alias plans."
+items = [
+    "fn:expression_assembly_follows_the_word_kinds",
+    "fn:elements_of_and_loop_list_header_derive_nothing..fn:abstention_exists_at_command_subcommand_and_form_scope",
+    "fn:destroys_variable_derives_an_unbind_transfer..fn:info_default_writes_the_default_the_analysis_proves",
+]
+
+[[module]]
+name = "cell_updates"
+doc = "Cell updates: read-modify-write descriptors, absent cells, the cell-write route, keyed dict updates and the increment route."
+items = [
+    "fn:a_cell_read_modify_write_descriptor_derives_the_same_cell_update..fn:an_increment_of_an_absent_place_under_8_4_is_the_commands_error",
+    "fn:every_cell_update_has_a_registry_owned_route..fn:the_cell_write_route_writes_and_reads_the_exact_value",
+    "fn:keyed_updates_run_the_shared_dict_cores..fn:a_route_that_reads_its_target_declares_the_read",
+    "fn:evaluate_increment..fn:the_increment_route_runs_the_shared_core_under_the_target_semantics",
+]
+
+[[module]]
+name = "catch"
+doc = "`catch`: the code its script observes, the writes it carries, what it stores and when it declines."
+items = [
+    "fn:catch_binds_its_result_and_options_whatever_the_completion..fn:catch_structure_is_a_protected_body",
+]
+
+[[module]]
+name = "try_handlers"
+doc = "`try`: handler chains, the handler protocol, the variables a handler binds and what the plan cannot place."
+items = ["fn:handler_chain..fn:try_declines_what_its_plan_cannot_place"]
+
+[[module]]
+name = "captures_and_destructuring"
+doc = "Commands that store into variables: `lassign`, `regexp` and `regsub`, `scan`, and the byte and array writers."
+items = [
+    "fn:lassign_lists_its_completion_paths",
+    "fn:regex_route..fn:destructured",
+    "fn:destructuring_writers_run_the_shared_cores..fn:an_odd_array_set_list_is_the_commands_error",
+]
+
+[[module]]
+name = "value_routes"
+doc = "Value routes that run the shared cores: list and length, `format`, `append` and `string range`."
+items = [
+    "fn:list_and_length_routes_run_the_shared_cores..fn:format_answers_per_release",
+    "fn:append_and_list_append_run_the_shared_cores..fn:a_malformed_string_range_index_is_the_commands_error",
+]
+
+[[module]]
+name = "route_identity"
+doc = "Which specs carry which route: the sweep against the pinned set, route labels and the capability in a route identity."
+items = [
+    "fn:route_stamps",
+    "fn:route_stamps_match_the_pinned_set",
+    "fn:route_owner..fn:the_capability_is_part_of_the_route_identity",
+]
+
+[[module]]
+name = "pinned_route_stamps"
+doc = "The pinned set of route stamps, one row per spec that carries a route."
+items = ["const:PINNED_ROUTE_STAMPS..fn:pinned_route_stamps"]
+
+[[module]]
+name = "evaluation_contract"
+doc = "The evaluation contract: lifting over finite inputs, admitted axes, outcome validation and ordered state."
+items = [
+    "fn:the_lift_evaluates_per_member_over_one_finite_input..fn:the_ordered_state_reads_its_own_writes_first",
+]
+
+[[module]]
+name = "iteration_plans"
+doc = "Iteration plans: loop headers, lockstep lists, bounds and steps, and the keys a `dict` body binds."
+items = ["fn:the_source_layout_answers_an_iteration_plan..fn:dict_with_binds_the_proven_keys"]
+
+[[module]]
+name = "template_plans"
+doc = "Substitution template plans: the witnesses, the 9.1 switches and joined plans."
+items = [
+    "fn:template_plan_of",
+    "fn:kinds..fn:region",
+    "fn:braced_plan..fn:a_template_plan_joins_proven_switches_and_reads_indexes",
+]
+
+[[module]]
+name = "selection_plans"
+doc = "Arm selection plans for `switch` and `case` on every release."
+items = ["fn:switch_inputs..fn:case_selection_runs_tcl_case_obj_cmd"]
+
+[[module]]
+name = "declared_implementations"
+doc = "Declared implementations: asserted reference bodies and a Wasm extension on the extension host."
+items = [
+    "fn:reference_pack..fn:a_body_nobody_asserted_is_not_derived_from_however_plain_it_is",
+    "struct:Joiner..fn:a_wasm_extension_implementation_runs_on_the_extension_host",
+]
+
+[[module]]
+name = "completions"
+doc = "Completions of a route: errors, writes to arrays, `unset`, `error`, `break`, `continue` and `return`."
+items = ["fn:a_route_error_is_a_completion..fn:a_read_of_nothing_and_a_non_integer_are_errors"]

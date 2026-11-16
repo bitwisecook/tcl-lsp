@@ -1,0 +1,86 @@
+# The facade keeps the protocol and policy types (`NativeNameProtocol`,
+# `NamePolicyProtocol`, `NativeNamePurpose`, `NativeNameContext`), the
+# projections every part returns, recipe selection, the subcommand and
+# package inputs and the private `projection` helpers all parts share.
+# The loose `#[test]` functions below `mod tests;` move to three test
+# modules: declare those `#[cfg(test)] mod` (the tool writes a plain `mod`).
+file = "rust/tcl-syntax/src/naming/native.rs"
+
+[[module]]
+name = "command_slots"
+doc = "Command names by purpose: lookup, publication and rename inputs, the slot each publishes to, Jim's command table keys, TclOO methods and properties, and exposed and hidden commands."
+items = [
+    "impl:NativeNameProtocol::command_lookup_input..impl:NativeNameProtocol::rename_destination_slot",
+    "impl:NativeNameProtocol::command_input..impl:NativeNameProtocol::jim_command_lookup_keys",
+    "impl:NativeNameProtocol::oo_method_input..impl:NativeNameProtocol::hidden_token_input",
+]
+
+[[module]]
+name = "alias_publication"
+doc = "Alias names: the order each release reads and captures an alias target, the registration query and collision token, and the slot an alias publishes to."
+items = ["impl:NativeNameProtocol::alias_target_string_precedes_capture..impl:NativeNameProtocol::alias_publication_slot"]
+
+[[module]]
+name = "namespace_addresses"
+doc = "Namespace names: addresses and lambda namespaces, Jim procedure namespaces, the parent, tail and qualifier text, and import, export and command patterns."
+items = [
+    "impl:NativeNameProtocol::namespace_creation_reuses_parent..impl:NativeNameProtocol::namespace_qualifier_bytes",
+    "impl:NativeNameProtocol::namespace_export_clears..impl:NativeNameProtocol::namespace_pattern_parts",
+]
+
+[[module]]
+name = "jim_canonical"
+doc = "Jim's namespace canonicalisation: canonical inputs and reports, command-query candidates and namespace and command-key construction."
+items = ["impl:NativeNameProtocol::jim_namespace_absolute_canonical_input..impl:NativeNameProtocol::jim_command_key_construction"]
+
+[[module]]
+name = "variable_inputs"
+doc = "Variable names by purpose: root, alias-local, combined and separate receivers, trace inputs, formal parameters and the `namespace upvar` local."
+items = [
+    "impl:NativeNameProtocol::variable_root_input..impl:NativeNameProtocol::trace_input",
+    "impl:NativeNameProtocol::formal_name_input..impl:NativeNameProtocol::namespace_upvar_local_input",
+]
+
+[[module]]
+name = "name_diagnostics"
+doc = "Diagnostics for a refused rename, hide or expose and for a missing or conflicting namespace."
+items = ["enum:NativeRenameFailure..fn:report_native_namespace_operation_error"]
+
+[[module]]
+name = "variable_diagnostics"
+doc = "Variable failure diagnostics: the operation, reason and failure site, and the projection of the original operand at that site."
+items = ["enum:NativeVariableDiagnosticOperation..fn:report_native_variable_diagnostic_at"]
+
+[[module]]
+name = "name_reports"
+doc = "Reported names: callback and trace names, checked Unicode views, full command and namespace names and the source spellings that round-trip."
+items = ["enum:NativeNameReportPurpose..fn:native_jim_namespace_source_spelling"]
+
+[[module]]
+name = "jim_namespace_tests"
+doc = "Jim namespace canonicalisation, construction, command-query candidates and parent and qualifier text."
+items = [
+    "fn:jim_helper_canonicalisation_keeps_relative_object_extent..fn:jim_absolute_canonical_projection_needs_no_namespace_bytes",
+    "fn:jim_namespace_construction_retains_original_object_only_for_root_relative_names",
+    "fn:jim_namespace_command_query_uses_two_fresh_report_candidates",
+    "fn:original_jim_parent_producer_distinguishes_unchanged_counted_and_rooted_branches..fn:jim_qualifiers_shared_empty_is_distinct_from_a_paired_root_counted_empty",
+]
+
+[[module]]
+name = "namespace_reporting_tests"
+doc = "Namespace queries, operation failures, creation diagnostics and import control, and dictionary key diagnostics."
+items = [
+    "fn:ensemble_defaults_keep_actual_parent_after_85..fn:dictionary_key_diagnostics_do_not_project_counted_identity",
+    "fn:empty_namespace_creation_diagnostic_requires_its_selected_address_reason..fn:empty_relative_namespace_address_does_not_select_nonroot_caller",
+    "fn:namespace_import_force_uses_only_exact_c_extent_and_declines_jim_control",
+]
+
+[[module]]
+name = "publication_tests"
+doc = "Publication of TclOO objects, methods and properties, aliases and child aliases, and Jim's two-word factory commands."
+items = [
+    "fn:native_oo_counted_method_and_cstring_object_publication_are_distinct..fn:alias_publication_retains_its_distinct_native_entry_point",
+    "fn:rename_alias_loop_diagnostic_uses_selected_release_and_original_slot",
+    "fn:original_property_option_extent_is_separate_from_counted_declaration_names",
+    "fn:jim_two_word_factory_publication_uses_original_units_and_existing_publication_recipe..fn:child_alias_publication_has_its_own_counted_input_and_c_string_registration",
+]

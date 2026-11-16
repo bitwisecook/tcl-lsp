@@ -1,0 +1,78 @@
+# The parent keeps the shared helpers and the tests of what `hover.rs` itself
+# keeps: foreign-factory cards, cross-document cards, word-at-cursor lookups and
+# IP-address cards. The modules carry the names of the production modules.
+file = "rust/tcl-lsp-core/src/hover/tests.rs"
+
+[[module]]
+name = "classes"
+doc = "Class cards: properties, counted class and method sources, hierarchy details."
+items = [
+    "fn:original_property_hover_uses_unique_current_source_declaration..fn:counted_class_hover_refuses_unsettled_and_foreign_binding",
+    "fn:hover_on_class_name_returns_metaclass_signature",
+    "fn:class_hover_text_lists_methods_alphabetically..fn:class_hover_shows_mro_and_subclasses",
+    "fn:class_hover_disambiguates_same_name_across_namespaces",
+]
+
+[[module]]
+name = "procedures"
+doc = "Procedure cards: signatures, namespace-aware resolution, ensemble subcommands, docstrings and command heads."
+items = [
+    "fn:hover_on_proc_name_returns_signature..fn:hover_on_tk_ensemble_configure_splice_resolves_the_real_target",
+    "fn:hover_on_proc_qualified_name..fn:hover_global_call_fallback_is_deterministic",
+    "fn:proc_hover_text_formats_default_param",
+    "fn:format_docstring_renders_brief_param_return_tags..fn:format_docstring_handles_param_without_description",
+    "fn:opt_proc_declaration_and_call_site_both_hover_the_real_args_only_signature..fn:tp_resolved_indirect_head_hovers_the_command_it_reaches",
+]
+
+[[module]]
+name = "variables"
+doc = "Variable cards: reads and declarations, inferred type and taint, special variables."
+items = [
+    "fn:hover_on_dollar_var_returns_var_text..fn:hover_committed_producer_has_no_first_used_as",
+    "fn:var_hover_text_renders_reference_count..fn:special_var_hover_is_dialect_aware",
+]
+
+[[module]]
+name = "builtin_commands"
+doc = "Built-in command cards: package requirements, valid events, subcommands and options from the registry."
+items = [
+    "fn:builtin_hover_shows_requires_when_package_not_imported..fn:builtin_hover_omits_requires_for_core_command",
+    "fn:builtin_command_hover_surfaces_summary_from_registry..fn:builtin_command_hover_returns_none_for_unknown",
+    "fn:subcommand_hover_surfaces_for_string_length..fn:hover_fires_for_subcommand_with_registry",
+    "fn:command_profile_metadata_keeps_foreign_surface_and_own_requirements",
+]
+
+[[module]]
+name = "format_specifiers"
+doc = "Specifier tables for `clock format`, `format` and `binary format`."
+items = [
+    "fn:binary_field_bytes_saturates_instead_of_overflowing",
+    "fn:scan_clock_specifiers_finds_each_specifier..fn:hover_fires_for_clock_format_specifier",
+    "fn:scan_sprintf_specifiers_finds_basic_types..fn:hover_fires_for_bare_binary_format_specifier",
+]
+
+[[module]]
+name = "embedded_operands"
+doc = "Which argument words hold a pattern or format: quoting, shadowing, aliases, nested regions and dynamic options."
+items = [
+    "fn:quoted_format_words_use_the_production_hover_path..fn:nested_substitution_hover_beats_its_outer_pattern_word",
+    "fn:hover_uses_lsearchs_registry_selected_pattern_language..fn:lsearch_pattern_hover_uses_the_documents_profiled_option_set",
+    "fn:conditional_pattern_hover_keeps_source_and_method_owners..fn:hover_abstains_for_local_proc_shadowing_regexp_command",
+]
+
+[[module]]
+name = "pattern_syntax"
+doc = "Component tables for `regsub` substitutions, glob patterns and regular expressions."
+items = [
+    "fn:regex_and_glob_hover_escape_table_pipes",
+    "fn:scan_regsub_backrefs_finds_each_backref..fn:hover_fires_for_regex_pattern",
+]
+
+[[module]]
+name = "class_members"
+doc = "Class-member cards: sibling and `my` dispatch, member declarations and `$obj method` calls."
+items = [
+    "fn:hover_on_self_method_call_site_resolves",
+    "fn:method_hover_notes_inheritance_and_override",
+    "fn:class_member_hover_bare_sibling_method_without_link_abstains..fn:obj_method_hover_fires_for_var_captured_widget",
+]

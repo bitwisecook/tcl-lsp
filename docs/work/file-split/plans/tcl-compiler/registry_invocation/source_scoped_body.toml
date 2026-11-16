@@ -1,0 +1,13 @@
+# The facade keeps the scoped-body types and their selection, and
+# `OriginalSourceScriptBody` with its case-body and scoped-environment views.
+file = "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs"
+
+[[module]]
+name = "definition_members"
+doc = "Definition members of a script body: regions, script bodies, references and opaque regions."
+items = ["struct:OpaqueScriptAuthoringRegion..impl:OriginalSourceDefinitionMemberRegion"]
+
+[[module]]
+name = "operand_script_bodies"
+doc = "Script bodies selected from operands: geometry, cases, lambdas and expressions."
+items = ["struct:OriginalDeclaredSourceScriptBody..fn:retain_source_case_bodies"]

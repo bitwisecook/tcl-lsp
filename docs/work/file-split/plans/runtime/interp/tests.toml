@@ -1,0 +1,78 @@
+# The parent keeps the fixtures several modules share: `leak_free`, `ok`, the
+# publication-retirement probes (`PublicationRetirement`, `publication_noop`,
+# `publication_retire`, `publication_active`, `retirement_state`), the guard
+# fixtures (`GUARDED_IDENTITY`, `guarded_builtin`, `resultless_builtin`,
+# `prepare_interpreter_guard`, `assert_interpreter_guard_stale`) and the two
+# `thread_local!` blocks (macros cannot move). `bootstrap` moves a test whose
+# `include_str!` path is relative: it needs one more `../` after the move.
+file = "runtime/rust/src/interp/tests.rs"
+
+[[module]]
+name = "command_exposure"
+doc = "Exposing a hidden command: retirement callbacks that run during cleanup, first causes and replacement generations."
+items = ["struct:ExposureRetirement..fn:original_failed_exposure_retires_actual_ensemble_configuration_after_publication_first_cause"]
+
+[[module]]
+name = "command_publication"
+doc = "Publishing a C command: the namespace holder, delete procedures and client data retired around the publication."
+items = ["struct:PublicationNamespaceRetirement..fn:c_command_publication_preserves_pending_host_before_namespace_or_output_changes"]
+
+[[module]]
+name = "error_publication"
+doc = "How a failed getter or command publishes its code and result: seeded codes, the structured presenters and the arity protocol."
+items = ["fn:seed_original_getter_code..fn:jim_diagnostic_argv_borrows_preserve_sharing_and_lazy_string_representation"]
+
+[[module]]
+name = "bootstrap"
+doc = "What a fresh interpreter installs: math-function commands, Jim core roles, root cells, the platform schema and host globals."
+items = [
+    "struct:SyntheticHost..impl:tcl_platform::Host for SyntheticHost",
+    "fn:native_math_function_commands_follow_constructor_surface..fn:native_core_root_cells_match_six_original_constructor_inventories",
+    "fn:fresh_interp_installs_the_shared_platform_schema_before_init..fn:child_and_safe_platform_schemas_come_from_the_shared_owner",
+]
+
+[[module]]
+name = "stock_registration"
+doc = "Registering builtins and stock ensembles: publication receipts, attestation of the original worker, lookup revisions and guarded replacement."
+items = ["fn:registration_host_worker..fn:release_visibility_does_not_donate_a_foreign_list_backing_origin"]
+
+[[module]]
+name = "command_guards"
+doc = "Command guards: the lookup domains each mutation moves, identity and lifecycle checks, and what keeps or drops a guard."
+items = ["fn:lookup_events_move_the_namespace_and_unknown_handling_domains..fn:the_lookup_domains_move_on_a_hidden_invocation_into_a_namespace_and_on_oo_copy"]
+
+[[module]]
+name = "builtin_attestation"
+doc = "Which builtins the runtime attests: the pinned generation, engine-owned ensembles, intrinsics and the backing report."
+items = ["fn:identities_come_from_the_pinned_generation_never_an_overlay..fn:a_build_without_the_tower_reports_the_commands_it_lacks_as_needing_it"]
+
+[[module]]
+name = "interpreter_guards"
+doc = "Interpreter-wide guards: the mutations of traces, visibility, safety, topology, execution policy and version that make them stale."
+items = ["fn:trace_registration_invalidates_matching_guard_domains..fn:expression_policy_keeps_native_dispatch_separate_from_authored_parser"]
+
+[[module]]
+name = "intrinsic_guards"
+doc = "Guards on an intrinsic: the retained fixture, logical provider changes and the `string length` intrinsic across renames, traces and release pins."
+items = ["fn:retained_fixture_identity..fn:command_trace_stales_the_string_intrinsic_guard"]
+
+[[module]]
+name = "evaluation"
+doc = "Evaluating scripts end to end: nesting limits, variables and arrays, command lookup and unknown handling, tailcalls, expressions and completion codes."
+items = ["fn:deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit..fn:expand_split_error_names_the_right_failure"]
+
+[[module]]
+name = "release_surface"
+doc = "What follows the pinned release: the number grammar, the command surface, core packages, build info and the context an interpreter states."
+items = [
+    "fn:expr_numerals_follow_the_release_selected_number_grammar..fn:an_empty_numeral_errors_instead_of_panicking_on_every_release",
+    "fn:core_package_provides_follow_the_pinned_release..fn:a_context_the_ingress_refuses_leaves_the_pin_unchanged",
+]
+
+[[module]]
+name = "safe_interpreters"
+doc = "Safe interpreters: inherited safety, the measured hidden command sets and what stays callable."
+items = [
+    "fn:children_of_a_safe_interp_inherit_safety",
+    "const:MEASURED_SAFE_HIDDEN..fn:clock_remains_callable_in_a_safe_child",
+]

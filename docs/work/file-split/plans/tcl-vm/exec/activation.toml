@@ -1,0 +1,33 @@
+# Second level: applies to the `activation` module that plans/tcl-vm/exec.toml
+# creates. The facade keeps the `Frame` constructors and their staleness
+# checks, and `pair_foreach`.
+file = "rust/tcl-vm/src/exec/activation.rs"
+
+[[module]]
+name = "trampoline"
+doc = "The NRE trampoline: driving an activation stack tick by tick, pushing frames and installing what a tick requests."
+items = ["impl:Vm::run_activation..impl:Vm::native_script_parse_failure"]
+
+[[module]]
+name = "suspension"
+doc = "Suspending and resuming an activation stack: saved original currencies, coroutine park, resume and retirement, and aborting refused activations."
+items = [
+    "impl:Vm::original_activation_currencies..impl:Vm::handle_suspend",
+    "impl:Vm::raise_in_coroutine..impl:Vm::retire_parked_coroutine",
+]
+
+[[module]]
+name = "staleness"
+doc = "Activations whose compilation went stale: the freshness queries at an activation boundary and unwinding a stale frame or coroutine."
+items = [
+    "impl:Vm::unwind_stale_compilation_frame..impl:Vm::settle_stale_activation",
+    "impl:Vm::unwind_stale_coroutine..impl:Vm::validate_unwind_boundary",
+]
+
+[[module]]
+name = "procedure_entry"
+doc = "Entering a procedure, lambda or TclOO method: arity checks, the usage message, the call frame and argument binding."
+items = [
+    "fn:proc_usage..fn:procedure_usage_message",
+    "impl:Vm::procedure_argument_bindings..impl:Vm::enter_oo_method",
+]

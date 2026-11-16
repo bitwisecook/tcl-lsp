@@ -1,0 +1,58 @@
+# The parent keeps the module docs, `registry_for_dialect`, the list of
+# loadable dialects and the trait list every sweep iterates.
+file = "rust/tcl-registry/tests/it_5/registry_sweep.rs"
+
+[[module]]
+name = "arity_and_stamp_windows"
+doc = "Arity, arity windows and stamp windows are self-consistent, and the gates reject each malformed shape."
+items = ["fn:assert_arity_consistent..fn:stamp_windows_never_overlap"]
+
+[[module]]
+name = "extension_default"
+doc = "The extension default sits at the top of every axis: its spec, its resolution and its narrowing."
+items = ["fn:extension_default_traits..fn:the_extension_default_is_at_the_top_of_every_axis"]
+
+[[module]]
+name = "accessor_sweep"
+doc = "Sweep 1: every command in every dialect through every accessor, and the derived queries against the by-name answers."
+items = ["fn:check_subcommand_accessors..fn:derived_queries_agree_with_the_by_name_answers"]
+
+[[module]]
+name = "spec_consistency"
+doc = "Cross-checks over every spec: synopses fit arity, replacements and aliases resolve, builtins are registered, traits and dialects nest."
+items = [
+    "fn:synopsis_operand_counts..fn:sweep_nested_dialects_are_subsets_of_parent",
+    "fn:sweep_dialect_catalogue",
+]
+
+[[module]]
+name = "f5_sweeps"
+doc = "Sweeps 2 to 4: every BIG-IP object and property, iRules event and command legality, and taint-source colours."
+items = ["fn:visit_property..fn:sweep_taint_source_colours"]
+
+[[module]]
+name = "command_families"
+doc = "Representative commands of each family: control flow, string, dict and list operations, I/O, namespaces, arrays, clock and iRules."
+items = ["fn:family_control_flow_shapes..fn:family_f5_irules_shapes"]
+
+[[module]]
+name = "lifecycles"
+doc = "Lifecycle ordering is valid on every command, subcommand, option and value."
+items = ["fn:check_lifecycle..fn:sweep_lifecycle_seed_cases"]
+
+[[module]]
+name = "role_and_option_metadata"
+doc = "Argument-role, repeated-layout, clause-grammar and option-effect declarations are well formed."
+items = [
+    "fn:boolean_argument_role_is_declared_and_consistent..fn:a_family_base_mentions_only_axes_its_options_mention",
+]
+
+[[module]]
+name = "semantic_declarations"
+doc = "Semantic declarations: referentially transparent specs, CSE candidates, closed dispatch and declared event emissions."
+items = ["struct:SemanticDeclarations..fn:declared_event_emissions_name_known_events"]
+
+[[module]]
+name = "member_effects"
+doc = "Every definition-body member carries an effect that agrees with its roles."
+items = ["fn:every_definition_grammar..fn:no_member_effect_names_a_family"]

@@ -1,0 +1,57 @@
+# The facade keeps the session dialect, the argument readers, `PolicyInputs` and
+# `Analysed` with `analyse` (other modules of the crate call it), the JSON range
+# helpers, `ToolDef` (its private fields are read by the table, the schemas and the
+# tests) and the entry points `tool_schemas`, `kcs_tool_table` and `dispatch`.
+file = "rust/tcl-mcp/src/tools.rs"
+
+[[module]]
+name = "diagnostics"
+doc = "The diagnostics tools under the call's policy: `analyze`, `validate`, `review`, `find-legacy` and `code_actions`."
+items = [
+    "fn:diag_to_json..fn:suppressed_json",
+    "fn:analyze..fn:find_legacy_with",
+    "fn:code_actions..fn:code_actions_from_analysis",
+]
+
+[[module]]
+name = "source_structure"
+doc = "The tools that report a source's structure: its graphs, diagram, symbols, dialect and event order."
+items = [
+    "fn:doc_symbol_to_json..fn:detect_events",
+    "type:SourceGraphBuilder..fn:event_order",
+    "fn:symbols",
+]
+
+[[module]]
+name = "transforms"
+doc = "The whole-source transformations: `format_source`, `optimize` and `compile_wasm`."
+items = ["fn:format_source..fn:compile_wasm"]
+
+[[module]]
+name = "refactorings"
+doc = "The cursor-addressed refactorings and the `refactor` tool that names one."
+items = [
+    "fn:refactoring_json",
+    "fn:refactor_at..fn:brace_expr",
+    "fn:extract_variable..fn:refactor",
+]
+
+[[module]]
+name = "editor_queries"
+doc = "The tools that answer what an editor asks: command and event lookups, hover, completion, definition, references and rename."
+items = [
+    "fn:event_info",
+    "fn:command_info",
+    "const:SOURCE_URI",
+    "fn:hover..fn:rename",
+]
+
+[[module]]
+name = "docstrings"
+doc = "The docstring tools: generate one, read a procedure's documentation and update a file's docstrings."
+items = ["fn:split_keep_ends", "fn:generate_docstring..fn:update_docstrings"]
+
+[[module]]
+name = "tool_table"
+doc = "The tool table: each tool's name, description, parameters and handler, and the input schema rendered from a row."
+items = ["const:DIALECT_PARAM..fn:input_schema"]

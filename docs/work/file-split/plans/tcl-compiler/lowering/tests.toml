@@ -1,0 +1,123 @@
+# The parent keeps the shared fixtures: `fixture_method`,
+# `assert_runtime_opaque_call`, the list-rule constants and `reg`. Tests move
+# to modules named for the production module they exercise (the leaf names of
+# `lowering/mod.toml` and its second-level plans).
+file = "rust/tcl-compiler/src/lowering/tests.rs"
+
+[[module]]
+name = "dialect_grammar"
+doc = "Lexical rules that come from the dialect or release: brace continuation, list words, array-index masks and expression sugar."
+items = [
+    "fn:jim_brace_continuation_binds_different_names..fn:brace_continuation_comes_from_the_dialect",
+    "fn:fatal_array_index_source_mask_follows_the_release",
+    "fn:body_relex_follows_the_document_dialect_not_the_default..fn:jim_expr_sugar_lowers_as_an_anchored_expression",
+]
+
+[[module]]
+name = "configuration"
+doc = "Source ingress and options: retained inputs, module snapshots, complete logical sources and refused or changed profiles."
+items = [
+    "fn:borrowed_lowering_retains_exact_ingress_before_finalisation..fn:runtime_procedure_target_retains_its_actual_activation",
+    "fn:returned_module_snapshots_retain_their_actual_source_owner..fn:configured_source_ingress_retains_one_input_for_entry_and_module",
+    "fn:complete_logical_source_keeps_original_structure_and_native_absence..fn:lowered_generic_metadata_keeps_supplied_context_and_refuses_missing_driver_input",
+]
+
+[[module]]
+name = "command_lowering"
+doc = "What one command lowers to: a smoke test per statement kind, and the runtime barriers of the default call."
+items = [
+    "fn:empty_source..fn:incr_command",
+    "fn:proc_definition..fn:if_statement",
+    "fn:for_loop..fn:return_statement",
+    "fn:deferred_tk_callback_does_not_hide_constructor_variable_defs..fn:deferred_command_prefix_does_not_create_a_runtime_barrier",
+    "fn:reference_only_command_prefix_does_not_create_a_runtime_barrier",
+]
+
+[[module]]
+name = "structured_hooks"
+doc = "Registry-driven structured hooks: dispatch by hook ID, arity and shape preconditions, and the barrier on argument expansion."
+items = [
+    "fn:catch_options_specialisation_requires_the_selected_completion_grammar",
+    "fn:static_bool_accepts_unique_prefix_booleans..fn:expansion_barrier_reason_names_the_command",
+    "fn:logical_structure_does_not_grant_native_compilation",
+    "fn:foreach_line_lowers_to_foreach_statement..fn:foreach_line_cmd_body_routes_through_barrier",
+    "fn:descriptor_binding_requirement_keeps_original_head_and_exact_metadata_without_native_receipt",
+    "fn:registry_dispatch_eval_static_body_lowers_to_block..fn:registry_dispatch_unknown_command_falls_through_to_default",
+    "fn:registry_dispatch_if_lowers_to_if..fn:registry_dispatch_try_lowers_to_try",
+    "fn:registry_dispatch_namespace_eval_lowers_to_barrier..fn:registry_dispatch_dict_empty_args_falls_through_to_default",
+    "fn:registry_dispatch_foreach_line_lowers_via_lower_foreach_line..fn:registry_dispatch_foreach_line_wrong_arity_falls_through_to_default",
+]
+
+[[module]]
+name = "irules_events"
+doc = "iRules `when` declarations: priorities, body shapes, the file surface and dispatch with and without the dialect loaded."
+items = [
+    "fn:irules_priority_uses_proved_native_identity_and_frozen_argument_value..fn:irules_declarations_only_lower_at_the_file_surface",
+    "fn:registry_dispatch_when_lowers_via_lower_when_with_irules_loaded..fn:registry_dispatch_when_without_irules_loaded_falls_through",
+]
+
+[[module]]
+name = "procedures"
+doc = "`proc` declarations: defining namespaces, formal parameters, qualified names and dynamic names and bodies."
+items = [
+    "fn:original_name_operand_publishes_a_body_without_borrowing_the_head_lookup..fn:proc_params_tcl_rejects_fall_through_to_barrier",
+    "fn:qualify_proc_name_global..fn:qualify_proc_name_preserves_colon_named_namespace_keys",
+    "fn:proc_dynamic_name_resolved_via_const_map..fn:proc_subst_nocommands_body_materialised",
+    "fn:proc_var_body_const_map_materialised..fn:proc_dynamic_name_picks_latest_set",
+    "fn:registry_dispatch_proc_lowers_to_proc_call_and_registers_procedure..fn:registry_dispatch_proc_wrong_arity_falls_through_to_default",
+]
+
+[[module]]
+name = "class_members"
+doc = "Members lifted out of class definitions: TclOO, snit and itcl method units, declared variables and the evidence left by unreadable bodies."
+items = [
+    "fn:extracts_oo_class_methods..fn:oo_method_nested_proc_not_registered_globally",
+    "fn:no_oo_methods_for_plain_script",
+    "fn:oo_method_params_use_the_formal_parameter_grammar",
+    "fn:unavailable_lowering_metadata_keeps_generic_dispatch_and_conservative_method_names..fn:unresolved_method_name_protection_keeps_original_source_text_without_reparsing",
+    "fn:class_variable_source_union_keeps_decoded_names_and_slot_operation_boundaries..fn:class_variable_unknown_operands_keep_known_literal_protection_without_reference_parsing",
+]
+
+[[module]]
+name = "body_units"
+doc = "`namespace eval` and `apply` bodies as their own units: written spans and the namespace a nested `proc` homes to."
+items = [
+    "fn:crlf_namespace_eval_body_unit_spans_its_written_region",
+    "fn:apply_body_proc_registers_in_lambda_namespace_not_callers..fn:apply_relative_lambda_namespace_homes_globally_not_to_the_caller",
+]
+
+[[module]]
+name = "static_eval"
+doc = "Static `eval` and `uplevel`: level parsing, inlined bodies and the dynamic barriers that stop inlining."
+items = [
+    "fn:parse_uplevel_level_decimal..fn:uplevel_dynamic_level_falls_back_to_default",
+    "fn:body_has_dynamic_barrier_clean",
+    "fn:body_barrier_metadata_keeps_exact_selected_rooted_descriptor..fn:try_lower_eval_static_clean_body_relaxes",
+]
+
+[[module]]
+name = "const_map"
+doc = "Literal bodies held in locals: propagation into `eval` and `uplevel`, retention and invalidation."
+items = [
+    "fn:const_prop_uplevel_resolves_set_var_body..fn:const_prop_does_not_leak_into_nested_proc",
+    "fn:const_prop_inherited_into_catch_body",
+    "fn:local_body_literal_reference_lookup_uses_whole_scalar_source_geometry..fn:local_body_literal_expression_and_value_evaluation_withdraw_unclosed_effects",
+]
+
+[[module]]
+name = "namespace_directives"
+doc = "`namespace import` and `namespace export` directives recorded as module metadata."
+items = [
+    "fn:ns_import_recorded_with_context_namespace..fn:ns_import_handles_force_flag",
+    "fn:ns_export_recorded..fn:ns_import_in_static_true_else_suppressed",
+]
+
+[[module]]
+name = "trace_facts"
+doc = "Execution and variable trace facts recorded on the module."
+items = ["fn:trace_add_execution_literal_recorded..fn:trace_add_variable_inside_method_body_recorded"]
+
+[[module]]
+name = "nesting_depth"
+doc = "Nesting past the lowering depth cap becomes a barrier instead of a crash."
+items = ["fn:nested_if_source..fn:shallow_nested_if_lowers_with_no_barrier"]

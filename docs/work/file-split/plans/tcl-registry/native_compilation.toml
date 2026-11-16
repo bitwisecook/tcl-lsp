@@ -1,0 +1,110 @@
+# The facade keeps the compilation vocabulary (mode, frame, guard, context,
+# selection, failure), `NativeCompilationGrammar`, the `NativeCompilationSpec`
+# struct with its small per-purpose accessors, and the two shape helpers every
+# grammar module uses. The 3,364-line `impl NativeCompilationSpec` is split by
+# what each group of methods answers.
+file = "rust/tcl-registry/src/native_compilation.rs"
+
+[[module]]
+name = "compiled_bodies"
+doc = "The literal script bodies a compiler enters: their contexts, error notes and the order of compilation steps."
+items = [
+    "enum:NativeCompiledBodyContext..enum:NativeCompiledBodies",
+    "enum:NativeCompilationStep..enum:NativeCompilationSteps",
+    "impl:NativeCompilationSpec::compiled_bodies..impl:NativeCompilationSpec::compiled_body_indices",
+    "impl:NativeCompilationSpec::body_context_for_operand..impl:NativeCompilationSpec::body_context",
+    "fn:compiled_conditional_bodies..fn:conditional_steps",
+]
+
+[[module]]
+name = "expression_compilation"
+doc = "Expression operands a compiler visits: math-function resolution, compiler steps and validation."
+items = [
+    "struct:NativeCompiledExpressionOperand..impl:NativeCompiledExpressionErrorContext",
+    "enum:NativeExpressionCompilation..fn:expression_compiler_visits",
+    "fn:native_math_compile_error",
+    "impl:NativeCompiledExpressionOperand",
+]
+
+[[module]]
+name = "implementation_lookup"
+doc = "The command implementation a compiler hook depends on: hook presence, the lookup it performs and its prerequisites."
+items = [
+    "struct:NativeCompilerImplementationLookup",
+    "impl:NativeCompilationSpec::implementation_prerequisites",
+    "impl:NativeCompilationSpec::compiler_hook_presence..impl:NativeCompilationSpec::public_string_implementation_lookup",
+    "fn:implementation_version_matches",
+]
+
+[[module]]
+name = "successful_handler"
+doc = "What a command's handler does once it has succeeded: the worker it reaches, variable outputs, user-procedure calls and possible body flow."
+items = [
+    "enum:NormalValueLeafProvider..struct:SuccessfulHandlerEffects",
+    "impl:NativeCompilationSpec::successful_handler_effects",
+    "enum:PossibleBodyTopology",
+    "impl:PossibleHandlerBodyFlow",
+]
+
+[[module]]
+name = "name_effects"
+doc = "The command and variable names a compiler resolves while it prepares its original arguments, and when tracked names survive it."
+items = [
+    "enum:NativeOriginalCompilerNameEffects",
+    "impl:NativeCompilationSpec::original_argument_name_effects..impl:NativeCompilationSpec::preserves_names_for_literal_vector",
+    "fn:namespace_which_preserves_names..fn:dictionary_preserves_names",
+]
+
+[[module]]
+name = "word_selection"
+doc = "The selection entry points: from source words, native byte words or resolved invocation facts to a compiler selection or its failure."
+items = [
+    "impl:NativeCompilationSpec::select..impl:NativeCompilationSpec::select_native_words",
+    "impl:NativeCompilationSpec::named_member_slot..impl:NativeCompilationSpec::failure_for_selection_with_source",
+]
+
+[[module]]
+name = "original_word_selection"
+doc = "Selection over original byte words, one method per compiler family (string slices, values, bindings, control, namespaces)."
+items = ["impl:NativeCompilationSpec::select_original_string_slice_words..impl:NativeCompilationSpec::select_original_operand_words"]
+
+[[module]]
+name = "grammar_selection"
+doc = "Dispatch from a `NativeCompilationGrammar` to its selection, with the control-flow, arity-gated and clock grammars it applies directly."
+items = [
+    "impl:NativeCompilationSpec::select_grammar..impl:NativeCompilationSpec::select_foreach",
+    "fn:constant_selection..fn:for_loop_grammar",
+    "fn:generic_before_or_in_script",
+    "fn:clock_reading_value..fn:clock_reading_selection",
+    "fn:literal_operands_grammar..fn:conditional_grammar",
+    "fn:gated_arity_grammar..fn:return_grammar",
+    "fn:catch_grammar",
+]
+
+[[module]]
+name = "introspection_grammars"
+doc = "Grammars of the compiled `info` and `namespace` introspection commands and the implementations they name."
+items = ["const:INFO_EXISTS_IMPLEMENTATION..fn:info_level_grammar", "fn:info_commands_grammar"]
+
+[[module]]
+name = "string_grammars"
+doc = "Grammars of the compiled `string` members, `subst` templates, `regexp` and `regsub`."
+items = [
+    "fn:substitution_template_compiler_grammar..fn:string_match_grammar",
+    "enum:NamedCompilerOperandView..const:STRING_LENGTH_IMPLEMENTATION",
+    "fn:string_trim_grammar..fn:string_member_arity_grammar",
+    "fn:regexp_grammar",
+    "fn:regsub_grammar..fn:regexp_compiler_pattern_index",
+    "fn:splits_into_text_tokens",
+]
+
+[[module]]
+name = "variable_and_list_grammars"
+doc = "Grammars of the compiled variable and list commands: `unset`, `append`/`lappend`, `array`, `upvar`, `lassign`, `linsert` and `lrange`."
+items = [
+    "fn:literal_unset_grammar",
+    "fn:array_compilation_grammar..fn:array_compilation_grammar_for",
+    "fn:variable_append_grammar..fn:variable_append_grammar_bytes",
+    "fn:list_insertion_grammar..fn:list_assignment_grammar",
+    "fn:upvar_grammar..fn:original_upvar_level_width",
+]

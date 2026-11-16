@@ -1,0 +1,62 @@
+# The facade keeps the command model (`Command`, `ProcDef`, `Param`,
+# `EnsembleDef`, `NativeCommand`, `BuiltinFn`), `register_builtins_with_native_core`,
+# the wrong-arguments reporters and the small core commands (`set`, `exit`,
+# `eval`, `subst`, `puts`, `incr`, `expr`, `const`, `tailcall`, `time`,
+# `break`, `continue`, `unset`, Jim's `exists`).
+file = "rust/tcl-vm/src/command.rs"
+
+[[module]]
+name = "apply_lambda"
+doc = "`apply`: preparing a lambda declaration, building its procedure and resolving its namespace."
+items = ["fn:fresh_apply_name..fn:cmd_apply"]
+
+[[module]]
+name = "rename"
+doc = "`rename`: alias-loop checks, destination failures and relocating a renamed procedure."
+items = ["fn:cmd_rename..fn:relocate_renamed_procedure"]
+
+[[module]]
+name = "child_interpreters"
+doc = "`interp` and `alias`: child interpreters, limits, hidden commands and aliases."
+items = ["const:CREATE_OPTIONS..fn:interp_command"]
+
+[[module]]
+name = "procedure_definition"
+doc = "`proc`: parsing formal parameters, preparing the body and publishing the procedure under its name."
+items = ["fn:parse_params..fn:validate_procedure_publication_name"]
+
+[[module]]
+name = "error_completion"
+doc = "The `error` command and the conversion of command-layer errors into `ERROR` completions with their `-errorcode`."
+items = ["fn:options_dict..fn:completion_from_tcl_error", "fn:cmd_error"]
+
+[[module]]
+name = "carried_options"
+doc = "The option dictionary a completion carries (`-code`, `-level`, `-errorcode`, ...): checked reads, replacement, `return`, and the snapshot of the current completion's options."
+items = [
+    "fn:completion_option_failure..fn:apply_return_options",
+    "impl:Vm::completion_options_snapshot..impl:Vm::restore_completion_error_state",
+]
+
+[[module]]
+name = "catch"
+doc = "`catch`: running the body, storing the result and options variables, and Jim's catch."
+items = [
+    "fn:finish_catch_preparation..fn:cmd_catch",
+    "impl:Vm::finish_catch..impl:Vm::digest_catch_options",
+]
+
+[[module]]
+name = "encoding_command"
+doc = "The `encoding` ensemble: registration, its members and `convertfrom`/`convertto`."
+items = ["const:ENCODING_SUBS..fn:encoding_convert"]
+
+[[module]]
+name = "variable_links"
+doc = "`global`, `upvar` and `variable`: linking a local name to a variable in another frame or namespace."
+items = ["fn:upvar_link_error_bytes..fn:cmd_upvar", "fn:cmd_variable"]
+
+[[module]]
+name = "frame_level"
+doc = "The level operand of `uplevel` and `upvar` (`#N`, `N`), frame selection from it, and `uplevel`."
+items = ["struct:OriginalFrameLevel..fn:eval_original_uplevel"]

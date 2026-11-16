@@ -1,0 +1,25 @@
+# Second level: applies to the `dispatch` module that plans/tcl-vm/exec.toml
+# creates. The facade keeps the invoking instructions (`tick_invoke`, the
+# TclOO `next` opcodes, a coroutine's original invocation) and the
+# `dispatch_words` entry points.
+file = "rust/tcl-vm/src/exec/dispatch.rs"
+
+[[module]]
+name = "execution_traces"
+doc = "Execution traces around a dispatch: trace owners and snapshots, step scopes, the traced dispatch path and the leave side."
+items = ["impl:Vm::dispatch_trace_owner..impl:Vm::exec_trace_entry_live"]
+
+[[module]]
+name = "word_dispatch"
+doc = "The untraced dispatch of a word list by command kind (procedure, alias, native, builtin) and settling a synchronously run native command."
+items = ["impl:Vm::deliver_sync..impl:Vm::original_return_code_for_branch"]
+
+[[module]]
+name = "command_invocation"
+doc = "Invoking a command to a completion outside the instruction loop: command values, missing commands, host object vectors, resolved commands and native settlement."
+items = ["impl:Vm::command_lookup_error_value..impl:Vm::invoke_selected_command_worker"]
+
+[[module]]
+name = "tailcall"
+doc = "`tailcall`: the request a procedure issues and dispatching its replacement after the procedure has left."
+items = ["impl:Vm::original_tailcall_request..impl:Vm::dispatch_tailcall"]

@@ -1,0 +1,52 @@
+# The facade keeps the vocabulary version constants, the render state every
+# part writes through (`Out`, `Loss`, `ValueTables`, `Ctx`), the documentation
+# blocks, `command_body` and the public `render*` entry points.
+file = "rust/tcl-spec-studio/src/render_spectcl.rs"
+
+[[module]]
+name = "gaps"
+doc = "Why a draft field does not survive as SpecTcl: the gap kinds and the table of every field a rendered pack cannot carry."
+items = ["enum:GapKind..fn:gap"]
+
+[[module]]
+name = "tcl_words"
+doc = "Tcl words for a row: quoting, list words, the availability algebra, dialect-set shorthands and lifecycle flags."
+items = ["fn:word..fn:as_array"]
+
+[[module]]
+name = "rust_expressions"
+doc = "DSL words and rows recovered from the rendered Rust expressions a draft holds."
+items = ["fn:split_top..fn:versioned_arg_value_rows"]
+
+[[module]]
+name = "properties"
+doc = "One property statement per field kind: scalars, flags, text, enums, sets, lists, counts, expression words and hooks, and the `TODO` for a field that did not survive."
+items = ["fn:unrecovered..fn:catalogue_hook"]
+
+[[module]]
+name = "effects"
+doc = "The `semantics` block and the `effects` and `side_effect` rows of a scope."
+items = ["fn:semantics_block", "fn:side_effect_rows..fn:side_effect_rows_of"]
+
+[[module]]
+name = "argument_rows"
+doc = "Arity rows with their windows and the per-argument rows of a command or subcommand."
+items = ["fn:arity_row..fn:appended_arity_word"]
+
+[[module]]
+name = "option_rows"
+doc = "`option` rows with their values and integer domains, option conflicts and versioned argument values."
+items = [
+    "fn:push_values..fn:integer_domain_word",
+    "fn:option_block..fn:versioned_arg_value_rows_for",
+]
+
+[[module]]
+name = "definition_grammar"
+doc = "Rows for grammars as data: manufacturers, runtime backing, semantic operations and hook windows, definition bodies with their members, clause grammars and object classes."
+items = ["fn:manufacturer_rows..fn:object_class_block"]
+
+[[module]]
+name = "nested_blocks"
+doc = "The blocks nested in a command body: `refine` forms and `subcommand` or `method` blocks."
+items = ["fn:refine_blocks..fn:thinned_refinements", "fn:subcommand_block"]

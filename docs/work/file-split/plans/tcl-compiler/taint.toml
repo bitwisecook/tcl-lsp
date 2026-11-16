@@ -1,0 +1,81 @@
+# First of two levels. The facade keeps `TaintColour`, `TaintLattice`,
+# `TaintWarning`, the replay-availability report types, `TaintCtx`, the local
+# instance-class solve and the test counters (their thread-locals cannot move),
+# and the emitter context structs the test modules build field by field
+# (`CommandHeadContext`, `SinkWarningContext`, `SourceWarningRead`, `TaintScan`,
+# `SinkCall`, and the callback-replay candidate, builder and source structs).
+# `sink_warnings` is still over the limit after this level;
+# `taint/sink_warnings.toml` splits it again.
+file = "rust/tcl-compiler/src/taint.rs"
+
+[[module]]
+name = "registry_colours"
+doc = "Registry-declared colours: what a source or a transform stamps on its result, and the bridge to the compiler's colours."
+items = ["fn:source_colour..fn:instance_taints_var_write", "fn:compiler_colour_atom..fn:double_encode_label"]
+
+[[module]]
+name = "word_taint"
+doc = "The taint of one argument word: variable reads, interpolation over the original source image and the structural carve-outs."
+items = ["fn:word_taint..fn:literal_contains_crlf"]
+
+[[module]]
+name = "substitution_taint"
+doc = "The taint of a command substitution: sources, sanitisers, transforms, boolean results and the argument walk."
+items = ["fn:expr_yields_boolean..fn:substitution_word_taint"]
+
+[[module]]
+name = "definition_taint"
+doc = "The taint a statement gives the variables it defines: call results, written arguments and procedure summaries."
+items = ["fn:positional_argument_taint..fn:var_taint", "fn:evaluate_taint_def..fn:join_uses"]
+
+[[module]]
+name = "propagation"
+doc = "Intra-procedural taint propagation over one SSA function: entry seeds, phi joins and the per-statement transfer."
+items = ["fn:reachable_writes_global..fn:propagate_statement_taints"]
+
+[[module]]
+name = "destructive_files"
+doc = "Destructive `file` subcommands on tainted paths, with normalisation and branch guards."
+items = [
+    "fn:find_destructive_file_warnings",
+    "fn:destructive_file_subs",
+    "fn:is_normalised_def..fn:propagate_guard",
+]
+
+[[module]]
+name = "unit_report"
+doc = "The whole-unit taint pass: module variable traces, the per-function reports and the report with replay availability."
+items = ["fn:apply_module_variable_traces..fn:taint_warning_report_for_cu_base_with_external_variable_seeds"]
+
+[[module]]
+name = "callback_replay"
+doc = "Replaying stored callbacks as synthetic procedures: candidates, insertion into the original source, the replay unit and its report."
+items = [
+    "const:MAX_CALLBACK_TAINT_REPLAYS",
+    "const:CALLBACK_REPLAY_INPUT_VAR_BASE..fn:fresh_callback_replay_names",
+    "fn:retained_callback_list_builder",
+    "fn:callback_taint_inputs_at_call..fn:original_callback_replay_residuals",
+]
+
+[[module]]
+name = "callback_replay_source"
+doc = "Rendering a stored callback as Tcl source that is taint-equivalent at word granularity."
+items = ["fn:whole_command_substitution..fn:callback_replay_tainted_word"]
+
+[[module]]
+name = "sink_warnings"
+doc = "Sink warnings for one function: classification, the per-statement and branch-condition emitters and the sink-specific checks."
+items = [
+    "fn:classify_sink..fn:classify_network_interp_sinks",
+    "fn:emit_double_encode_warnings..fn:irule3002_name_position_safe",
+    "fn:shadowed_builtin_names..fn:taint_warning_report_for_function_with_identities",
+    "impl:<H> SinkWarningContext<'_, H>..enum:OriginalReadTaintProjection",
+    "impl:<'a> SourceWarningRead<'a>",
+    "fn:emit_regexp_pattern_warnings..fn:emit_branch_condition_nested_command_warnings_standalone",
+    "fn:sink_arg_span..fn:emit_option_injection",
+]
+
+[[module]]
+name = "setter_constraints"
+doc = "IRULE3101: setter arguments that violate a declared constraint."
+items = ["fn:find_setter_constraint_warnings"]

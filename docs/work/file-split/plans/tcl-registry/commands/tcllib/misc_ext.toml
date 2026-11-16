@@ -1,0 +1,59 @@
+# The facade keeps the `Row` shape, `rows`, the single-package tables (bee,
+# bench, cron, fileutil, interp, processman, zipfile, ...), `GROUPS`, the
+# textutil trait synchronisation (it reads sibling `textutil__*` modules) and
+# `specs()`.
+file = "rust/tcl-registry/src/commands/tcllib/misc_ext.rs"
+
+[[module]]
+name = "networking"
+doc = "Network clients, servers and addressing: autoproxy, comm, dns, ftp, ip, multiplexer, nameserv, nettool, picoirc and smtpd."
+items = [
+    "const:AUTOPROXY_CMDS",
+    "const:COMM_CMDS",
+    "const:DNS_CMDS",
+    "const:FTP_CMDS",
+    "const:IP_CMDS",
+    "const:MULTIPLEXER_CMDS",
+    "const:NAMESERV_CMDS..const:NETTOOL_CMDS",
+    "const:PICOIRC_CMDS",
+    "const:SMTPD_CMDS",
+]
+
+[[module]]
+name = "documentation"
+doc = "Documentation tooling: the `doctools` packages and `mkdoc`."
+items = ["const:DOCTOOLS_CMDS..const:DOCTOOLS__TOC_CMDS", "const:MKDOC_CMDS"]
+
+[[module]]
+name = "parser_tools"
+doc = "Grammars and parser generation: the `grammar::*`, `page::*` and `pt` packages."
+items = [
+    "const:GRAMMAR__FA__OP_CMDS..const:GRAMMAR__PEG__INTERP_CMDS",
+    "const:PAGE__PLUGINMGR_CMDS..const:PAGE__UTIL__QUOTE_CMDS",
+    "const:PT_CMDS..const:PT_IMPORT_API_CMDS",
+]
+
+[[module]]
+name = "html"
+doc = "The `html` package: its richer row shape, the row builder and the command table."
+items = ["type:HtmlRow..const:HTML_CMDS"]
+
+[[module]]
+name = "digests"
+doc = "The incremental message-digest APIs of `md5`, `sha1` and `sha256`."
+items = ["const:MD5_CMDS", "const:SHA1_CMDS", "const:SHA2_CMDS"]
+
+[[module]]
+name = "simulation"
+doc = "The `simulation::annealing`, `simulation::montecarlo` and `simulation::random` packages."
+items = ["const:SIMULATION__ANNEALING_CMDS..const:SIMULATION__RANDOM_CMDS"]
+
+[[module]]
+name = "terminal"
+doc = "Terminal control: the `term::ansi::*` code tables and `term::send`."
+items = ["const:TERM__ANSI__CODE__ATTR_CMDS..const:TERM__SEND_CMDS"]
+
+[[module]]
+name = "textutil"
+doc = "The `textutil` umbrella package and its `adjust`, `patch`, `string`, `tabify` and `trim` sub-packages."
+items = ["const:TEXTUTIL_CMDS..const:TEXTUTIL__TABIFY_CMDS"]

@@ -1,0 +1,26 @@
+# The facade keeps the compilation state and its cell and guard types, the
+# selection cores, compiler tokens and cache epochs, invocation selection,
+# script entry and the built-in activation and dispatch.
+file = "runtime/rust/src/interp/native_compilation.rs"
+
+[[module]]
+name = "refusals"
+doc = "Retained host and native refusals: recording the first refusal of an operation and reading it back."
+items = [
+    "fn:trace_retained_native_refusal",
+    "impl:Interp::native_compilation_admission_error..impl:Interp::refuse_native_execution",
+]
+
+[[module]]
+name = "script_compilation"
+doc = "Compiling a script object: its commands, substitutions and word parts."
+items = ["impl:Interp::compile_native_script..impl:Interp::compile_native_word_parts"]
+
+[[module]]
+name = "procedure_frames"
+doc = "Entering a procedure through its compiled body: the frame, the formal parameters and the admission that keeps the body active."
+items = [
+    "impl:Interp::enter_native_procedure_frame..impl:Interp::release_native_procedure",
+    "fn:formal_parameters..fn:native_parameter_plan",
+    "struct:NativeProcedureAdmission..impl:Drop for NativeProcedureAdmission",
+]

@@ -1,0 +1,31 @@
+# The parent keeps the token decoding helpers and the general classification
+# tests: words, keywords, multi-line literals, imported commands, the
+# default-library modifier, embedded iRules bodies and the byte-order mark.
+file = "rust/tcl-lsp-core/tests/it_2/semantic_tokens.rs"
+
+[[module]]
+name = "comments"
+doc = "Comment tokens: continuation lines, line endings and comments after a semicolon."
+items = ["fn:comment_is_one_token..fn:semicolon_hash_inside_string_is_not_a_comment"]
+
+[[module]]
+name = "definition_bodies"
+doc = "Definition-body grammars: TclOO, snit, [incr Tcl] and scoped command environments."
+items = [
+    "fn:oo_configurable_body_keywords_are_highlighted..fn:tcloo_members_are_context_sensitive_like_snit",
+    "fn:oo_body_variable_highlights_every_name..fn:plain_variable_command_keeps_pair_classification",
+    "fn:snit_type_members_highlight..fn:scoped_report_command_not_highlighted_outside_body",
+]
+
+[[module]]
+name = "variable_names"
+doc = "Words that name variables: declarations, loop variables, parameters, `upvar` locals and brace-quoted or list-built names."
+items = [
+    "fn:global_highlights_every_name..fn:dict_update_var_names_are_variables",
+    "fn:brace_quoted_variable_name_word_paints_as_a_variable..fn:tn_a_dynamic_list_head_keeps_todays_behaviour",
+]
+
+[[module]]
+name = "declarative_dialects"
+doc = "SpecTcl command packs and SslicTcl declarations: context-sensitive keywords and their bodies."
+items = ["fn:spectcl_pack_body_words_are_keywords_at_every_level..fn:sslictcl_predicate_bodies_are_opaque_data"]

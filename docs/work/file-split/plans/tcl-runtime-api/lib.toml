@@ -1,0 +1,46 @@
+# The crate root keeps the module list, the crate documentation and
+# `ScriptCompletion`; every role trait and its companion types is re-exported
+# from the module that owns it.
+file = "rust/tcl-runtime-api/src/lib.rs"
+
+[[module]]
+name = "variables"
+doc = "Variable storage, the call-frame stack and variable traces: `VarStore`, `Frames`, `Traces` and the results a store reports."
+items = [
+    "struct:VariableUpdateResult..enum:FrameLinkOrigin",
+    "trait:VarStore..trait:Frames",
+    "trait:Traces",
+]
+
+[[module]]
+name = "array_access"
+doc = "One array located for an `array` ensemble operation: its default state, trace-aware element reads and invalidation."
+items = ["enum:NativeArrayDefaultProtocol..impl:ArrayTarget"]
+
+[[module]]
+name = "binding_identity"
+doc = "The compiler's assumptions about one runtime command or procedure binding."
+items = [
+    "enum:CommandBindingGuard..impl:CommandBindingIdentity",
+    "struct:ProcedureBindingIdentity..impl:ProcedureBindingIdentity",
+]
+
+[[module]]
+name = "compile_service"
+doc = "The runtime compile service: compile targets, how a release evaluates and binds commands, script command plans and `CompileService`."
+items = ["enum:CompileError..trait:CompileService"]
+
+[[module]]
+name = "commands"
+doc = "The command table and its alias bindings: `Commands`, `Aliases` and Jim's inventory and alias lookups."
+items = ["trait:Commands..trait:Aliases"]
+
+[[module]]
+name = "namespaces"
+doc = "The namespace tree and the command lookup owners: `Namespaces`."
+items = ["trait:Namespaces"]
+
+[[module]]
+name = "procedures"
+doc = "Procedure introspection behind the `info` family: `Introspect`, `Procs` and the body, default and parameter answers."
+items = ["trait:Introspect..struct:ProcParam"]

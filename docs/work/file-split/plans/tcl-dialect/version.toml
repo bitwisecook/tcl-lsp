@@ -1,0 +1,33 @@
+# The facade keeps `TclVersion` with its identity: the release ladder, the
+# names and version strings it parses and reports, the reference tags and the
+# core packages (`CorePackage`, `CorePackageRole`) a bare interpreter provides.
+file = "rust/tcl-dialect/src/version.rs"
+
+[[module]]
+name = "character_model"
+doc = "How a release counts characters and converts strings to bytes: the character model and its unit iterator."
+items = [
+    "enum:ByteStringEncoding..impl:StringCharacterModel",
+    "struct:UnitRun..impl:Iterator for CharacterUnits<'_>",
+]
+
+[[module]]
+name = "release_behaviour"
+doc = "The behaviour each release line has: regex, `lset`, level grammars, expression errors, error codes and bytecode rules."
+items = [
+    "impl:TclVersion::namespace_var_global_fallback..impl:TclVersion::allows_package_version_suffix",
+    "impl:TclVersion::lset_appends_at_length..impl:TclVersion::revalidates_running_bytecode",
+]
+
+[[module]]
+name = "package_versions"
+doc = "Package versions as C Tcl reads them: the internal representation, validation, comparison, requirement satisfaction and provider selection."
+items = [
+    "impl:TclVersion::satisfies_any..impl:TclVersion::satisfies_ternary",
+    "const:PATCH_CEILING..fn:select_package_version_exact_bytes_for",
+]
+
+[[module]]
+name = "engine_policies"
+doc = "The policy types an execution engine selects: indices, variable lookup and storage, parameters, the package protocol, interpreters and `Ternary`."
+items = ["enum:ConcatPolicy..impl:Ternary"]

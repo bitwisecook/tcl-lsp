@@ -1,0 +1,105 @@
+# The facade keeps the module docs, `process_command`, the word-level views
+# every stage reads (`DispatchSite`, `WordFacts`, `VarOrCmdSite`,
+# `BarewordDispatch`, `ResolvedAnalyserHook`) and the opt-in workspace-scan
+# timing, whose `thread_local!` cannot move. It also keeps the document source
+# image and `retained_invocation_tokens`, which every stage reads.
+file = "rust/tcl-compiler/src/analyser/commands.rs"
+
+[[module]]
+name = "body_walk"
+doc = "`analyse_body`: re-segmenting a body script and dispatching each of its commands, with the nesting-depth limit."
+items = [
+    "const:MAX_BODY_DEPTH",
+    "impl:Analyser::emit_body_depth_limit_if_exceeded..impl:Analyser::analyse_list_quoted_body",
+]
+
+[[module]]
+name = "hook_dispatch"
+doc = "The typed dispatch of one command to its handler family through the resolved `AnalyserHookId`, and the state transitions it applies."
+items = ["impl:Analyser::dispatch_command_handlers..impl:Analyser::dispatch_analyser_hook"]
+
+[[module]]
+name = "body_arguments"
+doc = "The body-role arguments of a command: the depths and event context each body runs in, clause variables and concatenated scripts."
+items = [
+    "fn:body_depths..fn:body_written_effective_index",
+    "impl:Analyser::define_clause_loop_variables..impl:Analyser::record_var_body_const_dispatch",
+]
+
+[[module]]
+name = "dispatch_sites"
+doc = "Command heads that are not literal: folded head candidates, variable and command-substitution heads and bareword self-dispatch."
+items = [
+    "impl:Analyser::folded_head_candidates..impl:Analyser::original_whole_variable_source_word",
+    "impl:Analyser::record_var_or_cmd_command_site..impl:Analyser::record_bareword_instance_dispatch_site",
+]
+
+[[module]]
+name = "invocation_records"
+doc = "The invocation one command records: its site facts, retained tokens and the iRules `call` target."
+items = [
+    "impl:Analyser::record_command_site_facts..impl:Analyser::record_direct_command_invocation",
+    "impl:Analyser::record_irules_call_invocation",
+    "fn:selected_rule_procedure_operand",
+    "fn:call_arg_count",
+]
+
+[[module]]
+name = "original_source"
+doc = "The original written source of a command: static names and vendor vectors for naming, and the segments diagnostics anchor on."
+items = [
+    "struct:OriginalFormatTemplate",
+    "impl:Analyser::retain_original_static_source_names..impl:Analyser::retained_argument_role_consensus",
+    "impl:Analyser::original_diagnostic_segment..impl:Analyser::original_format_templates",
+]
+
+[[module]]
+name = "site_diagnostics"
+doc = "The diagnostic emitters run at each dispatch site: procedure resolution, injection, registry arguments, bounds, numerals and expression operands."
+items = [
+    "impl:Analyser::emit_formal_parameter_list_diagnostics",
+    "impl:Analyser::emit_proc_resolution_diagnostics..impl:Analyser::emit_source_variable_name_advice",
+    "impl:Analyser::emit_w148_numeral_release..impl:Analyser::dispatch_joined_source_expression",
+]
+
+[[module]]
+name = "command_references"
+doc = "Commands named as data: command prefixes, command-name arguments, math functions and ensemble subcommands."
+items = [
+    "impl:Analyser::record_command_prefix_invocations..impl:Analyser::record_command_name_invocations",
+    "impl:Analyser::record_ensemble_subcommand_invocation..impl:Analyser::flush_pending_ensemble_subcommand_invocations",
+]
+
+[[module]]
+name = "argument_role_facts"
+doc = "The occurrence tables argument roles fill: scoped bodies, variable receivers and aliases, namespace names and computed variable names."
+items = ["impl:Analyser::record_arg_role_facts..impl:Analyser::record_dynamic_variable_name_sites"]
+
+[[module]]
+name = "nested_invocations"
+doc = "Invocations inside a command's words: `[...]` substitutions, expression operands and math functions, and the scanners that collect their heads."
+items = [
+    "struct:CollectedHead",
+    "impl:Analyser::record_nested_invocations_from_args..impl:Analyser::detect_list_wrapped_namespace_unknown",
+    "impl:Analyser::cmd_fragments..impl:Analyser::record_invocations_from_word_token",
+    "fn:segment_argc..fn:collect_substitution_heads",
+    "fn:nested_source_words..fn:collect_expr_substitutions",
+    "fn:scan_nested_command_heads..fn:scan_nested_command_heads_at",
+    "fn:first_command_head",
+]
+
+[[module]]
+name = "nested_diagnostics"
+doc = "The per-command checks rerun on every command nested in a substitution or an expression."
+items = [
+    "impl:Analyser::run_nested_command_diagnostics..impl:Analyser::dispatch_nested_segment",
+    "fn:collect_substitution_segments..fn:top_level_cmd_subst_regions",
+]
+
+[[module]]
+name = "instance_classes"
+doc = "The class of each created instance: constructor calls, registry factories, definer grammars and metaclass chains."
+items = [
+    "impl:Analyser::record_instance_creation..impl:Analyser::settle_pending_instance_class_sites",
+    "fn:class_var_head_constructor_subst..fn:is_plain_created_name",
+]

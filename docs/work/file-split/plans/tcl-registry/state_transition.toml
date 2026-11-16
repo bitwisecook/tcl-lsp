@@ -1,0 +1,29 @@
+# The facade keeps the domains, `TransitionSubject`, the command-binding,
+# interpreter, object-dispatch and trace vocabularies, `StateTransition` and
+# the `StateTransitions` fact list with the operand layout its widening reads,
+# and the inline `command_binding` module (a `mod` item, which the tool cannot
+# move).
+file = "rust/tcl-registry/src/state_transition.rs"
+
+[[module]]
+name = "variable_alias"
+doc = "Variable-cell aliasing (`upvar`, `global`, `variable`, `namespace upvar`): the transition, its frames and the resolvers that pair alias words."
+items = ["enum:CallerFrameSelection..impl:AliasWords", "const:VARIABLE_ALIAS_DOMAINS..fn:local_alias_name"]
+
+[[module]]
+name = "namespace_transition"
+doc = "Namespace and ensemble transitions: exports, imports, paths and ensemble dispatch tables."
+items = ["enum:NamespaceTransitionTarget..impl:NamespaceTransition"]
+
+[[module]]
+name = "subject_traversal"
+doc = "Per-domain walks over the subjects a transition names, and which subjects carry native identity."
+items = ["fn:visit_namespace_subject..fn:transition_package_visit"]
+
+[[module]]
+name = "descriptor"
+doc = "What a command declares about its transitions and how a descriptor resolves against one invocation."
+items = [
+    "enum:StateTransitionKnowledge..type:StateTransitionResolver",
+    "struct:StateTransitionWideningRule..impl:ResolvedStateTransitions",
+]

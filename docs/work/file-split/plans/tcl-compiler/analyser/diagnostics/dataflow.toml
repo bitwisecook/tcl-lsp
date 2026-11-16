@@ -1,0 +1,100 @@
+# The facade keeps the module docs, the read-before-set context types several
+# checks read (`ReadBeforeSetCtx`, `DeclaredReadProofs`, `ReturnUndefCtx`,
+# `StartupReadFacts`, `StaticReadUseScope`), the helpers they share
+# (`reportable`, the span narrowing, the "did you mean" suggestion, the trace
+# hooks) and the small W128 renamed-command check.
+file = "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+
+[[module]]
+name = "dead_stores"
+doc = "W220 dead stores, the conditional declared-store warning and the H300 paste-error fingerprint."
+items = [
+    "fn:reportable_dead_assignment",
+    "fn:written_namespace_storage..fn:reportable_dead_assignment_span",
+    "fn:dead_store_message",
+    "impl:Analyser::emit_dead_store_diagnostic",
+    "impl:Analyser::place_suppressed_dead_stores..impl:Analyser::emit_conditional_declared_store_diagnostics",
+    "impl:Analyser::emit_possible_paste_error_diagnostics",
+    "enum:OverwriteDiagnostic..fn:original_store_metadata",
+    "fn:original_unrepresented_use_advice..fn:report_original_store_diagnostic_gates",
+    "fn:def_is_element_write",
+]
+
+[[module]]
+name = "unused_bindings"
+doc = "W211 unused variables and W214 unused parameters, with the dispatch-protocol peers that excuse a parameter."
+items = [
+    "struct:OriginalDispatchProtocol..fn:original_dispatch_site",
+    "fn:unused_variable_definition_span",
+    "impl:Analyser::emit_unused_variable_diagnostics..impl:Analyser::emit_unused_variable_spans",
+    "impl:Analyser::param_name_sources_for..impl:Analyser::original_dispatch_namespace",
+    "fn:names_observed_by_unseen_calls",
+    "fn:body_references_param",
+]
+
+[[module]]
+name = "read_before_set"
+doc = "W210 and W213: the reads of each undefined def-use chain, and the guards, existence queries and barriers that excuse one."
+items = [
+    "fn:place_fact",
+    "fn:destroys_variable",
+    "struct:W210DeclarationReads..struct:W210ChainCtx",
+    "impl:Analyser::emit_read_before_set_diagnostics..impl:Analyser::collect_chain_read_before_set_spans",
+    "impl:Analyser::emit_w210_read_spans..impl:Analyser::record_chain_w210_uses",
+    "fn:suppress_declared_read_warnings",
+    "fn:statement_is_synthetic_effect..fn:use_site_safe_initialises",
+    "fn:w213_span_and_fix",
+]
+
+[[module]]
+name = "declared_reads"
+doc = "Reads of declared variables that the SSA form does not carry: static alternatives, conditional occurrences and definitely missing contents."
+items = [
+    "impl:Analyser::static_read_alternatives..impl:Analyser::authored_read_advice_for_procedure",
+    "impl:Analyser::emit_declaration_potential_reads..impl:Analyser::definite_missing_read_spans",
+]
+
+[[module]]
+name = "return_reads"
+doc = "W210 on a `return $v` read whose reaching version may be undefined."
+items = [
+    "struct:PhiUndefIndex",
+    "fn:return_undefined_variable_message",
+    "impl:Analyser::emit_return_phi_undef_w210..impl:Analyser::return_read_fires_w210",
+]
+
+[[module]]
+name = "no_match_outputs"
+doc = "W210 on the output variables of a matcher that provably does not match."
+items = [
+    "impl:Analyser::emit_provably_unset_w210..impl:Analyser::original_condition_matcher",
+    "const:TCL_REGEX_METACHARS..fn:scan_literal_no_match",
+]
+
+[[module]]
+name = "constant_conditions"
+doc = "I230 and I231 constant branches and switch arms, and the loops whose termination the solver decides."
+items = [
+    "fn:header_fact..fn:loop_exit_is_executable",
+    "fn:case_list_command",
+    "impl:Analyser::emit_constant_branch_diagnostics",
+    "impl:Analyser::resolve_loop_terminations..impl:Analyser::emit_selected_arm_diagnostics",
+]
+
+[[module]]
+name = "value_domains"
+doc = "Diagnostics on the value a definition holds: a non-channel channel argument (W126), a zero divisor (W233), an index outside its interval and a malformed IP literal (W124)."
+items = [
+    "impl:Analyser::emit_channel_diagnostics..impl:Analyser::emit_w233_divide_by_zero",
+    "impl:Analyser::emit_interval_bounds_diagnostics..impl:Analyser::emit_ip_diag_at_def",
+    "fn:collect_expr_command_texts..fn:match_ipv6_candidate",
+    "fn:non_channel_union_label",
+]
+
+[[module]]
+name = "irules_cells"
+doc = "iRules storage policy over the resolved cells: global and connection-scope concerns and the racy `static::` flow (IRULE4003, IRULE4005)."
+items = [
+    "impl:Analyser::emit_irules_cell_diagnostics..impl:Analyser::emit_racy_static_diagnostics",
+    "struct:IrulesCellAccess..fn:irules_possible_handler_namespace_writes",
+]

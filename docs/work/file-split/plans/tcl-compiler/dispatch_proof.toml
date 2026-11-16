@@ -1,0 +1,19 @@
+# The facade keeps the module docs, the contents lattice (the ledgers and
+# `WorldContents`, whose private fields every transfer function reads), the
+# proof types and the `analyse_*` entry points with the fixpoint driver.
+file = "rust/tcl-compiler/src/dispatch_proof.rs"
+
+[[module]]
+name = "world_tracks"
+doc = "The versioned partitions of the tracked world and the value-numbering token of one track."
+items = ["enum:WorldTrack..impl:TrackVersion"]
+
+[[module]]
+name = "block_transfer"
+doc = "Applying one block to the world contents: instruction and region-write effects, held completion-edge transitions and the site proofs captured on replay."
+items = ["fn:join_block_entry..fn:apply_variable_write"]
+
+[[module]]
+name = "state_transitions"
+doc = "The registry `StateTransition` facts applied to the ledgers: command bindings, interpreters, aliases, namespaces, traces and objects."
+items = ["fn:apply_transition_fact..fn:apply_domain_widening"]

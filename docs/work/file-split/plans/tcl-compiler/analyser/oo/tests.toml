@@ -1,0 +1,61 @@
+# The parent keeps the fixtures every group uses: `tcloo`, `class`,
+# `w315_messages`, `has_w315` and the token builders `tok` and `str_tok`.
+# Modules carry the names planned in `oo.toml` where the tests line up.
+file = "rust/tcl-compiler/src/analyser/oo/tests.rs"
+
+[[module]]
+name = "retained_member_source"
+doc = "The original source operands kept for a member: receiver declarations, method-name words, loop-installed names and vendor class declarations."
+items = [
+    "fn:original_receiver_declaration_keeps_its_whole_parent_bom_configuration..fn:original_vendor_class_declarations_keep_selected_source_role_and_unavailable_units",
+]
+
+[[module]]
+name = "member_effects"
+doc = "What each member subcommand records: slots, methods, constructors, forwards, variables, filters, exports and properties."
+items = [
+    "fn:superclass_subcommand_assigns_supers..fn:configurable_class_knows_configure_but_not_cget",
+    "fn:property_subcommand_with_no_kind_defaults_to_readwrite..fn:extract_method_def_too_few_args_returns_none",
+]
+
+[[module]]
+name = "member_references"
+doc = "The command references `superclass`, `mixin`, `forward` and itcl `inherit` record."
+items = ["fn:has_cmd_ref..fn:forward_target_beginning_with_dash_is_recorded"]
+
+[[module]]
+name = "unknown_proc"
+doc = "The dispatch shape extracted from a user-defined `unknown` procedure."
+items = ["fn:param..fn:extract_unknown_proc_info_no_first_param_defaults_to_cmd"]
+
+[[module]]
+name = "wrapper_blocks"
+doc = "The `self { ... }` and `private { ... }` block forms: the side each member lands on and the retractions written under them."
+items = [
+    "fn:self_block_form_records_every_member_as_a_class_method..fn:unwrapped_renamemethod_moves_the_member_to_the_new_name",
+]
+
+[[module]]
+name = "member_visibility"
+doc = "Sided visibility sets and filters, per-object visibility and unwrapped retractions."
+items = [
+    "fn:self_scoped_visibility_words_fill_the_class_side_sets..fn:a_retraction_of_a_locally_declared_member_leaves_no_tombstone",
+    "fn:visibility_sets_keep_only_the_last_writer..fn:objdefine_deletemethod_drops_the_per_object_member",
+]
+
+[[module]]
+name = "definition_aborts"
+doc = "W315: a class or per-object definition that cannot run, and the move records behind it."
+items = [
+    "fn:w315_fires_for_every_definition_aborting_retraction..fn:missing_class_source_cannot_publish_native_definition_stubs",
+]
+
+[[module]]
+name = "snit_and_itcl"
+doc = "snit types and widgets and `itcl::class` recorded as classes."
+items = ["fn:snit_type_recorded_as_class_with_members..fn:non_itcl_command_is_not_a_class"]
+
+[[module]]
+name = "method_bodies"
+doc = "The bodies the definition walk enters: `initialise`, `classvariable` declarations and property accessors."
+items = ["fn:oo_initialise_body_is_walked..fn:oo_class_create_with_namespace_is_not_exported"]

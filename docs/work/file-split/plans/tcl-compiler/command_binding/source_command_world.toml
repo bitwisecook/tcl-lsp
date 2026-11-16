@@ -1,0 +1,27 @@
+# The facade keeps the namespace ledger, the publication types and
+# `OriginalSourceCommandWorld` with its policy, scope and publish operations.
+file = "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+
+[[module]]
+name = "covered_alias"
+doc = "An alias transition the original command world covers at one invocation."
+items = ["struct:OriginalCoveredAliasTransition..fn:original_covered_alias_target"]
+
+[[module]]
+name = "completed_world"
+doc = "The completed command world of a document: declarations, class rosters and relations."
+items = [
+    "struct:OriginalCompletedCommandWorld",
+    "impl:OriginalClassInstanceMethodRoster..impl:crate::realm::CommandBindingRealm",
+    "fn:trace_completed_world_option..fn:trace_completed_world_flag",
+]
+
+[[module]]
+name = "transfer_capture"
+doc = "Capturing a command transfer before its handler and finishing it into publications."
+items = [
+    "enum:Operation..struct:CapturedOriginalCommandTransfer",
+    "struct:SourceWorldCapture..fn:emitted_allocation",
+    "fn:scope_is_within..impl:OriginalSourceCommandWorld#2",
+    "fn:source_simple..fn:matches_pattern",
+]

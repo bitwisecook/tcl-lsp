@@ -1,0 +1,43 @@
+# The parent keeps the compilation-unit fixture and the Logical script
+# context and token fixtures that two of the modules share.
+file = "rust/tcl-compiler/src/command_binding/materialized_footprint/tests.rs"
+
+[[module]]
+name = "invocation_metadata"
+doc = "Original invocation metadata for a module, function or point, and the owners it refuses."
+items = [
+    "fn:original_module_metadata_preserves_explicit_standalone_without_supplied_fallback..fn:warmed_original_lexical_projection_cannot_donate_changed_module_metadata",
+    "fn:original_point_metadata_keeps_unknown_lookup_and_changed_vector_separate..fn:original_function_point_metadata_declines_missing_foreign_stale_and_changed_geometry",
+]
+
+[[module]]
+name = "footprint"
+doc = "Materialized footprints and installer projections: aliases, availability and stale owners."
+items = [
+    "fn:original_installer_module_projection_keeps_snapshot_and_future_scope_refusal..fn:original_installer_module_projection_accepts_only_the_retained_nested_input",
+    "fn:original_materialized_footprint_keeps_alias_targets_and_literal_roots..fn:original_materialized_footprint_refuses_missing_foreign_and_stale_owners",
+]
+
+[[module]]
+name = "literal_body_ownership"
+doc = "Name ownership in a literal body operand: purposes, aliases and source currency."
+items = [
+    "fn:original_literal_body_ownership_keeps_named_purposes_and_literal_roots..fn:original_literal_body_ownership_keeps_availability_and_source_currency",
+]
+
+[[module]]
+name = "logical_materialized_names"
+doc = "Materialized names under a Logical declaration: horizons, realms and refused owners."
+items = [
+    "fn:original_source_realm_keeps_sealed_declaration_and_reached_owners_independent..fn:assert_materialized_alternatives_owner_refused",
+    "fn:original_logical_materialized_names_refuse_changed_and_missing_source_owners..fn:original_logical_materialized_horizon_refuses_dynamic_expanded_and_invalid_vectors",
+    "fn:original_logical_materialized_root_keeps_its_actual_source_lookup_point",
+]
+
+[[module]]
+name = "procedure_argument_roles"
+doc = "Original procedure argument roles and argv: native and Logical owners and their refusals."
+items = [
+    "fn:assert_original_procedure_roles_retained..fn:assert_original_procedure_roles_refused",
+    "fn:original_native_procedure_argument_tokens..fn:original_logical_procedure_argv_cannot_repair_open_or_registry_targets",
+]

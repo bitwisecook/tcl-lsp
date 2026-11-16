@@ -1,0 +1,41 @@
+# Second level: applies to the `namespaces` module that
+# plans/tcl-vm/interp.toml creates. The facade keeps the namespace address
+# types, the retained-namespace helpers, the current namespace of an
+# `InterpState`, and entering and leaving a namespace on the resolution
+# stack (`push_ns`, `pop_ns`, the replay and script frames).
+file = "rust/tcl-vm/src/interp/namespaces.rs"
+
+[[module]]
+name = "path_and_unknown"
+doc = "`namespace path` and `namespace unknown`: the command resolution path of a namespace and its unknown handler."
+items = ["impl:Vm::ns_path_tokens..impl:Vm::leave_missing_handler_namespace"]
+
+[[module]]
+name = "identity"
+doc = "Namespace identity: interning a path to its token, namespace operands from native bytes, activating and deleting by operand, lookup errors and reporting names."
+items = ["impl:Vm::current_ns..impl:Vm::definition_namespace_token_at_path"]
+
+[[module]]
+name = "declaration"
+doc = "Declaring namespaces and tracking what they hold: existence, dying subtrees, creation, and the Tcl hash order of a namespace's commands."
+items = ["impl:Vm::namespace_exists..impl:Vm::retained_command_hash_order"]
+
+[[module]]
+name = "export_import"
+doc = "`namespace export` and `namespace import`: export patterns, import candidates, the C import preload, publishing imported commands and Jim's import aliases."
+items = [
+    "impl:OriginalCImportPreload::command..impl:OriginalCImportPreload::install_invoked_head",
+    "enum:NamespaceImportError",
+    "impl:NamespaceImportError::completion",
+    "impl:Vm::add_exports..impl:Vm::import_source_chain_contains",
+]
+
+[[module]]
+name = "import_graph"
+doc = "The import graph after publication: origins, retirement nodes, replacing a source's implementation, retargeting on rename, and `namespace forget`."
+items = ["impl:Vm::command_origin_key..impl:Vm::forget_imports"]
+
+[[module]]
+name = "deletion"
+doc = "Deleting a namespace: retiring its commands and ensembles in Tcl's order, variable teardown, deferral while a frame is active, and retained tokens."
+items = ["impl:Vm::untrack_namespace_ensemble..impl:Vm::child_namespace_ids_hash_order"]

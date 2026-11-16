@@ -1,0 +1,75 @@
+# The parent keeps the shared fixtures: the logical and original-operand
+# metadata fixtures, the CFG builders (`block`, `make_goto`, `make_branch`, `make_return`, `call`,
+# `diamond_cfg`, `loop_cfg`, `id_of`) and `default_registry`. Tests move to
+# modules named for the production module they exercise.
+file = "rust/tcl-compiler/src/ssa/tests.rs"
+
+[[module]]
+name = "invocation_context"
+doc = "Supplied metadata against standalone ownership: role scans, definition subjects and operand symbols under the actual availability and grammar."
+items = [
+    "fn:supplied_ssa_availability_without_source_cannot_reopen_standalone_ownership..fn:supplied_ssa_definition_and_lexical_reads_do_not_reconstruct_catalogue_roles",
+    "fn:original_setter_definition_point..fn:original_operand_symbols_keep_actual_availability_and_source_grammar",
+]
+
+[[module]]
+name = "core_types"
+doc = "The SSA data structures: φ nodes, statements, blocks, functions, array-root refresh symbols and the interner."
+items = ["fn:phi_construction..fn:var_interner_assigns_first_seen_order_symbols"]
+
+[[module]]
+name = "defs"
+doc = "`defs_of`: assignments, calls, dynamic targets and the barrier forms the registry describes."
+items = ["fn:defs_of_assign_const..fn:defs_of_barrier_variable_vararg_no_partial_defs"]
+
+[[module]]
+name = "dominators"
+doc = "Dominators, immediate dominators, the dominance frontier and the dominator tree."
+items = ["fn:dominators_linear..fn:dom_tree_diamond"]
+
+[[module]]
+name = "phi_placement"
+doc = "Which variables get φ nodes: diamonds, loops and single definitions."
+items = ["fn:phi_vars_diamond_with_defs..fn:phi_vars_no_defs_no_phis"]
+
+[[module]]
+name = "logical_source_roles"
+doc = "Reads and stores under logical source metadata: literal names, quiet scalar mutations, dictionary scopes and conditional store symbols."
+items = [
+    "fn:lowered_literal_read_names_keep_empty_and_dollar_data..fn:dictionary_scope_bodies_and_variable_observers_keep_lookup_hazards",
+    "fn:conditional_logical_store_symbols_keep_original_empty_and_dollar_names..fn:original_loop_name_lists_keep_empty_and_dollar_elements",
+]
+
+[[module]]
+name = "source_may_effects"
+doc = "Source-may definitions and clobber receipts: source identity, changed maps and versions reaching post-join observers."
+items = ["fn:original_source_may_definitions_keep_source_identity_separate_from_locations..fn:original_source_may_loop_versions_reach_post_join_observers"]
+
+[[module]]
+name = "uses"
+doc = "`uses_of` and the classification of each read as substituted or quoted, including opaque `switch` arms."
+items = ["fn:uses_of_assign_const..fn:uses_of_classified_switch_pattern_class_follows_patterns_braced"]
+
+[[module]]
+name = "instance_options"
+doc = "Option writes linked to variables: selected, taint and instance options, and what catalogue roles may not donate."
+items = ["fn:logical_option_metadata_fixture..fn:procedure_widget_catalogue_does_not_write_global_or_local_values"]
+
+[[module]]
+name = "construction"
+doc = "`build_ssa` end to end: linear code, diamonds, loops, setter reads, the complexity guard and destruction predecessors."
+items = [
+    "fn:destruction_predecessor_keeps_substituted_operand_use_in_def_use",
+    "fn:build_ssa_linear",
+    "fn:build_ssa_diamond_phi..fn:deeply_nested_if_survives_collapsed_extra_defs",
+]
+
+[[module]]
+name = "word_scan"
+doc = "Reads in the words of a nested substitution: evaluated roles, data roles and body words."
+items = ["fn:classified_call_uses..fn:body_word_of_a_nested_substitution_in_an_assignment_is_not_a_frame_read"]
+
+[[module]]
+name = "effect_markers"
+doc = "Word effects, calls to unseen code and opaque `switch` and `catch` in the built SSA: the versions they read, define and leave live."
+items = ["fn:ssa_of_function..fn:supplied_switch_may_writes_keep_actual_context_and_unavailable_residual"]

@@ -1,0 +1,28 @@
+# The parent keeps the shared fixtures: the counting compile service, the
+# bundled-pack loaders and VM helpers, the reference-pack fixtures and the
+# `Spliced` harness with its `Outcome`.
+file = "rust/tcl-spectcl/tests/it_5/codegen_stamps.rs"
+
+[[module]]
+name = "stamp_admission"
+doc = "Stamped sites through the tier gate and the VM's admission: alias stamps, changed packs, pack folds and the overlay generation a service compiles against."
+items = ["fn:a_workspace_stamp_is_refused_and_specialises_nothing..fn:a_proc_at_the_pack_name_recompiles_plain"]
+
+[[module]]
+name = "reference_bodies"
+doc = "Commands a pack backs with a Tcl body: inlined and admitted, host-native backings, bodies that diverge and bodies read from a package source."
+items = [
+    "fn:a_tcl_body_backed_command_is_inlined_and_admitted..fn:a_direct_dependencys_reference_body_is_dropped_at_load",
+]
+
+[[module]]
+name = "spliced_bodies"
+doc = "What a spliced body answers: early `return`, resolution in the definition's namespace, the variables it reads, braced literals and the claims a function makes."
+items = [
+    "fn:a_body_with_a_return_before_its_end_answers_through_the_splice..fn:a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm",
+]
+
+[[module]]
+name = "splice_matrix"
+doc = "Every shape of inlined body at every call site answers as its definition does."
+items = ["const:SPLICED_SHAPES..fn:every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site"]

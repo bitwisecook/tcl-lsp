@@ -1,0 +1,38 @@
+# The facade keeps the module docs, the identities, the instruction,
+# terminator, block and function types (with the original-source effect
+# records the builder fills in) and the `build_linear_executable_ir*` entry
+# points. `builder` is split again by `executable_ir/builder.toml`.
+file = "rust/tcl-compiler/src/executable_ir.rs"
+
+[[module]]
+name = "validation"
+doc = "The bounded executable-IR invariants: block layout, definitions, owners, uses and terminators, and the error they report."
+items = [
+    "impl:ExecutableFunction::validate..impl:ExecutableFunction::validate_uses_and_terminators",
+    "fn:argv_entry_source_word..fn:definition_precedes",
+    "fn:validate_instruction_owners..enum:ExecutableIrValidationError",
+]
+
+[[module]]
+name = "dominance"
+doc = "Reachability and dominators of the executable CFG, for definition availability."
+items = ["struct:Dominance..fn:terminator_successors"]
+
+[[module]]
+name = "builder"
+doc = "Building one executable function from source-faithful IR: blocks, completions, invocations and structured regions."
+items = [
+    "struct:ControlContext..fn:next_switch_body",
+    "fn:original_list_iterator_names..fn:original_list_iterator_sources",
+    "fn:plan_argv_entries..impl:Stage",
+]
+
+[[module]]
+name = "region_descriptors"
+doc = "The registry descriptor selected for one source statement: a lowered operation, an opaque region or a structured projection."
+items = ["fn:lowered_operation_descriptor..fn:try_handler_code_in"]
+
+[[module]]
+name = "footprints"
+doc = "The cell and completion footprint of a lowered operation and of the operands it retains."
+items = ["fn:lowered_operation_footprint", "fn:lowered_source_name_reference..fn:original_substitution_reads"]

@@ -1,0 +1,52 @@
+# Second level: apply `ssa.toml` first. `source_view.rs` keeps
+# `SsaSourceView` with its positioning and symbol lookups, and
+# `OriginalSourceSsaDefinitionName`, which both the selectors and the
+# definition queries build.
+file = "rust/tcl-compiler/src/ssa/source_view.rs"
+
+[[module]]
+name = "definitions"
+doc = "The original name of an SSA definition, the source definition of a body, fresh scalar proposals and activation-cell ownership."
+items = [
+    "struct:OriginalSsaDefinitionName..impl:OriginalFreshScalarAssignmentProposal",
+    "fn:trace_original_definition_place",
+    "impl:<'a> SsaSourceView<'a>::original_definition_name..impl:<'a> SsaSourceView<'a>::owns_activation_cell",
+]
+
+[[module]]
+name = "reaching_bindings"
+doc = "What reaches or survives at the selected point: reaching bindings, external mutability, the contents a store leaves and literal read coverage."
+items = [
+    "impl:<'a> SsaSourceView<'a>::original_script_literal_read_coverage",
+    "impl:<'a> SsaSourceView<'a>::externally_mutable_by..impl:<'a> SsaSourceView<'a>::conditional_logical_scalar_store_contents",
+    "impl:<'a> SsaSourceView<'a>::reaching_binding..impl:<'a> SsaSourceView<'a>::reaching_bindings",
+]
+
+[[module]]
+name = "word_reads"
+doc = "One retained read of a word or spelling: its reference, completion, presence, produced value, representation, place and contents."
+items = [
+    "struct:SsaReadPresenceAlternatives..impl:SsaReadPresenceAlternatives",
+    "struct:SsaReadRepresentationAdvice",
+    "struct:SsaReadContents",
+    "impl:<'a> SsaSourceView<'a>::read_reference..impl:<'a> SsaSourceView<'a>::read_spelling_contents",
+    "fn:source_read_representations..fn:source_read_place",
+]
+
+[[module]]
+name = "expression_reads"
+doc = "One variable read inside an expression: its representation, place, incoming slot, contents and native numeric form."
+items = [
+    "struct:SsaIncomingSlotRead",
+    "impl:<'a> SsaSourceView<'a>::expression_variable_access..impl:<'a> SsaSourceView<'a>::read_expression_native_numeric",
+]
+
+[[module]]
+name = "source_selectors"
+doc = "Selecting an original source definition or read of a compilation unit by its exact document extent."
+items = ["struct:OriginalSourceSsaDefinition..fn:original_source_read_at_unit"]
+
+[[module]]
+name = "analysis_definitions"
+doc = "Selecting a represented analysis definition by its written occurrence: authored operands, logical advice and the original word vector."
+items = ["struct:OriginalAnalysisSsaDefinition..fn:original_analysis_definition_at_unit"]

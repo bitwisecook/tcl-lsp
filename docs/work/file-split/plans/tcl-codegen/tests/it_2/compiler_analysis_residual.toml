@@ -1,0 +1,52 @@
+# The parent keeps the shared harness: the registries, the diagnostic-code
+# queries, the inliner and place collectors, and the memoised lattice build
+# with its `g_proves_v_is_three` query that the barrier modules share.
+file = "rust/tcl-codegen/tests/it_2/compiler_analysis_residual.rs"
+
+[[module]]
+name = "scan_predicate"
+doc = "The `scan` match predicate: each conversion, suppression, width and the decline paths behind W210."
+items = ["fn:scan_decimal_int_match_and_no_match..fn:scan_predicate_w210_hex_and_binary"]
+
+[[module]]
+name = "auto_path"
+doc = "Static `auto_path` evaluation: `file join`, `dirname`, normalisation, the tokeniser and the forms it declines."
+items = ["fn:auto_path_file_join_multi_component..fn:auto_path_bare_tilde_no_home_unchanged"]
+
+[[module]]
+name = "places"
+doc = "Def and read places: dict and array writes, aliases, traces, terminators and data words that are not reads."
+items = ["fn:place_dict_set_defs_variable_and_dollar_read_observes_it..fn:place_block_body_reads_recovered"]
+
+[[module]]
+name = "rebase"
+doc = "Rebased function units: shifted spans match a fresh build."
+items = ["fn:assert_span_carrying_eq..fn:rebase_zero_delta_is_noop"]
+
+[[module]]
+name = "inlining"
+doc = "The inliner's classification, statement counts and the bodies it declines."
+items = ["fn:inline_classify_no_summary_is_never..fn:inline_v3_semantics_preserved_value"]
+
+[[module]]
+name = "reachability"
+doc = "Dead code after `return`, `error`, `break` and `continue`, and constant guards."
+items = ["fn:rch_code_after_return_is_dead..fn:rch_while1_with_break_post_loop_is_reachable"]
+
+[[module]]
+name = "handler_barriers"
+doc = "Handler barriers on constant branches: unresolved, embedded and shadowed handlers, and later bindings made opaque."
+items = [
+    "fn:unresolved_handler_barrier_blocks_scalar_constant_branch..fn:embedded_rename_makes_later_embedded_binding_opaque",
+    "fn:opaque_user_call_keeps_later_builtin_resolution_barrier..fn:a_shadowing_module_is_served_a_lattice_keyed_by_its_trust",
+]
+
+[[module]]
+name = "binding_order"
+doc = "Binding states follow Tcl's evaluation order: sibling and nested substitutions, short circuits and loop back edges."
+items = ["fn:sibling_if_conditions_join_source_order_binding_states..fn:braced_nested_substitution_text_does_not_execute"]
+
+[[module]]
+name = "handler_widening"
+doc = "What a code-running handler widens: seeded parameters, array elements, expression bindings and collection classes."
+items = ["fn:seeded_parameter_result..fn:constructor_effects_and_redefinitions_withdraw_collection_type_precision"]

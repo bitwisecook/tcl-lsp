@@ -1,0 +1,71 @@
+# The parent keeps the shared helpers and fixtures and the tests of the
+# `definition` entry point itself (logical definition calls, namespace blocks,
+# position conversions). The modules carry the names of the production modules.
+file = "rust/tcl-lsp-core/src/definition/tests.rs"
+
+[[module]]
+name = "call_resolution"
+doc = "The procedure or class a written call denotes: counted class definitions, logical procedure targets, namespace order and `apply` bodies."
+items = [
+    "fn:counted_class_body_effects_do_not_prove_a_later_class_binding..fn:counted_class_definition_navigation_refuses_observer_shadow_and_forged_rows",
+    "fn:logical_proc_targets_keep_displaced_original_declaration_allocations..fn:logical_proc_targets_refuse_deleted_dynamic_argument_and_stale_input",
+    "fn:original_declaration_advice_cannot_choose_between_redefinitions..fn:original_vendor_definition_uses_current_direct_source_headers",
+    "fn:original_proc_and_class_selection_uses_current_typed_publications",
+    "fn:unqualified_call_resolves_in_callers_namespace_first..fn:two_apply_calls_with_different_namespace_overrides_never_cross_resolve",
+    "fn:unqualified_call_at_global_prefers_global_proc..fn:jump_to_class_definition_disambiguates_same_named_classes_by_cursor",
+    "fn:opt_proc_call_site_resolves_to_its_declaration",
+]
+
+[[module]]
+name = "command_heads"
+doc = "Command heads at the cursor: autoload requests, aliases, ensemble subcommands and resolved indirect heads."
+items = [
+    "fn:logical_autoload_head_uses_the_retained_source_namespace_and_refuses_stale_heads",
+    "fn:jump_to_alias_target_proc..fn:ensemble_wholly_dynamic_map_value_abstains",
+    "fn:foreach_rename_reinstall_call_site_resolves_to_the_wrapper_not_the_stale_original..fn:foreach_rename_reinstall_second_element_also_resolves_to_its_own_wrapper",
+    "fn:fp_argument_word_sharing_a_procs_name_is_not_resolved_as_a_command..fn:fn_unresolved_indirect_head_does_not_block_the_bareword_fallback",
+]
+
+[[module]]
+name = "object_dispatch"
+doc = "Method dispatch: external visibility masks, class-member lookup, `$obj method` and class-command calls."
+items = [
+    "fn:original_external_visibility_keeps_variable_and_object_names_separate_from_self_dispatch..fn:original_external_visibility_withholds_populated_unavailable_stale_and_foreign_input",
+    "fn:definition_resolves_a_method_return_captured_dispatch",
+    "fn:definition_bare_sibling_method_call_without_link_abstains..fn:definition_my_dispatch_resolves_when_class_extended_via_separate_oo_define",
+    "fn:definition_bare_self_bracket_dispatch_resolves_like_my..fn:definition_linked_sibling_classmethod_call_resolves",
+    "fn:definition_in_a_method_body_follows_the_object_namespace_lookup..fn:definition_bare_var_receiver_without_dollar_does_not_resolve",
+    "fn:classmethod_call_on_its_own_class_resolves..fn:bare_var_receiver_without_a_bound_command_does_not_resolve_class_dispatch",
+    "fn:variable_receiver_never_promotes_a_filewide_candidate_to_runtime_proof",
+]
+
+[[module]]
+name = "method_receivers"
+doc = "The receiver and method word at the cursor, and `next`/`nextto` targets."
+items = [
+    "fn:jump_to_next_super_method..fn:nextto_picks_occurrence_at_cursor_not_first_on_line",
+    "fn:instance_method_at_cursor_detects_dollar_head..fn:logical_receiver_candidates_keep_instance_and_class_buckets_together",
+]
+
+[[module]]
+name = "variables"
+doc = "Variable definitions: scope extents, loop variables, qualified names and parameters."
+items = [
+    "fn:deeply_nested_namespaces_survive_scope_extent_and_alias_scans",
+    "fn:multi_list_foreach_name_resolves_to_its_own_loop_not_an_unrelated_later_one",
+    "fn:jump_to_var_definition..fn:param_definition_points_at_the_name_not_the_body",
+    "fn:proc_local_var_jumps_to_proc_scope_definition",
+]
+
+[[module]]
+name = "namespace_imports"
+doc = "Wildcard and exact `namespace import` resolution and the export gate at each import site."
+items = ["fn:wildcard_namespace_import_resolves_exported_proc..fn:exact_namespace_import_resolves_source_proc_in_document"]
+
+[[module]]
+name = "import_slot_events"
+doc = "The life of an import alias: `namespace forget`, ordering, `-force` conflicts, the export oracle, source changes and chains."
+items = [
+    "fn:a_forget_after_the_import_stops_resolving_the_alias..fn:a_forced_import_does_not_shadow_when_this_file_holds_the_export_list",
+    "fn:a_forced_import_shadows_when_another_file_holds_the_covering_export..fn:a_mutually_importing_pair_terminates",
+]

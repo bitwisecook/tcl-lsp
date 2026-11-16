@@ -1,0 +1,25 @@
+# The facade keeps `FieldKind`, `FieldSchema`, `NestedFieldSchema` with the
+# nested-field table, the group headings both field tables name, `to_json`
+# and the field lookups. Each field table is one `const`: `command_fields`
+# stays a little over 1,200 lines because a table cannot be divided.
+file = "rust/tcl-spec-studio/src/schema.rs"
+
+[[module]]
+name = "command_fields"
+doc = "Every editable field of `CommandSpec`, in `CommandSpec::DEFAULT` order."
+items = ["const:COMMAND_FIELDS"]
+
+[[module]]
+name = "subcommand_fields"
+doc = "Every editable field of `SubCommand`, in `SubCommand::DEFAULT` order."
+items = ["const:SUBCOMMAND_FIELDS"]
+
+[[module]]
+name = "catalogues"
+doc = "The variant catalogues the form's pickers read: enum variants, semantic operations, definition bodies and the custom catalogues."
+items = ["fn:catalogue_entries..fn:catalogues"]
+
+[[module]]
+name = "dsl_display"
+doc = "Read-only DSL display metadata: the source image with its registered vocabulary and the statement projection."
+items = ["struct:DslDisplayContext..fn:dsl_word_value"]

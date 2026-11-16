@@ -1,0 +1,75 @@
+# Second level of `lib.toml`. The facade keeps `DocumentSourceUnavailable`, the publication
+# and readiness states and the sample types (`WaiterSnapshot`, `HeldFor`,
+# `DocumentsContention`) the store, the stall report and the watchdog all read.
+# `DocumentState` itself stays in the crate root.
+file = "rust/tcl-lsp-server/src/documents.rs"
+
+[[module]]
+name = "path_admission"
+doc = "The checked URI-to-path receipt a document's source is read under, and the canonical file URI."
+items = [
+    "enum:DocumentPathAdmission..type:SavedSourceBytes",
+    "impl:DocumentPathAdmission",
+    "impl:Backend::published_document_path_admission..impl:Backend::document_path_admission",
+    "fn:canonical_file_uri..fn:constructed_file_uri",
+]
+
+[[module]]
+name = "state"
+doc = "Constructors, revision bumps and publication checks of `DocumentState`."
+items = ["impl:DocumentState", "impl:Backend::attach_open_disk_decode_report"]
+
+[[module]]
+name = "store"
+doc = "The open-document map with its holder record and waiter telemetry."
+items = [
+    "struct:DocumentStore..struct:WaiterTelemetry",
+    "struct:TelemetryWaker..impl:Drop for DocumentsGuard<'_>",
+    "fn:held_for",
+]
+
+[[module]]
+name = "unpark_watchdog"
+doc = "The opt-in watchdog that nudges a waiter parked on a free document map."
+items = ["const:NUDGE_WAITER_THRESHOLD..impl:std::io::Write for NudgeLog<'_>"]
+
+[[module]]
+name = "stall_report"
+doc = "The stall line: who holds the document map, who waits and where the edit barrier stopped."
+items = [
+    "fn:describe_documents_waiters",
+    "fn:describe_documents_contention",
+    "fn:describe_longest_phase",
+    "const:DOCUMENTS_CONTENTION_SAMPLE_GAP",
+    "impl:Backend::report_edit_barrier_stall",
+]
+
+[[module]]
+name = "edit_order"
+doc = "Document-sync notifications applied in arrival order, and the barrier requests wait behind."
+items = [
+    "const:EDIT_BARRIER_STALL_WARN..const:EDIT_BARRIER_STALL_LOG",
+    "struct:EditOrder..impl:Drop for EditTurn<'_>",
+    "impl:Backend::edits_settled",
+]
+
+[[module]]
+name = "content_changes"
+doc = "Incremental content changes applied to an open buffer."
+items = [
+    "impl:Backend::apply_document_content_changes",
+    "fn:apply_content_change..fn:apply_content_change_indexed",
+]
+
+[[module]]
+name = "reads"
+doc = "Snapshot reads of a document at the readiness a provider needs."
+items = ["impl:Backend::source_read_is_absent..impl:Backend::decode_report_for_matching_disk_text"]
+
+[[module]]
+name = "per_uri_caches"
+doc = "Every per-URI cache borrowed as one group, and the retirement of a URI's state."
+items = [
+    "struct:PerUriCaches..impl:PerUriCaches<'_>",
+    "impl:Backend::per_uri_caches..impl:Backend::retire_renamed_uri",
+]

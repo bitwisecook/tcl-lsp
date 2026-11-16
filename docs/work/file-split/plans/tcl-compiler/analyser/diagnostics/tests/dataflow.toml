@@ -1,0 +1,94 @@
+# Second level of `diagnostics/tests.toml`; the file exists once that plan is
+# applied. Modules carry the names planned for `diagnostics/dataflow.rs` where
+# the tests line up with them. The parent keeps the collectors several groups
+# use (`codes_for`, `codes_for_in`, `w210_codes`, `w210_codes_in_dialect`, `lifecycle_findings`).
+file = "rust/tcl-compiler/src/analyser/diagnostics/tests/dataflow.rs"
+
+[[module]]
+name = "dead_stores"
+doc = "W220 dead stores and the H300 paste-error fingerprint."
+items = [
+    "fn:parameter_only_function_has_no_physical_store_warnings..fn:emit_cfg_ssa_diagnostics_w220_skips_unreachable_block",
+    "fn:emit_cfg_ssa_diagnostics_h300_repeated_assignment..fn:emit_cfg_ssa_diagnostics_h300_skips_distinct_values",
+    "type:Hints..fn:a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211",
+]
+
+[[module]]
+name = "unused_bindings"
+doc = "W211 unused variables and W214 unused parameters."
+items = [
+    "fn:w211_deliberately_skips_destructuring_writer_outputs..fn:body_references_param_namespace_qualified",
+    "fn:emit_cfg_ssa_diagnostics_w214_unused_param..fn:emit_cfg_ssa_diagnostics_w211_skipped_for_global_aliased",
+    "fn:w214_empty_body_stub_silent..fn:w214_genuine_unused_param_still_fires",
+    "fn:emit_cfg_ssa_diagnostics_w214_skips_args_param",
+    "fn:w211_reads_an_existence_test_by_the_element_it_names",
+]
+
+[[module]]
+name = "read_before_set"
+doc = "W210 and W213 along straight-line and branching flow: terminating arms, loops that run at least once, `try` handlers and code the module cannot see."
+items = [
+    "fn:w210_missing_physical_read_does_not_require_an_ssa_value_version",
+    "fn:emit_cfg_ssa_diagnostics_w210_read_before_set..fn:emit_cfg_ssa_diagnostics_w210_fires_at_top_level",
+    "fn:issue_703_no_false_w210_on_fallthrough_group_var..fn:dynamic_apply_lambda_word_is_still_a_caller_frame_read",
+    "fn:w210_names_on_both_paths..fn:a_read_after_code_the_module_cannot_see_is_no_read_before_set",
+    "fn:w210_does_not_report_a_name_a_substituted_catch_body_writes..fn:a_procedure_after_a_top_level_loop_keeps_its_loop_verdicts",
+]
+
+[[module]]
+name = "phi_undefined_reads"
+doc = "W210 where a merge may leave a name undefined: `return` reads, loop accumulators, `dict with` bodies and matchers that cannot match."
+items = [
+    "fn:w210_phi_undef_if_arm_only_def_return..fn:w210_no_false_fire_on_many_var_lassign_return",
+]
+
+[[module]]
+name = "variable_lifecycle"
+doc = "How a variable comes to exist and stops existing: startup bindings, the commands that bind their targets, `unset` and guards."
+items = [
+    "fn:w210_uses_registry_owned_startup_lifecycle_facts..fn:emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias",
+    "fn:var_binding_gets_defines_target_and_read_is_clean..fn:var_binding_scope_alias_and_destroy_families_are_excluded",
+    "fn:a_second_unset_is_a_definite_w213..fn:a_guard_under_and_narrows_the_read",
+    "fn:w210_reads_after_lassign_and_dict_with_are_set_2501_2502..fn:an_element_store_defines_its_array_for_a_later_element_read",
+]
+
+[[module]]
+name = "method_bodies"
+doc = "W210 and W211 inside TclOO, snit and itcl method bodies."
+items = [
+    "fn:method_body_read_before_set_now_flags_w210..fn:method_body_unbound_read_inside_switch_arm_still_flags_w210",
+]
+
+[[module]]
+name = "existence_folds"
+doc = "`info exists` guards and the existence facts I230 folds, over locals, parameters, array elements and instance state."
+items = [
+    "fn:info_exists_control_still_flags_w210..fn:the_existence_branch_fact_is_stored_once",
+    "fn:native_existence_result..fn:info_exists_folds_true_for_an_apply_lambda_parameter",
+]
+
+[[module]]
+name = "constant_conditions"
+doc = "I230 constant branches and I231 switch arms, and the calls, callbacks and catch bodies across which no value is kept."
+items = [
+    "fn:an_opaque_switch_reports_the_arms_it_never_selects..fn:i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option",
+    "fn:analyse_i230_constant_if_branch..fn:analyse_no_i230_for_dynamic_condition",
+    "fn:i230_on_both_paths..fn:a_read_after_an_opaque_catch_only_its_body_sets_draws_w210",
+    "fn:i230_never_reports_a_condition_over_a_name_a_substituted_loop_writes",
+]
+
+[[module]]
+name = "value_domains"
+doc = "W124 malformed IP literals and W233 division by zero."
+items = [
+    "fn:ipv6_candidate_scanner_extracts_runs",
+    "fn:analyse_w124_ipv4_octet_overflow..fn:analyse_w124_real_ipv4_shaped_still_fires",
+    "fn:w233_codes..fn:w233_silent_on_float_division",
+]
+
+[[module]]
+name = "irules_cells"
+doc = "IRULE4005: the racy `static::` write."
+items = [
+    "fn:analyse_irule4005_racy_static_emitted_for_per_request_writes..fn:analyse_irule4005_no_emit_for_rule_init_writes",
+]

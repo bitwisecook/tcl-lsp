@@ -12,7 +12,8 @@ from pathlib import Path
 
 LIMIT = 2000
 ROOTS = ("rust", "runtime/rust")
-MODULE_OPEN = re.compile(r"^mod (\w+) \{$")
+MODULE_OPEN = re.compile(r"^((?:pub(?:\([^)]*\))? )?)mod (\w+) \{$")
+TEST_GUARD = re.compile(r"\n#\[cfg\((?:test|all\(test,[^\]\n]*\))\)\]\n")
 INCLUDE = re.compile(r'\b(include_str|include_bytes|include)!\(\s*"(?!/)')
 ROOT_FILES = ("mod.rs", "lib.rs", "main.rs")
 
@@ -125,10 +126,10 @@ def hoist(path: Path, beside: bool = False) -> list[str]:
     moved = []
     search = 0
     while True:
-        marker = text.find("\n#[cfg(test)]\n", search)
-        if marker < 0:
+        guard = TEST_GUARD.search(text, search)
+        if guard is None:
             break
-        cursor = marker + len("\n#[cfg(test)]\n")
+        cursor = guard.end()
         while text.startswith("#[", cursor) or text.startswith("///", cursor):
             cursor = text.index("\n", cursor) + 1
         line_end = text.find("\n", cursor)
@@ -136,7 +137,7 @@ def hoist(path: Path, beside: bool = False) -> list[str]:
         if not match:
             search = cursor
             continue
-        name = match.group(1)
+        visibility, name = match.groups()
         target = child_dir / f"{name}.rs"
         if target.exists():
             search = cursor
@@ -146,7 +147,7 @@ def hoist(path: Path, beside: bool = False) -> list[str]:
         body = text[open_at + 1 : close_at].strip("\n")
         if deeper:
             body = INCLUDE.sub(lambda m: m.group(0) + "../", body)
-        text = text[:cursor] + f"mod {name};" + text[close_at + 1 :]
+        text = text[:cursor] + f"{visibility}mod {name};" + text[close_at + 1 :]
         moved.append((target, header + body + "\n"))
         search = cursor
     for target, content in moved:

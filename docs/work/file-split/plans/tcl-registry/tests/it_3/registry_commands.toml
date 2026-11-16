@@ -1,0 +1,53 @@
+# The parent keeps the module docs, the imports, the `reg_and_set` and
+# `present_in` helpers and the inline `textutil_submodule_vs_umbrella` module
+# (a `mod` item, which the tool cannot move).
+file = "rust/tcl-registry/tests/it_3/registry_commands.rs"
+
+[[module]]
+name = "spec_structure"
+doc = "What a spec declares: switches, options, hover sources, forms, closed value arguments, body kinds, namespace-name arguments and ensemble option tables."
+items = [
+    "fn:socket_is_registered_with_switches..fn:validation_metadata_is_available",
+    "fn:form_kind_variants_exist..fn:when_body_is_structural",
+    "fn:namespace_subcommands_declare_their_namespace_name_arguments..fn:only_namespace_eval_declares_a_namespace",
+    "fn:the_ensemble_option_tables_match_their_owning_utility..fn:an_explicitly_empty_operation_table_does_not_inherit_the_parents",
+]
+
+[[module]]
+name = "trait_membership"
+doc = "Which commands carry a trait: control flow, splice safety, purity, frame sensitivity, teardown, new-command definitions and the script-concat family."
+items = [
+    "fn:control_flow_trait_membership..fn:fire_and_forget_teardown_membership",
+    "fn:coroutine_defines_command_at_its_name_argument..fn:interp_create_defines_command_at_its_name_argument",
+    "fn:branch_selected_body_trait_membership..fn:script_append_list_refinement_is_inscope_only",
+]
+
+[[module]]
+name = "irules"
+doc = "iRules: command legality by event, event info, side switches, dialect-specific side effects and payload lifecycles."
+items = [
+    "fn:http_header_legal_in_http_request..fn:event_info_for_unknown_event",
+    "fn:irules_side_switches_are_flagged..fn:close_side_effects_differ_by_dialect",
+    "fn:irules_payload_lifecycle_inventory_is_registry_complete..fn:mqtt_payload_forms_declare_event_and_collection_contracts",
+]
+
+[[module]]
+name = "dialect_membership"
+doc = "Per-dialect membership: lazy dialect loading, signatures per dialect, dialect names, version gates and the tclsh subcommand sets."
+items = [
+    "fn:default_registry_has_core_but_not_irules..fn:cached_dialect_registries_are_populated",
+    "fn:report_commands_gated_out_of_tcl84..fn:tcl_namespace_commands_gated_to_their_real_introduction_version",
+]
+
+[[module]]
+name = "object_model"
+doc = "Object classes and handles: the report package, Tk widget constructors, instance methods, handle bindings, definer families and manufacturers."
+items = [
+    "fn:report_defstyle_has_scoped_body_environment..fn:report_namespace_commands_have_specs",
+    "fn:set_declares_its_handle_binding_for_every_spelling..fn:builtin_object_methods_are_reach_gated",
+]
+
+[[module]]
+name = "tcloo_method_context"
+doc = "TclOO dispatch keywords and the commands that exist only in a method context or frame, per dialect."
+items = ["fn:tcloo_dispatch_keyword_membership..fn:tcloo_dispatch_keywords_are_absent_before_86"]

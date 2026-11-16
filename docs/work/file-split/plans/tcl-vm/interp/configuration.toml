@@ -1,0 +1,34 @@
+# Second level: applies to the `configuration` module that
+# plans/tcl-vm/interp.toml creates. The facade keeps the pin (release,
+# dialect profile, runtime context) and the accessors derived from it
+# (lexer configuration, generations, compiled-unit admission).
+file = "rust/tcl-vm/src/interp/configuration.rs"
+
+[[module]]
+name = "providers"
+doc = "The native engine profile and the logical providers an embedding host installs: quoting, script objects, source words, expression parsing, numerics, compiled variables and names."
+items = ["impl:Vm::set_native_engine_profile..impl:Vm::expression_evaluation_policy"]
+
+[[module]]
+name = "command_surface"
+doc = "The command surface: the profile governing which builtins are available, and whether a builtin is visible under it."
+items = [
+    "impl:Vm::set_command_surface_profile..impl:Vm::command_surface_profile",
+    "impl:InterpState::builtin_command_visible_for_surface..impl:InterpState::profile_admits_registry_builtin",
+]
+
+[[module]]
+name = "profiles_and_protocols"
+doc = "The profiles and native protocols of the current activation: source and execution profiles, string, name and compiled-variable protocols, and byte-array results."
+items = ["impl:InterpState::source_profile..impl:InterpState::expression_quote_control"]
+
+[[module]]
+name = "host_integration"
+doc = "What the embedding host plugs in and observes: the host and compiler, the debug hook and line watch, a pending `exit`, channels, the system encoding and output."
+items = [
+    "fn:run_observer_probe..fn:run_observer_probe#2",
+    "impl:DebugHookActivation::enter",
+    "impl:Drop for DebugHookActivation",
+    "impl:Vm::set_debug_hook..impl:Vm::set_host",
+    "impl:Vm::reset_standard_channel_configs..impl:Vm::remove_channel",
+]

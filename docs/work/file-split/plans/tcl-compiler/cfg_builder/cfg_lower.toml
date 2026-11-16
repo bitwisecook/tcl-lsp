@@ -1,0 +1,36 @@
+# The facade keeps the module docs, `lower_if` and its empty-clause helper;
+# each other structured construct gets the module that flattens it.
+file = "rust/tcl-compiler/src/cfg_builder/cfg_lower.rs"
+
+[[module]]
+name = "loops"
+doc = "Flattening `for`, `while` and `foreach` into header, body and step blocks."
+items = [
+    "fn:foreach_binding_statement..fn:literal_false_expr",
+    "impl:CfgBuilder<'_>::lower_for..impl:CfgBuilder<'_>::close_foreach_loop",
+    "struct:ForeachLoopFrame",
+    "impl:ForeachLoopFrame",
+]
+
+[[module]]
+name = "switch"
+doc = "Flattening `switch`: the subject operand, the arm tests and the opaque form that keeps the original invocation."
+items = [
+    "struct:SwitchEscape",
+    "fn:switch_subject_operand..fn:is_whole_var_ref",
+    "impl:CfgBuilder<'_>::lower_opaque_switch..impl:CfgBuilder<'_>::lower_switch",
+]
+
+[[module]]
+name = "try_construct"
+doc = "Flattening `try`: the body region, handler dispatch, completion codes and the `finally` exits."
+items = [
+    "impl:CfgBuilder<'_>::push_try_handler_exception_edges..impl:CfgBuilder<'_>::lower_try_finally",
+    "struct:TryBody",
+    "fn:handler_var_defs",
+]
+
+[[module]]
+name = "catch"
+doc = "Flattening `catch` and closing a flattened catch region."
+items = ["impl:CfgBuilder<'_>::lower_catch..impl:CfgBuilder<'_>::end_flattened_catch"]

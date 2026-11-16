@@ -1,0 +1,50 @@
+# The parent keeps the module docs and the harness every family uses: running
+# tclsh, quoting Tcl words, the registry fold under a dialect, the case matrix
+# and the storage route with its oracle.
+file = "rust/tcl-registry/tests/it_4/differential_fold.rs"
+
+[[module]]
+name = "constant_folds"
+doc = "Constant folds against tclsh: pure builtins, namespace string operations, `format`, `binary format` and the type a `string is` test proves."
+items = [
+    "const:FOLDABLE..fn:format_witnesses_match_every_release_on_path",
+    "const:BINARY_FORMAT_WITNESSES..fn:binary_format_witnesses_match_every_release_on_path",
+    "fn:a_string_is_type_is_the_representation_its_test_leaves",
+]
+
+[[module]]
+name = "cell_updates"
+doc = "Index reading and cell updates: list, keyed and variable updates and their storage outcomes on every release."
+items = [
+    "fn:cell_update_route..fn:storage_outcome_witnesses_match_every_release_on_path",
+    "const:NESTED..fn:an_index_the_hosts_long_decides_declines",
+]
+
+[[module]]
+name = "captures_and_destructuring"
+doc = "Commands that store into variables: `regexp` captures, `lassign` and `scan` destructuring, and the keys `dict with` binds."
+items = [
+    "type:RegexWitness",
+    "const:REGEX_WITNESSES..fn:destructuring_witnesses_match_every_release_on_path",
+    "fn:dict_with_binds_the_keys_tclsh_binds",
+]
+
+[[module]]
+name = "templates"
+doc = "Substitution templates rebuilt from their parts, against `subst` on every release."
+items = ["struct:TemplateInputs..fn:template_witnesses_match_every_release_on_path"]
+
+[[module]]
+name = "switch_and_case"
+doc = "Which arm `switch` and `case` select, including fall-through bodies, against every release."
+items = ["type:SwitchWitness..fn:case_witnesses_match_every_release_on_path"]
+
+[[module]]
+name = "ordered_evaluation"
+doc = "Evaluation order: the ordered-state witnesses and the prefix rule over the routes."
+items = ["enum:Stop..fn:the_prefix_rule_over_the_routes_matches_every_release_on_path"]
+
+[[module]]
+name = "literal_routes"
+doc = "Routes over literal operands: file paths, list searches and the tcllib `base32` package."
+items = ["fn:literal_route..fn:base32_routes_match_tcllib_on_every_release_on_path"]

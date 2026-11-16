@@ -1,0 +1,13 @@
+# The facade keeps `OriginalProducedNameValue`, the written-word carriers, word
+# capture and `OriginalSourceVariableCompilation`.
+file = "rust/tcl-compiler/src/command_binding/original_name_value.rs"
+
+[[module]]
+name = "recorded_names"
+doc = "The recorded original words of an invocation: lexer configuration, written names and head input."
+items = ["fn:original_static_command_head_input..impl:super::SourceInvocationBinding#2"]
+
+[[module]]
+name = "span_queries"
+doc = "Original written words and names at a source span of a completed interpretation."
+items = ["impl:super::SourceCommandBindings#2..struct:OriginalRealmQueryMemo"]

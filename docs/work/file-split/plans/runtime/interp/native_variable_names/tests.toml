@@ -1,0 +1,36 @@
+# The parent keeps the four `thread_local!` blocks (macros cannot move), the
+# `NamespaceOutputHost` fixture and `trace_source_observation`, which several
+# modules share. Most moved tests read recorded results through relative
+# `include_str!` paths: they need one more `../` after the move.
+file = "runtime/rust/src/interp/native_variable_names/tests.rs"
+
+[[module]]
+name = "name_free_callbacks"
+doc = "A name object freed during an operation: the callback probes for `upvar`, compiled slots and canonical names."
+items = ["struct:CurrentNameCallbackInterp..fn:original_canonical_name_free_callback_releases_borrows_and_stops_next_cache"]
+
+[[module]]
+name = "name_caches"
+doc = "Original name caches: the existence purpose, the alias and global caches, and the order the local cache is consulted and kept."
+items = [
+    "fn:exists_cache_purpose_probe..fn:alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners",
+    "struct:CacheLookupObserver..fn:original_link_lookup_and_unset_preserve_target_name_cache",
+]
+
+[[module]]
+name = "namespace_variables"
+doc = "Namespace declarations, alias settlement, qualified scope and the namespace cell behind a compiled local."
+items = ["fn:generic_namespace_declarations_match_all_25_native_execution_results..fn:namespace_opcodes_bypass_original_local_cache_and_retain_the_namespace_cell"]
+
+[[module]]
+name = "callback_windows"
+doc = "What a callback observes mid-operation: element tables and entries, search slots, scalar aliases and parsed name headers."
+items = ["fn:element_table_and_var_roles_match_all_25_actual_callback_windows..fn:original_parsed_headers_match_all_150_actual_c_windows"]
+
+[[module]]
+name = "source_controls"
+doc = "Recorded native source controls: trace registrations, list assignment, read diagnostics, retired namespaces, detached elements and array root writes."
+items = [
+    "fn:jim_trace_setup_observation..fn:recreated_element_trace_probe_preserves_actual_jim_unsupported_setup",
+    "fn:list_assignment_arity_matches_five_original_source_controls..fn:array_root_write_preserves_current_jim_dictionary_replacement",
+]

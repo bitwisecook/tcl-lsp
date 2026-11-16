@@ -1,0 +1,34 @@
+# Second level: applies to the `instructions` module that
+# plans/tcl-vm/exec.toml creates. The facade keeps the frame indexes, the
+# predicates that route an instruction to its executor, and the step itself
+# (`tick`, its prologue and stale-command replay).
+#
+# `opcode_dispatch` stays over the limit: `Vm::tick_instruction` is one
+# 2,105-line function (a single `match` over every opcode) and a split by
+# moving items cannot divide a function.
+file = "rust/tcl-vm/src/exec/instructions.rs"
+
+[[module]]
+name = "operands"
+doc = "Operand decoding and the stack operators the opcode arms share: immediates, indexes, jump targets, and the binary, comparison and unary operators."
+items = ["fn:imm0..fn:irule", "fn:native_numeric_type"]
+
+[[module]]
+name = "native_operations"
+doc = "Capturing the live command of a literal command head and entering the native compiler operations selected for it."
+items = ["impl:Vm::capture_native_command..impl:Vm::enter_native_compiler_selection"]
+
+[[module]]
+name = "opcode_dispatch"
+doc = "`tick_instruction`: the match over every non-invoking opcode."
+items = ["impl:Vm::tick_instruction"]
+
+[[module]]
+name = "variable_access"
+doc = "The variable instructions that can run traces: existence, array shape, unset, append, constants, links, loop variables and dictionary variables."
+items = ["impl:Vm::tick_variable_instruction..impl:Vm::tick_variable_dictionary_write"]
+
+[[module]]
+name = "scalar_variable_access"
+doc = "Scalar and array-element loads, stores and increments, by stack name and by local slot."
+items = ["impl:Vm::tick_scalar_variable_instruction..impl:Vm::tick_local_array_variable_instruction"]

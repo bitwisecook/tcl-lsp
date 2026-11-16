@@ -1,0 +1,81 @@
+# The facade keeps `ResolveContext` and the vocabulary enums its fields use,
+# the trace-prefix types, its `Hash`/`Default` impls and the small frame
+# accessors; the large inherent impl is split by concern, one impl block a file.
+file = "rust/tcl-compiler/src/var_resolve.rs"
+
+[[module]]
+name = "proof_relocation"
+doc = "`VariableProofRelocation`: alpha-renaming proved allocations and source sites, and relocating a whole `ResolveContext` through it."
+items = [
+    "struct:VariableProofRelocation",
+    "impl:VariableProofRelocation",
+    "impl:PossibleVariableTraceRegistration",
+    "impl:ResolveContext::relocated..impl:ResolveContext::relocate_contents_and_observers",
+]
+
+[[module]]
+name = "frame_restore"
+doc = "Returning to the caller activation while keeping a callee's effects on outward namespace storage."
+items = ["fn:restore_execution_frame..fn:restore_selected_bindings"]
+
+[[module]]
+name = "frame_selection"
+doc = "Selecting and entering activations: namespace and function frames, called frames and proved selected frames."
+items = ["impl:ResolveContext::for_namespace..impl:ResolveContext::selected_frame_context"]
+
+[[module]]
+name = "contents_reads"
+doc = "What a read sees: contents origins, literal values, presence, and whether a read completes or is definitely missing."
+items = [
+    "impl:ResolveContext::contents_origin..impl:ResolveContext::implicit_read_changes_value",
+    "impl:ResolveContext::literal_value..impl:ResolveContext::dictionary_element_read_produces_value",
+]
+
+[[module]]
+name = "contents_stores"
+doc = "Publishing stores: contents writes, literal and unknown definitions, captured receivers, root kinds and representations."
+items = [
+    "impl:ResolveContext::invalidate_contents_literals..impl:ResolveContext::record_unknown_element_destruction",
+    "impl:ResolveContext::define_literal..impl:ResolveContext::define_unknown_contents",
+    "impl:ResolveContext::define_unknown_contents_with_representation",
+]
+
+[[module]]
+name = "incoming_bindings"
+doc = "Binding an activation's incoming values: unknown and literal arguments and authenticated original formals."
+items = ["impl:ResolveContext::bind_unknown_incoming..impl:ResolveContext::record_incoming_binding_origin"]
+
+[[module]]
+name = "join"
+doc = "Joining incoming binding states at a control-flow merge."
+items = ["impl:ResolveContext::join..impl:ResolveContext::join_trace_registrations", "fn:join_alias_target"]
+
+[[module]]
+name = "invalidation"
+doc = "Withdrawing proofs: original-contents epochs, native representations, and widening after evaluated code."
+items = ["impl:ResolveContext::original_contents_epoch..impl:ResolveContext::widen"]
+
+[[module]]
+name = "scalar_binding"
+doc = "Binding a base name to its cell: index classification, receivers, slot and name aliases, and cell identity."
+items = ["fn:has_subst..fn:bind_cell_identity"]
+
+[[module]]
+name = "canonical_keys"
+doc = "Stable keys and compatibility names for bound places: cell keys, binding-value keys and namespace-variable identities."
+items = ["fn:cell_key..fn:canonical_namespace_variable_key", "fn:canonical_variable_key"]
+
+[[module]]
+name = "place_resolution"
+doc = "Resolving a written or literal variable name to a place: alias destinations, namespace access origins, accesses and dictionary paths."
+items = [
+    "fn:resolve_alias_destination_slot..fn:authored_namespace_place",
+    "fn:resolve_place",
+    "fn:resolve_literal_place..fn:resolve_place_value",
+    "fn:resolve_access..fn:resolve_dict_path",
+]
+
+[[module]]
+name = "observer_projection"
+doc = "The trace callbacks an access observes: registration keys and the ordered projection of known callbacks."
+items = ["fn:trace_key..fn:project_access"]

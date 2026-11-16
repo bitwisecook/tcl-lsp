@@ -1,0 +1,34 @@
+# The facade keeps `WordTypingCtx` with its accessors, `TypePropagationMetadata`,
+# the `propagate_types*` solver with its per-block statement pass and
+# refinements, and the function return-type inference.
+file = "rust/tcl-compiler/src/type_infer.rs"
+
+[[module]]
+name = "literals"
+doc = "The intrep type of a literal in `set` and in `expr` context, and the decoded contents of an original literal argument."
+items = ["fn:int_literal_shape..fn:expr_literal_type"]
+
+[[module]]
+name = "expression_types"
+doc = "The type an expression node produces: operators and math-function calls."
+items = ["fn:infer_expr_type..fn:expr_call_type"]
+
+[[module]]
+name = "container_elements"
+doc = "Element facts of lists and dictionaries: what a builder's words contribute and how an in-place write evolves them."
+items = ["fn:element_word_shape..fn:uniform_bound_of_shapes"]
+
+[[module]]
+name = "word_types"
+doc = "The type a value word stores: nested command results, prepared expressions, class constructions and variable reads."
+items = ["fn:normal_result_type..fn:type_of_read_contents"]
+
+[[module]]
+name = "caller_safe_factories"
+doc = "The proof that a straight-line body only calls empty source-class factories, which keeps caller types unclobbered."
+items = ["fn:empty_source_class..fn:substitutions_have_only_caller_safe_factories"]
+
+[[module]]
+name = "definition_types"
+doc = "How one statement types the variables it defines: stores, calls with write typing, and `foreach` element variables."
+items = ["enum:DefTyping..fn:foreach_var_lattice"]

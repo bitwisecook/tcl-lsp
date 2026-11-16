@@ -1,0 +1,141 @@
+# The parent keeps the token and dispatch helpers every group uses (`esc_tok`,
+# `str_tok`, `span`, `elements`, `dispatch_tokens`, `analysed`,
+# `dispatch_words`). Modules carry the names of the handler modules planned in
+# `handlers.toml`; `classes` is split again by `handlers/tests/classes.toml`,
+# as `handlers/classes.rs` is.
+file = "rust/tcl-compiler/src/analyser/handlers/tests.rs"
+
+[[module]]
+name = "written_variables"
+doc = "`set`, `incr`, loop variables and the other variables a command writes."
+items = [
+    "fn:a_whole_word_loop_variable_records_its_declaration_occurrence",
+    "fn:handle_set_defines_variable..fn:handle_set_no_value_undefined_var_is_silent",
+    "fn:incr_binds_its_target_by_role..fn:dict_for_and_dict_update_bind_their_loop_variables_by_role",
+    "fn:analyse_top_level_repairs_stray_close_bracket",
+]
+
+[[module]]
+name = "scope_aliases"
+doc = "`global`, `variable`, `namespace upvar` and `upvar` links."
+items = [
+    "fn:handle_global_defines_each_name..fn:upvar_level_word_presence_follows_argument_count_parity",
+    "fn:variable_global_upvar_skip_dynamic_names",
+]
+
+[[module]]
+name = "value_provenance"
+doc = "Values a handler reads through checked logical provenance: dynamic words, constant folds, interpreter handles and dictionary keys."
+items = ["fn:original_value_use_token..fn:dynamic_apply_scanner_uses_irules_brace_boundary_config"]
+
+[[module]]
+name = "procedures"
+doc = "`proc` declarations, the body walk, parameter traits and the global `unknown` handler."
+items = [
+    "fn:a_procedure_after_an_unterminated_bracket_is_still_declared",
+    "fn:handle_proc_command_records_every_declaration_site_even_when_shadowed..fn:handle_proc_too_few_args_returns_false",
+    "fn:handle_proc_creates_proc_scope_for_braced_body..fn:handle_proc_body_walk_does_not_leak_inner_doc_comment",
+    "fn:handle_proc_command_dynamic_name_resolves_via_constant_fold..fn:handle_proc_command_unresolvable_dynamic_name_keeps_raw_text",
+    "fn:analyse_unknown_proc_records_dispatch_targets_end_to_end..fn:analyse_unknown_proc_with_empty_body_marks_empty_stub",
+    "fn:analyse_namespace_local_unknown_proc_does_not_seed_the_global_handler..fn:analyse_qualified_unknown_proc_also_populates_info",
+    "fn:analyse_w123_suppressed_when_package_require_seen..fn:analyse_with_deep_param_traits_off_matches_shallow",
+    "fn:nested_def_in_qualified_encloser_does_not_overwrite_global",
+    "fn:analyse_with_declared_stub_propagates_role_to_param_traits..fn:analyse_without_stub_directive_leaves_body_untyped",
+]
+
+[[module]]
+name = "definition_warnings"
+doc = "W113: a `proc` that shadows a built-in command."
+items = [
+    "fn:handle_proc_emits_w113_for_builtin_shadow..fn:handle_proc_w113_silent_on_namespace_qualified_shadow",
+]
+
+[[module]]
+name = "namespaces"
+doc = "`namespace eval`, `inscope`, `code`, `path`, `import` and `export`."
+items = [
+    "fn:handle_namespace_export_records_pattern..fn:bare_call_honours_namespace_path_only_from_8_5",
+    "fn:namespace_inscope_runs_the_body_in_the_named_namespace..fn:namespace_code_analyses_the_script_in_the_current_namespace",
+    "fn:handle_namespace_eval_creates_child_scope..fn:two_dynamic_namespace_eval_blocks_sharing_a_variable_name_never_collide",
+]
+
+[[module]]
+name = "ensembles"
+doc = "`namespace ensemble create` and `configure`, and the call sites that dispatch through them."
+items = [
+    "fn:handle_namespace_ensemble_records_in_set..fn:handle_namespace_ensemble_wrong_subcommand_no_op",
+]
+
+[[module]]
+name = "interpreters"
+doc = "`interp create` and the isolation of scripts evaluated in a child interpreter."
+items = [
+    "fn:interp_create_value_words_strip_a_single_braced_path_issue_1025..fn:interp_create_bare_and_flag_only_forms_are_unchanged",
+    "fn:interp_eval_child_isolates_definitions_from_the_parent..fn:cross_domain_interp_alias_links_child_calls_to_the_parent_target_945",
+    "fn:interp_eval_empty_path_is_the_current_interpreter",
+]
+
+[[module]]
+name = "safe_interpreters"
+doc = "Hidden commands in safe interpreters: `hide`, `expose` and the W129 reports through indirection, deferred bodies and ensembles."
+items = [
+    "fn:safe_interp_hides_unsafe_commands_and_expose_restores_945..fn:safe_interp_w129_alias_bridged_command_not_flagged_through_indirection_1001",
+    "fn:safe_interp_w129_reaches_deferred_proc_body_under_per_item_1001..fn:safe_interp_w129_ensemble_configure_map_replaces_not_merges_1001",
+]
+
+[[module]]
+name = "command_aliases"
+doc = "`interp alias`, `rename` and the matching of computed command names against a moved command."
+items = [
+    "fn:command_name_pattern_with_closer..fn:dynamic_command_name_may_equal",
+    "fn:command_mutation_overlap_retains_the_original_configured_closer",
+    "fn:dynamic_command_name_patterns_keep_only_proven_fixed_fragments",
+    "fn:command_mutation_matching_preserves_constructed_colon_keys",
+    "fn:rename_inside_a_child_body_does_not_touch_the_parent_command_table..fn:empty_path_interp_alias_at_top_level_still_homes_globally",
+    "fn:handle_interp_alias_records_canonical_form..fn:handle_interp_alias_wrong_shape_no_op",
+    "fn:handle_rename_records_static_move..fn:handle_rename_wrong_shape_no_op",
+    "fn:a_rename_in_a_try_handler_is_not_a_straight_line_deletion",
+]
+
+[[module]]
+name = "control_flow"
+doc = "`foreach`, `for`, `switch`, `catch`, `try` and `uplevel`."
+items = [
+    "fn:handle_foreach_defines_single_loop_var..fn:handle_foreach_too_few_args_returns_false",
+    "fn:handle_foreach_rename_reinstall_idiom_resolves_every_literal_element..fn:handle_try_walks_trap_handler_body",
+    "fn:every_installer_spec_lands_on_a_live_redispatch_arm",
+    "fn:for_start_runs_at_the_enclosing_depth_and_next_and_body_per_iteration",
+    "fn:uplevel_nonzero_isolates_body_vars_from_proc",
+    "fn:uplevel_zero_still_resets_to_global_frame",
+]
+
+[[module]]
+name = "name_resolution"
+doc = "`resolve_proc_call` and `resolve_dynamic_word`."
+items = [
+    "fn:resolve_proc_call_absolute_qualified_name..fn:resolve_proc_call_empty_name_returns_none",
+    "fn:resolve_dynamic_word_braced_literal_dollar_is_not_mistaken_for_dynamic..fn:resolve_dynamic_word_missing_token_is_none",
+]
+
+[[module]]
+name = "code_loading"
+doc = "`source` and `package require`, `ifneeded` and `prefer`."
+items = [
+    "fn:handle_source_command_resolves_a_same_file_constant_variable..fn:handle_source_command_leaves_a_bracket_wrapped_variable_dynamic",
+    "fn:package_require_conditionality_follows_the_branch_selected_body_trait..fn:package_require_conditionality_per_try_clause_kind",
+    "fn:analyse_records_package_require..fn:analyse_records_package_prefer_latest",
+]
+
+[[module]]
+name = "classes"
+doc = "Class systems: class and object definitions, class factories and the static reading behind class-creation proofs."
+items = [
+    "fn:original_registry_class_definers_require_the_selected_source_and_complete_arguments..fn:bound_parameter_substitution_uses_the_complete_shared_reference_grammar",
+    "fn:segment_completion_retains_return_depth_and_implementation_identity..fn:original_static_proc_selection_does_not_borrow_final_names_or_caller_labels",
+    "fn:assert_no_static_proc_completion..fn:original_logical_static_completion_keeps_alias_ordinals_and_source_owners",
+    "fn:builtin_next_completion_requires_the_actual_mro_end",
+    "fn:static_write_invalidation_preserves_scalar_parenthesis_names",
+    "fn:class_observation..fn:parameterised_class_join_abstains_on_two_observed_metaclasses",
+    "fn:foreach_objdefine_records_per_object_facts_for_every_literal_element..fn:handle_oo_define_no_args_returns_false",
+    "fn:analyse_oo_class_records_metaclass_from_command_name..fn:analyse_oo_class_body_records_property_def",
+]

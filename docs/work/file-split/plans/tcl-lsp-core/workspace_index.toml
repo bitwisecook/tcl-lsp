@@ -1,0 +1,126 @@
+# The facade keeps `WorkspaceIndex`, `DocumentRecords` and the document
+# lifecycle (add, replace, remove, invalidate, the source-inventory receipt),
+# with the record types whose private fields both the indexing and the query
+# modules read: `WorkspaceClass`, `WorkspaceInvocation`,
+# `WorkspaceVariableAlias` and `WorkspaceLogicalCommandCall`.
+# `namespace_imports` is split again by `workspace_index/namespace_imports.toml`.
+file = "rust/tcl-lsp-core/src/workspace_index.rs"
+
+[[module]]
+name = "records"
+doc = "The record types one document contributes: procedures, methods, symbols, variables, sources, packages and command links."
+items = [
+    "struct:WorkspaceProc",
+    "struct:WorkspaceMethod..enum:MethodAccess",
+    "struct:WorkspaceDefinedSymbol..struct:WorkspaceVariableRef",
+    "struct:WorkspaceNamespaceRef..struct:WorkspaceCommandRetirement",
+    "struct:WorkspaceNamespaceExport",
+    "struct:WorkspaceDiagnosticSourceContext..impl:WorkspaceDiagnosticSourceContext",
+]
+
+[[module]]
+name = "document_records"
+doc = "Filling one document's record tables from its analysis, and clearing them."
+items = [
+    "fn:sorted_by_span",
+    "fn:sorted_names..fn:resolved_user_definition",
+    "impl:DocumentRecords::clear",
+    "impl:DocumentRecords::index_document..impl:DocumentRecords::index_alias_and_rename_links",
+    "impl:WorkspaceIndex::enclosing_body_spans",
+    "fn:global_rooted",
+]
+
+[[module]]
+name = "settlement_dependencies"
+doc = "The per-document inputs command settlement reads, compared across an edit to decide what must settle again."
+items = [
+    "struct:OriginalPublicationDependency..struct:SettlementDependencies",
+    "impl:DocumentRecords::settlement_dependencies..impl:DocumentRecords::original_class_source_candidates",
+]
+
+[[module]]
+name = "symbol_search"
+doc = "Workspace symbols matching a query."
+items = [
+    "impl:DocumentRecords::collect_symbols_matching..impl:DocumentRecords::collect_original_symbols_matching",
+    "impl:WorkspaceIndex::symbols_matching..impl:WorkspaceIndex::symbols_matching_excluding",
+]
+
+[[module]]
+name = "load_order"
+doc = "What each document loads: `source` edges and the host resolver, package declarations, the run order and imported path constants."
+items = [
+    "impl:WorkspaceIndex::set_source_resolver..impl:WorkspaceIndex::package_run_edges",
+    "impl:WorkspaceIndex::sources..impl:WorkspaceIndex::has_source_edges",
+]
+
+[[module]]
+name = "logical_navigation"
+doc = "Logical source views: command calls, declaration candidates, and variable, namespace and member locations."
+items = [
+    "struct:LogicalWorkspaceCommandCandidate..impl:LogicalWorkspaceCommandCandidate",
+    "struct:WorkspaceLogicalClassMemberTargets..struct:WorkspaceLogicalSelfMemberTargets",
+    "impl:WorkspaceIndex::logical_member_provider_matches_target..impl:WorkspaceIndex::logical_declaration_source_names_at",
+    "impl:WorkspaceIndex::source_analysis_input..impl:WorkspaceIndex::logical_member_location_is_retained",
+    "impl:WorkspaceIndex::logical_procedure_source_candidates..impl:WorkspaceIndex::logical_math_source_cards",
+    "impl:WorkspaceIndex::logical_procedure_candidate..impl:WorkspaceIndex::logical_command_candidate_is_current",
+]
+
+[[module]]
+name = "declarations"
+doc = "Procedure, class and namespace-variable declarations in the index: listings, live definitions, source candidates and lookups by name."
+items = [
+    "impl:WorkspaceIndex::definition_name_is_live",
+    "impl:WorkspaceIndex::command_names",
+    "impl:WorkspaceIndex::procs..impl:WorkspaceIndex::original_procedure_declarations",
+    "impl:WorkspaceIndex::original_procedure_source_candidates..impl:WorkspaceIndex::live_classes_in",
+    "impl:WorkspaceIndex::classes_named",
+    "impl:WorkspaceIndex::procs_matching",
+    "impl:WorkspaceIndex::proc_definitions..impl:WorkspaceIndex::class_definitions_qualified",
+    "impl:WorkspaceIndex::variables..impl:WorkspaceIndex::variable_definitions_qualified",
+    "impl:WorkspaceIndex::all_class_qnames..impl:WorkspaceIndex::documents_invoking_classes",
+]
+
+[[module]]
+name = "class_dispatch"
+doc = "The class graph across documents: linearisation, method dispatch chains, effective members and override families."
+items = [
+    "fn:method_side..fn:effective_member",
+    "fn:visibility_sets_for",
+    "struct:ClassEdges..impl:ClassEdges",
+    "impl:WorkspaceIndex::resolve_class_relation..impl:WorkspaceIndex::method_family_qnames",
+]
+
+[[module]]
+name = "symbol_occurrences"
+doc = "Occurrences across documents: namespaces, namespace variables, aliases and method selectors."
+items = ["impl:WorkspaceIndex::documents_in_namespace..impl:WorkspaceIndex::variable_refs_of"]
+
+[[module]]
+name = "command_settlement"
+doc = "The command each invocation settles to: live links, the settled-target index and the call sites of a declaration."
+items = [
+    "enum:SettledCommandTarget..struct:IncrementalSettledState",
+    "impl:Clone for IncrementalSettledTargets",
+    "impl:IncrementalSettledTargets::invalidate_all..impl:IncrementalSettledTargets::settled_documents",
+    "impl:WorkspaceIndex::import_source_matches..impl:WorkspaceIndex::live_command_links",
+    "impl:WorkspaceIndex::defines_command..impl:WorkspaceIndex::observable_namespaces",
+    "impl:WorkspaceIndex::command_links",
+    "impl:WorkspaceIndex::invocations_of..impl:WorkspaceIndex::link_target_spans",
+    "impl:WorkspaceIndex::workspace_command_exists..impl:WorkspaceIndex::defined_command_names",
+]
+
+[[module]]
+name = "namespace_imports"
+doc = "`namespace import` across documents: wildcard and exact imports, export gates, import chains and the export snapshot."
+items = [
+    "impl:WorkspaceIndex::original_namespace_patterns..impl:WorkspaceIndex::original_import_export_verdict",
+    "impl:WorkspaceIndex::export_snapshot",
+    "impl:WorkspaceIndex::resolve_wildcard_import..impl:WorkspaceIndex::import_hop",
+    "impl:WorkspaceGlobImport",
+    "impl:WorkspaceImportGate",
+    "struct:ImportChainTarget..type:DeclarationSitesByName",
+    "impl:<'a> WildcardImportIndex<'a>::build..impl:<'a> WildcardImportIndex<'a>::exports_name_at",
+    "fn:export_events..fn:importing_namespace_of",
+    "fn:ns_eq..impl:<'a> CallSite<'a>",
+]

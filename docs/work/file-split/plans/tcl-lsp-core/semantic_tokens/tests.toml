@@ -1,0 +1,117 @@
+# The parent keeps the decoding helpers (other test files call
+# `tests::decode_semantic`) and the tests of the `full`, `coarse` and `range`
+# entry points. The modules carry the names of the modules of
+# `semantic_tokens.toml`; `command_identity` pins one behaviour across several.
+file = "rust/tcl-lsp-core/src/semantic_tokens/tests.rs"
+
+[[module]]
+name = "legend"
+doc = "The legend, its modifier order and the editor scope mappings that must cover it."
+items = [
+    "fn:typed_token_kinds_project_custom_legend_names_in_wire_order",
+    "fn:legend_includes_regexp_and_event",
+    "fn:legend_has_expected_entries..fn:legend_modifiers_order",
+    "const:BIGIP_ONLY..fn:vscode_semantic_token_scopes_cover_the_narrow_dialects",
+    "fn:vscode_semantic_token_scopes_do_not_shadow_standard_defaults",
+]
+
+[[module]]
+name = "argument_tokens"
+doc = "Argument words: expression operands, quoted strings, barewords, variables and numbers."
+items = [
+    "fn:expression_commands_keep_nested_substitution_closers..fn:nested_command_head_substitution_in_an_expression_keeps_word_extents_2265",
+    "fn:quoted_var_at_string_start_no_overlap..fn:quoted_string_opening_fragment_is_single_quote",
+    "fn:bareword_argument_classified_as_string",
+    "fn:builtin_name_as_bareword_arg_is_string",
+    "fn:variables_classified_as_variable..fn:number_tokens_follow_the_document_dialect",
+]
+
+[[module]]
+name = "script_walk"
+doc = "Recursion into script-shaped arguments: case lists, definition bodies, `apply` lambdas and `uplevel`."
+items = [
+    "fn:case_list_patterns_keep_literal_braces_from_selected_elements",
+    "fn:expect_canonical_and_abbreviated_regex_flags_tokenise_in_both_shapes..fn:renamed_away_expect_spelling_gets_no_case_list_overrides",
+    "fn:method_body_recurses_in_class_definition_script..fn:consoleinterp_eval_and_record_bodies_recurse_into_script",
+    "fn:apply_lambda_body_recurses..fn:package_ifneeded_literal_script_recurses_as_body",
+    "fn:uplevel_body_recurses_as_script..fn:uplevel_issue_837_repro_recurses",
+]
+
+[[module]]
+name = "command_roles"
+doc = "Roles the registry gives argument words: options, option values, enum members and subcommand keywords."
+items = [
+    "fn:known_option_classified_as_decorator..fn:abbreviated_option_classified_as_decorator",
+    "fn:subcommand_option_classified_as_decorator..fn:oo_define_inline_keyword_classified_as_keyword",
+    "fn:option_enum_value_is_enum_member..fn:option_textvariable_value_is_variable_declaration",
+]
+
+[[module]]
+name = "variable_name_roles"
+doc = "Argument words that name a variable or a command: writes, reads, array elements and procedure-declared roles."
+items = ["fn:var_write_target_carries_declaration_modifier..fn:command_prefix_callback_head_highlights_as_function"]
+
+[[module]]
+name = "regex_subtokens"
+doc = "Regular-expression words and their component sub-tokens, and `regsub` substitutions."
+items = [
+    "fn:lsearch_regexp_pattern_uses_the_registry_selected_language..fn:lsearch_pattern_tokens_abstain_for_invalid_profiled_option_prefixes",
+    "fn:regex_pattern_with_substitution_splits_regex_and_tcl..fn:regex_source_literal_is_retagged_in_every_body_kind",
+    "fn:regexp_pattern_classified_as_regexp..fn:dynamic_leading_options_do_not_claim_pattern_or_regsub_replacement_tokens",
+    "fn:regex_pattern_subtokenised_into_components..fn:regex_alternation_and_escape_subtokens",
+    "fn:scan_are_class_spans_posix_collating_equivalence_subbrackets..fn:classify_regex_component_maps_each_kind",
+    "fn:regsub_replacement_backref_subtokens..fn:regsub_replacement_without_backrefs_stays_string",
+]
+
+[[module]]
+name = "format_subtokens"
+doc = "Sub-tokens of `format`, `scan`, `clock` and `binary` specifications and backslash escapes."
+items = [
+    "fn:escape_subtoken_width_follows_the_selected_release_grammar..fn:escape_before_multibyte_char_does_not_panic",
+    "fn:sprintf_format_spec_subtokens..fn:binary_signed_modifier_suppressed_in_tcl84",
+    "fn:a_computed_format_word_falls_back_to_its_plain_classification",
+]
+
+[[module]]
+name = "object_dispatch"
+doc = "Method words of object receivers, with the table of TclOO dispatch patterns that must resolve or abstain."
+items = ["fn:object_method_options_resolve_via_registry..fn:malformed_braced_object_handle_does_not_resolve_a_method"]
+
+[[module]]
+name = "command_tokens"
+doc = "Command heads: computed and variable heads, operators, keywords, the default-library modifier and qualified names."
+items = [
+    "fn:computed_command_head_does_not_overlap..fn:variable_command_head_is_a_variable",
+    "fn:operator_command_head_classified_as_operator..fn:word_form_operator_command_heads_classified_as_operator",
+    "fn:builtin_command_head_gets_default_library_modifier..fn:keywords_classified_as_keyword",
+    "fn:keyword_words..fn:try_on_finally_are_keywords",
+    "fn:original_keyword_contents_preserve_literal_closing_bytes..fn:quoted_structural_keyword_offsets_past_quote",
+    "fn:classify_command_head_picks_namespace_for_qualified..fn:classify_command_head_follows_the_effective_identity",
+]
+
+[[module]]
+name = "irules_document"
+doc = "iRules event names and BIG-IP object references."
+items = [
+    "fn:event_name_classified_as_event..fn:bigip_object_ref_not_emitted_in_plain_tcl",
+    "fn:is_event_name_matches_event_shape",
+]
+
+[[module]]
+name = "emission"
+doc = "Comment tokens and UTF-16 token lengths."
+items = [
+    "fn:comment_inside_multiline_string_is_not_a_comment",
+    "fn:comments_classified_as_comment",
+    "fn:semantic_token_lengths_use_utf16_code_units..fn:many_comment_lines_do_not_drift_out_of_bounds",
+]
+
+[[module]]
+name = "delta"
+doc = "The edit list between two encoded token arrays."
+items = ["fn:diff_returns_none_for_identical_streams..fn:diff_handles_removed_token"]
+
+[[module]]
+name = "command_identity"
+doc = "Grammar follows the head's effective command identity: qualified names, aliases, renames and rebinding."
+items = ["fn:kinds_only..fn:dynamic_head_gets_no_format_grammar"]

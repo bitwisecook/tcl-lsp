@@ -1,0 +1,66 @@
+# The parent keeps the shared helpers and the tests of what `rename.rs` itself
+# keeps: the edit plan, `prepare_rename` and the new-name safety gate. `members`,
+# `variables` and `commands` match the production modules; the member tests are
+# further divided by what they pin.
+file = "rust/tcl-lsp-core/src/rename/tests.rs"
+
+[[module]]
+name = "commands"
+doc = "Procedure and class renames: ensemble map targets, imports, namespace prefixes, cross-document edits and collisions."
+items = [
+    "fn:original_primary_command_rename_uses_canonical_opaque_inputs_and_atomic_prepare",
+    "fn:an_undispatched_map_target_refuses_rather_than_leave_the_map_stale..fn:a_dynamic_map_leaves_the_dispatch_word_unattributed_1281",
+    "fn:rename_proc_includes_decl_and_calls..fn:rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers",
+    "fn:rename_unknown_word_empty..fn:cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word",
+    "fn:cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched..fn:cross_document_symbol_edits_apply_the_ensemble_map_gate_1281",
+    "fn:namespace_prefix_of_qualified_names..fn:prepare_rename_returns_range_for_class",
+    "fn:rename_proc_rejected_on_existing_proc_collision",
+]
+
+[[module]]
+name = "members"
+doc = "Method and property renames: declarations, `my` dispatch, cursor disambiguation and external `$obj method` sites."
+items = [
+    "fn:original_primary_member_rename_does_not_enter_string_override_families",
+    "fn:rename_method_at_decl_rewrites_decl_and_calls..fn:rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site",
+    "fn:rename_property_rewrites_decl_and_my_dispatch_call_sites..fn:rename_method_external_rewrites_proc_body_sites",
+]
+
+[[module]]
+name = "member_targets"
+doc = "Which member the cursor selects and with what access: receiver sides, class-body fallback and workspace callbacks."
+items = [
+    "fn:workspace_resolves_inherited_namespace_wrapped_callback_with_internal_access..fn:workspace_callback_dispatch_obeys_mixin_mro_over_child_override",
+    "fn:method_target_classifies_a_bare_class_receiver_as_a_classmethod..fn:method_target_abstains_on_a_parameter_sharing_a_method_name",
+    "fn:untargeted_member_target_answers_only_inside_the_class_body",
+]
+
+[[module]]
+name = "override_families"
+doc = "Method renames across overrides, inheritors and export lists."
+items = ["fn:rename_method_renames_subclass_override..fn:tp_rename_method_rewrites_an_export_in_a_separate_oo_define_block"]
+
+[[module]]
+name = "member_hazards"
+doc = "Member renames the safety gate refuses or admits: untracked receivers and scoped object commands."
+items = [
+    "fn:rename_rewrites_a_method_return_captured_dispatch_site..fn:rename_still_refuses_on_a_genuinely_untracked_receiver",
+    "fn:tn_object_command_dispatch_is_scoped_to_its_creation_namespace",
+    "fn:fp_rename_refuses_the_untracked_receiver_dispatch..fn:fn_guard_a_fully_tracked_member_renames_from_every_trigger_position",
+]
+
+[[module]]
+name = "variables"
+doc = "Variable renames: declarations and reads, global aliases, braced and array references and reference replacement."
+items = [
+    "fn:rename_from_the_in_proc_global_alias_rewrites_the_callers_canonical_set_too..fn:rename_from_the_callers_canonical_set_rewrites_every_in_proc_global_alias_too",
+    "fn:rename_var_includes_decl_span..fn:rename_array_variable_preserves_index_in_braced_reference",
+    "fn:build_var_ref_replacement_handles_all_forms..fn:original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names",
+    "fn:rename_var_from_definition_site_resolves_without_dollar..fn:rename_var_rejected_on_same_scope_collision",
+    "fn:logical_rename_preserves_original_separator_runs_unicode_and_array_extent",
+]
+
+[[module]]
+name = "namespace_variables"
+doc = "Namespace-variable renames: declarations, aliases, qualified uses and collisions."
+items = ["fn:colon_variable_rename_keeps_the_empty_cell_separate..fn:tn_namespace_variable_rename_leaves_an_unrelated_local_alone"]

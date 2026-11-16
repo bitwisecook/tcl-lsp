@@ -1,0 +1,36 @@
+# Second level of `lib.toml`. The facade keeps the budget, the test seams, the token cache
+# types, `SemanticTokensRefreshCtx` and the wire encoding of a token stream.
+file = "rust/tcl-lsp-server/src/semantic_tokens.rs"
+
+[[module]]
+name = "refresh"
+doc = "Coalesced `workspace/semanticTokens/refresh` requests and the convergence claims behind them."
+items = [
+    "const:SEMANTIC_TOKENS_REFRESH_DEBOUNCE..fn:log_semantic_tokens_refresh_fired",
+    "type:ConvergenceInFlight..fn:refresh_if_coalesced",
+    "impl:SemanticTokensRefreshCtx",
+    "impl:Backend::rearm_enriched_refresh",
+]
+
+[[module]]
+name = "full"
+doc = "`semanticTokens/full` and its delta: the budget race and the convergence continuation."
+items = [
+    "fn:configured_coarse_semantic_tokens..fn:coarse_semantic_source_changed",
+    "enum:EnrichedDelivery..impl:FullSettleOutcome",
+    "impl:Backend::semantic_tokens_core_data",
+    "impl:Backend::spawn_full_convergence",
+    "impl:Backend::resolve_pending_token_dialect..impl:Backend::semantic_tokens_full_delta_attempt",
+    "fn:semantic_token_delta_edits",
+]
+
+[[module]]
+name = "range"
+doc = "`semanticTokens/range`: the viewport race and its convergence continuation."
+items = [
+    "struct:RangeConvergenceInputs",
+    "impl:Backend::non_tcl_range_tokens",
+    "impl:Backend::race_range_enriched_reads..impl:Backend::inline_range_settlement",
+    "enum:RangeSettleOutcome..fn:unindexed_semantic_tokens_for_range",
+    "fn:core_semantic_range..fn:range_token_data",
+]

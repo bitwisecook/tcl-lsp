@@ -1,0 +1,19 @@
+# The facade keeps `NumericContext`, the context-free `unary`, the iRules
+# word operators and the `ExprEval` adapter with its `ExprOps` implementation
+# (the entry point `EXPR_STK` and the expression commands use).
+file = "rust/tcl-vm/src/expr.rs"
+
+[[module]]
+name = "arithmetic"
+doc = "The numeric tower under every operator: operand coercion (`Num`), `i128`, arbitrary-precision and double arithmetic, and the operand errors."
+items = ["enum:Num..fn:arith_numbers"]
+
+[[module]]
+name = "comparison"
+doc = "Comparison operators: numeric comparison across the whole tower with the string comparison fallback."
+items = ["fn:cmp_bigint_double..fn:compare_with_numeric_using"]
+
+[[module]]
+name = "context_operators"
+doc = "Operators under the numeric policy an activation selected (`NumericContext`): native operand conversion, `arith_in`, `unary_in`, `compare_in` and their operand errors."
+items = ["fn:native_num..fn:compare_in"]

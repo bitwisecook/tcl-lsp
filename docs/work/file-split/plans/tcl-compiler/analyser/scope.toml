@@ -1,0 +1,76 @@
+# The facade keeps the module docs, the path addressing of the scope tree
+# (`scope_at`, `scope_at_mut`, `ancestor_paths`, `current_scope`,
+# `walk_scopes_from`), the `logical_array_indices` module and the small
+# `SourceInterpreterScopeRelation` query.
+file = "rust/tcl-compiler/src/analyser/scope.rs"
+
+[[module]]
+name = "command_namespaces"
+doc = "The namespace an unqualified command resolves in at a source offset, the implicit `namespace path` and the TclOO frame predicates."
+items = [
+    "fn:advance_command_resolution_namespace..fn:innermost_containing_child",
+    "fn:command_resolution_namespace_at..fn:innermost_oo_frame",
+    "impl:Analyser::command_resolution_namespace..impl:Analyser::current_method_context",
+]
+
+[[module]]
+name = "logical_scope_advice"
+doc = "`LogicalVariableScopeAdvice`: the declaration tables Logical source advice may read at an offset, and the read-only dictionary keys it infers."
+items = [
+    "fn:original_dictionary_key_spans",
+    "enum:LogicalVariableScopeKind..impl:super::types::AnalysisResult",
+    "impl:Analyser::retain_readonly_dictionary_keys",
+]
+
+[[module]]
+name = "namespace_variables"
+doc = "Namespace-qualified variables: lookup by qualified name, alias links, and the qualified references recorded and attached after the walk."
+items = [
+    "fn:lookup_var_in_namespace..fn:variable_alias_links",
+    "fn:lookup_var_by_literal_qualified_name..fn:qualified_name_for_var_decl",
+    "impl:Analyser::record_qualified_var_ref..impl:Analyser::retain_qualified_variable_reference",
+    "impl:Analyser::attach_qualified_var_references",
+]
+
+[[module]]
+name = "invocation_resolution"
+doc = "The post-walk settlement of each invocation's resolved command: liveness of definitions at the call, reachable call offsets and ensemble targets."
+items = [
+    "struct:KnownPredicateCtx..fn:record_known_winner",
+    "impl:Analyser::resolve_command_qualified_name..impl:Analyser::finalise_invocation_resolutions",
+    "fn:settle_prebuilt_candidates",
+    "fn:ensemble_word_input",
+]
+
+[[module]]
+name = "constant_values"
+doc = "The constant strings and interpreter paths a variable is known to hold, and the Logical lookups over them."
+items = [
+    "struct:LogicalConstStringProvenance..struct:LogicalInterpreterPathProvenance",
+    "impl:Analyser::set_const_string..impl:Analyser::frozen_value_word",
+    "impl:Analyser::set_interp_var_binding..impl:Analyser::clear_interp_var_binding",
+]
+
+[[module]]
+name = "variable_reads"
+doc = "Variable reads: the `$` and name-role reads of one command and of the substitutions and expressions inside it."
+items = [
+    "impl:Analyser::record_arg_var_reads",
+    "impl:Analyser::record_var_read..impl:Analyser::scope_variable_names",
+    "fn:inner_of..fn:collect_expr_reads",
+]
+
+[[module]]
+name = "original_variable_occurrences"
+doc = "The original source occurrence kept for a variable write, receiver, formal or qualified name."
+items = [
+    "impl:Analyser::record_original_variable_write_advice..impl:Analyser::original_qualified_variable_input",
+]
+
+[[module]]
+name = "variable_definitions"
+doc = "`define_var`, the alias link targets of a local and the W215 unreachable-name warning."
+items = [
+    "struct:VariableLinkTarget",
+    "impl:Analyser::define_var..impl:Analyser::emit_w215_unreachable_name",
+]

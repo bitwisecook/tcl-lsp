@@ -1,0 +1,32 @@
+# The facade keeps the module docs and the text predicates every diagnostic
+# family uses: source slices, dotted-quad scanning, the substitution
+# predicates and the brace-wrap safety class.
+file = "rust/tcl-compiler/src/analyser/diagnostics/helpers.rs"
+
+[[module]]
+name = "existence_guards"
+doc = "The cells a branch condition guards (`info exists` and its kin) and the names a condition's own substitutions write."
+items = ["type:ExistenceGuard..fn:block_dominated_by"]
+
+[[module]]
+name = "phi_undef"
+doc = "The phi-from-undef trace: which SSA versions can be undefined, with the startup bindings and call steps it reads."
+items = ["struct:PhiUndefCtx..fn:build_phi_undef_index"]
+
+[[module]]
+name = "undef_suppression"
+doc = "`UndefSuppression`: the name-level facts that excuse a possibly undefined read, and their construction."
+items = [
+    "struct:UndefSuppression..impl:UndefSuppression",
+    "fn:harvest_dict_with_suppression..fn:collect_qualified_variable_alias_tails",
+]
+
+[[module]]
+name = "hidden_writes"
+doc = "Names written where the SSA form does not look: unseen calls, command substitutions in expressions and concatenated scripts."
+items = ["fn:collect_unseen_call_sites..fn:concatenated_script_value"]
+
+[[module]]
+name = "original_cells"
+doc = "The exact cells original reads and definitions select, and the namespace cells procedures read and write."
+items = ["fn:collect_defined_vars..fn:globals_read_by_procs"]

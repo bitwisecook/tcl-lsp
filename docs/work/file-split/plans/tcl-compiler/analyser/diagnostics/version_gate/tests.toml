@@ -1,0 +1,31 @@
+# The parent keeps the shared diagnostic collectors (`version_diags`, `fires`,
+# `count`, `version_diags_for`) and the two inline modules
+# `gated_option_conflict` and `range_targeting`, which a plan cannot move.
+file = "rust/tcl-compiler/src/analyser/diagnostics/version_gate/tests.rs"
+
+[[module]]
+name = "command_and_option_gates"
+doc = "W135 and W136: a command, option, subcommand or argument value below the required floor, and its lifecycle."
+items = [
+    "fn:original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects..fn:option_met_by_floor_is_silent",
+    "fn:ungated_option_is_silent..fn:a_require_range_that_reaches_a_retirement_is_hedged",
+]
+
+[[module]]
+name = "floor_sources"
+doc = "Where the effective floor comes from: pack ambient declarations, package pins, configured BIG-IP floors and the F5 baseline."
+items = [
+    "fn:analyser_with_ambient..fn:no_pack_overlay_leaves_every_floor_where_it_was",
+    "fn:tracksbase_tk_pin_floors_an_unversioned_require..fn:persist_table_mcp_mode_follows_the_configured_floor",
+    "fn:baseline_floor_declares_the_f5_surface_15_0_plus..fn:ambient_f5_surface_never_draws_missing_require",
+]
+
+[[module]]
+name = "versioned_arity"
+doc = "W149: the arity window that covers the resolved floor."
+items = ["fn:analyser_with_windows..fn:a_pack_ambient_floor_selects_the_window"]
+
+[[module]]
+name = "dsl_gates"
+doc = "W137, W138, W200 and W202: `format`, `scan`, `binary` and `string is` forms gated by release."
+items = ["fn:dsl_diags..fn:w200_binary_modifiers_follow_the_effective_version"]

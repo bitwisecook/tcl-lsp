@@ -1,0 +1,20 @@
+# The facade keeps the limits, `EnclosingContext` and `TranslationContext`
+# (their fields are read by every part), the test-only source-word helpers the
+# test modules name, the public `translate_irule*` entry points and
+# `translate_unit`.
+file = "rust/f5-xc/src/translator.rs"
+
+[[module]]
+name = "match_criteria"
+doc = "XC match criteria read from `switch` arm patterns and from `if` conditions."
+items = ["fn:switch_subject_kind..fn:enclosing_has_matches"]
+
+[[module]]
+name = "source_advice"
+doc = "Whether the source spelling of an expression operand may drive XC advice."
+items = ["fn:source_xc_advice_allowed..impl:<'a> SourceExpressionAdvice<'a>"]
+
+[[module]]
+name = "ir_walk"
+doc = "The walk over the lowered iRule: statements, `switch` arms and translated calls."
+items = ["fn:walk_script..fn:walk_call"]

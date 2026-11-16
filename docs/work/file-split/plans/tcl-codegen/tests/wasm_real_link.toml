@@ -1,0 +1,60 @@
+# move to tests/wasm_real_link/main.rs first
+# (the two `#[path]` attributes then need one more `../`). `main.rs` keeps the
+# module docs and the shared harness: the bootstrap WAT texts, the compile and
+# link runners for each tier and the native admission and depth reports.
+file = "rust/tcl-codegen/tests/wasm_real_link/main.rs"
+move_from = "rust/tcl-codegen/tests/wasm_real_link.rs"
+
+[[module]]
+name = "linked_modules"
+doc = "Emitted modules run against the real runtime, and a module stating another ABI or intrinsic table is refused."
+items = [
+    "fn:emitted_modules_run_against_the_real_runtime",
+    "fn:a_module_with_a_foreign_intrinsic_table_is_refused",
+]
+
+[[module]]
+name = "argv_invocations"
+doc = "The general tier's compiled prebuilt-argv path: side effects, intact compound words and balanced allocations."
+items = [
+    "fn:leak_bootstrap_wat",
+    "fn:compiled_argv_invocations_run_against_the_real_runtime..fn:compiled_argv_balances_allocations_in_the_real_runtime",
+]
+
+[[module]]
+name = "semantic_invoke"
+doc = "The canonical generic-argv plan and the guarded boxed intrinsic with its fallback."
+items = [
+    "fn:run_real_generic_invoke..fn:run_real_guarded_intrinsic_invoke",
+    "fn:canonical_generic_argv_runs_against_the_real_runtime..fn:guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime",
+]
+
+[[module]]
+name = "native_integers"
+doc = "The i64 boundary: the wide-integer ABI link probe and sealed native i64 addition with its trace fallback."
+items = [
+    "fn:native_wide_int_bootstrap_wat..fn:native_wide_int_link_probe_uses_the_shared_i64_descriptor_signature",
+    "fn:native_i64_add_options..fn:run_real_native_i64_add",
+    "fn:run_real_native_wide_int_abi",
+    "fn:native_wide_int_codegen_abi_links_against_the_real_runtime..fn:sealed_native_i64_add_runs_and_trace_registration_falls_back",
+]
+
+[[module]]
+name = "native_procedures"
+doc = "Compiled procedure bodies through the runtime's function table: frames, recursion depth, table growth and published entries."
+items = [
+    "fn:function_table_bootstrap_wat",
+    "fn:interpreted_source_bootstrap_wat",
+    "fn:a_compiled_proc_body_runs_through_the_runtimes_function_table..fn:the_runtime_exports_a_growable_indirect_function_table",
+    "fn:root_colon_publication_runs_its_own_compiled_table_entry..fn:original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+]
+
+[[module]]
+name = "extension_commands"
+doc = "A compiled script calling a command a C extension registered."
+items = ["fn:foo_extension_wat..fn:a_compiled_script_calls_an_extension_registered_command"]
+
+[[module]]
+name = "original_definitions"
+doc = "Original `proc` definitions under the general and native tiers: the body, the name word and a replaced or renamed definer."
+items = ["fn:general_original_definition_materialises_its_body_once..fn:general_original_definition_preserves_a_materialised_name_word"]

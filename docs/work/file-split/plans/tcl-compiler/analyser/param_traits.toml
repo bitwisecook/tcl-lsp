@@ -1,0 +1,23 @@
+# The facade keeps the module docs, the public entry points
+# (`infer_param_traits`, the deep variants, `merge_traits`) and the scan state
+# every pass reads: `ScanCtx`, `TraitScanEnv`, `ArgumentValues` with its
+# original-reference readers, and `Aliases`.
+file = "rust/tcl-compiler/src/analyser/param_traits.rs"
+
+[[module]]
+name = "body_scan"
+doc = "The walk over a procedure body: the shallow command scan, the bounded descent into substitutions and the deep scan through bodies and lambda literals."
+items = ["fn:scan_commands..fn:selected_logical_lambda_texts"]
+
+[[module]]
+name = "command_traits"
+doc = "The traits one command gives the parameters it uses: evaluation and argument roles, selected aliases and definite writes."
+items = [
+    "fn:is_local_scalar_name..fn:written_template_literal",
+    "fn:scan_command..fn:mark_dynamic_name_local",
+]
+
+[[module]]
+name = "caller_frame"
+doc = "The parameters and literal names a body binds in its caller's frame through `upvar`."
+items = ["fn:caller_frame_upvar_params..fn:caller_frame_literal_targets_over"]

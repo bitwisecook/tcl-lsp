@@ -1,0 +1,20 @@
+# The facade keeps `install`, Jim's `alias`, `rename`, the `interp` ensemble
+# dispatcher with its option resolver, and the inline `original_operand_tests`
+# fixture module (a `mod` item cannot move).
+file = "runtime/rust/src/cmd_alias.rs"
+hoist = ["original_operand_tests"]
+
+[[module]]
+name = "child_interpreters"
+doc = "`interp` subcommands that create, address, configure, evaluate in and delete child interpreters."
+items = ["fn:interp_target..fn:interp_debug", "fn:interp_eval..fn:interp_delete"]
+
+[[module]]
+name = "hidden_commands"
+doc = "`interp hide`, `expose` and `invokehidden`, shared with the child-handle shorthand."
+items = ["fn:hidectl_in..fn:invokehidden_in_original"]
+
+[[module]]
+name = "alias_subcommands"
+doc = "`interp alias` and `interp aliases`, and the child-handle alias operation."
+items = ["fn:interp_alias..fn:interp_aliases"]

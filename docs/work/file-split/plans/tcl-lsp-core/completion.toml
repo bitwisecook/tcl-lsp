@@ -1,0 +1,46 @@
+# The facade keeps `CompletionItem` and its kinds, the shared candidate filter,
+# `completions` with its trigger detection and context snippets, and the command
+# context and insertion spelling that several candidate families read.
+file = "rust/tcl-lsp-core/src/completion.rs"
+
+[[module]]
+name = "variables"
+doc = "Variable-name candidates: visible locals, cross-namespace names and array elements."
+items = ["fn:qualified_var_name..fn:array_element_completions"]
+
+[[module]]
+name = "methods"
+doc = "Method candidates for class commands, object instances and registry-modelled classes."
+items = [
+    "fn:original_class_method_items..fn:registry_method_items",
+    "fn:extend_original_own_method_items",
+    "fn:extend_generated_method_items",
+    "fn:extend_original_property_method_items",
+]
+
+[[module]]
+name = "argument_values"
+doc = "Candidates the registry gives an argument position: switches, event names, subcommands and enumerated values."
+items = [
+    "fn:switch_partial_at_position..fn:arg_value_completions_from_subcommands",
+    "fn:sub_subcommand_completions..fn:arg_value_completions_from",
+]
+
+[[module]]
+name = "scoped_environments"
+doc = "Candidates inside a scoped command environment or a definition-body grammar."
+items = [
+    "fn:scoped_env_at..fn:scoped_op_completions",
+    "fn:extend_scoped_completion_items",
+    "fn:definition_grammar_completion_items",
+]
+
+[[module]]
+name = "commands"
+doc = "Command-position candidates: built-ins, math functions, procedures and the fuzzy fallback."
+items = [
+    "fn:usage_bucket..fn:fuzzy_command_fallback",
+    "fn:extend_authored_proc_items",
+    "fn:extend_builtin_completion_items",
+    "fn:push_native_proc_candidate",
+]

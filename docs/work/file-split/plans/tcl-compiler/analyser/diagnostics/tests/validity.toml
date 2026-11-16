@@ -1,0 +1,80 @@
+# Second level of `diagnostics/tests.toml`; the file exists once that plan is
+# applied. Modules carry the names planned for `diagnostics/validity.rs`, with
+# arity split by whose signature is checked. Nothing but the module list stays
+# in the parent.
+file = "rust/tcl-compiler/src/analyser/diagnostics/tests/validity.rs"
+
+[[module]]
+name = "arity"
+doc = "E002, E003 and E005 against registry signatures: leading options, subcommands, shadowing, the surplus-argument span and argument-count shapes."
+items = [
+    "fn:interp_create_counts_only_its_path_as_positional",
+    "fn:all_codes..fn:e003_silent_for_subcommand_leading_options",
+    "fn:subcommand_arity_skips_unknown_and_dynamic_subcommands",
+    "fn:e002_fires_on_too_few_args..fn:e005_does_not_double_fire_with_e002_or_e003",
+    "const:ISSUE_703_SOURCE..fn:scratch_dup_e003_per_item",
+]
+
+[[module]]
+name = "user_call_arity"
+doc = "Arity of calls to same-file procedures, `after` callbacks, `interp alias` targets and renamed commands, across deletions and re-establishment."
+items = [
+    "fn:arity_codes..fn:same_file_relative_qualified_call_prefers_current_namespace_over_global",
+]
+
+[[module]]
+name = "object_and_lambda_arity"
+doc = "Arity of TclOO methods, forwards, constructors and `next`, and of `apply` lambdas."
+items = ["fn:e00x_codes_for..fn:apply_expand_args_abstains_too_few"]
+
+[[module]]
+name = "option_relations"
+doc = "W146, W147 and W152: literal-argument validation and the relations between a call's options."
+items = [
+    "fn:w146_validates_modern_trace_operation_lists_by_registry_declared_type..fn:w146_drops_registry_finding_when_a_user_command_shadows_trace",
+    "fn:w147_reports_registry_declared_mutually_exclusive_options..fn:w147_requires_two_distinct_canonical_options",
+]
+
+[[module]]
+name = "command_availability"
+doc = "W001, W002 and the bare-ensemble E001: unknown and abbreviated subcommands, version-gated commands and shadowing helpers."
+items = [
+    "fn:oo_helpers_user_helper_shadows_the_dialect_gated_builtin..fn:enabled_definer_nested_in_catch_is_silent",
+    "fn:after_integer_ms_is_not_unknown_subcommand..fn:e001_tn_history_with_subcommand_is_unaffected",
+]
+
+[[module]]
+name = "option_words"
+doc = "W004 options the dialect excludes, with their removal fix, and the W304 missing option terminator."
+items = [
+    "fn:w004_fires_on_regsub_command_in_tcl86..fn:w004_skips_option_value_that_looks_like_a_flag",
+    "fn:w004_fires_on_lsearch_stride_in_tcl85..fn:w004_fix_handles_braced_option_token_without_stray_closer",
+    "fn:w304_braced_switch_form_silent..fn:w304_split_switch_form_still_fires",
+    "fn:w304_does_not_cross_proc_param_shadow",
+]
+
+[[module]]
+name = "expr_operators"
+doc = "W003: `expr` operators the active dialect does not have, their tight spans and portable rewrites."
+items = ["fn:w003_fires_on_string_compare_in_tcl84..fn:w003_f5_tmsh_gates_both_tip_201_and_tip_461"]
+
+[[module]]
+name = "malformed_structure"
+doc = "E006: an invalid formal parameter list."
+items = [
+    "fn:e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles..fn:e006_discovers_definition_body_and_lambda_parameter_shapes",
+]
+
+[[module]]
+name = "discouraged_commands"
+doc = "IRULE2001 and IRULE2002 deprecated iRules commands and the W143 private-namespace advice."
+items = [
+    "fn:irule2001_carries_matchclass_replacement_fix..fn:irule2001_ambiguous_arity_matchclass_warns_without_fix",
+    "fn:irule2002_flags_deprecated_irules_command..fn:irule2002_silent_in_plain_tcl_dialect",
+    "fn:w143_package_namespace_advice_keeps_literal_package_names..fn:w143_withdraws_for_a_private_namespace_command_the_document_defines",
+]
+
+[[module]]
+name = "stub_shadows"
+doc = "W116: a stub that shadows a registry command."
+items = ["fn:w116_stub_shadow_uses_actual_selected_registry_and_exact_descriptor_data"]

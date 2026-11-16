@@ -1,0 +1,124 @@
+# Second level of `lib.toml`. The facade keeps the types several stages read: `DiagInputs`,
+# `DiagJob`, `DiagSlot`, the toggles, `PullDiagEntry` and the input bundles handed from one
+# stage to the next.
+file = "rust/tcl-lsp-server/src/diagnostics.rs"
+
+[[module]]
+name = "inputs"
+doc = "The owned inputs of a diagnostics run and their capture."
+items = [
+    "impl:DiagInputs",
+    "impl:Backend::diag_inputs..impl:Backend::diag_inputs_with",
+    "impl:Backend::diagnostics_excluded..impl:Backend::diagnostics_exclude_config",
+    "impl:Backend::invalidate_diag_inputs..impl:Backend::diag_inputs_epoch",
+]
+
+[[module]]
+name = "scheduling"
+doc = "The debounced per-document worker and the scheduler that feeds it."
+items = [
+    "const:DIAGNOSTICS_DEBOUNCE..const:DIAG_INPUTS_RESOLVE_ATTEMPTS",
+    "fn:deliver_diagnostics",
+    "fn:retire_slot..fn:refresh_can_change_result",
+    "impl:Backend::evict_diag_slot",
+    "impl:Backend::reschedule_all_open_documents",
+    "impl:Backend::schedule_diagnostics..impl:Backend::schedule_diagnostics_impl",
+]
+
+[[module]]
+name = "publisher"
+doc = "The persistent publisher: a latest-wins mailbox per URI, merged with pack notices."
+items = ["struct:PendingDiagnosticPublish..impl:DiagnosticPublisher"]
+
+[[module]]
+name = "delivery"
+doc = "Currency-checked delivery of one run's report to the pull cache and the client."
+items = ["struct:DeliveryCtx..type:DiagnosticSourceContext", "impl:DeliveryCtx<'_>", "impl:DiagInputs#2"]
+
+[[module]]
+name = "run"
+doc = "One diagnostics run: the master switch, exclusions and the progressive analyser path with its fast tier."
+items = [
+    "const:DIAGNOSTICS_FAST_TIER_BUDGET..const:DIAGNOSTICS_FAST_TIER_MIN_LINES",
+    "fn:run_diagnostics_master_off..fn:run_diagnostics_excluded",
+    "fn:run_diagnostics_core",
+    "fn:run_diagnostics_analyser_path..impl:Drop for FastTierHold<'_>",
+    "fn:is_fast_tier..fn:publish_fast_tier",
+]
+
+[[module]]
+name = "deep_pass"
+doc = "The deep pass: analyser, compiler checks and cross-file resolution joined into one report."
+items = [
+    "fn:deep_provider_completion..fn:deep_workspace_diagnostics",
+    "fn:run_deep_diagnostics..fn:compute_deep_diagnostic_report_with_read_cancellations",
+]
+
+[[module]]
+name = "analysis_passes"
+doc = "The cancellable query-database passes: base analysis, project diagnostics and compiler checks."
+items = ["type:CheckedCompletenessInput..fn:compute_compiler_diags_after_base_with_read_cancellations"]
+
+[[module]]
+name = "report"
+doc = "The report every path publishes: policy layers, findings and the lift onto the wire."
+items = ["fn:document_policy..fn:published_findings", "fn:refine_and_lift_diagnostics"]
+
+[[module]]
+name = "f5_models"
+doc = "Reports for BIG-IP configuration and iApp APL documents."
+items = [
+    "fn:run_diagnostics_f5_dialect..fn:f5_model_document_report",
+    "fn:f5_model_report",
+    "const:BIGIP_DEFAULT_PARTITION..fn:f5_dialect_diagnostics",
+]
+
+[[module]]
+name = "consumers"
+doc = "Which open documents a publish must wake: the workspace facts another document's diagnostics depend on."
+items = [
+    "struct:IndexedDiagnosticFacts..impl:IndexedDiagnosticFacts",
+    "impl:IndexedDiagnosticChange..fn:add_entry_point_diagnostic_consumers",
+]
+
+[[module]]
+name = "publication"
+doc = "Publishing a lifted report: the index refresh, the cache commit and the timing markers."
+items = ["type:DiagnosticProviderResult", "fn:publish_diagnostics_result..fn:log_publish_timing"]
+
+[[module]]
+name = "package_refinement"
+doc = "The workspace refinement of W120: package availability and `source`-graph inheritance."
+items = [
+    "impl:Backend::w120_inheritance_config",
+    "impl:Backend::source_inheritance_for",
+    "fn:analysis_tcl_version..fn:w120_metadata_roots",
+    "fn:refine_w120_diagnostics..impl:W120Availability",
+    "impl:OriginalSourceInheritance..fn:refine_workspace_w120",
+    "fn:compute_inherited_requires..fn:w120_required_package",
+]
+
+[[module]]
+name = "command_refinement"
+doc = "The workspace refinement of W123 and the cross-file argument-count check."
+items = [
+    "fn:defined_original_commands..type:ProcArityUnion",
+    "fn:settle_cross_file_calls..fn:refine_workspace_w123",
+]
+
+[[module]]
+name = "pull"
+doc = "Reports computed on request: the pull path and the synchronous publish."
+items = [
+    "fn:next_pull_diag_result_id",
+    "impl:Backend::project_callback_diagnostics_if..impl:Backend::publish_analyser_diagnostics",
+]
+
+[[module]]
+name = "closed_files"
+doc = "Diagnostics badges of closed files."
+items = [
+    "const:CLOSED_DIAG_BADGE_CAP",
+    "impl:Backend::publish_closed_file_diagnostics..impl:Backend::clear_closed_diagnostics",
+    "impl:Backend::record_closed_diag_badge..impl:Backend::reschedule_closed_file_diagnostics",
+]

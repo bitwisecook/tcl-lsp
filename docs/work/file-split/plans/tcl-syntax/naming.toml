@@ -1,0 +1,47 @@
+# The facade keeps the module docs, the module list and re-exports (every
+# moved function is public and stays reachable as `naming::name`), the
+# registration-slot and Jim global keys, the unattributed-name hints, the
+# frame-local and TextMate predicates, dynamic-word detection, the synthetic
+# offset markers and the inline `conformance` vectors.
+file = "rust/tcl-syntax/src/naming.rs"
+
+[[module]]
+name = "written_names"
+doc = "Splitting a written name: whether it is qualified or absolute, its segments and their byte extents, the separator run and the command tail."
+items = [
+    "fn:is_qualified..fn:is_absolute_bytes",
+    "fn:qualifier_segments..fn:qualifier_segments_owned",
+]
+
+[[module]]
+name = "constructed_keys"
+doc = "Constructed analytical keys: canonicalising a written command, and a key's tail, holder, segments and suffixes."
+items = ["fn:canonical_written_command..fn:is_absolutely_addressable"]
+
+[[module]]
+name = "variable_references"
+doc = "Variable references in source: stripping the sigil, `${…}` under each close rule, normalised base names and whole-reference queries."
+items = ["fn:var_reference..fn:array_key_is_literal"]
+
+[[module]]
+name = "array_elements"
+doc = "Array elements: the element variable name of a reference or braced word, and splitting a name into array and element."
+items = [
+    "fn:element_var_name..fn:split_array_name_braced_for_style",
+    "fn:split_element_ref..fn:array_variable_completion_prefix",
+]
+
+[[module]]
+name = "variable_quoting"
+doc = "Which source spellings can carry a variable name: bare `$name`, `${name}`, names that need quoting and the braced indirect-array idiom."
+items = ["fn:var_name_requires_quoting..fn:is_braced_indirect_array_ref"]
+
+[[module]]
+name = "qualification"
+doc = "Joining names: normalising and qualifying a name under a namespace, rooting and unrooting constructed keys, member keys and colon trimming."
+items = ["fn:normalise_qualified_name..fn:scope_variable_key"]
+
+[[module]]
+name = "command_resolution"
+doc = "Command resolution order: lookup bases, the candidate qualified names and `resolve_command_with`."
+items = ["enum:CommandLookupBase..fn:resolve_command_with"]

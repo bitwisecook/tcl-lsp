@@ -1,0 +1,42 @@
+# The facade keeps the selection and capture types, the C variable-name
+# protocol, the local name table, the name-operation checks and the name cache
+# install, and the confined-receiver refusal.
+file = "runtime/rust/src/interp/native_variable_names.rs"
+
+[[module]]
+name = "name_preparation"
+doc = "Preparing an original name object: parsing its parts once and selecting the cell it names, by purpose, namespace or byte parts."
+items = ["impl:Interp::prepare_original_c_name..impl:Interp::prepare_original_c_byte_name_parts_using"]
+
+[[module]]
+name = "links"
+doc = "Linking through original names: compiled namespace variables, `variable`, `global` and `upvar` targets, and alias locals."
+items = [
+    "impl:Interp::link_original_compiled_namespace_variable..impl:Interp::link_original_tcloo_compiled_namespace_variable",
+    "impl:Interp::define_original_c_namespace_variable..impl:Interp::prepare_original_c_link_target_using",
+]
+
+[[module]]
+name = "alias_settlement"
+doc = "Settling a local alias onto its target: the alias diagnostics and the publication with its origin."
+items = ["impl:Interp::original_c_alias_error_using..impl:Interp::settle_original_c_alias_at_with_origin_using"]
+
+[[module]]
+name = "report_capture"
+doc = "What a failed variable operation reports: the reporting input, the failure input and the captured report of a name or its parts."
+items = ["impl:Interp::original_c_variable_reporting_input..impl:Interp::capture_original_c_parts_report_using"]
+
+[[module]]
+name = "selection_capture"
+doc = "Capturing the selected cell of a name: element keys, namespace targets, materialised links and the receiver."
+items = ["impl:Interp::original_c_parsed_element_key..impl:Interp::capture_original_c_selection_receiver"]
+
+[[module]]
+name = "variable_errors"
+doc = "The errors of an original-name operation: lookup, trace, receiver and constant-increment messages."
+items = ["impl:Interp::original_c_variable_error_without_operand_using..impl:Interp::original_variable_trace_requires_name"]
+
+[[module]]
+name = "read_and_assign"
+doc = "Reading and assigning through an original name: the reported read, prepared selections, and property and regex variables."
+items = ["impl:Interp::read_original_c_variable..impl:Interp::assign_original_c_variable_using"]

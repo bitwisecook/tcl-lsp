@@ -1,0 +1,185 @@
+# The parent keeps the fixtures several groups share (`retained_warning_unit`,
+# `simple_sccp`, `plain_taints`, `warnings_for_tainted_sink`, `call_stmt`,
+# `ssa_stmt`) and six inline test modules (about 640 lines), which the tool
+# cannot move.
+file = "rust/tcl-compiler/src/taint/tests.rs"
+
+[[module]]
+name = "lattice"
+doc = "`TaintLattice` operations: constructors, joins, safe masks, rendered-property colours and the registry colour bridge."
+items = [
+    "fn:clean_and_tainted_constructors",
+    "fn:join_propagates_taint_intersects_mitigations..fn:crlf_safe_mask_composition",
+    "fn:rendered_props_colour_slash_value_path_prefixed",
+    "fn:redirect_safe_mask_includes_path_prefixed",
+    "fn:registry_taint_colour_bridge_preserves_every_bit_in_both_directions",
+]
+
+[[module]]
+name = "word_taint"
+doc = "The taint of a word: literal reference names, escape grammar, retained source words, interpolation and deep nesting."
+items = [
+    "fn:configured_word_taint_keeps_literal_reference_names_and_index_reads",
+    "fn:taint_escape_fragments_use_the_selected_release_escape_grammar",
+    "fn:mixed_source_word_reuses_the_retained_nested_command_invocation",
+    "fn:taint_source_word_requires_its_actual_retained_owner_and_span",
+    "fn:native_byte_escapes_cannot_become_unicode_text_provenance",
+    "fn:deep_bracket_word..fn:deeply_nested_taint_walks_survive",
+    "fn:interpolated_string_word_propagates_taint",
+]
+
+[[module]]
+name = "definition_taint"
+doc = "What a statement gives its definitions: `incr`, alias prefixes, destructions, constants, sources, summaries and transforms."
+items = [
+    "fn:incr_taint_uses_the_selected_definition_name_without_reparsing_data",
+    "fn:unrepresented_variable_contents_have_no_clean_taint_proof",
+    "fn:alias_prefix_values_and_braced_literals_do_not_resubstitute_variables",
+    "fn:destruction_versions_preserve_predecessor_taint_without_sanitising",
+    "fn:const_assignment_is_not_tainted",
+    "fn:irules_http_uri_is_a_dialect_agnostic_source",
+    "fn:interprocedural_passthrough_transfers_taint",
+    "fn:file_join_transform_reaches_the_live_cfg_taint_lattice",
+]
+
+[[module]]
+name = "propagation"
+doc = "The propagation pass: entry seeds, incoming external globals, formal seeds, opaque accesses and retained availability."
+items = [
+    "fn:opaque_native_accesses_withdraw_receiver_and_clean_taint_proofs",
+    "fn:measured_source_taint",
+    "fn:actual_taint_lattice_keeps_availability_and_refuses_missing_source_owners",
+    "fn:incoming_global_unit..fn:source_formal_seed_requires_the_matching_retained_body",
+    "fn:propagate_taints_gets_is_source",
+    "fn:global_write_seeding_is_scoped_to_reachable_callees",
+    "fn:a_tainted_name_an_opaque_switch_arm_may_overwrite_stays_tainted",
+]
+
+[[module]]
+name = "source_reads"
+doc = "Original operand reads and argument-name inventories under the selected grammar."
+items = [
+    "fn:original_operand_reference_names_keep_data_and_current_grammar_without_ssa_grants",
+    "fn:original_sink_read_keeps_missing_ssa_contents_unknown",
+    "fn:raw_coercion_references_use_current_grammar_and_keep_empty_name_data",
+    "fn:original_scalar_reference_consumers_keep_literal_words_and_current_closers",
+    "fn:original_argument_candidates_use_full_source_config_and_nested_index_inventory",
+    "fn:unavailable_argument_inventory_keeps_known_reads_and_refuses_mitigations",
+    "fn:arg_var_names_follows_the_release_close_rule",
+]
+
+[[module]]
+name = "command_heads"
+doc = "The command a sink statement really runs: constant and colon-run heads, instance receivers, bindings, aliases, renames and shadowed builtins."
+items = [
+    "fn:a_colon_run_head_still_names_its_own_global_target",
+    "fn:original_instance_receiver_names_preserve_head_kind_and_actual_grammar",
+    "fn:constant_command_head_candidates_use_retained_escape_grammar",
+    "fn:explicit_unknown_binding_cannot_recover_a_same_spelled_sink",
+    "fn:point_binding_supplies_sink_alias_prefix_once",
+    "fn:t100_fires_through_interp_alias_indirection..fn:t100_silent_for_unaliased_lookalike_command",
+    "fn:an_event_handler_body_shadows_no_builtin",
+]
+
+[[module]]
+name = "reports"
+doc = "Function and unit reports: retained source owners, sink candidates, replay availability and deterministic order."
+items = [
+    "fn:original_module_sink_candidates_keep_conditional_source_and_refuse_foreign_owners",
+    "fn:whole_unit_warning_query_requires_its_retained_positioned_source_owner",
+    "fn:actual_warning_wrapper_uses_the_retained_context_and_lexer",
+    "fn:public_module_warning_projection_requires_matching_source_owners",
+    "fn:taint_warnings_emitted_in_deterministic_proc_order",
+    "fn:hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims",
+    "fn:required_replay_empty_success_differs_from_withdrawn_source_owner",
+    "fn:unavailable_nested_replay_retains_original_site_and_independent_warnings",
+    "fn:scaffold_constructors_require_actual_selected_descriptor_identity",
+    "fn:public_report_keeps_constructor_refusal_beside_an_independent_warning",
+]
+
+[[module]]
+name = "sink_classification"
+doc = "Sink classification from the registry: network and interpreter sinks, iRules sinks and their dialect gate."
+items = [
+    "fn:classify_network_interp_sinks_maps_socket_and_interp",
+    "fn:classify_irules_sink_http_respond..fn:classify_sink_exec_stays_t100_under_irules_dialect",
+    "fn:arch3_tcl_core_source_is_registry_driven",
+]
+
+[[module]]
+name = "irules_sinks"
+doc = "IRULE3001 to IRULE3004 through the full pass: response bodies, header values, logs, redirects and mitigating colours."
+items = [
+    "fn:irules_warnings_for",
+    "fn:irule3001_fires_on_tainted_respond_body..fn:irule3004_redirect_safe_suppresses_via_lattice",
+    "fn:irule_sinks_do_not_fire_without_dialect",
+    "fn:sink_colour_mitigated_html_escaped_only_mitigates_3001",
+    "fn:irule3002_header_token_safe_name_position_suppresses",
+    "fn:arch3_irules_sink_is_registry_driven",
+]
+
+[[module]]
+name = "option_injection"
+doc = "T102: option positions, `--` terminators, tight spans, fixes, and calls reached through aliases and renames."
+items = [
+    "fn:source_option_context..fn:actual_option_terminator_withdraws_possible_source_positions",
+    "fn:t102_emitted_for_tainted_regexp_pattern",
+    "fn:t102_suppressed_with_terminator",
+    "fn:t102_uses_ensemble_subcommand_label_and_t103_for_regexp..fn:t102_fires_through_a_rename",
+    "fn:native_source_option_warnings_keep_original_schema_and_terminator",
+]
+
+[[module]]
+name = "sanitisers"
+doc = "What clears a sink: sanitisers under their actual binding, inline quoters, CRLF-deleting maps and literal `list` wrappers."
+items = [
+    "fn:nested_sanitiser_requires_the_actual_point_binding",
+    "fn:inline_sanitiser_mitigation_requires_its_retained_implementation",
+    "fn:t103_not_cleared_by_an_escaped_bracket_that_never_calls_the_quoter",
+    "fn:t103_cleared_by_an_inline_regex_quote_in_the_pattern_slot",
+    "fn:t101_cleared_only_by_a_mapping_that_deletes_crlf",
+    "fn:standalone_list_wrapper_uses_original_grouped_head_values_and_exact_extent",
+]
+
+[[module]]
+name = "sinks"
+doc = "T100, T101 and T103 to T106 sinks: evaluation, channels, sockets, interpreters, double encoding, `open`, `apply` and `subst`."
+items = [
+    "fn:original_cross_interp_script_reads_keep_the_tainted_command_word",
+    "fn:source_regexp_warnings",
+    "fn:actual_regexp_warning_refuses_missing_and_foreign_source_metadata",
+    "fn:find_taint_warnings_eval_with_tainted_var",
+    "fn:t104_ssrf_for_tainted_socket_address..fn:t105_cross_interp_for_tainted_consoleinterp_eval_and_record",
+    "fn:t106_double_encode_through_uri_encode",
+    "fn:t101_fires_for_puts_via_registry_driven_dispatch..fn:t100_fires_for_subst_positive_form_with_commands",
+    "fn:t100_span_is_the_tainted_argument_word_not_the_whole_statement",
+]
+
+[[module]]
+name = "numeric_coercion"
+doc = "T100 for coerced operands: branch conditions, `switch` subjects, expression operands and nested command substitutions."
+items = [
+    "fn:branch_nested_sink_uses_retained_expression_and_read_owners",
+    "fn:deeply_nested_expr_guard_and_coercion_walks_survive",
+    "fn:t100_fires_for_tainted_if_condition..fn:t100_still_fires_for_a_tainted_operand_in_an_unparsed_expr",
+    "fn:t100_expr_operand_message_not_raised_for_var_only_in_nested_command_sub..fn:t100_fires_for_tainted_var_in_ternary_condition",
+]
+
+[[module]]
+name = "destructive_files"
+doc = "W313: destructive `file` subcommands on variable paths, normalisation and guards."
+items = ["fn:w313_warnings..fn:w313_helpers_parse_vars_and_guards"]
+
+[[module]]
+name = "callback_replay"
+doc = "Stored-callback replay: registration points, list builders, batching, name search and the mapping back to original offsets."
+items = [
+    "fn:loaded_tk_callback_unit..fn:callback_replay_name_search_is_single_pass_under_collision_stress",
+    "fn:callback_replay_insertions_map_back_to_original_offsets",
+    "fn:callback_unavailable_spans_require_bounded_original_correspondence",
+]
+
+[[module]]
+name = "setter_constraints"
+doc = "IRULE3101: setter constraints on literals, tainted values and command substitutions, gated by dialect."
+items = ["fn:setter_warnings_for..fn:irule3101_internally_gated_on_dialect", "fn:arch3_setter_constraint_is_dialect_driven"]

@@ -1,0 +1,39 @@
+# Second level of `lib.toml`. The facade keeps the family and consumer-scan structs that both
+# `rename` and `navigation` read.
+file = "rust/tcl-lsp-server/src/method_families.rs"
+
+[[module]]
+name = "class_analysis"
+doc = "Analyses carrying the workspace class set, memoised per document."
+items = [
+    "struct:WorkspaceClassAnalysis..fn:workspace_class_analysis_fingerprint",
+    "impl:Backend::analyse_with_workspace_classes..impl:Backend::analyse_with_workspace_classes_from_analysis",
+]
+
+[[module]]
+name = "family"
+doc = "A method's override family grouped by declaring document."
+items = [
+    "enum:DefinerSpans..fn:family_spans_in_document",
+    "impl:Backend::resolve_method_rename_target..impl:Backend::classmethod_dispatch_names",
+    "impl:Backend::method_family_by_document",
+]
+
+[[module]]
+name = "consumer_scans"
+doc = "Call sites in documents that only consume a class."
+items = [
+    "enum:ConsumerCoverage",
+    "struct:ConsumerDoc",
+    "impl:Backend::cross_file_consumer_method_references..impl:Backend::consumer_ranges_in_document",
+]
+
+[[module]]
+name = "rename"
+doc = "Renaming a method across its override family, and the refusals that guard it."
+items = ["impl:Backend::method_family_rename_tier..impl:Backend::cross_file_method_rename"]
+
+[[module]]
+name = "navigation"
+doc = "References, definition and hover of a method across its override family."
+items = ["impl:Backend::cross_file_method_references..impl:Backend::cross_file_method_hover"]

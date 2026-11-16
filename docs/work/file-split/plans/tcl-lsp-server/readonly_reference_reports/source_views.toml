@@ -1,0 +1,114 @@
+# hoist the inline test modules `completed_world_owner_controls` and
+# `closed_source_child_ingress_tests` first: they are 2,212 lines, a `mod` item cannot
+# move, and `hoist_inline_tests.py` passes them by because their attribute is
+# `#[cfg(all(test, not(target_family = "wasm")))]`, not `#[cfg(test)]`.
+# The facade keeps every view, work-state and settlement type (their private fields are
+# read across the modules), the contention constants and the `symbol_sources` re-exports.
+file = "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs"
+hoist = ["completed_world_owner_controls", "closed_source_child_ingress_tests"]
+
+[[module]]
+name = "view_drafts"
+doc = "A view draft: whether it still matches its producer and its physical state, which request it answers and which views it descends from."
+items = [
+    "impl:IncomingSourcePathAdvice::matches_inherited..impl:IncomingSourcePathAdvice::same_request",
+    "impl:ConditionalRegionSourceView::same_request",
+    "impl:OriginalSourceViewDraft::matches_producer..impl:OriginalSourceViewDraft::ancestors",
+]
+
+[[module]]
+name = "view_table"
+doc = "The session table of published views: staging, reuse, retirement and replacement."
+items = [
+    "impl:OriginalSourceViewTable::current_revision..impl:OriginalSourceViewTable::replace",
+    "impl:PublishedOriginalSourceView::is_indexed",
+]
+
+[[module]]
+name = "publication"
+doc = "Publishing a batch of views inside the index transaction, and rejoining a saved view to its live table row."
+items = [
+    "impl:Backend::publish_original_source_views..impl:Backend::original_source_view_admissions",
+    "impl:Backend::original_source_view_batch_ancestors..impl:Backend::publish_original_source_view_batch",
+    "impl:Backend::with_current_original_source_view",
+]
+
+[[module]]
+name = "draft_capture"
+doc = "Producing the draft of an initial root and of a child inherited through a source edge."
+items = [
+    "impl:super::super::FreshAnalysisDriver::analyse_conditional_region..impl:super::super::FreshAnalysisDriver::analyse_source_view",
+    "impl:Backend::capture_initial_original_source_root..impl:Backend::capture_inherited_original_source_view",
+]
+
+[[module]]
+name = "conditional_regions"
+doc = "The conditional regions of a view: their drafts, their cached rows and the ordered suffix chain the kernel issues."
+items = [
+    "impl:OriginalSourceRegionWork::completion..impl:OriginalSourceRegionWork::retain_completion",
+    "impl:Backend::capture_conditional_region_draft..impl:Backend::materialize_conditional_source_regions",
+]
+
+[[module]]
+name = "root_reconciliation"
+doc = "Refreshing the view graph: root discovery, the publication of initial roots and the reconciliation of roots a source association excludes."
+items = [
+    "impl:OriginalSourceRootScope::retrying..impl:OriginalSourceRootScope::pending",
+    "impl:Backend::refresh_original_source_view_graph..impl:Backend::with_current_original_root_candidate",
+]
+
+[[module]]
+name = "frontier_walk"
+doc = "The walk over source edges from each root: the child an edge names, the frontier steps of a view and the scope the work settles."
+items = [
+    "impl:OriginalSourceViewDebt::same_request",
+    "impl:OriginalSourceViewWorkState::finish_scope",
+    "impl:Backend::cached_original_source_view..impl:Backend::source_draft_target",
+    "impl:Backend::original_source_view_edges..impl:Backend::run_original_source_view_work",
+]
+
+[[module]]
+name = "command_source_worlds"
+doc = "The source worlds an original command plan is prepared in, captured over the settled views."
+items = [
+    "impl:OriginalCommandSourceWorldCapture::document_owners..impl:OriginalCommandSourceWorldCapture::worlds",
+    "impl:Backend::command_source_documents..impl:Backend::original_command_source_worlds_are_current",
+]
+
+[[module]]
+name = "settled_scope"
+doc = "A settled scope: its projections for definitions and references, and the views selected from it while the physical leases hold."
+items = [
+    "impl:OriginalSourceViewSettlement::requires_recapture..impl:OriginalSourceViewSettlement::projection",
+    "impl:Backend::original_source_view_settlement_is_indexed..impl:Backend::original_source_view_settlement_views_are_indexed",
+    "impl:Backend::with_original_source_scope..impl:Backend::original_source_view_labels",
+    "impl:Backend::compute_original_source_views..impl:Backend::same_original_source_view_inventory",
+]
+
+[[module]]
+name = "call_hierarchy"
+doc = "Call hierarchy over source views: the prepare route, the walk from a saved handle and the wire locators issued from live views."
+items = [
+    "impl:Backend::original_source_view_id_for_handle..impl:Backend::source_view_call_groups",
+    "impl:Backend::lift_current_source_view_call_item..impl:Backend::walk_original_source_view_calls",
+    "impl:Backend::original_source_view_call_prepare_route",
+]
+
+[[module]]
+name = "navigation"
+doc = "View-aware navigation for inherited interpretations: definitions, references and the reference supplement."
+items = [
+    "impl:Backend::await_original_source_navigation_readiness..impl:Backend::original_source_view_navigation_attempt",
+    "type:HostNavigationRoute",
+    "impl:Backend::calculate_original_source_navigation",
+]
+
+[[module]]
+name = "hover"
+doc = "Hover over source views: the route, the authoring hover of an unavailable graph and the procedure cards."
+items = ["impl:Backend::original_source_view_hover_route..impl:Backend::calculate_original_source_hover"]
+
+[[module]]
+name = "conditional_autoload"
+doc = "Conditional autoload advice: the current provider headers and the locations read from them after a view capture."
+items = ["impl:Backend::conditional_autoload_saved_sources..impl:Backend::conditional_source_view_autoload_locations"]

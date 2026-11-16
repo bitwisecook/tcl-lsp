@@ -1,0 +1,87 @@
+# The facade keeps the module docs, the summary types (`ProcSummary`,
+# `MethodSummary`, `InterproceduralAnalysis`, `ProcArgTrait`,
+# `ConstantReturn`), `ObjectTypeCandidates`, the `build_interprocedural_analysis*`
+# pipeline and the scratch records every stage reads (`LocalFacts`, `ScanCtx`,
+# `ProcScan`, `ProcFixpoints`, `SummaryBodyInputs`).
+file = "rust/tcl-compiler/src/interprocedural.rs"
+
+[[module]]
+name = "call_by_name"
+doc = "Caller-frame names passed by name: to a user procedure that reads or writes them through `upvar`, or to an opaque callee."
+items = ["fn:build_proc_index_from_summaries..fn:collect_executable_opaque_callee_name_args"]
+
+[[module]]
+name = "call_targets"
+doc = "Resolving a command name, or the head of a literal callback prefix, to a procedure of the module."
+items = ["fn:resolve_internal_call_with..fn:namespace_parts_from_proc"]
+
+[[module]]
+name = "instance_taint"
+doc = "Globals that hold factory instances and globals tainted by registry-declared instance configuration, applied to the CFG before SSA."
+items = ["fn:global_instance_classes..fn:enrich_instance_taint_cfg"]
+
+[[module]]
+name = "method_summaries"
+doc = "Summaries of `TclOO` method bodies and the instance-variable writes they make."
+items = ["fn:build_method_summaries..fn:check_ivar_write"]
+
+[[module]]
+name = "summary_fixpoints"
+doc = "From per-procedure local facts to summaries: the scan over every body, the purity and effect fixpoints and the materialised result."
+items = [
+    "fn:summary_procedure_bodies",
+    "fn:scan_all_procs",
+    "fn:compute_all_transitive_calls..fn:declared_defaults",
+    "fn:finalise_param_traits",
+    "fn:compute_transitive_calls",
+]
+
+[[module]]
+name = "parameter_observations"
+doc = "How a body uses each parameter, read from the original source words: references, forwarding, aliases, conditions and returns."
+items = [
+    "fn:original_parameter_observation_owner..fn:note_original_expression_params",
+    "fn:note_params_in_expr",
+]
+
+[[module]]
+name = "body_scan"
+doc = "The recursive scan of one procedure body: scripts, statements, control flow, `return` and up-frame scripts."
+items = [
+    "fn:scan_proc",
+    "fn:possible_body_id..fn:scan_script",
+    "fn:scan_return_statement..fn:is_global_or_namespace",
+    "fn:note_assign_global_write",
+]
+
+[[module]]
+name = "call_facts"
+doc = "Facts from one call statement: side effects, call-graph edges, scope and `upvar` aliases and code-bearing arguments."
+items = [
+    "fn:scan_literal_command_prefix_edges..fn:strip_one_brace_layer",
+    "struct:GlobalAliasNameCoverage..fn:global_alias_names",
+    "fn:is_plain_proc_name",
+]
+
+[[module]]
+name = "positioned_invocations"
+doc = "Facts from registry-resolved invocations at their original positions: aliases, visible reads and writes, callback reachability and retained substitutions."
+items = ["fn:scan_resolved_aliases..fn:scan_original_variable_read_effects"]
+
+[[module]]
+name = "substitution_calls"
+doc = "Call-graph edges from command substitutions embedded in expressions, values and raw source text."
+items = ["fn:scan_expr_for_calls", "fn:scan_value_substitutions..fn:scan_source_for_calls"]
+
+[[module]]
+name = "return_summaries"
+doc = "The return shape of a procedure: classifying each `return`, whether a body always or may return, and the summary fields derived from them."
+items = [
+    "fn:classify_return..fn:walk_collect_param_refs",
+    "fn:script_always_returns..fn:constant_return_of",
+]
+
+[[module]]
+name = "exit_values"
+doc = "The value a pure procedure returns under its own seedless lattice, read at every exit of its flow graph."
+items = ["fn:seedless_returns..fn:expr_value"]

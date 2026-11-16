@@ -1,0 +1,32 @@
+# The facade keeps constant-expression error detection, the release-word and
+# local-name predicates, and the inline script-body emitter every control
+# command compiles its bodies through.
+file = "rust/tcl-codegen/src/codegen/control_flow.rs"
+
+[[module]]
+name = "release_compiles"
+doc = "Which control commands the emulated release's compiler compiles: loops, dict scopes, `catch` and `try`."
+items = ["impl:CodegenCtx<'_>::release_compiled..impl:CodegenCtx<'_>::intern_try_variables"]
+
+[[module]]
+name = "dict_commands"
+doc = "Inline `dict for`, `dict map`, `dict update` and `dict with`."
+items = ["struct:DictMapPatch", "impl:CodegenCtx<'_>::emit_dict_map_err_epilogue..impl:CodegenCtx<'_>::emit_dict_with"]
+
+[[module]]
+name = "catch_command"
+doc = "Inline `catch`: the supported shapes, output stores, the body with its `return` and `error`, and the exception region."
+items = [
+    "impl:CodegenCtx<'_>::catch_inline_args_are_static..impl:CodegenCtx<'_>::emit_catch_output_stores",
+    "impl:CodegenCtx<'_>::emit_catch_inline..impl:CodegenCtx<'_>::emit_catch_error",
+    "impl:CodegenCtx<'_>::emit_catch_region_prologue..impl:CodegenCtx<'_>::emit_catch_region_inline",
+]
+
+[[module]]
+name = "try_command"
+doc = "Inline `try`: `on error` handlers with their bindings and `-during` merge, and `finally`."
+items = [
+    "impl:CodegenCtx<'_>::try_on_error_inline_bindings..impl:CodegenCtx<'_>::emit_selected_try_statement",
+    "impl:CodegenCtx<'_>::emit_try_during_merge..impl:CodegenCtx<'_>::emit_try_handler_command",
+    "impl:CodegenCtx<'_>::emit_try_finally_inline..impl:CodegenCtx<'_>::emit_try_finally_stmt",
+]

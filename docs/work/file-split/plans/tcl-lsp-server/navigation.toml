@@ -1,0 +1,94 @@
+# Second level of `lib.toml`. The facade keeps the declaration target types the tiers share,
+# location de-duplication and the type-definition and implementation lookups.
+file = "rust/tcl-lsp-server/src/navigation.rs"
+
+[[module]]
+name = "ilx"
+doc = "The iRulesLX method relation: definition and references across the workspace and its plugins."
+items = [
+    "struct:OpenDocumentTexts..impl:tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts",
+    "impl:Backend::ilx_method_at..impl:Backend::ilx_location",
+    "impl:Backend::reported_ilx_plugin_roots..impl:Backend::ilx_plugin_roots",
+]
+
+[[module]]
+name = "declaration_identity"
+doc = "The retained declaration identity call hierarchy, type hierarchy and reference lenses share."
+items = ["impl:Backend::retain_original_declaration_data..impl:Backend::original_declaration_identity_at"]
+
+[[module]]
+name = "hierarchies"
+doc = "Type-hierarchy walks and cross-document call hierarchy."
+items = [
+    "type:CrossDocumentSourceRows",
+    "impl:Backend::type_hierarchy_walk",
+    "impl:Backend::lift_original_type_hierarchy_items",
+    "impl:Backend::cross_document_incoming_calls..impl:Backend::cross_document_outgoing_calls",
+]
+
+[[module]]
+name = "definition"
+doc = "Go-to-definition: the local provider and its workspace and autoload fallbacks."
+items = [
+    "struct:AutoloadQueryObservation",
+    "impl:Backend::original_autoload_head_eligible..impl:Backend::compute_definition_for_snapshot",
+    "impl:Backend::cross_document_variable_definition..impl:Backend::autoload_definition",
+    "impl:Backend::cross_document_definition..impl:Backend::original_definition_locations_for_snapshot",
+    "fn:position_is_command_head",
+]
+
+[[module]]
+name = "method_targets"
+doc = "Object-method targets for readonly navigation and hover."
+items = ["impl:Backend::original_method_candidate_at..impl:Backend::original_method_hover_at"]
+
+[[module]]
+name = "namespaces"
+doc = "Namespace symbols: declarations, hover and references across documents."
+items = ["impl:Backend::qualified_variable_cell..impl:Backend::namespace_reference_locations"]
+
+[[module]]
+name = "hover"
+doc = "Hover for symbols another document or a library declares."
+items = [
+    "struct:FactoryHoverSources",
+    "impl:Backend::conditional_foreign_factory_sources..impl:Backend::conditional_foreign_factory_source_hover",
+    "impl:Backend::hover_for_original_declaration..impl:Backend::hover_for_indexed_symbol",
+    "impl:Backend::position_hover_before_method",
+    "impl:Backend::hover_workspace_fallback",
+    "impl:Backend::hover_worker_error",
+]
+
+[[module]]
+name = "logical_declarations"
+doc = "Conditional cross-document declaration advice from the indexed source headers."
+items = [
+    "impl:Backend::logical_definition_locations_for_snapshot..impl:Backend::logical_indexed_definition_targets",
+]
+
+[[module]]
+name = "declaration_sources"
+doc = "Revalidating declaration targets against their current documents and lifting them to locations."
+items = ["impl:Backend::validated_original_indexed_locations..impl:Backend::resolve_target_locations"]
+
+[[module]]
+name = "symbol_resolution"
+doc = "Resolving the symbol at a cursor against the workspace index."
+items = [
+    "enum:WorkspaceSymbolPurpose..impl:WorkspaceSymbolSelection",
+    "impl:Backend::release_workspace_symbols..impl:Backend::resolved_symbol_index_snapshot_for_purpose",
+]
+
+[[module]]
+name = "workspace_symbols"
+doc = "`workspace/symbol`: indexed hits and open documents the index does not hold yet."
+items = [
+    "struct:WorkspaceSymbolDiagnostic..struct:OpenWorkspaceSymbolSnapshot",
+    "impl:Backend::closed_workspace_symbol_source..impl:Backend::capture_open_workspace_symbol_snapshot",
+    "impl:Backend::workspace_symbol_attempt..impl:Backend::indexed_workspace_symbol_kind",
+]
+
+[[module]]
+name = "references"
+doc = "References across documents for commands, namespace variables and classes."
+items = ["impl:Backend::cross_document_references..impl:Backend::cross_document_variable_references"]

@@ -1,0 +1,65 @@
+# The facade keeps the registry context, operand and source types, the trace
+# helpers and `OriginalRegistryWords` with its schema, argument and body views.
+file = "rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+
+[[module]]
+name = "selected_words"
+doc = "Registry words a captured context selects: declared commands, original tokens and native cases."
+items = [
+    "fn:source_declared_command_words",
+    "impl:OriginalSourceRegistryContext",
+    "fn:selected_registry_words..fn:effective_operand_sources",
+]
+
+[[module]]
+name = "procedure_arguments"
+doc = "The original arguments of a procedure declaration: formals, bindings and operands."
+items = ["struct:OriginalProcedureArguments..fn:original_procedure_arguments"]
+
+[[module]]
+name = "expression_rewrites"
+doc = "Expression rewrites proved on original source: gap compaction, inversion and operators."
+items = ["fn:original_expression_gap_compaction..fn:original_expression_syntax_gap_compaction"]
+
+[[module]]
+name = "source_registry_words"
+doc = "The registry words of a source command: definition bodies, vendor and native sources."
+items = ["fn:source_registry_words..fn:trace_remote_source_flag"]
+
+[[module]]
+name = "advice_queries"
+doc = "Source advice at an offset: publications, procedure calls, Logical candidates and classes."
+items = [
+    "fn:original_logical_source_words_at..fn:registered_original_words_at",
+    "fn:source_authored_command_prefix..fn:produced_prefix_words",
+    "fn:source_authored_jim_call_at..fn:source_authored_jim_procedure_members_at",
+]
+
+[[module]]
+name = "package_references"
+doc = "Package references in original source and where a `package require` may be inserted."
+items = [
+    "fn:selected_source_package_reference",
+    "fn:original_package_require_insert_offset",
+    "impl:OriginalSourcePackageReference..impl:OriginalRegistryWords#2",
+]
+
+[[module]]
+name = "source_cases"
+doc = "Original source cases: bodies, patterns, registry words and folded subjects."
+items = ["impl:OriginalSourceCase..fn:original_folded_case_subject"]
+
+[[module]]
+name = "module_words"
+doc = "Registry words for the tokens of a module, its immediate body commands and Logical commands."
+items = ["fn:original_segment_for_tokens..fn:original_logical_registry_words_for_command"]
+
+[[module]]
+name = "transition_words"
+doc = "Registry words built from source transition advice: Logical, native and conditional sources."
+items = ["fn:logical_source_registry_words..fn:source_transition_words_with_segment_in_image"]
+
+[[module]]
+name = "vendor_words"
+doc = "Registry words of vendor sources, conditional roles and stock source command proposals."
+items = ["fn:original_vendor_registry_words..impl:OriginalRegistryWords#3"]

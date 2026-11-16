@@ -1,0 +1,145 @@
+# The facade keeps the `CommandRegistry` struct with its caches, the shared
+# spec groups and spec packs, generation and overlay bookkeeping, and the
+# private helpers every topic module calls (`best_visible`, `query_surfaces`,
+# `spec_for_this_registry`, `package_floor*`, the control numeral grammar and
+# release, `effect_provider_is_admitted`). The 7,500-line `impl CommandRegistry`
+# is split by the question a group of methods answers.
+file = "rust/tcl-registry/src/registry.rs"
+
+[[module]]
+name = "snapshot"
+doc = "An immutable, comparable snapshot of a registry and the keys that identify its semantics."
+items = ["struct:RegistrySnapshot..impl:Hash for RegistrySemanticKey", "impl:CommandRegistry::snapshot"]
+
+[[module]]
+name = "construction"
+doc = "Building a registry: the default build, loading a surface, projecting for a profile, and inserting specs, reference texts and ambient packages."
+items = ["impl:CommandRegistry::build_default..impl:CommandRegistry::insert_special_var"]
+
+[[module]]
+name = "lookup"
+doc = "Finding commands and special variables: by name, by surface, by visibility from a namespace, and across every dialect."
+items = [
+    "struct:AllDialectCommandNames..fn:rooted_fallback_allowed",
+    "impl:CommandRegistry::special_vars..impl:CommandRegistry::get_for_surface",
+    "impl:CommandRegistry::has_command_in_this_dialect..impl:CommandRegistry::user_authored_pack_arity",
+    "impl:CommandRegistry::spec_visible_to..impl:CommandRegistry::command_descriptor_keys",
+    "impl:CommandRegistry::command_names_for_semantic_operation..impl:CommandRegistry::command_descriptor_keys_for_semantic_operation",
+    "impl:CommandRegistry::provides_package..impl:CommandRegistry::specs",
+]
+
+[[module]]
+name = "effective_semantics"
+doc = "The command semantics in effect for one dialect and realm after overlays and native factories apply."
+items = [
+    "struct:EffectiveCommandSemantics..impl:EffectiveRegistrySemantics",
+    "impl:CommandRegistry::effective_semantics..impl:CommandRegistry::selected_entry_descriptor",
+]
+
+[[module]]
+name = "native_registration"
+doc = "Native command registrations: compiler hooks, implementation slots, registration lookup and admission."
+items = [
+    "impl:CommandRegistry::native_compiler_implementation_slots..impl:CommandRegistry::native_stock_registration_admission",
+    "struct:NativeCompilerHooks",
+]
+
+[[module]]
+name = "object_model"
+doc = "Object systems: method dispatch keywords, manufacturer methods, definition-body grammars, default construction and handle bindings."
+items = [
+    "impl:CommandRegistry::method_dispatch_keyword..impl:CommandRegistry::object_command_method",
+    "impl:CommandRegistry::is_destructive_object_method..impl:CommandRegistry::binds_method_alias",
+    "impl:CommandRegistry::default_construction_grammar..impl:CommandRegistry::selected_default_construction_grammar",
+    "impl:CommandRegistry::property_accessor_methods..impl:CommandRegistry::handle_binding",
+    "impl:CommandRegistry::member_body_handle_bindings",
+    "enum:MethodDispatchKind",
+]
+
+[[module]]
+name = "instance_methods"
+doc = "Instance methods of an object class: providers, selection in context and resolving an instance invocation."
+items = [
+    "enum:InstanceMethodContextUnavailable",
+    "impl:CommandRegistry::object_class",
+    "impl:CommandRegistry::instance_methods..impl:CommandRegistry::instance_method_command_prefixes_with_arguments",
+]
+
+[[module]]
+name = "irules"
+doc = "iRules queries: which commands are legal in which events, top-level declarations, event handlers, data collection and taint sources."
+items = [
+    "struct:EventInfo",
+    "impl:EventInfo..const:TAINT_SOURCE_INDEX",
+    "impl:CommandRegistry::taint_source",
+    "impl:CommandRegistry::valid_irules_commands_for_event..impl:CommandRegistry::event_info",
+    "impl:CommandRegistry::is_irules_top_level_only..impl:CommandRegistry::event_handler_spec",
+]
+
+[[module]]
+name = "trait_queries"
+doc = "Membership and metadata queries over one command: traits, symbols, frame sensitivity, linkage and command-binding transitions."
+items = [
+    "impl:CommandRegistry::subcommands_with_trait",
+    "impl:CommandRegistry::defines_symbol..impl:CommandRegistry::commands_with_trait",
+    "impl:CommandRegistry::remote_method..impl:CommandRegistry::remote_method_commands",
+    "impl:CommandRegistry::writes_first_arg_variable..impl:CommandRegistry::alias_frame",
+    "impl:CommandRegistry::is_frame_sensitive..impl:CommandRegistry::call_traits",
+    "impl:CommandRegistry::command_binding_transitions..impl:CommandRegistry::byte_array_payload_layouts",
+]
+
+[[module]]
+name = "script_timing"
+doc = "When a script argument runs: script timing per argument, callback script indices and callback taint inputs."
+items = [
+    "fn:option_script_timing_at..fn:option_callback_taint_inputs_at_selected",
+    "impl:CommandRegistry::script_timing..impl:CommandRegistry::option_variable_scope",
+]
+
+[[module]]
+name = "control_arms"
+doc = "Control-flow arms: `try` handler clauses and their selectors, control arm semantics and case invocations."
+items = [
+    "enum:ControlArmSemantics..struct:TryControlInvocation",
+    "fn:parse_try_completion_selector..fn:try_control_arms_from_invocation",
+    "impl:CommandRegistry::control_arm_semantics..impl:CommandRegistry::try_control_invocation",
+    "impl:CommandRegistry::case_invocation",
+]
+
+[[module]]
+name = "invocation_completion"
+doc = "How an invocation completes: completion codes, exact `return` and `exit` completions, completion routes and what is known of them."
+items = [
+    "enum:InvocationCompletion..fn:native_tailcall_completion",
+    "impl:CommandRegistry::invocation_completion..impl:CommandRegistry::exact_invocation_completion_words",
+    "impl:CommandRegistry::invocation_completion_route..impl:CommandRegistry::invocation_completion_knowledge",
+]
+
+[[module]]
+name = "argument_roles"
+doc = "Argument roles of a call: role assignments, type hints, format and pattern arguments, presentation, trailing roles and command prefixes."
+items = [
+    "fn:push_option_value_roles",
+    "fn:push_command_prefix_options..fn:source_option_layout_is_proven",
+    "impl:CommandRegistry::arg_type_hint..impl:CommandRegistry::arg_role_assignments_words_for_dialect",
+    "impl:CommandRegistry::clause_plan..impl:CommandRegistry::arg_indices_for_role_words",
+    "impl:CommandRegistry::may_have_arg_role..impl:CommandRegistry::command_prefixes_with_arguments",
+    "struct:FormatStringArg",
+]
+
+[[module]]
+name = "variable_projection"
+doc = "The variables a call reads and writes, projected from its roles and effects."
+items = [
+    "enum:VariableWriteProjectionPurpose",
+    "impl:CommandRegistry::effect_query..impl:CommandRegistry::arg_role_variable_writes",
+]
+
+[[module]]
+name = "invocation_resolution"
+doc = "Resolving a call to its command, subcommand and form: `ResolvedCall`, form picking and option terminators."
+items = [
+    "impl:CommandRegistry::resolve_invocation..impl:CommandRegistry::resolve_option_terminator",
+    "struct:ResolvedTerminator",
+    "struct:ResolvedCall..fn:resolve_semantic_subcommand",
+]

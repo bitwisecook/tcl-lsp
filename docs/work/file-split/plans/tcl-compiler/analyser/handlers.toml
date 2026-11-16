@@ -1,0 +1,146 @@
+# First of two levels. The facade keeps the name helpers every handler family
+# uses (`qualify`, `scope_name_for_routine`, the role lookups), the shared
+# declaration-naming policy methods, `resolve_dynamic_word` and
+# `resolve_proc_call`. `classes` is split again by `handlers/classes.toml`.
+file = "rust/tcl-compiler/src/analyser/handlers.rs"
+
+[[module]]
+name = "written_variables"
+doc = "Variables a command writes: a direct `set`, and the loop and output variables a call's argument roles name."
+items = [
+    "fn:word_substitutes",
+    "fn:names_static_variable",
+    "impl:Analyser::bind_value_word_assignment",
+    "impl:Analyser::value_word_write..impl:Analyser::try_fold_const_cmd_subst_rhs",
+    "impl:Analyser::define_vars_from_list",
+    "impl:Analyser::handle_var_binding_command",
+    "impl:Analyser::handle_dict_for_command..impl:Analyser::handle_dict_with_command",
+]
+
+[[module]]
+name = "scope_aliases"
+doc = "Names linked to a cell in another scope: state-transition aliases, `global`, `variable` and `upvar`."
+items = [
+    "impl:Analyser::apply_state_transitions..impl:Analyser::alias_frame_level",
+    "impl:Analyser::handle_global_command..impl:Analyser::declaration_local_alias",
+    "impl:Analyser::declaration_alias_target",
+    "impl:Analyser::handle_upvar_command..impl:Analyser::upvar_link_target",
+]
+
+[[module]]
+name = "symbol_definitions"
+doc = "Registry symbol-definer commands: the lightweight named definition each records."
+items = [
+    "fn:summarise_detail",
+    "impl:Analyser::handle_defines_symbol",
+    "impl:Analyser::retain_vendor_symbol_metadata",
+    "impl:Analyser::defined_symbol_reporting_name..impl:Analyser::resolve_const_word",
+]
+
+[[module]]
+name = "definition_warnings"
+doc = "Warnings on what a definition names: a shadowed built-in (W113), a misplaced `args` (W218) and names that cannot be addressed or run (W314, W315)."
+items = [
+    "fn:overridable_library_procs",
+    "impl:Analyser::emit_w113_proc_shadows_builtin..impl:Analyser::emit_w218_args_not_final",
+]
+
+[[module]]
+name = "procedures"
+doc = "`proc`: the declaration's names and metadata, its parameter traits and the walk of its body in a new scope."
+items = [
+    "struct:ResolvedProcedureReportingName",
+    "type:ProcParamFacts",
+    "struct:ProcBodyWalkArgs..fn:static_variables",
+    "impl:Analyser::procedure_definition_doc..impl:Analyser::retain_unknown_procedure_info",
+    "impl:Analyser::procedure_reporting_names..impl:Analyser::declared_procedure_formal_count",
+    "impl:Analyser::original_procedure_declaration_name..impl:Analyser::retain_procedure_declaration_metadata",
+    "impl:Analyser::infer_proc_param_traits",
+    "impl:Analyser::procedure_words_for_analyser..impl:Analyser::walk_proc_body_in_new_scope",
+    "impl:Analyser::defines_global_unresolved_handler",
+]
+
+[[module]]
+name = "opt_proc"
+doc = "`tcl::OptProc`: the `opt` package's procedure form, its option list and the locals it binds."
+items = [
+    "impl:Analyser::bind_opt_proc_locals",
+    "impl:Analyser::handle_opt_proc_command..impl:Analyser::opt_proc_params",
+]
+
+[[module]]
+name = "apply_lambda"
+doc = "`apply`: the lambda's parameters, namespace and body."
+items = [
+    "struct:ApplyLambdaSourceFacts..struct:ApplyLambdaBody",
+    "impl:Analyser::record_apply_namespace_reference",
+    "impl:Analyser::resolve_dynamic_apply_lambda..impl:Analyser::finish_apply_lambda_body",
+]
+
+[[module]]
+name = "namespaces"
+doc = "`namespace eval`, `path`, `import`, `export`, `forget` and `unknown`."
+items = [
+    "impl:Analyser::record_resolved_namespace_reference",
+    "impl:Analyser::handle_namespace_eval_command..impl:Analyser::analyse_namespace_eval_tail",
+    "impl:Analyser::handle_namespace_path_command..impl:Analyser::record_namespace_path_element_refs",
+    "impl:Analyser::handle_namespace_import_command..impl:Analyser::handle_tcllib_import_wrapper",
+]
+
+[[module]]
+name = "ensembles"
+doc = "`namespace ensemble`: the ensemble's subcommands, `-map` targets and prefix setting."
+items = ["impl:Analyser::handle_namespace_ensemble..impl:Analyser::record_ensemble_subcommands"]
+
+[[module]]
+name = "interpreters"
+doc = "Child interpreters: `interp create`, `delete`, `hide`, `expose` and the scripts `interp eval` runs in a child."
+items = [
+    "fn:interp_path_key..fn:created_interpreter",
+    "impl:Analyser::bind_created_interpreter_value",
+    "impl:Analyser::handle_interp_eval_command..impl:Analyser::handle_interp_expose_command_original",
+]
+
+[[module]]
+name = "command_aliases"
+doc = "Commands reachable under another name: `interp alias` and `rename`."
+items = [
+    "impl:Analyser::handle_interp_alias..impl:Analyser::record_interp_alias",
+    "impl:Analyser::handle_rename",
+    "impl:Analyser::note_external_unit_command_moved",
+]
+
+[[module]]
+name = "control_flow"
+doc = "Commands that run a body script: `foreach`, `switch`, `catch` and `uplevel`."
+items = [
+    "impl:Analyser::handle_uplevel_command",
+    "impl:Analyser::handle_foreach_command..impl:Analyser::handle_catch_command",
+]
+
+[[module]]
+name = "classes"
+doc = "Class systems: class and object definitions, class factories and the classes a document manufactures under computed names."
+items = [
+    "struct:UserMetaclass..fn:manufacturer_layout",
+    "impl:Analyser::retain_manufactured_class_declaration",
+    "impl:Analyser::apply_manufactured_class_members",
+    "impl:Analyser::handle_oo_objdefine_at..impl:Analyser::flush_objdefine_abort_diagnostics",
+    "impl:Analyser::definition_grammar..impl:Analyser::oo_definition_source_spans",
+    "impl:Analyser::register_defined_class..impl:Analyser::walk_oo_define_form",
+]
+
+[[module]]
+name = "code_loading"
+doc = "What a script loads: `package require`, `provide`, `ifneeded` and `prefer`, `source` and the package search path."
+items = [
+    "impl:Analyser::original_package_operand..impl:Analyser::handle_package_prefer",
+    "impl:Analyser::leading_option_words",
+    "impl:Analyser::handle_source_command",
+    "impl:Analyser::record_search_path_write..impl:Analyser::handle_auto_path_set",
+]
+
+[[module]]
+name = "regex_patterns"
+doc = "The pattern arguments of regular-expression commands."
+items = ["impl:Analyser::regex_pattern_source_index..impl:Analyser::record_regex_pattern_token"]

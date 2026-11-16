@@ -1,0 +1,50 @@
+# Second level: apply `plans/runtime/cmd_oo.toml` first; it creates this file.
+# The facade keeps the engine's entry points from the rest of the runtime:
+# `oo_dispatch`, the rename and namespace-deletion hooks, record retirement,
+# `oo_is_empty` and `oo_name`.
+file = "runtime/rust/src/cmd_oo/engine.rs"
+
+[[module]]
+name = "construction"
+doc = "Creating classes and objects: the command publication, `oo_make_class`, the `create`/`new`/`createWithNamespace` factory and the instance namespace."
+items = [
+    "impl:Interp::oo_publication..impl:Interp::oo_class_factory",
+    "impl:Interp::oo_new..impl:Interp::oo_new_ns",
+]
+
+[[module]]
+name = "method_invocation"
+doc = "Invoking a method on an object: export visibility, filters, the method chain, and the unknown-method error."
+items = [
+    "impl:Interp::oo_unknown_method",
+    "fn:oo_object_unknown",
+    "impl:Interp::oo_invoke..impl:Interp::oo_invoke_original_entered",
+    "impl:Interp::active_filters..impl:Interp::method_chain_faceted",
+]
+
+[[module]]
+name = "builtin_methods"
+doc = "The unexported `oo::object` built-in methods (`variable`, `varname`, `eval`) and the TIP 500 private variable names they map."
+items = [
+    "impl:Interp::oo_builtin_method..impl:Interp::oo_builtin_method_entered",
+    "impl:Interp::private_storage_name_original..impl:Interp::private_storage_name",
+]
+
+[[module]]
+name = "class_hierarchy"
+doc = "Queries over the class hierarchy: precedence and C3 linearisation, property lists, and where a method is defined, exported or private."
+items = [
+    "impl:Interp::class_precedence..impl:Interp::method_unexported",
+    "impl:Interp::mro..impl:Interp::c3_linearize",
+    "fn:c3_merge",
+]
+
+[[module]]
+name = "method_execution"
+doc = "Running one step of a call chain: the method frame, forwards, native handlers and the retirement of the call frame."
+items = ["impl:Interp::oo_run..impl:Interp::oo_run_entered"]
+
+[[module]]
+name = "destruction"
+doc = "Destroying objects and classes: the destructor chain, background teardown and a class's descendants."
+items = ["impl:Interp::oo_destroy_bg..impl:Interp::oo_destroy_class_descendants"]

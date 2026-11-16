@@ -1,0 +1,61 @@
+# Second level of `tests.toml`. No fixture belongs to this module alone; the facade is the module list.
+file = "rust/tcl-lsp-server/src/tests/documents.rs"
+
+[[module]]
+name = "path_admission"
+doc = "Canonical file URIs and the path admission of constructed ones."
+items = [
+    "fn:canonical_file_uri_declines_opaque_actual_path_without_replacement_alias..fn:constructed_product_alias_retains_the_original_counted_path_for_admission",
+]
+
+[[module]]
+name = "store"
+doc = "The open-document map's holder record, phases and waiter telemetry."
+items = [
+    "fn:the_open_document_map_names_its_holder..fn:the_phase_running_at_release_is_recorded_too",
+    "fn:a_contention_snapshot_never_mixes_two_states..fn:a_contention_snapshot_survives_concurrent_hammering",
+    "fn:a_contended_map_acquire_reports_its_polls_and_wakes..fn:a_cancelled_map_acquire_leaves_no_ghost_waiter",
+]
+
+[[module]]
+name = "unpark_watchdog"
+doc = "The watchdog's nudge trigger and step."
+items = ["fn:the_nudge_fires_on_impossible_shapes_only..fn:the_watchdog_step_nudges_only_a_wedged_store"]
+
+[[module]]
+name = "stall_report"
+doc = "The stall line and the barrier stall reporter."
+items = [
+    "fn:a_barrier_that_has_caught_up_is_not_reported_as_a_stall..fn:a_stalled_turn_names_the_await_it_is_suspended_at",
+    "fn:the_stall_line_names_the_longest_phase..fn:the_line_does_not_call_an_earlier_phase_longest_than_the_running_one",
+    "fn:a_barrier_that_catches_up_during_the_sample_window_is_not_reported..fn:the_stall_report_names_the_workspace_index_holder",
+    "fn:the_waiter_clause_states_the_verdict",
+]
+
+[[module]]
+name = "edit_order"
+doc = "Edit tickets, turns and the barrier requests wait behind."
+items = [
+    "fn:read_document_waits_for_an_in_flight_edit..fn:a_dropped_waiter_does_not_wedge_the_edit_order",
+    "fn:did_close_hands_its_edit_turn_on_before_the_reindex_tail..fn:did_change_hands_its_edit_turn_on_before_the_scheduling_tail",
+]
+
+[[module]]
+name = "content_changes"
+doc = "Incremental content changes and the bare-CR check."
+items = [
+    "fn:apply_content_change_full_replacement..fn:edit_introduces_bare_cr_detects_boundary_and_internal_lone_cr",
+]
+
+[[module]]
+name = "reads"
+doc = "Snapshot reads and the readiness each provider waits for."
+items = [
+    "fn:read_document_hands_out_analysis_text_and_keeps_the_raw_bytes..fn:reading_a_closed_on_disk_file_does_not_retain_it",
+    "fn:semantic_tokens_do_not_wait_for_did_open_index_seed_1854..fn:repeated_analysis_normalisation_preserves_original_source_receipts",
+]
+
+[[module]]
+name = "per_uri_caches"
+doc = "Retirement of a renamed URI's per-URI state."
+items = ["fn:rename_params..fn:did_rename_forgets_every_per_uri_cache_1298"]

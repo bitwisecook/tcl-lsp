@@ -1,0 +1,85 @@
+# The parent keeps the fixtures several topics share: `vm`, `eval_ok`,
+# `invoke`, `sole_compiled_procedure`, the output capture, and the
+# `OptimisedOnlyCompilerSvc` and `CountingCompilerSvc` compile services.
+# A fixture used by one topic moves with that topic's tests.
+file = "rust/tcl-vm/tests/it_5/command_mutation_deopt_e2e.rs"
+
+[[module]]
+name = "inlined_procedures"
+doc = "Procedure bodies the compiler inlined: invalidation after redefinition, and revalidation and replay in the defining namespace."
+items = [
+    "struct:InliningCompilerSvc..fn:compiled_body_at_declaration",
+    "impl:CompileService for InliningCompilerSvc",
+    "fn:explicit_inline_codegen_pipeline_invalidates_after_user_proc_redefinition..fn:top_level_cross_namespace_call_keeps_its_proc_frame_and_matches_tcl90",
+]
+
+[[module]]
+name = "compiler_swap"
+doc = "Replacing a builtin, the compile service or the profile while code is cached or running: cached evals, foreign modules, suspended coroutines, tailcalls and runtime loops fail closed or recompile."
+items = [
+    "struct:CountCalls..struct:SwitchProfileAndOk",
+    "struct:SwitchCompilerToCustom..struct:SwitchCompilerAndReturn",
+    "impl:NativeCommand for CountCalls",
+    "impl:NativeCommand for SwitchProfileAndContinue..impl:NativeCommand for SwitchCompilerAndReturn",
+    "fn:custom_compile_service",
+    "const:MID_RUN_SWITCH_REFUSAL..fn:assert_stale_compile_service",
+    "fn:builtin_replacement_crosses_proc_and_eval_unit_boundaries..fn:runtime_foreach_does_not_tag_old_profile_assembly_as_fresh",
+]
+
+[[module]]
+name = "binding_revalidation"
+doc = "A compiled command binding is revalidated after a shadow, a forgotten import or a namespace teardown, and an active frame redispatches after a nested command mutation."
+items = ["fn:namespaced_builtin_shadow_invalidates_future_proc_compilation..fn:fused_expr_alias_tracks_its_source_implementation"]
+
+[[module]]
+name = "reusable_artifacts"
+doc = "Reusable modules and function handles are revalidated after command mutation, on native re-entry, under execution traces and across hide and expose."
+items = [
+    "struct:CompileOrInvokeHandle..struct:RunCompiledFunction",
+    "impl:NativeCommand for CompileOrInvokeHandle..impl:NativeCommand for RunCompiledFunction",
+    "fn:reusable_module_is_revalidated_after_command_mutation..fn:reusable_consumers_revalidate_command_execution_traces",
+    "fn:hide_and_expose_lifecycle_mutations_revalidate_artifacts..fn:unrelated_mutation_does_not_deoptimise_a_reusable_artifact",
+]
+
+[[module]]
+name = "argument_substitution_mutation"
+doc = "A command mutated while its own arguments are substituted keeps its entered token and deoptimises at the next command: the per-command table and the codegen-hook case."
+items = ["fn:non_expr_codegen_hook_redispatches_after_replacement..fn:argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_command"]
+
+[[module]]
+name = "recompilation"
+doc = "Procedure, function-handle and TclOO method bodies: compiled once and reused, recompiled against a replaced builtin and again after its restoration, and under step traces."
+items = [
+    "fn:generated_procedure_body_keeps_proc_locals_and_entered_append_token..fn:a_procedure_body_compiled_at_its_first_call_is_reused",
+    "struct:HostAnswer..fn:tcloo_method_stays_compiled_under_an_unrelated_step_trace",
+]
+
+[[module]]
+name = "stale_replay"
+doc = "What replays once a binding is stale: lowering hooks, escaped heads, constant folds, and the structured-command replay cases."
+items = [
+    "fn:non_expr_lowering_hook_redispatches_after_replacement..fn:restored_builtin_identity_does_not_leave_the_vm_permanently_untrusted",
+    "fn:replay_after_a_stale_binding_resumes_after_each_structured_command..fn:stale_replay_cases",
+]
+
+[[module]]
+name = "plain_compiler_capability"
+doc = "Recovery needs a plain-dispatch compiler: a missing, script-only or dishonest one makes the VM fail closed."
+items = [
+    "struct:DishonestPlainCompilerSvc..struct:ScriptOnlyCompilerSvc",
+    "impl:CompileService for DishonestPlainCompilerSvc..impl:CompileService for ScriptOnlyCompilerSvc",
+    "fn:step_traced_procedure_fails_closed_without_plain_dispatch_capability",
+    "fn:native_replacement_fails_closed_when_no_plain_compiler_exists..fn:procedure_consumers_preserve_a_missing_typed_compiler_capability",
+]
+
+[[module]]
+name = "manifests"
+doc = "Identity manifests and spec-pack sets: which rungs a changed pack set, another world, another intrinsic table or other package floors refuse."
+items = [
+    "struct:PackRestingCompilerSvc..struct:NativeOverride",
+    "struct:Repin",
+    "impl:NativeCommand for NativeOverride",
+    "impl:NativeCommand for Repin",
+    "fn:a_rung_zero_module_is_admitted_under_a_changed_pack_set..fn:pack_stamp",
+    "fn:a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites..fn:a_running_function_is_checked_against_its_manifest_when_the_pin_changes",
+]

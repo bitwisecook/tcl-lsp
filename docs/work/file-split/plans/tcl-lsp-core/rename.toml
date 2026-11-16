@@ -1,0 +1,37 @@
+# The facade keeps `TextEdit`, `PrepareRename`, `WorkspaceTextEdit`, the public
+# `prepare_rename*` and `rename*` entry points with the tier order and refusals
+# behind them, the namespace tier and the final edit building.
+file = "rust/tcl-lsp-core/src/rename.rs"
+
+[[module]]
+name = "members"
+doc = "Renaming class members: method targets and access, override families, safety hazards and the spans to rewrite."
+items = [
+    "fn:member_family_spans",
+    "fn:prepare_list_built_self_method_rename..fn:rename_list_built_self_method",
+    "fn:gated_untargeted_member_rename",
+    "fn:method_rename_refusal..fn:untargeted_member_rename_target",
+    "fn:rename_itcl_class_proc..fn:override_family",
+    "fn:rename_method",
+]
+
+[[module]]
+name = "variables"
+doc = "Renaming variables: declarations and reads, namespace variables, reference spelling and the conditional source rename."
+items = [
+    "fn:class_variable_rename_refusal",
+    "fn:rename_variable_at",
+    "fn:rename_var",
+    "fn:namespace_variable_rename_edits..fn:split_array_suffix",
+    "fn:conditional_variable_rename_with_diagnosis..fn:prepare_conditional_variable_rename",
+]
+
+[[module]]
+name = "commands"
+doc = "Renaming procedures and classes: declarations, call sites, ensemble dispatch words and cross-document edits."
+items = [
+    "fn:prepare_named_command_rename..fn:rename_named_command",
+    "fn:ensemble_map_dispatch_word..fn:rename_class",
+    "fn:qualified_and_decl_text..fn:invocation_replacement",
+    "fn:cross_document_symbol_edits..fn:workspace_symbol_rename_edits",
+]

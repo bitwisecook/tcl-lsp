@@ -1,0 +1,64 @@
+# The parent keeps the output capture and the `run`, `run_at` and
+# `run_flipping` drivers, and one test of the compound projection that
+# belongs to no namespace topic.
+file = "rust/tcl-vm/tests/it_3/namespace_surface_e2e.rs"
+
+[[module]]
+name = "which_origin"
+doc = "`namespace which` and `namespace origin`: variable and command lookup, import chains, lookup error codes and namespace-scoped links."
+items = [
+    "fn:which_variable_ignores_proc_locals..fn:command_origin_reports_none_for_a_command_that_was_not_imported",
+    "fn:command_lookup_codes_are_attached_only_by_real_lookup_failures..fn:lookup_error_codes_quote_dynamic_names_as_list_elements",
+    "fn:namespace_scoped_links_are_namespace_variables",
+]
+
+[[module]]
+name = "export_import"
+doc = "`namespace export` and `namespace import`: the flag words, imported commands tracking replacement and deletion of their source, delete traces and import cycles."
+items = [
+    "fn:export_query_form_reports_the_pattern_list..fn:namespace_import_rejects_self_and_unknown_sources",
+    "fn:configuring_an_imported_ensemble_updates_the_origin..fn:import_cascade_retires_the_relocated_generation_once",
+    "fn:imported_binding_delete_trace_runs_before_unlink_and_is_reentrant..fn:namespace_import_rejects_a_cycle_before_mutating_the_graph",
+    "fn:import_created_by_a_source_delete_trace_joins_the_old_token_cascade..fn:imported_ensemble_keeps_source_identity_across_hide_and_expose",
+    "fn:reconfiguring_an_ensemble_reaches_transitive_importers",
+]
+
+[[module]]
+name = "teardown"
+doc = "Namespace teardown (`TclTeardownNamespace`): paths and unknown handlers, owned ensembles, hash order of commands and children, and commands created or deleted by callbacks."
+items = ["fn:renaming_an_ensemble_into_a_retained_namespace_still_dispatches..fn:namespace_children_retains_tcls_hash_capacity_after_deletion"]
+
+[[module]]
+name = "ensembles"
+doc = "`namespace ensemble`: create and configure options, the subcommand map, dispatch messages and the `-unknown` handler."
+items = [
+    "fn:ensemble_create_options_abbreviate..fn:ensemble_create_checks_pair_arity_before_option_words",
+    "fn:ensemble_map_preserves_dict_order_and_collapses_repeats..fn:ensemble_default_target_miss_names_the_rewritten_subcommand",
+]
+
+[[module]]
+name = "command_visibility"
+doc = "Commands hidden from view: `interp hide` and `interp expose` failures, and the release gate on the TclOO root commands."
+items = [
+    "fn:interp_hide_and_expose_failures_keep_typed_tcl_identities..fn:interp_visibility_qualifier_validation_is_shared_by_every_entry_form",
+    "fn:tcloo_roots_follow_their_introducing_release..fn:a_renamed_tcloo_root_still_gates_by_its_registry_identity",
+]
+
+[[module]]
+name = "retained_namespaces"
+doc = "A deleted namespace outlives its last active frame: deferred deletion, dead handles, recreation as a distinct token, and deferred teardown order."
+items = [
+    "fn:dying_namespace_handles_are_rejected_during_command_delete_traces..fn:recreated_namespace_does_not_revive_a_retained_dead_token",
+    "fn:deleting_the_running_namespace_retains_it_for_the_frame..fn:a_deferred_teardown_keeps_tcl_hash_order",
+    "fn:a_command_deleted_from_a_retained_frame_reports_its_own_namespace",
+]
+
+[[module]]
+name = "command_delete_traces"
+doc = "Command delete and rename traces during teardown: nested traces, errors, and callbacks that delete or recreate child interpreters."
+items = ["fn:nested_command_delete_traces_preserve_deferred_result..fn:command_trace_replacement_repeated_nested_child_delete_keeps_original_token"]
+
+[[module]]
+name = "retained_tokens"
+doc = "A retained token is entered by identity, never by spelling: procedures, paths, renames and imports on the retained token's own tables."
+items = ["fn:a_retained_procedure_runs_in_its_own_token_not_the_recreations..fn:namespace_upvar_keeps_the_resolved_retained_namespace_token"]

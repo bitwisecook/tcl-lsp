@@ -1,0 +1,31 @@
+# Second level of `lib.toml`. The facade keeps the published pack set and its publication
+# record, `ReloadTrigger`, the `specPacksReloaded` notification and `Backend::spec_packs`.
+file = "rust/tcl-lsp-server/src/spec_packs.rs"
+
+[[module]]
+name = "reload"
+doc = "One pack reload: discovery, load, overlay installation and settlement."
+items = [
+    "fn:install_pack_overlays..fn:sync_overlay_epoch",
+    "impl:Backend::load_pack_configuration..impl:Backend::next_spec_pack_reload_sequence",
+    "impl:Backend::spec_pack_discovery..impl:Backend::settle_pack_reload",
+    "const:STARTUP_RELOAD_HOLD_ENV..fn:startup_reload_hold",
+]
+
+[[module]]
+name = "registrations"
+doc = "File-extension registrations and external watchers kept in line with the loaded packs."
+items = ["impl:Backend::refresh_pack_extension_registrations..impl:Backend::refresh_external_pack_watchers"]
+
+[[module]]
+name = "notices"
+doc = "Pack load notices published as diagnostics on the pack files."
+items = [
+    "impl:Backend::trace_raw_pack_notices..impl:Backend::prepare_spec_pack_notice",
+    "fn:whole_line_range",
+]
+
+[[module]]
+name = "reports"
+doc = "What `getEffectiveConfig` reports about the configured and discovered packs."
+items = ["impl:Backend::spec_pack_report..impl:Backend::pack_file_extension_rows"]

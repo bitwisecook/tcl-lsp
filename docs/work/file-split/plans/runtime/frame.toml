@@ -1,0 +1,34 @@
+# The facade keeps every type (`Var`, `Link`, `Cell`, `CellContents`,
+# `VarTable`, `Frame`, `FrameStack`: the existing children read their private
+# fields), the small impls of the cell types, `VarTable`'s name queries and
+# `FrameStack::new`, the local-name listings and the table accessors.
+file = "runtime/rust/src/frame.rs"
+
+[[module]]
+name = "table_cells"
+doc = "Cell and slot lookup in a `VarTable`: name-to-slot resolution, compiled cells, cached trace flags and binding identities."
+items = ["impl:VarTable::cached_increment_scalar_identity..impl:VarTable::cell"]
+
+[[module]]
+name = "table_storage"
+doc = "What a `VarTable` stores and publishes: constants, array defaults, scalars, elements, removals and links."
+items = ["impl:VarTable::is_constant..impl:VarTable::publish_link_with_origin"]
+
+[[module]]
+name = "activation_records"
+doc = "What an activation retains: the running procedure and its native execution role, Jim frame objects, and the TclOO variable resolver."
+items = [
+    "impl:FrameStack::recycle_jim_storage..impl:FrameStack::take_top_for_jim_retirement",
+    "impl:FrameStack::retain_jim_local_command..impl:FrameStack::declared_tcloo_variable_names",
+    "impl:FrameStack#2",
+]
+
+[[module]]
+name = "call_levels"
+doc = "Levels of the frame stack: push and pop, the active variable frame, caller chains, pending tailcalls and invocation words."
+items = ["impl:FrameStack::current_level..impl:FrameStack::replace_active_namespace"]
+
+[[module]]
+name = "compiled_slots"
+doc = "Formal cells and generated-code slots of the active frame."
+items = ["impl:FrameStack::install_formal_cells..impl:FrameStack::compiled_slot_var"]

@@ -1,0 +1,104 @@
+# The parent keeps the drivers (`run`, `run_bytecode`, `compiled_for_release`,
+# the hand-assembled `run_asm` with `pushv`), the output capture and the
+# basic dispatch test. The file had no sections; tests are grouped by the
+# command family they exercise.
+file = "rust/tcl-vm/tests/it_3/run_script.rs"
+
+[[module]]
+name = "traces_and_errors"
+doc = "What a traced or failing command leaves behind: variable traces, `errorInfo` and `errorCode`, the pending host cause, and how a top-level completion settles."
+items = [
+    "fn:traces_fire_ok_error_and_unset..fn:write_trace_error_info_reaches_triggering_command",
+    "fn:dynamic_eval_error_info_carries_eval_body_frame..fn:builtin_errors_publish_their_error_code",
+    "fn:original_trace_facades_keep_the_full_pending_host_cause..fn:a_top_level_completion_settles_as_tclsh_reports_it",
+]
+
+[[module]]
+name = "arithmetic"
+doc = "Numbers and `expr`: operand errors, overflow promotion, `wide`, `incr`, the `::tcl::mathop` commands and numeric comparison."
+items = [
+    "fn:nan_operand_error_wording..fn:wide_truncates_out_of_range_literals",
+    "fn:set_expr_puts..fn:incr_shared_core",
+    "fn:mathop_shared",
+    "fn:string_and_numeric_compare",
+    "fn:opcode_numeric_type",
+]
+
+[[module]]
+name = "lists_and_dicts"
+doc = "List and dictionary commands and their compiled forms: `linsert`, `ledit`, `lset`, `lpop`, `lrange`, `lindex`, `lsort`, `lseq`, `lappend`, `dict`."
+items = [
+    "fn:compiled_linsert_rejects_bad_index",
+    "fn:ledit_edits_in_place_and_reports_array_miss",
+    "fn:lset_runtime_builtin..fn:compiled_lrange_handles_end_plus_n",
+    "fn:dict_with_maps_and_reflects",
+    "fn:append_lappend_shared_core",
+    "fn:lsort_shared_comparison",
+    "fn:lseq_shared",
+    "fn:list_core_helpers..fn:lindex_bad_index_errors",
+    "fn:dict_core_helpers..fn:dict_get_missing_key_errors",
+    "fn:lset_list_and_flat",
+    "fn:opcode_reverse_lindex_multi_str_replace",
+    "fn:compiled_list_index_implements_tcl_lindex_list",
+    "fn:dict_toplevel_ensemble",
+]
+
+[[module]]
+name = "strings_and_binary"
+doc = "String, `format`, `binary`, `regexp` and `encoding` commands and their compiled forms."
+items = [
+    "fn:string_map_three_args_bad_option",
+    "fn:binary_encode_decode_shared..fn:binary_format_scan_shared",
+    "fn:string_core_helpers..fn:string_repeat_bad_count_errors",
+    "fn:string_case_replace_insert..fn:format_core",
+    "fn:string_first_last",
+    "fn:opcode_str_class..fn:opcode_regexp",
+    "fn:string_is_boolean_inline_try_cvt_to_boolean",
+    "fn:compiled_str_index_and_range_reject_bad_indices",
+    "fn:invoke_replace_string_ensemble",
+    "fn:encoding_command",
+]
+
+[[module]]
+name = "word_substitution"
+doc = "Substitution of words: backslash escapes, array keys, command substitution inside words and assignments, and `subst`."
+items = [
+    "fn:concat_keeps_backslash_escaped_trailing_space..fn:list_hooks_collapse_nonbraced_backslashes",
+    "fn:inline_cmd_subst_interpolates_dollar_prefixed_word",
+    "fn:braced_array_key_is_literal..fn:multiline_cmd_subst_in_assignment_keeps_all_args",
+    "fn:extra_chars_after_close_quote_is_catchable..fn:subst_backslash_escapes_handle_multibyte_and_hex",
+    "fn:set_inline_cmd_subst",
+    "fn:set_inline_cmd_subst_expand",
+    "fn:inline_cmd_subst_review_fixes",
+]
+
+[[module]]
+name = "control_flow"
+doc = "Loop jump commands and their argument checks, `time`, and `tailcall` with its deferred-completion matrices."
+items = [
+    "fn:loop_body_redefining_continue_is_honoured",
+    "fn:while_for_reject_wrong_arg_count",
+    "fn:break_continue_reject_arguments",
+    "fn:tailcall_basic_and_deep..fn:time_command",
+]
+
+[[module]]
+name = "introspection"
+doc = "`info`, `namespace`, `file` and `interp` queries over the shared command cores, and the autoloader's `unknown`."
+items = [
+    "fn:namespace_path_resolves_commands",
+    "fn:autoloader_installs_unknown_and_reports_miss",
+    "fn:info_and_file_subcommand_prefix_abbreviation",
+    "fn:info_level_shared_core..fn:file_path_ops_shared_core",
+    "fn:interp_eval_current",
+]
+
+[[module]]
+name = "procedure_bodies"
+doc = "The body a procedure runs is the one the compiler emitted for its `proc` command, through a compile service that caches injected bodies."
+items = ["struct:CachedBodyCompileService..fn:the_proc_command_that_runs_is_the_one_whose_body_is_installed"]
+
+[[module]]
+name = "inlined_catch"
+doc = "A value-position `catch` whose single-command braced body the compiler inlines."
+items = ["fn:a_value_position_catch_inlines_only_a_single_command_body..fn:a_value_that_is_not_one_whole_command_substitution_still_concatenates"]

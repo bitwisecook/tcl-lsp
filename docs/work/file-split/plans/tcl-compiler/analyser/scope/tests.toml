@@ -1,0 +1,66 @@
+# The parent keeps the fixtures several groups use: `span`,
+# `make_analyser_with_namespace` and `var`. Modules carry the names planned in
+# `scope.toml` where the tests line up.
+file = "rust/tcl-compiler/src/analyser/scope/tests.rs"
+
+[[module]]
+name = "logical_scope_advice"
+doc = "Logical scope advice: cross-namespace candidates and write-card correspondence."
+items = [
+    "fn:logical_cross_namespace_candidates_use_actual_namespace_owners..fn:logical_write_card_correspondence_uses_original_word_without_native_recipe",
+]
+
+[[module]]
+name = "constant_values"
+doc = "Constant strings: the Logical lookup through frames and namespaces, and the per-scope tables."
+items = [
+    "fn:logical_value_token",
+    "fn:logical_const_value_uses_variable_frame_not_command_namespace..fn:logical_const_value_refuses_non_dominating_and_future_writes",
+    "fn:set_const_string_retains_the_value..fn:const_string_table_starts_empty",
+]
+
+[[module]]
+name = "command_resolution"
+doc = "The namespace a command resolves in and the settlement of each call against local, global and deleted definitions."
+items = [
+    "fn:command_resolution_namespace_global_returns_root..fn:renamed_away_builtin_no_longer_settles_calls",
+    "fn:resolved_for..fn:unknown_in_both_namespaces_keeps_local_first_guess",
+    "fn:local_call_before_later_deletion_resolves_local_not_global_codex_1009",
+    "fn:local_call_after_deletion_still_falls_back_to_global_issue_973",
+    "fn:escape_hatch_requires_the_specific_enclosing_definitions_own_top_level_call..fn:escape_hatch_terminates_on_a_never_entered_mutual_recursion_cycle_issue_1015",
+    "fn:navigation_uses_reached_body_definition_before_later_redefinition..fn:class_navigation_retains_selected_declaration_after_name_reuse",
+]
+
+[[module]]
+name = "scope_diagnostics"
+doc = "Diagnostics raised from the scope helpers: W215 unreachable names, W116 and W117 stub shadows and W127 closed-set values."
+items = [
+    "fn:diag_codes",
+    "fn:w215_fires_for_unreachable_quoted_name..fn:w127_quiet_for_allowed_value",
+]
+
+[[module]]
+name = "scope_tree"
+doc = "The scope tree itself: `current_scope`, `define_var`, `record_var_read`, the configured scanners and the scope walk."
+items = [
+    "fn:current_scope_defaults_to_global..fn:current_scope_follows_path",
+    "fn:configured_scope_scanners_preserve_irules_brace_boundary_and_84_literals..fn:deeply_nested_scopes_survive_walk_scopes_from",
+]
+
+[[module]]
+name = "original_variable_occurrences"
+doc = "The original source symbols kept for variable inputs, receivers, formals, aliases and stores."
+items = [
+    "fn:qualified_variable_inputs_keep_document_units_and_producer_kind..fn:original_array_receiver_symbols_keep_combined_names_and_guest_error_independent",
+]
+
+[[module]]
+name = "namespace_variables"
+doc = "Namespace-qualified variables: recorded occurrences, `lookup_var_in_namespace`, `qualified_name_for_var_decl` and `lookup_var_by_qualified_name`."
+items = [
+    "fn:qualified_var_occurrences_are_recorded_with_their_rooted_cell",
+    "fn:unqualified_var_occurrences_are_not_recorded_as_qualified_refs..fn:lookup_var_in_namespace_finds_global_scope_variable",
+    "fn:qualified_name_for_var_decl_finds_var_in_matching_top_level_namespace",
+    "fn:qualified_name_for_var_decl_accumulates_through_nested_namespaces",
+    "fn:qualified_name_for_var_decl_skips_proc_locals..fn:lookup_var_by_qualified_name_returns_none_for_unknown_target",
+]

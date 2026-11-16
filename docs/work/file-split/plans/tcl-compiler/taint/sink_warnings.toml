@@ -1,0 +1,78 @@
+# Second level, for the `sink_warnings` module that `taint.toml` creates. The
+# facade keeps the per-function entry points (`find_taint_warnings*`,
+# `taint_warning_report_impl`), the shadowed-builtin scan, the
+# `SinkWarningContext` impl and `BranchTaintCtx`, which the report loop builds.
+file = "rust/tcl-compiler/src/taint/sink_warnings.rs"
+
+[[module]]
+name = "classification"
+doc = "Which sink a command is: the diagnostic code and label from the selected registry schema, and the network and cross-interpreter sinks."
+items = ["fn:classify_sink..fn:classify_network_interp_sinks"]
+
+[[module]]
+name = "double_encode"
+doc = "T106: a tainted value encoded twice by the same transform."
+items = ["fn:emit_double_encode_warnings"]
+
+[[module]]
+name = "statement_warnings"
+doc = "Warnings for one SSA statement: sink candidates, retained invocations, expression statements and the dispatch to each check."
+items = [
+    "fn:emit_original_assign_value_warnings..fn:emit_retained_invocation_warnings",
+    "fn:emit_expr_statement_warnings",
+    "fn:parse_taint_command_substitution",
+    "fn:emit_resolved_statement_warnings",
+]
+
+[[module]]
+name = "command_heads"
+doc = "The command a statement runs when its head is static, dynamic or a `$var` resolved from reaching definitions."
+items = [
+    "struct:StaticCommandHead..fn:emit_command_head_substitution_warnings",
+    "fn:command_substitutions_in_word..fn:resolve_taint_command_heads",
+]
+
+[[module]]
+name = "isolated_scripts"
+doc = "Analysing a nested script in isolation: the synthetic replay procedure, its outer constants and the ambient command table."
+items = ["fn:build_isolated_taint_unit..impl:<'r> ScaffoldConstructors<'r>", "fn:uses_for_names_at_statement"]
+
+[[module]]
+name = "source_reads"
+doc = "Taint of original operand reads: reference roots, sink arguments and the positioned `SourceWarningRead` projection."
+items = ["fn:original_scalar_reference_name..impl:<'a> SourceWarningRead<'a>"]
+
+[[module]]
+name = "pattern_operands"
+doc = "T103: tainted values in regular-expression and glob pattern operands."
+items = ["fn:emit_regexp_pattern_warnings..fn:summarised_pattern_taint"]
+
+[[module]]
+name = "numeric_coercion"
+doc = "T100: tainted operands an expression or a command argument coerces to a number."
+items = ["struct:CoercionOperand..fn:emit_numeric_coercion_warnings"]
+
+[[module]]
+name = "branch_conditions"
+doc = "Warnings for a block's branch condition and the command substitutions nested in it."
+items = ["fn:emit_branch_condition_warnings..fn:emit_branch_condition_nested_command_warnings_standalone"]
+
+[[module]]
+name = "sink_wrappers"
+doc = "Wrappers around a tainted variable in a sink argument: literal `list` commands, sanitisers and the colours transforms stamp."
+items = ["fn:standalone_list_wrapper_head..fn:var_wrapper_colours"]
+
+[[module]]
+name = "sink_emission"
+doc = "One warning per tainted use reaching a classified sink: mitigating colours, safe positions, argument spans and the message."
+items = [
+    "fn:sink_colour_mitigated",
+    "fn:irule3002_name_position_safe",
+    "fn:sink_arg_span..fn:var_only_in_safe_positions",
+    "fn:sink_message..fn:quoted_sink_use_is_evaluated",
+]
+
+[[module]]
+name = "option_injection"
+doc = "T102: tainted values where a command still scans for options."
+items = ["fn:arg_can_be_option..fn:emit_option_injection"]

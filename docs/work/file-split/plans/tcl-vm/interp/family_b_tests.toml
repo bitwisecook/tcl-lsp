@@ -1,0 +1,43 @@
+# The parent keeps the shared fixtures (`release_vm`, `select_release`,
+# `eval_value`, `guarded_builtin`, `TestNative`, the probe thread-local) and
+# the basic construction, introspection and dispatch tests.
+file = "rust/tcl-vm/src/interp/family_b_tests.rs"
+
+[[module]]
+name = "command_name_bytes"
+doc = "Command and namespace names as exact bytes: lookup, snapshots, enumeration and the backing catalogue."
+items = ["fn:procedure_publication_keeps_retained_holder_and_release_reparse..fn:native_compilation_capture_refuses_missing_namespace_coordinates"]
+
+[[module]]
+name = "host_activation"
+doc = "Explicit host and authored activations: numeric and expression policies, source recipes and their caches."
+items = ["fn:default_native_entry_retains_actual_execution_point_and_assistance_profile..fn:primitive_unchanged_error_code_does_not_read_guest_global_or_restore_a_store"]
+
+[[module]]
+name = "compile_admission"
+doc = "What the compile service is asked and admits: typed refusal, Jim math and expression preparation, and procedure headers."
+items = ["struct:RefusingCompiler..fn:procedure_header_admission_retains_lookup_and_callable_incarnations"]
+
+[[module]]
+name = "native_entry_identity"
+doc = "The stock command identities a native compilation entry retains: renames, ensembles, bootstrap maps, observers and procedure cache keys."
+items = ["fn:native_entry_retains_stock_identity_after_qualified_rename..fn:procedure_cache_keys_distinguish_raw_formal_lists_independently"]
+
+[[module]]
+name = "hidden_commands"
+doc = "Child interpreters and hidden commands: `invokehidden` identity checks and profile refresh of hidden and imported procedures."
+items = [
+    "fn:a_child_states_the_context_its_parent_is_pinned_to..fn:root_invokehidden_rechecks_identity_and_restores_hidden_state_after_error",
+    "fn:only_a_changed_root_profile_reestablishes_standard_channel_defaults..fn:imported_proc_profile_refresh_updates_the_resolved_import_not_its_source_name",
+    "struct:OriginNative..fn:invokehidden_temporarily_restores_imported_command_provenance",
+]
+
+[[module]]
+name = "intrinsic_guards"
+doc = "Family-B intrinsic guards: issuance, the domains a guard covers, the events that stale it, and attestation of registered builtins."
+items = ["fn:command_guard_requires_identity_and_has_exact_lifecycle..fn:stock_guard_requires_original_ensemble_configuration_at_every_issuance"]
+
+[[module]]
+name = "variables"
+doc = "The variable store by frame, `tcl_precision`, native variable names and variable links."
+items = ["fn:varstore_honours_frame_id..fn:namespace_var_enumeration_uses_the_exact_retained_token"]

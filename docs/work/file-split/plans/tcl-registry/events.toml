@@ -1,0 +1,35 @@
+# The facade keeps the source-flow actions, `EventProps`, the requirement and
+# emission types, `EventRegistry` with its queries and `event_satisfies`.
+# `event_props_table` is one alphabetical table cut into fixed-size chunk
+# functions; no chunk boundary falls on a protocol boundary, so it moves whole.
+file = "rust/tcl-registry/src/events.rs"
+
+[[module]]
+name = "data_collection"
+doc = "Protocol data collection: the `collect`, `release` and `payload` operations of each protocol and the events that bootstrap them."
+items = ["enum:DataCollectionAction..impl:DataCollectionOperation", "const:HTTP_BOOTSTRAP_EVENTS..const:XML_PAYLOAD"]
+
+[[module]]
+name = "top_level_declarations"
+doc = "The top-level declarations of an iRule (`when`, `priority`, `timing`): their clauses, argument slots and handler priorities."
+items = ["struct:EventHandlerPriority..enum:IrulesCommandPlacement"]
+
+[[module]]
+name = "when_handlers"
+doc = "Finding the `when` handlers at the top level of an iRule source."
+items = ["fn:top_level_when_handlers..fn:scan_when_events"]
+
+[[module]]
+name = "event_props_table"
+doc = "The property row of every iRules event, in event-name order."
+items = ["fn:event_props_table..fn:event_props_table_20"]
+
+[[module]]
+name = "event_order"
+doc = "The master firing order of events and which fire once per connection or once per request."
+items = ["fn:master_order..fn:per_request"]
+
+[[module]]
+name = "flow_chains"
+doc = "The event sequence of each modelled traffic flow (plain TCP, HTTP, TLS on either side, DNS)."
+items = ["fn:flow_chains..fn:tcp_dns_steps"]

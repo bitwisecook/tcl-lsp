@@ -1,0 +1,69 @@
+# Each child file holds whole inline modules, unchanged and under their names
+# (no child is named like a module it holds: `clippy::module_inception`).
+# The parent keeps the module documentation, the diagnostic runners (`codes`,
+# `fires`, `count`, `analyser_diags`, `w210_for`) and `mod class_factories;`.
+file = "rust/tcl-compiler/tests/it_4/analyser.rs"
+hoist = ["class_factories"]
+
+[[module]]
+name = "procedures"
+doc = "Procedure definitions: recorded names and parameters, `tcl::OptProc` definers and unused parameters."
+items = ["mod:proc_analysis", "mod:opt_proc_definer", "mod:unused_proc_parameters"]
+
+[[module]]
+name = "variables"
+doc = "Variable definitions and reads, and the constant values the analyser resolves through them."
+items = [
+    "mod:variable_analysis",
+    "mod:var_read_role_references",
+    "mod:set_dual_shape",
+    "mod:const_cmd_subst_set_rhs",
+    "mod:const_dominated_namespace_eval",
+    "mod:braced_word_elements_are_literal",
+]
+
+[[module]]
+name = "diagnostic_reports"
+doc = "The general diagnostics: arity, control flow, dialect gating of `when`, numeral releases and a leading byte-order mark."
+items = ["fn:numeral_release_diagnostic_tracks_profile", "mod:diagnostics", "mod:when_dialect_gating", "mod:control_flow", "mod:leading_bom"]
+
+[[module]]
+name = "lexical_checks"
+doc = "Checks on what is written: regular-expression patterns and the name canonicalisation matrix."
+items = ["mod:regex_patterns", "mod:canonicalisation_matrix"]
+
+[[module]]
+name = "script_arguments"
+doc = "Scripts passed as arguments: list-quoted scripts, `eval` and `uplevel` dispatch, lambdas, trace callbacks and `source` targets."
+items = [
+    "mod:list_quoted_script_arguments",
+    "mod:trace_callbacks",
+    "mod:eval_uplevel_indirect_dispatch",
+    "mod:apply_list_lambda",
+    "mod:source_targets",
+]
+
+[[module]]
+name = "aliases_and_renames"
+doc = "`interp alias`, alias targets flowing through values, and `rename`."
+items = ["mod:interp_alias", "mod:interp_value_flow", "mod:rename"]
+
+[[module]]
+name = "command_resolution"
+doc = "How a command word resolves: namespaces, `package require`, qualified `dict` specs, scoped command reports and pack-declared transitions."
+items = ["mod:namespace_analysis", "mod:package_require", "mod:dict_qualified_specs", "mod:report_scoped_commands", "mod:pack_declared_transitions"]
+
+[[module]]
+name = "unresolved_commands"
+doc = "Unresolved commands: when the analyser reports one and when it abstains."
+items = ["mod:unresolved_command"]
+
+[[module]]
+name = "tcloo"
+doc = "TclOO classes: definitions, `oo::link`, and helper commands under their scoping and namespace-path rules."
+items = ["mod:tcloo_classes", "mod:oo_link", "mod:oo_helpers_scoping", "mod:oo_helpers_namespace_path"]
+
+[[module]]
+name = "tcloo_dispatch"
+doc = "TclOO dispatch: named objects, configurable property accessors and template-method self dispatch."
+items = ["mod:issue_1312_named_object_dispatch", "mod:issue_1362_configurable_property_accessors", "mod:issue_1367_template_method_self_dispatch"]

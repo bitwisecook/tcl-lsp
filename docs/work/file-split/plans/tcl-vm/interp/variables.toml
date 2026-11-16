@@ -1,0 +1,64 @@
+# Second level: applies to the `variables` module that
+# plans/tcl-vm/interp.toml creates. The facade keeps the frame-addressed
+# storage accessors (`get_var_from`, `write_scalar_from`, `exists_from`),
+# the read-miss messages, and the combined-name entry points (`exists_var`,
+# `var_get`, `var_set`, `store_var_result`) with the reads of a resolved cell.
+file = "rust/tcl-vm/src/interp/variables.rs"
+
+[[module]]
+name = "traced_reads"
+doc = "Reads and existence checks that fire read traces first, and pinning an array cell as the target of an array operation."
+items = ["impl:Vm::var_trace_info_bytes..impl:Vm::discard_undefined_array_shell"]
+
+[[module]]
+name = "links"
+doc = "Variable links: `upvar`, `global`, `variable` and `namespace upvar` links, TclOO instance links, and installing a link without losing observable state."
+items = [
+    "enum:UpvarLinkError",
+    "impl:Vm::set_local_bytes..impl:Vm::validate_link_binding",
+]
+
+[[module]]
+name = "resolution"
+doc = "Resolving a variable name: the table a name binds in (frame or namespace), following links to the cell, and creating the cell a write or link needs."
+items = [
+    "impl:Vm::ns_var_global_fallback",
+    "impl:Vm::variable_table_recipe..impl:Vm::ensure_target_var_at_binding",
+]
+
+[[module]]
+name = "procedure_statics"
+doc = "Jim procedure statics: installing the static slots of a procedure from their original declaration."
+items = ["impl:Vm::detach_static_reference..impl:Vm::prepare_procedure_statics_value_in_original_name"]
+
+[[module]]
+name = "scalar_access"
+doc = "Reading and writing a scalar by name: the access diagnostics, traced writes, raw writes and constants."
+items = ["impl:Vm::validate_var_parent..impl:Vm::set_var"]
+
+[[module]]
+name = "unset"
+doc = "Unsetting a variable: retiring its storage, array elements and traces, the unset traces it reports, and the storage-only forms."
+items = [
+    "impl:Vm::unbind_resolved",
+    "impl:Vm::unset_var..impl:Vm::unset_selected_original_variable",
+    "impl:Vm::unset_from..impl:Vm::unbind_storage_resolved",
+]
+
+[[module]]
+name = "captured_updates"
+doc = "Read-modify-write through a captured cell: `append` and `lappend`, capturing the cell before its traces, and storing the update with its errors."
+items = ["impl:Vm::append_variable_bytes..impl:Vm::store_captured_update_with_original_and_errors"]
+
+[[module]]
+name = "increment"
+doc = "`incr` through a captured cell: the read phase, the amount, the native integer errors and the store."
+items = ["impl:Vm::increment_captured_bytes..impl:Vm::publish_swallowed_trace_error"]
+
+[[module]]
+name = "arrays"
+doc = "Array access: creating an array, reading, writing and unsetting an element, and enumerating keys."
+items = [
+    "impl:Vm::ensure_array..impl:Vm::ensure_array_selected",
+    "impl:Vm::get_array_elem..impl:Vm::array_elem_exists_at_id",
+]

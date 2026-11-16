@@ -1,0 +1,30 @@
+# The facade keeps the public options, snapshot key and `evaluate_pack*` entry
+# points, the row-word table, the staging types every part reads fields of
+# (`Drive`, the staged nodes, the verbatim structs, `State`), the content
+# hashes and the failed-pack path.
+file = "rust/tcl-spectcl/src/loader/eval.rs"
+
+[[module]]
+name = "verbatim"
+doc = "The verbatim skeleton of the file: the `speclib` body, each declaration's body block and the rows a captured invocation matches."
+items = ["impl:VerbatimBody", "impl:VerbatimIndex", "impl:Skeleton"]
+
+[[module]]
+name = "capture_handlers"
+doc = "The host command handlers that capture each declaration: rows, `speclib`, `command`, `subcommand`, `environment` and `dialect` blocks, `include`, `available?` and unknown commands."
+items = [
+    "fn:blockish..fn:stage_speclib",
+    "impl:<'a> EvaluatedCommandBody<'a>..fn:command_handler",
+    "impl:BodyText..fn:stage_include",
+    "fn:available_handler..fn:record_denial",
+]
+
+[[module]]
+name = "static_drive"
+doc = "The static fast path: running a body, or the whole file, through capture without the interpreter when every statement is a static row."
+items = ["fn:run_body..fn:static_row", "fn:drive_file_statically"]
+
+[[module]]
+name = "replay"
+doc = "Replay of a completed evaluation into a `Pack`: the provenance rule, the staged blocks and commands and their registration record."
+items = ["fn:compiled_command_exists..fn:fill_command_nodes"]

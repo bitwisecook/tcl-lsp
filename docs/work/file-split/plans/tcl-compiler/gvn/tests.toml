@@ -1,0 +1,50 @@
+# The parent keeps the fixtures several groups share: `STYLE`,
+# `release_registry`, `entry`, `bare_ssa` and the SSA block builders
+# (`id_of` to `all_blocks`).
+file = "rust/tcl-compiler/src/gvn/tests.rs"
+
+[[module]]
+name = "function_level"
+doc = "Function-level GVN over registry semantic facts: proved dispatch, declined dialects and volatile results."
+items = ["fn:function_level_gvn_proves_llength_dispatch_and_reports_o105..fn:function_level_gvn_declines_clock_seconds_and_versioned_clock_context"]
+
+[[module]]
+name = "value_table"
+doc = "The scoped value table, expression keys and message text."
+items = [
+    "fn:scoped_table_root_scope_always_present..fn:redundant_computation_constructor",
+    "fn:canonicalise_empty_uses_returns_input..fn:message_builders_include_expression_text",
+]
+
+[[module]]
+name = "statement_occurrences"
+doc = "Purity, state writes and the occurrences one statement contributes, including embedded command substitutions."
+items = [
+    "fn:call_stmt..fn:is_worth_reporting_unknown_command_is_false",
+    "fn:scan_bracketed_commands_simple..fn:statement_occurrences_includes_embedded_in_assign_value",
+    "fn:original_token_purity_requires_actual_availability_and_complete_children",
+]
+
+[[module]]
+name = "redundancies"
+doc = "`find_redundancies`: same-block and dominated duplicates, invalidation and sibling branches."
+items = [
+    "fn:find_redundancies_detects_same_block_duplicate..fn:find_redundancies_descends_dominator_tree",
+    "fn:find_redundancies_empty_for_no_blocks",
+    "fn:legacy_redundancies..fn:kill_all_preserves_within_path_detection",
+]
+
+[[module]]
+name = "loop_invariants"
+doc = "`find_loop_invariants`: hoistable calls, latch dominance and loop-defined variables."
+items = ["fn:find_loop_invariants_detects_hoistable_llength..fn:find_loop_invariants_no_loops_empty"]
+
+[[module]]
+name = "partial_redundancies"
+doc = "`find_partial_redundancies`, the availability transfer and the dominance queries it uses."
+items = ["fn:find_partial_redundancies_if_diamond..fn:expr_occurrence_carries_variable_uses"]
+
+[[module]]
+name = "stable_call_reuse"
+doc = "Reuse of stable calls under world mutations: traces, renames, aliases, interpreters, namespaces and fail-closed operands."
+items = ["fn:stable_call_findings..fn:oo_class_creation_suppresses_reuse_through_its_constructor_barrier"]

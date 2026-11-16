@@ -1,0 +1,41 @@
+# The facade keeps the module docs, `OperandTypes` (its fields are read by the
+# proofs, the equivalence check and reassociation) with its builders, the
+# `instcombine_expr*` fixpoint and the small literal and command-substitution
+# helpers every rewrite shares.
+file = "rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs"
+
+[[module]]
+name = "numeric_proofs"
+doc = "Whether an operand is provably numeric, provably an integer or cannot be NaN, under every release or any."
+items = ["fn:node_provably_numeric..fn:is_integer_string"]
+
+[[module]]
+name = "constant_folding"
+doc = "Folding an expression to a literal, unwrapping a redundant `[expr {…}]` and substituting known constants."
+items = ["fn:rewrite_policy..fn:is_numeric_literal"]
+
+[[module]]
+name = "structural_equivalence"
+doc = "Whether a proposed rewrite is the original expression for every operand value: the same result or the same error."
+items = ["fn:structural_rewrite_equivalence..fn:equivalent_for_integer_operands"]
+
+[[module]]
+name = "reassociation"
+doc = "O110 constant reassociation across `+`/`-` and `*` chains."
+items = ["fn:reassociate_node..fn:build_mul_expr"]
+
+[[module]]
+name = "strength_reduction"
+doc = "Strength reduction: ternary, unary, arithmetic, power, modulo, shift, bitwise and logical identities."
+items = [
+    "fn:try_strength_reduce_expr..fn:try_strength_reduce_expr_typed",
+    "fn:strength_reduce_node..fn:is_boolean_expr",
+]
+
+[[module]]
+name = "string_comparisons"
+doc = "`string length` tests and `==`/`!=` against a string rewritten to string comparisons."
+items = [
+    "fn:try_strlen_simplify_expr..fn:try_eq_ne_string_compare_simplify_expr",
+    "fn:streq_promote_node..fn:is_numeric_or_boolean_string",
+]

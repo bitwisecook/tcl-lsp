@@ -1,0 +1,84 @@
+# The parent keeps the shared helpers and the inline module
+# `composed_callback_prefix_tests` (a `mod` item cannot move). Modules carry the
+# production module names; `variables` and `ensemble_subcommands` test resolvers
+# that `references.rs` itself keeps.
+file = "rust/tcl-lsp-core/src/references/tests.rs"
+
+[[module]]
+name = "call_sites"
+doc = "Procedure call sites: retained declarations, redefinitions, renames, imports, unbraced bodies and qualified names."
+items = [
+    "fn:retained_colon_procedure_does_not_reference_the_empty_name",
+    "fn:loaded_terminal_can_report_an_external_call_without_local_edit_authority",
+    "fn:retained_alias_calls_do_not_become_target_rename_edits..fn:references_reach_the_call_site_from_the_stale_original_in_a_foreach_rename_reinstall_idiom",
+    "fn:references_to_proc_include_decl_and_calls..fn:references_exclude_a_top_level_bare_call_with_the_same_name_as_an_oo_helpers_proc",
+    "fn:references_do_not_include_unexported_sibling_wildcard_call_same_document..fn:references_to_unknown_word_empty",
+    "fn:resolved_qualified_name_matches_call_site_from_namespace",
+    "fn:resolved_qualified_name_field_populated_for_simple_call",
+    "fn:references_from_opt_proc_declaration_reach_the_call_site..fn:references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var",
+]
+
+[[module]]
+name = "variables"
+doc = "Variable references: scopes, global aliases, loop variables and caller frames."
+items = [
+    "fn:references_skip_a_same_named_untyped_variable_in_another_scope",
+    "fn:references_from_in_proc_global_alias_reach_the_callers_canonical_set..fn:references_for_a_multi_list_foreach_second_varlist_now_reach_every_use",
+    "fn:references_to_var_includes_definition_and_uses..fn:references_from_catch_resultvar_bareword_include_the_original_declaration",
+    "fn:caller_frame_reference_component_keeps_retained_registry_and_input",
+]
+
+[[module]]
+name = "ensemble_subcommands"
+doc = "References through ensemble subcommand dispatch."
+items = ["fn:ensemble_subcommand_references_include_decl_and_both_call_sites..fn:a_dynamic_ensemble_map_yields_no_call_site_reference_923_idx85"]
+
+[[module]]
+name = "next_dispatch"
+doc = "`next` and `nextto` references: methods and constructor and destructor chains."
+items = ["fn:method_references_include_next_dispatch..fn:constructor_keyword_resolves_its_own_next_chain_even_with_a_same_named_method"]
+
+[[module]]
+name = "highlights"
+doc = "Document highlights and their read and write kinds."
+items = [
+    "fn:document_highlights_var_records_write_at_definition..fn:document_highlights_empty_for_unknown_symbol",
+    "fn:document_highlights_surfaces_var_reads_from_arg_positions",
+    "fn:document_highlights_for_method_marks_decl_and_calls_text",
+]
+
+[[module]]
+name = "self_dispatch_scan"
+doc = "`my method` and self-dispatch call sites inside member bodies."
+items = [
+    "fn:idx63_two_block_class_my_dispatch_already_fixed_by_idx52..fn:references_for_method_includes_decl_and_call_sites",
+    "fn:references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm..fn:references_for_method_excludes_decl_when_requested",
+    "fn:references_from_decl_reach_my_dispatch_when_class_extended_via_separate_oo_define..fn:references_from_decl_reach_a_self_bracket_dispatch_call_site",
+    "fn:method_dispatch_scan_uses_retained_custom_schema_and_script_purpose",
+]
+
+[[module]]
+name = "callback_targets"
+doc = "Method words captured into callbacks: stored prefixes, list-built self callbacks, visibility and inherited receivers."
+items = [
+    "fn:references_for_method_includes_one_hop_stored_callback_prefixes..fn:stored_callback_prefix_cursor_resolves_to_method_declaration",
+    "fn:references_from_decl_reach_a_list_built_self_callback..fn:a_mixins_unexport_does_not_suppress_the_superclass_capture",
+    "fn:callback_source_roles_keep_actual_availability_and_original_builder_geometry..fn:callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes",
+]
+
+[[module]]
+name = "object_method_sites"
+doc = "External `$obj method` and class-command call sites."
+items = [
+    "fn:class_method_references_require_the_original_temporal_entry..fn:instance_method_references_refuse_mutated_dispatch_and_nominal_decoys",
+    "fn:references_reach_a_method_return_captured_dispatch_site",
+    "fn:references_do_not_resolve_an_unclosed_braced_instance_head",
+    "fn:references_from_external_obj_method_site..fn:bare_set_var_receiver_is_not_matched_without_dollar",
+    "fn:method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers",
+    "fn:stale_instance_candidate_does_not_add_a_variable_method_reference",
+]
+
+[[module]]
+name = "dispatch_regions"
+doc = "Nested regions a dispatch scan reaches: frame shifts, `expect` clauses, case lists and their aliases."
+items = ["fn:shifted_dispatch_regions_follow_original_moves_and_known_source_barriers..fn:switch_braced_body_references_reach_nested_command"]

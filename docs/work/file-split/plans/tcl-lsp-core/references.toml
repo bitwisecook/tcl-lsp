@@ -1,0 +1,64 @@
+# The facade keeps the public `references*` entry points, `RefCtx` and the
+# per-kind resolvers they dispatch to (variables, classes, procedures, members),
+# with the range conversions those share.
+file = "rust/tcl-lsp-core/src/references.rs"
+
+[[module]]
+name = "call_sites"
+doc = "Which call sites reference a procedure or class definition: namespace resolution, indirection, imports and displaced definitions."
+items = ["fn:proc_reference_spans..fn:invocation_references_class", "fn:class_reference_spans"]
+
+[[module]]
+name = "member_references"
+doc = "Class-member declarations and their reference spans: member bodies, member selection and inherited call sites."
+items = [
+    "fn:collect_member_bodies..fn:resolve_member_span",
+    "fn:method_references_for_class..fn:method_references_for_declaration",
+    "fn:method_reference_spans_in_document",
+    "struct:InheritedReceiverFacts..fn:find_class_member_references",
+    "fn:member_reference_spans..fn:member_reference_inventory",
+]
+
+[[module]]
+name = "callback_targets"
+doc = "Method words captured into callbacks: stored selectors, command prefixes and list-built self dispatch."
+items = [
+    "fn:authored_callback_reference_spans..fn:authored_callback_body_owner",
+    "fn:list_built_self_method_target_at_cursor..fn:unproved_callback_method_selector",
+    "struct:StoredCallbackTarget..fn:stored_callback_schema",
+    "fn:list_built_self_reference_spans..fn:original_self_receiver_word",
+]
+
+[[module]]
+name = "self_dispatch_scan"
+doc = "The scan of member bodies for `my method` and other self-dispatch call sites."
+items = [
+    "fn:scan_my_method_sites..struct:MyMethodScan",
+    "fn:scan_my_method_body..fn:original_self_dispatch",
+]
+
+[[module]]
+name = "next_dispatch"
+doc = "`next` and `nextto` call sites: method super-dispatch and constructor and destructor chains."
+items = [
+    "fn:span_contains_offset..fn:destructor_next_chain_references",
+    "fn:scan_next_dispatch_sites..fn:scan_next_dispatch_region_with_target",
+]
+
+[[module]]
+name = "object_method_sites"
+doc = "External `$obj method` and class-command call sites, matched through their receivers."
+items = [
+    "fn:obj_method_call_sites..fn:logical_class_command_method_sites",
+    "fn:find_obj_method_call_sites..fn:scan_obj_method_region",
+]
+
+[[module]]
+name = "dispatch_regions"
+doc = "The nested script regions a dispatch scan visits, and the census of them per command."
+items = ["fn:strip_outer_braces..fn:dispatch_scan_regions"]
+
+[[module]]
+name = "highlights"
+doc = "Document highlights: the read and write occurrences of the symbol at the cursor."
+items = ["enum:HighlightKind..fn:priority"]

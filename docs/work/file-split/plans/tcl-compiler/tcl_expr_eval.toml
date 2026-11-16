@@ -1,0 +1,44 @@
+# The facade keeps `TclValue`, the environment and native-operand evidence
+# types, `FoldEvaluation` and the `eval_tcl_expr*` / `analyse_tcl_expr*`
+# entry points with the query plumbing behind them, and the `FoldOps` struct,
+# whose fields the services, `native_constant` and the tests read.
+file = "rust/tcl-compiler/src/tcl_expr_eval.rs"
+
+[[module]]
+name = "fold_policy"
+doc = "`FoldPolicy`: the dialect-derived facts a constant fold needs, and the dialect questions about octal numerals and math functions."
+items = [
+    "struct:FoldPolicy",
+    "impl:FoldPolicy",
+    "fn:widens_past_a_wide",
+    "fn:leading_zero_is_octal..fn:mathfunc_command_wrappers_available_in_dialect",
+]
+
+[[module]]
+name = "fold_ops"
+doc = "The constant folder's `ExprOps`: fold values, the numeric tower, operand classification and the operator callbacks."
+items = [
+    "fn:make_fold_ops",
+    "enum:FoldValue..enum:FoldPurpose",
+    "impl:FoldOps<'_>..impl:tcl_syntax::expr::ExprOps for FoldOps<'_>",
+]
+
+[[module]]
+name = "numerals"
+doc = "Reading and rendering numbers: literal parsing under a release grammar, strict numbers and Tcl source spellings."
+items = ["fn:format_tcl_value..fn:strict_number_for_dialect"]
+
+[[module]]
+name = "arithmetic"
+doc = "Binary operators over folded numbers: exact comparison, division, modulo, power, bitwise and the iRules string operators."
+items = ["fn:apply_binary..fn:apply_irules_string_op"]
+
+[[module]]
+name = "services"
+doc = "`ExprServices`: the shared engine's `ExprOps` over the analysis inputs, and `evaluate_expression`."
+items = ["fn:reads_the_generator..fn:evaluate_expression"]
+
+[[module]]
+name = "condition_facts"
+doc = "What a branch condition proves about places on its true and false edges."
+items = ["struct:PlaceFact..fn:literal_operand"]

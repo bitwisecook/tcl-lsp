@@ -1,0 +1,166 @@
+# First of two levels. Modules carry the names of the diagnostic modules whose
+# checks they test; `validity`, `dataflow` and `var_command` are split again by
+# the plans under `tests/`. The parent keeps the collectors several families
+# use (`has_code`, `code_sevs`, `codes_for_dialect`, `diag`, `count_code`,
+# `count_code_in`, `w003_hits`, `w216_count`, `in_proc`) and six inline
+# modules, which a plan cannot move.
+file = "rust/tcl-compiler/src/analyser/diagnostics/tests.rs"
+
+[[module]]
+name = "usage"
+doc = "The single-command shape lints: unbraced words, non-ASCII and bidirectional text, literal contents, variable-name arguments and expression rewrites."
+items = [
+    "fn:w114_codes",
+    "fn:w311_flags_binary_encoding_with_translation..fn:dotted_quad_scanner_matches_regex_behaviour",
+    "fn:w108..fn:w305_analyser_skips_a_disabled_code_and_leaves_a_noqa_to_the_policy",
+    "fn:w108_off_mode_disables_entirely..fn:w212_upvar_remote_name_may_be_computed",
+    "fn:w216_upvar_local_name_is_indirect_array_idiom..fn:first_nested_expr_finds_bracketed_expr",
+    "fn:w100_suggests_scan_for_a_hexadecimal_conversion_2507",
+]
+
+[[module]]
+name = "validity"
+doc = "Command validity: arity, option relations and option words, command and subcommand availability, gated `expr` operators and malformed structure."
+items = [
+    "fn:interp_create_counts_only_its_path_as_positional",
+    "fn:e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles..fn:e006_discovers_definition_body_and_lambda_parameter_shapes",
+    "fn:w146_validates_modern_trace_operation_lists_by_registry_declared_type..fn:enabled_definer_nested_in_catch_is_silent",
+    "fn:w004_fires_on_regsub_command_in_tcl86..fn:w004_skips_option_value_that_looks_like_a_flag",
+    "fn:all_codes..fn:same_file_relative_qualified_call_prefers_current_namespace_over_global",
+    "fn:w004_fires_on_lsearch_stride_in_tcl85..fn:w003_silent_on_in_operator_in_tcl85",
+    "fn:w003_tight_span_covers_only_the_operator_in_a_braced_if..fn:w003_f5_tmsh_gates_both_tip_201_and_tip_461",
+    "fn:e00x_codes_for..fn:apply_expand_args_abstains_too_few",
+    "fn:irule2001_carries_matchclass_replacement_fix..fn:irule2001_ambiguous_arity_matchclass_warns_without_fix",
+    "fn:w304_braced_switch_form_silent..fn:w304_split_switch_form_still_fires",
+    "fn:irule2002_flags_deprecated_irules_command..fn:irule2002_silent_in_plain_tcl_dialect",
+    "fn:w304_does_not_cross_proc_param_shadow",
+    "const:ISSUE_703_SOURCE..fn:issue_703_genuine_dash_command_outside_try_still_flagged",
+    "fn:scratch_dup_e003_per_item",
+    "fn:w116_stub_shadow_uses_actual_selected_registry_and_exact_descriptor_data..fn:w143_package_namespace_advice_keeps_literal_package_names",
+    "fn:w143_withdraws_for_a_private_namespace_command_the_document_defines",
+]
+
+[[module]]
+name = "dataflow"
+doc = "The CFG and SSA checks: dead stores, unused bindings, read-before-set, existence folds, constant conditions and value domains."
+items = [
+    "fn:w210_missing_physical_read_does_not_require_an_ssa_value_version",
+    "fn:ipv6_candidate_scanner_extracts_runs",
+    "fn:w211_deliberately_skips_destructuring_writer_outputs",
+    "fn:body_references_param_bare_dollar..fn:body_references_param_namespace_qualified",
+    "fn:parameter_only_function_has_no_physical_store_warnings..fn:a_decided_if_beside_a_switch_is_never_a_switch_arm",
+    "fn:i231_reads_a_switch_words_by_their_values..fn:info_exists_folds_true_for_an_apply_lambda_parameter",
+    "fn:analyse_irule4005_racy_static_emitted_for_per_request_writes..fn:analyse_w124_real_ipv4_shaped_still_fires",
+    "fn:w210_codes..fn:w210_phi_undef_switch_no_default_return",
+    "fn:w210_interproc_dict_with_caller_literal..fn:w210_dict_body_keys_come_from_the_plan",
+    "fn:w210_qualified_variable_alias_tail_return_silent..fn:w214_genuine_unused_param_still_fires",
+    "fn:analyse_i230_constant_if_branch..fn:analyse_no_i230_for_dynamic_condition",
+    "fn:emit_cfg_ssa_diagnostics_w214_skips_args_param",
+    "fn:var_binding_gets_defines_target_and_read_is_clean..fn:var_binding_scope_alias_and_destroy_families_are_excluded",
+    "fn:issue_703_no_false_w210_on_fallthrough_group_var..fn:issue_703_backslash_escaped_dash_no_false_w210",
+    "fn:apply_lambda_parameters_are_bound_not_read_before_set..fn:dynamic_apply_lambda_word_is_still_a_caller_frame_read",
+    "fn:lifecycle_findings..fn:a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211",
+    "fn:w210_reads_after_lassign_and_dict_with_are_set_2501_2502..fn:a_procedure_after_a_top_level_loop_keeps_its_loop_verdicts",
+]
+
+[[module]]
+name = "var_command"
+doc = "Computed command names and method dispatch: W307, W308, the TclOO form of E001 and dispatch-table references."
+items = [
+    "fn:w307_selected_alias_slot_does_not_require_a_live_terminal_command..fn:w307_absence_advice_does_not_override_custom_fallback_uncertainty",
+    "fn:analyse_w307_suppressed_for_known_class_constructor_chain..fn:w308_double_colon_oo_class_constructor",
+    "fn:tp_e001_bare_tcloo_object_dispatch_requires_method..fn:w307_suppressed_for_snit_instance_var_in_helper_proc",
+    "fn:analyse_w307_emitted_for_cmd_substitution_with_unknown_return_type..fn:analyse_w308_tp_1324_self_object_receiver_unknown_method",
+    "fn:w307_reads_element_and_body_bindings",
+    "fn:w307_reads_the_constant_an_array_element_was_set_to..fn:emit_cfg_ssa_diagnostics_cmd_command_sites_recorded_during_walk",
+    "fn:dispatch_table_value_becomes_a_reference_when_consumed_m7..fn:dispatch_table_constructed_list_cannot_borrow_a_later_argument_as_its_head",
+    "fn:dispatch_diags_both_paths..fn:analyse_w308_1330_quick_fix_span_matches_the_diagnostic",
+]
+
+[[module]]
+name = "unresolved"
+doc = "W123 unknown commands and W120 missing `package require`, across renames, aliases, deletions and `expr` functions."
+items = [
+    "fn:w123_says_the_call_widens_where_it_does",
+    "fn:analyse_w123_suppressed_for_partial_interpolation_resolving_to_known_proc..fn:analyse_w123_no_suggestion_when_far_from_any_known_command",
+    "fn:analyse_w123_unknown_command..fn:analyse_w123_filtered_by_disabled_diagnostics",
+    "fn:w120_fires_for_package_gated_command_without_require..fn:w120_disabled_via_directive",
+    "fn:w123_codes..fn:w123_fp_issue_973_deletion_inside_never_triggered_proc_body_resolves",
+    "fn:w123_fp_issue_1006_alias_call_before_later_deletion_resolves..fn:w123_fp_issue_1015_mutual_recursion_cycle_entered_at_top_level_resolves",
+]
+
+[[module]]
+name = "security"
+doc = "The injection, `subst`, pipeline, ReDoS and credential checks, and the fire-and-forget W302."
+items = [
+    "fn:redos_shape_detector",
+    "fn:w302_fire_and_forget_bare_close_silent..fn:w302_fire_and_forget_ensemble_chan_close_silent",
+    "fn:w302_constructive_subcommand_still_fires",
+    "fn:sec_codes..fn:w302_fire_and_forget_is_registry_destructive_data",
+    "fn:w303_redos_nested_quantifiers..fn:w310_hardcoded_credential_option",
+    "fn:w310_message_names_option..fn:w101_anchors_at_the_substituted_argument",
+    "fn:w301_list_built_uplevel_script_is_silent_across_lines_2505",
+]
+
+[[module]]
+name = "proven"
+doc = "Checks that read proven words: the literal-only checks, index sites over proven containers and W127."
+items = ["type:ProvenRow..fn:w127_fires_on_invalid_subcommand_closed_value"]
+
+[[module]]
+name = "const_dispatch"
+doc = "Command heads that evaluate to a constant: the references they record and the shapes that abstain."
+items = [
+    "fn:const_dispatch_target..fn:expanded_head_list_prefix_keeps_the_exact_writable_component_945",
+]
+
+[[module]]
+name = "walked_bodies"
+doc = "Which script bodies the checks reach: lambda literals in command substitutions, `catch`, iRules nesting scripts, `when` and `tcltest` bodies."
+items = [
+    "fn:apply_lambda_in_command_substitution_does_not_report_its_parameter_list",
+    "fn:apply_lambda_body_in_command_substitution_is_walked..fn:apply_lambda_in_command_substitution_records_its_namespace",
+    "fn:analyser_recurses_into_irules_nesting_script_bodies",
+    "fn:when_body_not_analysed_under_plain_tcl..fn:when_body_analysed_under_irules",
+    "fn:catch_body_is_walked_for_syntactic_checks..fn:tcltest_import_is_namespace_scoped",
+]
+
+[[module]]
+name = "definition_warnings"
+doc = "W218 misplaced `args` and W314 colon-named definitions."
+items = [
+    "fn:w218_args_in_non_final_position_fires..fn:w218_fires_for_method_and_apply_params",
+    "fn:w314_count..fn:colon_named_proc_resolves_from_bare_calls_not_written_runs",
+]
+
+[[module]]
+name = "pipeline"
+doc = "The diagnostics pipeline itself: the per-unit dispatcher and its memo, de-duplication and disabled codes."
+items = [
+    "fn:emit_variable_usage_diagnostics_is_a_noop..fn:logical_for_condition_keeps_its_used_parameter_reference",
+    "fn:dedupe_drops_exact_duplicates..fn:apply_disabled_diagnostics_no_op_when_empty",
+]
+
+[[module]]
+name = "dialect_profiles"
+doc = "Dialect profiles: the commands, subcommands, options and operators each vendor profile admits, and Expect clause roles."
+items = [
+    "fn:w123_vendor_profiles_admit_their_embedded_tcl_core",
+    "fn:w123_vendor_profiles_still_gate_later_version_core..fn:w004_later_version_options_never_leak_into_supersets",
+    "fn:vendor_command_inherited_options_resolve_cleanly..fn:outer_expect_value_options_do_not_make_a_final_pattern_a_clause_list",
+]
+
+[[module]]
+name = "namespace_context"
+doc = "Source-site namespace seeding and the namespace-scope variable fallback of Tcl 8.x."
+items = [
+    "fn:seeded_analysis_homes_relative_defs_under_the_source_namespace_m9..fn:ns_scope_read_never_attaches_to_an_intermediate_namespace_m11",
+    "fn:ns_scope_array_element_read_attaches_under_8x_m11",
+]
+
+[[module]]
+name = "original_source_subjects"
+doc = "Diagnostics keep the original written source: alias ordinals, selected words, effective roles and fix proposals."
+items = [
+    "fn:w144_core_subcommand_lifecycle_uses_registry_safe_fix..fn:w216_public_value_capture_keeps_whole_provider_rows",
+]

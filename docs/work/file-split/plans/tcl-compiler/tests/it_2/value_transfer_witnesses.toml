@@ -1,0 +1,132 @@
+# The parent keeps the module documentation and the harness every group uses:
+# the `tclsh` oracle runners, `optimised`, `unit_of`, the lattice readers
+# (`value_at`, `last_value`, `lattice_text`, `folded_at`, `last_existence`),
+# `reports`, `removes_store`, `condition_claims` and the pack workspace.
+file = "rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs"
+
+[[module]]
+name = "cell_updates"
+doc = "Cell updates in value position: words read as Tcl substitutes them, renamed heads and qualified names that write globals."
+items = ["fn:a_value_position_increment_never_launders_a_join..fn:program_three_folds_in_every_consumer"]
+
+[[module]]
+name = "typed_statements"
+doc = "Typed statements: the three `incr` models, typed assignments, quoting of rewritten words and keyed dictionary updates."
+items = ["fn:simulated_text..fn:a_keyed_update_reads_its_dictionary_under_every_spelling"]
+
+[[module]]
+name = "expressions"
+doc = "The expression route: rebound math functions, finite and correlated inputs, numeral grammar per release and what O101 may rewrite."
+items = ["fn:a_bpf_expression_never_takes_the_tcl_answer..fn:a_structure_fold_stays_within_the_targets_tower"]
+
+[[module]]
+name = "declared_routes"
+doc = "Declared implementations and pack routes: folding through the driver, folded types, arity, rebinding and shadowing."
+items = [
+    "struct:LabelHost..const:TENANT_RUNTIME",
+    "fn:tenant_workspace",
+    "fn:program_two_folds_and_is_a_byte_array",
+    "fn:folded_types_state_what_each_route_constructed..fn:a_pack_direct_route_runs_the_evaluator_it_names",
+    "fn:a_shadowing_procedure_stops_a_package_route",
+    "fn:a_declined_route_leaves_its_word_as_written",
+]
+
+[[module]]
+name = "preserving_outcomes"
+doc = "Outcomes that may preserve their target: no-match and partial scans, templates, constants and repeated targets."
+items = ["const:MAY_PRESERVE_PACK..fn:the_repeated_target_witness"]
+
+[[module]]
+name = "existence"
+doc = "The existence rung against `tclsh`: the absent-cell release table, bound and maybe-bound places, and stores an existence read keeps."
+items = [
+    "fn:oracle_existence..fn:existence_agrees",
+    "fn:the_lines_every_release_reads_alike..fn:the_absent_cell_release_table",
+    "fn:o109_keeps_a_store_an_existence_read_observes..fn:a_failing_dead_incr_is_retained_under_84",
+    "fn:an_unseen_call_ends_no_refinement_because_none_is_made..fn:a_substituted_body_clobbers_what_it_unsets",
+]
+
+[[module]]
+name = "branch_selection"
+doc = "Decided branches: flattened conditions, `switch` and `case` arms under each release, and decided loop headers."
+items = [
+    "fn:the_flattened_form_yields_o107..fn:case_selects_its_glob_arm",
+    "const:SAME_CHARACTERS..fn:a_subject_inside_the_scan_of_the_arms_as_words_is_not_folded_on_any_release",
+    "fn:a_braced_arm_list_decodes_its_elements_under_the_releases_escapes",
+]
+
+[[module]]
+name = "unseen_code"
+doc = "Writes made by code the module cannot see: opaque arms, callbacks, sourced and autoloaded commands, stubs and aliases."
+items = [
+    "fn:a_write_an_opaque_switch_arm_makes_is_never_folded_away..fn:a_write_an_autoloaded_command_makes_to_a_procedure_local_is_never_folded_away",
+    "fn:a_write_a_catch_body_or_a_computed_head_runs_is_never_folded_away",
+    "fn:a_substitution_runs_the_unseen_code_in_every_body_it_holds",
+    "fn:a_call_the_module_cannot_see_reads_its_words_first_and_may_read_and_write_after",
+    "fn:a_write_a_callback_the_scan_could_not_read_makes_is_never_folded_away",
+    "fn:an_alias_to_a_command_that_writes_nothing_leaves_its_branch_decided",
+    "fn:stubbed_e5..fn:a_stub_that_states_its_frame_effect_is_a_named_head",
+    "fn:a_lambda_a_callback_applies_writes_the_globals_its_body_writes",
+]
+
+[[module]]
+name = "ordered_state"
+doc = "Ordered evaluation state: nested writes in a host statement, substitutions landing writes beside their result, and the prefix rule."
+items = [
+    "fn:a_store_a_nested_write_overwrites_unread_is_still_dead",
+    "const:NESTED_WRITE_PROGRAMS..fn:a_nested_write_in_a_host_prints_what_tclsh_prints",
+    "fn:a_command_substitution_lands_its_writes_beside_its_result",
+    "const:ORDERED_STATE..fn:a_nested_write_outside_the_state_declines",
+    "enum:PrefixFact..fn:the_prefix_rule_holds_in_both_builds",
+]
+
+[[module]]
+name = "catch"
+doc = "`catch`: nested and flattened bodies, result and options variables, the code table per release, and scripts that are not braced text."
+items = [
+    "fn:a_store_a_catch_body_may_leave_untouched_is_not_dead",
+    "type:BodyProgram..const:CATCH_BODY_PROGRAMS",
+    "fn:a_nested_catch_body_is_the_statements_effect",
+    "const:CATCH_RESULTS..fn:the_options_dictionary_starts_with_the_code_and_level_the_route_states",
+    "const:UNBRACED_SCRIPT_PROGRAMS..fn:a_quoted_or_computed_script_is_the_statements_effect",
+    "const:CATCH_CODES..fn:a_catch_script_that_is_not_brace_quoted_text_is_not_the_script_it_runs",
+    "const:FLATTENED_CATCH_RESULTS..fn:a_store_the_flattened_catch_returns_is_not_dead",
+    "fn:a_catch_body_store_is_run_only_where_its_place_is_proved_to_take_it",
+    "fn:an_opaque_catch_reads_its_own_writes_as_its_own",
+]
+
+[[module]]
+name = "dead_stores"
+doc = "Dead-store removal (O109): stores kept by a later read, a write that may not run or a raise, and stores a completing call leaves dead."
+items = [
+    "fn:a_braced_expr_read_keeps_its_store",
+    "fn:o109_refuses_the_store_ahead_of_a_partial_lassign..fn:a_call_that_cannot_raise_leaves_a_dead_store",
+]
+
+[[module]]
+name = "try_and_errors"
+doc = "Errors and non-local completions: throws between writes, `try` handlers and `finally`, and level-zero returns."
+items = [
+    "fn:a_throw_between_two_writes_is_a_state_the_handler_sees..fn:a_certain_error_outside_a_handler_claims_nothing",
+    "struct:LevelZeroReturn..fn:a_level_zero_return_completes_where_it_stands",
+    "fn:a_body_that_ends_in_an_error_may_have_failed_at_its_start",
+    "const:FINALLY_PATHS..fn:a_split_try_body_keeps_what_its_handlers_were_proved",
+]
+
+[[module]]
+name = "refinements"
+doc = "Branch refinements: merges, traced variables, equality and range tests, and the types a `string is` arm proves."
+items = ["fn:puts_blocks..fn:a_range_from_a_comparison_narrows_only_a_proved_integer"]
+
+[[module]]
+name = "loops"
+doc = "Loops: enumeration over proved places, the state a loop leaves, `break` and `continue`, counters and the iteration cap."
+items = [
+    "const:LOOP_BODIES..fn:a_loop_absorbs_break_and_continue",
+    "fn:the_iteration_cap_publishes_nothing..fn:a_computed_double_is_spelled_as_tcl_spells_it",
+]
+
+[[module]]
+name = "procedure_summaries"
+doc = "Procedure summaries and argument-sensitive re-runs: computed returns, shared summaries, raises, default and element arguments."
+items = ["fn:the_summary_folds_only_a_call_the_rerun_could_make..fn:a_callback_read_and_a_qualified_upvar_write_keep_their_stores"]

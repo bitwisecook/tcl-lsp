@@ -1,0 +1,62 @@
+# The harness root keeps `Lsp` and `Shared` (their private fields are read in every
+# module and in `helpers.rs`), the URI and PRNG fixtures, the process spawn and the
+# request/response transport. `spawn_with_env` must stay in `mod.rs`:
+# `scripts/dev/test-lsp-e2e-partitions.sh` reads the two binary-path variables from this file.
+file = "rust/tcl-lsp-server/tests/e2e/common/mod.rs"
+
+[[module]]
+name = "latency_scaling"
+doc = "Wall-clock barriers scaled by measured capacity: the load factor, `scaled_timeout`, `LatencyBudget` and the note a barrier timeout carries."
+items = [
+    "const:BARRIER_TIMEOUT_MARKER",
+    "fn:latency_barrier_timeout_note",
+    "const:STARVATION_RATIO..impl:LatencyBudget",
+]
+
+[[module]]
+name = "startup"
+doc = "Starting a server for a test: the per-dialect constructors, configured and rooted variants, and the `initialize` handshake."
+items = [
+    "impl:Lsp::tcl..impl:Lsp::with_config_env",
+    "impl:Lsp::xdg_root..impl:Lsp::server_info",
+]
+
+[[module]]
+name = "documents"
+doc = "Document lifecycle notifications, and opening a document up to its ready analysis snapshot."
+items = ["impl:Lsp::open_document..impl:Lsp::settle_analysis"]
+
+[[module]]
+name = "diagnostics_barriers"
+doc = "Barriers on diagnostics: pulls, the publisher's current report, and waiting for a publication that is first, settled, versioned, master-off or excluded."
+items = [
+    "impl:Lsp::pull_diagnostics..impl:Lsp::current_complete_diagnostics",
+    "impl:Lsp::await_diagnostics..impl:Lsp::await_marker_diagnostics",
+]
+
+[[module]]
+name = "notifications"
+doc = "The buffered notifications and server-initiated requests: log barriers, cursors and snapshots."
+items = [
+    "impl:Lsp::notification_cursor",
+    "impl:Lsp::await_log..impl:Lsp::stderr_text",
+]
+
+[[module]]
+name = "feature_requests"
+doc = "One method per LSP feature request, with the settled forms of the semantic-token requests."
+items = ["impl:Lsp::doc_pos..impl:Lsp::execute_command"]
+
+[[module]]
+name = "configuration"
+doc = "Changing the `tclLsp` configuration of a running server and waiting until the server reflects it."
+items = [
+    "impl:Lsp::settle_config",
+    "impl:Lsp::effective_config..impl:Lsp::apply_configuration_settle",
+    "fn:config_reflected",
+]
+
+[[module]]
+name = "reader"
+doc = "The background reader thread: framed messages routed to waiting requests, buffered, or answered automatically."
+items = ["fn:read_loop..fn:auto_reply"]

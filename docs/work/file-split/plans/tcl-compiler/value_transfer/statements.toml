@@ -1,0 +1,27 @@
+# Second level, for the `statements` module that `value_transfer.toml` creates.
+# The facade keeps the statement entry points: `evaluate_call`, `evaluate_incr`,
+# `evaluate_expr_eval`, `probe_completion`, the loop header, source-layout calls
+# and the flattened `catch` ends.
+file = "rust/tcl-compiler/src/value_transfer/statements.rs"
+
+[[module]]
+name = "plans_and_selections"
+doc = "Per-block facts a run records for later passes: the template-word plan of each call and the selection of each case-list statement."
+items = [
+    "impl:<'a> LatticeDriver<'a>::template_plans_in..impl:<'a> LatticeDriver<'a>::selection_of",
+    "fn:unreached_arm_facts",
+]
+
+[[module]]
+name = "outcome_defs"
+doc = "The lattice values a resolved invocation's outcomes leave in a statement's definitions: placed stores, raised paths and existence transfers."
+items = ["impl:<'a> LatticeDriver<'a>::call_defs..impl:<'a> LatticeDriver<'a>::is_escaping"]
+
+[[module]]
+name = "embedded"
+doc = "Embedded substitutions: a statement's word effects evaluated in order with the host statement whose words they are."
+items = [
+    "impl:<'a> LatticeDriver<'a>::evaluate_embedded..impl:<'a> LatticeDriver<'a>::embedded_defs",
+    "struct:EmbeddedAnswer",
+    "fn:incoming_versions",
+]

@@ -1,0 +1,115 @@
+# Second level of `command_binding.toml`. The facade keeps the whole-module
+# analysis entry points (`analyse`, `analyse_with_options`), the retained
+# callable roots they replay and the history of redefined procedures.
+file = "rust/tcl-compiler/src/command_binding/module_bindings.rs"
+
+[[module]]
+name = "target_resolution"
+doc = "The targets a command word may reach: source keys, alias chains and unresolved dispatch."
+items = [
+    "impl:ModuleCommandBindings::absent_head_runs_nothing..impl:ModuleCommandBindings::unknown_handler_is_original",
+    "impl:ModuleCommandBindings::definitely_absent",
+    "impl:ModuleCommandBindings::receiver_context_head..impl:ModuleCommandBindings::declared_command_frame_effect",
+    "impl:ModuleCommandBindings::targets..impl:ModuleCommandBindings::resolve_targets_with_prefixes_in",
+]
+
+[[module]]
+name = "namespace_transitions"
+doc = "Namespace transitions of the may-state and the command resolution they change."
+items = [
+    "fn:is_default_namespace_unknown_handler",
+    "impl:NamespaceResolutionProjection::record..impl:NamespaceResolutionProjection::join",
+    "fn:apply_namespace_ensure..fn:literal_subject",
+]
+
+[[module]]
+name = "state_equality"
+doc = "Equality, hashing and the observation stamp of a binding state."
+items = [
+    "struct:NonBindingObservationStamp",
+    "impl:PartialEq for ModuleCommandBindings..impl:Eq for ModuleCommandBindings",
+    "impl:ModuleCommandBindings::same_state..impl:ModuleCommandBindings::non_binding_observation_stamp",
+    "impl:std::hash::Hash for ModuleCommandBindings",
+    "impl:ModuleCommandBindings::same_command_world",
+]
+
+[[module]]
+name = "source_order"
+doc = "Source-order views of the state: a command's registry barrier and the statement timeline."
+items = [
+    "impl:ModuleCommandBindings::source_order_call_boundary..impl:ModuleCommandBindings::source_order_registry_barrier_for_command_with_metadata_context",
+    "impl:ModuleCommandBindings::source_binding_timeline_from_boundary..impl:ModuleCommandBindings::source_binding_timeline_from_initial",
+    "struct:SourceBindingTimeline..impl:SourceBindingTimeline",
+]
+
+[[module]]
+name = "bounded_classes"
+doc = "Bounded class constructions: recorded definitions, constructors and manufacture slots."
+items = [
+    "struct:BoundedClassConstruction",
+    "impl:ModuleCommandBindings::default_construction_dependencies_hold..impl:ModuleCommandBindings::install_manufacture_slot",
+    "fn:definition_body_command_tokens",
+]
+
+[[module]]
+name = "initial_state"
+doc = "The initial binding state of a registry baseline and its entry options."
+items = [
+    "impl:ModuleCommandBindings::initial..impl:ModuleCommandBindings::effective_semantics",
+    "impl:ModuleCommandBindings::hosted_rule_loader_world",
+]
+
+[[module]]
+name = "resolved_invocation"
+doc = "Resolving statements and command words to invocations, with the variable effects they project."
+items = [
+    "impl:ModuleCommandBindings::invocation_realm",
+    "impl:ModuleCommandBindings::invocation_dialect",
+    "enum:ResolvedFrameBodySelection..impl:ResolvedBindingInvocation",
+    "impl:ModuleCommandBindings::resolve_statement..impl:ModuleCommandBindings::variable_read_projection_for_command_words_with_metadata_context",
+]
+
+[[module]]
+name = "mutation_record"
+doc = "Rebindings recorded as opaque, dynamic or unnameable, and the summaries projected from them."
+items = [
+    "impl:ModuleCommandBindings::mark_opaque_resolution..impl:ModuleCommandBindings::mark_receiver_frame_opacity",
+    "impl:ModuleCommandBindings::mark_opaque_binding_mutation..impl:ModuleCommandBindings::record_proc_rebound_candidates",
+    "impl:ModuleCommandBindings::changed_command_spellings..impl:ModuleCommandBindings::rebound_names",
+]
+
+[[module]]
+name = "binding_transitions"
+doc = "One command-binding transition applied to the may-state and the table updates it performs."
+items = [
+    "impl:ModuleCommandBindings::replace_bindings..impl:ModuleCommandBindings::unmodified_bindings",
+    "fn:apply_may_binding_transition",
+]
+
+[[module]]
+name = "state_join"
+doc = "The join of two binding states: bindings, activation values, lookup support and history."
+items = [
+    "impl:ModuleCommandBindings::extend_procedure_bodies",
+    "impl:ModuleCommandBindings::join..impl:ModuleCommandBindings::join_binding_history",
+    "fn:join_alternatives..fn:join_alternatives_with_default",
+]
+
+[[module]]
+name = "binding_walk"
+doc = "The IR walk that collects binding states, with the transitions of embedded substitutions."
+items = [
+    "impl:ModuleCommandBindings::resolved_embedded_head",
+    "enum:BindingInvocationMetadata",
+    "fn:observe_binding_state..fn:apply_embedded_command_transition",
+]
+
+[[module]]
+name = "invocation_transitions"
+doc = "Transitions of one resolved invocation: declared effects, bodies and recovered definitions."
+items = ["fn:invocation_transition_inputs..fn:recover_procedure_definition"]
+
+[[module]]
+name = "evaluated_bodies"
+doc = "Readable script bodies a runtime barrier evaluates: replay, constructed argv, no-change proofs."
+items = ["fn:apply_readable_evaluated_body..fn:constructed_script_words_with_optional_metadata"]

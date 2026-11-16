@@ -1,0 +1,55 @@
+# The facade keeps the module docs, `TransferSummary` and its Explorer text,
+# `ParamRole`, `CallTransfer`, `ModuleInputs`, `ModuleProcedures` with its
+# constructors and the per-call queries (`call_transfer`, `outer_steps`,
+# `parameter_values`, `parameter_default`).
+file = "rust/tcl-compiler/src/interprocedural/transfer.rs"
+
+[[module]]
+name = "original_source"
+doc = "The module's retained original source, read at one function point: call arguments, statement tokens, expressions, substitutions and native operands."
+items = [
+    "impl:<'a> ModuleProcedures<'a>::resolve_original_word..impl:<'a> ModuleProcedures<'a>::with_original_native_value",
+    "impl:<'a> ModuleProcedures<'a>::original_source_module..impl:<'a> ModuleProcedures<'a>::source_metadata_input_for",
+]
+
+[[module]]
+name = "reruns"
+doc = "Re-running a callee's body under what one call gives it: the seeds, the cache key and the value and places its normal exits leave."
+items = [
+    "type:RerunKey..struct:RerunStance",
+    "impl:<'a> ModuleProcedures<'a>::rerun..impl:<'a> ModuleProcedures<'a>::solve_rerun",
+    "impl:<'a> ModuleProcedures<'a>::flow_of",
+    "fn:exit_constant..fn:reaching_versions",
+]
+
+[[module]]
+name = "summarisation"
+doc = "Computing every summary, callees before callers: the local call graph, its strongly connected components and each component's completion, effects and evidence."
+items = [
+    "impl:<'a> ModuleProcedures<'a>::summarise..impl:<'a> ModuleProcedures<'a>::local_calls",
+    "impl:<'a> ModuleProcedures<'a>::callee_at..impl:<'a> ModuleProcedures<'a>::evidence_of",
+    "fn:frame_is_closed",
+    "fn:procedure_binding",
+    "fn:components",
+]
+
+[[module]]
+name = "outer_places"
+doc = "Places outside a procedure's frame: the `Name` arguments that name them, the locals linked to them and the global and namespace writes of a component."
+items = [
+    "impl:<'a> ModuleProcedures<'a>::outer_arguments..impl:<'a> ModuleProcedures<'a>::outer_call_arguments",
+    "impl:<'a> ModuleProcedures<'a>::component_outer_writes",
+    "struct:OuterArgument..fn:insert_outer_source",
+    "fn:destroys_a_variable",
+    "fn:alias_facts..fn:links_local",
+]
+
+[[module]]
+name = "parameter_roles"
+doc = "A procedure's parameter roles: values the body reads, and names of caller places with the outcomes two summary runs leave at the normal exits."
+items = [
+    "impl:<'a> ModuleProcedures<'a>::roles..impl:<'a> ModuleProcedures<'a>::summary_run",
+    "fn:links_of",
+    "fn:value_roles..fn:linked_cleanly",
+    "fn:outcomes_of",
+]

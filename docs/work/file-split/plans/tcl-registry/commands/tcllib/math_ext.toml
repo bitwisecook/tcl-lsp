@@ -1,0 +1,37 @@
+# The facade keeps the `Row` shape, `rows`, the small `math`, `math::PCA`,
+# `math::probopt` and `math::statistics` tables, `GROUPS`, the callback
+# overrides and `specs()`.
+file = "rust/tcl-registry/src/commands/tcllib/math_ext.rs"
+
+[[module]]
+name = "number_systems"
+doc = "Number representations: `math::bignum`, `math::complexnumbers`, `math::decimal` and `math::exact`."
+items = ["const:MATH__BIGNUM_CMDS", "const:MATH__COMPLEXNUMBERS_CMDS", "const:MATH__DECIMAL_CMDS", "const:MATH__EXACT_CMDS"]
+
+[[module]]
+name = "analysis"
+doc = "Analysis: `math::calculus`, `math::filters`, `math::fourier`, `math::interpolate`, `math::optimize`, `math::special` and `math::trig`."
+items = [
+    "const:MATH__CALCULUS_CMDS",
+    "const:MATH__FILTERS_CMDS",
+    "const:MATH__FOURIER_CMDS",
+    "const:MATH__INTERPOLATE_CMDS",
+    "const:MATH__OPTIMIZE_CMDS",
+    "const:MATH__SPECIAL_CMDS",
+    "const:MATH__TRIG_CMDS",
+]
+
+[[module]]
+name = "combinatorics"
+doc = "Counting: `math::combinatorics` and the figurate numbers of `math::figurate`."
+items = ["const:MATH__COMBINATORICS_CMDS", "const:MATH__FIGURATE_CMDS"]
+
+[[module]]
+name = "geometry"
+doc = "The `math::geometry` package."
+items = ["const:MATH__GEOMETRY_CMDS"]
+
+[[module]]
+name = "algebra"
+doc = "Algebra: `math::linearalgebra`, `math::polynomials` and `math::rationalfunctions`."
+items = ["const:MATH__LINEARALGEBRA_CMDS", "const:MATH__POLYNOMIALS_CMDS", "const:MATH__RATIONALFUNCTIONS_CMDS"]

@@ -1,0 +1,92 @@
+# Second level of `handlers.toml`; `handlers/classes.rs` exists once that plan
+# is applied. The facade keeps the types several class modules read
+# (`UserMetaclass`, `InjectedMember`, `ManufacturerLayout`,
+# `ResolvedClassCreation`, `ControlArm`), the body-depth cap,
+# `definition_grammar` and the shared statement readers
+# (`retained_static_source_context`, `direct_statements_in_span`,
+# `statements_in_span`, `collect_script_blocks`).
+file = "rust/tcl-compiler/src/analyser/handlers/classes.rs"
+
+[[module]]
+name = "object_definitions"
+doc = "`oo::objdefine`: the receiver, the per-object members one block declares and its definition-abort diagnostics."
+items = [
+    "struct:SelectedObjdefineBodyLayout",
+    "impl:Analyser::handle_oo_objdefine_at..impl:Analyser::flush_objdefine_abort_diagnostics",
+    "impl:Analyser::record_object_methods",
+]
+
+[[module]]
+name = "class_definitions"
+doc = "Class creation calls and `oo::define`: the class each records and the walk of its definition body."
+items = [
+    "fn:original_class_definition_body_in_analysis",
+    "impl:Analyser::retain_manufactured_class_declaration..impl:Analyser::apply_manufactured_class_members",
+    "impl:Analyser::handle_oo_class_command..impl:Analyser::walk_oo_define_form",
+]
+
+[[module]]
+name = "class_factories"
+doc = "Class factories: the factory a metaclass publishes, the word layout its manufacturer imposes and the members it injects."
+items = [
+    "impl:ManufacturerLayout",
+    "enum:ProloguePiece..fn:manufacturer_layout",
+    "impl:Analyser::class_factory_of",
+    "impl:Analyser::manufacturer_word_positions..impl:Analyser::user_metaclass_of_class",
+    "impl:Analyser::resolve_class_creation",
+]
+
+[[module]]
+name = "unknown_dispatch"
+doc = "The proof that a metaclass's unknown-dispatch member creates and names an instance."
+items = [
+    "enum:UnknownBodyEvidence..fn:bracketed_self_receiver",
+    "impl:Analyser::unknown_dispatch_binds_instance..impl:Analyser::unknown_script_path_proof",
+    "impl:Analyser::possible_if_body_spans..impl:Analyser::unknown_body_evidence",
+]
+
+[[module]]
+name = "deferred_creations"
+doc = "Creation calls the walk could not classify, kept for a retry once every metaclass is known."
+items = [
+    "const:MAX_DEFERRED_CLASS_CREATIONS",
+    "impl:Analyser::defer_class_creation..impl:Analyser::rejoin_replayed_class",
+]
+
+[[module]]
+name = "parameterised_creations"
+doc = "Classes a procedure creates under a name computed from its parameters, named by the literal load-time calls that reach it."
+items = [
+    "struct:ParameterisedCreation..struct:ParameterisedProc",
+    "struct:LoadTimeCall",
+    "fn:join_parameterised_class_observations",
+    "impl:Analyser::record_literal_parameter_definitions..impl:Analyser::load_time_call_is_reachable",
+    "impl:Analyser::unresolved_class..impl:Analyser::resolve_parameterised_creation_name",
+    "impl:Analyser::retract_unresolved_class..impl:Analyser::collect_load_time_calls",
+]
+
+[[module]]
+name = "static_reachability"
+doc = "Whether control reaches a statement: how one invocation completes and whether the statements before a point fall through."
+items = [
+    "impl:Analyser::logical_segment_invocation_completion..impl:Analyser::segment_invocation_completion",
+    "impl:Analyser::static_prefix_falls_through..impl:Analyser::selected_arms_fall_through",
+]
+
+[[module]]
+name = "control_arms"
+doc = "The body arms of a control command and which of them a literal environment selects."
+items = [
+    "struct:ControlArms",
+    "impl:Analyser::control_body_is_selected..impl:Analyser::switch_clause_bodies",
+]
+
+[[module]]
+name = "static_provenance"
+doc = "The literal environment of a dominating statement prefix and the static values of words, commands and procedure results under it."
+items = [
+    "enum:StaticScriptOutcome..fn:substitute_bound_words",
+    "impl:Analyser::apply_static_path_prefix",
+    "impl:Analyser::apply_static_provenance_statement..impl:Analyser::static_word_value",
+    "impl:Analyser::static_command_value..impl:Analyser::static_expr_value",
+]

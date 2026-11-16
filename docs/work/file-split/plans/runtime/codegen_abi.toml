@@ -1,0 +1,35 @@
+# The facade keeps the module contract, `TclCompletionAbi` and the status
+# constants, the call-frame transport and the current-interp cell (their
+# `thread_local!` pairs cannot move), `CodegenOperation`, `BorrowedArgv` and
+# `AbiActivation` (their private methods are called from every family), and
+# the eval-fallback tier (`tcl_eval`, `tcl_eval_code`, `tcl_expr_bool`).
+file = "runtime/rust/src/codegen_abi.rs"
+
+[[module]]
+name = "values"
+doc = "Boxing strings and scalars, reading typed scalars back, joining word parts, and the retain/release pair."
+items = [
+    "fn:tcl_obj_new_string..fn:tcl_value_release",
+    "fn:tcl_codegen_word_concat",
+    "fn:tcl_obj_new_string_owned",
+    "fn:tcl_obj_release..fn:tcl_obj_retain",
+]
+
+[[module]]
+name = "variables"
+doc = "The compiled frame, its indexed local slots and their read-modify-write commands, and variables addressed by name."
+items = ["fn:tcl_codegen_frame_push..fn:tcl_codegen_var_get_element"]
+
+[[module]]
+name = "procedure_definition"
+doc = "Registering and defining procedures from emitted code, with or without a compiled body."
+items = [
+    "fn:tcl_codegen_proc_register..fn:tcl_codegen_proc_define_native",
+    "fn:tcl_codegen_native_proc_dispatches",
+    "fn:tcl_codegen_proc_define_original_argv..fn:tcl_codegen_proc_define_guarded_i64_add_argv",
+]
+
+[[module]]
+name = "argv_invocation"
+doc = "The prebuilt-argv tier: guard tokens, guarded intrinsics and the general command dispatch."
+items = ["struct:ResolvedIntrinsicArgv..fn:tcl_invoke_argv"]

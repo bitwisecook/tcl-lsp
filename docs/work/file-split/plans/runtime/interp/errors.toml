@@ -1,0 +1,35 @@
+# Second level: apply `plans/runtime/interp.toml` first; it creates this file.
+# The facade keeps background errors: the `bgerror` handler, the queue and its
+# dispatch.
+file = "runtime/rust/src/interp/errors.rs"
+
+[[module]]
+name = "raising"
+doc = "Raising an error: the generic and coded forms, command-layer errors, C API error codes, invalid and unknown commands, and the arity messages."
+items = [
+    "impl:Interp::release_error_code..impl:Interp::note_c_api_error",
+    "impl:Interp::error..impl:Interp::report_cmd_error_using",
+    "impl:Interp::invalid_command..impl:Interp::unknown_command",
+    "impl:Interp::set_error..impl:Interp::wrong_arguments_message",
+]
+
+[[module]]
+name = "error_info"
+doc = "Building `errorInfo`: the `while executing` frames, procedure, body, namespace and lambda frames, and `return -code error` options."
+items = [
+    "impl:Interp::log_current_command",
+    "impl:Interp::raise_with_info..impl:Interp::append_error_info_context",
+]
+
+[[module]]
+name = "jim_error_stack"
+doc = "Jim's error stack: capturing frames at the error, the stacktrace object, and the return receipt with its captured error code."
+items = ["impl:Interp::uses_jim_error_stack..impl:Interp::jim_option_pairs_with_captured_error_code"]
+
+[[module]]
+name = "error_state"
+doc = "The live error state: snapshots and restores, error-code and completion bytes, the error stack log, and publishing or resetting an error episode."
+items = [
+    "impl:Interp::error_info..impl:Interp::restore_error",
+    "impl:Interp::error_snapshot..impl:Interp::during_opts",
+]

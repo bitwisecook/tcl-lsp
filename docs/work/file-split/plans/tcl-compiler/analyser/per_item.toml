@@ -1,0 +1,40 @@
+# The facade keeps the module docs, the types the passes exchange
+# (`PerItemFallback`, `DeferredBody`, `BodyFragment`,
+# `CapturedBodyGlobalRead`), the entry points `analyse_per_item` and
+# `analyse_per_item_with`, and the shell-pass set-up.
+file = "rust/tcl-compiler/src/analyser/per_item.rs"
+
+[[module]]
+name = "body_pass"
+doc = "The body pass: analysing each deferred body, the predicates that force the full-rebuild fallback and the replay of deferred instance sites."
+items = [
+    "impl:Analyser::attach_ensemble_facts..impl:Analyser::replay_deferred_instances",
+    "fn:fragment_needs_original_source_owner..fn:class_facts_collide",
+    "fn:body_sources_dynamic_path..fn:body_needs_enclosing_context",
+]
+
+[[module]]
+name = "isolated_body"
+doc = "`analyse_proc_body_isolated`: one procedure or method body analysed at offset 0 in a reconstructed scope with seeded formals and frame state."
+items = [
+    "fn:seed_ensemble_facts..fn:analyse_proc_body_isolated",
+    "fn:reconstruct_proc_scope",
+    "fn:seed_isolated_formal_bindings..fn:seed_isolated_frame_state",
+]
+
+[[module]]
+name = "graft"
+doc = "Grafting an isolated body's fragment into the shell: the merged result and advice, the re-queued pending state and the replay of its global reads."
+items = [
+    "impl:Analyser::merge_per_object_records..impl:Analyser::replay_body_global_reads",
+    "fn:assert_no_body_object_facts..fn:merge_scope_vars",
+    "fn:merge_one_var",
+]
+
+[[module]]
+name = "rebase"
+doc = "Rebasing a fragment to the body's real position: every span, and every synthetic name that embeds an offset."
+items = [
+    "fn:shift..fn:rebase_fragment_pending",
+    "fn:clear_fragment_original_producers",
+]

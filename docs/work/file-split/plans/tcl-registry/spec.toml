@@ -1,0 +1,97 @@
+# The facade keeps the resolver signatures, the `CommandSpec` struct (1,017
+# lines of documented fields) and the queries that fit no narrower topic:
+# purity, const folding, return type, events, clause plans and availability.
+# The topic modules hold the `CommandSpec` and the `SubCommand` side of one
+# question together.
+file = "rust/tcl-registry/src/spec.rs"
+
+[[module]]
+name = "object_class"
+doc = "TclOO and megawidget class metadata and the method-frame facts an introspection keyword answers with."
+items = ["enum:OoContextFact..impl:ObjectClassSpec"]
+
+[[module]]
+name = "case_list"
+doc = "Clause lists of `switch`, `case` and `expect`: matching modes, option scanning and the inline or braced clause layout."
+items = ["struct:CaseListSpec..impl:CaseListSpec"]
+
+[[module]]
+name = "option_relations"
+doc = "Declared relations between a command's options: the terms, the facts one invocation supplies, the reports and the check counters."
+items = ["enum:OptionTerm..struct:RelationCheckStats", "fn:note_relation_check..type:ConstraintsHook"]
+
+[[module]]
+name = "options"
+doc = "Option words: the prefix tables, resolving one option, counting a leading option run and the option table a call dispatches on."
+items = [
+    "fn:option_table_from..fn:leading_option_run_with",
+    "impl:CommandSpec::option_table",
+    "impl:CommandSpec::leading_switch_names..impl:CommandSpec::resolve_option_word",
+    "impl:CommandSpec::switch_names..impl:CommandSpec::option_effects_over",
+    "impl:CommandSpec::option_selects_pattern_language",
+    "impl:CommandSpec::option_selecting..impl:CommandSpec::find_option",
+    "struct:OptionScope",
+    "impl:SubCommand::option_table..impl:SubCommand::resolve_option_word",
+    "impl:SubCommand::leading_option_word_count..impl:SubCommand::leading_option_run_is_terminated",
+    "impl:SubCommand::switch_names..impl:SubCommand::option_specs",
+]
+
+[[module]]
+name = "arguments"
+doc = "Argument positions: roles, literal values with their lifecycle gates, and the synopsis that names them."
+items = [
+    "fn:optional_trailing_placeholders",
+    "impl:CommandSpec::primary_synopsis..impl:CommandSpec::optional_trailing_arg_names",
+    "impl:CommandSpec::arg_role_at..impl:CommandSpec::available_arg_values_at",
+    "struct:VersionedArgValue",
+    "impl:VersionedArgValue",
+    "impl:SubCommand::primary_synopsis",
+    "impl:SubCommand::arg_value_available_for_version..impl:SubCommand::available_arg_values_at",
+    "impl:SubCommand::arg_role_at",
+    "impl:SubCommand::arg_values_at",
+]
+
+[[module]]
+name = "defaults"
+doc = "The `DEFAULT` rows and stock presets every authored specification is spread from."
+items = [
+    "impl:CommandSpec::DEFAULT..impl:CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT",
+    "impl:SubSubCommand::DEFAULT",
+    "impl:SubCommand::DEFAULT",
+    "impl:SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT..impl:SubCommand::VOLATILE_RESULT",
+]
+
+[[module]]
+name = "lowering_selection"
+doc = "Which code-generation hook, semantic operation and native lowering a command or subcommand selects under one dialect."
+items = [
+    "impl:CommandSpec::native_lowering..impl:CommandSpec::intrinsic_ids",
+    "fn:descriptor_combinations",
+    "impl:SubCommand",
+]
+
+[[module]]
+name = "subcommand_resolution"
+doc = "Resolving a subcommand word, and a second-level operation word, by unambiguous prefix under a dialect gate."
+items = [
+    "impl:CommandSpec::subcommand",
+    "impl:CommandSpec::subcommand_table",
+    "impl:CommandSpec::resolve_subcommand_word",
+    "impl:CommandSpec::resolve_subcommand..impl:CommandSpec::resolve_subcommand_filtered",
+    "impl:SubCommand::resolve_sub_subcommand..impl:SubCommand::is_sub_subcommand",
+]
+
+[[module]]
+name = "subcommand"
+doc = "`SubCommand` and `SubSubCommand`: the fields of one ensemble member and its own purity, availability and const-fold queries."
+items = [
+    "struct:SubCommand",
+    "struct:SubSubCommand",
+    "fn:sub_subcommand_supports_dialect",
+    "impl:SubSubCommand::available_for_version..impl:SubSubCommand::lifecycle_state",
+    "impl:SubCommand#2",
+    "impl:SubCommand::is_pure",
+    "impl:SubCommand::clause_plan",
+    "impl:SubCommand::available_for_version..impl:SubCommand::lifecycle_state",
+    "impl:SubCommand::run_const_fold..impl:SubCommand::nested_native_compilation",
+]

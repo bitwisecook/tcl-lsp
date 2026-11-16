@@ -1,0 +1,34 @@
+# The facade keeps the builtin registration table, the argument coercion and
+# error-text helpers every builtin uses, and the `Net` network value with its
+# parser.
+file = "rust/tcl-bigip-query/src/builtins/net.rs"
+
+[[module]]
+name = "classification"
+doc = "Address classification against the IANA special-purpose range tables, IPv4 and IPv6."
+items = ["fn:v4_in..fn:addr_is_documentation"]
+
+[[module]]
+name = "typed_values"
+doc = "The typed value layer: IP address, FQDN, port, partition, folder, object path, destination and network."
+items = ["const:PART_VALID..fn:network_try_parse"]
+
+[[module]]
+name = "address_builtins"
+doc = "Builtins that read one address: `ip`, `net`, `host`, `port`, route domains and the classification predicates."
+items = ["fn:bi_ip..fn:bi_is_wildcard_port"]
+
+[[module]]
+name = "cidr_builtins"
+doc = "Network facts and CIDR algebra: host ranges, `collapse_cidrs`, `supernet_of`, `subnet_of` and `overlaps`."
+items = ["fn:bi_prefix_length..fn:bi_overlaps"]
+
+[[module]]
+name = "path_builtins"
+doc = "Builtins that edit a destination or an object path: port, host, folder, name and partition."
+items = ["fn:bi_with_port..fn:bi_can_see"]
+
+[[module]]
+name = "range_builtins"
+doc = "Port-set and IP-range builtins."
+items = ["struct:PortSeg..fn:bi_ip_range_contains"]

@@ -1,0 +1,35 @@
+# Second level: apply `lowering/mod.toml` first. `script_bodies.rs` keeps the
+# core that lowers a segmented script or body: `lower_script`, `lower_body`,
+# `lower_segmented`, the iRules execution context and the procedure frame.
+file = "rust/tcl-compiler/src/lowering/script_bodies.rs"
+
+[[module]]
+name = "const_map"
+doc = "The locals a body assigns a literal to, and the written value of an argument read through them."
+items = [
+    "fn:assigned_local_body_literal",
+    "fn:invalidate_const_map_for",
+    "impl:<'r> Lowerer<'r>::update_const_map..impl:<'r> Lowerer<'r>::const_map_lookup",
+]
+
+[[module]]
+name = "original_bodies"
+doc = "Lowering an original body in its retained namespace and source context, and retaining an unchanged body slice."
+items = [
+    "fn:unavailable_original_body_script",
+    "impl:<'r> Lowerer<'r>::selected_source_bindings_boxed_in_context..impl:<'r> Lowerer<'r>::retain_script_source",
+]
+
+[[module]]
+name = "static_eval"
+doc = "`eval` and `uplevel` whose script is statically known: level parsing, list-literal bodies and the dynamic barriers that stop inlining."
+items = [
+    "struct:UplevelLevel..fn:parse_uplevel_level",
+    "fn:eval_list_literal_body..fn:body_has_dynamic_barrier",
+    "impl:<'r> Lowerer<'r>::try_lower_uplevel_static..impl:<'r> Lowerer<'r>::try_lower_eval_static",
+]
+
+[[module]]
+name = "body_units"
+doc = "Bodies retained as their own analysis unit: `apply` lambdas, `array for` and `namespace eval` bodies."
+items = ["impl:<'r> Lowerer<'r>::register_body_unit..impl:<'r> Lowerer<'r>::walk_namespace_eval_body"]

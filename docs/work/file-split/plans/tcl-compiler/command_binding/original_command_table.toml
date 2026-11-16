@@ -1,0 +1,41 @@
+# The facade keeps the debug query timers (their thread-locals cannot move),
+# the registry metadata and advice slot indexes, and `OriginalCommandOperands`
+# with the alias operation it captures and applies.
+file = "rust/tcl-compiler/src/command_binding/original_command_table.rs"
+
+[[module]]
+name = "command_keys"
+doc = "Command keys and lookup paths of an original name operand under its namespace geometry."
+items = [
+    "impl:ModuleCommandBindings::original_definition_key..impl:ModuleCommandBindings::original_c_command_slot_paths",
+    "impl:ModuleCommandBindings::original_namespace_geometry",
+    "impl:ModuleCommandBindings::original_lookup_key_for_slot",
+]
+
+[[module]]
+name = "catalogue_candidates"
+doc = "The catalogue and advice candidates an original name may select."
+items = [
+    "enum:CatalogueCandidate..impl:<'a> CatalogueCandidate<'a>",
+    "enum:CatalogueSourceCell..fn:classify_catalogue_source_cell_with",
+    "impl:ModuleCommandBindings::original_catalogue_slot_for_key..impl:ModuleCommandBindings::original_catalogue_source_candidate",
+    "impl:ModuleCommandBindings::original_advice_candidates_for_input..impl:ModuleCommandBindings::original_advice_candidate_from_paths",
+    "impl:ModuleCommandBindings::original_registry_metadata_target",
+]
+
+[[module]]
+name = "slot_presence"
+doc = "Whether an original slot is present, and the bindings view of its key."
+items = [
+    "impl:ModuleCommandBindings::original_slot_presence_for_input..impl:ModuleCommandBindings::binding_alternatives",
+    "enum:BindingsView..fn:unmodified_builtin_bindings",
+]
+
+[[module]]
+name = "target_resolution"
+doc = "The targets of an original name operand: occupied commands and resolved handlers."
+items = [
+    "struct:OriginalCommandTargetSelection..impl:OriginalCommandTargetSelection",
+    "struct:OriginalTargetLookupContext",
+    "impl:ModuleCommandBindings::original_command_keys_for_input..impl:ModuleCommandBindings::original_slot_for_command_key",
+]

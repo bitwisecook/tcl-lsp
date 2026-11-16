@@ -1,0 +1,93 @@
+# The parent keeps the shared fixtures: the `which` probe object type and its
+# thread-locals, `leak_free`, `leak_free_with`, `native_namespace_interp` and
+# `pins`. Tests move to modules named for the subcommands they cover.
+# `which_and_origin` and `import_export` move tests whose `include_str!` and
+# `include_bytes!` paths are relative: they need one more `../` after the move.
+file = "runtime/rust/src/cmd_namespace/tests.rs"
+
+[[module]]
+name = "which_and_origin"
+doc = "`namespace which` and `namespace origin`: lookup order, cached command names and byte-valued names."
+items = [
+    "fn:original_jim_which_helper_preserves_public_and_direct_cold_and_hot_getter_order..fn:original_namespace_origin_matches_five_native_import_chains",
+    "fn:which_resolves_command_fqn..fn:which_variable_resolves_namespace_var_fqn",
+    "fn:which_variable_never_answers_with_a_proc_local..fn:origin_follows_import_chains",
+    "fn:which_variable_preserves_byte_valued_names..fn:origin_and_which_command_preserve_byte_valued_names",
+]
+
+[[module]]
+name = "tree_navigation"
+doc = "The dispatcher's own misses and the subcommands that walk the namespace tree, from `current` and `eval` to `path` and `upvar`."
+items = [
+    "fn:namespace_ensemble_miss_comes_from_the_owner..fn:eval_switches_current_and_defines_in_ns",
+    "fn:exists_and_parent_and_children..fn:subcommand_prefix_abbreviation",
+    "fn:namespace_issue_1584_oracle_vectors",
+    "fn:path_query_returns_list",
+    "fn:namespace_upvar_links_local_to_ns_var",
+    "fn:byte_valued_namespace_navigation_uses_the_embedder_bytes_verbatim",
+]
+
+[[module]]
+name = "command_resolution"
+doc = "How a command name resolves through the tree: qualified names, the path, the unknown handler, braced defining words and byte-valued names."
+items = [
+    "fn:namespace_unknown_retains_the_original_root_and_validates_before_replacement..fn:namespace_unknown_keeps_reached_prefix_members_after_handler_reset",
+    "fn:path_fallback_resolves_unqualified",
+    "fn:qualified_command_falls_back_to_global..fn:dispatch_matches_every_conformance_vector",
+    "fn:build_info_queries",
+    "fn:braced_defining_word_defines_the_unbraced_name..fn:braced_defining_word_binds_in_the_current_namespace",
+    "fn:tcloo_roots_follow_their_introducing_release..fn:renaming_onto_a_hidden_root_name_keeps_the_replacement_live",
+    "fn:byte_valued_command_names_resolve_without_a_utf8_round_trip",
+]
+
+[[module]]
+name = "code_and_inscope"
+doc = "`namespace code` and `namespace inscope`: the script prefix they build and how tail arguments join it."
+items = [
+    "fn:current_and_code_wrong_arity_preserve_native_header_bytes..fn:code_uses_the_explicit_f5_logical_provider",
+    "fn:inscope_zero_tail_args_evaluates_script_verbatim..fn:inscope_uses_a_byte_arrays_string_rep_in_both_arms",
+]
+
+[[module]]
+name = "import_export"
+doc = "`namespace export`, `import` and `forget`: import chains, source generations, cycles and the command lifecycle of replaced imports."
+items = [
+    "fn:import_redefinition_rename_reexport_and_retirement_follow_dialect..fn:jim_import_ignores_exports_overwrites_and_retains_missing_source_alias",
+    "fn:export_import_forget_roundtrip..fn:reimport_same_source_is_idempotent",
+    "fn:import_only_takes_exported_commands..fn:export_query_returns_patterns",
+    "fn:retained_and_recreated_import_sources_stay_generation_distinct..fn:imported_delete_trace_observes_and_can_replace_the_binding",
+    "fn:only_the_first_word_is_the_export_or_import_flag..fn:export_clear_resets_the_pattern_list",
+]
+
+[[module]]
+name = "ensemble_subcommand"
+doc = "`namespace ensemble create`, `configure` and `exists`: option tables, map and prefix values, and error codes."
+items = [
+    "fn:ensemble_original_map_queries_do_not_extend_native_owner_lifetime..fn:ensemble_configuration_refuses_an_unselected_list_updater",
+    "fn:jim_namespace_ensemble_uses_the_mutable_helper_and_original_arguments",
+    "fn:ensemble_prefixes_accepts_every_boolean_spelling_tclsh_does",
+    "fn:ensemble_configure_and_origin_error_codes..fn:ensemble_exists",
+    "fn:ensemble_command_is_qualified_relative_to_current_ns",
+    "fn:ensemble_option_tables_match_c..fn:ensemble_configure_uses_the_config_table",
+    "fn:configuring_an_imported_ensemble_updates_the_origin",
+    "fn:ensemble_map_preserves_dict_order_and_collapses_repeats",
+]
+
+[[module]]
+name = "ensemble_dispatch"
+doc = "Calls through an ensemble: member lookup, prefixes, the unknown handler and the identity of the live command token."
+items = [
+    "fn:implicit_ensemble_targets_preserve_the_selected_namespace_context",
+    "fn:ensemble_default_dispatches_to_namespace_commands..fn:imported_ensemble_retains_source_token_identity",
+    "fn:namespace_delete_retires_hidden_ensemble_token..fn:ensemble_default_miss_preserves_custom_unknown_options",
+]
+
+[[module]]
+name = "teardown_order"
+doc = "`namespace delete`: the hash order commands are torn down in, callbacks that create or delete commands mid-teardown, and subtree removal."
+items = ["fn:teardown_log..fn:child_teardown_distinguishes_cached_names_from_fresh_lookup"]
+
+[[module]]
+name = "deferred_deletion"
+doc = "Deleting a namespace that is still running: the retained token, its recreation, and when traces and teardown finally fire."
+items = ["fn:deleting_the_running_namespace_retains_it_for_the_frame..fn:the_deferred_teardown_keeps_tcl_hash_order"]

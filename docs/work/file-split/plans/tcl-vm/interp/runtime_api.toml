@@ -1,0 +1,18 @@
+# Second level: applies to the `runtime_api` module that
+# plans/tcl-vm/interp.toml creates. The facade keeps the small trait
+# implementations: `Introspect`, `Procs`, `Commands`, `Traces` and `Frames`.
+file = "rust/tcl-vm/src/interp/runtime_api.rs"
+
+[[module]]
+name = "variable_store"
+doc = "`VarStore` over the call-frame stack, the native array element read behind it, and the array-search backend."
+items = [
+    "impl:VarStore for Vm",
+    "impl:Vm::array_read_elem_bytes_native_at",
+    "impl:tcl_cmd_core::native_array_search::NativeArraySearchBackend for Vm",
+]
+
+[[module]]
+name = "namespace_queries"
+doc = "`Namespaces` and `Aliases` over the structured namespace world: finding commands and namespaces, children, and the commands, procedures and variables of a namespace."
+items = ["impl:tcl_runtime_api::Aliases for Vm..impl:Namespaces for Vm"]

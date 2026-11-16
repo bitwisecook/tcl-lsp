@@ -1,0 +1,70 @@
+# The facade keeps `CodeFix`, `FixSafety`, `IrulesCheckWarning`, the
+# `IrulesSourceQuery` struct, the conditional-advice result types and the
+# per-path state structs several checks read (`DropFlowState`, `HttpFlowState`,
+# `CollectFlowState`, `OriginalIrulesFlowCommand`, `FlowDispatch`); each check
+# family and the shared path walk get a module of their own.
+file = "rust/tcl-compiler/src/irules_checks.rs"
+
+[[module]]
+name = "unnormalised_getters"
+doc = "IRULE3102: getters read without the normalisation their option vocabulary declares."
+items = [
+    "fn:supports_normalized_flag",
+    "fn:is_getter_form..fn:is_unnormalised_getter",
+    "fn:find_unnormalised_getter_warnings",
+    "fn:original_getter_source_warnings",
+    "fn:unnormalised_getter_source_config",
+]
+
+[[module]]
+name = "source_query"
+doc = "The `IrulesSourceQuery` operations: original events, argument calls and the handler pairing census."
+items = [
+    "struct:PairingHandlerInput",
+    "struct:PairingHandlerOutput",
+    "impl:<'a> IrulesSourceQuery<'a>::capture..impl:<'a> IrulesSourceQuery<'a>::metadata",
+    "fn:leaf_handler_source_completion",
+]
+
+[[module]]
+name = "drop_flow"
+doc = "IRULE5002 and IRULE5004: a `drop`, `reject` or `DNS::return` that survives unguarded along a path."
+items = ["fn:dedupe_drop_states", "fn:drop_flow_command", "fn:find_unguarded_drop_warnings"]
+
+[[module]]
+name = "flow_inventory"
+doc = "The original flow commands of one handler body: packet actions, response commits and collection operations."
+items = ["struct:OriginalIruleFlowInventory..fn:possible_irule_flow_command"]
+
+[[module]]
+name = "collect_flow"
+doc = "IRULE1005 to IRULE1008: collect, release and payload pairing across events and connection sides."
+items = [
+    "fn:classify_collect_operation..fn:find_conditional_collection_source_pairing_advice",
+    "fn:collect_flow_state..fn:emit_release_without_collect_warnings",
+]
+
+[[module]]
+name = "conditional_flow"
+doc = "Source-order flow advice over a complete census of leaf-handler commands."
+items = ["fn:find_conditional_irule_source_flow_advice..fn:conditional_source_flow_finding"]
+
+[[module]]
+name = "http_flow"
+doc = "IRULE1201 and IRULE1202: HTTP commands after a committed response and second responses on one path."
+items = ["fn:find_http_flow_warnings..fn:apply_http_flow_command"]
+
+[[module]]
+name = "flow_walk"
+doc = "The path-sensitive forward walk of a structured body that the flow checks thread their state sets through."
+items = ["fn:unreached_statements..fn:flow_step_try"]
+
+[[module]]
+name = "hoistable_sets"
+doc = "IRULE4004: a per-request literal assignment that could run once per connection."
+items = ["fn:find_hoistable_set_warnings..fn:hoistable_literal_assignment"]
+
+[[module]]
+name = "generic_static_names"
+doc = "IRULE4002: `static::` variables whose generic names collide across rules."
+items = ["const:DEFAULT_GENERIC_VARIABLE_PATTERNS..fn:check_generic_static"]

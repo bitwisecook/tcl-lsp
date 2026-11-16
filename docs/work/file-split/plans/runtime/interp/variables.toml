@@ -1,0 +1,43 @@
+# Second level: apply `plans/runtime/interp.toml` first; it creates this file.
+# The facade keeps link installation: `variable`, `global` and `upvar`.
+file = "runtime/rust/src/interp/variables.rs"
+
+[[module]]
+name = "access"
+doc = "Reading, storing and testing variables by name and by frame: scalars and elements, constants, confined stores, and the read-miss messages."
+items = [
+    "impl:Interp::var_get..impl:Interp::var_get_elem_at",
+    "impl:Interp::var_set_at..impl:Interp::confined_generator_error",
+    "impl:Interp::is_constant..impl:Interp::ensure_array_at",
+    "impl:Interp::var_is_array..impl:Interp::current_level",
+    "impl:Interp::var_exists..impl:Interp::array_names",
+    "impl:Interp::read_var..impl:Interp::read_miss_msg",
+]
+
+[[module]]
+name = "selected_cells"
+doc = "Stores through an already selected cell: captured byte names, native formal cells and compiled temporaries."
+items = ["impl:Interp::with_captured_byte_variable..impl:Interp::unset_native_compiled_temporary_checked"]
+
+[[module]]
+name = "traces"
+doc = "Variable traces: registration, read traces and read-for-update, firing with the resolved identity, trace errors and array traces."
+items = [
+    "impl:Interp::var_is_traced",
+    "impl:Interp::prepare_trace_registration..impl:Interp::lappend_read",
+    "impl:Interp::fire_var_trace..impl:Interp::var_trace_error_using",
+    "impl:Interp::fire_array_trace..impl:Interp::fire_var_traces_for",
+]
+
+[[module]]
+name = "unset"
+doc = "`unset`: removing a variable or an element, the array teardown, and the unset callbacks a destroyed cell fires."
+items = [
+    "impl:Interp::var_unset..impl:Interp::var_unset_elem",
+    "impl:Interp::cell_unset_traces..impl:Interp::fire_unset_callbacks",
+]
+
+[[module]]
+name = "array_targets"
+doc = "Array operations on a retained array binding: keys, searches, element reads and removals across trace callbacks."
+items = ["impl:Interp::with_array_trace_target..impl:Interp::array_read_elem_at_target_entered"]

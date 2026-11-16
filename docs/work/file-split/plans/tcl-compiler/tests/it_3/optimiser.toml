@@ -1,0 +1,90 @@
+# The parent keeps the module documentation, the optimiser and analyser
+# runners (`opt_codes`, `opt_fires`, `optimised`, `opt_rewrites`, `opt_count`,
+# `analyser_codes`, `reparse_errors`), the `int_xy`/`in_proc` wrappers and the
+# inline `mod cross_event_dse`, which the tool cannot move.
+file = "rust/tcl-compiler/tests/it_3/optimiser.rs"
+
+[[module]]
+name = "propagation"
+doc = "Constant propagation and folding: into commands, strings and expressions, across procedures and loops, and the call-site evidence it rests on."
+items = [
+    "fn:propagation_and_constant_folding_core..fn:proc_call_inside_expr_argument",
+    "fn:incr_of_a_constant_folds_through_to_its_reads..fn:constant_propagation_into_strings_o105",
+    "fn:multipass_string_build_collapses_to_literal",
+    "fn:a_call_site_in_a_terminator_or_fused_statement_is_evidence..fn:a_braced_word_that_is_not_an_expression_runs_nothing",
+    "fn:a_substituting_element_index_is_not_its_literal_spelling",
+    "fn:a_constant_in_the_empty_name_variable_inlines_cleanly",
+]
+
+[[module]]
+name = "instcombine"
+doc = "Expression simplification: reassociation, identities, boolean rules, De Morgan, tautologies and the iRules word operators."
+items = ["fn:int_x", "fn:instcombine_reassociation_and_identity_annihilator..fn:irules_word_operators_fold_through_sccp"]
+
+[[module]]
+name = "structure_elimination"
+doc = "Removing decided structure: `if`, `while`, `for` and `switch`, nested through multipass, with what must survive the rewrite."
+items = [
+    "fn:structure_elimination_if_while_for..fn:structure_elimination_nesting_via_multipass",
+    "fn:branch_condition_ending_in_a_nested_empty_pair_rewrites_the_whole_word",
+    "fn:profile_directive_survives_structure_elimination",
+]
+
+[[module]]
+name = "idiom_rewrites"
+doc = "Idiom rewrites O113 to O120 and O128, from strength reduction to end offsets, with their negatives."
+items = ["fn:pattern_match_simplification_negatives_hold..fn:variable_shape_guardrails"]
+
+[[module]]
+name = "tail_calls"
+doc = "Tail calls O121 to O123: detection, loop conversion, the accumulator hint and self calls that block the conversion."
+items = [
+    "fn:tail_call_detection_o121_o122..fn:accumulator_hint_o123",
+    "fn:a_non_tail_self_call_blocks_o122_however_it_is_spelled",
+    "fn:o122_still_converts_past_a_nested_call_to_another_proc",
+]
+
+[[module]]
+name = "dead_code"
+doc = "Dead stores, unused variables and unused procedures: what is deleted, and what a possible raise, a conditional writer or a reader keeps."
+items = [
+    "fn:dead_store_and_dead_code_elimination",
+    "fn:unused_variable_elimination_o126",
+    "fn:unused_irule_procs_o124",
+    "fn:unused_irule_procs_o124_eval_suppression",
+    "fn:a_conditional_writer_does_not_kill_the_store_it_may_preserve..fn:the_no_match_prover_still_reports_an_uncreated_target",
+    "fn:a_dead_assignment_whose_value_can_raise_is_kept..fn:a_store_before_string_is_failindex_is_kept",
+]
+
+[[module]]
+name = "code_motion"
+doc = "Code sinking O125, load forwarding O127 and the hoists GVN offers under the SCCP executable set."
+items = [
+    "fn:code_sinking_o125_positive..fn:removed_and_replayed_statements_keep_their_closer",
+    "fn:top_level_unit..fn:production_gvn_entries_read_the_sccp_executable_fact_issue_1385",
+]
+
+[[module]]
+name = "rewrite_barriers"
+doc = "What blocks a rewrite: dynamic names, traces, barriers, shared variables, the method guard and closed native consumers."
+items = [
+    "fn:dynamic_name_write_blocks_o130_chain_fold_issue_1374..fn:barrier_reference_blocks_o125_issue_1402",
+    "fn:method_body..fn:o107_still_fires_on_genuinely_unreachable_method_code",
+    "fn:closed_native_consumer_does_not_grant_the_ordinary_optimiser",
+    "fn:closed_native_consumer_refuses_callbacks_rebinding_and_value_escape",
+    "fn:sharedvar_writes_are_kept",
+]
+
+[[module]]
+name = "nested_reads_and_writes"
+doc = "Reads and writes nested in expression words, conditions and structural bodies, and what they keep alive or kill."
+items = [
+    "fn:a_nested_rmw_read_keeps_its_feeding_store_alive..fn:an_existence_query_is_neither_a_read_before_set_nor_a_write",
+    "fn:a_quoted_expression_operand_is_folded_to_its_substituted_value",
+    "fn:a_quoted_expression_operand_is_not_inert",
+]
+
+[[module]]
+name = "try_finally"
+doc = "`try` and `finally`: reachability of handlers and `finally` bodies on every way out, and the names and stores they see."
+items = ["fn:a_finally_body_is_reachable_however_the_try_body_leaves..fn:a_try_handler_still_binds_only_on_the_path_that_runs_it"]

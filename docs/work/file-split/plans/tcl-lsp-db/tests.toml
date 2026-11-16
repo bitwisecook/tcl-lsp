@@ -1,0 +1,120 @@
+# The parent keeps the fixtures every module shares (`original_test_body_id`, `cfg`,
+# `SRC`), the overlay-generation test of the database itself and the inline
+# `cross_file_call_sites` module (an inline `mod` cannot move).
+# The modules take the names of the production modules of `lib.toml`.
+file = "rust/tcl-lsp-db/src/tests.rs"
+
+[[module]]
+name = "declarations"
+doc = "Declaration queries: original procedure facts, `file_decls`, item signatures, project procedure names and the procedure stubs a document publishes."
+items = [
+    "fn:original_procedure_facts_retain_each_current_declaration_site",
+    "fn:project_procedure_facts_keep_missing_file_inputs_unavailable",
+    "fn:file_decls_match_file_analysis..fn:item_tree_recomputes_on_edit",
+    "fn:procedure_stubs_follow_the_documents_parameter_grammar",
+    "fn:a_sibling_procedure_declared_to_the_caller_keeps_it_proved",
+    "fn:project_proc_names_firewall",
+]
+
+[[module]]
+name = "document_analysis"
+doc = "Whole-file analysis: the direct and incremental paths agree, configuration reaches both and a body edit recomputes one item."
+items = [
+    "fn:body_cache_gate_is_per_body_and_whitespace_aware",
+    "fn:file_analysis_matches_direct_analyse",
+    "fn:unchanged_body_reinterns_to_the_same_key_without_copying_its_text",
+    "fn:editing_text_recomputes",
+    "fn:file_analysis_incremental_matches_full",
+    "fn:sidecar_stubs_reach_incremental_proc_bodies_and_invalidate..fn:method_body_edit_recomputes_one_item",
+]
+
+[[module]]
+name = "command_signatures"
+doc = "Project source headers: per-slot arities, opaque slots and the body-edit firewall."
+items = [
+    "fn:formal_count_project_headers_keep_the_selected_c_and_jim_contract",
+    "fn:original_project_headers_keep_opaque_slots_and_body_free_arity",
+    "fn:project_command_arities_firewall",
+]
+
+[[module]]
+name = "logical_source_arity"
+doc = "Arity advice for logical source calls and callbacks: receipts, occupants, namespace slots and unresolved mutations."
+items = [
+    "fn:logical_callback_source_receipts_replace_reporting_count_and_tail_joins..fn:logical_callback_source_slots_preserve_namespace_order_and_missing_project_inputs",
+    "fn:project_direct_logical_calls_use_original_occurrences_and_namespace_slots..fn:project_direct_logical_calls_keep_root_recipe_and_missing_namespace_unknown",
+]
+
+[[module]]
+name = "arity_diagnostics"
+doc = "`project_diagnostics`: cross-file wrong-argument-count and unknown-command advice, its cutoffs and its incremental parity."
+items = [
+    "fn:original_project_diagnostics_select_opaque_call_slots_and_namespace_priority",
+    "fn:project_diagnostics_per_symbol_cutoff..fn:cross_file_arity_in_command_substitution",
+]
+
+[[module]]
+name = "callback_arity"
+doc = "Callback argument-count diagnostics: original signatures, braced prefixes, execution traces, foreign library sources and the registry's callback descriptors."
+items = [
+    "fn:original_callback_missing_future_lookup_declines_reporting_candidates",
+    "fn:callback_arity_diagnostics..fn:callback_arity_struct_tree_walkproc_checked",
+]
+
+[[module]]
+name = "display_queries"
+doc = "The outline, folding ranges and semantic tokens against their direct computations, and the project token indexes."
+items = [
+    "fn:original_db_token_is_variable",
+    "fn:original_db_token_roles_keep_opaque_declarations_and_full_caller_currency",
+    "fn:document_symbols_match_direct..fn:semantic_tokens_shares_incremental_analysis_with_diagnostics",
+    "fn:logging_db..fn:folding_ranges_memoised_across_repeat_queries",
+]
+
+[[module]]
+name = "function_lattices"
+doc = "The per-procedure lattice memo: sharing, key identity, supplied availability and reuse when bodies shift."
+items = [
+    "fn:memoised_lattices_are_shared_not_deep_copied_across_builds..fn:function_lattice_key_keeps_the_exact_normalized_lexer_config",
+    "fn:function_lattice_reused_on_whole_file_shift",
+    "fn:function_lattice_reused_on_body_shift",
+    "fn:function_lattice_memoises_param_constant_procs",
+]
+
+[[module]]
+name = "compilation_units"
+doc = "The shared compilation unit: its document policy key, the body-lowering memo it is assembled from and one build for every consumer."
+items = [
+    "fn:original_document_policy_key_admits_actual_input_and_root_bom_geometry",
+    "fn:original_document_policy_key_refuses_foreign_or_changed_full_input",
+    "fn:lower_proc_body_reused_on_unrelated_edit",
+    "fn:compilation_unit_shared_across_consumers",
+]
+
+[[module]]
+name = "compiler_diagnostics"
+doc = "The memoised compiler-check diagnostics against the uncached pass, under edits and for method and body units."
+items = [
+    "fn:compiler_check_o122_tailrec_memo_matches_uncached",
+    "fn:original_standalone_compiler_document_keeps_root_and_later_bom_roles",
+    "fn:compiler_check_diagnostics_matches_uncached..fn:method_body_checks_invalidate_on_edit",
+    "fn:compiler_check_incremental_matches_fresh_under_edits",
+    "fn:check_diagnostics_rerun_whole_file_on_body_edit",
+    "fn:fresh_compiler_document_retains_actual_input_and_selected_registry",
+    "fn:compiler_taint_replay_status_is_retained_by_memo_and_direct_paths",
+]
+
+[[module]]
+name = "check_solve"
+doc = "The taint cascade and the procedure-summary memo: parity with the uncached solve and reuse across unrelated edits."
+items = [
+    "fn:configured_taint_checks_consume_the_solve_original_module_owner",
+    "fn:taint_cascade_matches_uncached_under_edits",
+    "fn:taint_cascade_reused_on_unrelated_edit",
+    "fn:proc_summary_cascade_reused_on_unrelated_edit..fn:summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads",
+]
+
+[[module]]
+name = "optimisation_solve"
+doc = "The per-procedure optimisation memo and the callee projection it reads."
+items = ["fn:function_optimisations_reused_on_unrelated_edit..fn:a_completing_callee_reaches_the_optimiser_memo"]

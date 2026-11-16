@@ -1,0 +1,63 @@
+# The facade keeps the module docs, the `Analyser` struct (982 lines of
+# documented fields that every analyser module reads), `NonAsciiMode`,
+# `Analyser::new`, `Default` and the line-offset helpers.
+file = "rust/tcl-compiler/src/analyser/state.rs"
+
+[[module]]
+name = "walk_records"
+doc = "The records a walk queues for later settlement: dispatch sites, pending instance and ensemble sites, definition-abort candidates and interpreter frames."
+items = ["type:PendingInstanceCreation..fn:shift_span"]
+
+[[module]]
+name = "realms"
+doc = "The command realm a document is analysed in: its build inputs, the prebuilt realm and compilation unit a caller may supply, and the read-only realms."
+items = [
+    "struct:RealmBuildInputs..impl:CompilationUnitOverride",
+    "impl:Analyser::prepare_analysis_input..impl:Analyser::set_owned_cu_override",
+]
+
+[[module]]
+name = "walk_environment"
+doc = "The dialect environment of one walk: grammar and lexer configuration, the command surface, the source map and the declared version targets."
+items = [
+    "impl:Analyser::grammar..impl:Analyser::split_braced_head",
+    "impl:Analyser::try_analysis_context..impl:Analyser::resolve_walk_environment",
+    "impl:Analyser::resolve_declared_targets",
+]
+
+[[module]]
+name = "configuration"
+doc = "The builder methods that configure an analyser: disabled diagnostics, pack overlays, targets, workspace declarations and the retained input."
+items = [
+    "impl:Analyser::with_disabled_diagnostics..impl:Analyser::profile_registry",
+    "impl:Analyser::with_non_ascii_mode..impl:Analyser::with_script_encoding",
+    "impl:Analyser::with_extra_commands..impl:Analyser::with_resolved_input",
+]
+
+[[module]]
+name = "full_analysis"
+doc = "`analyse` and its source-region and namespace-seeded variants: the walk set-up, directives and the top-level command walk."
+items = ["impl:Analyser::analyse_source_region..impl:Analyser::walk_commands_top_level"]
+
+[[module]]
+name = "syntax_recovery"
+doc = "Ghost-token recovery and the syntax diagnostics for unterminated delimiters and lexer warnings."
+items = ["impl:Analyser::apply_ghost_recovery..impl:Analyser::emit_lexer_warning_diagnostics"]
+
+[[module]]
+name = "segmented_analysis"
+doc = "Analysis of pre-segmented commands: chunked, incremental and the shared dispatch loop."
+items = ["impl:Analyser::analyse_chunked..impl:Analyser::analyse_commands_inner"]
+
+[[module]]
+name = "post_walk"
+doc = "The tail after the walk: built-in names, implied package requires, the diagnostic emitters and the canonical result order."
+items = [
+    "impl:Analyser::builtin_command_names..impl:Analyser::canonicalize_result_order",
+    "fn:sort_scope_refs",
+]
+
+[[module]]
+name = "run_state"
+doc = "The per-run state: its reset between analyses, the file-scope environment seed, command trust and synthetic names."
+items = ["impl:Analyser::whole_file_command_trust..impl:Analyser::seed_file_scope_env"]

@@ -1,0 +1,36 @@
+# Second level: apply `executable_ir.toml` first. `builder.rs` keeps
+# `FunctionBuilder` with its block, completion and script-walking core,
+# `ControlContext`, the tails, the child-node slots and `IdAllocator`.
+file = "rust/tcl-compiler/src/executable_ir/builder.rs"
+
+[[module]]
+name = "invocations"
+doc = "Emitting a generic invocation or an evaluated region: planning argv words, staging their evaluation and retaining the original word sources."
+items = [
+    "impl:FunctionBuilder::retain_original_word_sources",
+    "impl:FunctionBuilder::emit_call",
+    "impl:FunctionBuilder::emit_evaluated_region..impl:FunctionBuilder::emit_evaluated_phases",
+    "fn:plan_argv_entries..fn:statement_kind_name",
+    "enum:Stage",
+    "impl:Stage",
+]
+
+[[module]]
+name = "structured_regions"
+doc = "Projecting `if`, condition loops, cursor loops and `switch` into executable edges, and completing the region where they join."
+items = [
+    "impl:FunctionBuilder::retain_expression_command_effect",
+    "impl:FunctionBuilder::emit_structured_region",
+    "impl:FunctionBuilder::complete_region..impl:FunctionBuilder::emit_cursor_loop",
+    "impl:FunctionBuilder::emit_switch",
+    "fn:original_switch_subject_source..struct:SwitchParts",
+    "fn:next_switch_body..fn:original_list_iterator_sources",
+]
+
+[[module]]
+name = "exception_regions"
+doc = "Projecting `catch` and `try` with its handler clauses and `finally` into executable edges."
+items = [
+    "impl:FunctionBuilder::emit_catch..impl:FunctionBuilder::emit_try_handlers",
+    "fn:resolve_try_fallthrough",
+]

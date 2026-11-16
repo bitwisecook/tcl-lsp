@@ -1,0 +1,30 @@
+# Second level of `tests.toml`. The facade is the module list.
+file = "rust/tcl-lsp-server/src/tests/dialects.rs"
+
+[[module]]
+name = "language_ids"
+doc = "The editor language ids the ingress accepts."
+items = ["fn:dialect_from_language_id_recognises_editor_ids..fn:every_runtime_enumeration_is_the_registry"]
+
+[[module]]
+name = "hint_gate"
+doc = "The edit gate for in-source dialect hints."
+items = [
+    "fn:dialect_hint_gate_skips_a_deep_plain_edit_but_catches_a_directive..fn:dialect_hint_gate_catches_deleting_a_deep_marker_line",
+]
+
+[[module]]
+name = "resolution"
+doc = "The dialect an open or closed document resolves to."
+items = [
+    "fn:environment_kind_setting_reaches_the_notice",
+    "fn:a_session_dialect_naming_no_environment_falls_back_with_a_warning..fn:dialect_config_change_reresolves_open_documents",
+    "fn:bigip_routing_uses_the_profile_availability_fact",
+]
+
+[[module]]
+name = "changes"
+doc = "Dialect changes racing edits, diagnostics and the index."
+items = [
+    "fn:default_dialect_change_retries_after_concurrent_edit_1854..fn:dialect_change_invalidates_rehoming_seed_before_reconciliation_1854",
+]

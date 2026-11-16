@@ -1,0 +1,24 @@
+# The facade keeps the public fact types, `ObjectHandleFacts`, the entry points,
+# `build_facts_gated`, the proven-read evidence, `OwnerIndex`, the `FactSink`
+# accumulator that the harvest and the fixpoint both write through, and
+# `ScanContext`, which the tests build field by field.
+file = "rust/tcl-compiler/src/object_types.rs"
+
+[[module]]
+name = "procedure_results"
+doc = "The object class a procedure or method returns, from its return paths."
+items = ["fn:retain_normal_procedure_result_types..fn:returning_methods"]
+
+[[module]]
+name = "object_flow"
+doc = "The object-flow fixpoint: assignment, call-argument and return edges that carry classes between variables."
+items = [
+    "fn:propagate_object_flow..fn:emit_proc_param_bindings",
+    "impl:ScanContext<'_>",
+    "fn:emit_ctor_param_bindings..fn:literal_source_word",
+]
+
+[[module]]
+name = "constructor_harvest"
+doc = "Seeding the facts: constructor calls and naming factories found in each unit and in the original source."
+items = ["fn:harvest_unit..fn:is_plain_object_name"]

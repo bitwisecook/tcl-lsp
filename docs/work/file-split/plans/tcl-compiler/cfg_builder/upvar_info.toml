@@ -1,0 +1,32 @@
+# The facade keeps the module docs, `UpvarInfo` with its call-site resolution,
+# the `collect_upvar_targets*` entry points and the small context structs
+# (`UpvarBindings`, `LogicalFrameScan`, `FrameCommandContext`) whose fields
+# every part of the walk reads.
+file = "rust/tcl-compiler/src/cfg_builder/upvar_info.rs"
+
+[[module]]
+name = "body_walk"
+doc = "The walk over a procedure body that records each statement's frame effects."
+items = ["fn:collect_upvar_targets_inner..fn:walk_stmt"]
+
+[[module]]
+name = "logical_frame_invocations"
+doc = "Frame effects of invocations recovered from the original logical source words."
+items = ["fn:record_logical_frame_invocation..fn:record_logical_frame_script", "fn:record_logical_frame_statement"]
+
+[[module]]
+name = "frame_commands"
+doc = "`upvar` and `uplevel` calls: the level word, alias pairs, body shapes and widening past the direct caller."
+items = [
+    "fn:original_scalar_argument..fn:resolve_frame_args",
+    "fn:record_frame_effect..fn:upframe_body_is_braced",
+    "fn:record_constructed_body",
+]
+
+[[module]]
+name = "selected_frame_bodies"
+doc = "Bodies that run in a selected frame: their writes, the aliases they make and nested `uplevel` selections, composed into the caller-effect summary."
+items = [
+    "fn:record_resolved_frame_body..fn:record_readable_frame_body",
+    "fn:record_upframe_body_at_depth..fn:record_nested_upframe_effects",
+]

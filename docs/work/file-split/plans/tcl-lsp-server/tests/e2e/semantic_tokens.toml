@@ -1,0 +1,60 @@
+# The parent keeps the decoding helpers: `TypedToken`, `legend`, `modifiers`, `typed`,
+# `open_doc`, `covered` and `modifier_bit`. The modules take the names of
+# `tcl-lsp-core`'s `semantic_tokens` modules where the tests line up with them.
+# `e2e.rs` loads this file through `#[path]`: each `mod` the tool adds needs
+# `#[path = "semantic_tokens/<name>.rs"]`, as `spec_packs.rs` does for its child.
+file = "rust/tcl-lsp-server/tests/e2e/semantic_tokens.rs"
+
+[[module]]
+name = "lexical_tokens"
+doc = "The encoding invariants, and the tokens of plain words: commands, variables, numbers, comments, operators and strings."
+items = ["fn:invariant_corpus..fn:test_multiline_braced_string_highlighted_per_line"]
+
+[[module]]
+name = "script_walk"
+doc = "The script bodies the walk recurses into, clause lists, and the structural keywords of control commands."
+items = [
+    "fn:test_if_elseif_else_body_recursion..fn:test_quoted_structural_keyword_offsets_past_quote",
+    "fn:test_switch_plain_braced_case_list_recurses_bodies",
+    "fn:test_expect_clause_list_patterns_and_bodies..fn:test_expect_incomplete_clause_does_not_fabricate_a_body",
+]
+
+[[module]]
+name = "subtokens"
+doc = "Sub-tokens inside regular expressions, `regsub` specs, `format` and `clock` specifications and backslash escapes."
+items = [
+    "const:RE_TYPES..fn:test_switch_glob_no_regexp_tokens",
+    "fn:test_regsub_backref_highlighted",
+    "fn:test_regsub_multiple_backrefs",
+    "fn:test_regex_source_variable_highlights_def_site_literal",
+    "fn:test_backslash_n_highlighted..fn:test_clock_without_format_option",
+    "fn:test_backslash_escape_widths",
+]
+
+[[module]]
+name = "command_roles"
+doc = "The role a command gives its words: heads and their `defaultLibrary` modifier, option decorators, event names, declared variables and parameters."
+items = [
+    "fn:test_when_event_name_highlighted_as_event..fn:test_regexp_option_highlighted_as_decorator",
+    "fn:test_return_code_option_decorator_issue_967..fn:test_proc_definition_no_default_library",
+    "fn:test_imported_tcltest_test_structure_recognised..fn:test_upvar_and_dict_update_locals_are_variables",
+    "fn:test_issue_898_semantic_token_corrections",
+    "fn:test_issue_898_default_library_modifier",
+    "fn:test_list_built_upvar_declares_its_local_like_the_literal_spelling",
+    "fn:test_command_identity_drives_argument_grammar",
+]
+
+[[module]]
+name = "object_dispatch"
+doc = "TclOO, snit and itcl: body members, declared instance variables, call sites and references."
+items = [
+    "fn:test_tcloo_body_variable_declares_every_name",
+    "fn:test_snit_type_body_members_highlight",
+    "fn:test_itcl_class_body_members_highlight",
+    "fn:test_tcloo_members_references_and_call_sites",
+]
+
+[[module]]
+name = "config_documents"
+doc = "Documents that are not Tcl keep their own token sets: iApp APL presentations and BIG-IP configuration."
+items = ["fn:test_apl_presentation_uses_the_apl_token_set", "fn:test_bigip_conf_uses_the_bigip_token_set"]

@@ -1,0 +1,20 @@
+# The facade keeps `ProcTaintSummary` with its basis vocabulary and formal
+# matching, `apply_proc_return_summary`, `InterprocTaintResult` and the
+# `solve_interprocedural_taints*` entry points with the entry-taint update, and
+# `ProcSummaryInputs`, which the inference and the fixpoint both build.
+file = "rust/tcl-compiler/src/taint_interproc.rs"
+
+[[module]]
+name = "summary_inference"
+doc = "Inferring one procedure's return-taint summary: return-word uses, the joined return taint and the per-parameter probes."
+items = ["struct:ReturnWordUses..fn:infer_proc_summary", "fn:infer_proc_summary_with_source"]
+
+[[module]]
+name = "call_flows"
+doc = "The calls a body makes to known procedures: argument-taint flows, resolved callees and command-substitution callees."
+items = ["struct:CallFlowInputs..fn:command_subst_callees"]
+
+[[module]]
+name = "summary_fixpoint"
+doc = "The worklist that runs per-procedure summary inference to convergence."
+items = ["fn:push_unique_edge..fn:converge_summaries_with"]

@@ -1,0 +1,20 @@
+# Second level of `lib.toml`. The facade keeps the bounded client request, the position
+# helpers and the folding-range refresh request.
+file = "rust/tcl-lsp-server/src/protocol.rs"
+
+[[module]]
+name = "capabilities"
+doc = "What the client supports and what the server advertises."
+items = [
+    "fn:negotiate_position_encoding..fn:client_supports_show_document",
+    "fn:build_server_capabilities..fn:semantic_tokens_capability",
+]
+
+[[module]]
+name = "lifts"
+doc = "Conversions from core results into LSP types."
+items = [
+    "fn:lift_completion_kind..fn:materialise_selection_range",
+    "fn:lift_lsp_range..fn:lift_span",
+    "fn:lift_parameter_information..fn:lift_folding_range",
+]

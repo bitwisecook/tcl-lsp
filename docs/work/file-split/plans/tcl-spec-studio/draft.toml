@@ -1,0 +1,48 @@
+# The facade keeps the draft keys, the `Draft` type, `Unrecovered` (every part
+# records into it) and the public entry points: `from_command_spec`,
+# `from_subcommand` and the two default drafts.
+file = "rust/tcl-spec-studio/src/draft.rs"
+
+[[module]]
+name = "field_values"
+doc = "The draft form of one field value: lifecycles, dialect sets, arity, role and type maps, argument values, side effects, documentation and declared semantics."
+items = [
+    "fn:selected_variable_receivers..fn:integer_domain",
+    "fn:side_effect..fn:setter_constraint",
+    "fn:documentation_examples..fn:hover",
+    "fn:semantic_type_word..fn:declared_semantics_json",
+]
+
+[[module]]
+name = "options_and_forms"
+doc = "Option rows and invocation forms: an option's arity, lifecycle edit and effect, and the refinement rows of a command or subcommand."
+items = [
+    "fn:option_arity..fn:form_spec",
+    "fn:refinement_rows..fn:option_rows",
+]
+
+[[module]]
+name = "definition_grammar"
+doc = "Definition bodies as data: members and their effects, semantic operations, clause grammars and object classes."
+items = ["fn:manufacturer_method..fn:object_class"]
+
+[[module]]
+name = "rust_expressions"
+doc = "The Rust expression recovered for a descriptor field the draft cannot hold as data."
+items = ["fn:var_write_typing_expr..fn:expr_or_null"]
+
+[[module]]
+name = "subcommand_seed"
+doc = "Seeding a draft from a live `SubCommand`: identity, types, hooks, the option surface and execution fields."
+items = [
+    "fn:sub_subcommand",
+    "fn:subcommand_value_and_effect_fields",
+    "fn:subcommand_body..fn:subcommand_types",
+    "fn:subcommand_hooks",
+    "fn:subcommand_option_surface..fn:subcommand_rest",
+]
+
+[[module]]
+name = "command_seed"
+doc = "Seeding a draft from a live `CommandSpec`: identity, types, documentation, hooks, iRules events, options, taint and object facts."
+items = ["fn:command_identity..fn:command_object_facts"]

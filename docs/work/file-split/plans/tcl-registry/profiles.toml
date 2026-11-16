@@ -1,0 +1,14 @@
+# The facade keeps the relation types, `ProfileSpec`, `ProfileRegistry`, the
+# file-profile scanners and the short stack-modification table; the two long
+# data tables move.
+file = "rust/tcl-registry/src/profiles.rs"
+
+[[module]]
+name = "profile_table"
+doc = "The table of BIG-IP profile types: parents, peers, layers and lifecycles."
+items = ["fn:profile_specs..fn:profile_specs_8"]
+
+[[module]]
+name = "protocol_namespace_table"
+doc = "The table of protocol command namespaces and the profiles each one needs."
+items = ["fn:protocol_namespace_specs..fn:protocol_namespace_specs_9"]

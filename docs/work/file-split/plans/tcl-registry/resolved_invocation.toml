@@ -1,0 +1,138 @@
+# The facade keeps `InvocationSemantics`, `ResolvedInvocation` with its
+# constructors and the private helpers several topic modules call, the form
+# and availability types, and the queries that fit no narrower topic (option
+# effects, substitutions, return type, presentation, diagnostics, literal
+# replacement).
+# The 4,123-line `impl ResolvedInvocation` is split by the question each
+# group of methods answers; each answer type moves with the methods that build
+# it. The `#[test]` functions written inline in this file move to
+# `variable_receiver_tests`.
+file = "rust/tcl-registry/src/resolved_invocation.rs"
+
+[[module]]
+name = "operation_resolution"
+doc = "Which semantic operation and merged semantics the command, subcommand and form descriptors select for one invocation."
+items = ["fn:descriptor_operation..fn:resolve_invocation_semantics"]
+
+[[module]]
+name = "subcommand_resolution"
+doc = "The outcome of resolving a subcommand word: resolved, ambiguous, unknown or unresolved, borrowed and owned."
+items = ["struct:ResolvedSubcommand..impl:<'r, 'w> StructuredInvocationResolution<'r, 'w>"]
+
+[[module]]
+name = "invocation_options"
+doc = "The option table selected for one invocation: prefix occurrences, value roles and the leading option run."
+items = [
+    "struct:InvocationOptions..impl:<'r> InvocationOptions<'r, '_>",
+    "fn:invocation_options..fn:selected_nested_options",
+]
+
+[[module]]
+name = "argument_count"
+doc = "Counting the arguments of an invocation and testing the count against the selected arity."
+items = [
+    "struct:InvocationArgumentCount..struct:AuthoredSourceArity",
+    "fn:count_invocation_argv..fn:count_invocation_arguments",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::argument_count_for_arity..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::arity_accepts_under",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_arity..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_count_for_arity",
+]
+
+[[module]]
+name = "invocation_facts"
+doc = "`InvocationFacts`: the owned summary of one resolved invocation, its queries and how it is built on each completion edge."
+items = [
+    "struct:SelectedArgumentTypeHints",
+    "impl:SelectedArgumentTypeHints",
+    "struct:InvocationFacts..impl:InvocationFacts",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_variable_receiver_operand_form",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::facts..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::selected_taint_transform",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::selected_procedure_definition..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::facts_on_edge",
+]
+
+[[module]]
+name = "effects_and_transitions"
+doc = "Side effects, state transitions and variable aliases of one invocation, as declared and as the authored source narrows them."
+items = [
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::effects..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_result_preserves_variable_bindings",
+    "fn:sole_world_effect_descriptor",
+    "struct:ConditionalNoLevelAliasLayout",
+    "impl:ConditionalNoLevelAliasLayout",
+]
+
+[[module]]
+name = "argument_roles"
+doc = "The role of each argument word: declared, repeated, resolver-supplied and frame-layout roles, on either completion edge."
+items = [
+    "struct:AuthoredLogicalSourceRoleProjection",
+    "impl:AuthoredLogicalSourceRoleProjection",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::arg_roles..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::pattern_args",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::extend_repeated_roles..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_argument_roles",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_jim_core_roles",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_logical_source_argument_roles..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_logical_source_role_projection",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::argument_roles_on_edge..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::extend_native_definition_roles",
+]
+
+[[module]]
+name = "case_clauses"
+doc = "Case and clause structure: `switch`-style invocations, clause plans and walks, case bodies and clause-shape checks."
+items = [
+    "struct:AuthoredSourceCaseBody",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::clause_plan..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::clause_walk",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::case_invocation",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_case_body_arguments",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_case_invocation..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_case_presentation",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_clause_shape..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_clause_issue",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_inline_case_clauses",
+]
+
+[[module]]
+name = "source_scripts"
+doc = "Script operands in the authored source: frame scripts, script timing, executable values, command prefixes, retained callbacks and control arms."
+items = [
+    "enum:AuthoredSourceSelfDispatch",
+    "enum:SourceExecutableValueCapability..fn:source_sub_has_executable_value",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::frame_effect..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::source_frame_script_arguments",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_dictionary_scope_source_phase..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_self_dispatch",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_retains_callback..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::source_control_arm_semantics",
+]
+
+[[module]]
+name = "source_operands"
+doc = "Value operands in the authored source: list, pattern, format, expression, variable-name, assignment, append, index and path arguments."
+items = [
+    "struct:AuthoredSourceScopeAliasArgument",
+    "struct:AuthoredSourceLambdaCall..struct:AuthoredSourceAppendArguments",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_list_arguments..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_format_arguments",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_lambda_call..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_unset_option_only_arguments",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_enum_arguments",
+    "impl:ResolvedInvocation<'_, '_>",
+]
+
+[[module]]
+name = "source_options"
+doc = "Options in the authored source: diagnostics, teardown and destructive-path targets, credentials, files and option relationships."
+items = [
+    "enum:AuthoredSourceCredentialPosition..struct:AuthoredSourceCredentialArgument",
+    "struct:AuthoredSourceOption..struct:AuthoredSourceOptionRelationships",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_diagnostic_options..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_option_relationships",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_available_options",
+]
+
+[[module]]
+name = "source_definitions"
+doc = "Definitions in the authored source: procedure parameters, command publication, class lists, object factories and definition bodies."
+items = [
+    "struct:AuthoredSourceJimClassLists",
+    "impl:AuthoredSourceJimClassLists",
+    "struct:AuthoredSourceProcedureArguments..enum:AuthoredSourceProcedureStaticList",
+    "enum:AuthoredSourceCommandPublicationKind..struct:AuthoredSourceCommandPublication",
+    "struct:NamedObjectFactory",
+    "impl:NamedObjectFactory",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_procedure_arity..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_procedure_static_list",
+    "impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_command_publication..impl:<'r, 'w> ResolvedInvocation<'r, 'w>::authored_source_definition_body_grammar",
+]
+
+[[module]]
+name = "variable_receiver_tests"
+doc = "Tests of the variable-receiver operand form: fact projection, selected forms and original trace receivers."
+items = ["fn:variable_receiver_fact_projection_preserves_form_precedence_and_member_offsets..fn:original_trace_subject_extent_preserves_counted_original_and_independent_array_form"]

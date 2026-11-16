@@ -1,0 +1,16 @@
+# Second level: apply `ssa.toml` first. `uses.rs` keeps `uses_of`,
+# `ClassifiedUses` and the classification of calls, barriers and assignments.
+file = "rust/tcl-compiler/src/ssa/uses.rs"
+
+[[module]]
+name = "word_scan"
+doc = "Reads in the words of one command: structural bodies, nested substitutions, expression roles and braced words that own a name."
+items = [
+    "fn:is_braced_arg..fn:structural_body_indices",
+    "fn:scan_command_words..fn:braced_word_owns_name",
+]
+
+[[module]]
+name = "script_reads"
+doc = "The free reads of the scripts a statement keeps inside itself, such as the arms of an opaque `switch`."
+items = ["fn:switch_reads..fn:reads_in_stmt"]

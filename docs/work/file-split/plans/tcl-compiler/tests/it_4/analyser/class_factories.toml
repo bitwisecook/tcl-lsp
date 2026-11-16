@@ -1,0 +1,72 @@
+# For the file that hoisting the inline `mod class_factories` of
+# `tests/it_4/analyser.rs` produces (see `tests/it_4/analyser.toml`); it does
+# not exist in the repository yet. The parent keeps `analysis`, `class` and
+# the `COMPUTED_METACLASS` fixture several groups read.
+file = "rust/tcl-compiler/tests/it_4/analyser/class_factories.rs"
+
+[[module]]
+name = "user_metaclasses"
+doc = "User metaclasses that manufacture classes: `create` overrides, prologues, relative superclasses and renamed metaclasses."
+items = [
+    "const:MEGAWIDGET..fn:unexported_create_with_namespace_does_not_manufacture_a_class",
+    "fn:a_renamed_metaclass_still_manufactures_its_class..fn:a_rename_with_no_call_through_the_new_name_manufactures_nothing",
+]
+
+[[module]]
+name = "unknown_dispatch"
+doc = "Factories proved through an `unknown` dispatch that constructs and returns the word."
+items = ["const:UNKNOWN_CTOR..fn:unknown_dispatch_proof_survives_the_cross_document_rehome"]
+
+[[module]]
+name = "reflective_members"
+doc = "Members installed reflectively by `oo::define` loops, `foreach` installers and brace expansion."
+items = [
+    "fn:oo_define_over_a_literal_foreach_list_extends_every_named_class",
+    "fn:the_foreach_simulation_does_not_duplicate_body_diagnostics",
+    "fn:oo_define_over_a_dynamic_list_still_abstains..fn:w308_abstains_on_a_class_whose_members_are_installed_reflectively",
+    "fn:foreach_installed_procs_are_enumerated_per_literal_element",
+]
+
+[[module]]
+name = "computed_names"
+doc = "Computed metaclass names: provenance through helpers and call sites, command tables, loops, namespace normalisers and variable command heads."
+items = [
+    "fn:a_computed_metaclass_name_resolves_through_a_helper_proved_at_its_call..fn:a_condition_loop_in_the_dominating_prefix_abstains",
+    "fn:each_literal_call_site_proves_its_own_metaclass",
+    "fn:helper_proc_branch_result_drives_computed_creation..fn:deep_helper_call_chain_cannot_exhaust_the_provenance_budget",
+    "fn:computed_creation_does_not_carry_proc_locals_across_namespace_eval..fn:a_proc_nobody_calls_proves_nothing",
+    "fn:a_braced_variable_command_head_resolves_through_its_constant..fn:a_braced_variable_command_head_abstains_on_a_branch_binding",
+]
+
+[[module]]
+name = "walk_blockers"
+doc = "Bodies the load-time walk cannot read or cannot walk past, and its depth limits."
+items = [
+    "fn:a_declaration_body_the_walk_cannot_read_is_not_a_blocker..fn:an_aborting_uplevel_script_cannot_be_walked_past",
+    "fn:a_readable_body_that_runs_now_but_is_untyped_still_abstains..fn:deeply_nested_collection_loops_do_not_blow_the_static_walk_stack",
+]
+
+[[module]]
+name = "deferred_creations"
+doc = "Creations deferred until their metaclass is proved: replay, define stubs, conflicting creations and the incremental path."
+items = [
+    "fn:a_post_pass_metaclass_classifies_a_creation_in_its_own_file..fn:a_stub_that_contradicts_the_replayed_creation_abstains_but_keeps_members",
+    "fn:full_tcllib_clay_dialect_metaclass_resolves_when_the_corpus_is_available..fn:a_define_stub_that_wins_the_join_still_sheds_its_stub_provenance",
+]
+
+[[module]]
+name = "load_time_paths"
+doc = "Which creations the load-time path reaches: selected `if`, `switch` and `try` arms and prefixes that must fall through."
+items = [
+    "fn:computed_creation_materialises_only_the_selected_if_arm..fn:computed_creation_reuses_nested_prefix_reachability",
+    "fn:computed_creation_in_try_finally_is_selected_but_handler_abstains",
+]
+
+[[module]]
+name = "cross_file"
+doc = "Metaclasses in other files: the workspace factory index, shadowing, unreadable prologues and chained metaclass files."
+items = [
+    "fn:a_metaclass_defined_in_another_file_abstains_rather_than_guessing",
+    "const:META_FILE..fn:a_cross_file_factory_keeps_method_checks_live_when_it_can",
+    "const:CHAIN_META_A..fn:chained_index",
+]

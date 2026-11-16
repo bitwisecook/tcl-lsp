@@ -1,0 +1,88 @@
+# The facade keeps the module docs and the member model every class system
+# reads: `MemberStatement` and its landing (`MemberLanding`, `member_landing`,
+# the side and method-table helpers), `MemberDialect`, the body-collection
+# types (`ClassBodyCtx`, `MemberForm`, `MethodBodyClass`,
+# `CollectedMethodBody`, `CollectedDefinitionBodies`) and the wrapper and
+# label helpers.
+file = "rust/tcl-compiler/src/analyser/oo.rs"
+
+[[module]]
+name = "definition_body"
+doc = "The walk of a TclOO definition body and of the inline `oo::define` form: each member statement, wrapper expansion, the bodies it collects and the W002 for a member the dialect lacks."
+items = [
+    "fn:declares_variables..fn:collect_var_decl_spans",
+    "impl:Analyser::command_dialect_disabled..impl:Analyser::emit_w002_oo_member_option_disabled",
+    "impl:Analyser::parse_oo_definition_body..impl:Analyser::collect_oo_definition_members",
+    "impl:Analyser::collect_oo_definition_member",
+    "fn:parse_oo_define_inline_in",
+    "fn:collect_class_level_bodies..fn:splice_static_member_expansions",
+    "fn:collect_method_body",
+]
+
+[[module]]
+name = "member_references"
+doc = "The command references a member names, and the members a literal loop installs one per element."
+items = [
+    "fn:loop_installer_pair..fn:loop_installed_member_shape",
+    "impl:Analyser::member_declaration_is_opaque..impl:Analyser::record_member_command_references",
+]
+
+[[module]]
+name = "retained_member_source"
+doc = "The original source operands kept for a member: its name, visibility, relation words, formal parameters and provider class."
+items = [
+    "impl:Analyser::original_provider_class_name..impl:Analyser::retain_original_provider_class",
+    "impl:Analyser::original_logical_member_words..impl:Analyser::member_formal_parameter_indices",
+    "impl:Analyser::retain_logical_relation_command..impl:Analyser::retain_class_relation_lookups",
+]
+
+[[module]]
+name = "method_bodies"
+doc = "Walking method, constructor and class-initialisation bodies in their own scopes."
+items = [
+    "impl:Analyser::walk_class_init_body..impl:Analyser::finish_method_body_walk",
+    "impl:Analyser::extract_class_member",
+]
+
+[[module]]
+name = "member_effects"
+doc = "What one member row does to its `ClassDef`: declared methods and forwards, properties, relations and slots, visibility and retraction."
+items = [
+    "fn:retract_named_members..fn:apply_slot_member",
+    "fn:set_member_visibility..fn:extract_method_def_in",
+]
+
+[[module]]
+name = "snit"
+doc = "snit type and widget definitions."
+items = [
+    "const:SNIT_TYPE_IMPLICIT",
+    "struct:SnitDefiner",
+    "impl:Analyser::handle_snit_type_command..impl:Analyser::dispatch_snit_member",
+]
+
+[[module]]
+name = "itcl"
+doc = "`itcl::class` definitions."
+items = [
+    "impl:Analyser::handle_itcl_class_command..impl:Analyser::handle_itcl_class_source",
+    "impl:Analyser::parse_itcl_definition_body",
+]
+
+[[module]]
+name = "jim_classes"
+doc = "Jim `class` definers, their member calls and the two-word `proc {CLASS member}` form."
+items = [
+    "struct:OriginalJimClassLists",
+    "fn:original_two_word_proc_name..fn:insert_original_two_word_member",
+    "impl:Analyser::handle_jim_class_command..impl:Analyser::add_two_word_member",
+]
+
+[[module]]
+name = "unknown_proc"
+doc = "The dispatch shape of a user-defined `unknown` procedure, which gates W123."
+items = [
+    "fn:chains_original_unknown..fn:loads_external_unit",
+    "impl:Analyser::extract_unknown_proc_info..impl:Analyser::extract_unknown_proc_info_at",
+    "const:MAX_UNKNOWN_STMT_WALK_DEPTH..fn:walk_unknown_script",
+]

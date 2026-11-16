@@ -1,0 +1,79 @@
+# First of two levels. The facade keeps the module docs, the core types
+# (`Version`, `Symbol`, `ValueKey`, `Phi`, `SsaStatement`, `UseClass`,
+# `SsaBlock`, `SsaFunction` and the records its private fields hold,
+# `SsaReadReference`), `SsaInvocationContext`, the complexity guard, the
+# `build_ssa*` entry points and the effect-marker predicates. `source_view`,
+# `uses` and `construction` are split again by the plans named after them.
+file = "rust/tcl-compiler/src/ssa.rs"
+
+[[module]]
+name = "source_view"
+doc = "`SsaSourceView`: the positioned queries over a built function (definitions, reaching bindings, reads and their contents) and the original-source selectors at a unit."
+items = [
+    "struct:SsaReadPresenceAlternatives..impl:SsaReadPresenceAlternatives",
+    "struct:OriginalSsaDefinitionName..impl:OriginalFreshScalarAssignmentProposal",
+    "struct:SsaReadRepresentationAdvice..impl:<'a> From<&'a SsaFunction> for SsaSourceView<'a>",
+    "fn:source_read_representations..fn:source_read_place",
+]
+
+[[module]]
+name = "function_queries"
+doc = "Queries on a built `SsaFunction`: its outline, cells, symbols, names and blocks, and the trivial function of a guarded body."
+items = [
+    "impl:SsaFunction",
+    "impl:SsaFunction::original_script_source_symbols..impl:SsaFunction::source_variable_symbols",
+    "impl:SsaFunction::cell_names..impl:SsaFunction::dominator_intervals",
+]
+
+[[module]]
+name = "source_may_effects"
+doc = "The source-may calls and clobbers a built function records, and the source-variable snapshot taken over them."
+items = [
+    "struct:SourceVariableSsaSnapshot..impl:SourceVariableSsaSnapshot",
+    "impl:SsaFunction::current_source_may_call..impl:SsaFunction::source_variable_snapshot",
+]
+
+[[module]]
+name = "dominators"
+doc = "Dominators, immediate dominators, the dominance frontier, the dominator tree and its interval index."
+items = [
+    "struct:DominatorIntervals..impl:DominatorIntervals",
+    "fn:compute_dominators..fn:build_dom_tree",
+    "fn:sorted_dominance_frontier",
+]
+
+[[module]]
+name = "defs"
+doc = "What a statement defines: `defs_of` and its registry and barrier forms, the may-defs of an opaque `switch`, nested writes and the names a bound call defines."
+items = [
+    "fn:bound_names",
+    "fn:bound_defs",
+    "fn:defs_of..fn:nested_writes_in_context",
+    "const:MAX_COLLAPSED_EXTRA_DEFS_DEPTH..fn:collapsed_extra_defs",
+]
+
+[[module]]
+name = "uses"
+doc = "What a statement reads: `uses_of` and the classified uses of calls, barriers, assignments, command words and the scripts a statement keeps inside."
+items = ["fn:is_braced_arg..fn:reads_in_stmt"]
+
+[[module]]
+name = "instance_options"
+doc = "Definitions and writes of instance configuration options linked to variables, mirrored onto the global root frame."
+items = ["fn:enrich_instance_option_defs..fn:enrich_instance_option_defs_with_initial"]
+
+[[module]]
+name = "construction"
+doc = "Building the SSA form: φ placement, the renaming walk over the dominator tree, retained read references and the assembled function."
+items = [
+    "fn:definition_source_name..fn:original_structural_definition_key_at",
+    "fn:record_destruction_predecessor",
+    "fn:original_source_may_call..fn:register_unique_source_names",
+    "fn:compute_phi_vars..fn:nonlocal_names_and_defsites",
+    "struct:RenameFrame..struct:RenameOutputs",
+    "fn:source_read_name_with_config..impl:<'a> RenameWalk<'a>",
+    "fn:project_ssa_source_names..fn:rename_dominator_tree",
+    "fn:intern_unseen_call_versions..fn:source_cfg_topology",
+    "fn:build_ssa_inner..fn:drop_reads_of_own_writes",
+    "fn:additional_read_bindings..fn:scope_read_bindings",
+]

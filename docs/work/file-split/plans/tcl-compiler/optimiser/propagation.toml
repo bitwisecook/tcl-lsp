@@ -1,0 +1,57 @@
+# The facade keeps the module docs, `run`, the per-function driver
+# (`run_function`, `walk_script`, `walk_statement`), the constants map it
+# builds and the SCCP projections and word rendering every fold shares.
+file = "rust/tcl-compiler/src/optimiser/propagation.rs"
+
+[[module]]
+name = "load_forwarding"
+doc = "O102: forwarding a single reaching literal definition to its operand use sites."
+items = ["fn:synthetic_forwarding_use..fn:report_load_forward"]
+
+[[module]]
+name = "store_to_load_forwarding"
+doc = "O127: forwarding a computed single-use assignment into its one use, and the checks on what runs between them."
+items = [
+    "fn:statement_may_have_untracked_effects",
+    "fn:run_store_to_load_forwarding..fn:ranges_overlap",
+]
+
+[[module]]
+name = "oo_method_folds"
+doc = "O129: folding the command substitutions a `TclOO` method frame makes constant."
+items = [
+    "struct:OoFrame..fn:walk_oo_statement",
+    "fn:visit_oo_frame_folds..fn:try_oo_frame_return_fold",
+]
+
+[[module]]
+name = "command_substitution_folds"
+doc = "Folding `[cmd …]` substitutions in call words and inside interpolated strings: the retained calls, builtin folds and O115."
+items = [
+    "fn:retained_substitution_calls..fn:retained_o115",
+    "fn:visit_call_cmd_subst_folds",
+    "fn:is_whole_word_cmd_subst..fn:interpolation_splice_preserves_escapes",
+]
+
+[[module]]
+name = "proc_folds"
+doc = "O103: folding a call to a pure procedure to its constant return, from its summary or by evaluating it with constant arguments."
+items = [
+    "fn:evaluate_proc_with_constants..fn:try_fold_static_proc_call",
+    "fn:try_o101_expr_arg_fold",
+    "fn:try_o103_proc_fold..fn:parse_cmd_subst_head",
+]
+
+[[module]]
+name = "return_folds"
+doc = "Folding the operand of an original `return` and splicing the replacement word into its retained source."
+items = ["fn:original_return_value_replacement..fn:try_fold_return_terminator"]
+
+[[module]]
+name = "constant_substitution"
+doc = "O100: substituting SCCP-proved constants into `expr` assignments, bare `$var` words and interpolated strings."
+items = [
+    "fn:try_substitute_assign_expr",
+    "fn:visit_call_tokens",
+    "fn:visit_simple_var_word..fn:collect_var_refs",
+]

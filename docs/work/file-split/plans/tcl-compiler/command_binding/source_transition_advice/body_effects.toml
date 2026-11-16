@@ -1,0 +1,23 @@
+# The facade keeps the walk types and the `AdviceInvocationContext` entry
+# points that apply a body's immediate effects and retain its catalogues.
+file = "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs"
+
+[[module]]
+name = "regions"
+doc = "The body regions of an invocation: prepared branches and the possible effects they retain."
+items = [
+    "struct:PreparedBodyRegionBranch",
+    "impl:BodyWalk<'_, '_>::normal_case_regions..impl:BodyWalk<'_, '_>::retain_possible_effects",
+]
+
+[[module]]
+name = "expressions"
+doc = "Expression operands of a body: their commands, substitutions and traced roles."
+items = [
+    "impl:BodyWalk<'_, '_>::expressions..impl:BodyWalk<'_, '_>::checked_body_expression_substitutions",
+]
+
+[[module]]
+name = "commands"
+doc = "The commands of a walked body: child schemas, class effects, catalogues and procedure calls."
+items = ["impl:BodyWalk<'_, '_>::script..impl:BodyWalk<'_, '_>::mark_child_header"]

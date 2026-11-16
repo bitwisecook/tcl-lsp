@@ -1,0 +1,80 @@
+# First of two levels. The facade keeps the module docs, `Lowerer` and the
+# configuration enums its private fields hold, the `lower*` target methods,
+# the `lower_to_ir*` family, the fatal-parse-error queries and the word-shape
+# predicates every group shares. `script_bodies`, `commands` and
+# `declarations` are split again by the plans named after them.
+file = "rust/tcl-compiler/src/lowering/mod.rs"
+
+[[module]]
+name = "configuration"
+doc = "Constructing and configuring a `Lowerer`: dialect, registries, source metadata, body caches and the bytecode entry."
+items = [
+    "fn:context_with_command_store",
+    "impl:<'r> Lowerer<'r>::new..impl:<'r> Lowerer<'r>::select_bytecode_entry",
+    "impl:<'r> Lowerer<'r>::set_source_analysis_options..impl:<'r> Lowerer<'r>::set_source_image_channel",
+]
+
+[[module]]
+name = "module_assembly"
+doc = "Starting and finishing a module: the entry frame and runtime target namespace, the final passes and the variable-trace facts."
+items = [
+    "impl:<'r> Lowerer<'r>::retain_module_source_bindings..impl:<'r> Lowerer<'r>::start_module",
+    "impl:Lowerer<'_>#2",
+    "fn:populate_trace_facts..fn:walk_for_trace",
+]
+
+[[module]]
+name = "script_bodies"
+doc = "Lowering scripts and the bodies commands evaluate: segmented scripts, original bodies, static `eval` and `uplevel`, and bodies kept as their own unit."
+items = [
+    "fn:over_depth_script..fn:unavailable_original_body_script",
+    "struct:UplevelLevel..fn:invalidate_const_map_for",
+    "impl:<'r> Lowerer<'r>::in_procedure_frame..impl:<'r> Lowerer<'r>::retain_script_source",
+    "impl:<'r> Lowerer<'r>::current_source_channel..impl:<'r> Lowerer<'r>::const_map_lookup",
+    "impl:<'r> Lowerer<'r>::try_lower_uplevel_static..impl:<'r> Lowerer<'r>::walk_namespace_eval_body",
+]
+
+[[module]]
+name = "commands"
+doc = "Lowering one command: its tokens and metadata, the selection between structured hooks, registered hooks and the default call."
+items = [
+    "fn:arg_token_kind",
+    "struct:StructuredHookSelection..fn:resolved_top_level_priority",
+    "impl:Lowerer<'_>::safe_on_uninit",
+    "impl:<'r> Lowerer<'r>::logical_structured_invocation..impl:<'r> Lowerer<'r>::try_lower_foreach_line_structured",
+    "impl:<'r> Lowerer<'r>::finish_resolved_lowering",
+    "impl:<'r> Lowerer<'r>::lower_command..impl:<'r> Lowerer<'r>::lower_default_boxed",
+    "impl:<'r> Lowerer<'r>::nested_expr_reads_in_set_value..impl:<'r> Lowerer<'r>::retained_metadata_descriptor_label",
+    "impl:<'r> Lowerer<'r>::resolved_metadata_invocation..impl:<'r> Lowerer<'r>::lower_default_with_tokens",
+    "fn:untyped_call..impl:RoleIndices",
+    "enum:CommandLoweringStep..enum:CommandLoweringSelection",
+]
+
+[[module]]
+name = "declarations"
+doc = "Declarations a script makes: procedures, iRules `when` events and rule loaders, and the members of class definitions."
+items = [
+    "struct:DefinerCall",
+    "impl:Lowerer<'_>::classify_definer_call..impl:Lowerer<'_>::method_body_may_install_definition",
+    "fn:qualify_proc_name..fn:original_procedure_publication",
+    "impl:<'r> Lowerer<'r>::try_lower_logical_procedure_declaration..impl:<'r> Lowerer<'r>::try_lower_when_declaration",
+    "impl:<'r> Lowerer<'r>::try_lower_rule_loader_declaration..impl:<'r> Lowerer<'r>::retained_rule_loader_declaration",
+    "impl:<'r> Lowerer<'r>::lower_proc..impl:<'r> Lowerer<'r>::lower_when",
+    "impl:<'r> Lowerer<'r>::advisory_method_instance_names",
+    "impl:<'r> Lowerer<'r>::extract_oo_methods_pass..impl:<'r> Lowerer<'r>::extract_one_member",
+    "fn:member_param_names..fn:declared_member_vars",
+]
+
+[[module]]
+name = "bytecode_entry"
+doc = "Lowering one script or procedure body, from text or bytes, to a module for the bytecode backend."
+items = ["fn:lower_proc_body_module_for_bytecode..fn:lower_native_byte_calls"]
+
+[[module]]
+name = "body_cache"
+doc = "Lowering a procedure body in isolation for the body cache, and which bodies are eligible."
+items = [
+    "fn:lower_proc_body_isolated",
+    "fn:body_cache_eligible..fn:contains_word_followed_by_ws",
+    "fn:lower_to_ir_with_body_cache",
+]

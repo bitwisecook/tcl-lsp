@@ -1,0 +1,43 @@
+# The facade keeps the resolver itself: `Place`, `Resolved`, home selection and
+# classification, the link walk, frame-addressed resolution and upvar targets,
+# plus the two selection types every part checks (`NativeOriginalNameCell`,
+# `OriginalCLinkSelection`: their private fields and methods are used across
+# the parts and by the existing children).
+file = "runtime/rust/src/vars.rs"
+
+[[module]]
+name = "captured_targets"
+doc = "Cells resolved once and retained across callbacks: array targets, variable receivers and indexed link targets, with their array operations."
+items = ["fn:array_target_at..fn:get_element_at_target"]
+
+[[module]]
+name = "trace_homes"
+doc = "The identity a variable trace belongs to: the home a name or a selected array member resolves to."
+items = ["struct:TraceHome..fn:trace_element_identity"]
+
+[[module]]
+name = "named_access"
+doc = "The by-name coordinator API: `set`, `get`, `unset`, array defaults, constants and `is_array`, with their frame-addressed variants."
+items = ["fn:capture_static_source..fn:is_array"]
+
+[[module]]
+name = "link_installation"
+doc = "Installing links for `global`, `variable` and `upvar`: the published link and its displaced owners."
+items = ["struct:PublishedVariableLink..fn:publish_upvar_in"]
+
+[[module]]
+name = "original_name_cells"
+doc = "Cells selected by an original name object: Jim variable cells and cached links, namespace-only entries, C name cells and alias locals."
+items = [
+    "fn:original_jim_variable_cell..fn:capture_resolved_receiver",
+    "fn:prepare_original_c_indexed_name_cell..fn:prepare_original_c_variable_cell_at_place",
+    "fn:retain_original_jim_variable_key..fn:capture_jim_cached_link",
+]
+
+[[module]]
+name = "original_element_cells"
+doc = "Original C array members: selecting the member before retirement stages and materialising the element cell."
+items = [
+    "struct:OriginalArrayMemberPreparation",
+    "struct:OriginalArrayMemberSelection..fn:prepare_original_c_element_cell",
+]

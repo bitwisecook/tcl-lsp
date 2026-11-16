@@ -1,0 +1,105 @@
+# The parent keeps only the shared imports; every test moves to a module named
+# for the loader module it exercises (the names of `loader.toml` and its
+# second-level plans, and of the existing `available`, `environment_block`
+# and `dialect_block` modules).
+file = "rust/tcl-spectcl/src/loader/tests.rs"
+
+[[module]]
+name = "command"
+doc = "Property rows of a command body: source-configuration references, representation effects, `DEFERS_BODY`, `refine` forms, open surfaces, variable receivers and typed notice subjects."
+items = [
+    "fn:subcommand_source_configuration_reference_loads_and_omission_abstains..fn:a_pack_declares_defers_body_and_omitting_it_stays_abstaining",
+    "fn:a_refine_block_states_one_invocation_form..fn:a_refine_block_refuses_a_fact_the_form_cannot_hold",
+    "fn:dynamic_surface_opens_a_commands_member_set",
+    "fn:combined_variable_receiver_positions_preserve_scope_and_explicit_withdrawal",
+    "fn:original_loader_notices_retain_their_typed_property_and_flag_subjects..fn:trace_subject_receiver_metadata_preserves_form_and_rejects_ambiguous_fields",
+]
+
+[[module]]
+name = "block_descriptors"
+doc = "Block-valued descriptors: case lists, effect and state-transition blocks, the ratified rows and scoped bodies."
+items = [
+    "fn:case_list_rows_author_every_descriptor_field_issue_2140..fn:case_list_loader_preserves_the_clause_shape_flags",
+    "fn:the_ratified_words_reach_their_model_fields..fn:a_malformed_ratified_row_is_dropped_with_a_notice",
+]
+
+[[module]]
+name = "vocabularies"
+doc = "The closed vocabularies: a native fold id installs the shipped folder, and every hook and value table covers its catalogue."
+items = ["fn:a_native_fold_id_installs_the_shipped_folder..fn:value_transfer_tables_cover_their_catalogues"]
+
+[[module]]
+name = "pack_scope"
+doc = "Pack-scope statements: the `speclib` wrapper and statement separation, special variables, ambient packages, file extensions, `provides`, `include` and the pack source facade."
+items = [
+    "fn:a_pack_with_no_speclib_wrapper_loads_nothing_and_says_so..fn:statement_separation_is_ordinary_tcl",
+    "fn:special_var_rows_build_registry_rows_and_an_incomplete_one_is_dropped..fn:display_name_and_file_extension_rows_load",
+    "fn:provides_defaults_the_command_provider..fn:co_provides_carries_the_predicated_relation",
+    "fn:include_splices_a_fragment_under_the_determinism_contract",
+    "fn:original_pack_include_navigation_and_loader_share_name_and_body_rules..fn:original_pack_source_facade_separates_file_prologue_from_block_content",
+]
+
+[[module]]
+name = "role_resolvers"
+doc = "Argument-role resolvers: native cardinality, scan-count and structured-layout contracts and the capability set a resolver states."
+items = [
+    "fn:native_cardinality_role_contract_loads_and_tcl_count_hook_is_rejected..fn:native_structured_layout_loads_and_conflicting_inputs_are_rejected",
+    "fn:resolver_role_capabilities_load_at_both_registry_scopes..fn:resolver_role_capabilities_require_the_2_1_declaration",
+]
+
+[[module]]
+name = "value_parsers"
+doc = "Word and value parsers: dialect shorthands, Jim release words and object classes."
+items = [
+    "fn:dialect_shorthands_close_over_the_right_versions..fn:jim_dialect_words_name_every_release_or_one_and_later",
+    "fn:an_object_class_carries_its_name_flags_and_method_table..fn:a_malformed_object_class_degrades_with_a_notice",
+]
+
+[[module]]
+name = "body_rows"
+doc = "`arg` and `option` rows: the argument index bound, option taint and timing metadata, callback taint inputs, Tk geometry and the sealed row projection."
+items = [
+    "fn:an_argument_index_above_the_table_width_drops",
+    "fn:option_external_input_link_round_trips_as_taint_metadata..fn:tk_geometry_form_and_release_metadata_loads",
+    "fn:projection_carries_every_row_column",
+]
+
+[[module]]
+name = "lifecycles"
+doc = "Lifecycle flags on every gateable row, impossible orderings and containment, and arity and stamp windows."
+items = [
+    "fn:every_gateable_row_reads_the_three_lifecycle_flags..fn:a_child_reaching_outside_its_parent_is_a_notice_not_a_drop",
+    "fn:a_gated_arity_row_becomes_a_window_and_leaves_the_plain_arity_alone..fn:an_arity_window_with_an_impossible_lifecycle_falls_back_to_the_plain_arity",
+]
+
+[[module]]
+name = "vocabulary"
+doc = "Vocabulary versions and classes: the versions this loader knows, per-site notices for newer words and how unknown words classify."
+items = [
+    "fn:the_speclib_version_word_names_a_vocabulary_this_loader_knows..fn:every_known_vocabulary_loads_the_same_command_surface",
+    "fn:v12_words_under_an_older_declaration_draw_a_per_site_notice..fn:callback_and_timing_vocabulary_reports_every_pre_12_site",
+    "fn:v20_words_under_an_older_declaration_draw_a_per_site_notice",
+    "fn:unknown_words_classify_by_compatibility_effect",
+    "fn:native_successful_handler_contracts_are_explicit_semantic_exclusions..fn:unknown_words_in_a_known_vocabulary_stay_presentation_class",
+]
+
+[[module]]
+name = "available"
+doc = "The `available` statement: parity with `dialects`, the scopes it lands at, package requirements, refused providers and Jim-only windows."
+items = [
+    "fn:available_and_dialects_load_byte_equal_specs..fn:available_refuses_f5_bigip_and_unknown_providers",
+    "fn:a_jim_only_window_names_the_jim_family",
+]
+
+[[module]]
+name = "environment_block"
+doc = "`environment` blocks: conversion to a definition, help terms, ceilings, kinds, reserved names, `-extend` and editor identities."
+items = [
+    "fn:an_environment_block_loads_and_converts_to_a_definition..fn:an_environment_extend_block_is_additive",
+    "fn:an_unknown_editor_identity_drops_only_the_routing..fn:selecting_identity_rows_carry_contributed_language_ids",
+]
+
+[[module]]
+name = "dialect_block"
+doc = "`dialect` blocks: the ladder and axes, unknown axes and values, and a block duplicating a compiled release."
+items = ["fn:a_dialect_block_loads_its_ladder_and_axes..fn:a_dialect_block_duplicating_a_compiled_release_is_rejected"]

@@ -1,0 +1,79 @@
+# The parent keeps `ResultProjection` and `project_result`, which the entry
+# tests and the incremental oracle share. The file tests `analyse` end to end,
+# so most modules are named for the diagnostic or record they exercise.
+file = "rust/tcl-compiler/src/analyser/state/tests.rs"
+
+[[module]]
+name = "analysis_entries"
+doc = "The analysis entries: retained inputs and overlays, suppression directives, pre-segmented, chunked and incremental analysis."
+items = [
+    "fn:a_source_shell_keeps_the_document_and_interprets_nothing..fn:with_disabled_diagnostics_threads_through",
+    "fn:unknown_lexer_warning_maps_to_e200",
+    "fn:analyse_empty_source_is_empty_result..fn:analyse_runs_dedupe_and_disabled_filter_at_end",
+    "fn:analyse_dedupes_back_to_back_identical_diagnostics..fn:default_constructs_via_new",
+    "fn:analyse_chunked_seeds_file_suppression_minus_one_sentinel..fn:analyse_commands_seeds_file_suppression_minus_one_sentinel",
+    "struct:IncrLcg..fn:analyse_incremental_falls_back_on_incomplete_and_stubs",
+]
+
+[[module]]
+name = "definitions_and_instances"
+doc = "What the walk records about definitions: procedure homes, `apply` lambda namespaces and the class of each created instance."
+items = [
+    "fn:analyse_records_top_level_proc..fn:apply_without_namespace_element_does_not_record_an_override",
+    "fn:analyse_records_multiple_top_level_commands..fn:analyse_namespace_eval_opens_scope",
+]
+
+[[module]]
+name = "flow_diagnostics"
+doc = "End-to-end W113, W128, W210, W214, W216, W220 and W307 cases through `analyse`."
+items = [
+    "fn:w113_silent_on_overridable_library_procs..fn:w216_brace_then_paren_name_vs_value_positions",
+    "fn:call_by_name_var_not_flagged_unused_or_dead..fn:analyse_w128_fires_on_call_to_renamed_command",
+]
+
+[[module]]
+name = "recorded_aliases_and_patterns"
+doc = "tcllib import wrappers, command aliases, `switch -regexp` patterns and regex variables the walk records."
+items = [
+    "fn:analyse_records_tcllib_import_wrapper_as_conjectured..fn:analyse_regex_var_unresolved_records_nothing",
+    "fn:analyse_regexp_var_added_to_regex_vars_set..fn:analyse_tcllib_import_wrapper_does_not_fire_on_namespace_import",
+]
+
+[[module]]
+name = "usage_lints"
+doc = "W105 unbraced bodies and W110 string comparison in expressions."
+items = [
+    "fn:analyse_emits_w105_for_unbraced_if_body_with_substitution..fn:analyse_w110_fires_on_multi_arg_expr_command",
+    "fn:analyse_w110_no_fire_on_for_clean_condition..fn:analyse_w110_fires_on_for_condition",
+]
+
+[[module]]
+name = "ignored_catch_results"
+doc = "W302: `catch` without a result variable, and where its fix inserts one."
+items = [
+    "fn:analyse_emits_w302_for_catch_without_result_var..fn:w302_carries_no_fix_for_a_malformed_catch",
+]
+
+[[module]]
+name = "unknown_subcommands"
+doc = "W001: an unknown subcommand, its suggestion, fix and shadow suppression."
+items = [
+    "fn:analyse_emits_w001_for_unknown_string_subcommand..fn:analyse_w001_still_fires_for_unexpanded_unknown_subcommand",
+]
+
+[[module]]
+name = "malformed_if"
+doc = "E004: malformed `if` shapes, the well-formed ones it leaves alone and its fixes."
+items = ["fn:e004_diags..fn:no_fix_offered_when_the_first_clause_never_completed"]
+
+[[module]]
+name = "injection_warnings"
+doc = "W304 missing option terminators and W101 `eval` of a concatenated string."
+items = ["fn:w304_diags..fn:analyse_w304_code_fix_inserts_terminator"]
+
+[[module]]
+name = "nested_invocations"
+doc = "The invocations recorded inside substitutions, expressions and body words."
+items = [
+    "fn:compound_cmd_word_descends_substitution_fragments_only..fn:analyse_braced_data_word_is_not_over_recorded",
+]

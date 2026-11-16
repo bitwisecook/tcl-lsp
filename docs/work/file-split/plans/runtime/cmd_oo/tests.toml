@@ -1,0 +1,108 @@
+# The parent keeps the fixtures (`leak_free`, `ok`, `contains`) and the two
+# tests of the installed foundation. Test modules carry the names of the
+# production modules they cover (`plans/runtime/cmd_oo.toml` and its second
+# level). `definition` moves a test whose `include_str!` paths are relative:
+# they need one more `../` after the move.
+file = "runtime/rust/src/cmd_oo/tests.rs"
+
+[[module]]
+name = "introspection"
+doc = "`info object` and `info class`: arity and option tables, `isa`, method and variable listings, call chains, creation ids and release gates."
+items = [
+    "fn:info_object_isa_enforces_the_per_category_arity..fn:oo_option_tables_resolve_like_tcl_get_index_from_obj",
+    "fn:private_variable_introspection",
+    "fn:info_methods_all_and_object_vars_pattern..fn:info_methods_scope_and_export_reclassifies",
+    "fn:isa_follows_import_and_unknown_list_excludes_bare_export",
+    "fn:info_call_chain_rendering",
+    "fn:isa_typeof_traverses_mixins_and_subclass_pattern",
+    "fn:object_creationid_and_definitionnamespace..fn:info_oo_ensemble_resolution_and_release_gates_match_tcl",
+    "fn:info_class_introspection_and_abbrev..fn:info_call_and_self_call",
+]
+
+[[module]]
+name = "configurable"
+doc = "TIP 558: `configure`, property accessors and kinds, property storage and the option diagnostics."
+items = [
+    "fn:configure_property_word_abbreviates",
+    "fn:tip558_configurable_configure..fn:tip558_property_storage_and_introspection",
+]
+
+[[module]]
+name = "slots"
+doc = "TIP 380 slots: the built-in slot objects, the `::oo::Slot` base class, variable slot operations and declared-variable headers."
+items = [
+    "fn:variable_declaration_introspection_retains_original_counted_object..fn:variable_slot_operations",
+    "fn:oo_slot_base_class",
+    "fn:builtin_slot_objects_present",
+]
+
+[[module]]
+name = "definition"
+doc = "`oo::define` and `oo::objdefine`: the definition context, abbreviation, `definitionnamespace`, method definitions and definition-script errors."
+items = [
+    "fn:define_context_is_frame_scoped..fn:namespaced_define_command_context_error",
+    "fn:define_context_self_arity",
+    "fn:define_subcommand_abbrev_and_extras..fn:method_definition_retains_original_default_objects_without_rendering",
+    "fn:definitionnamespace_semantics..fn:definitionnamespace_uses_original_namespace_object_in_each_outer_context",
+    "fn:original_renamed_definition_matches_native_source_and_raw_return_boundaries..fn:define_single_command_wrong_args_names_whole_command",
+    "fn:objdefine_forward_mixin_unexport_copy",
+]
+
+[[module]]
+name = "method_context"
+doc = "Commands inside a method: `self`, `my`, `next`, `nextto` and `classvariable`."
+items = [
+    "fn:class_methods_via_self",
+    "fn:my_command_invoked_directly",
+    "fn:nextto_resumes_chain_at_class",
+    "fn:class_method_constructor_instance_var",
+    "fn:classvariable_shares_state_per_declaring_class..fn:classvariable_context_and_name_errors",
+    "fn:inheritance_and_next",
+    "fn:self_class_in_object_method_errors",
+    "fn:next_shares_caller_frame_level",
+]
+
+[[module]]
+name = "construction"
+doc = "Creating and copying objects and classes: constructors, metaclasses, `createWithNamespace`, the published object namespace and `oo::copy`."
+items = [
+    "fn:object_deleted_in_constructor",
+    "fn:oo_copy_clones_namespace_contents",
+    "fn:metaclass_instantiation",
+    "fn:object_namespace_publication_uses_selected_relative_byte_geometry..fn:create_with_namespace_conflicts_use_the_shared_native_report",
+    "fn:create_with_namespace_and_copy_targetns..fn:oo_copy_clones_classes",
+    "fn:my_create_reaches_class_factory",
+]
+
+[[module]]
+name = "method_calls"
+doc = "Calling a method: filters, unknown handlers, private scope, the built-in `variable`/`varname`/`eval` methods, and the frames a method body reports."
+items = [
+    "fn:filters_wrap_method_calls",
+    "fn:private_variable_cross_class_mangling",
+    "fn:my_variable_rejects_array_element",
+    "fn:object_builtin_variable_varname_eval",
+    "fn:unknown_scope_survives_provider_rename..fn:method_body_errorinfo_frames",
+    "fn:info_frame_method_body_lines_are_relative..fn:info_frame_reports_method_context",
+    "fn:no_method_forces_user_unknown",
+]
+
+[[module]]
+name = "class_hierarchy"
+doc = "Precedence: C3 ordering, mixins of mixins and deeply nested mixin chains."
+items = [
+    "fn:precedence_ordering_c3_and_mixins",
+    "fn:mixin_of_mixin_methods_are_reachable",
+    "fn:deeply_nested_mixin_chain_survives_linearisation_and_property_gathering..fn:moderately_nested_mixin_chain_still_behaves_identically",
+]
+
+[[module]]
+name = "destruction"
+doc = "Destroying objects and classes: destructors and their errors, rename and namespace deletion, and the retirement of an object's command roles."
+items = [
+    "fn:rename_to_empty_frees_object_and_class_names",
+    "fn:destructor_error_goes_to_bgerror",
+    "fn:destructors_fire_on_rename_destroy_and_namespace_delete..fn:ordinary_command_replacement_runs_displaced_oo_lifecycle",
+    "fn:destructor_error_propagation_and_renamed_my_teardown",
+    "fn:class_destroy_cascades_to_mixin_users",
+]

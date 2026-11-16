@@ -1,0 +1,26 @@
+# The facade keeps the receiver and method-entry types and the
+# `SourceCommandBindings` entry points that register bounded methods.
+file = "rust/tcl-compiler/src/command_binding/deferred_method.rs"
+
+[[module]]
+name = "definition_references"
+doc = "Method-name references captured from the operands of a class definition."
+items = [
+    "fn:standalone_definition_class..fn:capture_standalone_definition_references",
+    "fn:capture_definition_method_references..fn:capture_reference_operands",
+]
+
+[[module]]
+name = "class_definitions"
+doc = "Class definitions in the may-state: their dependencies, inherited entries and recording."
+items = ["impl:ModuleCommandBindings"]
+
+[[module]]
+name = "retained_entries"
+doc = "What a bounded class definition retains: methods, lifecycle bodies and instance variables."
+items = ["fn:closed_bounded_method_segments..fn:closed_instance_methods", "fn:deferred_method_body"]
+
+[[module]]
+name = "closed_members"
+doc = "Which members of a class definition are closed: forwards, inherited members and method blocks."
+items = ["fn:closed_definition_member..fn:original_definition_member_target"]

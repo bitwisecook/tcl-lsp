@@ -1,0 +1,31 @@
+# The parent keeps the request and projection helpers every module shares (`range`,
+# `code_actions_only`, `new_texts`, `titles`, `kinds`, `diag`, `with_code`, `rewrite`).
+# `e2e.rs` loads this file through `#[path]`: each `mod` the tool adds needs
+# `#[path = "code_actions/<name>.rs"]`, as `spec_packs.rs` does for its child.
+file = "rust/tcl-lsp-server/tests/e2e/code_actions.rs"
+
+[[module]]
+name = "quick_fixes"
+doc = "Quick fixes for published diagnostics, requested with the diagnostics in the `codeAction` context as an editor does."
+items = [
+    "fn:test_w100_offers_brace_wrap..fn:test_t102_fires_for_assign_value_wrapped_call",
+    "fn:test_simple_continuation_fix..fn:test_already_commented_continuation_not_doubled",
+    "fn:test_eval_string_to_list_action..fn:test_s100_eq_numeric_offers_no_numeric_comparison_fix",
+    "fn:an_optimiser_rewrite_is_offered_as_a_quick_fix",
+    "fn:no_quick_fix_for_a_finding_a_noqa_silences",
+]
+
+[[module]]
+name = "analyser_quick_fixes"
+doc = "Analyser-carried quick fixes, pinned by title and applied edit, and the evidence-gated package suggestion."
+items = ["fn:quickfixes_for_code..fn:test_w201_no_rewrite_for_mixed_segment"]
+
+[[module]]
+name = "refactor_actions"
+doc = "Refactor and source actions: extract and inline proc, expression rewrites, address conversions, docstring generation and where a refactor is offered."
+items = [
+    "fn:test_extract_proc_available_without_diagnostics..fn:test_inline_proc_refuses_a_returning_proc_with_a_reason",
+    "fn:test_demorgan_forward..fn:test_invert_subexpression_in_compound",
+    "fn:test_ipv4_offers_ipv6_mapped..fn:test_body_style_inserts_inside_the_proc_not_on_the_decl_line",
+    "fn:test_if_to_switch_offered_inside_an_apply_lambda_body..fn:test_no_refactor_offered_on_the_lambda_arg_list",
+]

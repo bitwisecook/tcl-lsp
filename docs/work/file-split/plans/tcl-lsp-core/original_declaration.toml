@@ -1,0 +1,23 @@
+# The facade keeps `OriginalDeclarationIdentity` with its constructors and
+# accessors (its private fields are read by every module), the class
+# inventory, cursor selection, the declaration matchers and `declarations`.
+file = "rust/tcl-lsp-core/src/original_declaration.rs"
+
+[[module]]
+name = "readonly_references"
+doc = "Readonly source references to one declaration, and the report of how completely they were covered."
+items = [
+    "fn:class_relation_reference_spans",
+    "fn:reference_spans..fn:complete_property_source_occurrences",
+    "fn:readonly_reference_report",
+]
+
+[[module]]
+name = "member_census"
+doc = "The complete census of one class member's source occurrences, and how a command names or relates the member."
+items = ["enum:MemberCensusCommand..fn:census_names_member"]
+
+[[module]]
+name = "registry"
+doc = "Session storage of issued declaration receipts, the wire handle that locates one and host publication stamps."
+items = ["struct:OriginalDeclarationHandle..impl:OriginalDeclarationRegistry"]

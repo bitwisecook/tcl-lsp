@@ -1,0 +1,54 @@
+# The facade keeps the namespace and command-table types (their private fields
+# are read by every part), `Namespaces::new`, the one resolver (`register`,
+# `resolve`, `delete`, hide/expose `take`/`restore`), binding insertion,
+# guard lookups and `home_of`.
+file = "runtime/rust/src/namespace.rs"
+
+[[module]]
+name = "jim_objects"
+doc = "Jim's object-keyed records: command registration and inventory keys, and the namespace object each context retains."
+items = [
+    "impl:Namespaces::has_original_jim_registration_key..impl:Namespaces::original_jim_command_key",
+    "impl:Namespaces::retain_jim_namespace..impl:Namespaces::jim_context",
+]
+
+[[module]]
+name = "native_command_nodes"
+doc = "The native command node behind each binding: compiler attachments, cache epochs, creation entries, unlinking and node-addressed lookups."
+items = ["impl:Namespaces::native_command_generations..impl:Namespaces::native_command_name_cache_from_binding"]
+
+[[module]]
+name = "command_publication"
+doc = "Where a new command is published: the table slot selected for commands, C API registrations, objects, aliases, ensembles and procedures."
+items = ["impl:Namespaces::jim_command_table_key_at..impl:Namespaces::procedure_publication_at"]
+
+[[module]]
+name = "rename"
+doc = "Renaming a command: publishing the destination, retiring the source, the alias-loop probe, and retargeting imports and alias registrations."
+items = ["impl:Namespaces::publish_rename_destination..impl:Namespaces::alias_names"]
+
+[[module]]
+name = "namespace_lookup"
+doc = "Namespace paths and finding a namespace by name or components, creating the missing ones."
+items = ["impl:Namespaces::set_path..impl:Namespaces::namespace_variables_are_deleted"]
+
+[[module]]
+name = "variable_tables"
+doc = "Per-namespace variable tables, the variable resolver's storage, and the qualified names and context paths reported for them."
+items = ["impl:Namespaces::var_home..impl:Namespaces::native_context_path"]
+
+[[module]]
+name = "command_surface"
+doc = "State behind the `namespace` command: exports and imports, binding, hierarchy, command generations, unknown handlers and stored identities."
+items = [
+    "impl:Namespaces::which_command..impl:Namespaces::import_identity_location",
+    "impl:Namespaces::imported_in..impl:Namespaces::remove_in",
+]
+
+[[module]]
+name = "namespace_deletion"
+doc = "Deleting namespaces: activations and deferred teardown, dying tokens, and clearing a subtree's commands."
+items = [
+    "impl:Namespaces::activation_enter..impl:Namespaces::under_deferred_token",
+    "impl:Namespaces::delete_namespace..impl:Namespaces::delete_subtree",
+]

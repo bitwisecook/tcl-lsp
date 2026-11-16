@@ -1,0 +1,83 @@
+# Each child file holds whole inline modules, unchanged and under their names
+# (no child is named like a module it holds: `clippy::module_inception`).
+# The parent keeps the module documentation, the dialect constants and the
+# warning runners (`warns`, `codes`, `of_code` and their dialect and channel
+# variants).
+file = "rust/tcl-compiler/tests/it_3/taint.rs"
+
+[[module]]
+name = "lattice"
+doc = "Lattice joins: taint with mitigation colours, and the newer colours."
+items = ["mod:taint_join", "mod:lattice_join_new_colours"]
+
+[[module]]
+name = "sources"
+doc = "Taint sources: Tcl channels and commands, iRules getters, special variables and the colours a source adds."
+items = ["mod:tcl_taint_sources", "mod:irules_taint_sources", "mod:source_colour_augmentation", "mod:special_variable_sources"]
+
+[[module]]
+name = "object_instance_sources"
+doc = "Sources on object instances: registry-typed receivers, their classes and the methods that expose external input."
+items = ["mod:object_instance_taint_sources"]
+
+[[module]]
+name = "propagation"
+doc = "Propagation through assignments and control flow, and across procedure calls with their colours."
+items = ["mod:taint_propagation", "mod:interprocedural_taint", "mod:interprocedural_colours"]
+
+[[module]]
+name = "sinks"
+doc = "Dangerous sinks and their messages: evaluation, output, logs, network and interpreter sinks, and the open redirect."
+items = [
+    "mod:dangerous_sinks",
+    "mod:warning_messages",
+    "mod:output_sinks",
+    "mod:irules_output_sinks",
+    "mod:log_injection",
+    "mod:irule3004_open_redirect",
+    "mod:t104_network_sinks",
+    "mod:t105_interp_eval_sinks",
+]
+
+[[module]]
+name = "option_sinks"
+doc = "T102 option injection: positions, suppression by a terminator and values that cannot start with a dash."
+items = ["mod:option_injection", "mod:t102_suppression", "mod:non_dash_prefixed_interpolation"]
+
+[[module]]
+name = "colours"
+doc = "Mitigation colours one by one, and how interpolation and transforms change them."
+items = [
+    "mod:taint_colours",
+    "mod:crlf_free",
+    "mod:shell_atom",
+    "mod:list_canonical",
+    "mod:regex_literal",
+    "mod:path_normalised",
+    "mod:html_escaped",
+    "mod:url_encoded",
+    "mod:header_token_safe",
+    "mod:interpolation_colour_invalidation",
+    "mod:transform_colour_edge_cases",
+]
+
+[[module]]
+name = "sink_suppression"
+doc = "Which colour silences which sink: the suppression matrix, T100 and T103 mitigation, double encoding and the no-false-positive cases."
+items = [
+    "mod:no_false_positives",
+    "mod:sink_suppression_matrix",
+    "mod:t100_sink_suppression",
+    "mod:t103_regexp_pattern_injection",
+    "mod:t106_double_encoding",
+]
+
+[[module]]
+name = "setters"
+doc = "IRULE3101 setter constraints, including the normalised-path constraint."
+items = ["mod:setter_constraints", "mod:path_normalised_setter_constraint"]
+
+[[module]]
+name = "uri_validation"
+doc = "IRULE3103: URI splitting, expression operators, `string match` and the edge cases."
+items = ["mod:irule3103_uri_split", "mod:irule3103_expr_operators", "mod:irule3103_string_match", "mod:irule3103_edge_cases"]

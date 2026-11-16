@@ -1,0 +1,59 @@
+# The facade keeps the module docs, the public projections
+# (`ExpressionAnalysis`, `SemanticValueFacts`, `DiagnosticValueFacts`,
+# `SemanticValueProjection`), the `execution_value_facts` and
+# `semantic_value_facts` entry points and the records more than one phase
+# fills or reads (the solver state, the statement, store and terminator
+# inputs, `MathDependencies`, `MathFoldContext`, `BranchFold`).
+file = "rust/tcl-compiler/src/sccp/original_value_facts.rs"
+
+[[module]]
+name = "value_solver"
+doc = "The purpose-aware value solver: seeds, the fixpoint over the blocks, φ joins and the finished facts."
+items = [
+    "fn:seed_value_facts..fn:solve_value_facts_once",
+    "fn:finish_value_facts..fn:sccp_process_phis",
+]
+
+[[module]]
+name = "block_transfer"
+doc = "One block of the value solver: its statements' stores and clobbers, its terminator's executable edges and the constant branches."
+items = [
+    "fn:observed_store_keys..fn:sccp_process_statements",
+    "fn:sccp_process_terminator..fn:collect_constant_branches",
+]
+
+[[module]]
+name = "existence_branches"
+doc = "Folding `info exists` and `array exists` conditions into constant branches, from the names a body may define or unset."
+items = ["fn:retain_source_call_name_coverage..fn:existence_constant_branches_with_metadata_context"]
+
+[[module]]
+name = "math_expressions"
+doc = "Folding an original expression with its math-function dependencies retained, and the evaluation environment read from the lattice."
+items = [
+    "impl:MathDependencies",
+    "fn:math_dependencies_compatible..fn:analysis_native_contents",
+    "fn:env_from_uses..fn:tcl_value_to_const",
+]
+
+[[module]]
+name = "definition_values"
+doc = "The value one definition takes: retained expression words, original substitutions, iteration bindings and normal stores."
+items = [
+    "fn:evaluate_fixture_def..fn:evaluate_fixture_def_with_folds",
+    "fn:evaluate_def_with_math",
+    "fn:fold_retained_assignment_expression..fn:resolve_simple_var_ref",
+]
+
+[[module]]
+name = "branch_decisions"
+doc = "Deciding a branch condition: the math bindings it is evaluated under and the static-loop summary at a loop exit."
+items = [
+    "fn:branch_decision..fn:semantic_loop_summary_decision",
+    "fn:evaluate_branch..fn:evaluate_branch_with_math",
+]
+
+[[module]]
+name = "assignment_folds"
+doc = "Folding an assigned value word: literals, variable references, `foreach` lists and pure command substitutions."
+items = ["fn:extract_foreach_elements..fn:parse_literal_value"]

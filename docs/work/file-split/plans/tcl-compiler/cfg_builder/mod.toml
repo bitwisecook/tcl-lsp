@@ -1,0 +1,107 @@
+# The facade keeps `CfgBuilder` with its constructors and block primitives,
+# `build_function`, the small effect records its methods share, the
+# `CfgCommandClasses` and `PreparedCfgContext` structs (their private fields
+# are read across the modules) and the module-level `build_cfg*` entry points.
+file = "rust/tcl-compiler/src/cfg_builder/mod.rs"
+
+[[module]]
+name = "release_compiled_control"
+doc = "Which structured control commands the registry's release compiles, and the `errorInfo` body sites that follow from it."
+items = [
+    "fn:switch_is_flattened..fn:release_compiles_switch",
+    "impl:<'a> CfgBuilder<'a>::flattens_switch..impl:<'a> CfgBuilder<'a>::record_body_error_sites",
+]
+
+[[module]]
+name = "callee_frame_effects"
+doc = "What a resolved callee does to the frame of its call: registry write roles, `upvar` summaries and outer-scope writes."
+items = [
+    "impl:<'a> CfgBuilder<'a>::variable_write_projection..impl:<'a> CfgBuilder<'a>::source_upvar_effects",
+    "impl:<'a> CfgBuilder<'a>::extend_upvar_effects",
+    "impl:<'a> CfgBuilder<'a>::direct_global_writes..impl:<'a> CfgBuilder<'a>::declared_head_has_no_caller_frame",
+    "impl:<'a> CfgBuilder<'a>::upvar_effects_from_commands..impl:<'a> CfgBuilder<'a>::global_write_defs_from_commands",
+]
+
+[[module]]
+name = "unseen_code"
+doc = "Whether a call, or a command its substitutions run, reaches code the module cannot see."
+items = [
+    "impl:<'a> CfgBuilder<'a>::bindings_before_call..impl:<'a> CfgBuilder<'a>::observe_in_source_order",
+    "impl:<'a> CfgBuilder<'a>::call_is_unseen..impl:<'a> CfgBuilder<'a>::command_reaches_unseen",
+    "impl:<'a> CfgBuilder<'a>::head_is_unseen",
+]
+
+[[module]]
+name = "upvar_invalidation"
+doc = "Widening a call statement's defs with the caller-frame names its callees write, and the barriers where no per-name list is sound."
+items = [
+    "impl:<'a> CfgBuilder<'a>::apply_upvar_invalidation..impl:<'a> CfgBuilder<'a>::record_alias_observed",
+    "impl:<'a> CfgBuilder<'a>::record_caller_frame_barrier..impl:<'a> CfgBuilder<'a>::direct_call_extras",
+]
+
+[[module]]
+name = "embedded_substitutions"
+doc = "The effects of the `[…]` substitutions a statement's words or a condition run before it: registry barriers, caller-side defs and protected reads."
+items = [
+    "impl:<'a> CfgBuilder<'a>::embedded_registry_barrier..impl:<'a> CfgBuilder<'a>::registry_barrier_statement_at",
+    "impl:<'a> CfgBuilder<'a>::embedded_head_resolver..impl:<'a> CfgBuilder<'a>::read_beside_writes",
+    "impl:<'a> CfgBuilder<'a>::condition_out_vars..impl:<'a> CfgBuilder<'a>::push_condition_effects",
+    "impl:<'a> CfgBuilder<'a>::push_embedded_control_effects",
+]
+
+[[module]]
+name = "script_lowering"
+doc = "Lowering a script statement by statement: plain statements, loop jumps, `return`, split points and structured-command boundaries."
+items = [
+    "impl:<'a> CfgBuilder<'a>::lower_loop_jump..impl:<'a> CfgBuilder<'a>::push_plain_statement",
+    "impl:<'a> CfgBuilder<'a>::lower_script",
+    "impl:<'a> CfgBuilder<'a>::lower_return_options_barrier..impl:<'a> CfgBuilder<'a>::lower_return_statement",
+    "impl:<'a> CfgBuilder<'a>::lower_script_statement",
+    "impl:<'a> CfgBuilder<'a>::mark_command_boundary..impl:<'a> CfgBuilder<'a>::lower_script_inner",
+]
+
+[[module]]
+name = "opaque_constructs"
+doc = "Constructs kept as one opaque statement instead of blocks: frozen loops, opaque `foreach`, `catch` and `try`, and the effects of the scripts they keep inside."
+items = [
+    "fn:frozen_loop_tokens..fn:all_str_tokens",
+    "impl:<'a> CfgBuilder<'a>::opaque_arm_effects..impl:<'a> CfgBuilder<'a>::caller_frame_opaque",
+    "impl:<'a> CfgBuilder<'a>::push_frozen_loop_barrier..impl:<'a> CfgBuilder<'a>::lower_while_or_frozen",
+    "impl:<'a> CfgBuilder<'a>::record_foreach_operand_barriers..impl:<'a> CfgBuilder<'a>::lower_try_dispatch",
+    "fn:is_plain_local_destination",
+    "fn:dedup_preserve_order",
+]
+
+[[module]]
+name = "prepared_context"
+doc = "The module facts prepared before any CFG is built: `upvar` detection, entered procedures and the shared context bundle."
+items = [
+    "fn:detect_upvar_procs..fn:entered_procedures",
+    "impl:PreparedCfgContext",
+    "fn:prepare_cfg_context..fn:prepare_cfg_context_bundle",
+]
+
+[[module]]
+name = "function_entry_points"
+doc = "The `build_cfg_function*` family: the CFG of one script body in a given scope."
+items = ["fn:build_cfg_function..fn:build_cfg_function_with_upvars_inner", "fn:command_namespace"]
+
+[[module]]
+name = "command_classes"
+doc = "Registry-derived command classifications of one release and dialect: completion routes and block-terminating heads."
+items = ["impl:CfgCommandClasses", "impl:Default for CfgCommandClasses"]
+
+[[module]]
+name = "split_points"
+doc = "Where a `catch` or `try` body splits into blocks, and how the statement after a split may fail."
+items = ["enum:SplitRegion..fn:is_literal_assignment"]
+
+[[module]]
+name = "flow_facts"
+doc = "Definite-assignment and completion facts over un-lowered IR scripts, shared with SSA for opaque `switch`."
+items = ["enum:Completion", "fn:exact_statement_completion..fn:switch_escaping_jumps_with_classes"]
+
+[[module]]
+name = "guaranteed_iteration"
+doc = "Loops whose body provably runs at least once, and `foreach` loops that never run."
+items = ["fn:list_literal_nonempty..fn:foreach_never_runs", "impl:CfgBuilder<'_>", "fn:coerce_scalar"]

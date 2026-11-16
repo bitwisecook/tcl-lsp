@@ -1,0 +1,31 @@
+# The facade keeps `Builtins`, `PackStore` with its loading, accessors,
+# `pack_set` and `canonical` (every part reads its fields), the private
+# `Patch` struct, `DeclarationSite` and the installer helpers.
+file = "rust/tcl-spec-studio/src/store.rs"
+
+[[module]]
+name = "patch_packs"
+doc = "Programmed documents and the patch pack laid over one: why a document is a program, standing overrides and the patch's own rendering."
+items = [
+    "enum:Programmed..struct:StandingOverride",
+    "impl:Patch",
+    "impl:PackStore::programmed..impl:PackStore::patch_command",
+]
+
+[[module]]
+name = "write_back"
+doc = "Writing a draft back into the document: `set_command`, `remove_command`, the splice attempts, what is carried forward and the re-render floor."
+items = [
+    "enum:WriteBack..struct:Write",
+    "impl:PackStore::set_command..impl:PackStore::rerender_with",
+]
+
+[[module]]
+name = "resolution"
+doc = "The merged world every surface queries: built-ins with the pack laid over them, its views and validation report, and their JSON."
+items = ["enum:Origin..fn:hook_json"]
+
+[[module]]
+name = "source_spans"
+doc = "The document's statements as byte ranges: the pack body, command and subcommand statements, the source index and the splice helpers."
+items = ["fn:pack_body..fn:with_override_flags"]

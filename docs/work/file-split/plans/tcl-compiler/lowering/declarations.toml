@@ -1,0 +1,34 @@
+# Second level: apply `lowering/mod.toml` first. `declarations.rs` keeps only
+# `DefinerCall`, whose fields both the classification and the member
+# extraction read.
+file = "rust/tcl-compiler/src/lowering/declarations.rs"
+
+[[module]]
+name = "procedures"
+doc = "`proc` declarations: names and formals, the declared body, dynamic names and bodies."
+items = [
+    "fn:qualify_proc_name..fn:original_procedure_publication",
+    "impl:<'r> Lowerer<'r>::try_lower_logical_procedure_declaration..impl:<'r> Lowerer<'r>::try_lower_proc_declaration",
+    "impl:<'r> Lowerer<'r>::lower_proc..impl:<'r> Lowerer<'r>::check_proc_body_dynamic",
+]
+
+[[module]]
+name = "irules_events"
+doc = "iRules `when` declarations and rule loaders: the original event word, its source geometry and the event body."
+items = [
+    "impl:<'r> Lowerer<'r>::try_lower_when_declaration..impl:<'r> Lowerer<'r>::retained_rule_loader_declaration",
+    "impl:<'r> Lowerer<'r>::trace_report_event_option..impl:<'r> Lowerer<'r>::lower_when",
+]
+
+[[module]]
+name = "definer_calls"
+doc = "Classifying a call that defines a class or its members, and whether its words supply a body."
+items = ["impl:Lowerer<'_>"]
+
+[[module]]
+name = "class_members"
+doc = "The post-pass that lifts methods, constructors and declared variables out of class definitions into the module."
+items = [
+    "impl:<'r> Lowerer<'r>::advisory_method_instance_names..impl:<'r> Lowerer<'r>::extract_one_member",
+    "fn:member_param_names..fn:declared_member_vars",
+]

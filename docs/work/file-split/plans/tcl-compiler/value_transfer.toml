@@ -1,0 +1,123 @@
+# First of two levels. The facade keeps `LatticeDriver` with its construction,
+# trust and binding methods, the explanation and answer types (`DefAnswer`,
+# `ExistenceStep`, `RouteExplanation`), the small word and binding helpers
+# every module uses, and the structs several modules or the tests build field
+# by field (`LatticeInputs`, `ArgWord`, `ScriptRun`, `ExpressionEvaluation`,
+# `StateInputs`, `ProvenReadFacts`, `Ordered`). The 4,000-line
+# `impl LatticeDriver` is split by concern, one impl block a file.
+# `statements` and `queries` are split again by
+# `value_transfer/statements.toml` and `value_transfer/queries.toml`.
+file = "rust/tcl-compiler/src/value_transfer.rs"
+
+[[module]]
+name = "context_key"
+doc = "`AnalysisContextKey`: the analysis context's hashable identity as a per-function memo key, with the connection-scoped names it covers."
+items = ["struct:AnalysisContextKey..impl:AnalysisContextKey"]
+
+[[module]]
+name = "folded_type"
+doc = "`FoldedType`: the semantic type, shape and representation evidence of one folded value."
+items = ["struct:FoldedType", "impl:FoldedType"]
+
+[[module]]
+name = "procedure_calls"
+doc = "Calls to procedures of the module: transfer summaries applied to a call statement, and `[...]` commands re-run under the caller's stance."
+items = [
+    "type:PlaceSteps..fn:summary_steps",
+    "fn:place_answers..fn:place_stores",
+    "fn:stores_of",
+    "impl:<'a> LatticeDriver<'a>::procedures_for..impl:<'a> LatticeDriver<'a>::run_seeds",
+    "fn:effective_procedure_arguments",
+]
+
+[[module]]
+name = "run_records"
+doc = "What a run records beside the lattice: explanations, folded types, preserved and raised statements, tallies and budgets."
+items = [
+    "fn:request_budget",
+    "fn:route_label..fn:answer_label",
+    "impl:<'a> LatticeDriver<'a>::explaining..impl:<'a> LatticeDriver<'a>::take_raised",
+    "impl:<'a> LatticeDriver<'a>::take_run_facts..impl:<'a> LatticeDriver<'a>::budget",
+]
+
+[[module]]
+name = "existence"
+doc = "The existence rung: the per-place existence state at the current point, the steps stores and write classes take, and `info exists` queries."
+items = [
+    "fn:store_existence",
+    "fn:existence_from",
+    "impl:<'a> LatticeDriver<'a>::existence_enter..impl:<'a> LatticeDriver<'a>::existence_external",
+    "impl:<'a> LatticeDriver<'a>::existence_is_external..impl:<'a> LatticeDriver<'a>::existence_of",
+    "impl:<'a> LatticeDriver<'a>::existence_by_write_class",
+    "struct:BodyEntryScope..impl:Drop for BodyEntryScope<'_>",
+]
+
+[[module]]
+name = "statements"
+doc = "Typed statements over the lattice: calls, `incr`, `expr`, loop headers, `catch` ends and embedded substitutions."
+items = [
+    "impl:<'a> LatticeDriver<'a>::catch_ends",
+    "impl:<'a> LatticeDriver<'a>::evaluate_catch_end",
+    "impl:<'a> LatticeDriver<'a>::template_plans_in..impl:<'a> LatticeDriver<'a>::selection_of",
+    "impl:<'a> LatticeDriver<'a>::evaluate_incr..impl:<'a> LatticeDriver<'a>::is_escaping",
+    "impl:<'a> LatticeDriver<'a>::evaluate_embedded..impl:<'a> LatticeDriver<'a>::embedded_defs",
+    "impl:<'a> LatticeDriver<'a>::source_lexer_config..impl:<'a> LatticeDriver<'a>::original_expression_parent",
+    "impl:<'a> LatticeDriver<'a>::evaluate_call..impl:<'a> LatticeDriver<'a>::evaluate_call",
+    "impl:<'a> LatticeDriver<'a>::probe_completion..impl:<'a> LatticeDriver<'a>::evaluate_resolved_source_call",
+    "struct:EmbeddedAnswer",
+    "fn:incoming_versions",
+    "fn:unreached_arm_facts",
+]
+
+[[module]]
+name = "scripts"
+doc = "Running a `[...]` script on its declared route: resolving its command, lifting the route's answer and placing its writes."
+items = ["impl:<'a> LatticeDriver<'a>::fold_cmd_subst..impl:<'a> LatticeDriver<'a>::nested_command"]
+
+[[module]]
+name = "protected_scripts"
+doc = "Protected scripts and loops: every command in order under one evaluation state, with the writes the state admits."
+items = ["impl:<'a> LatticeDriver<'a>::protected_script..impl:<'a> LatticeDriver<'a>::admitted_writes", "enum:Held..fn:held_before"]
+
+[[module]]
+name = "expressions"
+doc = "The expression route: `expr` statements and conditions over the lattice, the shared engine, and evaluation outside a run."
+items = [
+    "impl:<'a> LatticeDriver<'a>::expression_inputs",
+    "impl:<'a> LatticeDriver<'a>::evaluate_assign_expr..impl:<'a> LatticeDriver<'a>::evaluate_expression_at",
+    "struct:DetachedExpressionInputs..fn:decide_condition_detached",
+    "fn:truth_of..fn:expression_parse_context",
+    "impl:ExpressionEvaluation<'_>..impl:CommandSemantics for ExpressionEvaluation<'_>",
+]
+
+[[module]]
+name = "argument_words"
+doc = "An invocation's arguments as source words: operand sources, call and case-list words, and the resolver's view over them."
+items = ["fn:typed_node_commands..enum:OperandSource", "impl:<'t> ArgWord<'t>", "fn:call_arguments..fn:plan_clause_count", "fn:view_of"]
+
+[[module]]
+name = "lattice_inputs"
+doc = "`LatticeInputs`: the analyser's inputs over the SCCP lattice at one statement, and the lattice-to-exact conversions."
+items = [
+    "fn:lattice_to_fact..fn:identity_of",
+    "enum:Words..impl:<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S1, S2>#2",
+    "fn:variable_name..fn:exact_of_bytes",
+]
+
+[[module]]
+name = "enumeration_state"
+doc = "Invocations, expressions and words evaluated over a loop enumeration's state."
+items = ["struct:StateStep", "impl:AnalysisInputs for StateInputs<'_>..impl:LatticeDriver<'_>"]
+
+[[module]]
+name = "queries"
+doc = "Questions other passes ask of the transfer: proven word values over solved facts, and structure-only questions over source words."
+items = [
+    "struct:StatementId",
+    "impl:<'a> ProvenReadFacts<'a>..fn:proven_substitution",
+    "fn:typed_incr_creates_absent..fn:cell_update_range_model",
+    "fn:whole_variable_operand",
+    "struct:StructureInputs..impl:AnalysisInputs for StructureInputs<'_>",
+    "enum:DictBinder..fn:dict_value_at",
+    "fn:source_template_plan..fn:statement_selection",
+]

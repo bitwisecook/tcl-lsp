@@ -1,0 +1,150 @@
+# Second level of `command_binding.toml`. The facade keeps the script-level
+# walk every other module re-enters: `walk_source`, `walk_source_image`, the
+# segment loop and the chunk it prepares.
+file = "rust/tcl-compiler/src/command_binding/source_walk.rs"
+
+[[module]]
+name = "outcomes"
+doc = "The outcome set of a walked command: alternatives, completion receipts, joins and publication."
+items = [
+    "fn:boxed_source_branch..fn:publish_source_branch",
+    "fn:opaque_source_invocation",
+    "struct:SourceNativeNormalCompletion..impl:SourceOutcomes",
+]
+
+[[module]]
+name = "execution_context"
+doc = "The execution context of a walk and the derived contexts built outside recursive frames."
+items = [
+    "enum:SourceBodyEntryPurpose..impl:<'a> SourceExecutionContext<'a>",
+    "struct:SourceArgumentExecutionContext..fn:source_loop_context_boxed",
+]
+
+[[module]]
+name = "command_walk"
+doc = "One source command: its argument evaluation, the point it records and its target selection."
+items = [
+    "fn:source_command_tokens_boxed",
+    "fn:trace_original_selection..fn:trace_original_arguments",
+    "fn:note_source_command_lookup..impl:PreparedSourceArguments",
+    "fn:source_invocation_argument_owner..fn:empty_source_command_outcomes",
+    "impl:SourceCommandBindings::walk_source_command..impl:SourceCommandBindings::walk_selected_source_command",
+    "impl:SourceCommandBindings::record_point",
+    "fn:join_evaluated_words",
+]
+
+[[module]]
+name = "logical_source_walk"
+doc = "Quiet Logical source continuations through a called procedure body or a namespace body."
+items = [
+    "impl:SourceCommandBindings::logical_selected_source_facts..impl:SourceCommandBindings::walk_logical_namespace_source",
+]
+
+[[module]]
+name = "command_dispatch"
+doc = "Dispatch of a selected command to receiver, named, unknown, resolved and document targets."
+items = [
+    "fn:registry_head",
+    "fn:trace_original_generic_head..fn:trace_original_generic_result",
+    "fn:retain_source_native_result",
+    "impl:SourceCommandBindings::prepare_selected_source_command..impl:SourceCommandBindings::recursive_body_preserves_command_world",
+]
+
+[[module]]
+name = "called_bodies"
+doc = "Entering a called procedure body or a lambda: frame, namespace, formals and parameter binding."
+items = [
+    "fn:retain_called_body_value_formals..fn:prepare_source_lambda",
+    "fn:retain_lambda_value_formals..fn:retained_lambda_body",
+    "fn:entered_receiver_body_context..fn:called_body_namespace",
+    "impl:SourceCommandBindings::walk_called_body..impl:SourceCommandBindings::record_called_body_source",
+    "impl:SourceCommandBindings::walk_lambda_invocation..impl:SourceCommandBindings::record_lambda_body",
+    "fn:bind_called_body_parameters..fn:bind_source_parameters",
+    "fn:source_call_arguments",
+]
+
+[[module]]
+name = "substitution_walk"
+doc = "Substitutions inside a word: variable reads, array index scripts and the fragments they join."
+items = [
+    "fn:original_variable_arena..fn:index_text_fragment",
+    "fn:finish_index_list",
+    "impl:SourceCommandBindings::walk_substitutions..impl:SourceCommandBindings::finish_index_variable",
+]
+
+[[module]]
+name = "target_walk"
+doc = "The walk of one prepared target: its native invocation and the receipts settled around it."
+items = [
+    "fn:resolve_source_invocation_facts..fn:resolve_source_success_facts",
+    "struct:PreparedSourceNativeInvocation..enum:SourceNativePreparationError",
+    "fn:prepare_source_native_invocation",
+    "struct:PreparedSourceTargetWalk",
+    "struct:CapturedNativeResultReceipts..fn:finish_source_native_results",
+    "fn:source_target_arguments_invalid",
+    "impl:SourceCommandBindings::walk_source_target_after_observers..impl:SourceCommandBindings::finish_native_source_completion",
+]
+
+[[module]]
+name = "completion_receipts"
+doc = "Completion receipts of a native handler and whether it leaves the command world closed."
+items = [
+    "struct:CapturedNativeCompletionReceipts..fn:undeclared_transitions_leave_command_world_closed",
+]
+
+[[module]]
+name = "native_target"
+doc = "A native target: its handler contract, body admission and the frame of the body it selects."
+items = [
+    "fn:procedure_body_admission_refusal..fn:source_procedure_body_admission",
+    "fn:native_implementation_dependency_holds",
+    "fn:apply_selected_native_frame_effect..fn:prepare_selected_native_body",
+    "impl:SourceCommandBindings::prepare_native_handler..impl:SourceCommandBindings::walk_prepared_native_lifecycle",
+    "impl:SourceCommandBindings::walk_selected_native_body..impl:SourceCommandBindings::leave_selected_native_body",
+]
+
+[[module]]
+name = "native_definition"
+doc = "Native definitions: closed procedures, callable statics and the deferred bodies they register."
+items = [
+    "fn:native_procedure_parameters",
+    "struct:SourceNativeDefinition..fn:closed_procedure_definition",
+    "fn:transfer_native_definition..fn:prepare_source_callable_statics",
+    "impl:SourceCommandBindings::prepare_native_definition..impl:SourceCommandBindings::register_deferred_event",
+]
+
+[[module]]
+name = "native_transfer"
+doc = "Declared effects a native handler transfers into the walked state: writes and outputs."
+items = [
+    "fn:select_contents_write_source..fn:transfer_native_namespace_writes",
+    "fn:transfer_native_completion_outputs..fn:transfer_native_outputs",
+]
+
+[[module]]
+name = "lifecycle_walk"
+doc = "Lifecycle bodies: their phases, iteration and the coverage recorded at each phase entry."
+items = [
+    "enum:SourceBodyPhase..enum:SourceBodyPhaseReachability",
+    "impl:SourceCommandBindings::record_phase..impl:SourceCommandBindings::walk_lifecycle_phase",
+]
+
+[[module]]
+name = "body_flow"
+doc = "Body operands of a native handler: sequences, loops, conditionals and materialised scripts."
+items = [
+    "impl:<'a> SourceNativeInvocation<'a>..fn:retained_script_operand",
+    "struct:SourceLoopBodyIndices..fn:source_iteration_variable_lists",
+    "impl:SourceCommandBindings::walk_expression_sequence..impl:SourceCommandBindings::walk_captured_operand",
+    "impl:SourceCommandBindings::walk_body_sequence..impl:SourceCommandBindings::walk_body_operand",
+]
+
+[[module]]
+name = "expression_walk"
+doc = "Expression operands: operators, function calls, implicit math and expression truth."
+items = [
+    "struct:SourceImplicitMathInvocation..impl:SourceImplicitMathInvocation",
+    "impl:SourceCommandBindings::walk_concatenated_expression..impl:SourceCommandBindings::walk_registry_math_function",
+    "fn:operator_result..fn:source_expression_truth",
+    "fn:source_effective_words",
+]

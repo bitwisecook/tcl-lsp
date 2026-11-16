@@ -1,0 +1,79 @@
+# The parent keeps the shared fixtures (`fixture_method`, `build`,
+# `original_reference_unit`) and the two tests of the facade's own items
+# (`arity_from_names`, `ProcSummary::unknown`).
+file = "rust/tcl-compiler/src/interprocedural/tests.rs"
+
+[[module]]
+name = "summary_identity"
+doc = "Summaries keyed by issued body IDs: authored report labels, declaration receivers and refusal of foreign or changed owners."
+items = ["fn:authored_report_unit..fn:original_declaration_summaries_keep_actual_cards_without_callable_publication"]
+
+[[module]]
+name = "callback_edges"
+doc = "Call-graph edges from callbacks: command prefixes, traces, registry-declared invokers and instance methods."
+items = [
+    "fn:calls_of..fn:command_prefix_head_reads_each_shape",
+    "fn:instance_method_callback_is_a_direct_call",
+]
+
+[[module]]
+name = "call_targets"
+doc = "Resolving a command name to a procedure of the module across namespaces."
+items = ["fn:known_set", "fn:resolve_absolute_names..fn:resolve_call_target_delegates"]
+
+[[module]]
+name = "body_scan"
+doc = "The recursive body scan: calls in condition position and deeply nested bodies."
+items = [
+    "fn:deeply_nested_interprocedural_scans_survive",
+    "fn:call_in_if_condition_is_recorded..fn:call_in_while_condition_is_recorded",
+    "fn:deeply_nested_if_survives_interprocedural_scan",
+]
+
+[[module]]
+name = "call_graph"
+doc = "Direct call edges: alias prefixes, `apply` lambda bodies, logical source calls, cycles, namespaces and rebinding of a body command."
+items = [
+    "fn:document_alias_prefix_preserves_the_call_graph_target..fn:call_inside_apply_lambda_body_resolves_in_explicit_namespace",
+    "fn:simple_proc_is_recorded_with_params_and_arity",
+    "fn:original_logical_source_call_edges_keep_body_ids_without_execution_grants..fn:namespace_relative_calls_resolved",
+    "fn:p_calls_q..fn:side_effect_classification_follows_an_aliased_head",
+]
+
+[[module]]
+name = "scope_aliases"
+doc = "`global`, `variable` and `upvar` aliases: which writes through them count as writes of global state."
+items = [
+    "fn:source_point_trace..fn:positioned_alias_traits_use_selected_frame_and_transition_grammar",
+    "fn:global_alias_write_counts_as_writes_global..fn:non_aliased_local_write_is_not_writes_global",
+]
+
+[[module]]
+name = "method_summaries"
+doc = "Method purity and instance-variable writes of `TclOO` method bodies."
+items = [
+    "fn:pure_getter_method_is_summarised_pure..fn:variable_decl_is_not_counted_as_instance_var_write",
+    "fn:instance_write_candidates_keep_literal_destinations_and_dynamic_unknowns",
+    "fn:deeply_nested_if_survives_collect_instance_var_writes",
+]
+
+[[module]]
+name = "summary_fixpoints"
+doc = "Transitive calls, barriers, purity and the fold gate derived from them."
+items = [
+    "fn:calls_captured_and_transitively_closed..fn:unknown_call_sets_has_unknown_calls",
+    "fn:can_fold_gated_on_pure_and_return_shape",
+]
+
+[[module]]
+name = "return_summaries"
+doc = "Constant and passthrough returns, return-word classification and whether a call may return."
+items = [
+    "fn:constant_return_inferred_for_literal_proc..fn:passthrough_param_detected",
+    "fn:p_may_return..fn:a_call_running_a_body_word_may_return",
+]
+
+[[module]]
+name = "parameter_observations"
+doc = "Parameter traits read from the original source: authored alias and call reports, formal references, conditions and forwarding."
+items = ["fn:original_reference_facts..fn:forwarded_to_callee_detected"]

@@ -1,0 +1,57 @@
+# The facade keeps the evidence tables (`CalleeEvidence`, `CallSiteEvidence`),
+# the scan context and caller frame every recorder takes, and the whole-unit
+# entry point `collect_call_site_constants` with its fixpoint driver, and the
+# plain data structs whose fields the driver or the tests read (`ScopeVars`,
+# `ModuleVarFacts`, `ExtraCallSiteScanContext`, `SourceCallSiteEntry`).
+file = "rust/tcl-compiler/src/unit_scope.rs"
+
+[[module]]
+name = "scope_var_facts"
+doc = "Literal-value facts for the local variables of each caller scope, and the literal values a word may take there."
+items = [
+    "enum:WordValues",
+    "impl:ScopeVars..fn:parameter_values",
+    "fn:collect_module_scope_var_facts..fn:note_original_scope_var_statement",
+]
+
+[[module]]
+name = "call_recording"
+doc = "Recording one call: the callee a command word names or dispatches to and the argument words it receives."
+items = [
+    "fn:unseen_code_is_scanned_host..fn:record_normal_user_procedure_call",
+    "enum:IndirectArgs..fn:record_original_callback_callers",
+]
+
+[[module]]
+name = "body_invocations"
+doc = "Call sites inside the script bodies a command invokes: nested original bodies and standalone body arguments."
+items = ["fn:word_is_whole_substitution", "fn:record_invocation_body_evidence..fn:record_standalone_invocation_body_evidence"]
+
+[[module]]
+name = "extra_scan_contexts"
+doc = "Bodies walked as callers beyond the procedures: `uplevel` bodies, TclOO methods and other executable scripts."
+items = ["fn:needs_extra_call_site_scan_contexts..fn:collect_upframes", "fn:build_extra_call_site_scan_contexts"]
+
+[[module]]
+name = "cfg_scan"
+doc = "The walk over each caller's CFG: statements, lifted substitutions, command surfaces and terminators."
+items = ["fn:scan_cfg_callers..fn:record_terminator_call_sites"]
+
+[[module]]
+name = "source_scan"
+doc = "Call sites another file contributes, resolved against this unit's procedures."
+items = [
+    "fn:scan_source_call_sites..fn:scan_source_call_sites_with_source_input",
+    "fn:lower_source_callers",
+    "fn:scan_source_call_sites_with_entry",
+]
+
+[[module]]
+name = "unit_linkage"
+doc = "The registry-declared unit boundaries a module crosses, found by walking every script it owns."
+items = ["fn:scan_unit_linkage..fn:walk_statement"]
+
+[[module]]
+name = "param_seeds"
+doc = "The SCCP parameter-constant seed for one procedure, from the collected call-site evidence and who else can call it."
+items = ["struct:UnitCallerView..fn:params_constants_from_native_call_sites"]

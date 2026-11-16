@@ -1,0 +1,23 @@
+# Second level: applies to the `traces` module that plans/tcl-vm/interp.toml
+# creates. The facade keeps the trace entry methods, saving and restoring the
+# native trace result, the trace-cell helpers, and registering and removing
+# variable traces.
+file = "rust/tcl-vm/src/interp/traces.rs"
+
+[[module]]
+name = "env_and_precision"
+doc = "The native observers of the global `env` array and of `tcl_precision`: installation and firing."
+items = ["impl:Vm::install_native_env_trace..impl:Vm::fire_native_precision_trace_bytes"]
+
+[[module]]
+name = "command_traces"
+doc = "Command and execution traces: registration, running a callback, firing on rename and delete, and moving trace and active-call sidecars with a relocated command."
+items = ["impl:Vm::add_cmd_trace..impl:Vm::detach_active_sidecars"]
+
+[[module]]
+name = "variable_firing"
+doc = "Firing variable traces: selecting the array and cell groups, invoking script and native callbacks, and presenting a trace failure."
+items = [
+    "impl:Vm::fire_var_traces_from_cell_bytes..impl:Vm::fire_var_traces_inner",
+    "fn:settle_trace_failure_code",
+]

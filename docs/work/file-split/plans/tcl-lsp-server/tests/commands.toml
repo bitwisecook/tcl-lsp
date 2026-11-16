@@ -1,0 +1,55 @@
+# Second level of `tests.toml`. The facade is the module list.
+file = "rust/tcl-lsp-server/src/tests/commands.rs"
+
+[[module]]
+name = "source_transforms"
+doc = "Minify, optimise and unminify."
+items = [
+    "fn:minify_document_command_returns_source_and_handles_missing_doc..fn:unminify_error_command_echoes_original_and_flags_change",
+    "fn:minify_document_command_returns_minified_source..fn:unminify_error_command_translates_names",
+]
+
+[[module]]
+name = "document_views"
+doc = "Diagram data."
+items = ["fn:diagram_data_command_extracts_structured_flow"]
+
+[[module]]
+name = "catalogue_queries"
+doc = "Registry and package queries."
+items = [
+    "fn:tcl_installation_picker_selection_refuses_unrepresentable_native_paths..fn:list_irule_events_command_returns_sorted_known_events",
+    "fn:describe_irule_event_command_reports_known_and_unknown..fn:list_subcommands_command_returns_sorted_subcommands",
+    "fn:suggest_packages_echoes_symbol_with_list..fn:list_known_packages_reports_a_list",
+]
+
+[[module]]
+name = "fix_all"
+doc = "Fix all safe issues."
+items = [
+    "fn:fix_all_safe_issues_applies_only_shown_fixes..fn:fix_all_safe_issues_analyses_under_the_documents_layers",
+]
+
+[[module]]
+name = "xc_translate"
+doc = "Document translation to F5 Distributed Cloud."
+items = ["fn:xc_translate_document_uses_the_current_open_document"]
+
+[[module]]
+name = "config_reports"
+doc = "The effective configuration and its INI export."
+items = [
+    "fn:render_config_ini_emits_known_sections",
+    "fn:non_ascii_mode_str_renders_null_for_default",
+    "fn:config_ini_path_honours_xdg",
+    "fn:effective_config_labels_come_from_the_resolved_environment",
+    "fn:the_effective_skip_lists_catalogued_codes_only..fn:apply_global_config_inlay_alias_reaches_effective_config",
+]
+
+[[module]]
+name = "dialect_selection"
+doc = "Dialect listing and the session and document overrides."
+items = [
+    "fn:list_dialects_command_reports_every_selectable_environment",
+    "fn:a_session_dialect_override_survives_a_config_pull..fn:a_document_dialect_override_rejects_bad_arguments",
+]

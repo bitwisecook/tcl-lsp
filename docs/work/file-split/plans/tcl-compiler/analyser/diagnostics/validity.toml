@@ -1,0 +1,77 @@
+# The facade keeps the module docs, `UserResolutionFacts` (the deferred
+# "does this call reach a user definition" facts the arity and
+# disabled-command flushes share) and `is_tcloo_source_class`.
+file = "rust/tcl-compiler/src/analyser/diagnostics/validity.rs"
+
+[[module]]
+name = "arity"
+doc = "Wrong argument counts: the verdict for one signature, the candidates queued during the walk and the post-walk flushes for commands, constructors and `next`."
+items = [
+    "struct:ExcessArgs..fn:source_arity_verdict",
+    "fn:describe_step_shape..fn:arity_verdict",
+    "fn:shift_arity",
+    "impl:Analyser::emit_arity_diagnostics..impl:Analyser::queue_source_arity_diagnostic",
+    "impl:Analyser::emit_source_lambda_arity",
+    "impl:Analyser::selected_source_package_is_unmentioned..impl:Analyser::original_user_call_signature",
+]
+
+[[module]]
+name = "option_relations"
+doc = "Relations between a call's options and positionals (E-R14) and the literal-argument validation built on them (W146)."
+items = [
+    "struct:SeenOption..fn:option_relation_diagnostics",
+    "impl:Analyser::emit_w146_literal_argument_validation",
+    "impl:Analyser::emit_proven_source_option_relationships",
+    "impl:Analyser::emit_source_option_relationships",
+]
+
+[[module]]
+name = "malformed_structure"
+doc = "E004 for a malformed clause structure and E006 for an invalid parameter or static-variable list."
+items = [
+    "fn:is_literal_list_word..fn:emit_invalid_lambda_parameter_list_diagnostics",
+    "impl:Analyser::emit_e004_clause_shape_diagnostic",
+    "impl:Analyser::e004_fixes",
+]
+
+[[module]]
+name = "command_availability"
+doc = "Whether the dialect has the command at all: an unknown or ambiguous subcommand (W001, W145), a disabled command (W002) and a context gate (W142)."
+items = [
+    "fn:dialect_availability_suffix..fn:dialect_availability_suffix_for_rows",
+    "impl:Analyser::emit_w002_disabled_command..impl:Analyser::emit_w001_unknown_subcommand",
+    "impl:Analyser::flush_disabled_command_diagnostics",
+    "impl:Analyser::emit_w142_context_gate",
+]
+
+[[module]]
+name = "discouraged_commands"
+doc = "Commands that run but should not be called: deprecated commands (IRULE2002) and Tcl's private namespaces (W143)."
+items = [
+    "struct:PendingPrivateTclSourceAdvice",
+    "impl:Analyser::emit_irule2002_deprecated_command..impl:Analyser::emit_source_deprecation_advice",
+]
+
+[[module]]
+name = "option_words"
+doc = "Option words: a missing `--` terminator (W304), options that consume every `unset` word (W217), an option the dialect excludes (W004) and an ambiguous abbreviation (W145)."
+items = [
+    "impl:Analyser::emit_w304_missing_option_terminator..impl:Analyser::flush_w304_diagnostics",
+    "impl:Analyser::emit_w004_dialect_invalid_option..impl:Analyser::emit_w145_ambiguous_option",
+]
+
+[[module]]
+name = "stub_shadows"
+doc = "W116 and W117: a stub `proc` that shadows a built-in command or `expr` function."
+items = [
+    "impl:Analyser::emit_w116_w117_stub_shadows",
+    "fn:is_builtin_math_function..fn:is_irules_only_expr_op",
+]
+
+[[module]]
+name = "expr_operators"
+doc = "W003 and W002 inside `expr`: operators and math functions the active dialect does not have, and the portable rewrite of a gated operator."
+items = [
+    "impl:Analyser::emit_w003_dialect_invalid_expr_operator..impl:Analyser::emit_w003_dialect_invalid_expr_words",
+    "fn:gated_operator_assistance_context..fn:rewrite_gated_operator",
+]

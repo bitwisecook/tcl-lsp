@@ -1,0 +1,46 @@
+# The facade keeps the parsed-command types every stage reads, the source
+# layout, `format_body` with its comment and blank-line handling, and the
+# `format_tcl*` entry points.
+file = "rust/tcl-lsp-core/src/formatting/engine.rs"
+
+[[module]]
+name = "word_source"
+doc = "The source text of one argument word rebuilt from its tokens, and parameter-list spelling."
+items = ["fn:normalise_backslash_newline..fn:original_lambda_parameters_match"]
+
+[[module]]
+name = "command_parsing"
+doc = "Parsing a script into commands, their arguments and the comments between them."
+items = ["fn:count_newlines..fn:parse_commands", "fn:flush_parsed_command"]
+
+[[module]]
+name = "argument_roles"
+doc = "Which arguments of a parsed command are bodies, expressions, keywords or parameter lists."
+items = [
+    "fn:identify_body_args..fn:identify_expr_args",
+    "fn:reset_selected_command_roles..fn:apply_selected_command_roles",
+]
+
+[[module]]
+name = "line_wrapping"
+doc = "Wrapping long lines: expression break points and backslash continuations."
+items = ["fn:find_expr_break_points..fn:split_commented_code"]
+
+[[module]]
+name = "command_reconstruction"
+doc = "One command rebuilt as formatted text: inline bodies, word arguments, keyword rewrites and case lists."
+items = ["fn:count_body_commands..fn:reconstruct_case_list"]
+
+[[module]]
+name = "range_formatting"
+doc = "Formatting a line selection inside the script region that holds it."
+items = ["fn:presentation_children..fn:formatting_range_region"]
+
+[[module]]
+name = "nested_bodies"
+doc = "Formatting the bodies nested in a command: case lists, script bodies and lambda bodies."
+items = [
+    "fn:format_case_list_body",
+    "fn:token_content_source_offset..fn:lambda_body_source_offset",
+    "fn:format_plain_body_argument..fn:format_lambda_body_argument",
+]

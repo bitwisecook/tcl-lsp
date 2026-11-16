@@ -1,0 +1,28 @@
+# The facade keeps the module docs, `LexError`, `LexWarning`, `Lexer` with its
+# constructors and accessors (every part reads its fields), the separator,
+# comment and escape tokens, the `Iterator` implementation and the whitespace
+# predicates.
+file = "rust/tcl-lexer/src/lexer.rs"
+
+[[module]]
+name = "config"
+doc = "The lexer configuration: the grammar axes, the dialect and file presets and the leading byte-order mark."
+items = ["struct:LexerConfig..impl:LexerConfig"]
+
+[[module]]
+name = "jim_rosters"
+doc = "The Jim token rosters for a script and for a `subst` template."
+items = ["impl:<'src> Lexer<'src>::jim_script_roster..impl:<'src> Lexer<'src>::jim_subst_roster"]
+
+[[module]]
+name = "substitutions"
+doc = "Variable and command substitution tokens: `$name`, `${name}`, array indices and `[...]`."
+items = [
+    "impl:<'src> Lexer<'src>::parse_var..impl:<'src> Lexer<'src>::scan_array_index_body",
+    "impl:<'src> Lexer<'src>::skip_braced_var_name_body..impl:<'src> Lexer<'src>::parse_command",
+]
+
+[[module]]
+name = "delimited_words"
+doc = "Quoted and braced words and the `{*}` expansion prefix."
+items = ["impl:<'src> Lexer<'src>::parse_quoted..impl:<'src> Lexer<'src>::parse_brace"]

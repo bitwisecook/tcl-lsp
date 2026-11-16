@@ -1,0 +1,73 @@
+# The facade keeps the diagnostic frame entry, the layout observation and
+# advice types, and `select_declaration_layouts` with its two entry points.
+file = "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+
+[[module]]
+name = "variable_frame"
+doc = "The original variable frame of an authored or Logical source and its direct script cursor."
+items = ["impl:std::hash::Hash for SourceOriginalVariableFrame..fn:direct_script_cursor"]
+
+[[module]]
+name = "script_activation"
+doc = "Script activations retained for an original body and the member frame at an offset."
+items = [
+    "impl:SourceCommandBindings::logical_source_member_frame_at_offset..impl:SourceCommandBindings::original_script_activation_at",
+]
+
+[[module]]
+name = "variable_symbols"
+doc = "The namespace, local, global, alias or formal an original variable span resolves to."
+items = [
+    "fn:original_alias_place_matches",
+    "fn:original_local_primary_is_byte_unique..fn:original_alias_template_rows_match",
+    "impl:SourceCommandBindings::original_namespace_variable_symbol_at_span..impl:SourceCommandBindings::original_variable_frame_at_span",
+    "fn:root_diagnostic_namespace",
+]
+
+[[module]]
+name = "source_operand_advice"
+doc = "The layout a declaration's source operand is read under, standalone scripts included."
+items = [
+    "impl:DeclarationSourceOperandLayoutAdvice",
+    "impl:DeclarationSourceVariableOperandAdvice..impl:super::SourceInvocationBinding",
+]
+
+[[module]]
+name = "layout_recording"
+doc = "Recording declaration layouts during the walk: receiver catalogues, suffixes and operands."
+items = [
+    "impl:SourceCommandBindings::retain_called_receiver_source_catalogues..impl:SourceCommandBindings::record_declaration_operand_layout",
+    "impl:SourceCommandBindings::merge_original_declaration_layouts",
+    "impl:SourceCommandBindings::stamp_original_logical_declaration_targets",
+    "impl:SourceCommandBindings::attach_declaration_operand_layout",
+]
+
+[[module]]
+name = "source_headers"
+doc = "Lexical source headers of a declaration and its authored source tokens."
+items = [
+    "impl:SourceCommandBindings::lexical_source_header_unpositioned..impl:SourceCommandBindings::lexical_source_header_for_words",
+    "impl:SourceCommandBindings::original_authored_declaration_source_tokens",
+]
+
+[[module]]
+name = "metadata_context"
+doc = "The metadata context and source purpose a declaration's words are read under."
+items = [
+    "impl:super::OriginalCompilationLookupAdvice..impl:super::SourceCommandBindings",
+    "impl:<'a> OriginalDeclarationWordSource<'a>",
+    "impl:super::SourceInvocationBinding::original_declaration_argument_metadata..impl:super::SourceInvocationBinding::original_declaration_metadata_for_source",
+]
+
+[[module]]
+name = "invocation_advice"
+doc = "Declaration advice at one invocation: call layouts, read occurrences, operands and alias frames."
+items = [
+    "impl:OriginalDeclarationCallLayoutAdvice",
+    "impl:DeclarationReadOccurrenceAdvice",
+    "impl:DeclarationVariableOperandAdvice..fn:symbolic_version",
+    "impl:SourceCommandBindings::declaration_operand_layout_advice..impl:SourceCommandBindings::declaration_call_layout_advice",
+    "impl:super::SourceInvocationBinding::original_authored_declaration_scalar_layout",
+    "impl:super::SourceInvocationBinding::declaration_call_layout_advice..impl:super::SourceInvocationBinding::original_unanimous_declared_layout_advice",
+    "fn:original_body_parameter_source_layout..fn:direct_declaration_operand_owner",
+]

@@ -1,0 +1,52 @@
+# The parent keeps the analysis helpers and the tests of what `completion.rs`
+# itself keeps: trigger detection, the shared candidate filter and the iRules
+# event snippets. The modules carry the names of the production modules.
+file = "rust/tcl-lsp-core/src/completion/tests.rs"
+
+[[module]]
+name = "variables"
+doc = "Variable-name and array-element candidates."
+items = [
+    "fn:array_element_completion_does_not_eat_trailing_text_when_unclosed..fn:array_element_completion_swallows_existing_close_paren",
+    "fn:variable_completion_lists_globals_alphabetically..fn:variable_completion_filters_by_partial",
+    "fn:fuzzy_variable_offers_banana_for_bnaana..fn:fuzzy_array_element_offers_key_for_kye",
+]
+
+[[module]]
+name = "methods"
+doc = "Method candidates for objects, class commands and Tk widgets."
+items = [
+    "fn:obj_method_completion_includes_inherited..fn:bareword_completion_does_not_leak_unrelated_variable_class",
+    "fn:fuzzy_method_surfaces_when_response_would_be_empty..fn:method_typo_does_not_hijack_command_prefix_matches",
+]
+
+[[module]]
+name = "commands"
+doc = "Command-position candidates: procedures, built-ins, `call` targets, workspace procedures and the fuzzy fallback."
+items = [
+    "fn:proc_completion_lists_user_defined_procs..fn:command_detail_formats_each_provenance",
+    "fn:builtin_completion_filters_by_partial..fn:builtin_completion_skipped_inside_variable_trigger",
+    "fn:command_completion_gates_commands_by_package_version",
+    "fn:call_completion_surfaces_user_procs_at_word_index_1..fn:call_completion_skipped_at_word_index_other_than_1",
+    "fn:workspace_procs_surface_in_completion..fn:workspace_procs_do_not_duplicate_local_procs",
+    "fn:workspace_none_keeps_single_doc_behaviour",
+    "fn:prefix_proc_list_pinned",
+    "fn:fuzzy_fallback_offers_lsearch_for_lsaerch..fn:fuzzy_fallback_skips_one_char_fragment",
+    "fn:proc_completion_quotes_retained_callable_source..fn:invoked_proc_completions_fuzzy_falls_back",
+    "fn:command_completion_uses_profile_availability",
+]
+
+[[module]]
+name = "argument_values"
+doc = "Argument-position candidates: subcommands, switches, event names and enumerated values."
+items = [
+    "fn:irules_subcommand_completion_uses_configured_bigip_version",
+    "fn:subcommand_completion_surfaces_subcommands_at_word_index_1..fn:switch_completion_resolves_subcommand_scoped_options",
+    "fn:event_completion_surfaces_when_handler_first_arg..fn:event_completion_skipped_at_word_index_other_than_1",
+    "fn:string_is_completes_character_classes..fn:subcommand_without_arg_values_falls_through",
+    "fn:option_enum_value_completion_offers_members",
+    "fn:prefix_subcommand_list_pinned",
+    "fn:fuzzy_subcommand_offers_length_for_lenght..fn:fuzzy_switch_offers_nocase_for_ncoase",
+    "fn:subcommand_completion_is_version_gated_by_the_profile",
+    "fn:switch_option_completion_respects_profile_gating",
+]

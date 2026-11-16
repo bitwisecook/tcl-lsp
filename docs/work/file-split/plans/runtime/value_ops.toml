@@ -1,0 +1,42 @@
+# The facade keeps the module contract, the types every adapter shares
+# (`RuntimeAppendValue`, `ValueCoercion`, `IncrementContext`,
+# `RuntimeDictionaryChecks`, the `RuntimeIncrementObjects` struct whose fields
+# the dictionary adapter sets), `Interp`'s string-bytes admission, the integer
+# helpers and the inline `tests` module: `value_ops/tests.rs` already belongs
+# to `native_jim_index` (loaded through `#[path]`), so that inline module needs
+# a hand move to a `#[path]` file; without it the facade is about 650 lines.
+file = "runtime/rust/src/value_ops.rs"
+
+[[module]]
+name = "interp_impl"
+doc = "`ValueOps` for `Interp`: the shared command logic's view of the runtime's `*mut TclObj` values."
+items = ["fn:index_expression_error", "impl:ValueOps for Interp"]
+
+[[module]]
+name = "increment_objects"
+doc = "The `incr` adapters over original objects: the legacy C 8.4 and Jim owners, their amount getters, and the modern integer update."
+items = [
+    "struct:RuntimeLegacyIncrementObjects..impl:tcl_cmd_core::native_increment::LegacyIncrementAmountOps for RuntimeLegacyIncrementAmountOps<'_>",
+    "impl:RuntimeIncrementObjects..impl:tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrementObjects",
+]
+
+[[module]]
+name = "dictionary_objects"
+doc = "Physical dictionary operations over borrowed original objects, and the append and increment owners a dictionary update hands on."
+items = [
+    "struct:RuntimeDictionaryObjects",
+    "impl:RuntimeDictionaryObjects..impl:tcl_cmd_core::native_dictionary::NativeDictionaryObjects for RuntimeDictionaryObjects",
+]
+
+[[module]]
+name = "append_objects"
+doc = "The physical append and string-concatenation adapter."
+items = [
+    "impl:RuntimeAppendObjects",
+    "struct:RuntimeAppendObjects..impl:tcl_cmd_core::native_cat::NativeCatObjects for RuntimeAppendObjects",
+]
+
+[[module]]
+name = "clock_date_objects"
+doc = "The `clock` date-list adapter: checked reads of the date fields and the result list."
+items = ["struct:RuntimeDateList..impl:tcl_cmd_core::clock::NativeClockDateOps for RuntimeClockDateOps"]

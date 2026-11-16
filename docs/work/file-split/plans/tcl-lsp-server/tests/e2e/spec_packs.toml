@@ -1,0 +1,52 @@
+# The parent keeps the workspace fixtures every module shares (`MYLIB_PACK`, `workspace`,
+# `write`, `file_uri`, `notify_pack_changed`, the loaded-pack readers) and the existing
+# `environment_lifecycle` child.
+# `e2e.rs` loads this file through `#[path]`: each `mod` the tool adds needs
+# `#[path = "spec_packs/<name>.rs"]`, as `environment_lifecycle` already has.
+file = "rust/tcl-lsp-server/tests/e2e/spec_packs.rs"
+
+[[module]]
+name = "pack_commands"
+doc = "A workspace pack's commands behave like shipped ones: resolution, hover, argument roles, arity, discovery and the refusal to redefine a shipped command."
+items = [
+    "fn:a_workspace_pack_makes_an_unknown_command_resolve_with_hover..fn:without_a_pack_the_same_command_is_unknown",
+    "fn:the_spec_packs_setting_reaches_a_pack_convention_would_miss..fn:a_workspace_pack_subcommand_arity_error_is_published",
+    "const:KEYWORD_DEFINER_PACK",
+    "fn:a_workspace_proc_implementing_a_pack_command_keeps_the_pack_spec",
+]
+
+[[module]]
+name = "reload"
+doc = "Pack reloads: a pack added or changed after startup re-analyses open documents, and the startup reload cannot overwrite a newer pack set."
+items = [
+    "fn:a_pack_added_after_startup_reloads_and_re_analyses_open_documents..fn:changing_a_pack_body_role_refreshes_open_document_tokens",
+    "fn:a_pack_created_during_the_startup_reload_survives_it..fn:a_stale_startup_snapshot_cannot_overwrite_a_newer_pack_set",
+]
+
+[[module]]
+name = "hook_bodies"
+doc = "A pack's Tcl hook bodies: constant folding in the optimiser, workspace trust, and the new answer after a reload."
+items = ["const:FOLDER_PACK..fn:a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path"]
+
+[[module]]
+name = "bundled_packs"
+doc = "The bundled tier: the EDA vendor loadables and the UPF hooks reach the editor."
+items = [
+    "const:EDA_COMMAND_CASES",
+    "fn:the_bundled_eda_loadables_make_their_vendor_commands_known",
+    "fn:assert_upf_optional_option_tokens..fn:the_bundled_upf_body_resolver_reaches_editor_diagnostics_and_tokens",
+]
+
+[[module]]
+name = "claimed_extensions"
+doc = "The file extensions and environments a pack claims: advertised, indexed, retired with the pack and routed through the ingress."
+items = ["const:EXTENSION_PACK..fn:a_pack_declared_environment_routes_its_documents_through_the_ingress"]
+
+[[module]]
+name = "pack_documents"
+doc = "The pack file as a document: its load notices, outline, hover, signature help, folding, formatting, quick fixes and links."
+items = [
+    "fn:pack_load_notices_are_diagnostics_on_the_pack_file",
+    "fn:diagnostics_exclude_suppresses_pack_load_notices",
+    "const:AUTHORING_PACK..fn:the_diagnostics_master_switch_clears_a_packs_notices",
+]

@@ -1,0 +1,26 @@
+# Second level: apply `plans/runtime/interp.toml` first; it creates this file.
+# The facade keeps the selections every invocation reads: the Jim object
+# context, the variable storage protocol, the invocation dialect and its
+# string and name protocols, and the lexer configuration.
+file = "runtime/rust/src/interp/setup.rs"
+
+[[module]]
+name = "construction"
+doc = "Creating an interpreter: the default host and release, the constructors and the state they allocate."
+items = [
+    "const:DEFAULT_RUNTIME_VERSION..fn:default_host",
+    "impl:Interp::new..impl:Interp::with_host_bootstrap",
+]
+
+[[module]]
+name = "pinned_context"
+doc = "The world an interpreter is pinned to: the host, the release and dialect profile, the logical providers, the runtime context and the system encoding."
+items = ["impl:Interp::host..impl:Interp::dialect_profile"]
+
+[[module]]
+name = "bootstrap"
+doc = "Bootstrapping a fresh interpreter: the release and startup globals, the native core cells, host globals, `auto_path` and the library."
+items = [
+    "impl:Interp::write_release_globals",
+    "impl:Interp::set_startup_globals..impl:Interp::init_library_completion",
+]

@@ -1,0 +1,33 @@
+# The facade keeps the module docs, the `parse_param_list` re-exports and the
+# small pure helpers with no family of their own: body docstrings, literal
+# formatting, the paste fingerprint, word spans, the iRules top-level set and
+# `concat_script_window`.
+file = "rust/tcl-compiler/src/analyser/utils.rs"
+
+[[module]]
+name = "directives"
+doc = "Comment directives: `# noqa` and `# tcl-lsp: disable` suppression, `supports` version targets and `package ... provides`."
+items = [
+    "const:FILE_DIRECTIVE_SCAN_LINES..fn:noqa_lines_from_comments",
+    "fn:matches_marker..fn:parse_provides_directive",
+    "fn:apply_preceding_noqa..fn:parse_disable_directive",
+]
+
+[[module]]
+name = "script_comments"
+doc = "The lexer-confirmed comments of every registry-reachable script: the walker over bodies, case lists, lambda literals and substitutions."
+items = ["fn:script_comment_facts_from_analysis..fn:next_definition_grammar"]
+
+[[module]]
+name = "known_commands"
+doc = "The known-command universe recovery consults, and whether an earlier `proc` shadows a call."
+items = ["fn:recovery_known_commands..fn:insert_qualified_and_tail"]
+
+[[module]]
+name = "stub_directives"
+doc = "`# tcl-lsp: stub` declarations: inline and sidecar scanning, the stub grammar and the declared surface of a document."
+items = [
+    "fn:scan_stub_command_names",
+    "fn:parse_stub_name..fn:parse_expr_stub",
+    "fn:document_stub_declarations..fn:document_declared_surface",
+]

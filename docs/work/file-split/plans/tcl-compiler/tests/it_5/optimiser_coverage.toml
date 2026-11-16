@@ -1,0 +1,77 @@
+# The parent keeps the module documentation, the optimiser runners
+# (`opt_codes`, `opt_fires`, `opt_absent`, `optimised`, `opt_any_of`) and the
+# `int_x`/`int_xy`/`in_proc` wrappers. The tests are grouped by pass family.
+file = "rust/tcl-compiler/tests/it_5/optimiser_coverage.rs"
+
+[[module]]
+name = "constant_folding"
+doc = "O100, O101, O104 and O105: constant propagation and folding, with the redefinition, trace and global-write guards."
+items = [
+    "fn:o100_constant_propagation..fn:o101_module_wide_variable_trace_guard",
+    "fn:o100_branch_condition_propagation_blocks_on_variable_trace",
+    "fn:o104_string_build_chain..fn:o100_o105_const_ref_propagation",
+    "fn:non_ascii_literal_folds_only_where_the_release_reads_source_as_utf8",
+]
+
+[[module]]
+name = "store_forwarding"
+doc = "O102: forwarding a stored value to its read, and what blocks it: traces, `upvar` aliases, `uplevel #0` and interpreter barriers."
+items = ["fn:o102_expr_command_substitution..fn:o102_alias_baked_set_target_kills_the_stale_global"]
+
+[[module]]
+name = "dead_code"
+doc = "O107 to O109 and O112: unreachable branches, aggressive dead code, dead stores and structure elimination, with their trace guards."
+items = [
+    "fn:o112_constant_branch_elimination_blocks_on_variable_trace",
+    "fn:o107_dead_code_elimination_of_unreachable_branch..fn:o107_dynamic_variable_trace_target_blocks_elimination",
+    "fn:o107_dead_code_in_false_branch..fn:o109_dead_store_elimination",
+    "fn:o112_if_elimination..fn:o112_nested_via_multipass",
+    "fn:cross_event_dse_guardrails",
+]
+
+[[module]]
+name = "procedures"
+doc = "Procedure-level passes: O103 interprocedural folding, O121 to O123 tail calls, O124 unused procedures, and procedures that shadow a builtin."
+items = [
+    "fn:o103_interprocedural_folding",
+    "fn:o103_alias_resolved_proc_replacement_is_not_folded_as_the_original",
+    "fn:o124_unused_irule_procs",
+    "fn:tail_call_o121_o122_o123",
+    "fn:multipassed..fn:a_shadowed_append_or_lappend_stops_the_write_chain_fold",
+]
+
+[[module]]
+name = "instcombine"
+doc = "O110: reassociation, identities, tautologies, inversions and De Morgan."
+items = [
+    "fn:o110_reassociation..fn:o110_no_instcombine_with_command_subst",
+    "fn:demorgan_logic_via_o110..fn:invert_logic_covers_tip461_and_membership_operators",
+]
+
+[[module]]
+name = "idiom_rewrites"
+doc = "O113 to O120: strength reduction, `incr`, nested `expr`, list and `lindex` folding, string-length checks, packing and string comparison."
+items = ["fn:o113_strength_reduction..fn:o120_with_sccp_const_and_mixed"]
+
+[[module]]
+name = "code_motion"
+doc = "Redundancy and motion: legacy GVN/CSE detection, O125 code sinking and O127 load forwarding."
+items = ["fn:legacy_gvn_codes", "fn:legacy_gvn_cse_detection", "fn:o125_code_sinking", "fn:o127_load_forwarding"]
+
+[[module]]
+name = "shimmer"
+doc = "S100 to S102 shimmer warnings: true positives, no false positives and loop paths."
+items = ["fn:shimmer_codes", "fn:shimmer_count", "fn:shimmer_no_false_positives..fn:shimmer_loop_paths_no_crash"]
+
+[[module]]
+name = "robustness"
+doc = "Edge cases: malformed input, loops and namespaces, variable shapes, pass interactions and the profile directive under multipass."
+items = [
+    "fn:apply_optimisations_edge_cases",
+    "fn:variable_shape_guardrails",
+    "fn:edge_cases_no_crash",
+    "fn:edge_cases_loops_and_namespaces",
+    "fn:robustness_malformed_inputs",
+    "fn:pass_interactions",
+    "fn:profile_directive_and_multipass",
+]

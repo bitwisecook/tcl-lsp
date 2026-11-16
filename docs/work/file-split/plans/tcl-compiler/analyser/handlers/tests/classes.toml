@@ -1,0 +1,25 @@
+# Second level of `handlers/tests.toml`; the file exists once that plan is
+# applied. Modules carry the names planned in `handlers/classes.toml`. Nothing
+# but the module list stays in the parent.
+file = "rust/tcl-compiler/src/analyser/handlers/tests/classes.rs"
+
+[[module]]
+name = "class_factories"
+doc = "Class factories: registry definers, user metaclass overrides and the members a manufacturer splices in."
+items = [
+    "fn:original_registry_class_definers_require_the_selected_source_and_complete_arguments..fn:manufacturer_prologue_components_keep_original_reference_and_group_geometry",
+    "fn:factory_splices_keep_original_list_data_geometry_and_grammar..fn:factory_list_templates_require_actual_constructor_and_scalar_formal_splices",
+]
+
+[[module]]
+name = "static_provenance"
+doc = "The static reading behind class-creation proofs: `if` conditions, control arms, completions and literal values."
+items = [
+    "fn:original_if_conditions_keep_selected_grammar_and_unknown_evaluation_boundaries..fn:control_arm_positions_require_actual_original_body_containers",
+    "fn:bound_parameter_substitution_uses_the_complete_shared_reference_grammar..fn:static_write_invalidation_preserves_scalar_parenthesis_names",
+]
+
+[[module]]
+name = "class_definitions"
+doc = "Class creation, `oo::define` and `oo::objdefine`, and the join of two observations of one class."
+items = ["fn:class_observation..fn:analyse_oo_class_body_records_property_def"]

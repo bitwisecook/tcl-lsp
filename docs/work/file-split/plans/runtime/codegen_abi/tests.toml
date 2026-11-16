@@ -1,0 +1,71 @@
+# The parent keeps the shared fixtures (`leak_free`, the word and completion
+# builders, `invoke`, `invoke_intrinsic`, `prepare_intrinsic_guard`,
+# `release_words`, `option`, `scalar_interpreter`), the two `thread_local!`
+# blocks (macros cannot move) and the one test of `tcl_runtime_identity`.
+# Test modules carry the names of the production modules they cover.
+file = "runtime/rust/src/codegen_abi/tests.rs"
+
+[[module]]
+name = "host_refusal"
+doc = "A reached host refusal leaves caller outputs untouched and bypasses guest recovery; a guest error with raw bytes is not a refusal."
+items = ["fn:reached_unicode_refusal_keeps_argv_completion_output_untouched..fn:byte_guest_error_metadata_is_captured_without_host_refusal"]
+
+[[module]]
+name = "evaluation"
+doc = "Imports that run the runtime's own implementations: the eval-fallback tier, `expr` addition and `puts`."
+items = [
+    "struct:CaptureHost..impl:Host for CaptureHost",
+    "fn:compiled_puts_uses_channel_conversion_and_balances_its_owned_value..fn:nested_add_propagates_the_inner_arithmetic_error",
+    "fn:eval_box_release_round_trip..fn:no_current_interp_is_leak_safe",
+]
+
+[[module]]
+name = "values"
+doc = "Boxed scalars: ownership, typed reads under the host's numeric environment, cached representations and word joining."
+items = [
+    "fn:native_wide_int_value_is_owned_and_keeps_its_internal_rep_after_shimmering",
+    "fn:get_wide..fn:get_bool",
+    "fn:boxed_primitive_reads_share_actual_environment_and_raw_boolean_projection..fn:native_double_and_boolean_values_are_owned_and_typed",
+    "fn:word_concat_borrows_its_parts",
+    "fn:owned_string_constructor_has_one_releasable_reference",
+]
+
+[[module]]
+name = "variables"
+doc = "Compiled slots and named access share one cell: read-modify-write, unset, the trace barrier and array elements."
+items = [
+    "fn:compiled_slots_and_named_access_share_one_cell..fn:the_slot_trace_bit_is_revalidated_when_the_trace_set_changes",
+    "fn:var_get_element_reads_an_array_element..fn:named_element_store_runs_its_observer_before_reporting_the_error",
+]
+
+[[module]]
+name = "argv_invocation"
+doc = "The prebuilt-argv tier: guarded intrinsics, guard tokens and `tcl_invoke_argv` dispatch, errors and boundary checks."
+items = [
+    "fn:guarded_intrinsic_string_length_hits_and_releases_exact_completion_and_token..fn:guarded_intrinsic_guards_survive_unrelated_command_mutation",
+    "fn:invoke_argv_dispatches_builtin_without_adopting_words",
+    "fn:invoke_argv_follows_renamed_command..fn:invoke_argv_publishes_uncaught_error_globals",
+    "fn:invoke_argv_catch_reads_the_raised_errorcode_at_compiled_top_level",
+    "fn:invoke_argv_preserves_custom_completion_code..fn:invoke_argv_validates_boundary_inputs_without_leaking",
+]
+
+[[module]]
+name = "activation"
+doc = "The eval-loop activation an ABI dispatch holds: the depth bound, refusals and what `leave` retains."
+items = ["fn:compiled_activation_leave_retains_native_errors_for_public_read..fn:compiled_activation_declines_without_a_current_interpreter"]
+
+[[module]]
+name = "call_frames"
+doc = "Transient call frames and the whole statement shapes the emitter builds on one."
+items = [
+    "fn:call_frames_are_reentrant_and_layout_checked..fn:compiled_invoke",
+    "fn:compiled_leaf_statement_round_trip_is_leak_free..fn:compiled_abrupt_completions_release_every_partial_word",
+]
+
+[[module]]
+name = "procedure_definition"
+doc = "Native procedure entries and the argv-based definition imports: dispatch, fallback, replacement, logging and input validation."
+items = [
+    "fn:stub_argv..fn:the_dispatch_counter_reports_a_missing_interpreter_distinctly",
+    "fn:define_guarded_words..fn:original_definition_argv_preserves_pending_host_refusal_and_untouched_output",
+]

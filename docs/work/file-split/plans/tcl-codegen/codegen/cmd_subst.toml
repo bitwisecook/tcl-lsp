@@ -1,0 +1,47 @@
+# The facade keeps the pure parsing functions other modules call
+# (`parse_cmd_parts*`, `is_pure_cmd_subst`, `unroll_nested_set`), the central
+# `emit_cmd_subst_arg` and `emit_value`, and the inline command-substitution
+# entry with its dispatch over hook operands.
+file = "rust/tcl-codegen/src/codegen/cmd_subst.rs"
+
+[[module]]
+name = "index_words"
+doc = "Literal index words as the release's compiler encodes them: `string range`, `string replace`, `lrange`, `linsert` and `lreplace`."
+items = ["impl:CodegenCtx<'_>"]
+
+[[module]]
+name = "generic_invoke"
+doc = "The generic invocation of a substituted command: the entered command head, its words and `{*}` expansion."
+items = ["impl:CodegenCtx<'_>::entered_command_surrogate..impl:CodegenCtx<'_>::emit_expanded_words"]
+
+[[module]]
+name = "inline_hooks"
+doc = "Resolving the registry's inline codegen hooks and the command bindings an inline specialisation retains."
+items = ["impl:CodegenCtx<'_>::selected_invocation_traits..impl:CodegenCtx<'_>::try_inline_statement_string"]
+
+[[module]]
+name = "native_calls"
+doc = "Inline emitters that carry native argument lists: `error`, `yield`, `yieldto`, expanded native calls, procedure no-ops and named invocations."
+items = ["impl:CodegenCtx<'_>::emit_inline_error..impl:CodegenCtx<'_>::emit_named_instruction"]
+
+[[module]]
+name = "inline_introspection"
+doc = "Inline emitters for `info commands`, `info level`, `info exists`, `namespace origin` and `namespace code`."
+items = ["impl:CodegenCtx<'_>::emit_inline_info_commands_resolve..impl:CodegenCtx<'_>::emit_original_array_exists_key"]
+
+[[module]]
+name = "inline_string"
+doc = "Inline emitters for `string` subcommands and `regexp`: comparison, `string is`, ranges, match and trim."
+items = [
+    "impl:CodegenCtx<'_>::emit_inline_string_invoke_replace..impl:CodegenCtx<'_>::emit_string_is_generic",
+    "impl:CodegenCtx<'_>::emit_inline_regexp..impl:CodegenCtx<'_>::try_emit_string_trim",
+]
+
+[[module]]
+name = "inline_collections"
+doc = "Inline emitters for list, array and dict commands: `list` with expansion, `lindex`, `lrange`, `lreplace`, `linsert`, `array` and `dict get`."
+items = [
+    "impl:CodegenCtx<'_>::try_list_expand_concat..impl:CodegenCtx<'_>::try_inline_list_with_break_continue",
+    "impl:CodegenCtx<'_>::emit_inline_lindex..impl:CodegenCtx<'_>::emit_inline_linsert",
+    "impl:CodegenCtx<'_>::emit_inline_array..impl:CodegenCtx<'_>::emit_inline_dict_get",
+]
