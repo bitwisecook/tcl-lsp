@@ -2050,7 +2050,8 @@ impl<'a> SsaSourceView<'a> {
         let store = points.conditional_logical_scalar_store_at(block, index, registry)?;
         let place = store.definition_place(registry)?;
         (crate::var_resolve::canonical_binding_value_key(&place).as_ref() == Some(key))
-            .then(|| store.value().to_owned())
+            .then(|| store.value().map(str::to_owned))
+            .flatten()
     }
 
     /// Resolve a source spelling using the selected proof context.

@@ -2869,7 +2869,7 @@ impl<'r> Lowerer<'r> {
         let literal = assigned_local_body_literal(seg, stmt, self.config).filter(|(_, value)| {
             quiet_store
                 .as_ref()
-                .is_some_and(|store| store.value() == value)
+                .is_some_and(|store| store.value() == Some(value.as_str()))
         });
         let Some(scope) = self.const_map_stack.last_mut() else {
             return;

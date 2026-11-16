@@ -2854,6 +2854,17 @@ impl ResolveContext {
         }
     }
 
+    /// Publish a successful store whose contents are not known: the slot is
+    /// defined and holds no literal. The recorded write origin stays.
+    pub fn define_stored_contents(&mut self, variable: &str, registry: &CommandRegistry) {
+        let target = resolve_literal_place(variable, self, false, registry);
+        if let Some(name) = canonical_binding_value_key(&target) {
+            self.publish_defined_slot(&target, &name);
+            self.value_representations.remove(&name);
+            self.forget_literal_value(&name);
+        }
+    }
+
     /// Record the stock class of the object a literal definition stored.
     pub(crate) fn retain_stock_literal_object(
         &mut self,

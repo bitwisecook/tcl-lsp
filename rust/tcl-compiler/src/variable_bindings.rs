@@ -192,7 +192,9 @@ pub(crate) struct ConditionalLogicalScalarStore {
     words: std::sync::Arc<[crate::ir::WordExpr]>,
     site: crate::command_binding::CommandAllocationSite,
     name: String,
-    value: String,
+    /// The stored literal; `None` for a substituted value word, whose
+    /// contents the store does not know.
+    value: Option<String>,
 }
 
 impl ConditionalLogicalScalarStore {
@@ -202,7 +204,7 @@ impl ConditionalLogicalScalarStore {
         input: &crate::analyser::ResolvedAnalysisInput,
         words: std::sync::Arc<[crate::ir::WordExpr]>,
         site: crate::command_binding::CommandAllocationSite,
-        (name, value): (String, String),
+        (name, value): (String, Option<String>),
         registry: &CommandRegistry,
     ) -> Option<Self> {
         let store = Self {
@@ -221,8 +223,8 @@ impl ConditionalLogicalScalarStore {
     pub(crate) fn after(&self) -> &ResolveContext {
         &self.after
     }
-    pub(crate) fn value(&self) -> &str {
-        &self.value
+    pub(crate) fn value(&self) -> Option<&str> {
+        self.value.as_deref()
     }
 
     /// Original variable input retained by this conditional source store.
@@ -281,7 +283,7 @@ impl ConditionalLogicalScalarStore {
             || !after.contents_have_source(&place, &self.site.source)
             || after.contents_origin(&place)
                 != crate::var_resolve::ContentsOrigin::WrittenAt(self.site.offset)
-            || after.literal_value(&self.name, registry) != Some(self.value.as_str())
+            || after.literal_value(&self.name, registry) != self.value.as_deref()
         {
             return None;
         }
@@ -4509,7 +4511,7 @@ mod tests {
         assert_eq!(
             original
                 .conditional_logical_scalar_store_at(block, index, context.commands())
-                .map(ConditionalLogicalScalarStore::value),
+                .and_then(ConditionalLogicalScalarStore::value),
             Some("literal.txt")
         );
         for axis in 0..5 {

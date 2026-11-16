@@ -377,6 +377,26 @@ pub(super) fn static_value(word: &NativeWord) -> Option<String> {
     static_bytes_text(&bytes)
 }
 
+/// A hosted handler's `set name WORD` whose value word is substituted: the
+/// head and the name are static, the value is one unexpanded word.
+pub(super) fn original_hosted_store_invocation_words(
+    words: &[crate::ir::WordExpr],
+    offset: u32,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> Option<Vec<NativeWord>> {
+    hosted_entry(state, context)?;
+    let original = original_entry_words(words, offset, state, context)?;
+    let [head, name, value] = original.as_slice() else {
+        return None;
+    };
+    (static_value(head).is_some()
+        && static_value(name).is_some()
+        && static_value(value).is_none()
+        && !value.group().expand)
+        .then_some(original)
+}
+
 fn static_bytes_text(bytes: &[u8]) -> Option<String> {
     if bytes.contains(&0) {
         return None;

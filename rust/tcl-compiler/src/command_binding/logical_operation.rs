@@ -33,6 +33,8 @@ use tcl_registry::{
 struct LogicalOriginalInvocation {
     words: Vec<tcl_lexer::NativeWord>,
     arguments: Vec<String>,
+    /// A hosted store's substituted value word follows `arguments`.
+    value_unknown: bool,
     target: SourceCommandTarget,
     namespace: SourceNamespaceKey,
 }
@@ -103,11 +105,14 @@ pub(super) fn hosted_scalar_transfer(
     let original = LogicalOriginalInvocation::capture(words, target, offset, state, context, true)?;
     let input = super::logical_definition::hosted_entry(state, context)?.clone();
     let actual = input.context_registry();
-    let arguments = original
+    let mut arguments = original
         .arguments
         .iter()
         .map(|value| tcl_registry::InvocationWord::Literal(value))
         .collect::<Vec<_>>();
+    if original.value_unknown {
+        arguments.push(tcl_registry::InvocationWord::Dynamic);
+    }
     let resolution =
         tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
             actual.commands(),
@@ -251,9 +256,8 @@ impl super::SourceInvocationBinding {
             context,
             hosted,
         )?;
-        let [name, value] = original.arguments.as_slice() else {
-            return None;
-        };
+        let (name, value) = original.store_operands()?;
+        let stored = (name.to_owned(), value.map(str::to_owned));
         Arc::make_mut(&mut state.source_variables)
             .set_contents_write_source(Some(Arc::clone(&advice.site.source)));
         scalar_store(
@@ -270,7 +274,7 @@ impl super::SourceInvocationBinding {
             input,
             advice.words,
             advice.site,
-            (name.clone(), value.clone()),
+            stored,
             registry,
         )
     }
@@ -290,17 +294,26 @@ impl LogicalOriginalInvocation {
         {
             return None;
         }
-        let original = if hosted {
+        let (original, value_unknown) = if hosted {
             super::logical_definition::original_hosted_static_invocation_words(
                 words, offset, state, context,
             )
+            .map(|original| (original, false))
+            .or_else(|| {
+                super::logical_definition::original_hosted_store_invocation_words(
+                    words, offset, state, context,
+                )
+                .map(|original| (original, true))
+            })
         } else {
             super::logical_definition::original_static_invocation_words(
                 words, offset, state, context,
             )
+            .map(|original| (original, false))
         }?;
         let values = original
             .iter()
+            .take(original.len() - usize::from(value_unknown))
             .map(super::logical_definition::static_value)
             .collect::<Option<Vec<_>>>()?;
         let namespace = context.namespace_identity();
@@ -331,9 +344,20 @@ impl LogicalOriginalInvocation {
         Some(Self {
             words: original,
             arguments,
+            value_unknown,
             target: target.clone(),
             namespace,
         })
+    }
+
+    /// The name of a scalar store and its literal value; a hosted store's
+    /// substituted value word has none.
+    fn store_operands(&self) -> Option<(&str, Option<&str>)> {
+        match (self.arguments.as_slice(), self.value_unknown) {
+            ([name, value], false) => Some((name, Some(value))),
+            ([name], true) => Some((name, None)),
+            _ => None,
+        }
     }
 
     fn is_current(
@@ -673,9 +697,7 @@ fn scalar_store(
     context: SourceExecutionContext<'_>,
     hosted: bool,
 ) -> Option<()> {
-    let [name, value] = original.arguments.as_slice() else {
-        return None;
-    };
+    let (name, value) = original.store_operands()?;
     if !original.is_current(state, context)
         || !facts.arg_roles_complete
         || facts.argument_offset != 0
@@ -716,7 +738,10 @@ fn scalar_store(
     }
     let variables = Arc::make_mut(&mut state.source_variables);
     variables.record_contents_write(&access, offset, false);
-    variables.define_literal(name, value, context.registry);
+    match value {
+        Some(value) => variables.define_literal(name, value, context.registry),
+        None => variables.define_stored_contents(name, context.registry),
+    }
     Some(())
 }
 
