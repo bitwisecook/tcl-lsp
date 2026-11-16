@@ -18295,7 +18295,12 @@ impl ModuleCommandBindings {
             .and_then(|tokens| tokens.source_binding.as_ref())
         {
             Some(binding) => {
-                let Some(realm) = binding.invocation_realm() else {
+                // A site the walk never reached retains no phase. Only the
+                // hosted loader world has more than one to choose from.
+                let Some(realm) = binding.invocation_realm().or_else(|| {
+                    (!self.baseline.hosted_rule_loader_world())
+                        .then_some(self.baseline.invocation_realm)
+                }) else {
                     return tcl_registry::VariableWriteProjection {
                         opaque_variable_frame: true,
                         ..tcl_registry::VariableWriteProjection::default()
