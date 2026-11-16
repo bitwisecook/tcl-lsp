@@ -2807,7 +2807,8 @@ mod tests {
     fn conditional_alias_override_joins_both_live_bindings() {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry(
-            "interp alias {} g {} upvar #0\n\
+            "set replace [llength $argv]\n\
+             interp alias {} g {} upvar #0\n\
              if {$replace} { interp alias {} g {} puts }\n\
              proc ::p {} { g x local; set local 1 }",
             &registry,
@@ -2842,7 +2843,8 @@ mod tests {
     fn non_mutating_alias_alternative_preserves_the_incoming_binding() {
         let registry = CommandRegistry::build_default();
         let m = module_with_registry(
-            "interp alias {} g {} upvar #0\n\
+            "set replace [llength $argv]\n\
+             interp alias {} g {} upvar #0\n\
              interp alias {} mutate {} list\n\
              if {$replace} { interp alias {} mutate {} rename }\n\
              mutate g {}\n\
