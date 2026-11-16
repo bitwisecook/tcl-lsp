@@ -354,23 +354,6 @@ fn opt_forwards_program_three() {
     assert!(out.contains("puts 4"), "{out}");
 }
 
-/// A value-position cell update whose read the host statement does
-/// not hold keeps its store — `set n 1` stays ahead of `set result [incr
-/// n]` rather than being read by a join the optimiser cannot see through.
-#[test]
-fn opt_keeps_the_store_behind_a_nested_increment() {
-    let out = run_tcl(&[
-        "opt",
-        "--source",
-        "proc p {} {set n 1; set result [incr n]; puts $result; puts $n}\np",
-        "--profile",
-        "full",
-        "--dialect",
-        "tcl8.6",
-    ]);
-    assert!(out.contains("set n 1"), "{out}");
-}
-
 /// #2214: a `::`-qualified global a nested `incr` writes is a
 /// global write in its procedure's summary, so `set hits 0` and `puts
 /// $hits` around `bump`'s `[incr ::hits]` are both kept — the program

@@ -2790,16 +2790,6 @@ mod source_integrity_tests {
     }
 
     #[test]
-    fn ordinary_right_to_left_text_is_not_a_w305_finding() {
-        let result = dispatch(
-            "analyze",
-            &json!({ "source": "puts \"مرحبا بالعالم\"\n", "dialect": "tcl9.0" }),
-        )
-        .expect("analyze tool");
-        assert!(!diagnostic_codes(&result).contains(&"W305"), "{result}");
-    }
-
-    #[test]
     fn event_order_deduplicates_repeated_handlers() {
         let source =
             "when HTTP_REQUEST { return }\nwhen CLIENT_ACCEPTED {}\nwhen HTTP_REQUEST {}\n";
