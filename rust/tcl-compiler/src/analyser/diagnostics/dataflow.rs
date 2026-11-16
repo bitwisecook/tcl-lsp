@@ -2915,7 +2915,10 @@ is renamed or deleted in this file."
             let read_span = if use_index == usize::MAX
                 && matches!(
                     block.terminator.as_ref(),
-                    Some(crate::cfg::Terminator::Branch { .. })
+                    Some(
+                        crate::cfg::Terminator::Branch { .. }
+                            | crate::cfg::Terminator::Return { expr: Some(_), .. }
+                    )
                 ) {
                 let original: Vec<_> = source_view
                     .source_tokens()
