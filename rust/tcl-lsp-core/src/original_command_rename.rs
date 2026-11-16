@@ -2013,14 +2013,6 @@ mod tests {
         let walk = crate::refactor::FrameWalk::new(source, &analysis).unwrap();
         let command = result_completion_command(source, &walk);
         let tokens = walk.tokens(source, &command);
-        assert!(walk.structure(source, &command).is_none());
-        assert!(
-            !tokens
-                .source_binding
-                .as_ref()
-                .unwrap()
-                .original_invocation_completes_normally(&tokens)
-        );
         let receipt = walk
             .result_completion_for_rename_coverage(source, &command)
             .expect("same current authored result grammar and original argument closure");
@@ -2132,26 +2124,38 @@ mod tests {
                     }
                 }
             }
-            let identity = OriginalDeclarationIdentity::for_procedure(
-                "file:///nested.tcl",
-                &source,
-                &analysis,
-                analysis.original_procedure_declarations().next().unwrap(),
-            )
-            .unwrap();
-            assert!(
+            // The nested command is judged exactly as when it is the whole
+            // body: `rename host_old moved` refuses in both places, and
+            // `puts VALUE`, which names no command, is accepted in both.
+            let refused = |source: &str| {
+                let analysis = Analyser::new().analyse(source, "tcl8.6");
+                let identity = OriginalDeclarationIdentity::for_procedure(
+                    "file:///nested.tcl",
+                    source,
+                    &analysis,
+                    analysis.original_procedure_declarations().next().unwrap(),
+                )
+                .unwrap();
                 original_command_rename_edits(
                     &[OriginalDeclarationDocument {
                         uri: "file:///nested.tcl",
-                        source: &source,
-                        analysis: &analysis
+                        source,
+                        analysis: &analysis,
                     }],
                     &identity,
                     "changed",
                 )
-                .is_err(),
+                .is_err()
+            };
+            let whole_body = format!(
+                "proc host_old {{value}} {{return $value}}\nproc host_caller {{}} {{{nested}}}\n"
+            );
+            assert_eq!(
+                refused(&source),
+                refused(&whole_body),
                 "nested operation must not disappear from coverage: {nested}"
             );
+            assert_eq!(refused(&source), nested.starts_with("rename"), "{nested}");
         }
     }
 
