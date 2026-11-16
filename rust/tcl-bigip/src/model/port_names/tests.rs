@@ -32,7 +32,11 @@ fn name_to_port_looks_up_well_known_services() {
 
 #[test]
 fn name_to_port_table_is_sorted_for_binary_search() {
-    // `name_to_port` binary-searches `NAME_TO_PORT`, so the keys must be
-    // sorted ascending.
-    assert!(NAME_TO_PORT.windows(2).all(|w| w[0].0 < w[1].0));
+    // `name_to_port` binary-searches each section, so the keys must be
+    // sorted ascending within a section and from one section to the next.
+    let keys: Vec<&str> = SECTIONS
+        .iter()
+        .flat_map(|section| section.iter().map(|(key, _)| *key))
+        .collect();
+    assert!(keys.windows(2).all(|pair| pair[0] < pair[1]));
 }
