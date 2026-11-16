@@ -29,10 +29,12 @@ use std::rc::Rc;
 use tcl_bytecode::{FunctionAsm, Instruction, Op};
 use tcl_runtime_api::{Code, Completion};
 
+mod comparison_dispatch;
 mod native_operations;
 mod opcode_dispatch;
 mod operands;
 mod scalar_variable_access;
+mod stack_dispatch;
 mod variable_access;
 
 #[cfg(test)]

@@ -20,9 +20,8 @@
 
 use super::super::{CatchRange, ExpressionReq, Frame, ScriptNamespace, Tick};
 use super::operands::{
-    bin, char_find, checked_index_value, cmp, encoded_string_index, get_at, ilen, imm_at,
-    imm_index, imm0, irule, jump_target, label_to_idx, label0, land_lor, native_numeric_type, pop,
-    slice, un,
+    bin, char_find, checked_index_value, encoded_string_index, get_at, ilen, imm_at, imm_index,
+    imm0, irule, jump_target, label_to_idx, land_lor, native_numeric_type, pop, slice, un,
 };
 use crate::expr;
 use crate::interp::native_operation_currency::NativeOperationScope;
@@ -43,8 +42,6 @@ impl Vm {
         asm: &Rc<FunctionAsm>,
         instr: &Instruction,
     ) -> Tick {
-        let lits = asm.literals.entries();
-
         // Unwrap a fallible step, unwinding the instruction on an error. The
         // value form lets a store arm push what the variable reads back.
         macro_rules! try_op {
@@ -73,179 +70,14 @@ impl Vm {
 
         match instr.op {
             // Stack.
-            Op::PUSH1 | Op::PUSH4 => {
-                let raw = usize::try_from(imm0(instr))
-                    .ok()
-                    .and_then(|idx| lits.get(idx))
-                    .cloned()
-                    .unwrap_or_default();
-                // A verbatim (braced / constant) literal suppresses all word
-                // substitution — it is pushed exactly as the codegen interned
-                // it (the codegen sets this flag for braced words / `proc`
-                // bodies / constant assignments).
-                if instr.push_verbatim {
-                    let value = if let Some(direct) = f.direct_source_operands.as_deref().copied() {
-                        let Some(literal) = usize::try_from(imm0(instr))
-                            .ok()
-                            .and_then(|index| lits.get(index))
-                        else {
-                            return Tick::Return(self.refuse_host_command(
-                                "native DIRECT source operand index is unavailable".into(),
-                            ));
-                        };
-                        direct.value(literal)
-                    } else {
-                        let pool = match &f.literal_pool {
-                            Ok(pool) => pool,
-                            Err(error) => {
-                                return Tick::Return(self.refuse_host_command(error.to_string()));
-                            }
-                        };
-                        let Some(value) = usize::try_from(imm0(instr))
-                            .ok()
-                            .and_then(|index| pool.value(index))
-                        else {
-                            return Tick::Return(self.refuse_host_command(
-                                "native literal object-array index is unavailable".into(),
-                            ));
-                        };
-                        value
-                    };
-                    if let Some(line) = instr.source_value_line {
-                        let base = f.source_location.as_ref();
-                        value.retain_source_location(
-                            tcl_runtime_api::script_source_location::ScriptSourceLocation {
-                                file: base
-                                    .map_or("", |location| location.file.as_str())
-                                    .to_string(),
-                                line: base
-                                    .map_or(1, |location| location.line)
-                                    .saturating_add(line.saturating_sub(1)),
-                            },
-                        );
-                    }
-                    f.stack.push(value);
-                } else {
-                    match crate::subst::subst_word_bytes_as(raw.bytes(), self, instr.evaluation) {
-                        // A stack slot owns its reference: a later command may
-                        // reset the interpreter result this word came from.
-                        Ok(v) => f.stack.push(v.into_native_reference()),
-                        // A `break`/`continue`/`return` carried out of a `[…]`
-                        // substitution propagates with its own code (an enclosing
-                        // loop's exception range / a proc boundary handles it).
-                        Err(e) => {
-                            return Tick::Return(crate::command::completion_from_tcl_error(
-                                self, e,
-                            ));
-                        }
-                    }
-                }
-            }
-            Op::POP => {
-                // Native POP discards TOS; only DONE or a command publisher
-                // installs it as the interpreter result.
-                drop(f.stack.pop());
-                match self.with_native_interp_result(Value::native_lifetime_lease) {
-                    Ok(result) => f.last_result = Some(result),
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_tcl_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                }
-            }
-            Op::DUP => {
-                if let Some(v) = f.stack.last().cloned() {
-                    f.stack.push(v);
-                }
-            }
-            Op::OVER => {
-                let n = usize::try_from(imm0(instr)).unwrap_or(0);
-                if let Some(i) = f.stack.len().checked_sub(n + 1) {
-                    let v = f.stack[i].clone();
-                    f.stack.push(v);
-                }
-            }
-            Op::STR_CONCAT1 => {
-                let n = usize::try_from(imm0(instr)).unwrap_or(0);
-                if f.stack.len() < n {
-                    return Tick::Return(err("strcat: stack underflow"));
-                }
-                let parts = f.stack.split_off(f.stack.len() - n);
-                if let Some(protocol) = self.actual_native_string_protocol()
-                    && protocol.tcl_version().is_some()
-                {
-                    let value = try_core!(tcl_cmd_core::native_cat::concatenate_compiled(
-                        &crate::value::VmAppendObjects,
-                        protocol,
-                        &parts
-                    ));
-                    f.stack.push(value);
-                } else {
-                    let mut bytes = Vec::new();
-                    for part in &parts {
-                        bytes.extend_from_slice(&part.string_bytes());
-                    }
-                    f.stack.push(Value::from_string_bytes(bytes));
-                }
-            }
-            Op::START_CMD => {
-                let current_epoch = self.trace_deopt_epoch();
-                // Compiler-only markers have no exact owning Tcl command and
-                // therefore are not safe acknowledgement/replay points. Leave
-                // the frame stale until a real source boundary is reached.
-                if f.command_epoch != current_epoch && !instr.source_cmd_text.is_empty() {
-                    if self.active_native_bindings_match(f, asm) && !self.step_trace_active() {
-                        f.command_epoch = current_epoch;
-                    } else {
-                        let Some(target) =
-                            label0(instr).and_then(|label| label_to_idx(asm, &f.off2idx, label))
-                        else {
-                            return Tick::Return(err(
-                                "stale startCommand has no valid continuation",
-                            ));
-                        };
-                        if self
-                            .resolve_compiled_namespace_context(&instr.source_namespace_context())
-                            .is_none()
-                        {
-                            return Tick::Return(err(
-                                "native replay namespace context is unavailable",
-                            ));
-                        }
-                        let child = match self.compile_plain_function_cached_bytes(
-                            tcl_runtime_api::ScriptCompileTargetBytes {
-                                source: &instr.source_cmd_text,
-                                namespace: &instr.source_command_namespace,
-                            },
-                        ) {
-                            Ok(asm) => asm,
-                            Err(error) => {
-                                return Tick::Return(crate::command::completion_from_tcl_error(
-                                    self, error,
-                                ));
-                            }
-                        };
-                        // The transparent child produces this command's result
-                        // on the parent stack; resume at the original
-                        // startCommand continuation, skipping stale opcodes.
-                        f.pc = target;
-                        return Tick::PushScript {
-                            script: Box::new(
-                                self.compiled_unit(child, instr.source_command_namespace.clone()),
-                            ),
-                            label: None,
-                            cleanup_proc: None,
-                            fatal_tail: None,
-                            namespace: ScriptNamespace::CommandBoundary(
-                                instr.source_namespace_context(),
-                            ),
-                        };
-                    }
-                }
-            }
-            Op::NOP => {}
+            Op::PUSH1
+            | Op::PUSH4
+            | Op::POP
+            | Op::DUP
+            | Op::OVER
+            | Op::STR_CONCAT1
+            | Op::START_CMD
+            | Op::NOP => return self.tick_stack_instruction(f, asm, instr),
 
             // A `BEGIN_CATCH4` carrying an out-of-band handler label opens a
             // live catch range (C `INST_BEGIN_CATCH4` pushing the catchStack);
@@ -632,109 +464,20 @@ impl Vm {
             Op::LOR => try_op!(land_lor(self, f, false)),
 
             // Comparisons.
-            Op::EQ => try_op!(cmp(self, f, BinOp::Eq)),
-            Op::NEQ => try_op!(cmp(self, f, BinOp::Ne)),
-            Op::LT => try_op!(cmp(self, f, BinOp::Lt)),
-            Op::GT => try_op!(cmp(self, f, BinOp::Gt)),
-            Op::LE => try_op!(cmp(self, f, BinOp::Le)),
-            Op::GE => try_op!(cmp(self, f, BinOp::Ge)),
-            Op::ERROR_PREFIX_EQ => {
-                let prefix = pop(f);
-                let original = pop(f);
-                let Some(protocol) = self.object_protocol().filter(|protocol| {
-                    protocol
-                        .tcl_version()
-                        .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_1)
-                }) else {
-                    return Tick::Return(self.refuse_host_command(
-                        "native error-prefix comparison recipe is unavailable".into(),
-                    ));
-                };
-                let left = try_core!(self.native_object_list_elements_in(&original, protocol));
-                let right = try_core!(self.native_object_list_elements_in(&prefix, protocol));
-                let length = usize::try_from(imm0(instr)).expect("native error-prefix length");
-                let mut matched = true;
-                for index in 0..length {
-                    matched = match (left.get(index), right.get(index)) {
-                        (Some(left), Some(right)) => {
-                            try_core!(tcl_cmd_core::switch::compiled_equal(
-                                self,
-                                left,
-                                right,
-                                tcl_dialect::TclVersion::V9_1
-                            ))
-                        }
-                        (Some(value), None) | (None, Some(value)) => {
-                            use tcl_syntax::native_object::{
-                                NativeObjectStringEmptiness, native_c_string_emptiness,
-                            };
-                            let snapshot = try_core!(
-                                tcl_syntax::value::ValueOps::native_object_snapshot(self, value)
-                            );
-                            match native_c_string_emptiness(
-                                tcl_dialect::TclVersion::V9_1,
-                                &snapshot,
-                            ) {
-                                Ok(NativeObjectStringEmptiness::Empty) => true,
-                                Ok(NativeObjectStringEmptiness::Nonempty) => false,
-                                Ok(NativeObjectStringEmptiness::Unknown) => {
-                                    try_core!(value.native_string_bytes(protocol).map_err(
-                                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable
-                                ))
-                                    .is_empty()
-                                }
-                                Err(_) => {
-                                    return Tick::Return(
-                                        self.refuse_host_command(
-                                            "native error-prefix emptiness recipe is unavailable"
-                                                .into(),
-                                        ),
-                                    );
-                                }
-                            }
-                        }
-                        (None, None) => true,
-                    };
-                    if !matched {
-                        break;
-                    }
-                }
-                f.stack.push(Value::int(i64::from(matched)));
-            }
-            Op::STR_EQ if instr.native_switch_version.is_some() => {
-                let right = pop(f);
-                let left = pop(f);
-                let matched = try_core!(tcl_cmd_core::switch::compiled_equal(
-                    self,
-                    &left,
-                    &right,
-                    instr.native_switch_version.unwrap()
-                ));
-                drop(right);
-                let result = try_core!(self.native_compiled_match_result(
-                    left,
-                    matched,
-                    instr.native_switch_version.unwrap(),
-                    tcl_registry::native_string_compilation::NativeStringMatchOperation::Equal
-                ));
-                f.stack.push(result);
-            }
-            Op::STR_EQ => try_op!(cmp(self, f, BinOp::StrEq)),
-            Op::STR_NEQ => try_op!(cmp(self, f, BinOp::StrNe)),
-            Op::STR_LT => try_op!(cmp(self, f, BinOp::StrLt)),
-            Op::STR_GT => try_op!(cmp(self, f, BinOp::StrGt)),
-            Op::STR_LE => try_op!(cmp(self, f, BinOp::StrLe)),
-            Op::STR_GE => try_op!(cmp(self, f, BinOp::StrGe)),
-            Op::STR_CMP => {
-                let b = pop(f);
-                let a = pop(f);
-                let ord = (*a.to_str()).cmp(&b.to_str());
-                f.stack.push(Value::int(match ord {
-                    std::cmp::Ordering::Less => -1,
-                    std::cmp::Ordering::Equal => 0,
-                    std::cmp::Ordering::Greater => 1,
-                }));
-            }
+            Op::EQ
+            | Op::NEQ
+            | Op::LT
+            | Op::GT
+            | Op::LE
+            | Op::GE
+            | Op::ERROR_PREFIX_EQ
+            | Op::STR_EQ
+            | Op::STR_NEQ
+            | Op::STR_LT
+            | Op::STR_GT
+            | Op::STR_LE
+            | Op::STR_GE
+            | Op::STR_CMP => return self.tick_comparison_instruction(f, asm, instr),
 
             // iRules dialect operators.
             // The F5 word operators (`contains`/`starts_with`/`ends_with`/
