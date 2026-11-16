@@ -337,13 +337,23 @@ impl AdviceInvocationContext<'_> {
                 Some((slot.clone(), entry))
             })
             .collect();
+        // A construction or a method call on a source class may run a script
+        // the catalogue did not read. A display label survives that; a class
+        // card a proof consumer reads does not.
+        let labels_complete = graph.uncertain_operations.iter().all(|operation| {
+            operation.first().is_some_and(|head| {
+                let offset = head.span().start();
+                matches!(tape.constructor_calls.get(&offset), Some(Some(_)))
+                    || matches!(tape.class_instance_calls.get(&offset), Some(Some(_)))
+            })
+        });
         tape.display_publications = Some(OriginalProjectClassCells::new(
             self.origin.source_image().clone(),
             self.config,
             self.context,
             self.policy.native(),
             cells,
-            graph.uncertain_operations.is_empty(),
+            (graph.uncertain_operations.is_empty(), labels_complete),
         ));
     }
 }

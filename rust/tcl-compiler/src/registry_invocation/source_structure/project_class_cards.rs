@@ -46,6 +46,9 @@ pub(crate) struct OriginalProjectClassCells {
     input: Option<ResolvedAnalysisInput>,
     cells: Vec<(ByteCommandSlot, ProjectClassCell)>,
     complete: bool,
+    /// Every unread operation is a construction of, or a call on, a source
+    /// class of this catalogue. Enough for a display label, never for a card.
+    labels_complete: bool,
 }
 impl OriginalProjectClassCells {
     pub(crate) fn has_complete_class_source_coverage(
@@ -65,7 +68,7 @@ impl OriginalProjectClassCells {
         context: &ContextRegistry,
         policy: Option<NamePolicyProtocol>,
         cells: Vec<(ByteCommandSlot, ProjectClassCell)>,
-        complete: bool,
+        (complete, labels_complete): (bool, bool),
     ) -> Self {
         Self {
             image,
@@ -76,6 +79,7 @@ impl OriginalProjectClassCells {
             input: None,
             cells,
             complete,
+            labels_complete,
         }
     }
     pub(crate) fn with_retained_input(
@@ -132,7 +136,7 @@ impl OriginalProjectClassCards {
     /// metadata. These reports cannot be inverted into receiver/source identity.
     #[must_use]
     pub fn named_instance_display_reports(&self) -> Vec<(String, &ClassDef)> {
-        if !self.cells.complete || !self.matches_declaring_owner() {
+        if !self.cells.labels_complete || !self.matches_declaring_owner() {
             return Vec::new();
         }
         self.rows
