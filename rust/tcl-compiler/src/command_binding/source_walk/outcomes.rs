@@ -19,11 +19,13 @@
 //! The outcome set of a walked command: alternatives, completion receipts, joins and publication.
 
 use super::super::command_identity::CommandAllocationSite;
+#[cfg(any(test, debug_assertions))]
+use super::super::root_owner_work;
 use super::super::source_origin::SourceOriginId;
 use super::super::source_point_entry::OriginalSourcePointEntry;
 use super::super::{
     ModuleCommandBindings, SourceExecutionContext, SourceNativeInvocation, SourceNormalCompletion,
-    SourceOutcomes, native_result, root_owner_work, source_command_world,
+    SourceOutcomes, native_result, source_command_world,
 };
 use super::execution_context::SourceBodyEntryPurpose;
 use std::sync::Arc;

@@ -18,10 +18,12 @@
 
 //! The interprocedural pass over a finished unit: summaries, the memoised taint cascade and per-body taint reruns.
 
+#[cfg(any(test, debug_assertions))]
+use super::SourcePipelineTrace;
 use super::optimiser_source_owner::OriginalInterproceduralTaintRequest;
 use super::{
     CompilationUnit, FunctionUnit, OriginalTaintCallback, OriginalTaintCascadeCallback,
-    SourcePipelineTrace, TaintCascadeCallback,
+    TaintCascadeCallback,
 };
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ssa::ValueKey;

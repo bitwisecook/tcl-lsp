@@ -24,11 +24,15 @@ use super::binding_projection::{
 use super::command_identity::CommandAllocationSite;
 use super::conditional_body::{SourceConditionalBodyEntry, SourceDeclaredReceiverBodyEntry};
 use super::namespace_context::SourceNamespaceKey;
+#[cfg(any(test, debug_assertions))]
+use super::root_owner_work;
 use super::{
-    BindingKind, ModuleCommandBindings, OriginalCompilationLookupAdvice, RBS_OPERAND_TRACE_ACTIVE,
-    RbsOperandTraceScope, SourceCommandTarget, SourceInvocationBinding, SourceLookupSnapshot,
-    literal_object_pool, original_compiler_effects, root_owner_work, source_analysis_entry,
+    BindingKind, ModuleCommandBindings, OriginalCompilationLookupAdvice, SourceCommandTarget,
+    SourceInvocationBinding, SourceLookupSnapshot, literal_object_pool, original_compiler_effects,
+    source_analysis_entry,
 };
+#[cfg(debug_assertions)]
+use super::{RBS_OPERAND_TRACE_ACTIVE, RbsOperandTraceScope};
 use std::hash::Hash;
 use std::sync::{Arc, OnceLock};
 use tcl_registry::CommandRegistry;

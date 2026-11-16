@@ -18,13 +18,15 @@
 
 //! Registry words a captured context selects: declared commands, original tokens and native cases.
 
+#[cfg(debug_assertions)]
+use super::trace_original_source_role_binding;
 use super::transition_words::{native_source_registry_words, source_transition_words_with_segment};
 use super::vendor_words::conditional_roles;
 use super::{
     OriginalNativeSourceApplicability, OriginalOperandSource, OriginalRegistryCapturePurpose,
     OriginalRegistrySource, OriginalRegistryWords, OriginalSourceRegistryContext,
     first_tail_command, original_query_document_image, retained_document_image,
-    trace_original_source_role_binding, trace_original_source_role_option,
+    trace_original_source_role_option,
 };
 use crate::analyser::AnalysisResult;
 use tcl_registry::{CommandRegistry, InvocationArguments};

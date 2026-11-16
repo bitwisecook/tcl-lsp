@@ -22,9 +22,11 @@ use super::body_candidates::{body_assistance_context, owned_body_layout_invocati
 use super::handler_invocation::resolved_handler_invocation_with_metadata_context;
 use super::metadata_context::InvocationMetadataContext;
 use super::source_model_operations::resolve_original_declared_layout;
+#[cfg(debug_assertions)]
+use super::trace_jim_structure_fields;
 use super::{
     AuthoredSourceCaseBodySelection, InvocationWordOrigin, ResolvedStatementInvocation,
-    host_structure_observer, source_structure, trace_jim_structure_fields,
+    host_structure_observer, source_structure,
 };
 use crate::ir::{CommandTokens, WordExpr, WordPart};
 use tcl_registry::CommandRegistry;

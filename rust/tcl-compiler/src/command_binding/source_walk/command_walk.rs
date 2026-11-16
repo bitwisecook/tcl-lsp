@@ -21,12 +21,14 @@
 use super::super::binding_projection::PointWalkEntry;
 use super::super::command_identity::CommandAllocationSite;
 use super::super::invocation_binding::SourceObserverExecution;
+#[cfg(any(test, debug_assertions))]
+use super::super::root_owner_work;
 use super::super::variable_access::SourceVariableEvaluationOwner;
 use super::super::{
     ModuleCommandBindings, PointBindingMemo, PreparedSourceArguments, SourceArgumentReceipts,
     SourceBindingPoint, SourceCommandBindings, SourceCommandInput, SourceExecutionContext,
     SourceOutcomes, compiled_invocation, native_result, normal_result, original_name_value,
-    pre_handler_failure, receiver_self, root_owner_work, rule_declaration, source_arguments,
+    pre_handler_failure, receiver_self, rule_declaration, source_arguments,
 };
 use super::command_dispatch::retain_source_native_result;
 use super::execution_context::{

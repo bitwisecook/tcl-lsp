@@ -18,12 +18,14 @@
 
 //! Declared bodies interpreted after the document: entry states, walks and retained outcomes.
 
+#[cfg(any(test, debug_assertions))]
+use super::root_owner_work;
 use super::shared_inventory::SharedSourceInventory;
 use super::source_origin::source_activation_name;
 use super::source_walk::{SourceBodyEntryPurpose, boxed_source_branch};
 use super::{
     DeferredImplementationId, DeferredSourceBody, ModuleCommandBindings, SourceCommandBindings,
-    SourceDeferredOutcome, SourceExecutionContext, SourceOutcomes, root_owner_work,
+    SourceDeferredOutcome, SourceExecutionContext, SourceOutcomes,
 };
 use std::collections::BTreeSet;
 use std::sync::{Arc, OnceLock};

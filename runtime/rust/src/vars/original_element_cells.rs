@@ -18,12 +18,12 @@
 
 //! Original C array members: selecting the member before retirement stages and materialising the element cell.
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 use super::follow_links;
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 use super::original_name_cells::NativeOriginalNameScope;
 use super::trace_homes::TraceHome;
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 use super::Resolved;
 use super::{
     entered_container, follow_selected_links_observed, table, table_mut, NativeOriginalNameCell,
@@ -32,7 +32,7 @@ use super::{
 use crate::frame::{FrameStack, Link, VarError, VarHome};
 use crate::namespace::Namespaces;
 use crate::obj::TclObj;
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 use crate::vars::original_name_cells::classify_original_name;
 use tcl_runtime_api::VarId;
 

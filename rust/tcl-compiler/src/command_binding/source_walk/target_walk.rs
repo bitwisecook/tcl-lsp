@@ -18,12 +18,14 @@
 
 //! The walk of one prepared target: its native invocation and the receipts settled around it.
 
+#[cfg(any(test, debug_assertions))]
+use super::super::root_owner_work;
 use super::super::{
     ModuleCommandBindings, SourceCommandBindings, SourceCommandTarget, SourceExecutionContext,
     SourceNativeInvocation, SourceOutcomes, SourceScriptOperands, container_coercion,
     keyed_update_store, logical_definition, logical_operation, method_prefix, native_result,
     native_string_access, numeric_operand_cache, original_delegated_script, original_name_value,
-    root_owner_work, source_command_world, source_representation,
+    source_command_world, source_representation,
 };
 use super::completion_receipts::{
     CapturedNativeCompletionReceipts, command_world_closed_on_normal_return,

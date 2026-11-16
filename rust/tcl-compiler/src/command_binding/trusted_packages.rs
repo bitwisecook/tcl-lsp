@@ -21,10 +21,12 @@
 use super::binding_projection::{command_holder, source_binding};
 use super::command_identity::CommandToken;
 use super::executed_script_source::{ExecutedScriptMapping, ExecutedScriptSource};
+#[cfg(any(test, debug_assertions))]
+use super::original_command_table;
 use super::source_origin::{SourceOriginId, SourceOriginKind};
 use super::{
     BindingKind, MayBinding, ModuleCommandBindings, PackageProvision, ResolvedCommandTarget,
-    original_command_table, trusted_package_transfer,
+    trusted_package_transfer,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::Hash;

@@ -21,7 +21,9 @@
 use super::super::{
     BTreeSet, MayBinding, ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey,
 };
-use super::{OriginalAliasLoopPaths, OriginalGeometryTiming, OriginalLookupSlot};
+#[cfg(any(test, debug_assertions))]
+use super::OriginalGeometryTiming;
+use super::{OriginalAliasLoopPaths, OriginalLookupSlot};
 use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
 use tcl_registry::CommandBindingDefinitionKind;
 

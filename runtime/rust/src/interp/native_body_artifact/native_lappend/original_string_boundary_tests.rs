@@ -19,7 +19,9 @@
 //! Genuine original compiled String append stages and the separate neutral worker.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+#[cfg(debug_assertions)]
 use crate::interp::native_body_artifact::cache;
+#[cfg(debug_assertions)]
 use crate::interp::native_body_artifact::Operation;
 #[cfg(debug_assertions)]
 use crate::obj::TclObjType;

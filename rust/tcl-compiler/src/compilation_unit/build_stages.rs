@@ -18,6 +18,8 @@
 
 //! The stages of a unit build and the driver that runs them, from retained lowering to post-analysis and assembly.
 
+#[cfg(any(test, debug_assertions))]
+use super::SourcePipelineTrace;
 use super::lattice_request::ProcLatticeCache;
 use super::module_facts::{RetainedSourceClassFacts, connection_scoped_names};
 use super::procedure_units::{BuiltProcedureUnits, build_procedure_units, module_procedures};
@@ -28,7 +30,7 @@ use super::source_lowering::{
 use super::{
     BodyUnitContext, CompilationUnit, DeclaredBodyMemoContext, FunctionUnit, ModuleTraceFacts,
     ModuleWideFacts, OriginalBodyCacheInputs, OriginalLoweringCaches, ProcedureBuildContext,
-    SourcePipelineTrace, UnitBuildOptions, UnitCallerScope, UnitDialect, optimiser_source_owner,
+    UnitBuildOptions, UnitCallerScope, UnitDialect, optimiser_source_owner,
 };
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::PreparedCfgContext;

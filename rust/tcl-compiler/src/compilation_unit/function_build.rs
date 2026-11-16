@@ -18,9 +18,11 @@
 
 //! Building a `FunctionUnit`: the `build*` constructors and the shared full pipeline behind them (SSA, SCCP, derived artefacts).
 
+#[cfg(any(test, debug_assertions))]
+use super::SourceFunctionPhaseTrace;
 use super::{
     FunctionBuildInputs, FunctionLatticeInputs, FunctionUnit, MethodBodyFacts, ModuleAnalysisFacts,
-    ModuleTraceFacts, ParamSeeds, SourceFunctionPhaseTrace, UnitDialect,
+    ModuleTraceFacts, ParamSeeds, UnitDialect,
 };
 use crate::cfg::Function as CfgFunction;
 use crate::def_use::{DefUseFacts, build_def_use_chains};

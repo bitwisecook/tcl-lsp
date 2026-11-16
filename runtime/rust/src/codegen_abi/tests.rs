@@ -186,6 +186,7 @@ mod procedure_definition;
 mod values;
 mod variables;
 
+#[cfg(debug_assertions)]
 pub(super) use procedure_definition::stub_declines;
 
 #[test]

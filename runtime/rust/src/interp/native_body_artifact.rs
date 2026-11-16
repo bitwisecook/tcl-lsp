@@ -21,7 +21,7 @@
 use super::native_literal_pool::{
     NativeRuntimeLiteral, NativeRuntimeLiteralAction, NativeRuntimeLiteralArray,
 };
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 use super::CmdFrame;
 use super::{
     drop_fresh, line_of, new_string, obj, Cell, Code, Command, Interp, NsId, ProcDef, Rc, TclObj,

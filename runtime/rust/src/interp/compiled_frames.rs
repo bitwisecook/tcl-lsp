@@ -19,7 +19,9 @@
 //! What generated code enters and leaves: compiled activations, the procedure frame, and its indexed local slots.
 
 use super::limits::NATIVE_EVAL_DEPTH_LIMIT;
-use super::{trace_native_depth_refusal, Code, Interp};
+#[cfg(debug_assertions)]
+use super::trace_native_depth_refusal;
+use super::{Code, Interp};
 use crate::namespace::NsId;
 use crate::obj::TclObj;
 

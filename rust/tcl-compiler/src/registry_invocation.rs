@@ -346,18 +346,19 @@ pub use source_model_operations::{
     original_source_model_operation_invocation_with_metadata_context,
 };
 use source_model_operations::{resolve_original_declared_layout, resolve_original_source_layout};
+#[cfg(any(test, debug_assertions))]
+use structured_invocation::StructuredSourceRoles;
 #[cfg(test)]
 use structured_invocation::original_declared_structured_invocation;
 pub(crate) use structured_invocation::{
     LogicalStructuredInvocation, logical_structured_invocation,
     logical_structured_invocation_with_metadata_context,
 };
-use structured_invocation::{
-    StructuredSourceRoles, original_structured_operands_are_supported,
-    static_body_evaluator_is_supported,
-};
 pub use structured_invocation::{
     original_structured_invocation, original_structured_invocation_with_metadata_context,
+};
+use structured_invocation::{
+    original_structured_operands_are_supported, static_body_evaluator_is_supported,
 };
 pub use variable_transitions::{
     NamespaceDirectiveFootprint, PossibleVariableNameOperands, PossibleVariableTraceTransitions,

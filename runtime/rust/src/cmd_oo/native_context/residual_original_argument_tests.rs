@@ -17,8 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+#[cfg(debug_assertions)]
 use crate::cmd_oo::configurable::prop_define;
 use crate::cmd_oo::def_constructor;
+#[cfg(debug_assertions)]
 use crate::cmd_oo::slots::slot_inst_set;
 use std::cell::Cell;
 

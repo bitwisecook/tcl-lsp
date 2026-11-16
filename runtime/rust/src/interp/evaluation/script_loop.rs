@@ -19,9 +19,11 @@
 //! The command loop: a framed script, one command and the substitution and dispatch of its words.
 
 use super::super::limits::NATIVE_EVAL_DEPTH_LIMIT;
+#[cfg(debug_assertions)]
+use super::super::trace_native_depth_refusal;
 use super::super::{
-    native_compilation, native_operation_currency, new_string, obj_bytes, release_all,
-    trace_native_depth_refusal, CmdFrame, Code, FrameKind, Interp, OriginalJimEvaluationFrame,
+    native_compilation, native_operation_currency, new_string, obj_bytes, release_all, CmdFrame,
+    Code, FrameKind, Interp, OriginalJimEvaluationFrame,
 };
 use super::{count_newlines, line_of, scan_list_offsets};
 use crate::obj::TclObj;

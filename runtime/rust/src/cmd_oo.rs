@@ -83,7 +83,7 @@ use tcl_core_types::{OoId, RecursionLimit};
 #[cfg(test)]
 use tcl_registry::commands::tcl::InfoOoEnsembleKind;
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 use crate::interp::obj_bytes;
 use crate::interp::{Code, Command, Interp};
 use crate::list;
@@ -167,10 +167,11 @@ use configurable::native_method_body;
 use configurable::property_loopword_error;
 #[cfg(test)]
 use copying::oo_copy_cmd;
+#[cfg(all(test, debug_assertions))]
+use definition::{def_class, def_definitionnamespace, oo_define_cmd};
 #[cfg(test)]
 use definition::{
-    def_class, def_constructor, def_definitionnamespace, def_deletemethod, def_export, def_forward,
-    def_method, def_renamemethod, oo_define_cmd,
+    def_constructor, def_deletemethod, def_export, def_forward, def_method, def_renamemethod,
 };
 pub use installation::install;
 #[cfg(test)]

@@ -789,7 +789,7 @@ mod variables;
 
 use commands::BuiltinSurfaceVisibility;
 pub use commands::Command;
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 pub(crate) use commands::CommandVisibilityOutcome;
 pub(crate) use commands::{CommandVisibilityOp, OoCommandRole};
 pub(crate) use dispatch::{CallMeta, MethodFrameWhat, ProcFrame};

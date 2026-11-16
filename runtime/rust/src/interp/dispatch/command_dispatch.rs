@@ -19,9 +19,11 @@
 //! The central dispatch boundary: lookup, the selected binding, and the `unknown` path for a missing command.
 
 use super::super::limits::NATIVE_EVAL_DEPTH_LIMIT;
+#[cfg(debug_assertions)]
+use super::super::trace_native_depth_refusal;
 use super::super::{
-    native_arguments, native_operation_currency, native_script, new_string, release_all,
-    trace_native_depth_refusal, Code, CommandGenerationLookup, Interp,
+    native_arguments, native_operation_currency, native_script, new_string, release_all, Code,
+    CommandGenerationLookup, Interp,
 };
 use super::{CommandDispatchSelection, PreparedMissingCommand};
 use crate::namespace::{CommandBinding, NsId, GLOBAL};

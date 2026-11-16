@@ -20,6 +20,7 @@ use super::*;
 use crate::cmd_oo::def_forward;
 use crate::cmd_oo::info_class;
 use crate::cmd_oo::Method;
+#[cfg(debug_assertions)]
 use crate::interp::obj_bytes;
 use std::cell::Cell;
 

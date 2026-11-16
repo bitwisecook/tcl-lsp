@@ -21,9 +21,10 @@
 use super::super::{
     BindingKind, MayBinding, ModuleCommandBindings, SourceCommandKey, SourceNamespaceKey,
 };
+#[cfg(any(test, debug_assertions))]
+use super::OriginalGeometryTiming;
 use super::{
-    AdviceRows, OriginalGeometryTiming, RegistryAdviceSlotIndex, original_registry_metadata_slot,
-    registry_metadata_slot_is,
+    AdviceRows, RegistryAdviceSlotIndex, original_registry_metadata_slot, registry_metadata_slot_is,
 };
 use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
 

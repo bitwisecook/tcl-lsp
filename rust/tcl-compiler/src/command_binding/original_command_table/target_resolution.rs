@@ -22,6 +22,7 @@ use super::super::{
     BTreeSet, MayBinding, ModuleCommandBindings, ResolvedCommandTarget, SourceCommandKey,
     SourceNamespaceKey,
 };
+#[cfg(any(test, debug_assertions))]
 use super::OriginalGeometryTiming;
 use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameInput};
 

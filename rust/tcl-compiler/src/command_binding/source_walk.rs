@@ -22,10 +22,14 @@ use super::binding_projection::PointWalkEntry;
 use super::command_identity::CommandAllocationSite;
 use super::compiled_invocation::NativeCompilationSnapshot;
 use super::invocation_binding::SourceObserverExecution;
+#[cfg(any(test, debug_assertions))]
+use super::root_owner_work;
+#[cfg(debug_assertions)]
+use super::source_world_observer;
 use super::{
     ModuleCommandBindings, PointBindingMemo, SourceBindingPoint, SourceCommandBindings,
     SourceExecutionContext, SourceOutcomes, compiled_invocation, compiled_preflight,
-    root_owner_work, rule_declaration, source_world_observer,
+    rule_declaration,
 };
 use std::sync::{Arc, OnceLock};
 

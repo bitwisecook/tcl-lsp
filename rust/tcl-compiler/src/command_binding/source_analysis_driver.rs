@@ -27,8 +27,11 @@ use super::source_walk::{SourceBodyEntryPurpose, source_variables_in_frame};
 use super::{
     AllocationMemoTable, ModuleCommandBindings, OriginalSourceAnalysisMemo,
     OriginalSourceAnalysisOwner, SourceCommandBindings, SourceExecutionContext,
-    literal_object_pool, original_command_table, root_owner_work, source_analysis_cache,
+    literal_object_pool, source_analysis_cache,
 };
+#[cfg(any(test, debug_assertions))]
+use super::{original_command_table, root_owner_work};
+#[cfg(any(test, debug_assertions))]
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, OnceLock};

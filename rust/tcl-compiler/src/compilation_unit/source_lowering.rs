@@ -18,7 +18,9 @@
 
 //! Lowering the source to IR and CFGs, with the original-body caches, and resolving the unit's caller scope.
 
-use super::{OriginalLoweringCaches, SourcePipelineTrace, UnitBuildOptions};
+#[cfg(any(test, debug_assertions))]
+use super::SourcePipelineTrace;
+use super::{OriginalLoweringCaches, UnitBuildOptions};
 use crate::cfg::CfgModule;
 use crate::cfg_builder::{
     PreparedCfgContext, build_cfg_with_registry_and_context, prepare_cfg_context_bundle,
