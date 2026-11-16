@@ -52,7 +52,8 @@ def stem(word: str) -> str:
     name = word.replace("-", "_").replace(".", "_")
     if not re.fullmatch(r"[a-z_][a-z0-9_]*", name):
         raise SystemExit(f"`{word}` does not make a module name")
-    return name
+    # These keywords cannot be written as raw identifiers.
+    return f"{name}_" if name in ("self", "super", "crate") else name
 
 
 def declared(name: str) -> str:
@@ -97,6 +98,125 @@ def leaf(licence_text: str, title: str, specs: list[Spec], visibility: str) -> s
     )
 
 
+PROPERTIES_OPEN = "        properties: &[\n"
+PROPERTIES_CLOSE = "        ],\n"
+PROPERTY_OPEN = "            BigipPropertySpec {\n"
+PROPERTY_CLOSE = "            },\n"
+IN_SECTIONS = re.compile(r"^                in_sections: &\[\s*\S", re.M)
+PROPERTY_NAME = re.compile(r'^                name: "([^"]+)"', re.M)
+PART_LINES = 1400
+
+
+SECTIONS = re.compile(r"^                in_sections: &\[(.*?)\]", re.M | re.S)
+
+
+def section_depth(text: str) -> int:
+    """How many sections deep a property sits: 0 for a top-level property."""
+    found = SECTIONS.search(text)
+    return found.group(1).count('"') // 2 if found else 0
+
+
+def properties_of(body: str) -> list[tuple[str, int, str]]:
+    """`(name, section depth, text)` of each property, in order."""
+    properties = []
+    cursor = 0
+    while cursor < len(body):
+        if not body.startswith(PROPERTY_OPEN, cursor):
+            raise SystemExit(f"unexpected text between properties: {body[cursor:cursor + 80]!r}")
+        close = body.index("\n" + PROPERTY_CLOSE, cursor) + 1 + len(PROPERTY_CLOSE)
+        text = body[cursor:close]
+        name = PROPERTY_NAME.search(text)
+        if name is None:
+            raise SystemExit("a property without a name")
+        properties.append((name.group(1), section_depth(text), text))
+        cursor = close
+    return properties
+
+
+def property_groups(properties: list[tuple[str, int, str]], depth: int) -> list[tuple[str, list[tuple[str, int, str]]]]:
+    """Groups led by a property at most `depth` sections deep; the deeper
+    properties that follow it belong to its sections."""
+    groups: list[tuple[str, list[tuple[str, int, str]]]] = []
+    for name, own_depth, text in properties:
+        if own_depth <= depth or not groups:
+            groups.append((name, []))
+        groups[-1][1].append((name, own_depth, text))
+    return groups
+
+
+def lines_in(properties: list[tuple[str, int, str]]) -> int:
+    return sum(text.count("\n") for _, _, text in properties)
+
+
+def property_parts(properties: list[tuple[str, int, str]], depth: int, prefix: str) -> list[tuple[str, str, list[tuple[str, int, str]]]]:
+    """`(module name, description, properties)` parts of at most `PART_LINES`
+    lines, cut between groups; a group too large on its own is cut one
+    section deeper."""
+    parts: list[tuple[str, str, list[tuple[str, int, str]]]] = []
+    pending: list[tuple[str, list[tuple[str, int, str]]]] = []
+
+    def flush() -> None:
+        if not pending:
+            return
+        first, last = pending[0][0], pending[-1][0]
+        name = stem(first) if first == last else f"{stem(first)}_through_{stem(last)}"
+        if prefix == f"{stem(first)}_":
+            # The part that starts with the section's own property is named for the section.
+            name = name.removeprefix(prefix) if first != last else ""
+            name = (prefix + name).rstrip("_") if name else prefix.rstrip("_")
+        else:
+            name = prefix + name
+        span = f"`{first}`" if first == last else f"`{first}` to `{last}`"
+        parts.append((name, span, [row for _, rows in pending for row in rows]))
+        pending.clear()
+
+    for group in property_groups(properties, depth):
+        if lines_in(group[1]) > PART_LINES and len(group[1]) > 1 and depth < 4:
+            flush()
+            inner = property_parts(group[1], depth + 1, f"{prefix}{stem(group[0])}_")
+            # The first inner part starts with the group's own property: name it for the group.
+            parts.extend(inner)
+            continue
+        if pending and sum(lines_in(rows) for _, rows in pending) + lines_in(group[1]) > PART_LINES:
+            flush()
+        pending.append(group)
+    flush()
+    return parts
+
+
+def kind_in_parts(path: Path, licence_text: str, title: str, spec: Spec, visibility: str, out: dict[Path, str]) -> None:
+    """One kind too large for a file: its property table is filed by ranges of
+    top-level properties and joined by `join_property_tables`."""
+    start = spec.text.index(PROPERTIES_OPEN)
+    end = spec.text.rindex(PROPERTIES_CLOSE)
+    parts = property_parts(properties_of(spec.text[start + len(PROPERTIES_OPEN) : end]), 0, "")
+    names = []
+    for name, span, rows in parts:
+        names.append(name)
+        body = "".join(text for _, _, text in rows)
+        used = [type_name for type_name in ("BigipPropertySpec", "ValueKind") if re.search(rf"\b{type_name}\b", body)]
+        allow = "// Large tmsh bounds appear as bare f64 literals.\n#![allow(clippy::unreadable_literal)]\n" if any(LONG_NUMBER.search(line) for line in body.split("\n") if '"' not in line) else ""
+        out[path.with_suffix("") / f"{name}.rs"] = (
+            f"{licence_text}//! Properties {span} of `{title}`, each with the properties of its sections.\n\n"
+            f"{allow}use crate::bigip::{{{', '.join(used)}}};\n\n"
+            f"pub(super) const PROPERTIES: &[BigipPropertySpec] = &[\n{body}];\n"
+        )
+    mods = "".join(f"mod {declared(name)};\n" for name in sorted(names))
+    listed = ", ".join(f"{declared(name)}::PROPERTIES" for name in names)
+    count = " + ".join(f"{declared(name)}::PROPERTIES.len()" for name in names)
+    head = spec.text[:start] + "        properties: &PROPERTIES,\n" + spec.text[end + len(PROPERTIES_CLOSE) :]
+    out[path] = (
+        f"{licence_text}//! BIG-IP object spec for `{title}`. Hand-maintained: edit it directly.\n//!\n"
+        "//! The kind is too large for one file, so its property table is filed by\n"
+        "//! ranges of top-level properties and joined here.\n\n"
+        "use crate::bigip::{BigipObjectKindSpec, BigipObjectSpec, BigipPropertySpec, join_property_tables};\n\n"
+        f"{mods}\nconst PROPERTY_COUNT: usize = {count};\n\n"
+        "/// The kind's properties, in filing order.\n"
+        f"static PROPERTIES: [BigipPropertySpec; PROPERTY_COUNT] = join_property_tables(&[{listed}]);\n\n"
+        f"{visibility}static SPECS: &[BigipObjectSpec] = &[\n{head}];\n"
+    )
+
+
 def lines_of(specs: list[Spec]) -> int:
     return sum(spec.lines for spec in specs) + 30
 
@@ -111,6 +231,9 @@ def layout(path: Path, title: str, specs: list[Spec], depth: int, licence_text: 
     if len(groups) == 1 and lines_of(specs) > LIMIT and any(depth + 1 < len(spec.words) for spec in specs):
         # Every kind here shares this word: file by the next one instead.
         return layout(path, title, specs, depth + 1, licence_text, docs, out, top)
+    if len(specs) == 1 and lines_of(specs) > LIMIT:
+        kind_in_parts(path, licence_text, title, specs[0], visibility, out)
+        return "leaf"
     if lines_of(specs) <= LIMIT or len(groups) == 1:
         out[path] = leaf(licence_text, title, specs, visibility)
         return "leaf"
@@ -124,16 +247,25 @@ def layout(path: Path, title: str, specs: list[Spec], depth: int, licence_text: 
         name = declared(names[word])
         rows.append((name, f"vec![{name}::SPECS]" if kind == "leaf" else f"{name}::tables()"))
     mods = "".join(f"mod {name};\n" for name, _ in sorted(rows))
-    pushes = "".join(
-        f"    tables.push({name}::SPECS);\n" if expression.startswith("vec!") else f"    tables.extend({name}::tables());\n"
-        for name, expression in rows
-    )
+    # Runs of plain tables, and the lists of the components that are themselves filed by word.
+    segments: list[str] = []
+    run: list[str] = []
+    for name, expression in rows:
+        if expression.startswith("vec!"):
+            run.append(f"{name}::SPECS")
+            continue
+        if run:
+            segments.append("vec![" + ", ".join(run) + "]")
+            run = []
+        segments.append(f"{name}::tables()")
+    if run:
+        segments.append("vec![" + ", ".join(run) + "]")
+    body = segments[0] if len(segments) == 1 else "[" + ", ".join(segments) + "].concat()"
     heading = docs or f"//! BIG-IP object specs for `{title}`, one file per following tmsh word.\n"
     out[path] = (
         f"{licence_text}{heading}\nuse crate::bigip::BigipObjectSpec;\n\n{mods}\n"
         f"/// The spec tables of `{title}`, in the order they are filed.\n#[must_use]\n"
-        f"{visibility}fn tables() -> Vec<&'static [BigipObjectSpec]> {{\n"
-        f"    let mut tables: Vec<&'static [BigipObjectSpec]> = Vec::new();\n{pushes}    tables\n}}\n"
+        f"{visibility}fn tables() -> Vec<&'static [BigipObjectSpec]> {{\n    {body}\n}}\n"
     )
     return "facade"
 

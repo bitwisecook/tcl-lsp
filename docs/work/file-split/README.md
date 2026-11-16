@@ -54,24 +54,23 @@ A gate that names files reads a module: `owner-resolution` checks written agains
 
 ## Status
 
-| Step | State |
+Done, 16 November 2026: every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines, and `docs/generated/rust-file-sizes.md` is empty. 238 files were over the budget when the work began.
+
+| Step | How |
 | --- | --- |
-| Inline test modules of large files moved out (775 modules) | done, 16 November 2026 |
-| Gate: `cargo xtask file-sizes` (`docs/generated/rust-file-sizes.md`, the list only shrinks) | done |
-| Plans for every file on the ledger (287 plans, eleven groups, each validated with `--check`) | done |
-| Pilot: `tcl-lsp-core/src/semantic_tokens.rs` (6,186 lines to a 730-line facade and 15 modules) | done |
-| Applied: `tcl-lexer`, `tcl-syntax`, `tcl-dialect`, `tcl-bytecode`, `tcl-cmd-core`, `tcl-runtime-api`, `tcl-spectcl`, `tcl-codegen`, `tcl-engine-tclvm`, `tcl-spec-studio`, `tcl-bigip-query`, `bigip-report-gen`, `f5-xc`, `tcl-registry`, `tcl-vm` | done, 16 November 2026 |
-| Applying: `tcl-compiler`, `tcl-runtime`; then `tcl-lsp-core`, `tcl-lsp-db`, `tcl-lsp-server`, `tcl-mcp`, `tcl-explorer`, the `tcl-cli` tests, `xtask` | in progress |
+| Inline test modules of large files moved to their own files (775 modules) | `hoist_inline_tests.py` |
+| 287 plans, eleven groups, designed first | `plans/` |
+| Plans applied crate by crate; imports settled from the compiler's diagnostics | `apply_plans.py`, `finish_split.sh`, `settle_imports.py` |
+| The owner-resolution contract followed about 1,100 moved declarations | `update_contract.py`, then by hand where the gate ties a method to the file of its type |
+| `tcl-lsp-server`'s `LanguageServer` impl (47 handlers) | each body is `Backend::serve_<request>` in its subsystem's `requests.rs` |
+| `Vm::tick_instruction` (one 2,100-line match) | comparison and stack opcodes served by methods of their own |
+| BIG-IP object-spec tables (nine files, up to 27,000 lines) | filed by tmsh word, `split_bigip_data.py`; the table's contents are byte-identical |
+| mcpd service-name table | four key ranges |
 
-A dry run of every plan on a copy of the tree leaves these over the limit; each needs more than a move:
+Outside the budget, as for the licence-header check: generated files (first line `// @generated` or `// Generated from`) and recorded test data under `tests/data/` (five `software_controls.rs` row tables that two crates `include!`).
 
-| File | Why | What it needs |
-| --- | --- | --- |
-| `tcl-registry/src/bigip/data/{ltm,security,apm,gtm,net,sys,analytics,pem,wam}.rs` | hand-maintained tables, one `SPECS` slice each | file kinds by their tmsh words (`data/<module>/<component>.rs`), `all_specs()` flattens; the `bigip-data-schema` gate recurses. Four single kinds are over the limit alone and need their nested tables hoisted |
-| `tcl-bigip/src/model/port_names.rs` | one sorted 4,540-line static | cut the table into ranges joined at build time, or exempt as data |
-| `runtime/rust/tests/data/native_original_*/software_controls.rs` (five) | recorded rows pulled in with `include!` by two crates | one file per dialect, or exempt as recorded data |
-| `tcl-syntax/src/jim084_case_mapping.rs` | generated from Jim's `_unicode_mapping.c`, without the `// @generated` first line | mark it generated |
-| `tcl-lsp-server/src/language_server.rs` (after the `lib.rs` plan) | one trait impl of 47 handlers | each handler body becomes an inherent `Backend` method in its subsystem module |
-| `tcl-vm/src/exec/instructions/opcode_dispatch.rs` (after the `exec.rs` plans) | `Vm::tick_instruction`, one 2,105-line `match` | extract opcode families into methods, as `tick_variable_instruction` already is |
+Kept in a facade because the owner-resolution contract ties them to the file that declares their type: `Lowerer::cmd_tokens`, `ModuleCommandBindings::analyse`, `Interp::synchronise_command_environment_guards` and `Interp::namespaces`.
 
-Crate boundaries the planners saw (none planned yet): `tcl-registry/src/bigip` uses nothing else in its crate; `tcl-codegen/src/codegen/wasm`; the native tier of `tcl-compiler` (`executable_ir`, `dispatch_proof`, `world_state_ssa`, `common_aot_plan`, `native_lowering`, `native_byte_compilation`); the constant-folding core of `tcl_expr_eval`; the server's contention telemetry and its diagnostics engine; a shared home for the recorded `native_original_*` test data.
+Two sites carry `// dialect-drift-ok: unreviewed`: the dialect-drift gate stops reading a file at its first test-module line and had never seen them (`analyser/utils/stub_directives.rs`, `command_binding/module_bindings/namespace_transitions.rs`). They need the real grammar threaded, by the owning areas.
+
+Crate boundaries the planners saw (none acted on): `tcl-registry/src/bigip` uses nothing else in its crate; `tcl-codegen/src/codegen/wasm`; the native tier of `tcl-compiler` (`executable_ir`, `dispatch_proof`, `world_state_ssa`, `common_aot_plan`, `native_lowering`, `native_byte_compilation`); the constant-folding core of `tcl_expr_eval`; the server's contention telemetry and its diagnostics engine; a shared home for the recorded `native_original_*` test data.
