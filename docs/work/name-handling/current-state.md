@@ -782,25 +782,28 @@ Open, by cause. "Sent" means the owner has the smallest fixture; "waits" means t
 
 | Module (tests) | Count | Cause | Owner |
 | --- | --- | --- | --- |
-| `recovery` | 18 | After an unterminated delimiter the analysis keeps nothing from the recovered tail: no symbols, no later diagnostics. The recovery segmenter still returns the commands. | Binding walk and realm, sent |
-| `irules` quick fixes and S110, `code_actions` T102 | 22 | No taint or security diagnostic is issued in a `when` body (T100 to T106, IRULE3001 to 3003, IRULE6001, S110). The fixtures also hand the server a diagnostic it never published; a fix now needs the published one, so they are being rewritten as real iRules. | Taint and iRules, waits; fixtures mine |
-| `irules` IRULE1005, IRULE1006 | 3 | Issued as conditional advice, which carries no action subject, so the collect-bootstrap fix cannot be offered. | Taint and iRules, sent |
+| `recovery` outline | 8 | tclsh runs nothing of a file with an unterminated delimiter, so the proving walk stops at the cut (coordinator ruling). The tail's outline is a display answer read from the recovered written words. | Mine, in progress |
+| `recovery` tail diagnostics | 10 | Registry-only checks (arity, unknown subcommand or option) on a recovered command; no flow, existence, type or taint diagnostic, and no edit, reads the tail. | Compiler diagnostics, sent |
 | `diagnostics` W210 | 9 | W210 withheld after a call to a procedure that uses `upvar`, a computed `set`, or sits in a loop condition; a constant-false `for`; two false positives (`argparse` locals, a default overridden at every call). | Compiler diagnostics, sent |
-| `diagnostics`, `diagnostic_matrix`, `precision_review`, `code_actions`, `vscode_parity` structural | 13 | E005 unpaired `switch`, trace callback arity, W128 after `destroy`, W123 beside a coroutine or glob import, W128 or W123 after `rename`, I230 blocked by an unresolved command, W216 lost to W210 for `${arr($i)}`, I230 and W308 message text. | Compiler diagnostics, sent |
+| `diagnostics`, `diagnostic_matrix`, `precision_review`, `code_actions`, `vscode_parity` structural | 15 | E005 unpaired `switch`, trace callback arity, W128 after `destroy`, W123 beside a coroutine or glob import, W128 or W123 after `rename`, I230 blocked by an unresolved command, W216 lost to W210 for `${arr($i)}`, I230 and W308 message text, W220 dead stores. | Compiler diagnostics, sent |
 | `diagnostics`, `tcl91` dialect gating | 5 | iApps and tmsh documents publish no gating diagnostic; iRules `exec` draws W123, not W002. | Compiler diagnostics, sent |
 | `diagnostics` bodies not entered | 7 | itcl and snit method bodies, a TclOO method (`info exists`, `nextto`), `report::defstyle` body, created object names. | Waits on the unentered-body cause |
 | `issue996_stack_overflow` | 3 | Analysis time is superlinear in nesting depth (`if` × 80: 2.2 s in the library under `tcl8.6`, about 21 s to first publish through the server). | Compiler diagnostics, sent; server multiplier mine |
-| `diagnostics`, `diagnostic_matrix`, `precision_review`, `code_actions` shimmer | 13 | S100, S101, S102 not published; W103 on a provably literal `open`; no W201. | Value transfers and types, sent |
-| `diagnostics`, `diagnostic_matrix`, `vscode_parity`, `commands` dataflow | 7 | No W220, no O102, octal fold in a handler, fix-all applies nothing. | Dataflow and optimiser, sent |
+| `diagnostics`, `diagnostic_matrix`, `precision_review`, `code_actions` shimmer | 10 | S100, S101, S102 not published. The procedure fixtures wait on the walk ending at a command over an unproved value (binding session); the file-level ones are the shimmer owner's. | Value transfers and types, sent |
+| `diagnostics`, `code_actions` literal proofs | 3 | W103 on a provably literal `open`; no W201: a quoted literal assignment does not reach the diagnostic as a proved value. | Dataflow, sent |
+| `diagnostics`, `vscode_parity` O102 | 2 | The execution walk stops at `uplevel #0 [list …]` in the callee, so the caller's statements are unseen calls. | Analyser walk, waits |
+| `diagnostic_matrix` octal fold | 1 | A constant expression in a `when` body does not fold; at file level it does. | Waits on handler bodies |
+| `commands` fix-all | 2 | W100 and O111 are published for `set n [expr abs(-2)]` and fix-all applies nothing; the compiler's optimiser emits no rewrite for it, so the server's own entry is the suspect. | Mine, open |
 | `commands` diagram | 2 | `unavailable: current-source-context`. | Tooling, waits |
 | `editor_features` lenses, `issue1019`, `issue1281`, `issue1302`, `issue1305`, two `diagnostics` rename tests | 18 | Code lens counts and command ids, references, rename and definition answers. | LSP features, sent |
-| `completion`, `vscode_parity`, `irules`, `issue1312` | 14 | `$` completion omits `upvar` aliases, `try` bindings, `dict with` keys and the qualified global spelling; method and event completion lists. | Mine, open |
+| `completion`, `vscode_parity`, `issue1312` | 12 | `$` completion omits `upvar` aliases, `try` bindings, `dict with` keys and the qualified global spelling; method completion lists. | Mine, open |
 | `hover`, `tcl91`, `issue1019` | 9 | No hover for a parameter declaration, a quoted-argument option, a namespace variable, a sourced sibling's procedure. | Mine, open |
-| `spec_packs`, `sslictcl` | 11 | Not yet diagnosed. | Mine, open |
 | `naming_*` | 9 | Not yet diagnosed. | Mine, open |
-| Others (`document_symbols` handler variables, `code_actions` refactors and package suggestion, `diagnostics` cross-file and package tests, `jim`, `issue1331`, `issue1362`, `precision_review` manifest) | 9 | Not yet diagnosed. | Mine, open |
+| Others (`document_symbols` handler variables, `code_actions` refactors and package suggestion, `diagnostics` cross-file and package tests, `issue1331`, `issue1362`, `precision_review` manifest) | 12 | Not yet diagnosed. | Mine, open |
 
-The counts by cause are a first reading of each test's first failing assertion and sum to the 172 still failing; a test moves rows when its cause is proven.
+The server's `irules` (24), `spec_packs` (10), `sslictcl` (1) and `jim` (1) groups moved to the tooling session on 16 November with what this area had found: the iRules quick-fix fixtures hand the server a diagnostic it never published, IRULE1005 and IRULE1006 are conditional advice with no action subject, and the outline of a declaration document stops at its root block.
+
+The counts by cause are a first reading of each test's first failing assertion; a test moves rows when its cause is proven.
 
 ## Scope and publication
 
