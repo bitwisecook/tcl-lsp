@@ -795,7 +795,7 @@ Classification of what still fails (first failing assertion, one run):
 
 ## LSP server end-to-end and database area
 
-Updated 16 November 2026. Baseline at `288afd89`, one run of `tcl-lsp-server --test e2e` (1,651 tests, test profile `opt-level 1`): 1,338 pass, 313 fail. 132 of the failures are the navigation family (LSP features session); 181 are this area's. `tcl-lsp-db` has not been run in this pass.
+Updated 16 November 2026. Baseline at `288afd89`, one run of `tcl-lsp-server --test e2e` (1,651 tests, test profile `opt-level 1`): 1,338 pass, 313 fail. 132 of the failures are the navigation family (LSP features session); 181 are this area's. A second run at `09a7d2df` plus this area's outline change: 1,357 pass, 294 fail, 126 of them this area's after the hand-over below. `tcl-lsp-db` at the same head: 248 run, 173 pass, 75 fail.
 
 Fixed, fixtures only, 9 tests, new 0:
 
@@ -803,7 +803,22 @@ Fixed, fixtures only, 9 tests, new 0:
 - A Tcl 9.0 command under the default profile: `document_symbols::property_symbol`, `class_detail_shows_metaclass` now use the 9.0 profile (tclsh 8.6.18 has neither `oo::abstract` nor `oo::configurable`).
 - A read of an unset variable that tclsh raises on before the code under test runs: `diagnostics::analyser_noqa_suppresses_an_analyser_code`, `value_position_still_fires_w216`.
 
-Open, by cause. "Sent" means the owner has the smallest fixture; "waits" means the cause was already in flight.
+- Code regressed: the outline of the text after an unterminated delimiter (7 `recovery` tests), read from the recovered written words in `tcl-lsp-core` document symbols (`5ff27e53`).
+
+`tcl-lsp-db`, 75 failing, by first failing assertion; none diagnosed further yet:
+
+| Group | Count | First failing assertion | Owner |
+| --- | --- | --- | --- |
+| Memo and re-run counts in `tests::` (`body_edit_recomputes_one_item`, `method_body_edit_recomputes_one_item`, `function_lattice_*`, `lower_proc_body_*`, `function_optimisations_*`, `taint_cascade_*`, `proc_summary_cascade_*`, `check_diagnostics_rerun_*`, `project_indexes_backdate_*`), `interned_gc` (2), `memory_growth` | about 20 | A cold build runs zero or the wrong number of per-body and per-procedure queries (`ProcBodyKey` is never interned, item bodies analysed 0 of 2), and an unrelated edit re-runs every lattice. | Mine, open |
+| `file_analysis_incremental_matches_full`, `file_analysis_incremental_carries_bigip_version_override`, optimiser memo transport (2), `readonly_source_optimisation_owner`, `<unnamed>` capsule equality | 6 | The incremental result differs from the whole-file one. | Mine, open |
+| `class_factory_fixpoint` | 7 | Only the first metaclass of a chain is recorded as a factory. | Not yet assigned |
+| `value_transfer_parity` | 11 | Direct and memoised lattices disagree, or both miss the fold. | Value transfers and types, to send |
+| `project_token_inputs` | 9 | Project class and receiver display cards. | Tokens (coordinating session), to send |
+| `tests::cross_file_call_sites`, callback project headers, direct logical calls | 9 | Cross-file caller seeds and project headers. | Not yet assigned |
+| `compiler_check_*` memo parity, `tests::compiler_check_*`, method-body checks, existence guard | 8 | The expected O1xx, O122, IRULE1201 or I230 is not produced on either path. | Compiler facts, to send |
+| `overlay_generations` (2), `dialect_seam`, metadata advice (2), `memory_alias_graph`, `merged_role_index`, regex retag | 8 | Singles. | Not yet assigned |
+
+Open server tests, by cause. "Sent" means the owner has the smallest fixture; "waits" means the cause was already in flight.
 
 | Module (tests) | Count | Cause | Owner |
 | --- | --- | --- | --- |
