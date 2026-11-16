@@ -229,7 +229,7 @@ mod tests {
         // The listed file now fits, but one of its child modules does not yet.
         let over = set(&["rust/a/src/split/dispatch.rs"]);
         let (unlisted, fitting) = problems(&over, &listed);
-        assert!(unlisted.is_empty());
+        assert_eq!(unlisted, [] as [std::string::String; 0]);
         assert_eq!(fitting, ["rust/a/src/big.rs"]);
     }
 }

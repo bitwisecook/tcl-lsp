@@ -518,7 +518,10 @@ fn legacy_naming_gate_resolves_the_tcl_evidence_check() {
         "`split_list`",
         "`check-name-resolution-proofs`",
     );
-    assert!(validate_manifest(&root, &contract, &makefile, &main).is_empty());
+    assert_eq!(
+        validate_manifest(&root, &contract, &makefile, &main),
+        [] as [std::string::String; 0]
+    );
     assert!(!naming_proof_gate_is_current(
         &root.join(MAKEFILE_PATH),
         &makefile

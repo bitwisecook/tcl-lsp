@@ -230,8 +230,8 @@ mod tests {
     fn test_modules_and_waivers_are_exempt() {
         let test_mod =
             "fn f() {}\n#[cfg(test)]\nmod tests {\n    fn g() { d.message.contains(\"x\"); }\n}\n";
-        assert!(flagged_lines(test_mod, false).is_empty());
+        assert_eq!(flagged_lines(test_mod, false), [] as [(usize, &str); 0]);
         let waived_src = "// presentation-ok: punctuation only\nif d.message.ends_with('?') {}\n";
-        assert!(flagged_lines(waived_src, false).is_empty());
+        assert_eq!(flagged_lines(waived_src, false), [] as [(usize, &str); 0]);
     }
 }
