@@ -446,13 +446,15 @@ Use braces: {{ \u{2026} }}"
                 " This conversion cannot be braced directly. To convert a hexadecimal string to an integer, consider `scan $hex %x var`.",
             );
         }
+        // Bracing a word nothing substitutes hands `expr` the same string.
+        let safety = super::helpers::brace_wrap_fix_safety(&text, has_sub);
         let fixes = fix_inner
             .into_iter()
             .map(|inner| super::types::CodeFix {
                 span,
                 new_text: format!("{{{inner}}}"),
                 description: "Wrap expression in braces".to_owned(),
-                safety: crate::irules_checks::FixSafety::RequiresReview,
+                safety,
             })
             .collect();
         self.result.diagnostics.push(

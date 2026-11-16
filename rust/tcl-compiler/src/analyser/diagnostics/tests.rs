@@ -17903,9 +17903,12 @@ fn original_expression_diagnostics_keep_effective_roles_and_whole_written_words(
         assert_eq!(subject.span(), diagnostic.span);
         assert_eq!(subject.written_argument(), Some(0));
         assert_eq!(diagnostic.fixes[0].new_text, "{$a + $b}");
+        // Bracing removes the second substitution round, so it can change
+        // behaviour: with `a` holding `$x`, tclsh 9.0 evaluates the unbraced
+        // form and raises on the braced one (`tests/it_4/fix_safety.rs`).
         assert_eq!(
             diagnostic.fixes[0].safety,
-            crate::irules_checks::FixSafety::RequiresReview
+            crate::irules_checks::FixSafety::BehaviourHardening
         );
     }
     for source in [
