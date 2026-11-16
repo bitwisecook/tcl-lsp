@@ -632,6 +632,54 @@ impl SourceOriginalVariableFrame {
         })
     }
 
+    /// A release unit's procedure body frame under its authored simulation:
+    /// the procedure's executed body under its own namespace, with the
+    /// activation identity the walk gives the declaration's frame. The formal
+    /// list must parse strictly to the declaration's own parameters, each a
+    /// unique plain local. Conditional layout only; no entered frame or cell.
+    pub(crate) fn from_authored_procedure(
+        procedure: &crate::ir::Procedure,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Self> {
+        use tcl_syntax::naming::{NamePolicyAuthority, NativeNameProtocol};
+        let policy =
+            super::source_analysis_entry::source_input_dialect(input).authored_name_policy()?;
+        if policy.authority() != NamePolicyAuthority::AuthoredSimulation
+            || !matches!(policy.recipe(), NativeNameProtocol::C(_))
+        {
+            return None;
+        }
+        let parameters = super::logical_definition::static_formals(
+            &procedure.params_raw,
+            input.lexer_config().list_parse,
+        )?;
+        if !parameters
+            .iter()
+            .map(|formal| formal.name.as_str())
+            .eq(procedure.params.iter().map(String::as_str))
+            || !super::logical_definition::local_formals_are_unique(&parameters, policy)
+        {
+            return None;
+        }
+        let source = procedure.body.executed_source.as_deref()?.clone();
+        let namespace = procedure.body.namespace_context.as_deref()?.clone();
+        let site = procedure.declaration_site.as_ref()?;
+        Some(Self {
+            source,
+            frame: crate::var_resolve::VariableExecutionFrame::Procedure {
+                namespace: namespace.display()?,
+                identity: super::source_activation_name(
+                    Some(&site.source),
+                    &procedure.qualified_name,
+                    site.offset,
+                ),
+            }
+            .with_namespace_identity(namespace),
+            config: input.lexer_config(),
+            logical_lambda: None,
+        })
+    }
+
     /// Conditional lexical lambda layout from its held call and source fields.
     /// This does not issue an entered frame, installed local or Native recipe.
     pub(crate) fn from_logical_lambda_source(

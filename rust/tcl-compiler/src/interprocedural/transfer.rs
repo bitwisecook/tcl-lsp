@@ -1616,8 +1616,14 @@ impl<'a> ModuleProcedures<'a> {
         let summaries = self.summaries.borrow();
         let source = self.source.as_ref()?;
         for qname in component {
-            for place in self.outer_facts.get(qname)?.original_source_writes()? {
-                insert_outer_source(&mut names, place.clone());
+            let facts = self.outer_facts.get(qname)?;
+            let writes = match facts.original_source_writes() {
+                Some(writes) => writes.to_vec(),
+                None if !facts.opaque_global_frame => source.authored_outer_writes(qname)?,
+                None => return None,
+            };
+            for place in writes {
+                insert_outer_source(&mut names, place);
             }
             destroys |= destroys_a_variable(source, qname)?;
             for callee in &calls[qname] {
@@ -1739,7 +1745,12 @@ impl<'a> ModuleProcedures<'a> {
         let mut roles = value_roles(qname, declared, inputs);
         for (slot, (index, local)) in links.iter().enumerate() {
             let param = &declared.params[*index];
-            let outcomes = if linked_cleanly(cfg, &ssa, local, param, qname, self.source.as_ref()?)
+            // A release unit's SSA sends a write through a caller link to the
+            // link's target rather than defining the local, so its exit facts
+            // cannot state the place's outcome.
+            let source = self.source.as_ref()?;
+            let outcomes = if source.reads_linked_locals()
+                && linked_cleanly(cfg, &ssa, local, param, qname, source)
             {
                 let [bound, unbound] = facts
                     .each_ref()
@@ -2820,6 +2831,54 @@ mod tests {
             fixture_id_if_present(&unit.ir_module.procedures, "::bump")
                 .is_some_and(|id| unit.transfers.0.contains_key(&id))
         );
+    }
+
+    /// A release unit summarises its procedures from its authored
+    /// simulation: a write to a qualified name and one through `global` are
+    /// may-binds of the global place, a procedure that names no outer place
+    /// and its caller both have summaries, and a parameter a body links with
+    /// `upvar` may end in any state, since the release SSA stores through the
+    /// link rather than defining the local.
+    #[test]
+    fn release_units_summarise_their_procedures() {
+        let source = "proc g {} {set ::counter 5}\n\
+            proc h {} {global k; set k 1}\n\
+            proc a {} {set x 0; incr x; return $x}\n\
+            proc e {} {set x 0; a; return $x}\n\
+            proc bump {name} {upvar 1 $name v; incr v}\n";
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let context = tcl_registry::model::ingress::static_context_for(environment);
+            let unit =
+                CompilationUnit::build_for_dialect(source, context.commands(), false, environment);
+            let summaries = fixture_transfer_labels(&unit.ir_module, unit.transfers.0.clone());
+            let may = ExistenceOutcome::MayBind(BindingKind::Either);
+            assert_eq!(
+                summaries["::g"].globals,
+                [(PlaceRef::scalar("::counter"), may)],
+                "{environment}"
+            );
+            assert_eq!(
+                summaries["::h"].globals,
+                [(PlaceRef::scalar("::k"), may)],
+                "{environment}"
+            );
+            assert!(summaries["::a"].globals.is_empty(), "{environment}");
+            assert_eq!(
+                summaries["::e"]
+                    .evidence
+                    .bindings
+                    .iter()
+                    .map(|binding| binding.name.as_str())
+                    .collect::<Vec<_>>(),
+                ["::a"],
+                "{environment}"
+            );
+            assert_eq!(
+                summaries["::bump"].params,
+                [name(&ANY_OUTCOME)],
+                "{environment}"
+            );
+        }
     }
 
     const CYCLE: &str =

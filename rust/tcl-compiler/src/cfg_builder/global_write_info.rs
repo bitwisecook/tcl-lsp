@@ -570,7 +570,7 @@ fn frame_global_writes(
     info
 }
 
-fn insert_source_write(
+pub(crate) fn insert_source_write(
     writes: &mut Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>,
     place: crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
 ) {
@@ -579,7 +579,7 @@ fn insert_source_write(
     }
 }
 
-fn logical_alias_targets_global(
+pub(crate) fn logical_alias_targets_global(
     alias: &tcl_registry::VariableCellAliasTransition,
     dialect: Option<tcl_registry::InvocationDialect>,
 ) -> Option<bool> {

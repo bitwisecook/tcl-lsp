@@ -817,6 +817,68 @@ impl SignatureSourceVariableOccurrence {
         })
     }
 
+    /// [`Self::from_logical_source`] for a release unit's procedure body,
+    /// whose frame and namespace come from the authored simulation rather
+    /// than the Logical survey: a plain local of the procedure's own frame,
+    /// or a qualified name in its namespace.
+    pub(crate) fn from_authored_procedure_source(
+        span: tcl_lexer::Span,
+        input: SignatureSourceNameInput,
+        receiver: OriginalVariableSymbolReceiver,
+        declaration: bool,
+        frame: crate::command_binding::SourceOriginalVariableFrame,
+        namespace: SignatureNamespaceScope,
+    ) -> Option<Self> {
+        let protocol = input.policy().recipe();
+        let selected = match receiver.input_form(&input)? {
+            tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) => {
+                protocol.combined_variable_input(bytes)
+            }
+            tcl_syntax::naming::NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        let symbol = match protocol
+            .variable_root_geometry(namespace.context()?, selected.root().selected())
+        {
+            NativeVariableRootGeometry::Local(simple) => {
+                if simple.as_bytes().contains(&0) {
+                    return None;
+                }
+                SignatureSourceVariableSymbol::from_original_local_input(&input, frame, simple)
+            }
+            NativeVariableRootGeometry::CNamespace { .. } => {
+                if let (SignatureNamespaceScope::C(home), NativeNameProtocol::C(version)) =
+                    (&namespace, protocol)
+                    && version.namespace_var_global_fallback()
+                    && home != &ByteNamespacePath::root()
+                    && selected.root().qualification()
+                        != tcl_syntax::naming::NativeNameQualification::Absolute
+                {
+                    return None;
+                }
+                SignatureSourceVariableSymbol::from_original_input(
+                    &input,
+                    &namespace,
+                    OriginalVariableSymbolPurpose::QualifiedOnly,
+                    receiver,
+                )?
+            }
+            NativeVariableRootGeometry::JimAbsolute(_) => return None,
+        };
+        Some(Self {
+            span,
+            input,
+            namespace: Some(namespace),
+            receiver,
+            symbol,
+            declaration,
+            alias: None,
+            formal: None,
+            logical_scope: None,
+        })
+    }
+
     pub(crate) fn matches_logical_source(
         &self,
         image: &tcl_lexer::SourceImage,

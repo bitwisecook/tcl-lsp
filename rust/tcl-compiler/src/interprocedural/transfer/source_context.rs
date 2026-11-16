@@ -98,6 +98,36 @@ pub(crate) struct OriginalSummaryExpression {
     base: u32,
 }
 
+/// Whether `body` runs any of its commands in another frame: an `uplevel`
+/// body, or a block evaluated in another namespace.
+fn runs_another_frame(
+    body: &Script,
+    namespace: &crate::command_binding::SourceNamespaceKey,
+) -> bool {
+    let Some(namespace) = namespace.display() else {
+        return true;
+    };
+    let mut pending = vec![body];
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            match statement {
+                Statement::UpFrame { .. } => return true,
+                Statement::Block {
+                    namespace: inner, ..
+                } if *inner != namespace => return true,
+                _ => pending.extend(crate::ir_helpers::nested_bodies(statement)),
+            }
+        }
+    }
+    false
+}
+
+/// The frame of a release unit's procedure body and the namespace it runs in.
+struct AuthoredFrame {
+    frame: crate::command_binding::SourceOriginalVariableFrame,
+    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+}
+
 pub(super) struct SourceSummaryContext<'a> {
     module: &'a Module,
     registry: &'a CommandRegistry,
@@ -152,6 +182,14 @@ impl<'a> SourceSummaryContext<'a> {
             realm,
             purpose,
         })
+    }
+
+    /// Whether the procedure SSA defines a local at a write through its
+    /// caller link, so the summary run can read the linked place's outcome:
+    /// the Logical survey's frames do; a release unit's walk stores through
+    /// the link to its target instead.
+    pub(super) fn reads_linked_locals(&self) -> bool {
+        self.logical()
     }
 
     /// Whether the module was read under the Logical survey, whose
@@ -289,9 +327,270 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         written: usize,
     ) -> Option<tcl_lexer::NativeWord> {
-        self.logical().then_some(())?;
-        self.variable_operands()
-            .original_argument_word(tokens, written)
+        if self.logical() {
+            return self
+                .variable_operands()
+                .original_argument_word(tokens, written);
+        }
+        let binding = tokens.source_binding.as_ref()?;
+        let site = binding.invocation_site()?;
+        let config = binding.original_lexer_config_for_tokens(tokens)?;
+        let original = site
+            .source
+            .original_lexical_command(tokens.words(), site.offset, config)?;
+        let index = written.checked_add(1)?;
+        let word = original.native_words().get(index)?;
+        (word.span() == tokens.words().get(index)?.source().span).then(|| word.clone())
+    }
+
+    /// The release procedure whose own frame runs `tokens`, and that frame:
+    /// a command of the body, of a control body it runs in place, or of a
+    /// substitution in either. An `uplevel` body and a `namespace eval`
+    /// block run in another frame and own none.
+    fn authored_frame(&self, tokens: &CommandTokens) -> Option<AuthoredFrame> {
+        let mut owner = None;
+        for id in self.module.procedures.keys() {
+            let Some(procedure) = self.procedure(id) else {
+                continue;
+            };
+            if self
+                .same_frame_commands(procedure)?
+                .iter()
+                .any(|command| command == tokens)
+            {
+                if owner.is_some() {
+                    return None;
+                }
+                owner = Some(procedure);
+            }
+        }
+        let procedure = owner?;
+        let namespace = procedure.body.namespace_context.as_deref()?;
+        Some(AuthoredFrame {
+            frame: crate::command_binding::SourceOriginalVariableFrame::from_authored_procedure(
+                procedure,
+                self.module.source_metadata_input.as_ref()?,
+            )?,
+            namespace: crate::signature_scan::scope::SignatureNamespaceScope::C(
+                namespace.source_artifact_path()?,
+            ),
+        })
+    }
+
+    fn same_frame_commands(&self, procedure: &Procedure) -> Option<Vec<CommandTokens>> {
+        let namespace = procedure.body.namespace_context.as_deref()?.display()?;
+        let mut commands = Vec::new();
+        let mut pending = vec![&procedure.body];
+        while let Some(script) = pending.pop() {
+            for statement in &script.statements {
+                if statement.synthetic_marker().is_some() {
+                    continue;
+                }
+                let tokens = script.retained_source_tokens_for_statement(statement)?;
+                self.metadata(tokens)?;
+                commands.push(tokens.clone());
+                commands.extend(self.children(tokens)?);
+                match statement {
+                    Statement::UpFrame { .. } => {}
+                    Statement::Block {
+                        namespace: inner, ..
+                    } if *inner != namespace => {}
+                    _ => pending.extend(crate::ir_helpers::nested_bodies(statement)),
+                }
+            }
+        }
+        Some(commands)
+    }
+
+    /// A release unit's argument: its original word's span and name, read
+    /// under the unit's authored name policy, and the frame that runs it.
+    fn authored_argument(
+        &self,
+        tokens: &CommandTokens,
+        written: usize,
+    ) -> Option<(
+        tcl_lexer::Span,
+        crate::signature_scan::scope::SignatureSourceNameInput,
+        AuthoredFrame,
+    )> {
+        let frame = self.authored_frame(tokens)?;
+        let word = self.original_argument_word(tokens, written)?;
+        let input = self.module.source_metadata_input.as_ref()?;
+        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            );
+        let name =
+            crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
+                &word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&word.config()),
+            )?);
+        Some((word.span(), name, frame))
+    }
+
+    /// The outer places a release procedure body writes, as the Logical
+    /// inventory (`global_write_info::logical_body_source_writes`) states
+    /// them: each alias the body declares onto a global or namespace
+    /// variable, and each written argument naming one directly or through
+    /// such an alias. A module with traces, and a body that runs another
+    /// frame (an `uplevel` body, a `namespace eval` block), have none.
+    pub(super) fn authored_outer_writes(
+        &self,
+        id: &crate::ir::ProcedureId,
+    ) -> Option<Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>>
+    {
+        use crate::cfg_builder::global_write_info::{
+            insert_source_write, logical_alias_targets_global,
+        };
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+        (!self.logical()).then_some(())?;
+        let module = self.module;
+        if module.has_dynamic_trace
+            || !module.traced_commands.is_empty()
+            || module.has_dynamic_variable_trace
+            || !module.traced_variables.is_empty()
+        {
+            return None;
+        }
+        let procedure = self.procedure(id)?;
+        if runs_another_frame(
+            &procedure.body,
+            procedure.body.namespace_context.as_deref()?,
+        ) {
+            return None;
+        }
+        let mut footprints = Vec::new();
+        for tokens in self.same_frame_commands(procedure)? {
+            if self.procedure_call(&tokens).is_some() {
+                continue;
+            }
+            let footprint = self.authored_footprint(&tokens)?;
+            footprints.push((tokens, footprint));
+        }
+        let mut aliases: Vec<(
+            tcl_core_types::NameBytes,
+            Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>,
+        )> = Vec::new();
+        let mut writes = Vec::new();
+        for (tokens, (_, declared)) in &footprints {
+            let dialect = self.operation(tokens)?.dialect;
+            for alias in declared {
+                let local = self.alias_local(tokens, alias)?;
+                if !logical_alias_targets_global(alias, dialect)? {
+                    continue;
+                }
+                let target = self.alias_source_place(tokens, alias)?;
+                let index = if let Some(index) = aliases.iter().position(|(held, _)| held == &local)
+                {
+                    index
+                } else {
+                    aliases.push((local, Vec::new()));
+                    aliases.len() - 1
+                };
+                insert_source_write(&mut aliases[index].1, target.clone());
+                if alias.writes_value {
+                    insert_source_write(&mut writes, target);
+                }
+            }
+        }
+        for (tokens, (projection, _)) in &footprints {
+            if projection.opaque_variable_frame {
+                return None;
+            }
+            for (written, form) in self.authored_write_arguments(tokens)? {
+                let place = self.argument_source_place(tokens, written, form)?;
+                match place.symbol().slot() {
+                    SignatureSourceVariableSlot::Local { simple, .. } => {
+                        if let Some((_, targets)) = aliases.iter().find(|(held, _)| held == simple)
+                        {
+                            for target in targets {
+                                insert_source_write(&mut writes, target.clone());
+                            }
+                        }
+                    }
+                    SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
+                        insert_source_write(&mut writes, place);
+                    }
+                }
+            }
+        }
+        Some(writes)
+    }
+
+    /// The selected source schema's variable-write projection and declared
+    /// aliases for a release unit's command.
+    fn authored_footprint(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<(
+        tcl_registry::VariableWriteProjection,
+        Vec<tcl_registry::VariableCellAliasTransition>,
+    )> {
+        let input = self.module.source_metadata_input.as_ref()?;
+        self.authored_registry_words(tokens)?.with_source_schema(
+            input.borrowed_context_registry(),
+            |schema| {
+                Some((
+                    tcl_registry::CommandRegistry::variable_write_projection_for_selected_source(
+                        schema,
+                    ),
+                    schema.authored_logical_source_variable_aliases()?,
+                ))
+            },
+        )?
+    }
+
+    /// The written arguments a release unit's command stores into, with the
+    /// receiver form of each; an alias's local is the alias's, not a write.
+    fn authored_write_arguments(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<
+        Vec<(
+            usize,
+            tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+        )>,
+    > {
+        self.with_operation(tokens, |operation, schema| {
+            let (roles, complete) = schema.authored_source_argument_roles();
+            if !complete {
+                return None;
+            }
+            let aliases = schema.authored_logical_source_variable_aliases()?;
+            let mut writes = Vec::new();
+            for (argument, role) in roles {
+                if role != tcl_registry::ArgRole::VarWrite {
+                    continue;
+                }
+                let argument = schema
+                    .semantics
+                    .argument_offset
+                    .checked_add(usize::from(argument))?;
+                if aliases
+                    .iter()
+                    .any(|alias| alias.local.argument_index() == Some(argument))
+                {
+                    continue;
+                }
+                let form = schema.authored_source_variable_receiver_operand_form(argument)?;
+                writes.push((operation.effective.written_argument(argument)?, form));
+            }
+            Some(writes)
+        })
+    }
+
+    /// A release unit's original registry words, through the document realm.
+    fn authored_registry_words(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
+        crate::registry_invocation::source_structure::original_registry_words_for_supplied_tokens(
+            crate::realm::document_realm_bindings_for_module(self.module, self.registry)?.as_ref(),
+            self.module.source_metadata_input.as_ref()?,
+            tokens,
+        )
     }
 
     pub(super) fn argument_source_place(
@@ -300,9 +599,20 @@ impl<'a> SourceSummaryContext<'a> {
         written: usize,
         form: tcl_registry::resolved_invocation::VariableReceiverOperandForm,
     ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
-        self.logical().then_some(())?;
-        self.variable_operands()
-            .argument_source_place(tokens, written, form)
+        if self.logical() {
+            return self
+                .variable_operands()
+                .argument_source_place(tokens, written, form);
+        }
+        let (span, input, frame) = self.authored_argument(tokens, written)?;
+        crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_authored_procedure_source(
+            span,
+            input,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::Operand(form),
+            false,
+            frame.frame,
+            frame.namespace,
+        )
     }
 
     pub(super) fn alias_local(
@@ -310,8 +620,23 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         alias: &tcl_registry::VariableCellAliasTransition,
     ) -> Option<tcl_core_types::NameBytes> {
-        self.logical().then_some(())?;
-        self.variable_operands().alias_local(tokens, alias)
+        use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
+        use tcl_registry::VariableAliasTarget as Target;
+        if self.logical() {
+            return self.variable_operands().alias_local(tokens, alias);
+        }
+        let operation = self.operation(tokens)?;
+        let written = operation
+            .effective
+            .written_argument(alias.local.argument_index()?)?;
+        let (_, input, _) = self.authored_argument(tokens, written)?;
+        let purpose = match alias.target {
+            Target::Global { .. } => Purpose::Global,
+            Target::CurrentNamespace { .. } => Purpose::NamespaceVariable,
+            Target::Namespace { .. } => Purpose::NamespaceUpvar,
+            Target::CallerSelectedFrame { .. } => Purpose::Upvar,
+        };
+        crate::signature_scan::variable_symbol::original_variable_alias_local_name(&input, purpose)
     }
 
     pub(super) fn alias_source_place(
@@ -319,8 +644,53 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         alias: &tcl_registry::VariableCellAliasTransition,
     ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
-        self.logical().then_some(())?;
-        self.variable_operands().alias_source_place(tokens, alias)
+        use tcl_registry::VariableAliasTarget as Target;
+        if self.logical() {
+            return self.variable_operands().alias_source_place(tokens, alias);
+        }
+        let variable = match &alias.target {
+            Target::Global { variable }
+            | Target::CurrentNamespace { variable }
+            | Target::Namespace { variable, .. }
+            | Target::CallerSelectedFrame { variable, .. } => variable,
+        };
+        let operation = self.operation(tokens)?;
+        let local = operation
+            .effective
+            .written_argument(alias.local.argument_index()?)?;
+        let target = operation
+            .effective
+            .written_argument(variable.argument_index()?)?;
+        let (local_span, _, _) = self.authored_argument(tokens, local)?;
+        let (span, input, frame) = self.authored_argument(tokens, target)?;
+        let words = self.authored_registry_words(tokens)?;
+        let analysis_input = self.module.source_metadata_input.as_ref()?;
+        let operands = crate::registry_invocation::OriginalSourceVariableAliasOperands::capture(
+            words.clone(),
+            analysis_input.borrowed_context_registry(),
+        )?;
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                analysis_input,
+                None,
+                input.policy(),
+            );
+        let namespace = operands.target_namespace_scope_for_original_words(
+            &words,
+            analysis_input,
+            (local_span, span),
+            &input,
+            &frame.namespace,
+            purpose,
+        )?;
+        crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::from_original_input(
+            span,
+            input,
+            namespace,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolPurpose::NamespaceStorage,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
+            true,
+        )
     }
 
     pub(super) fn alias_receiver_for_local(
@@ -328,11 +698,14 @@ impl<'a> SourceSummaryContext<'a> {
         tokens: &CommandTokens,
         local: &str,
     ) -> Option<tcl_registry::resolved_invocation::VariableReceiverOperandForm> {
-        self.logical().then_some(())?;
         let operation = self.operation(tokens)?;
-        let words = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
-            self.module, self.registry, tokens,
-        )?;
+        let words = if self.logical() {
+            crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
+                self.module, self.registry, tokens,
+            )?
+        } else {
+            self.authored_registry_words(tokens)?
+        };
         let operands = crate::registry_invocation::OriginalSourceVariableAliasOperands::capture(
             words,
             self.module
