@@ -439,7 +439,7 @@ are published to an iApp implementation; `tmsh::argv`.
 
 ## 4. Check list
 
-68 checks. By area: Identity 1, Command name resolution 15, Namespaces 8, Variables and array elements 9, `$` substitution 6, Procedure naming 5, iRules in TMM 16, tmsh, iApp and iCall 8.
+69 checks. By area: Identity 1, Command name resolution 15, Namespaces 8, Variables and array elements 9, `$` substitution 6, Procedure naming 5, iRules in TMM 16, tmsh, iApp and iCall 9.
 
 Every check has: the question; why the toolchain needs the answer (Rust file
 and symbol); what is already on record; the snippet; the result Tcl 8.4 gives,
@@ -522,6 +522,7 @@ is the last field of the `BNC|…` line. "empty" means the result field is empty
 | BIGIP-NAME-065 | tmsh, iApp and iCall | `__` section separators, tables and name collisions in APL variables | iApp implementation | no |
 | BIGIP-NAME-066 | tmsh, iApp and iCall | The `iapp::` procs | iApp implementation | partly |
 | BIGIP-NAME-067 | tmsh, iApp and iCall | tmsh object field names with `tmsh::get_field_value` | tmsh cli script | no |
+| BIGIP-NAME-069 | tmsh, iApp and iCall | Which `proc` body formations define a procedure outside TMM | tmsh cli script | no |
 
 ### 4.1 Identity
 
@@ -3272,6 +3273,47 @@ proc script::run {} {
 | `field` | `0`, the configured hostname | n/a | n/a |
 | `missing` | `1`, to be recorded | n/a | n/a |
 | `intovar` | `0`, to be recorded (three-argument form; record the error if it does not exist) | n/a | n/a |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
+#### BIGIP-NAME-069 — Which `proc` body formations define a procedure outside TMM
+
+- **Question.** In a tmsh cli script and an iApp implementation, is `proc` the stock handler, which takes its body as an evaluated value (quoted, bare, computed, built with `list`), or does the host restrict the body to a braced literal as the TMM rule loader does?
+- **Why the toolchain needs it.** `procedure_definition_body_policy` (`rust/tcl-registry/src/native_procedure.rs`) answers `BracedLiteralEstablished` for `Family::F5Tcl`: a braced body defines the procedure and its body is analysed; any other formation is undecided, so the definition completes unknown and nothing after it in the script is proved. The measured answer replaces that row with `EvaluatedValue` or `OriginalBracedLiteral`.
+- **Environments.** tmsh cli script (shown); iApp implementation and iCall with the §2 wrappers, using `uplevel #0 $bnc_s`.
+- **Already on record.** Not measured. `info patchlevel` is 8.4.6 in all three contexts on 21.1.0.1.
+
+```tcl
+cli script /Common/bnc_c69 {
+proc script::run {} {
+    set bnc_id BIGIP-NAME-069
+    set bnc_obs {
+        braced   {proc ::bnq69a {} {return a}; ::bnq69a}
+        quoted   {proc ::bnq69b {} "return b"; ::bnq69b}
+        bare     {proc ::bnq69c {} list; ::bnq69c}
+        computed {set bnq69body {return d}; proc ::bnq69d {} $bnq69body; ::bnq69d}
+        built    {proc ::bnq69e {} [list return e]; ::bnq69e}
+        bodyof   {list [info body ::bnq69b] [info body ::bnq69d]}
+        clean    {foreach c [info commands ::bnq69*] {rename $c {}}; catch {unset ::bnq69body}; list}
+    }
+    foreach {bnc_l bnc_s} $bnc_obs {
+        set bnc_rc [catch {uplevel #0 $bnc_s} bnc_r]; regsub -all {[\r\n]+} $bnc_r { / } bnc_r
+        puts "BNC|$bnc_id|cli|$bnc_l|$bnc_rc|$bnc_r"
+    }
+}
+}
+```
+
+| Label | Tcl 8.4 (`rc`, result) | Basis | Tcl 8.6 / 9.0 |
+|---|---|---|---|
+| `braced` | `0` `a` | tclsh 8.4.20 | same |
+| `quoted` | `0` `b` | tclsh 8.4.20 | same |
+| `bare` | `0`, empty | tclsh 8.4.20 | same |
+| `computed` | `0` `d` | tclsh 8.4.20 | same |
+| `built` | `0` `e` | tclsh 8.4.20 | same |
+| `bodyof` | `0` `{return b} {return d}` | tclsh 8.4.20 | same |
 
 | Observed result | BIG-IP build | Environment | Date | Verdict |
 |---|---|---|---|---|

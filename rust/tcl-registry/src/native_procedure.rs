@@ -312,6 +312,9 @@ pub enum ProcedureDefinitionBodyPolicy {
     EvaluatedValue,
     /// The platform rule loader requires a closed original braced body word.
     OriginalBracedLiteral,
+    /// A closed original braced body word is accepted; no other formation has
+    /// been measured on this host (BIGIP-NAME-069).
+    BracedLiteralEstablished,
 }
 
 impl ProcedureDefinitionBodyPolicy {
@@ -325,10 +328,13 @@ impl ProcedureDefinitionBodyPolicy {
         use crate::native_compilation::NativeCompilationWordShape as Shape;
         match (self, shape) {
             (_, Shape::Expanded | Shape::Opaque) => None,
-            (Self::OriginalBracedLiteral, Shape::BracedLiteral) | (Self::EvaluatedValue, _) => {
-                Some(true)
-            }
+            (
+                Self::OriginalBracedLiteral | Self::BracedLiteralEstablished,
+                Shape::BracedLiteral,
+            )
+            | (Self::EvaluatedValue, _) => Some(true),
             (Self::OriginalBracedLiteral, _) => Some(false),
+            (Self::BracedLiteralEstablished, _) => None,
         }
     }
 }
@@ -348,7 +354,10 @@ pub fn procedure_definition_body_policy(
         (Family::Tcl | Family::Jim | Family::F5Irules, _) => {
             Some(ProcedureDefinitionBodyPolicy::EvaluatedValue)
         }
-        _ => None,
+        // A tmsh cli script and an iApp implementation both define their
+        // procedures with a braced body; the stock handler and the rule
+        // loader agree on that formation.
+        (Family::F5Tcl, _) => Some(ProcedureDefinitionBodyPolicy::BracedLiteralEstablished),
     }
 }
 
@@ -1613,6 +1622,25 @@ mod definition_body_policy_tests {
             )
             .unwrap();
             assert_eq!(native.accepts(Shape::Literal), Some(true));
+        }
+    }
+
+    #[test]
+    fn an_f5_trunk_host_accepts_a_braced_body_and_decides_no_other() {
+        for name in ["f5-tmsh", "f5-iapps"] {
+            let dialect = crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::find(name).unwrap(),
+            );
+            for realm in [
+                InvocationRealm::RuleLoader,
+                InvocationRealm::InterpreterRuntime,
+            ] {
+                let policy = procedure_definition_body_policy(dialect, realm).unwrap();
+                assert_eq!(policy.accepts(Shape::BracedLiteral), Some(true));
+                for shape in [Shape::Literal, Shape::QuotedLiteral, Shape::Opaque] {
+                    assert_eq!(policy.accepts(shape), None, "{name}: {shape:?}");
+                }
+            }
         }
     }
 }

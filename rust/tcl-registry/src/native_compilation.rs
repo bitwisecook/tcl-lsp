@@ -1463,6 +1463,17 @@ impl crate::InvocationFacts {
             _ if direct_provider.is_some_and(|provider| provider.admits(dialect)) => {
                 Lookup::NoneRequired
             }
+            // No F5 trunk host has namespace ensembles: `namespace ensemble`
+            // is the 8.4 `bad option` in TMM, iApp, iCall and tmsh on
+            // 21.1.0.1 (bigip-name-checks.md, section 3), so a value leaf has
+            // no private worker to rebind before its first C release.
+            Some(Family::F5Tcl)
+                if dialect
+                    .tcl_version
+                    .is_some_and(|version| version < implementation_from) =>
+            {
+                Lookup::NoneRequired
+            }
             _ => Lookup::Unknown,
         }
     }
