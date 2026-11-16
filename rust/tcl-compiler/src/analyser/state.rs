@@ -2207,7 +2207,13 @@ impl Analyser {
         )
         .with_workspace_source_modules(self.workspace_source_modules.clone())
         .with_script_encoding(self.script_encoding);
-        match self.vendor_source_name_policy() {
+        // A supplied input keeps the policy its supplier gave it, including
+        // none; only the default ingress derives one from the environment.
+        let policy = match &self.resolved_input {
+            Some(supplied) => supplied.vendor_source_policy(),
+            None => self.vendor_source_name_policy(),
+        };
+        match policy {
             Some(policy) => input.with_vendor_source_policy(policy),
             None => input,
         }
