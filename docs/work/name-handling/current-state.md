@@ -255,7 +255,7 @@ Changed result since the baseline from commits outside this area, by bisect over
 | `refactor::extract_proc` | 13 | Selections the walk does not offer, `${a{b}c}` capture, loop-carried reads (`foreach` gap), fresh name with an unknown command table | LSP features; compiler binding for `foreach` |
 | `refactor::if_to_switch` | 11 | Unentered arm makes the checked visit incomplete | Compiler binding |
 | `completion::*` | 18 | `destroy` not offered on the release path, widget subcommands (typing), per-object members, iRules version gating | LSP features; compiler dataflow for widgets |
-| `refactor::switch_to_dict` | 10 | Fresh-store and insertion obligation always refuses | LSP features, needs evidence per shape |
+| `refactor::switch_to_dict` | 10 | The shared walk is incomplete over the `switch` arms (unentered body), on the unversioned profile too, so no command is selected; the fresh-store obligation is only reached after that | Compiler binding first; then LSP features, evidence per shape |
 | `type_hierarchy`, `implementation`, `type_definition` | 23 | Not traced; several build an unversioned fixture and assert logical records | LSP features |
 | `code_lens` | 8 | Method and classmethod reference counts: unentered body and typing | Compiler binding and dataflow |
 | `refactor::inline_proc`, `extract_variable`, `brace_expr`, `source_rewrite`, `original_frame_walk_tests` | 23 | Nested command grammar unavailable (unentered body); expression-bracing obligation | Compiler binding; LSP features for bracing |
