@@ -327,7 +327,6 @@ impl<'a> NativeSummaryContext<'a> {
                     point.is_some()
                         || statement.defs.len() != 1
                         || statement.may_defs.contains(symbol)
-                        || statement.destruction_defs.contains(symbol)
                         || statement.statement.tokens() != Some(tokens)
                         || self.statement_tokens(body, &statement.statement).as_ref()
                             != Some(tokens)
