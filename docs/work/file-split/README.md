@@ -20,6 +20,7 @@ Goal: every Rust file that is not generated is at most 2,000 lines. Crates may b
 - `apply_split.py PLAN.toml [--check]` moves the items a plan names into child modules; `test_apply_split.py` tests it. `--check` resolves the plan and prints the size of every resulting file, marking any still over the limit, without writing.
 - `apply_plans.py PLANS_DIR` applies every plan under a directory, parents before the children they create, skipping what is already applied.
 - `finish_split.sh PACKAGE CRATE_DIR`, `direct_imports.py` and `update_contract.py`: see *Applying the plans of one package* below.
+- `module_graph.py CRATE_SRC` prints the dependency components of a crate's top-level modules, lowest layer first: what could become a crate of its own; `test_module_graph.py` tests it.
 
 ## Plans (`docs/work/file-split/plans/<crate>/<path>.toml`)
 
@@ -67,10 +68,23 @@ Done, 16 November 2026: every hand-written Rust file under `rust/` and `runtime/
 | BIG-IP object-spec tables (nine files, up to 27,000 lines) | filed by tmsh word, `split_bigip_data.py`; the table's contents are byte-identical |
 | mcpd service-name table | four key ranges |
 
+Behaviour is unchanged. The library suites were run on the commit before the splits (`66d28c31`) and after them, and fail the same tests by name: `tcl-compiler` 10,304 run, 1,698 failing on both; `tcl-lsp-core` 3,642 run, 530 failing on both; `tcl-vm` 93 failing on both. Every build configuration was checked after the import settling (dev, release, the runtime's features and `wasm32-wasip2`, the WASM hosts, Zed), because an import used under one configuration only is otherwise pruned.
+
 Outside the budget, as for the licence-header check: generated files (first line `// @generated` or `// Generated from`) and recorded test data under `tests/data/` (five `software_controls.rs` row tables that two crates `include!`).
 
 Kept in a facade because the owner-resolution contract ties them to the file that declares their type: `Lowerer::cmd_tokens`, `ModuleCommandBindings::analyse`, `Interp::synchronise_command_environment_guards` and `Interp::namespaces`.
 
 Two sites carry `// dialect-drift-ok: unreviewed`: the dialect-drift gate stops reading a file at its first test-module line and had never seen them (`analyser/utils/stub_directives.rs`, `command_binding/module_bindings/namespace_transitions.rs`). They need the real grammar threaded, by the owning areas.
 
-Crate boundaries the planners saw (none acted on): `tcl-registry/src/bigip` uses nothing else in its crate; `tcl-codegen/src/codegen/wasm`; the native tier of `tcl-compiler` (`executable_ir`, `dispatch_proof`, `world_state_ssa`, `common_aot_plan`, `native_lowering`, `native_byte_compilation`); the constant-folding core of `tcl_expr_eval`; the server's contention telemetry and its diagnostics engine; a shared home for the recorded `native_original_*` test data.
+Crate boundaries, measured on 16 November 2026 with `module_graph.py` (none acted on):
+
+| Candidate | Finding |
+| --- | --- |
+| `tcl-registry/src/bigip` (126,000 lines) | The only clean leaf: it names nothing else in its crate and one item of `tcl-dialect`. As a crate of its own it compiles in 4 seconds, so moving it saves a `tcl-registry` rebuild nothing that pays for a new member in ten lockfiles and eight CI path lists. Left in place. |
+| `tcl-compiler` (560,000 production lines, 121 top-level modules) | 102 modules holding 551,000 lines name one another in a cycle. No part can leave by moving files; the cycle has to be cut by design first (for example the IR and its builders below the analyses). The native tier the planners named (`executable_ir`, `dispatch_proof`, `world_state_ssa`, `native_lowering`, `native_byte_compilation`) is inside that cycle; only `common_aot_plan` with `native_integer_proof` (4,600 lines) sits above it. |
+| `tcl-registry` outside `bigip` | 115 modules, 290,000 lines, one cycle. |
+| `tcl-lsp-core` | 52 modules, 103,000 lines, one cycle; `minify` and `completion` sit above it. |
+| `tcl-vm` | 37 modules, 131,000 lines, one cycle. |
+| `tcl-codegen/src/codegen/wasm`, the constant-folding core of `tcl_expr_eval`, the server's contention telemetry and diagnostics engine, a shared home for the recorded `native_original_*` test data | Seen by the planners, not measured. |
+
+No crate is small enough to be worth merging into another: the small ones are per-target hosts and API seams.
