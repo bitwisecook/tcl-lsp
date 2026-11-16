@@ -84,8 +84,33 @@ fn decomposition(
     effective: &crate::registry_invocation::EffectiveCommandWords,
     ctx: TraceCtx<'_>,
 ) -> Option<Decomposition> {
-    let metadata = ctx.metadata()?.context();
     let binding = tokens.source_binding.as_ref()?;
+    let realm = binding.invocation_realm().or_else(|| {
+        ctx.cfg
+            .metadata_context
+            .is_standalone()
+            .then_some(tcl_dialect::model::InvocationRealm::RuleLoader)
+    })?;
+    resolved_decomposition(
+        tokens,
+        command,
+        effective,
+        (binding.variable_context.invocation_dialect, realm),
+        ctx,
+    )
+}
+
+fn resolved_decomposition(
+    tokens: &crate::ir::CommandTokens,
+    command: &str,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    (dialect, realm): (
+        Option<tcl_registry::InvocationDialect>,
+        tcl_dialect::model::InvocationRealm,
+    ),
+    ctx: TraceCtx<'_>,
+) -> Option<Decomposition> {
+    let metadata = ctx.metadata()?.context();
     let values = crate::registry_invocation::frozen_argument_words(tokens, effective);
     let values = values
         .iter()
@@ -95,15 +120,9 @@ fn decomposition(
         tcl_registry::InvocationWord::Literal(command),
         &values,
     );
-    if let Some(dialect) = binding.variable_context.invocation_dialect {
+    if let Some(dialect) = dialect {
         words = words.with_dialect(dialect);
     }
-    let realm = binding.invocation_realm().or_else(|| {
-        ctx.cfg
-            .metadata_context
-            .is_standalone()
-            .then_some(tcl_dialect::model::InvocationRealm::RuleLoader)
-    })?;
     let resolution =
         tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
             ctx.registry,
@@ -260,12 +279,24 @@ impl<'a> TraceCtx<'a> {
     fn normal_value(self, statement: &Statement) -> Option<crate::ir::WordExpr> {
         let (block, index) = self.point?;
         let tokens = statement.tokens()?;
-        let invocation =
+        let Some(invocation) =
             crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
                 self.registry,
                 self.metadata()?.context(),
                 tokens,
-            )?;
+            )
+        else {
+            // A handler store lowers to an assignment of its last word.
+            return (matches!(statement, Statement::AssignValue { .. })
+                && tokens.words().len() == 3
+                && crate::registry_invocation::hosted_source_taint_invocation(
+                    self.registry,
+                    tokens,
+                )
+                .is_some())
+            .then(|| tokens.words().last().cloned())
+            .flatten();
+        };
         let state = self
             .ssa
             .point_contexts
@@ -303,6 +334,43 @@ type DiagnosticWords = (
 );
 
 fn diagnostic_words(
+    tokens: &crate::ir::CommandTokens,
+    ctx: TraceCtx<'_>,
+) -> Option<DiagnosticWords> {
+    source_diagnostic_words(tokens, ctx).or_else(|| hosted_diagnostic_words(tokens, ctx))
+}
+
+/// A handler statement has no source binding. Its guarded hosted row names
+/// the command for this advice, and the handler runs it in the interpreter.
+fn hosted_diagnostic_words(
+    tokens: &crate::ir::CommandTokens,
+    ctx: TraceCtx<'_>,
+) -> Option<DiagnosticWords> {
+    ctx.metadata()?;
+    let hosted = crate::registry_invocation::hosted_source_taint_invocation(ctx.registry, tokens)?;
+    let command = hosted.metadata.shape().command().to_owned();
+    let arguments = hosted
+        .effective
+        .argument_spellings(tokens.argv_texts.get(1..)?)?;
+    let operation = resolved_decomposition(
+        tokens,
+        &command,
+        &hosted.effective,
+        (
+            None,
+            tcl_dialect::model::InvocationRealm::InterpreterRuntime,
+        ),
+        ctx,
+    );
+    Some((
+        command,
+        arguments,
+        hosted.effective.words.get(1..)?.to_vec(),
+        operation,
+    ))
+}
+
+fn source_diagnostic_words(
     tokens: &crate::ir::CommandTokens,
     ctx: TraceCtx<'_>,
 ) -> Option<DiagnosticWords> {
@@ -1032,7 +1100,6 @@ fn check_statement<S: std::hash::BuildHasher>(
     warnings: &mut Vec<TaintWarning>,
 ) {
     let stmt_span = stmt.span();
-
     // 1. split detection.
     if let Some((input_arg, Some(sep))) = extract_split_info(stmt, ssa_stmt, sccp_values, ctx)
         && sep.chars().any(|c| QUERY_CHARS.contains(&c))
