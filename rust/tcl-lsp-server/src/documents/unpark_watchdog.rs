@@ -18,8 +18,11 @@
 
 //! The opt-in watchdog that nudges a waiter parked on a free document map.
 
+#[cfg(not(target_family = "wasm"))]
 use super::store::DocumentStore;
+#[cfg(not(target_family = "wasm"))]
 use super::{DocumentsContention, WaiterSnapshot};
+#[cfg(not(target_family = "wasm"))]
 use crate::{Arc, Backend};
 
 /// How long a waiter may sit parked on a FREE map before the watchdog nudges.
