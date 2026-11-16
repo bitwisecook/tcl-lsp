@@ -1086,6 +1086,9 @@ mod qualified_cross_document_call {
 
     #[test]
     fn a_qualified_call_the_sibling_never_declares_stays_unknown() {
-        assert!(selected("proc bar {} { return 1 }\n", "::Lib::bar\n", 0, 2).is_empty());
+        assert_eq!(
+            selected("proc bar {} { return 1 }\n", "::Lib::bar\n", 0, 2),
+            [] as [(std::string::String, u32); 0]
+        );
     }
 }
