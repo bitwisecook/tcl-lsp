@@ -260,7 +260,10 @@ fn a_live_fold_keeps_declared_effects_and_unclosed_arguments() {
         registry.insert(pure);
         assert_eq!(replacements(&registry, "edge::constant abcde"), ["good"]);
         pack_hooks::clear_host();
-        assert!(replacements(&registry, "edge::constant abcde").is_empty());
+        assert_eq!(
+            replacements(&registry, "edge::constant abcde"),
+            [] as [std::string::String; 0]
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

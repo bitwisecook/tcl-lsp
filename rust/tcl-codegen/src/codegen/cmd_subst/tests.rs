@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use tcl_compiler::ir::WordExpr;
 use tcl_registry::CommandRegistry;
 
 #[test]

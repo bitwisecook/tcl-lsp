@@ -1523,7 +1523,7 @@ fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
             "-unknown"
         ],
     );
-    assert!(names_of("exists").is_empty());
+    assert_eq!(names_of("exists"), [] as [std::string::String; 0]);
 }
 
 /// An **empty** option block is a claim of its own and survives as one.

@@ -63,12 +63,12 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | options | the getter's option table marks the normalising flag | `rust/tcl-compiler/src/rendered_properties.rs` | 1 | site | the HTTP getter's normalising flag |
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs` | 2 | site | the interp create flag run |
 | options | the option table marks the force flag | `rust/tcl-syntax/src/naming/native.rs` | 1 | site | the native name policy's force flag |
-| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow.rs` | 3 | site | return's -code/-level options in codegen |
+| options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow/catch_command.rs` | 3 | site | return's -code/-level options in codegen |
 | options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs` | 2 | site | the hardening edit rewrites subst's own option word |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs` | 5 | site | switch's match-mode options |
 | special_vars | the snit definition grammar declares its implicit variables | `rust/tcl-compiler/src/analyser/oo.rs` | 1 | site | snit's implicit type variable in a typemethod body |
 | special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs` | 1 | site | the auto_path special variable |
-| subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow.rs` | 3 | site | dict's scoping subcommands in codegen |
+| subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow/release_compiles.rs` | 3 | site | dict's scoping subcommands in codegen |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs` | 1 | site | a dict merge value shape |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs` | 1 | site | a namespace eval wrapper's subcommand |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs` | 2 | site | namespace ensemble create and configure |

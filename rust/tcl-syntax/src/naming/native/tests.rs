@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use tcl_core_types::ByteCommandSlot;
 const VERSIONS: [TclVersion; 5] = [
     TclVersion::V8_4,
     TclVersion::V8_5,

@@ -16,7 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use super::regexp_command::slice_match;
 use super::*;
+use tcl_syntax::value::ValueOps;
 
 #[test]
 fn regex_error_wrapper_retains_arity_and_primitive_state_actions() {

@@ -16,9 +16,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use crate::codegen::wasm::backend::function_facts::function_facts;
+use crate::codegen::wasm::backend::function_facts::procedure_plan;
+use crate::codegen::wasm::backend::function_facts::span_key;
+use crate::codegen::wasm::backend::imports::add_codegen_import;
+use crate::codegen::wasm::backend::imports::add_general_imports;
+use crate::codegen::wasm::leaf_invoke::WasmWordPlan;
+use crate::codegen::wasm::native_emit;
 use tcl_compiler::interprocedural::test_body_identity::fixture_id_if_present;
 
 use super::*;
+use tcl_compiler::command_binding::BindingKind;
+use tcl_compiler::command_binding::analyse_command_binding;
+use tcl_compiler::compilation_unit::FunctionUnit;
+use tcl_compiler::ir::Statement;
+use tcl_compiler::registry_invocation::RegistryInvocationResolution;
+use tcl_compiler::registry_invocation::resolve_command_tokens_with_metadata_context;
+use tcl_lexer::Span;
 
 #[test]
 fn condition_argv_and_native_emitters_share_actual_abi_import_indices() {

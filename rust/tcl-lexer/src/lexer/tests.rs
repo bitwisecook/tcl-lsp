@@ -18,6 +18,7 @@
 
 use super::*;
 use std::fmt::Write as _;
+use tcl_dialect::BracedVarStyle;
 
 use crate::line_index::LineIndex;
 use crate::tokens::{ByteCol, SourcePosition};

@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::loader::{FileBom, statements};
 
 #[test]
 fn static_speclib_body_folds_brace_continuations_like_interpreter() {

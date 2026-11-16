@@ -378,7 +378,7 @@ fn an_untrusted_pack_installs_no_hook_body_and_reports_each_as_dormant() {
         trusted.notices
     );
     let plan = hooks::plan_for(&trusted);
-    assert!(plan.dormant().is_empty());
+    assert_eq!(plan.dormant(), []);
     let slots: Vec<_> = plan
         .packs()
         .iter()

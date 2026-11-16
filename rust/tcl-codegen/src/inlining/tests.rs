@@ -25,6 +25,7 @@
 //! own procedures).
 
 use super::*;
+use std::collections::HashSet;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 

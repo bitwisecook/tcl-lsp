@@ -20,6 +20,7 @@ use super::*;
 use crate::codegen::CodegenCtx;
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::CommandTokens;
+use tcl_compiler::ir::WordExpr;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 

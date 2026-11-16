@@ -41,6 +41,8 @@ fn private_original_literal_has_ordered_slot_without_string_receipt() {
     );
 }
 use super::*;
+use tcl_lexer::Span;
+use tcl_syntax::expr::ast::{BinOp, UnaryOp};
 
 #[test]
 fn replay_context_rejects_inconsistent_component_geometry() {

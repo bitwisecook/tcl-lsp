@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::loader::block_descriptors::definition_body_block;
 
 #[test]
 fn actual_authored_sets_select_custom_hints_and_preserve_exact_snittype_recipe() {

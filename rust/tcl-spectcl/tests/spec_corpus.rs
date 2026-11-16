@@ -1622,8 +1622,8 @@ fn shipped_string_pack_replays_actual_corpus_first_gates() {
                 assert_eq!(report.hook_slots, 3);
                 assert_eq!(report.corpus_paths, vec![path.to_owned()]);
                 assert_eq!(report.synthesised_calls, 0);
-                assert!(report.analysis_fallbacks.is_empty());
-                assert!(report.crashes.is_empty());
+                assert_eq!(report.analysis_fallbacks, [] as [std::string::String; 0]);
+                assert_eq!(report.crashes, [] as [tcl_spec_hooks::CrashRecord; 0]);
                 assert_eq!(report.quarantined, 0);
                 eprintln!(
                     "SPECTCL_STRING_FIRST_GATE_END hook={hook} successes={} attempts={} optimisations={}",

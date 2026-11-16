@@ -78,6 +78,7 @@ pub(super) fn finish_owned_function_names(mut module: WasmModule) -> WasmModule 
 #[cfg(test)]
 mod tests {
     use super::{NativeFunctionId, WasmModule, finish_owned_function_names};
+    use crate::codegen::wasm::backend::module_assembly::start_function;
 
     #[test]
     fn colliding_versions_preserve_indices_and_avoid_reserved_user_labels() {
@@ -87,7 +88,7 @@ mod tests {
         let mut module = WasmModule::new();
         module.add_import("host", "call", &[], &[]);
         for name in ["::top", "::top", "::top", "__tcl_wasm_body_0"] {
-            let mut function = super::super::start_function(0, 0, None, 0);
+            let mut function = start_function(0, 0, None, 0);
             function.name = name.to_owned();
             module.functions.push(function);
         }

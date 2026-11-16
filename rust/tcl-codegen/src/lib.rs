@@ -80,6 +80,9 @@ mod smoke {
             &ir, false, &registry, config,
         );
         let module = crate::codegen::codegen_module(&cfg, &ir, &registry).expect("emits");
-        assert!(!module.top_level.instructions.is_empty());
+        assert_ne!(
+            module.top_level.instructions,
+            [] as [tcl_bytecode::Instruction; 0]
+        );
     }
 }

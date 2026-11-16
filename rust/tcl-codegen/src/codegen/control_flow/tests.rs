@@ -16,9 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use super::super::Operand;
 use super::*;
 use tcl_compiler::cfg::Block;
+use tcl_compiler::cfg::Function as CfgFunction;
+use tcl_compiler::ir::Statement;
 use tcl_registry::CommandRegistry;
+use tcl_registry::Traits;
 
 #[test]
 fn original_inline_body_tokens_keep_nested_bom_and_parent_point_correspondence() {

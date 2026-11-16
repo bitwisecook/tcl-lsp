@@ -210,7 +210,7 @@ fn without_a_host_the_installed_pack_simply_does_not_fold() {
     let packs = pack_set("hostless");
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
     pack_hooks::clear_host();
-    assert!(folds(&registry).is_empty());
+    assert_eq!(folds(&registry), [] as [std::string::String; 0]);
 }
 
 #[test]

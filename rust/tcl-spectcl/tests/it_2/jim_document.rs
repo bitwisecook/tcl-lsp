@@ -254,7 +254,7 @@ fn a_class_records_the_variables_its_dictionary_names() {
         let class = &result.all_classes["::Point"];
         assert_eq!(class.variables, ["x", "y"]);
         assert_eq!(class.metaclass, "class");
-        assert!(class.superclasses.is_empty());
+        assert_eq!(class.superclasses, [] as [std::string::String; 0]);
     }
 }
 
@@ -279,7 +279,10 @@ fn only_a_computed_base_list_leaves_the_inheritance_unknown() {
         let result = run(&source, per_item);
         assert!(result.all_classes["::Dyn"].inheritance_unknown);
         assert!(!result.all_classes["::Vars"].inheritance_unknown);
-        assert!(result.all_classes["::Vars"].variables.is_empty());
+        assert_eq!(
+            result.all_classes["::Vars"].variables,
+            [] as [std::string::String; 0]
+        );
     }
 }
 
@@ -573,7 +576,10 @@ fn authored_jim_dictionary_and_odd_shape_use_the_original_list_fields() {
                 .collect::<Vec<_>>(),
             ["x", "0", "y", "0"]
         );
-        assert!(original.base_fields().unwrap().is_empty());
+        assert_eq!(
+            original.base_fields().unwrap(),
+            [] as [&tcl_syntax::word_rules::OriginalSourceListElement; 0]
+        );
         assert!(!original.bases_unknown());
         assert_eq!(result.all_classes["::Point"].variables, ["x", "y"]);
         assert!(
@@ -632,10 +638,16 @@ fn authored_jim_computed_lists_keep_unknown_distinct_from_absent() {
         assert!(dynamic.base_fields().is_none());
         assert!(result.all_classes["::Dyn"].inheritance_unknown);
         assert!(!variables.bases_unknown());
-        assert!(variables.base_fields().unwrap().is_empty());
+        assert_eq!(
+            variables.base_fields().unwrap(),
+            [] as [&tcl_syntax::word_rules::OriginalSourceListElement; 0]
+        );
         assert!(variables.variable_fields().is_none());
         assert!(!result.all_classes["::Vars"].inheritance_unknown);
-        assert!(result.all_classes["::Vars"].variables.is_empty());
+        assert_eq!(
+            result.all_classes["::Vars"].variables,
+            [] as [std::string::String; 0]
+        );
     }
 }
 
@@ -657,7 +669,10 @@ fn authored_jim_foreign_source_input_and_replacement_cannot_supply_a_provider() 
         result.body_lexer_config.unwrap(),
     ));
     assert!(source_authored_jim_class_at(&source, &foreign, offset).is_none());
-    assert!(original.inherited_variables(&foreign).is_empty());
+    assert_eq!(
+        original.inherited_variables(&foreign),
+        [] as [std::string::String; 0]
+    );
     for mutation in ["rename Point {}", "proc Point {} {}"] {
         let changed = jim(&format!(
             "class Point {{x 0}}\n{mutation}\nclass Derived Point {{z 0}}\n"
@@ -719,10 +734,9 @@ fn authored_jim_renamed_provider_keeps_its_source_and_computed_replacement_retir
         replaced_derived.base_provider(0).is_none(),
         "replacement retires the actual source cell"
     );
-    assert!(
-        replaced_derived
-            .inherited_variables(&replaced_result)
-            .is_empty()
+    assert_eq!(
+        replaced_derived.inherited_variables(&replaced_result),
+        [] as [std::string::String; 0]
     );
     assert_eq!(replaced_result.all_classes["::Derived"].variables, ["z"]);
 }
@@ -766,7 +780,10 @@ fn older_jim_retains_positive_logical_source_purpose_without_native_promotion() 
     assert!(
         source_authored_jim_class_at(source, &absent, original.factory().site().offset).is_none()
     );
-    assert!(original.inherited_variables(&absent).is_empty());
+    assert_eq!(
+        original.inherited_variables(&absent),
+        [] as [std::string::String; 0]
+    );
     let modern_source = jim("class Point {x 0}\n");
     let modern = run(&modern_source, false);
     let modern_original = authored_class_at(&modern_source, &modern, "class Point");

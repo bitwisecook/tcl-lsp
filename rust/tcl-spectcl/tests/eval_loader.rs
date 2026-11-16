@@ -461,7 +461,10 @@ fn the_block_readers_still_report_from_the_evaluated_path() {
 
     let reserved =
         evaluate_pack("speclib probe 2.0 {\n\nenvironment tcl8.6 {\n    core tcl 8.6\n}\n\n}\n");
-    assert!(reserved.environments.is_empty());
+    assert_eq!(
+        reserved.environments,
+        [] as [tcl_spectcl::PackEnvironment; 0]
+    );
     assert!(
         reserved
             .notices
@@ -472,7 +475,10 @@ fn the_block_readers_still_report_from_the_evaluated_path() {
     );
 
     let missing_body = evaluate_pack("speclib probe 2.0 {\n\nenvironment probe-shell\n\n}\n");
-    assert!(missing_body.environments.is_empty());
+    assert_eq!(
+        missing_body.environments,
+        [] as [tcl_spectcl::PackEnvironment; 0]
+    );
     assert!(
         missing_body
             .notices
@@ -484,7 +490,7 @@ fn the_block_readers_still_report_from_the_evaluated_path() {
 
     let classified =
         evaluate_pack("speclib probe 2.0 {\n\ndialect probe-lang {\n    release tcl9.0\n}\n\n}\n");
-    assert!(classified.dialects.is_empty());
+    assert_eq!(classified.dialects, [] as [tcl_spectcl::PackDialect; 0]);
     assert!(
         classified
             .notices
