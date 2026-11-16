@@ -2009,6 +2009,15 @@ fn hosted_result_taint(
     })
 }
 
+fn reaches_only_a_catalogued_absent_head(
+    nested: Option<&CommandTokens>,
+    ctx: TaintCtx<'_>,
+) -> bool {
+    nested
+        .and_then(|nested| nested.source_binding.as_ref())
+        .is_some_and(|binding| binding.reaches_only_a_catalogued_absent_head(ctx.registry))
+}
+
 /// Everything a command substitution's taint needs before the recursive
 /// argument walk, or its answer when no walk is needed. A leaf, so these
 /// temporaries are not held on every level of nested substitution.
@@ -2077,10 +2086,7 @@ fn classify_substitution_taint(
     if ctx.source_tokens.is_some()
         && point_target.is_none()
         && normal.is_none()
-        && !nested
-            .as_ref()
-            .and_then(|nested| nested.source_binding.as_ref())
-            .is_some_and(|binding| binding.reaches_only_a_catalogued_absent_head(ctx.registry))
+        && !reaches_only_a_catalogued_absent_head(nested.as_ref(), ctx)
     {
         // Missing word provenance or an explicit unknown target cannot
         // inherit a sanitiser/source/transform from the written name.
