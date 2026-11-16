@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use super::object_dispatch::object_handle_name;
 use super::*;
 use tcl_dialect::model::{Family, SurfaceLayer};
 

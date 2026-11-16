@@ -265,8 +265,9 @@ fn counted_empty_class_head_refuses_shadow_and_unresolved_observer() {
         assert!(!roles.is_class_head(head), "{source}");
     }
 }
+use crate::semantic_tokens::full_with_cu_and_analysis;
+use crate::semantic_tokens::legend::MOD_DEFINITION;
 use crate::semantic_tokens::tests::decode_semantic;
-use crate::semantic_tokens::{MOD_DEFINITION, full_with_cu_and_analysis};
 use tcl_compiler::analyser::Analyser;
 
 fn kind_at(

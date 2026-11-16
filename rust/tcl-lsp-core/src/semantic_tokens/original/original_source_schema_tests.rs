@@ -339,13 +339,13 @@ fn logical_source_role_colours_keep_nested_selectors_values_and_oo_members() {
             "oo::define C method pick {arg} {return $arg}",
             "pick",
             TokenKind::Method,
-            super::super::MOD_DEFINITION,
+            super::super::legend::MOD_DEFINITION,
         ),
         (
             "oo::class create C {method pick {arg} {return $arg}}",
             "pick",
             TokenKind::Method,
-            super::super::MOD_DEFINITION,
+            super::super::legend::MOD_DEFINITION,
         ),
         (
             "switch $subject one {set local 1} default {set local 2}",

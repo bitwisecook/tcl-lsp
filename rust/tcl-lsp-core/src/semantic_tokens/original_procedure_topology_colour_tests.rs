@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use super::variable_name_roles::proc_var_write_indices;
 use super::*;
 use tcl_compiler::analyser::Analyser;
 
