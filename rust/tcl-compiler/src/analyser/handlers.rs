@@ -2684,11 +2684,12 @@ impl Analyser {
     ) -> Option<tcl_registry::ProcedureWords> {
         if let Some(head) = source_head {
             let words = self.original_procedure_source_words_at(head, args, arg_tokens);
-            // The interpretation never enters a child interpreter's script,
-            // so a declaration there has no retained words: its layout is
-            // the written head's in the registry. A computed name stays
-            // refused, since its value may name another namespace.
-            let unreached_child_script = !self.interp_path_stack.is_empty()
+            // The interpretation never enters a child interpreter's script
+            // or the recovered tail of a document that did not parse, so a
+            // declaration there has no retained words: its layout is the
+            // written head's in the registry. A computed name stays refused,
+            // since its value may name another namespace.
+            let unreached_script = (!self.interp_path_stack.is_empty() || self.recovered_source)
                 && args
                     .first()
                     .is_some_and(|name| !crate::naming::is_dynamic_word(name))
@@ -2696,7 +2697,7 @@ impl Analyser {
                     .head_identities
                     .source_bindings_ref()
                     .reached_site(head.span.start());
-            if words.is_some() || !unreached_child_script {
+            if words.is_some() || !unreached_script {
                 return words;
             }
         }

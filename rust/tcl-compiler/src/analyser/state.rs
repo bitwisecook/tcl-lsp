@@ -891,6 +891,10 @@ pub struct Analyser {
     /// [`domain`](InterpFrame::domain) identity, which is what analyser
     /// state modelling *per-interpreter runtime state* keys itself by.
     pub(super) interp_path_stack: Vec<InterpFrame>,
+    /// The document did not parse cleanly and its command stream is the
+    /// recovery segmenter's. No interpreter runs such a document, so the
+    /// interpretation holds nothing for the recovered tail.
+    pub(super) recovered_source: bool,
     /// Safe-interpreter evaluation contexts currently on the walk stack:
     /// non-empty while walking an `interp eval` body whose target
     /// interpreter is safe.  The per-command gate consults the top —
@@ -1701,6 +1705,7 @@ impl Analyser {
             dynamic_interp_ops: false,
             interp_epochs: HashMap::new(),
             interp_path_stack: Vec::new(),
+            recovered_source: false,
             safe_interp_stack: Vec::new(),
             interp_var_bindings: HashMap::new(),
             unresolved_commands_emitted: false,
@@ -2660,6 +2665,8 @@ impl Analyser {
 
         // Ghost-token recovery (see method doc).
         let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
+        self.recovered_source =
+            ghost_recovery_applied || commands.iter().any(|command| command.is_partial);
         Self::trace_analysis_phase(phase_start, source.len(), "segmented");
 
         // Walk each command through the dispatcher.  The dispatcher
