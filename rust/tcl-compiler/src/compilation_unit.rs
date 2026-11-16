@@ -6156,11 +6156,21 @@ fn extend_existence_folds(
     metadata: crate::sccp::ExistenceMetadataInputs<'_>,
     config: tcl_lexer::LexerConfig,
 ) {
-    sccp.constant_branches.extend(
-        crate::sccp::existence_constant_branches_with_ssa_with_metadata_context(
-            cfg, frame, metadata, config, ssa,
-        ),
+    // The solver decides an existence condition itself where its existence
+    // rung reaches the branch; this scan adds only the branches it left open,
+    // so a block never carries the same decision twice.
+    let folds = crate::sccp::existence_constant_branches_with_ssa_with_metadata_context(
+        cfg, frame, metadata, config, ssa,
     );
+    for fold in folds {
+        if !sccp
+            .constant_branches
+            .iter()
+            .any(|decided| decided.block == fold.block)
+        {
+            sccp.constant_branches.push(fold);
+        }
+    }
 }
 
 /// Explicit unknown-frame fallback for an original conditional child.
