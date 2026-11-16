@@ -2,9 +2,9 @@
 
 Updated 15 November 2026. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
 
-## Paused for the file restructuring, 16 November 2026, 10:54 UTC
+## File restructuring done; burn-down resumed, 16 November 2026
 
-The owner paused the burn-down sessions so every large Rust file can be split first (`docs/work/file-split/README.md`). Each session pushed what was finished and holds the rest locally; none pushes until the coordinator sends a resume notice. On resuming, a session rebases onto the new layout: an item that moved is in the module its file's plan names (`docs/work/file-split/plans/<crate>/...`), and local hunks against a moved item are re-applied there.
+Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); `cargo xtask file-sizes --check` holds it there and its ledger is empty. 238 files were split into a facade and named modules by pure moves: no item was renamed and every old path still resolves. Test modules were split the same way, so a test's path gained a module; compare failing lists by the last path segment. The burn-down sessions were paused from 10:54 UTC while it landed and were sent the resume notice afterwards; a session holding local work re-applies a hunk against a moved item in the module the file's plan names (`docs/work/file-split/plans/<crate>/...`).
 
 ## Scoreboard, 16 November 2026, 00:50 UTC
 
@@ -20,7 +20,7 @@ Failing tests by area, from each session's last full run on `work`. The start-of
 | Tooling (`tcl-cli` 42, `tcl-spectcl` 29, `tcl-explorer` 14, `tcl-diagram` 14, `tcl-mcp` 3, `tcl-irules` 3, `tcl-spec-studio` 1, `tcl-sslictcl` 1, `tcl-registry` 0; re-run on `631529c9`, 16 November) | 107 | | tooling |
 | Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the 319 above) | 33 | 131 | tooling |
 | `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | coordinator |
-| `xtask` (381 tests, 37 drift gates) | 0 | | coordinator |
+| `xtask` (38 drift gates) | 0 | | coordinator |
 
 Compiler suite by owning session (counts overlap the first row): analyser and binding (walk) is the critical path; class and object facts (new, about 50 class-factory tests plus method-body and lenient-environment facts); diagnostics about 440; dataflow and optimiser; taint and iRules checks about 300; value transfers, escape, shimmer and types 349.
 
@@ -40,6 +40,7 @@ Made so sessions were not stalled; each can be overruled.
 - **Summaries.** A binding at the call's execution point decides a global-write summary; fixtures that relied on an installer nobody calls now call it, with one row kept for the as-written shape.
 - **Tooling.** Code that asks whether text is one complete command uses the checked segmenter; a supplied analysis input stays exact and the supplier resolves it once for unit and analysis; a directive that cannot be read selects nothing.
 - **References.** Callback selectors in unentered method bodies may be reported as read-only reference spans; rename keeps them as a hazard.
+- **Server and database (16 November).** Per-body incremental analysis is restored, not the memo tests re-scoped: an edit inside one body re-analyses that body. A position past the end of a line is clamped to the line's length, as LSP 3.17 says. Completion inside `namespace eval` and inside a namespace's procedures writes a global as `$::name`. The IRULE1005/1006 collect-bootstrap quick fix may be offered from conditional advice as a single, not-preferred action, never in fix-all. In a recovered tail, a procedure the reached prefix declares and does not rebind is checked for arity like a registry head. The unassigned `tcl-lsp-db` groups go to the server and database session; a compiler fact goes to its owner with the smallest fixture.
 - **Naming gate.** Colon trims count as hand-written name handling; four `::` joins in `f5-cli` and `tcl-bigip` are listed as not Tcl names.
 
 ## Measured state, 14 November 2026
