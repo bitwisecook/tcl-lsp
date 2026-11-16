@@ -2724,23 +2724,4 @@ fn walk_local_writes(script: &Script, names: &mut HashSet<String>, depth: u32) {
 mod tests;
 
 #[cfg(test)]
-mod reported_namespace_tests {
-    use super::root_namespace_of;
-
-    #[test]
-    fn procedure_body_reporting_namespace_retains_its_selected_prefix() {
-        // Implementation contract: naming.analysis.reported-qname-namespace-prefix
-        // docs/design/analysis/name-resolution-proofs/reported-qname-namespace-prefix.md
-        // Shared analytical name contract:
-        // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).
-        // Actual consumer purpose selection; reporting text grants no lookup identity.
-        for (qname, expected) in [
-            ("n::p", "n"),
-            (":::p", "::"),
-            ("::n::", "::n"),
-            ("::é::λ", "::é"),
-        ] {
-            assert_eq!(root_namespace_of(qname), expected);
-        }
-    }
-}
+mod reported_namespace_tests;

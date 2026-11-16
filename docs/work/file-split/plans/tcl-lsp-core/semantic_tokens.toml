@@ -1,0 +1,100 @@
+# The facade keeps `SemanticTokens`, the public `full*`/`range*`/`coarse*`
+# entry points, `collect_entries` and the standalone analysis helpers.
+file = "rust/tcl-lsp-core/src/semantic_tokens.rs"
+
+[[module]]
+name = "legend"
+doc = "The token kinds, the legend the server announces and the modifier bits."
+items = ["enum:TokenKind..const:MOD_DECLARATION"]
+
+[[module]]
+name = "variable_name_roles"
+doc = "Which argument words of a procedure call name a variable or a command."
+items = ["struct:VarNameArgRoles..fn:proc_name_keys"]
+
+[[module]]
+name = "config_documents"
+doc = "Tokens for BIG-IP configuration and APL documents."
+items = ["fn:apl_full..fn:apl_entries"]
+
+[[module]]
+name = "irules_document"
+doc = "Document-level iRules facts: declaration heads, event names and object spans."
+items = ["fn:irules_top_level_declaration_heads", "fn:is_event_name", "fn:irules_document_object_spans"]
+
+[[module]]
+name = "argument_override"
+doc = "The role a command's specification gives one argument word."
+items = ["enum:ArgOverride", "fn:subspec_content", "fn:role_claimed_by_token_pass", "fn:head_is_computed"]
+
+[[module]]
+name = "regex_subtokens"
+doc = "Sub-tokens inside regular expressions and `regsub` substitution specs."
+items = [
+    "fn:push_regsub_subtokens",
+    "fn:mark_literal_fragments",
+    "fn:mark_regex_source_words",
+    "fn:push_regex_subtokens..fn:classify_regex_component",
+]
+
+[[module]]
+name = "format_subtokens"
+doc = "Sub-tokens inside `binary`, `clock` and `format` specifications and backslash escapes."
+items = ["fn:push_binary_subtokens..fn:emit_part", "fn:push_escape_subtokens"]
+
+[[module]]
+name = "object_dispatch"
+doc = "Method words, options and accessors of object receivers."
+items = ["type:ObjectClassMap..fn:retag_original_variable_argument"]
+
+[[module]]
+name = "script_walk"
+doc = "The walk over one script body and its list-shaped arguments."
+items = ["const:MAX_TOKEN_RECURSION..fn:collect_script"]
+
+[[module]]
+name = "command_tokens"
+doc = "Tokens for one command: its head and the walk over its argument words."
+items = [
+    "struct:CommandTokenSources..fn:document_member",
+    "fn:deferred_produced_command_words..fn:collect_command_tokens",
+    "fn:classify_and_push_if",
+]
+
+[[module]]
+name = "command_roles"
+doc = "The argument roles a command's registry row, procedure definition or class gives its words."
+items = [
+    "fn:unrecorded_head_kind..fn:is_generic_option_word",
+    "fn:insert_lexical_user_overrides..fn:deferred_role_arg_starts",
+]
+
+[[module]]
+name = "argument_tokens"
+doc = "Tokens for one argument word and for expression operands."
+items = ["fn:verbatim_token_kind..fn:expr_subtoken_kind", "fn:classify_arg_token", "fn:keyword_operand_content", "fn:push_keyword_arg"]
+
+[[module]]
+name = "object_handles"
+doc = "Variables that hold object handles: loop variables, snit components and constructions."
+items = ["fn:augment_loop_var_handles..fn:static_loop_var_names"]
+
+[[module]]
+name = "emission"
+doc = "Token entries: pushing, comment tokens, delimiters and the wire encoding."
+items = [
+    "type:Entry",
+    "struct:TokenPositionContext",
+    "fn:flush_run",
+    "fn:push_subtoken",
+    "fn:push_span_entries",
+    "fn:push_object_token",
+    "fn:push_comment_tokens..fn:push_token",
+    "fn:encode_entries",
+    "const:TOKEN_STRIDE",
+]
+
+[[module]]
+name = "delta"
+doc = "The edit list between two encoded token arrays."
+items = ["struct:TokenEdit", "fn:diff"]

@@ -571,22 +571,7 @@ impl CommandBindingIdentity {
 }
 
 #[cfg(test)]
-mod command_binding_tests {
-    use super::CommandBindingIdentity;
-
-    #[test]
-    fn rooted_constructed_namespace_loses_exactly_one_root_marker() {
-        assert_eq!(
-            CommandBindingIdentity::in_rooted_namespace("::n", "expr", "expr").resolution_namespace,
-            "n",
-        );
-        assert_eq!(
-            CommandBindingIdentity::in_rooted_namespace(":::", "expr", "expr").resolution_namespace,
-            ":",
-            "a literal-colon namespace segment must not be canonicalised as Tcl source",
-        );
-    }
-}
+mod command_binding_tests;
 
 /// A compiler assumption about one exact user-procedure binding.
 ///
@@ -691,25 +676,7 @@ impl ProcedureBindingIdentity {
 }
 
 #[cfg(test)]
-mod procedure_binding_tests {
-    use super::ProcedureBindingIdentity;
-
-    #[test]
-    fn rooted_constructed_namespace_loses_exactly_one_root_marker() {
-        let binding =
-            ProcedureBindingIdentity::in_rooted_namespace("::n", "p", "::n::p", "", "return ok");
-        assert_eq!(binding.resolution_namespace, "n");
-        assert_eq!(binding.invocation_name, "p");
-        assert_eq!(binding.name, "::n::p");
-
-        assert_eq!(
-            ProcedureBindingIdentity::in_rooted_namespace(":::", "p", ":::::p", "", "return ok",)
-                .resolution_namespace,
-            ":",
-            "a literal-colon namespace segment must not be canonicalised as Tcl source",
-        );
-    }
-}
+mod procedure_binding_tests;
 
 /// Target-neutral compiler/runtime code-generation ABI descriptors and wasm32
 /// transport layout constants.
