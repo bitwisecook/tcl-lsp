@@ -767,6 +767,40 @@ Classification of what still fails (first failing assertion, one run):
 | `tcl-mcp` | fixed: `parse_set_or_return` asks the checked script segmenter whether an arm body is one complete command (the editor segmenter keeps an unterminated `${` whole on every release); the per-release table passes on 8.4, 8.6, 9.0 and 9.1 | 0 | done |
 | `tcl-mcp` | fixed: the two datagroup fixtures (fourth batch) | 0 | done |
 
+## LSP server end-to-end and database area
+
+Updated 16 November 2026. Baseline at `288afd89`, one run of `tcl-lsp-server --test e2e` (1,651 tests, test profile `opt-level 1`): 1,338 pass, 313 fail. 132 of the failures are the navigation family (LSP features session); 181 are this area's. `tcl-lsp-db` has not been run in this pass.
+
+Fixed, fixtures only, 9 tests, new 0:
+
+- A request one column past the end of a line. The server answers only for an exact position in the current document (`CurrentSourcePosition`, `OriginalCodeActionSource::contains_range`), so the request was refused before a provider ran: `signature_help::proc_first_arg`, `proc_with_defaults_marks_optional`, and the E100, W003 and W004 quick-fix tests in `code_actions`. Open decision: LSP 3.17 says a character past the line end defaults to the line length; the server abstains instead.
+- A Tcl 9.0 command under the default profile: `document_symbols::property_symbol`, `class_detail_shows_metaclass` now use the 9.0 profile (tclsh 8.6.18 has neither `oo::abstract` nor `oo::configurable`).
+- A read of an unset variable that tclsh raises on before the code under test runs: `diagnostics::analyser_noqa_suppresses_an_analyser_code`, `value_position_still_fires_w216`.
+
+Open, by cause. "Sent" means the owner has the smallest fixture; "waits" means the cause was already in flight.
+
+| Module (tests) | Count | Cause | Owner |
+| --- | --- | --- | --- |
+| `recovery` | 18 | After an unterminated delimiter the analysis keeps nothing from the recovered tail: no symbols, no later diagnostics. The recovery segmenter still returns the commands. | Binding walk and realm, sent |
+| `irules` quick fixes and S110, `code_actions` T102 | 22 | No taint or security diagnostic is issued in a `when` body (T100 to T106, IRULE3001 to 3003, IRULE6001, S110). The fixtures also hand the server a diagnostic it never published; a fix now needs the published one, so they are being rewritten as real iRules. | Taint and iRules, waits; fixtures mine |
+| `irules` IRULE1005, IRULE1006 | 3 | Issued as conditional advice, which carries no action subject, so the collect-bootstrap fix cannot be offered. | Taint and iRules, sent |
+| `diagnostics` W210 | 9 | W210 withheld after a call to a procedure that uses `upvar`, a computed `set`, or sits in a loop condition; a constant-false `for`; two false positives (`argparse` locals, a default overridden at every call). | Compiler diagnostics, sent |
+| `diagnostics`, `diagnostic_matrix`, `precision_review`, `code_actions`, `vscode_parity` structural | 13 | E005 unpaired `switch`, trace callback arity, W128 after `destroy`, W123 beside a coroutine or glob import, W128 or W123 after `rename`, I230 blocked by an unresolved command, W216 lost to W210 for `${arr($i)}`, I230 and W308 message text. | Compiler diagnostics, sent |
+| `diagnostics`, `tcl91` dialect gating | 5 | iApps and tmsh documents publish no gating diagnostic; iRules `exec` draws W123, not W002. | Compiler diagnostics, sent |
+| `diagnostics` bodies not entered | 7 | itcl and snit method bodies, a TclOO method (`info exists`, `nextto`), `report::defstyle` body, created object names. | Waits on the unentered-body cause |
+| `issue996_stack_overflow` | 3 | Analysis time is superlinear in nesting depth (`if` × 80: 2.2 s in the library under `tcl8.6`, about 21 s to first publish through the server). | Compiler diagnostics, sent; server multiplier mine |
+| `diagnostics`, `diagnostic_matrix`, `precision_review`, `code_actions` shimmer | 13 | S100, S101, S102 not published; W103 on a provably literal `open`; no W201. | Value transfers and types, sent |
+| `diagnostics`, `diagnostic_matrix`, `vscode_parity`, `commands` dataflow | 7 | No W220, no O102, octal fold in a handler, fix-all applies nothing. | Dataflow and optimiser, sent |
+| `commands` diagram | 2 | `unavailable: current-source-context`. | Tooling, waits |
+| `editor_features` lenses, `issue1019`, `issue1281`, `issue1302`, `issue1305`, two `diagnostics` rename tests | 18 | Code lens counts and command ids, references, rename and definition answers. | LSP features, sent |
+| `completion`, `vscode_parity`, `irules`, `issue1312` | 14 | `$` completion omits `upvar` aliases, `try` bindings, `dict with` keys and the qualified global spelling; method and event completion lists. | Mine, open |
+| `hover`, `tcl91`, `issue1019` | 9 | No hover for a parameter declaration, a quoted-argument option, a namespace variable, a sourced sibling's procedure. | Mine, open |
+| `spec_packs`, `sslictcl` | 11 | Not yet diagnosed. | Mine, open |
+| `naming_*` | 9 | Not yet diagnosed. | Mine, open |
+| Others (`document_symbols` handler variables, `code_actions` refactors and package suggestion, `diagnostics` cross-file and package tests, `jim`, `issue1331`, `issue1362`, `precision_review` manifest) | 9 | Not yet diagnosed. | Mine, open |
+
+The counts by cause are a first reading of each test's first failing assertion and sum to the 172 still failing; a test moves rows when its cause is proven.
+
 ## Scope and publication
 
 Work is paused at the user's request after finishing the current autoload repair. All parallel investigations are stopped. Source/status checkpoints have been published to work and the periodic publisher is stopped. The final one-shot sync publishes this paused snapshot. The release verdict remains unchanged.
