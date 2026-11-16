@@ -34,14 +34,16 @@ MAX_ROUNDS = 10
 LOG = None  # an open file when --log names one: every edit, before and after
 
 
-def cargo(package: str, manifest: str) -> tuple[list[dict], list[dict], bool]:
+def cargo(package: str, manifest: str, prefix: str) -> tuple[list[dict], list[dict], bool]:
     """Clippy's diagnostics for every target, split into the plain build and
     the test builds, and whether everything compiled.
 
     One job at a time, so the messages of a unit sit directly before the
     record that says how it was built.
     """
+    # The wildcard lint is asked for by name: not every crate inherits the workspace's lints.
     command = ["cargo", "clippy", "--message-format=json", "--manifest-path", manifest, "-p", package, "--all-targets", "-j", "1"]
+    command += ["--", "-W", "clippy::wildcard_imports"]
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     plain: list[dict] = []
     tests: list[dict] = []
@@ -53,6 +55,8 @@ def cargo(package: str, manifest: str) -> tuple[list[dict], list[dict], bool]:
             continue
         record = json.loads(line)
         reason = record.get("reason")
+        if reason == "compiler-message":
+            rebase(record["message"], prefix)
         if reason == "build-finished":
             succeeded = bool(record.get("success"))
         elif f"/{package}#" not in record.get("package_id", "") and f"#{package}@" not in record.get("package_id", ""):
@@ -69,6 +73,27 @@ def cargo(package: str, manifest: str) -> tuple[list[dict], list[dict], bool]:
     # What is left belongs to a unit that did not build.
     (tests if plain_built else plain).extend(pending)
     return plain, tests, succeeded
+
+
+def rebase(message: dict, prefix: str) -> None:
+    """Make a diagnostic's file names relative to the repository, not to the cargo workspace."""
+    if not prefix:
+        return
+    for span in message.get("spans", []):
+        if not span["file_name"].startswith("/"):
+            span["file_name"] = f"{prefix}/{span['file_name']}"
+    for child in message.get("children", []):
+        rebase(child, prefix)
+
+
+def workspace_prefix(root: Path, manifest: str) -> str:
+    """The cargo workspace root of `manifest`, relative to the repository root."""
+    located = subprocess.run(
+        ["cargo", "locate-project", "--workspace", "--message-format", "plain", "--manifest-path", manifest],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    relative = Path(located).parent.resolve().relative_to(root.resolve()).as_posix()
+    return "" if relative == "." else relative
 
 
 def code_of(message: dict) -> str:
@@ -136,15 +161,15 @@ def wildcard_names(message: dict) -> tuple[str, int, int, list[tuple[tuple[str, 
     return None
 
 
-def narrow(plain: list[dict], tests: list[dict], compiled_plain: set[str], root: Path) -> int:
-    """Rewrite every reported `use super::*;`."""
+def narrow(plain: list[dict], tests: list[dict], compiled_plain: set[str], root: Path, scope: set[str]) -> int:
+    """Rewrite each reported `use super::*;` in the files the split created (`scope`)."""
     found: dict[tuple[str, int, int], dict[str, list]] = defaultdict(dict)
     for build, messages in (("plain", plain), ("test", tests)):
         for message in messages:
             if code_of(message) != "clippy::wildcard_imports":
                 continue
             names = wildcard_names(message)
-            if names:
+            if names and names[0] in scope:
                 found[names[:3]][build] = names[3]
     edits: dict[str, list[tuple[int, int, str]]] = defaultdict(list)
     for (file_name, start, end), builds in found.items():
@@ -304,9 +329,10 @@ def main() -> int:
         LOG = arguments.log.open("a", encoding="utf-8")
     root = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True, text=True).stdout.strip())
     manifest = f"{arguments.crate_dir}/Cargo.toml"
+    prefix = workspace_prefix(root, manifest)
     tried: set[tuple[str, str]] = set()
     for round_number in range(1, MAX_ROUNDS + 1):
-        plain, tests, compiled = cargo(arguments.package, manifest)
+        plain, tests, compiled = cargo(arguments.package, manifest, prefix)
         compiled_plain = {name for name in source_files(root, arguments.crate_dir, "src") if not is_test_file(root / name)}
         # Names a narrowed list should not carry go first: nothing else can be trusted until they do.
         changed = drop_or_gate(plain, tests, compiled_plain, root, unresolved=True)
@@ -314,9 +340,13 @@ def main() -> int:
             changed = restore_names(plain, tests, set(created(root, arguments.crate_dir)), tried, root)
             if not changed:
                 print("settle_imports: the package does not compile; fix that first (cargo check --all-targets)")
+                for message in [*plain, *tests]:
+                    if message.get("level") == "error" and primary_spans(message):
+                        span = primary_spans(message)[0]
+                        print(f"    {span['file_name']}:{span['line_start']}: {code_of(message)} {message['message'][:160]}")
                 return 1
         elif not changed:
-            changed = narrow(plain, tests, compiled_plain, root)
+            changed = narrow(plain, tests, compiled_plain, root, set(created(root, arguments.crate_dir)))
             for name in created(root, arguments.crate_dir):
                 changed += rewrite(root / name)
             if not changed:

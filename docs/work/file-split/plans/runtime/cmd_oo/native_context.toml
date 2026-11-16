@@ -1,0 +1,3 @@
+# The file fits once its inline test modules have files of their own.
+file = "runtime/rust/src/cmd_oo/native_context.rs"
+hoist = ["tests", "original_forward_prefix_tests", "original_definition_frame_tests", "residual_original_argument_tests"]

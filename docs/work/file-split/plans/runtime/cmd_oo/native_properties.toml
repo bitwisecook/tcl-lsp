@@ -1,0 +1,3 @@
+# The file fits once its inline test modules have files of their own.
+file = "runtime/rust/src/cmd_oo/native_properties.rs"
+hoist = ["tests", "original_slot_boundary_tests"]

@@ -7,7 +7,7 @@
 #
 # Stops at the first step that fails and names its log; fix what the compiler
 # reports there and run it again. Every step is safe to repeat.
-set -u
+set -u -o pipefail
 package="$1"
 crate_dir="$2"
 logs="${3:-${TMPDIR:-/tmp}/finish-split-$package}"
