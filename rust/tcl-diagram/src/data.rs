@@ -899,15 +899,41 @@ pub fn diagram_data_for_dialect(
     registry: &CommandRegistry,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
-    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
-    let Some(input) = cu.ir_module.source_metadata_input.clone() else {
+    let Some((analysis, cu, availability)) = document_from_one_input(source, dialect.name) else {
         return json!({"events": [], "procedures": [], "unavailable": "current-source-input"});
     };
+    if availability.commands().snapshot().semantic_key() != registry.snapshot().semantic_key() {
+        return json!({"events": [], "procedures": [], "unavailable": "current-source-input"});
+    }
+    diagram_data_for_analysis(source, &analysis, &cu.ir_module, &availability)
+}
+
+/// The document's analysis input resolved once, with the unit and the
+/// analysis both built from it, so neither guesses the other's (a BIG-IP
+/// document's input carries its vendor source policy).
+fn document_from_one_input(
+    source: &str,
+    dialect: &str,
+) -> Option<(
+    AnalysisResult,
+    CompilationUnit,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+)> {
+    let input = Analyser::new().prepare_analysis_input(dialect).ok()?;
     let availability = input.context_registry();
+    let options = tcl_compiler::compilation_unit::UnitBuildOptions {
+        registry: availability.commands(),
+        defer_top_level: false,
+        config: input.lexer_config(),
+        dialect: Some(input.unit_profile()),
+        external_call_sites: None,
+        declared_commands: None,
+    };
+    let cu = CompilationUnit::build_with_analysis_input(source, options, None, &input);
     let mut analyser = Analyser::new().with_resolved_input(input);
     analyser.set_owned_cu_override(cu.clone());
-    let analysis = analyser.analyse(source, dialect.name);
-    diagram_data_for_analysis(source, &analysis, &cu.ir_module, &availability)
+    let analysis = analyser.analyse(source, dialect);
+    Some((analysis, cu, availability))
 }
 
 /// Procedure cards from the selected original metadata and lowering geometry.
@@ -1769,19 +1795,7 @@ mod original_source_tests {
         CompilationUnit,
         Arc<tcl_registry::model::ContextRegistry>,
     ) {
-        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
-        let initial = tcl_registry::model::ingress::context_for_profile(profile);
-        let unit = CompilationUnit::build_for_profile(source, initial.commands(), false, profile);
-        let input = unit
-            .ir_module
-            .source_metadata_input
-            .clone()
-            .expect("actual fixture source input");
-        let context = input.context_registry();
-        let mut analyser = Analyser::new().with_resolved_input(input);
-        analyser.set_owned_cu_override(unit.clone());
-        let analysis = analyser.analyse(source, dialect);
-        (analysis, unit, context)
+        document_from_one_input(source, dialect).expect("actual fixture source input")
     }
 
     #[test]
