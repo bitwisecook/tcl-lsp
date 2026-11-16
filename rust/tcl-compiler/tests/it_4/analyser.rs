@@ -4951,6 +4951,57 @@ mod class_factories {
     }
 
     #[test]
+    fn a_class_declared_in_a_namespace_body_types_its_named_instance() {
+        // TP — tclsh 8.6.18, 9.0.4 and 9.1.0 run this to
+        // `unknown method "nosuch": must be destroy or m`: the namespace body
+        // has run by the time `::n::C create x` is read.
+        let src = concat!(
+            "namespace eval ::n {oo::class create C {method m {} {}}}\n",
+            "::n::C create x\n",
+            "x m\n",
+            "x nosuch\n",
+        );
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let r = analysis(src, release);
+            assert_eq!(
+                r.instance_classes.get("x").map(String::as_str),
+                Some("::n::C"),
+                "{release}: {:?}",
+                r.instance_classes
+            );
+            assert_eq!(count(src, release, "W308"), 1, "{release}");
+        }
+    }
+
+    #[test]
+    fn a_named_instance_is_labelled_in_every_environment() {
+        // The lenient `tcl` environment pins no interpreter, so its label is
+        // conditional; a release proves the same one. tclsh 8.6.18 and 9.0.4:
+        // `info object class obj` answers `::C`.
+        let src = "oo::class create C {method ping {} {}}; C create obj";
+        for environment in ["tcl", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let r = analysis(src, environment);
+            assert_eq!(
+                r.instance_classes.get("obj").map(String::as_str),
+                Some("::C"),
+                "{environment}: {:?}",
+                r.instance_classes
+            );
+            let cards =
+                tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards::capture(
+                    &r,
+                )
+                .unwrap_or_else(|| panic!("{environment}: class cards"));
+            let labels: Vec<(String, &str)> = cards
+                .named_instance_display_reports()
+                .into_iter()
+                .map(|(label, class)| (label, class.qualified_name.as_str()))
+                .collect();
+            assert_eq!(labels, [("::obj".to_owned(), "::C")], "{environment}");
+        }
+    }
+
+    #[test]
     fn a_relative_superclass_does_not_cross_link_to_another_namespace() {
         // TN — the declaring namespace's own `Meta` is an ordinary class,
         // so the chain ends there.  Reaching sideways into `::other::Meta`
