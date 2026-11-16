@@ -19,6 +19,7 @@
 //! Small shared helpers for the xtask subcommands.
 
 pub(crate) mod source_literals;
+pub(crate) mod test_sources;
 
 use std::ffi::OsString;
 use std::fmt::Write as _;

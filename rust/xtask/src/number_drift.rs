@@ -167,6 +167,7 @@ pub fn run(_check: bool) -> ExitCode {
         if SANCTIONED_FILES.contains(&rel.as_str())
             || rel.contains("/tests/")
             || rel.ends_with("/tests.rs")
+            || crate::util::test_sources::is_test_module_file(&rel)
         {
             continue;
         }
@@ -255,9 +256,11 @@ fn expr_boundary_owner_problems(root: &Path) -> Vec<String> {
         ));
     }
     for &(path, test_name) in EXPR_BOUNDARY_CORPUS {
-        if !read_rust_source(root, path)
-            .is_some_and(|text| text.contains(&format!("fn {test_name}(")))
-        {
+        let row = format!("fn {test_name}(");
+        let found = std::iter::once(path)
+            .chain(crate::util::test_sources::test_module_files_of(path))
+            .any(|file| read_rust_source(root, file).is_some_and(|text| text.contains(&row)));
+        if !found {
             problems.push(format!(
                 "{path}: missing expression-number regression row `{test_name}`"
             ));
@@ -273,7 +276,11 @@ fn expr_boundary_owner_problems(root: &Path) -> Vec<String> {
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
-        if rel == EXPR_BOUNDARY_OWNER || rel.contains("/tests/") || rel.ends_with("/tests.rs") {
+        if rel == EXPR_BOUNDARY_OWNER
+            || rel.contains("/tests/")
+            || rel.ends_with("/tests.rs")
+            || crate::util::test_sources::is_test_module_file(&rel)
+        {
             continue;
         }
         if read_rust_source(root, &rel).is_some_and(|text| {

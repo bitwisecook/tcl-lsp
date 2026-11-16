@@ -671,7 +671,9 @@ fn is_waived(text: &str, line_no: usize, marker: &str) -> bool {
 /// exempt for the same reason the retired family exempts them: the ledger
 /// and the module docs name the owned answers as prose.
 fn scan_owned(text: &str, rel: impl AsRef<Path>) -> Vec<(usize, &'static str)> {
-    let rel = rel.as_ref();
+    // A test-only module file is part of the file that declares it.
+    let rel = rel.as_ref().to_string_lossy();
+    let rel = Path::new(crate::util::test_sources::owning_source(&rel));
     let mut out = Vec::new();
     let mut previous = "";
     for (idx, line) in text.lines().enumerate() {

@@ -14,7 +14,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | 15 |
 | options | 19 |
 | special_vars | 2 |
-| irreducible | 51 |
+| irreducible | 49 |
 
 | Axis | Until | File | Sites | Waiver | Reason |
 |---|---|---|---|---|---|
@@ -34,7 +34,6 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | the snit definition grammar marks callable members | `rust/tcl-compiler/src/command_binding/snit_definition.rs` | 1 | site | snit member keywords that define a callable |
 | irreducible | never | `rust/tcl-bigip/src/f5_trailer.rs` | 1 | site | the keys of the data schema's `ip_fields` table, not a Tcl command word: `offset` coincides with `grapheme`'s subcommand by spelling only |
 | irreducible | never | `rust/tcl-codegen/src/codegen/native_namespace_upvar_tests.rs` | 1 | site | a test asserting which registry compiler was selected |
-| irreducible | never | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` | 2 | site | a fixture variable named next, not the next command |
 | irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs` | 1 | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
 | irreducible | never | `rust/tcl-compiler/src/analyser/recovery.rs` | 1 | site | this whole function is a switch-specific parser-repair heuristic (splicing orphaned pattern/body segments into a switch's argv when the source is missing its opening brace); no registry fact picks which command's *malformed* source this repair applies to more abstractly than its own name, and every other command's malformed source is left unrepaired |
 | irreducible | never | `rust/tcl-compiler/src/command_binding/original_command_table.rs` | 1 | site | a field label of the command-table trace, not the namespace command |

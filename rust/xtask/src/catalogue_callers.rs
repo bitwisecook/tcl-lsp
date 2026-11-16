@@ -233,7 +233,9 @@ fn scan(root: &Path) -> BTreeMap<String, Vec<usize>> {
         };
         let sites = call_sites(&text);
         if !sites.is_empty() {
-            found.insert(rel, sites);
+            // A test-only module file counts as the file that declares it.
+            let owner = crate::util::test_sources::owning_source(&rel).to_owned();
+            found.entry(owner).or_insert_with(Vec::new).extend(sites);
         }
     }
     found

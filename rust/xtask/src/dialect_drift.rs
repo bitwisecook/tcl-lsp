@@ -224,6 +224,7 @@ fn is_exempt_path(rel: &str) -> bool {
         || rel.contains("/tests/")
         || rel.ends_with("/tests.rs")
         || rel.ends_with("_tests.rs")
+        || crate::util::test_sources::is_test_module_file(rel)
         || rel.contains("/examples/")
         || rel.contains("/benches/")
 }

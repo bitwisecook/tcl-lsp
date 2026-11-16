@@ -1189,8 +1189,6 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:728` | site | host path algebra when the |
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:732` | site | as above, for normalize. |
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:736` | site | as above, for join. |
-| irreducible | `rust/tcl-compiler/src/command_binding/conditional_body/native_context_tests.rs:210` | site | asserts which user procedure is the target. |
-| irreducible | `rust/tcl-compiler/src/command_binding/conditional_body/native_context_tests.rs:216` | site | asserts which user procedure is the target. |
 | irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2780` | site | selects which calls a debug trace logs. |
 | irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2790` | site | selects which calls a debug trace logs. |
 | irreducible | `rust/tcl-compiler/src/optimiser/propagation.rs:2724` | site | names the reported |

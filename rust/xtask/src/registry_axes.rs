@@ -431,6 +431,7 @@ fn is_scanned(rel: &str) -> bool {
     !rel.starts_with("rust/tcl-registry/")
         && !rel.contains("/tests/")
         && !rel.ends_with("/tests.rs")
+        && !crate::util::test_sources::is_test_module_file(rel)
         && Path::new(rel).extension().is_some_and(|ext| ext == "rs")
 }
 

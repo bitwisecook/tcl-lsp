@@ -119,6 +119,7 @@ fn is_test_path(rel: &str) -> bool {
         || rel.contains("/test/")
         || rel.ends_with("/tests.rs")
         || rel.ends_with("_tests.rs")
+        || crate::util::test_sources::is_test_module_file(rel)
         || rel.ends_with(".test.ts")
         || rel == "rust/xtask/src/diagnostic_presentation.rs"
         || TEST_ONLY_DIRS.iter().any(|dir| rel.starts_with(dir))

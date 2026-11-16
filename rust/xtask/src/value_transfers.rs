@@ -282,7 +282,10 @@ fn lint(root: &Path) -> Lint {
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
-        if rel.contains("/tests/") || rel.ends_with("/tests.rs") {
+        if rel.contains("/tests/")
+            || rel.ends_with("/tests.rs")
+            || crate::util::test_sources::is_test_module_file(&rel)
+        {
             continue;
         }
         let Ok(text) = fs::read_to_string(&path) else {

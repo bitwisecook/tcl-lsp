@@ -73,6 +73,7 @@ pub fn run(_check: bool) -> ExitCode {
         if SANCTIONED_FILES.contains(&rel.as_str())
             || rel.contains("/tests/")
             || rel.ends_with("/tests.rs")
+            || crate::util::test_sources::is_test_module_file(&rel)
         {
             continue;
         }
