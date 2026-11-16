@@ -679,13 +679,21 @@ Handler bodies under `f5-irules`, state after the first code batch (whole `tcl-c
 - Registry: a getter called with nothing but its own flags keeps its getter colour (`HTTP::path -normalized` is still `PATH_PREFIXED`).
 - Fixtures: the four tests that normalised with `file normalize` under `f5-irules` (TMM has no `file`, and no TMM command produces `PATH_NORMALISED`) now use the getter's `-normalized` flag inside a handler; `REDIRECT_SAFE` containing `PATH_NORMALISED` stays pinned by `taint_depth::colour_masks`.
 
-Open in handlers, in the order this area takes them:
+- **IRULE3103 in handlers.** `uri_split` falls back to a handler statement's guarded hosted row for the command and its words, resolves `split` / `string match` / `string first` in the interpreter realm, and reads a handler store's value from its last word.
+- **Fixtures.** An `f5-irules` fixture of `it_3` `taint` and `it_4` `taint_depth` that declares no handler is the body of an `HTTP_REQUEST` handler (`rule_source`, one helper per file). 69 mixed-dialect fixtures run under `f5-irules` with `HTTP::payload` as the uncoloured source. `set u [HTTP::uri]; eval $u` under `tcl8.6` now expects nothing: tclsh 8.6.18 raises `invalid command name "HTTP::uri"`.
 
-1. `uri_split` (IRULE3103) reports nothing in a handler: `when HTTP_REQUEST {if {[HTTP::uri] starts_with "/api"} {…}}` and `set parts [split $uri "?"]` both lower with their branch and definitions, but the trace from the operand to the getter finds nothing. Ten `it_3` `irule3103_*` tests pass today only at rule top level; they move into a handler with this fix.
-2. A sink whose argument is itself a command substitution: `HTTP::respond 200 content [HTML::encode $raw]` warns on `raw` although the encoder consumes it, and `HTTP::respond 200 content [HTTP::query]` reports nothing.
-3. A helper procedure's return colour does not reach the handler (`set safe [call clean $raw]`).
-4. The fixtures: with every `f5-irules` fixture of `it_3` `taint` and `it_4` `taint_depth` wrapped in `when HTTP_REQUEST {…}` (one shared helper, held until item 1), 150 of 504 fail against 170 before; the rest are the three items above, the mixed-dialect fixtures (`read $fd`, `regex::quote`, iRules getters under `tcl8.6`) and the non-handler groups in the table.
-5. `taint::tests::hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims` still fails; not yet traced past the sink.
+Second batch, whole suite: 13,229 run, 2,264 failing; this area 210 (298 before); `it_3` `taint` and `it_4` `taint_depth` 79 of 505 (170 before the handler work). No test newly failing from this area; `taint_depth::interproc_depth::sanitising_helper_result_via_var_clears_t101` fails since upstream's `return [cmd …]` lowering exposed the summary defect below.
+
+Open, in the order this area takes them:
+
+1. Procedure return summaries. `proc len {x} {set r [string length $x]; return $r}` carries the argument's taint to the caller instead of the result's colour (`set n [len $raw]; puts $n` reports T101; `set n [string length $raw]` does not), and a helper's sanitiser or getter colour does not reach a handler (`set safe [call clean $raw]`). Seven tests (`interprocedural_colours`, `interprocedural_taint`, `interproc_depth`).
+2. A sink whose argument is itself a command substitution: `HTTP::respond 200 content [HTML::encode $raw]` warns on `raw` although the encoder consumes it, `HTTP::respond 200 content [HTTP::query]` reports nothing, and `if {[string match "/api/*" [HTTP::uri]]}` finds no URI operand.
+3. Interpolation colours (`crlf_free`, `interpolation_colour_invalidation`, `t102_suppression`, `sink_suppression_matrix`, `non_dash_prefixed_interpolation`: 11) and T102 in handlers; not yet traced.
+4. IRULE3103 over a proved value (`irule3103_edge_cases`, `setter_constraints::irule3103_reads_a_proven_operand`: 4): needs a value for a non-literal handler store, which SCCP does not get.
+5. Claims no dialect can run, left as they are: a shell-atom or network sink (`exec`, `socket`) fed by an iRules getter (`exec_with_shell_atom_suppressed`, `ip_atom_clears_exec_t100` and six like them). TMM has no `exec` or `socket`, and Tcl has no `IP::client_addr`. `double_regex_quote` uses `regex::quote`, which TMM does not have.
+6. W201 (manual path concatenation) reports nothing for `proc f {dir} {set path "$dir/file.txt"; return $path}` under `tcl8.6` (diagnostics session's fixture).
+7. Not started: `irules_checks` (36), `irules_event_checks` (13), `uri_split` unit tests (15, their helper iterates a unit whose handler is not visited), `taint::tests` (about 35), and the collapse of the per-rule fixtures into tables.
+8. Waiting on other areas: Tk widget commands (40, tk-oo session), special variables and the unanswered-command walk (analyser session), `side_effects_binding` (9).
 
 ## iRules area, 15 November 2026
 
