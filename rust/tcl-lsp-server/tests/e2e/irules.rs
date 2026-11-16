@@ -379,32 +379,69 @@ fn irule1006_prefers_server_ssl_handshake_bootstrap() {
     );
 }
 
-/// The `_fix` helper: open `source`, synthesise `diag`, request quickfix-only
-/// code actions.
-fn taint_fix(
-    lsp: &mut Lsp,
-    source: &str,
-    code: &str,
-    message: &str,
-    start: (u32, u32),
-    end: (u32, u32),
-) -> Value {
-    let uri = open_irule(lsp, source);
-    let d = diag(code, message, start, end);
-    code_actions_only(lsp, &uri, range(start, end), json!([d]), &["quickfix"])
+/// A real rule around `sink`: its `proc` lines stay at the rule's top level,
+/// and the rest runs in an `HTTP_REQUEST` handler after the first variable it
+/// reads has been set from the request, so the taint check has a flow to
+/// report. For T106 that variable is already HTML-escaped.
+fn tainted_rule(sink: &str, code: &str) -> String {
+    let (procs, body): (Vec<&str>, Vec<&str>) =
+        sink.lines().partition(|line| line.starts_with("proc "));
+    let read = body.join("\n");
+    let name: String = read
+        .split_once('$')
+        .map(|(_, rest)| {
+            rest.trim_start_matches('{')
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect()
+        })
+        .expect("the sink reads a variable");
+    let seed = if code == "T106" {
+        format!("set {name} [HTML::encode [HTTP::uri]]")
+    } else {
+        format!("set {name} [HTTP::uri]")
+    };
+    let mut rule = String::new();
+    for line in procs {
+        rule.push_str(line);
+        rule.push('\n');
+    }
+    rule.push_str("when HTTP_REQUEST {\n    ");
+    rule.push_str(&seed);
+    for line in body {
+        rule.push_str("\n    ");
+        rule.push_str(line);
+    }
+    rule.push_str("\n}\n");
+    rule
+}
+
+/// Open a real rule around `sink` and request quickfix-only actions for the
+/// `code` diagnostic the server publishes for it. A context action answers
+/// only for a diagnostic the server issued (its `data` token), so the
+/// published diagnostic is handed back, never a hand-written one.
+fn taint_fix(lsp: &mut Lsp, sink: &str, code: &str) -> Value {
+    let source = tainted_rule(sink, code);
+    let uri = unique_uri("irule");
+    let mut diags = lsp.open_ready_lang(&uri, &source, "tcl-irule");
+    if with_code(&diags, code).is_empty() {
+        diags = lsp.await_diagnostics_settled(&uri, Duration::from_secs(10), |published| {
+            !with_code(published, code).is_empty()
+        });
+    }
+    let matching = with_code(&diags, code);
+    assert!(
+        !matching.is_empty(),
+        "{code} is not published for:\n{source}\ngot {diags:?}"
+    );
+    let rng = matching[0]["range"].clone();
+    code_actions_only(lsp, &uri, rng, json!([matching[0]]), &["quickfix"])
 }
 
 #[test]
 fn irule3001_wrap_html_encode() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "HTTP::respond 200 content $raw\n",
-        "IRULE3001",
-        "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
-        (0, 0),
-        (0, 29),
-    );
+    let actions = taint_fix(&mut lsp, "HTTP::respond 200 content $raw\n", "IRULE3001");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -423,14 +460,7 @@ fn irule3001_wrap_html_encode() {
 #[test]
 fn irule3002_wrap_uri_encode() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "HTTP::header insert X-Fwd $raw\n",
-        "IRULE3002",
-        "Tainted variable $raw in HTTP header/cookie value (HTTP::header insert); risk of header injection",
-        (0, 0),
-        (0, 29),
-    );
+    let actions = taint_fix(&mut lsp, "HTTP::header insert X-Fwd $raw\n", "IRULE3002");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -449,14 +479,7 @@ fn irule3002_wrap_uri_encode() {
 #[test]
 fn t103_wrap_regex_quote() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "regexp $pat $data\n",
-        "T103",
-        "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
-        (0, 0),
-        (0, 16),
-    );
+    let actions = taint_fix(&mut lsp, "regexp $pat $data\n", "T103");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -475,14 +498,7 @@ fn t103_wrap_regex_quote() {
 #[test]
 fn t102_insert_double_dash() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "regexp $pat $data\n",
-        "T102",
-        "Tainted variable $pat in option position of 'regexp' without '--' terminator; risk of option injection",
-        (0, 0),
-        (0, 16),
-    );
+    let actions = taint_fix(&mut lsp, "regexp $pat $data\n", "T102");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -501,14 +517,7 @@ fn t102_insert_double_dash() {
 #[test]
 fn t100_subst_add_nocommands() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "subst $tainted\n",
-        "T100",
-        "Tainted variable $tainted flows into subst; possible code injection",
-        (0, 0),
-        (0, 14),
-    );
+    let actions = taint_fix(&mut lsp, "subst $tainted\n", "T100");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -527,14 +536,7 @@ fn t100_subst_add_nocommands() {
 #[test]
 fn braced_variable_wrapped() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "HTTP::respond 200 content ${raw}\n",
-        "IRULE3001",
-        "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
-        (0, 0),
-        (0, 30),
-    );
+    let actions = taint_fix(&mut lsp, "HTTP::respond 200 content ${raw}\n", "IRULE3001");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -552,14 +554,7 @@ fn braced_variable_wrapped() {
 #[test]
 fn t101_wrap_strip_crlf() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "puts $raw\n",
-        "T101",
-        "Tainted variable $raw flows into puts; output may contain injected content",
-        (0, 0),
-        (0, 8),
-    );
+    let actions = taint_fix(&mut lsp, "puts $raw\n", "T101");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -579,14 +574,7 @@ fn t101_wrap_strip_crlf() {
 #[test]
 fn irule3003_wrap_strip_crlf() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "log local0.info $raw\n",
-        "IRULE3003",
-        "Tainted variable $raw in log output (log); risk of log injection or log forging",
-        (0, 0),
-        (0, 16),
-    );
+    let actions = taint_fix(&mut lsp, "log local0.info $raw\n", "IRULE3003");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -606,14 +594,7 @@ fn irule3003_wrap_strip_crlf() {
 #[test]
 fn no_fix_for_unknown_code() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "eval $raw\n",
-        "T100",
-        "Tainted variable $raw flows into eval; possible code injection",
-        (0, 0),
-        (0, 8),
-    );
+    let actions = taint_fix(&mut lsp, "eval $raw\n", "T100");
     let matched: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -637,14 +618,7 @@ fn no_fix_for_unknown_code() {
 #[test]
 fn t106_remove_redundant_encode() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "set double [HTML::encode $safe]\n",
-        "T106",
-        "Variable $safe is already HTML-escaped; passing through HTML::encode double-encodes the value",
-        (0, 0),
-        (0, 30),
-    );
+    let actions = taint_fix(&mut lsp, "set double [HTML::encode $safe]\n", "T106");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -659,14 +633,7 @@ fn t106_remove_redundant_encode() {
 #[test]
 fn irule3004_no_autofix() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "HTTP::redirect $url\n",
-        "IRULE3004",
-        "Tainted variable $url in redirect URL (HTTP::redirect); risk of open redirect",
-        (0, 0),
-        (0, 18),
-    );
+    let actions = taint_fix(&mut lsp, "HTTP::redirect $url\n", "IRULE3004");
     let matched: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -684,14 +651,7 @@ fn irule3004_no_autofix() {
 #[test]
 fn t103_inserts_regex_quote_proc() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "regexp $pat $data\n",
-        "T103",
-        "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
-        (0, 0),
-        (0, 16),
-    );
+    let actions = taint_fix(&mut lsp, "regexp $pat $data\n", "T103");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -708,14 +668,7 @@ fn t103_inserts_regex_quote_proc() {
 #[test]
 fn irule3001_inserts_html_encode_proc() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "HTTP::respond 200 content $raw\n",
-        "IRULE3001",
-        "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
-        (0, 0),
-        (0, 29),
-    );
+    let actions = taint_fix(&mut lsp, "HTTP::respond 200 content $raw\n", "IRULE3001");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -732,14 +685,7 @@ fn irule3001_inserts_html_encode_proc() {
 #[test]
 fn irule3002_no_proc_insert() {
     let mut lsp = Lsp::irules();
-    let actions = taint_fix(
-        &mut lsp,
-        "HTTP::header insert X-Fwd $raw\n",
-        "IRULE3002",
-        "Tainted variable $raw in HTTP header/cookie value (HTTP::header insert); risk of header injection",
-        (0, 0),
-        (0, 29),
-    );
+    let actions = taint_fix(&mut lsp, "HTTP::header insert X-Fwd $raw\n", "IRULE3002");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -874,14 +820,7 @@ fn t103_no_proc_insert_when_already_defined() {
     let mut lsp = Lsp::irules();
     let source = "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }\n\
                   regexp $pat $data\n";
-    let actions = taint_fix(
-        &mut lsp,
-        source,
-        "T103",
-        "Tainted variable $pat in regexp pattern position (regexp); risk of regex injection",
-        (1, 0),
-        (1, 16),
-    );
+    let actions = taint_fix(&mut lsp, source, "T103");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
@@ -899,14 +838,7 @@ fn irule3001_no_proc_insert_when_already_defined() {
     let mut lsp = Lsp::irules();
     let source = "proc html_encode {str} { string map {& &amp; < &lt;} $str }\n\
                   HTTP::respond 200 content $raw\n";
-    let actions = taint_fix(
-        &mut lsp,
-        source,
-        "IRULE3001",
-        "Tainted variable $raw in HTTP response body (HTTP::respond); risk of XSS",
-        (1, 0),
-        (1, 29),
-    );
+    let actions = taint_fix(&mut lsp, source, "IRULE3001");
     let fixes: Vec<Value> = actions
         .as_array()
         .unwrap_or(&Vec::new())
