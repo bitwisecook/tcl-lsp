@@ -118,7 +118,8 @@ def from_child(path: tuple[str, ...], imported: dict[str, tuple[str, ...]], modu
         return ("super", *path)
     if head in modules:
         return ("super", *path)
-    if head in imported and depth < 8 and imported[head] != path:
+    # A crate and a name it exports can share a spelling (`anyhow::anyhow`): that head is the crate.
+    if head in imported and depth < 8 and imported[head] != path and imported[head][0] != head:
         return from_child((*imported[head], *path[1:]), imported, modules, depth + 1)
     return path
 

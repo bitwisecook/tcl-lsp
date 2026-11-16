@@ -266,6 +266,7 @@ def drop_or_gate(plain: list[dict], tests: list[dict], compiled_plain: set[str],
     return apply(edits, root)
 
 
+TRAIT_IMPORT = re.compile(r"^use [\w:]+(?: as _)?;\s*$")
 NAME_ERRORS = ("E0405", "E0412", "E0422", "E0423", "E0425", "E0433", "E0531", "E0532")
 
 
@@ -277,8 +278,19 @@ def restore_names(plain: list[dict], tests: list[dict], candidates: set[str], tr
     is not in scope; it is in the parent's.
     """
     wanted: dict[str, dict[str, str]] = defaultdict(dict)
+    traits: dict[str, dict[str, str]] = defaultdict(dict)
     for build, messages in (("test", tests), ("plain", plain)):
         for message in messages:
+            if message.get("level") == "error" and code_of(message) == "E0599":
+                # A trait used only through its methods: the compiler names the import.
+                for child in message.get("children", []):
+                    offered = [span for span in child.get("spans", []) if TRAIT_IMPORT.match(span.get("suggested_replacement") or "")]
+                    if offered and offered[0]["file_name"] in candidates:
+                        line = offered[0]["suggested_replacement"].strip()
+                        if (offered[0]["file_name"], line) not in tried:
+                            traits[offered[0]["file_name"]][line] = "" if build == "plain" else "#[cfg(test)]\n"
+                        break
+                continue
             if message.get("level") != "error" or code_of(message) not in NAME_ERRORS:
                 continue
             for span in primary_spans(message):
@@ -290,7 +302,8 @@ def restore_names(plain: list[dict], tests: list[dict], candidates: set[str], tr
                 if name and (file_name, name.group(0)) not in tried:
                     wanted[file_name][name.group(0)] = "" if build == "plain" else "#[cfg(test)]\n"
     count = 0
-    for file_name, names in wanted.items():
+    for file_name in sorted(set(wanted) | set(traits)):
+        names = wanted.get(file_name, {})
         path = root / file_name
         text = path.read_text(encoding="utf-8")
         first_use = re.search(r"^(?:#\[[^\n]*\]\n)*(?:pub(?:\([^)]*\))? )?use ", text, re.M)
@@ -301,6 +314,9 @@ def restore_names(plain: list[dict], tests: list[dict], candidates: set[str], tr
             f"{gate}use super::{name}::{{self}};\n" if name in bound else f"{gate}use super::{name};\n"
             for name, gate in sorted(names.items())
         )
+        block += "".join(f"{gate}{line}\n" for line, gate in sorted(traits.get(file_name, {}).items()))
+        tried.update((file_name, line) for line in traits.get(file_name, {}))
+        count += len(traits.get(file_name, {}))
         if not first_use:
             block = "\n\n" + block
         if LOG is not None:
