@@ -3430,3 +3430,31 @@ its citation and a regression that reads the recorded lines.
     `log local0. "[expr {"abcde" contains "cd"}] [expr {"abcde" starts_with "ab"}] [expr {"abcde" ends_with "de"}] [expr {"abc" equals "abc"}]"`
     on TMM; expected `1 1 1 1`. Also say whether tmsh and iApp Tcl accept
     these operators at all: the optimiser assumes only iRules has them.
+16. **Sanitisers and getter colours the taint diagnostics trust.** Not a
+    naming question. In a `when` handler the taint diagnostics (IRULE3001 to
+    IRULE3004, IRULE3101, T106) stay silent when a value went through a
+    command the registry marks as a sanitiser, or came from a getter whose
+    result has a fixed shape (`classify_substitution_taint`,
+    `rust/tcl-compiler/src/taint.rs`; the rows are in
+    `rust/tcl-registry/src/commands/irules/`). None of these claims is
+    measured. Run in `when HTTP_REQUEST` against a request for
+    `/a%0d%0aX:%20y?q=<b>"&'%0d%0a` with the header
+    `X-T: <script>"&'` and log each result with `binary scan $v H* hex`
+    so control characters show:
+    - `HTML::encode [HTTP::header value X-T]`: the registry claims no `<`,
+      `>`, `"`, `&` and no CR or LF remain (`HTML_ESCAPED`, `CRLF_FREE`).
+      Say also whether `HTML::encode` exists on the build at all.
+    - `URI::encode [HTTP::query]`, `URI::encode_component [HTTP::query]` and
+      `URI::escape [HTTP::query]`: claimed percent-encoded with no CR or LF
+      (`URL_ENCODED`, `CRLF_FREE`).
+    - `HTTP::uri` and `HTTP::path`, bare and with `-normalized`: claimed
+      always to begin with `/` (`PATH_PREFIXED`). Send also a request line with an absolute URI
+      (`GET http://h/x HTTP/1.1`) and one with `*` (`OPTIONS *`).
+    - `IP::client_addr`, `IP::remote_addr`: claimed an address literal only
+      (`IP_ADDRESS`); include an IPv6 client with a route domain (`%1`).
+    - `TCP::client_port`, `TCP::remote_port`: claimed decimal digits only
+      (`PORT`).
+    - `SSL::sni` (in `CLIENTSSL_CLIENTHELLO`, with a client that sends the
+      server name `a b\r\nc`): claimed a DNS name with no whitespace or
+      control characters (`FQDN`). If TMM passes the bytes through, the
+      colour has to go.

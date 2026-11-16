@@ -3874,8 +3874,9 @@ mod path_normalised_setter_constraint {
     use super::*;
 
     #[test]
-    fn path_normalised_suppresses_irule3101() {
-        let source = "set raw [HTTP::uri]\nset norm [file normalize $raw]\nHTTP::uri $norm";
+    fn normalised_uri_suppresses_irule3101() {
+        // TMM has no `file`; its normaliser is the getter's `-normalized` flag.
+        let source = "when HTTP_REQUEST {\nset norm [HTTP::uri -normalized]\nHTTP::uri $norm\n}";
         assert_eq!(
             of_code(source, IR, "IRULE3101"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
@@ -3939,8 +3940,10 @@ mod irule3004_open_redirect {
     }
 
     #[test]
-    fn path_normalised_suppresses_irule3004() {
-        let source = "set raw [HTTP::query]\nset norm [file normalize $raw]\nHTTP::redirect $norm";
+    fn normalised_path_target_suppresses_irule3004() {
+        // TMM has no `file`; its normaliser is the getter's `-normalized` flag.
+        let source =
+            "when HTTP_REQUEST {\nset norm [HTTP::path -normalized]\nHTTP::redirect $norm\n}";
         assert_eq!(
             of_code(source, IR, "IRULE3004"),
             [] as [tcl_compiler::taint::TaintWarning; 0]

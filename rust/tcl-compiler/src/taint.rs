@@ -1233,9 +1233,11 @@ fn source_interpolation_taint<S: std::hash::BuildHasher>(
         return Some(TaintLattice::tainted());
     };
     let mut taint = TaintLattice::clean();
+    let mut sole_read = false;
     for part in arena.all_parts() {
         match part.part {
             tcl_lexer::ExecutablePart::Variable { .. } => {
+                sole_read = part.span == span;
                 let Some(spelling) = arena
                     .bytes(part.span)
                     .and_then(|bytes| std::str::from_utf8(bytes).ok())
@@ -1283,6 +1285,10 @@ fn source_interpolation_taint<S: std::hash::BuildHasher>(
             }
             tcl_lexer::ExecutablePart::Text(_) => {}
         }
+    }
+    if sole_read {
+        // A word that is one variable read copies the value, colours and all.
+        return Some(taint);
     }
     Some(interpolation_carve_out(
         &source_text,
@@ -1419,14 +1425,14 @@ fn original_component_read_taint<S: std::hash::BuildHasher>(
     let Some(tokens) = ctx.source_tokens else {
         return TaintLattice::tainted();
     };
-    if !tokens
-        .variable_accesses
-        .iter()
-        .any(|access| access.source.span == span && access.original_spelling == spelling)
-    {
+    // A braced reference's access ends on its last inner character and the
+    // component on its closer, so the two agree on the start and spelling.
+    let Some(access) = tokens.variable_accesses.iter().find(|access| {
+        access.source.span.start() == span.start() && access.original_spelling == spelling
+    }) else {
         return TaintLattice::tainted();
-    }
-    let site = crate::ir::SourceSite::source(span);
+    };
+    let site = crate::ir::SourceSite::source(access.source.span);
     let mut selected = None;
     for (block, data) in &ctx.ssa.blocks {
         for (index, statement) in data.statements.iter().enumerate() {
@@ -1899,14 +1905,14 @@ fn hosted_substitution_is_taint_source(
 fn substitution_transform_colour(
     normal: Option<&crate::registry_invocation::NormalTaintInvocation>,
     ctx: TaintCtx<'_>,
-    cmd: &str,
+    (cmd, hosted): (&str, bool),
     arg_refs: &[&str],
 ) -> Option<TaintColour> {
     normal
         .and_then(crate::registry_invocation::NormalTaintInvocation::transform_colour)
         .map(reg_colour)
         .or_else(|| {
-            (ctx.source.allows_nominal_metadata() && ctx.source_tokens.is_none())
+            (hosted || (ctx.source.allows_nominal_metadata() && ctx.source_tokens.is_none()))
                 .then(|| transform_colour(ctx.registry, cmd, arg_refs))
                 .flatten()
         })
@@ -1943,7 +1949,7 @@ fn finish_substitution_taint(
     mut t: TaintLattice,
     normal: Option<&crate::registry_invocation::NormalTaintInvocation>,
     ctx: TaintCtx<'_>,
-    cmd: &str,
+    cmd: (&str, bool),
     arg_refs: &[&str],
 ) -> TaintLattice {
     t = t.shape_unproven();
@@ -1968,6 +1974,39 @@ fn finish_substitution_taint(
         t = t.with(colour);
     }
     t
+}
+
+/// The taint a handler's vendor command settles without an argument walk.
+/// It has no resolved invocation; its guarded hosted row classifies the
+/// result for this diagnostic alone: a sanitiser is clean and a getter
+/// carries its colour. No rewrite, fold or proof reads these.
+fn hosted_result_taint(
+    (metadata, effective): (
+        &crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+        &crate::registry_invocation::EffectiveCommandWords,
+    ),
+    written: &[String],
+    args: &[String],
+    ctx: TaintCtx<'_>,
+) -> Option<TaintLattice> {
+    let command = metadata.shape().command();
+    let refs: Vec<&str> = written.iter().map(String::as_str).collect();
+    if is_sanitiser(ctx.registry, command, &refs) {
+        return Some(TaintLattice::clean());
+    }
+    source_colour(
+        ctx.registry,
+        command,
+        &refs,
+        ctx.dialect,
+        None,
+        ctx.source_position,
+        None,
+    )
+    .or_else(|| {
+        hosted_substitution_is_taint_source(metadata, effective, args, ctx.registry)
+            .then(TaintLattice::tainted)
+    })
 }
 
 /// Everything a command substitution's taint needs before the recursive
@@ -2018,10 +2057,22 @@ fn classify_substitution_taint(
         .and_then(crate::command_binding::SourceInvocationBinding::proved_target);
     let registry_allowed =
         (ctx.source.allows_nominal_metadata() && ctx.source_tokens.is_none()) || resolved.is_some();
-    if hosted.as_ref().is_some_and(|hosted| {
-        hosted_substitution_is_taint_source(&hosted.metadata, &hosted.effective, args, ctx.registry)
-    }) {
-        return Err(TaintLattice::tainted());
+    if let Some(hosted) = hosted.as_ref() {
+        let written = effective_args.as_deref().unwrap_or(args);
+        if let Some(taint) =
+            hosted_result_taint((&hosted.metadata, &hosted.effective), written, args, ctx)
+        {
+            return Err(taint);
+        }
+        let command = hosted.metadata.shape().command();
+        return Ok(Box::new(SubstitutionTaintPlan {
+            cmd: command.to_owned(),
+            hosted: true,
+            effective_args,
+            effective,
+            normal,
+            nested,
+        }));
     }
     if ctx.source_tokens.is_some()
         && point_target.is_none()
@@ -2066,6 +2117,7 @@ fn classify_substitution_taint(
     }
     Ok(Box::new(SubstitutionTaintPlan {
         cmd: cmd.to_owned(),
+        hosted: false,
         effective_args,
         effective,
         normal,
@@ -2076,6 +2128,8 @@ fn classify_substitution_taint(
 /// What [`substitution_word_taint`] carries across its recursive argument walk.
 struct SubstitutionTaintPlan {
     cmd: String,
+    /// `cmd` is a handler's vendor command, classified from its hosted row.
+    hosted: bool,
     effective_args: Option<Vec<String>>,
     effective: Option<crate::registry_invocation::EffectiveCommandWords>,
     normal: Option<crate::registry_invocation::NormalTaintInvocation>,
@@ -2128,7 +2182,7 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
         depth,
     );
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    finish_substitution_taint(t, plan.normal.as_ref(), ctx, cmd, &arg_refs)
+    finish_substitution_taint(t, plan.normal.as_ref(), ctx, (cmd, plan.hosted), &arg_refs)
 }
 
 /// Determine the taint produced by a statement's definition(s).
@@ -3139,6 +3193,13 @@ fn selected_sink_schema<'a>(
     if call.source.allows_nominal_metadata() && call.source.metadata.is_none() {
         let spec = call.registry.get(call.command)?;
         return Some((spec, spec.name.to_owned(), call.args.to_vec()));
+    }
+    if let Some(read) = call.source_read
+        && let SourceWarningMetadata::Hosted(hosted) = read.metadata.invocation_metadata()
+    {
+        let command = hosted.shape().command();
+        let spec = call.registry.get(command)?;
+        return Some((spec, command.to_owned(), call.args.to_vec()));
     }
     let context = call.source.metadata?;
     if !context.matches_registry(call.registry) {

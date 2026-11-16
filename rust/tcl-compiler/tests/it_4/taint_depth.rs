@@ -1288,12 +1288,12 @@ mod irule3004_depth {
     }
 
     #[test]
-    fn file_normalised_target_suppresses() {
-        // PATH_NORMALISED ⊂ REDIRECT_SAFE: a `[file normalize]`d redirect target
-        // routes back to the current host.
+    fn normalised_path_target_suppresses() {
+        // A normalised path routes back to the current host. TMM has no
+        // `file`; its normaliser is the getter's `-normalized` flag.
         assert_eq!(
             of_code(
-                "set raw [HTTP::header X-Loc]\nset t [file normalize $raw]\nHTTP::redirect $t",
+                "when HTTP_REQUEST {\nset t [HTTP::path -normalized]\nHTTP::redirect $t\n}",
                 IR,
                 "IRULE3004",
             ),
@@ -1351,11 +1351,12 @@ mod irule3101_depth {
     }
 
     #[test]
-    fn file_normalised_var_suppresses() {
-        // PATH_NORMALISED is in the IRULE3101 safe-path set → suppressed.
+    fn normalised_path_var_suppresses() {
+        // A normalised path is a safe setter operand. TMM has no `file` or
+        // `read`; its normaliser is the getter's `-normalized` flag.
         assert_eq!(
             of_code(
-                "set raw [read $fd]\nset p [file normalize $raw]\nHTTP::path $p",
+                "when HTTP_REQUEST {\nset p [HTTP::path -normalized]\nHTTP::path $p\n}",
                 IR,
                 "IRULE3101",
             ),
