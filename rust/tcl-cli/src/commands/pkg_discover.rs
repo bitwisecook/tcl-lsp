@@ -818,7 +818,10 @@ mod tests {
             assert_eq!(requirements[0].line, 1);
         }
         let older = package_source_analysis(source, "tcl8.4", registry.clone());
-        assert!(older.package_requires.is_empty());
+        assert_eq!(
+            older.package_requires,
+            [] as [tcl_compiler::signature_scan::types::SignaturePackageRequire; 0]
+        );
         assert!(
             document_requirements_from_analysis(source, "main.tcl", &registry, &older)
                 .0
@@ -840,7 +843,10 @@ mod tests {
         );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
-        assert!(!missing.package_requires.is_empty());
+        assert_ne!(
+            missing.package_requires,
+            [] as [tcl_compiler::signature_scan::types::SignaturePackageRequire; 0]
+        );
         let mut stale = analysis.clone();
         stale.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
         let mut foreign = analysis.clone();
