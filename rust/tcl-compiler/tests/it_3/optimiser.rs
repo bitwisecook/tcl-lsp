@@ -237,13 +237,14 @@ fn propagation_and_constant_folding_core() {
 
 #[test]
 fn proc_body_and_direct_expr_substitution() {
-    // The optimiser does NOT fold a proc-local constant into a
-    // `return [expr {...}]` (no codes fire, single OR multi pass): given
-    // `proc add_two {} { set a 1; return [expr {$a + 2}] }` it leaves the body
-    // unchanged. Sound (no miscompile), just a gap. Assert only the soundness
-    // invariant (proc left byte-identical, value preserved):
+    // A proc-local constant folds through `return [expr {...}]`: tclsh 8.4.20,
+    // 8.6.18 and 9.0.4 all print 3 for `proc add_two {} {set a 1; return
+    // [expr {$a + 2}]}; puts [add_two]`.
     let proc = "proc add_two {} {\n    set a 1\n    return [expr {$a + 2}]\n}\n";
-    assert_eq!(optimised(proc, TCL), proc);
+    assert_eq!(
+        optimised(proc, TCL),
+        "proc add_two {} {\n    set a 1\n    return 3\n}\n"
+    );
 
     // The optimiser leaves `set v [expr {3}]` byte-identical (no constant-
     // substitution into a bare `set v [expr {3}]` at top level). tclsh confirms

@@ -657,10 +657,13 @@ fn authored_simulation_structure_is_supported(
     });
     // Simulated words must be static. A reached bodiless command's values
     // were evaluated at its point; only its head and role words must be.
+    // The returned value is a value like any other operand, not a name.
     let simulated = |index: usize| {
         !(reached && bodiless)
             || index == 0
-            || roles.iter().any(|(argument, _)| argument + 1 == index)
+            || roles.iter().any(|(argument, role)| {
+                argument + 1 == index && *role != tcl_registry::ArgRole::Result
+            })
     };
     if tokens
         .words()
