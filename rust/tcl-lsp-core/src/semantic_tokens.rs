@@ -7945,33 +7945,102 @@ mod tests {
         );
     }
 
+    /// A method call through each kind of receiver is coloured as a method on
+    /// the stated line. A `false` row pins a receiver that states no class.
     #[test]
-    fn my_self_call_resolves() {
-        // `my method …` inside a class body resolves against the enclosing
-        // class's MRO — the single most common TclOO dispatch form (2935
-        // occurrences across the tcllib/tklib/SpiceGenTcl corpus).
+    fn receiver_dispatch_colours_the_method_word() {
         use tcl_compiler::analyser::Analyser;
         use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
-        let src = "oo::class create C {\n\
-                   \x20   method helper {} {}\n\
-                   \x20   method run {} { my helper }\n\
-                   }\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks = decode_semantic(&full_with_cu_and_analysis(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&analysis),
-        ));
-        // `my helper` on line 2 resolves the sibling method.
-        assert!(
-            toks.iter()
-                .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Method as u32 && m == 0),
-            "expected `my helper` to resolve; got {toks:?}"
-        );
+        let registry = release_reg("tcl9.0");
+        for (receiver, src, line, resolves) in [
+            (
+                "`my` inside a class body",
+                "oo::class create C {\n    method helper {} {}\n    method run {} { my helper }\n}\n",
+                2,
+                true,
+            ),
+            // tclsh 9.0.4: an `oo::configurable` instance answers `configure`,
+            // an `oo::class` instance `unknown method "configure"`. The
+            // metaclass decides, not a declared property.
+            (
+                "`configure` on an `oo::configurable` instance",
+                "oo::configurable create Point {}\nset pt [Point new]\n$pt configure -x 1\n",
+                2,
+                true,
+            ),
+            (
+                "`configure` on a plain `oo::class` instance",
+                "oo::class create Plain { method m {} {} }\nset p [Plain new]\n$p configure -x 1\n",
+                2,
+                false,
+            ),
+            (
+                "snit `$self`",
+                "package require snit\nsnit::type C {\n    method helper {} {}\n    method run {} { $self helper }\n}\n",
+                3,
+                true,
+            ),
+            (
+                "snit component installed with a type",
+                "package require snit\nsnit::widget verticalAxis { method draw {} {} }\nsnit::widget chart {\n    component axis\n    constructor {args} {\n      install axis using verticalAxis $win.a\n      $axis draw\n    }\n}\n",
+                6,
+                true,
+            ),
+            // snit(n): `installhull using TYPE` creates the implicit hull;
+            // `installhull $win` names an existing widget and no type.
+            (
+                "snit hull installed with a type",
+                "package require snit\nsnit::widget frameish { method draw {} {} }\nsnit::widgetadaptor chart {\n    constructor {args} {\n      installhull using frameish\n      $hull draw\n    }\n}\n",
+                5,
+                true,
+            ),
+            (
+                "snit hull installed from an existing widget",
+                "package require snit\nsnit::widget frameish { method draw {} {} }\nsnit::widgetadaptor chart {\n    constructor {args} {\n      installhull $win\n      $hull draw\n    }\n}\n",
+                5,
+                false,
+            ),
+            (
+                "snit bare-word constructor with a computed name",
+                "package require snit\nsnit::type Engine { method run {} {} }\nsnit::type Wrapper {\n    variable eng\n    constructor {} { set eng [Engine ${selfns}::e] }\n    method go {} { $eng run }\n}\n",
+                5,
+                true,
+            ),
+            (
+                "result of a factory procedure",
+                "oo::class create C { method mrun {} {} }\nproc make {} { return [C new] }\nset o [make]\n$o mrun\n",
+                3,
+                true,
+            ),
+            (
+                "object passed as a procedure parameter",
+                "oo::configurable create Pin { property node }\nproc connect {dev t} { $dev configure -node $t }\nset p [Pin new]\nconnect $p n1\n",
+                1,
+                true,
+            ),
+            (
+                "handle bound by `set`",
+                "oo::configurable create Pin { property node }\nset p [Pin new]\n$p configure -node 5\n",
+                2,
+                true,
+            ),
+        ] {
+            let cu = CompilationUnit::build_for(src, &registry, false);
+            let analysis = Analyser::new().analyse(src, "tcl9.0");
+            let toks = decode_semantic(&full_with_cu_and_analysis(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+                &registry,
+                Some(&cu),
+                Some(&analysis),
+            ));
+            assert_eq!(
+                toks.iter()
+                    .any(|&(l, _, _, k, m)| l == line && k == TokenKind::Method as u32 && m == 0),
+                resolves,
+                "{receiver}: {toks:?}"
+            );
+        }
     }
 
     #[test]
@@ -8044,197 +8113,6 @@ mod tests {
     }
 
     #[test]
-    fn snit_self_call_resolves() {
-        // `$self method …` inside a snit method body resolves against the
-        // enclosing snit type — snit's analogue of `TclOO`'s `my`, and by far
-        // the dominant unresolved receiver on real corpora (`$self` alone is
-        // ~12.6% of the unresolved `$var` dispatches; see experiments/tcloo_diag).
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let src = "package require snit\n\
-                   snit::type C {\n\
-                   \x20   method helper {} {}\n\
-                   \x20   method run {} { $self helper }\n\
-                   }\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks = decode_semantic(&full_with_cu_and_analysis(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&analysis),
-        ));
-        assert!(
-            toks.iter()
-                .any(|&(l, _, _, k, m)| l == 3 && k == TokenKind::Method as u32 && m == 0),
-            "expected `$self helper` in a snit method to resolve; got {toks:?}"
-        );
-    }
-
-    #[test]
-    fn snit_install_component_dispatch_resolves() {
-        // `install axis using verticalAxis …` types the `axis` component, so a
-        // `$axis method` dispatch in the snit body resolves — the snit component
-        // idiom.  A source scan supplies the class (snit bodies aren't lowered).
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let src = "package require snit\n\
-                   snit::widget verticalAxis { method draw {} {} }\n\
-                   snit::widget chart {\n\
-                   \x20   component axis\n\
-                   \x20   constructor {args} {\n\
-                   \x20     install axis using verticalAxis $win.a\n\
-                   \x20     $axis draw\n\
-                   \x20   }\n\
-                   }\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks = decode_semantic(&full_with_cu_and_analysis(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&analysis),
-        ));
-        // `$axis draw` on line 6 resolves the component's method.
-        assert!(
-            toks.iter()
-                .any(|&(l, _, _, k, m)| l == 6 && k == TokenKind::Method as u32 && m == 0),
-            "expected `$axis draw` on an installed component to resolve; got {toks:?}"
-        );
-    }
-
-    /// snit's `installhull using TYPE …` binds the widget's **implicit** hull
-    /// component, whose name appears nowhere in the call.
-    ///
-    /// VERIFIED against tcllib snit(n): "Given this form, `installhull` creates
-    /// the hull widget, and initializes any options delegated to the hull from
-    /// the Tk option database."  The second documented form, `installhull
-    /// $win`, names an already-created widget and carries no static type word,
-    /// so it must state nothing.
-    /// `configure` / `cget` resolution must key off registry data about the
-    /// metaclass, not the `oo::configurable` spelling.
-    ///
-    /// tclsh 9.0.4 oracle: an `oo::configurable create Point { property x y … }`
-    /// instance answers `[$pt configure]` with `-x 27 -y 0`, while an
-    /// `oo::class` instance answers `unknown method "configure": must be
-    /// destroy or m` for both `configure` and `cget`.
-    #[test]
-    fn configure_resolves_by_metaclass_trait_not_spelling() {
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let resolves = |src: &str, line: u32| {
-            let cu = CompilationUnit::build_for(src, &registry, false);
-            let analysis = Analyser::new().analyse(src, "tcl9.0");
-            decode_semantic(&full_with_cu_and_analysis(
-                src,
-                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-                &registry,
-                Some(&cu),
-                Some(&analysis),
-            ))
-            .iter()
-            .any(|&(l, _, _, k, m)| l == line && k == TokenKind::Method as u32 && m == 0)
-        };
-        // A configurable class declaring no property of its own: only the
-        // metaclass fact can answer, and it must.
-        let src = "oo::configurable create Point {}\nset pt [Point new]\n$pt configure -x 1\n";
-        assert!(
-            resolves(src, 2),
-            "`configure` on an `oo::configurable` instance must resolve"
-        );
-        // A plain `oo::class` instance answers no `configure` at all.
-        let src =
-            "oo::class create Plain { method m {} {} }\nset p [Plain new]\n$p configure -x 1\n";
-        assert!(
-            !resolves(src, 2),
-            "`configure` on a plain `oo::class` instance must not resolve"
-        );
-    }
-
-    #[test]
-    fn snit_installhull_types_the_implicit_hull_component() {
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let resolves = |src: &str| {
-            let cu = CompilationUnit::build_for(src, &registry, false);
-            let analysis = Analyser::new().analyse(src, "tcl9.0");
-            decode_semantic(&full_with_cu_and_analysis(
-                src,
-                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-                &registry,
-                Some(&cu),
-                Some(&analysis),
-            ))
-            .iter()
-            .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Method as u32 && m == 0)
-        };
-        let src = "package require snit\n\
-                   snit::widget frameish { method draw {} {} }\n\
-                   snit::widgetadaptor chart {\n\
-                   \x20   constructor {args} {\n\
-                   \x20     installhull using frameish\n\
-                   \x20     $hull draw\n\
-                   \x20   }\n\
-                   }\n";
-        assert!(
-            resolves(src),
-            "`installhull using frameish` must type the implicit `hull` component"
-        );
-        // The already-created form has no static type word — abstain.
-        let src = "package require snit\n\
-                   snit::widget frameish { method draw {} {} }\n\
-                   snit::widgetadaptor chart {\n\
-                   \x20   constructor {args} {\n\
-                   \x20     installhull $win\n\
-                   \x20     $hull draw\n\
-                   \x20   }\n\
-                   }\n";
-        assert!(
-            !resolves(src),
-            "`installhull $win` states no class; `$hull draw` must not resolve"
-        );
-    }
-
-    #[test]
-    fn snit_bare_constructor_dispatch_resolves() {
-        // snit's bare-word constructor `set eng [Engine ${selfns}::e]` (no
-        // `create` keyword) types `eng` as the snit class, so `$eng run` in
-        // another method resolves.  A source scan supplies it (snit bodies
-        // aren't lowered), gated on Engine being a known snit-family class.
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let src = "package require snit\n\
-                   snit::type Engine { method run {} {} }\n\
-                   snit::type Wrapper {\n\
-                   \x20   variable eng\n\
-                   \x20   constructor {} { set eng [Engine ${selfns}::e] }\n\
-                   \x20   method go {} { $eng run }\n\
-                   }\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks = decode_semantic(&full_with_cu_and_analysis(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&analysis),
-        ));
-        // `$eng run` on line 5 resolves the method.
-        assert!(
-            toks.iter()
-                .any(|&(l, _, _, k, m)| l == 5 && k == TokenKind::Method as u32 && m == 0),
-            "expected `$eng run` on a bare-constructor handle to resolve; got {toks:?}"
-        );
-    }
-
-    #[test]
     fn snit_typemethod_call_does_not_type_handle() {
         // `set x [Engine spawn]` is a *typemethod* call, not a construction —
         // its result is not an Engine, so `$x run` must NOT resolve (soundness:
@@ -8294,62 +8172,6 @@ mod tests {
             toks.iter()
                 .any(|&(l, _, _, k, _)| l == 2 && k == TokenKind::Decorator as u32),
             "expected `-node` property option; got {toks:?}"
-        );
-    }
-
-    #[test]
-    fn proc_return_object_dispatch_resolves() {
-        // `proc make {} {return [C new]}; set o [make]; $o m` — the factory's
-        // return type flows to `o`, so the dispatch resolves (interproc return).
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = reg();
-        let src = "oo::class create C { method mrun {} {} }\n\
-                   proc make {} { return [C new] }\n\
-                   set o [make]\n\
-                   $o mrun\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks = decode_semantic(&full_with_cu_and_analysis(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&analysis),
-        ));
-        assert!(
-            toks.iter()
-                .any(|&(l, _, _, k, m)| l == 3 && k == TokenKind::Method as u32 && m == 0),
-            "expected `$o mrun` on a factory return to resolve; got {toks:?}"
-        );
-    }
-
-    #[test]
-    fn interproc_param_dispatch_resolves() {
-        // `set p [Pin new]; connect $p` binds `connect`'s parameter `dev` to
-        // ::Pin (interprocedural provenance), so `$dev configure -node` inside
-        // the proc resolves the method — the param-receiver case.
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let src = "oo::configurable create Pin { property node }\n\
-                   proc connect {dev t} { $dev configure -node $t }\n\
-                   set p [Pin new]\n\
-                   connect $p n1\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks = decode_semantic(&full_with_cu_and_analysis(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&analysis),
-        ));
-        // `configure` on the proc's object parameter (line 1) resolves.
-        assert!(
-            toks.iter()
-                .any(|&(l, _, _, k, m)| l == 1 && k == TokenKind::Method as u32 && m == 0),
-            "expected `$dev configure` in the proc body to resolve; got {toks:?}"
         );
     }
 
@@ -8699,33 +8521,6 @@ mod tests {
             toks.iter()
                 .any(|&(l, _, _, k, m)| l == 4 && k == TokenKind::Method as u32 && m == 0),
             "expected `configure` in the return-nested dict map to resolve; got {toks:?}"
-        );
-    }
-
-    #[test]
-    fn user_object_handle_method_resolves() {
-        // `set p [Pin new]; $p configure -node x` — a directly-bound user-class
-        // handle resolves its method + property option against the ClassDef.
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::compilation_unit::CompilationUnit;
-        let registry = release_reg("tcl9.0");
-        let src = "oo::configurable create Pin { property node }\n\
-                   set p [Pin new]\n\
-                   $p configure -node 5\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let analysis = Analyser::new().analyse(src, "tcl9.0");
-        let toks = decode_semantic(&full_with_cu_and_analysis(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            &registry,
-            Some(&cu),
-            Some(&analysis),
-        ));
-        // `configure` at line 2 resolves to a Function.
-        assert!(
-            toks.iter()
-                .any(|&(l, _, _, k, _)| l == 2 && k == TokenKind::Method as u32),
-            "expected `configure` as a Function on the $p dispatch; got {toks:?}"
         );
     }
 
