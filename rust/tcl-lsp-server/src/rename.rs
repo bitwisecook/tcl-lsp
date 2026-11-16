@@ -18,7 +18,16 @@
 
 //! Rename: the tiers a request tries, the workspace edits they plan and file renames.
 
-use super::*;
+use super::{
+    AnalysisResult, Arc, Backend, CommandRegistry, ControlFlow, DocumentChanges,
+    DocumentPathAdmission, DocumentSourceResult, DocumentState, DocumentsGuard, FreshAnalysisSeed,
+    FromStr, HashMap, InitializeParams, OneOf, OptionalVersionedTextDocumentIdentifier, PathBuf,
+    Position, PrepareRenameResponse, Range, RenameFilesParams, TextDocumentEdit, TextEdit, Uri,
+    WorkspaceEdit, core_definition, core_file_ops, core_namespace_rename, core_namespace_symbol,
+    core_rename, core_rename_safety, core_workspace_index, fresh_analysis_cache,
+    implementation_inventory, jsonrpc, lift_lsp_range, lift_span, line_col_to_byte_offset,
+    uri_norm,
+};
 
 mod conditional_variables;
 mod cross_document;

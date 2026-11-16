@@ -19,9 +19,10 @@
 //! Renames of namespaces and namespace variables across the workspace.
 
 use super::{
-    AnalysisResult, Backend, DocumentState, FromStr, Position, TextEdit, Uri,
-    core_namespace_rename, core_namespace_symbol, core_rename, core_rename_safety, lift_lsp_range,
+    AnalysisResult, DocumentState, FromStr, Position, TextEdit, Uri, core_namespace_rename,
+    core_namespace_symbol, core_rename, core_rename_safety, lift_lsp_range,
 };
+use crate::Backend;
 
 /// The collision gate's refusal for renaming `cell` onto `new_cell`, or `None`
 /// when nothing declares the target.

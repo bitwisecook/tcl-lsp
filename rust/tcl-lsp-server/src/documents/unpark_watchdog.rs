@@ -19,7 +19,8 @@
 //! The opt-in watchdog that nudges a waiter parked on a free document map.
 
 use super::store::DocumentStore;
-use super::{Arc, Backend, DocumentsContention, WaiterSnapshot};
+use super::{DocumentsContention, WaiterSnapshot};
+use crate::{Arc, Backend};
 
 /// How long a waiter may sit parked on a FREE map before the watchdog nudges.
 /// A held map never triggers this: waiters behind a holder are victims, and a

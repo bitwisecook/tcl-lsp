@@ -18,10 +18,9 @@
 
 //! Incremental content changes applied to an open buffer.
 
+use super::DocumentPublication;
 use super::path_admission::DocumentPathAdmission;
-use super::{
-    Arc, Backend, DocumentPublication, DocumentState, Range, change_could_affect_dialect_hint,
-};
+use crate::{Arc, Backend, DocumentState, Range, change_could_affect_dialect_hint};
 
 impl Backend {
     pub(in super::super) fn apply_document_content_changes(

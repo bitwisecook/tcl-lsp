@@ -18,7 +18,9 @@
 
 //! Snapshot reads of a document at the readiness a provider needs.
 
-use super::*;
+use super::{DocumentReadiness, DocumentSourceResult, DocumentSourceUnavailable};
+use crate::uri_norm::DocumentPath as _;
+use crate::{Arc, Backend, DocumentState, Path, Uri, vfs};
 
 impl Backend {
     /// A snapshot of `url`'s text, **normalised for analysis**: every lone

@@ -18,8 +18,9 @@
 
 //! Constructors, revision bumps and publication checks of `DocumentState`.
 
+use super::DocumentPublication;
 use super::path_admission::DocumentPathAdmission;
-use super::{Arc, Backend, DocumentPublication, DocumentState, Uri};
+use crate::{Arc, Backend, DocumentState, Uri};
 
 impl DocumentState {
     pub(in super::super) fn new(text: String, dialect: String) -> Self {

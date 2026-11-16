@@ -19,11 +19,12 @@
 //! References across documents for commands, namespace variables and classes.
 
 use super::{
-    AnalysisResult, Backend, CoreLspRange, DocumentSourceResult, DocumentState, Location,
+    AnalysisResult, CoreLspRange, DocumentSourceResult, DocumentState, Location,
     LogicalNamespaceLocationsPurpose, LogicalVariableLocationsPurpose,
     OriginalIndexedSourceLocation, Position, Uri, core_definition, core_references,
     dedup_locations, jsonrpc, lift_bigip_range, lift_lsp_range,
 };
+use crate::Backend;
 
 impl Backend {
     /// Cross-document references for the proc / class at `pos`:

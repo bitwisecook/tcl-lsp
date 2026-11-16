@@ -18,7 +18,8 @@
 
 //! Minify, optimise and unminify.
 
-use super::{Arc, Backend, core_minify, core_report, document_transform, jsonrpc};
+use super::{Arc, Backend, core_minify, core_report, jsonrpc};
+use crate::document_transform;
 
 impl Backend {
     /// Handle the `tcl-lsp.minifyDocument` workspace command.

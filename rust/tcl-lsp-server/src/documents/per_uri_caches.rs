@@ -18,11 +18,11 @@
 
 //! Every per-URI cache borrowed as one group, and the retirement of a URI's state.
 
+use super::DocumentSourceResult;
 use super::path_admission::DocumentPathAdmission;
-use super::{
-    AdmittedDiskBatch, Arc, Backend, BackendState, DiskRemovalPolicy, DocumentSourceResult,
-    EnrichedRefreshAsked, HashMap, HashSet, Mutex, SemanticTokensCache, Uri,
-    WorkspaceClassAnalysis, vfs,
+use crate::{
+    AdmittedDiskBatch, Arc, Backend, BackendState, DiskRemovalPolicy, EnrichedRefreshAsked,
+    HashMap, HashSet, Mutex, SemanticTokensCache, Uri, WorkspaceClassAnalysis, vfs,
 };
 
 /// Every per-document-URI cache [`Backend`] holds, borrowed as one group.

@@ -23,8 +23,8 @@ use super::{
     DocumentSourceResult, DocumentSourceUnavailable, DocumentState, FromStr, HashMap, HashSet,
     Location, MessageType, Path, Position, Range, SymbolInformation, SymbolKind, Uri,
     WorkspaceSymbolResponse, core_workspace_index, core_workspace_symbols, new_workspace_index,
-    readonly_reference_reports,
 };
+use crate::readonly_reference_reports;
 
 #[derive(Clone, Default)]
 pub(in super::super) struct WorkspaceSymbolDiagnostic(Option<Arc<std::sync::Mutex<Vec<String>>>>);

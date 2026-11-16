@@ -18,10 +18,8 @@
 
 //! The open-document map with its holder record and waiter telemetry.
 
-use super::{
-    Arc, DocumentState, DocumentsContention, Future, HashMap, HeldFor, Mutex, PhaseSpan, Pin, Poll,
-    Uri, WaiterSnapshot,
-};
+use super::{DocumentsContention, HeldFor, PhaseSpan, WaiterSnapshot};
+use crate::{Arc, DocumentState, Future, HashMap, Mutex, Pin, Poll, Uri};
 
 /// The open-document map, plus a record of **who currently holds it**.
 ///

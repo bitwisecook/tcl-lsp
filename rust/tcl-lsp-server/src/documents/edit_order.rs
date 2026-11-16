@@ -18,7 +18,7 @@
 
 //! Document-sync notifications applied in arrival order, and the barrier requests wait behind.
 
-use super::{Backend, Uri};
+use crate::{Backend, Uri};
 
 /// How long a request may wait on the document-sync barrier before the server
 /// says so on its log channel.

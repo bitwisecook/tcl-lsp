@@ -18,7 +18,9 @@
 
 //! The checked URI-to-path receipt a document's source is read under, and the canonical file URI.
 
-use super::*;
+use super::{DocumentSourceResult, DocumentSourceUnavailable};
+use crate::{Arc, Backend, Path, PathBuf, Uri, uri_norm, vfs};
+use std::str::FromStr;
 
 /// Checked original URI-to-path data for one source-publication operation.
 /// Non-file documents deliberately have no filesystem path; refused file URIs

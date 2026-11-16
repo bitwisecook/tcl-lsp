@@ -18,7 +18,7 @@
 
 //! Open documents: their state, the map that holds them, the order edits apply in and the reads requests take.
 
-use super::*;
+use crate::{Arc, DocumentState, Uri, core_rename_safety, jsonrpc, uri_norm, vfs};
 
 mod content_changes;
 mod edit_order;

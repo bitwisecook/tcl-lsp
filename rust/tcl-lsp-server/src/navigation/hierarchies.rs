@@ -41,9 +41,10 @@ use super::core_definition;
 #[cfg(test)]
 use super::core_workspace_index;
 use super::{
-    Backend, DocumentSourceResult, SymbolKind, TypeHierarchyItem, Uri, core_type_hierarchy,
-    jsonrpc, lift_lsp_range,
+    DocumentSourceResult, SymbolKind, TypeHierarchyItem, Uri, core_type_hierarchy, jsonrpc,
+    lift_lsp_range,
 };
+use crate::Backend;
 
 #[cfg(test)]
 type CrossDocumentSourceRows = Vec<(Uri, Arc<str>, String)>;

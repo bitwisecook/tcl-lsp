@@ -19,10 +19,11 @@
 //! Resolving the symbol at a cursor against the workspace index.
 
 use super::{
-    AnalysisResult, Backend, DocumentSourceResult, DocumentSourceUnavailable, Position, Uri,
-    core_hover, core_workspace_index, line_col_to_byte_offset, settle_call_against_workspace,
+    AnalysisResult, DocumentSourceResult, DocumentSourceUnavailable, Position, Uri, core_hover,
+    core_workspace_index, line_col_to_byte_offset, settle_call_against_workspace,
     workspace_reporting_context,
 };
+use crate::Backend;
 
 /// Readonly source relationships cannot be used by edit/binding consumers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -18,7 +18,13 @@
 
 //! The order rename tiers are tried in, against one workspace source plan.
 
-use super::*;
+use super::{RenameContext, WorkspaceRenameCaller, WorkspaceSourcePlanToken, rename_refusal_error};
+use crate::uri_norm::DocumentPath as _;
+use crate::{
+    AnalysisResult, Arc, Backend, CommandRegistry, ControlFlow, DocumentSourceResult,
+    DocumentState, Position, RenameParams, TextEdit, Uri, WorkspaceEdit, core_definition,
+    core_rename, core_rename_safety, jsonrpc, lift_lsp_range, vfs,
+};
 
 impl Backend {
     /// The two rename tiers that answer *before* the ordinary in-document /

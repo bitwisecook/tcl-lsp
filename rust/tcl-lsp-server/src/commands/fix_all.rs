@@ -20,8 +20,9 @@
 
 use super::{
     Arc, Backend, HashSet, analyser_findings, core_code_actions, core_policy, document_policy,
-    document_transform, jsonrpc,
+    jsonrpc,
 };
+use crate::document_transform;
 
 /// How many re-analyse-and-apply rounds `tcl-lsp.fixAllSafeIssues` runs.
 ///

@@ -19,7 +19,8 @@
 //! The stall line: who holds the document map, who waits and where the edit barrier stopped.
 
 use super::edit_order::{EDIT_BARRIER_STALL_LOG, EDIT_BARRIER_STALL_WARN};
-use super::{Backend, DocumentsContention, MessageType, PhaseSpan, WaiterSnapshot};
+use super::{DocumentsContention, PhaseSpan, WaiterSnapshot};
+use crate::{Backend, MessageType};
 
 /// Render the map's waiter telemetry into the stall line's
 /// poll-discrimination clause.
