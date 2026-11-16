@@ -1191,7 +1191,7 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | irreducible | `rust/tcl-compiler/src/auto_path_eval.rs:736` | site | as above, for join. |
 | irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2780` | site | selects which calls a debug trace logs. |
 | irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2790` | site | selects which calls a debug trace logs. |
-| irreducible | `rust/tcl-compiler/src/optimiser/propagation.rs:2724` | site | names the reported |
+| irreducible | `rust/tcl-compiler/src/optimiser/propagation.rs:2761` | site | names the reported |
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3005` | site | the tokenless legacy caller has |
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3786` | site | tokenless legacy fold; a retained |
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts.rs:3817` | site | tokenless legacy fold, as for llength. |

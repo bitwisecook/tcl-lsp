@@ -986,6 +986,51 @@ mod require_ordering_tests {
         }
     }
 
+    /// Linking a local to another variable cell changes no command lookup,
+    /// so a procedure that writes its caller's or the global frame through
+    /// `upvar` or `global` leaves the command world closed.
+    ///
+    /// tclsh 8.4.20, 8.6.18, 9.0.4 and 9.1.0 all print
+    /// `1 invalid command name "nosuch" 1 2` for:
+    ///
+    /// ```tcl
+    /// proc setter {} {upvar 1 caller_x x; set x 1}
+    /// proc g {} {global gv; set gv 2}
+    /// set foo [setter]
+    /// g
+    /// puts "[catch {nosuch} m] $m $caller_x $gv"
+    /// ```
+    #[test]
+    fn a_variable_link_in_a_called_body_keeps_the_command_world() {
+        for release in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for source in [
+                "proc setter {} {upvar 1 caller_x x; set x 1}\nset foo [setter]\nnosuch\n",
+                "proc g {} {global gv; set gv 2}\ng\nnosuch\n",
+            ] {
+                let result = crate::analyser::Analyser::new().analyse(source, release);
+                assert_eq!(
+                    result
+                        .diagnostics
+                        .iter()
+                        .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W123)
+                        .count(),
+                    1,
+                    "{release}: {source}"
+                );
+            }
+            // A body that links a variable and then defines the command.
+            let defines = "proc p {} {global g; proc nosuch {} {}}\np\nnosuch\n";
+            let result = crate::analyser::Analyser::new().analyse(defines, release);
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .all(|diagnostic| diagnostic.code != tcl_core_types::DiagCode::W123),
+                "{release}"
+            );
+        }
+    }
+
     /// A catalogued package publishes its export list with its commands, so
     /// a wildcard import brings them in and the bare head keeps its spec.
     ///

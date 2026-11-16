@@ -5496,8 +5496,15 @@ fn command_world_closed_on_normal_return(
         return false;
     }
     match facts.state_transitions.declared() {
+        // Linking a local to another variable cell (`global`, `upvar`,
+        // `variable`) changes no command or namespace lookup.
         Some(transitions) => {
-            transitions.facts().is_empty() && !facts.effects.requires_world_barrier()
+            transitions.facts().iter().all(|fact| {
+                matches!(
+                    fact.transition,
+                    tcl_registry::StateTransition::VariableCellAlias(_)
+                )
+            }) && !facts.effects.requires_world_barrier()
         }
         None => undeclared_transitions_leave_command_world_closed(facts),
     }

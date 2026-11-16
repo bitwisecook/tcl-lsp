@@ -255,7 +255,13 @@ fn synthetic_forwarding_use(
         })
 }
 
-/// Fail closed for legacy SSA without physical point receipts.
+/// Whether the defined cell is reachable from outside the frame: a `global`,
+/// `variable` or `upvar` link, or a trace. Another frame or a trace handler
+/// may then write it between the store and the load (tclsh 8.6.18 and 9.0.4:
+/// `proc f {} {global x; set x 1; puts $x}` prints `traced` once
+/// `trace add variable ::x write {apply {args {set ::x traced}}}` is set), so
+/// its value is never forwarded. Legacy SSA without point receipts fails
+/// closed on an unknown answer as well.
 fn compatibility_def_is_external(
     fu: &FunctionUnit,
     block: crate::cfg::BlockId,
@@ -264,13 +270,29 @@ fn compatibility_def_is_external(
     names: &std::collections::HashSet<String>,
     trace: crate::sccp::TraceInputs<'_>,
 ) -> bool {
-    fu.ssa.point_contexts.is_none()
-        && crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).externally_mutable_by(
+    let external = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index)
+        .externally_mutable_by(
             symbol,
             names,
             trace.has_dynamic_variable_trace,
             trace.registry,
-        ) != Some(false)
+        );
+    if fu.ssa.point_contexts.is_none() {
+        external != Some(false)
+    } else {
+        external == Some(true) || cell_is_linked_outside_frame(fu, symbol)
+    }
+}
+
+/// Whether a cell a procedure body defines lives outside that body's own
+/// activation: the walk resolved the name through a `global`, `variable` or
+/// `upvar` link to a namespace table or another frame. The file's own frame
+/// has no activation, so this asks nothing of it.
+fn cell_is_linked_outside_frame(fu: &FunctionUnit, symbol: crate::ssa::Symbol) -> bool {
+    fu.body_id.is_some()
+        && fu.ssa.cell_key(symbol).is_some_and(|key| {
+            key.authored_spelling().is_none() && key.activation_identity().is_none()
+        })
 }
 
 /// Forward a single reaching literal definition to each of its
@@ -724,13 +746,26 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Names whose writes may be visible through an alias (upvar /
     // global / variable). Prefer the on-demand memory-SSA annotation;
     // fall back to a direct alias computation.
-    let aliased: std::collections::HashSet<String> = match &fu.memory_ssa {
+    let mut aliased: std::collections::HashSet<String> = match &fu.memory_ssa {
         Some(m) => m.aliased_names().into_iter().collect(),
         None => compute_aliases_with_metadata_context(&fu.ssa, registry, Some(context))
             .iter()
             .flat_map(crate::memory_ssa::AliasSet::names)
             .collect(),
     };
+    // A name the frame links outside itself (`global`, `variable`, `upvar`)
+    // is also reachable by another frame or a trace on the linked cell, with
+    // or without a second spelling in this function: tclsh 8.6.18 and 9.0.4
+    // print `traced` for `proc f {} {global x; set x 1; puts $x}` once a write
+    // trace on `::x` replaces the value.
+    aliased.extend(
+        crate::var_observability::analyse_var_observability_with_metadata_context(
+            &fu.cfg,
+            registry,
+            Some(context),
+        )
+        .escaping_var_names(),
+    );
 
     // Trace context: a traced command is never pure (its write set is
     // unknown), so the intervening-effect check must see it.
@@ -902,7 +937,9 @@ fn forward_candidate(
 
     let def_source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, def_block, def_idx);
     let def_reads = &ssa_block.statements[def_idx].uses;
-    if !forwarded_cells_are_private(env, def_source, symbol, def_reads) {
+    if !forwarded_cells_are_private(env, def_source, symbol, def_reads)
+        || cell_is_linked_outside_frame(fu, symbol)
+    {
         return None;
     }
     let (Statement::AssignValue { name: def_name, .. }
