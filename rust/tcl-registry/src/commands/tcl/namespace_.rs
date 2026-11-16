@@ -581,6 +581,19 @@ const NAMESPACE_READ_SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // `qualifiers` and `code` over empty, unbalanced and colon-run operands.
 const OK_COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Ok];
 
+const NAMESPACE_UPVAR_SIDE_EFFECTS: &[SideEffect] = &[
+    SideEffect {
+        target: SideEffectTarget::NamespaceState,
+        reads: true,
+        ..SideEffect::DEFAULT
+    },
+    SideEffect {
+        target: SideEffectTarget::Variable,
+        writes: true,
+        ..SideEffect::DEFAULT
+    },
+];
+
 const NAMESPACE_PARENT_SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
         target: SideEffectTarget::InterpState,
@@ -1710,6 +1723,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         codegen_hook: Some(crate::hooks::CodegenHookId::NamespaceUpvar),
         creates_scope_alias: true,
         surface: Some(SpecSurface::TCL85_PLUS),
+        // Links locals to namespace cells and moves no command: tclsh 8.5.19,
+        // 8.6.18, 9.0.4 and 9.1.0 answer 5 for a linked read, and raise
+        // `namespace "::nope" not found` and `variable "l" already exists`.
+        side_effects: NAMESPACE_UPVAR_SIDE_EFFECTS,
+        completion: Some(CompletionDescriptor::exact(&[
+            CompletionCode::Ok,
+            CompletionCode::Error,
+        ])),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_UPVAR_TRANSITIONS),
         ..SubCommand::DEFAULT
