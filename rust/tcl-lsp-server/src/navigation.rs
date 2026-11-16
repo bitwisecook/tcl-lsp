@@ -30,6 +30,7 @@ mod logical_declarations;
 mod method_targets;
 mod namespaces;
 mod references;
+mod requests;
 mod symbol_resolution;
 mod workspace_symbols;
 

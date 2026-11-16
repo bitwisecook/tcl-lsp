@@ -28,6 +28,7 @@ use tower_lsp_server::ls_types::Uri;
 mod full;
 mod range;
 mod refresh;
+mod requests;
 
 use full::log_full_convergence_settled;
 #[cfg(test)]

@@ -27,6 +27,7 @@ mod folders;
 mod library_indexing;
 mod package_database;
 mod project_inputs;
+mod requests;
 mod scan_batches;
 mod source_files;
 mod source_graph;

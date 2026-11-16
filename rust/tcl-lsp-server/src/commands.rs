@@ -28,6 +28,7 @@ mod dialect_selection;
 mod document_views;
 mod fix_all;
 mod minimize_diagnostic;
+mod requests;
 mod source_transforms;
 mod xc_translate;
 

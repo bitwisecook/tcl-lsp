@@ -41,6 +41,8 @@ use tower_lsp_server::ls_types::{
     OptionalVersionedTextDocumentIdentifier, Range, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
 
+mod requests;
+
 /// [`code_action_report`]'s inputs beyond the document and its analysis,
 /// grouped so the call site does not spell out seven parameters.
 pub(super) struct CodeActionReportInputs {

@@ -326,6 +326,7 @@ mod commands;
 mod configuration;
 mod diagnostics;
 mod dialects;
+mod document_features;
 mod documents;
 mod language_server;
 mod method_families;

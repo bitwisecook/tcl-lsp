@@ -24,6 +24,7 @@ use tower_lsp_server::ls_types::Position;
 
 mod capabilities;
 mod lifts;
+mod requests;
 
 #[cfg(test)]
 pub(super) use capabilities::rename_file_operation_options;

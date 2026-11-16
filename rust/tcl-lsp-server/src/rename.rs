@@ -25,6 +25,7 @@ mod cross_document;
 mod file_rename;
 mod namespace_cells;
 mod original_commands;
+mod requests;
 mod tiers;
 
 pub(super) use conditional_variables::client_supports_conditional_rename;

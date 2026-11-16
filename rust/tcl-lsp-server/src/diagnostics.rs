@@ -33,6 +33,7 @@ mod publication;
 mod publisher;
 mod pull;
 mod report;
+mod requests;
 mod run;
 mod scheduling;
 

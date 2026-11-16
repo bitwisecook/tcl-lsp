@@ -25,6 +25,7 @@ mod edit_order;
 mod path_admission;
 mod per_uri_caches;
 mod reads;
+mod requests;
 mod stall_report;
 mod state;
 mod store;

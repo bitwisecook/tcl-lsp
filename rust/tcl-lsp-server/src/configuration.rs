@@ -25,6 +25,7 @@ mod folder_settings;
 mod formatter_settings;
 mod global_settings;
 mod reload;
+mod requests;
 mod resolved_settings;
 mod setting_parsers;
 
