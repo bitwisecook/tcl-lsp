@@ -79,7 +79,7 @@ impl Analyser {
     /// a procedure, alias, class, rename or deletion under that name, an
     /// import that could bring one in, or a provider the walk could not see.
     fn recovered_tail_head_is_rebound(&self, head: &str) -> bool {
-        let rooted = format!("::{head}");
+        let rooted = crate::naming::normalise_qualified_name(head);
         self.result.has_dynamic_providers
             || !self.result.namespace_imports.is_empty()
             || self.result.all_procs.contains_key("::unknown")
