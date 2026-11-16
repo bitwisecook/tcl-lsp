@@ -2902,16 +2902,21 @@ mod tests {
              proc ::caller {} {::setter}; ::caller",
             "::setter",
         );
-        // Exactly two frames out, and only there: on tclsh 8.4.20, 8.6.18
-        // and 9.0.4, with `proc caller {} {set x 0; setter; return $x}`
-        // called from a frame holding `x`, `caller` returns 0 and the
-        // calling frame's `x` becomes 1.
+        // Two frames out for a caller in `::`: on tclsh 8.4.20, 8.6.18 and
+        // 9.0.4, with `proc caller {} {set x 0; setter; return $x}` called
+        // from a frame holding `x`, `caller` returns 0 and the calling
+        // frame's `x` becomes 1.
         assert_eq!(
             info.beyond_caller,
             BTreeSet::from([FrameTarget::Caller(std::num::NonZeroU32::new(2).unwrap())]),
             "got {info:?}"
         );
-        assert!(!info.caller_frame_opaque_writes, "got {info:?}");
+        // The inner `uplevel` is unqualified and resolves in the caller
+        // frame's namespace, so the summary cannot say "only there" for a
+        // caller it has not seen: the same releases, with the caller in
+        // `namespace eval ns { proc uplevel args {} }`, run `::ns::uplevel`
+        // and write `x` in neither frame.
+        assert!(info.caller_frame_opaque_writes, "got {info:?}");
     }
 
     #[test]
