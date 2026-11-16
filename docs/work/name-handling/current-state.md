@@ -2,9 +2,9 @@
 
 Updated 15 November 2026. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
 
-## File restructuring done; burn-down resumed, 16 November 2026
+## File restructuring done; burn-down still paused, 16 November 2026
 
-Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); `cargo xtask file-sizes --check` holds it there and its ledger is empty. 238 files were split into a facade and named modules by pure moves: no item was renamed and every old path still resolves. Test modules were split the same way, so a test's path gained a module; compare failing lists by the last path segment. The burn-down sessions were paused from 10:54 UTC while it landed and were sent the resume notice afterwards; a session holding local work re-applies a hunk against a moved item in the module the file's plan names (`docs/work/file-split/plans/<crate>/...`).
+Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); `cargo xtask file-sizes --check` holds it there and its ledger is empty. 238 files were split into a facade and named modules by pure moves: no item was renamed and every old path still resolves. Test modules were split the same way, so a test's path gained a module; compare failing lists by the last path segment. The burn-down sessions have been paused since 10:54 UTC and stay paused on the owner's instruction (a resume notice sent at 18:36 UTC was withdrawn at 18:47 UTC; the hourly check is off). No session pushes until the owner says to resume. On resuming, a session holding local work re-applies a hunk against a moved item in the module the file's plan names (`docs/work/file-split/plans/<crate>/...`).
 
 ## Scoreboard, 16 November 2026, 00:50 UTC
 
