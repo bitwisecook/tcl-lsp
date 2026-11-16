@@ -206,7 +206,7 @@ fn test_w003_offers_string_compare_fix_for_lt() {
     let diags = lsp.open_ready(&uri, "# tcl-dialect: tcl8.4\nif {$x lt $y} { puts hi }\n");
     let w003 = with_code(&diags, "W003");
     assert_eq!(w003.len(), 1, "{diags:?}");
-    let actions = lsp.code_actions(&uri, range((1, 0), (1, 26)), json!(w003));
+    let actions = lsp.code_actions(&uri, range((1, 0), (1, 25)), json!(w003));
     assert!(
         new_texts(&actions)
             .iter()
@@ -409,7 +409,7 @@ fn test_w004_offers_remove_option_fix() {
     let actions = code_actions_only(
         &mut lsp,
         &uri,
-        range((1, 0), (1, 30)),
+        range((1, 0), (1, 29)),
         json!(w004),
         &["quickfix"],
     );
@@ -1166,7 +1166,7 @@ fn test_e100_offers_insert_bracket_before_user_proc() {
     let actions = code_actions_only(
         &mut lsp,
         &uri,
-        range((1, 0), (1, 26)),
+        range((1, 0), (1, 25)),
         json!(e100),
         &["quickfix"],
     );
