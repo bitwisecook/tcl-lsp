@@ -263,6 +263,61 @@ fn proc_body_and_direct_expr_substitution() {
     assert!(!opt_fires(esc, TCL, "O102"));
 }
 
+/// A name linked with `global`, `upvar` or `variable` exists exactly when
+/// its target does, whichever spelling wrote or removed the target.
+///
+/// tclsh 8.4.20, 8.6.18, 9.0.4 and 9.1.0 print `no yes yes yes yes no` for:
+///
+/// ```tcl
+/// proc init {} { set ::x 1 }
+/// proc q1 {} { global x; init; if {[info exists x]} { return yes } else { return no } }
+/// proc q2 {} { global x; if {[info exists x]} { return yes } else { return no } }
+/// proc q3 {} { upvar #0 x y; if {[info exists y]} { return yes } else { return no } }
+/// namespace eval n {variable v 1}
+/// proc n::q {} { variable v; if {[info exists v]} { return yes } else { return no } }
+/// proc q4 {} { global x; unset ::x; if {[info exists x]} { return yes } else { return no } }
+/// puts [list [q2] [q1] [q2] [q3] [n::q] [q4]]
+/// ```
+#[test]
+fn a_linked_name_reads_the_existence_of_its_target() {
+    let guard = "if {[info exists LINK]} { puts yes } else { puts no }";
+    for (source, link) in [
+        (
+            "proc init {} { set ::x 1 }\nproc q {} {\n    global x\n    init\n    GUARD\n}\nq\n",
+            "x",
+        ),
+        ("proc q {} {\n    global x\n    GUARD\n}\nset x 1\nq\n", "x"),
+        (
+            "proc q {} {\n    upvar #0 x y\n    GUARD\n}\nset x 1\nq\n",
+            "y",
+        ),
+        (
+            "namespace eval n {variable v 1}\nproc n::q {} {\n    variable v\n    GUARD\n}\nn::q\n",
+            "v",
+        ),
+        (
+            "proc q {n} {\n    upvar 1 $n v\n    GUARD\n}\nset x 1\nq x\n",
+            "v",
+        ),
+    ] {
+        let source = source.replace("GUARD", &guard.replace("LINK", link));
+        for release in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            assert!(
+                !optimised(&source, release).contains("if {0}"),
+                "{release}: {source}"
+            );
+        }
+    }
+    let removed = "proc q {} {\n    global x\n    unset ::x\n    GUARD\n}\nset x 1\nq\n"
+        .replace("GUARD", &guard.replace("LINK", "x"));
+    for release in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        assert!(
+            !optimised(&removed, release).contains("if {1}"),
+            "{release}"
+        );
+    }
+}
+
 #[test]
 fn interprocedural_constant_folding() {
     // Pure proc returning a constant folds at the call site (O103).

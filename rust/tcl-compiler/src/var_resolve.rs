@@ -2573,6 +2573,15 @@ impl ResolveContext {
     /// Actual presence in a captured post-operation world. This does not run a
     /// later observer; callers must retain the successful physical continuation.
     pub(crate) fn captured_contents_presence(&self, place: &Place) -> ContentsPresence {
+        // A slot that holds a link has no contents of its own.
+        if place.cell.is_some() && !place.is_global() {
+            let slot = cell_key(place);
+            if self.alias_bindings.contains_key(&slot)
+                || self.name_alias_bindings.contains_key(&slot)
+            {
+                return ContentsPresence::Unknown;
+            }
+        }
         let key = canonical_binding_value_key(place);
         if let Some(presence) = key.as_ref().and_then(|key| self.contents_presence.get(key)) {
             return if *presence == ContentsPresence::DefinedOrUndefined {
@@ -4254,6 +4263,10 @@ fn bind_scalar_receiver(
         target.observed |= obs || ctx.traced.contains(&cell_key(&target));
         return target;
     }
+    if let Some(mut target) = activation_slot_alias(base, ctx, registry) {
+        target.observed |= obs || ctx.traced.contains(&cell_key(&target));
+        return target;
+    }
     if ctx.dynamic_bindings && !tcl_syntax::naming::is_qualified(base.as_bytes()) {
         return place::unknown_top();
     }
@@ -4344,6 +4357,30 @@ fn bind_unaliased_scalar(
         place::scalar(base, place::LOCAL_NS, obs)
     };
     finish_bound_scalar(bound, ctx)
+}
+
+/// A link installed on a frame's own slot is keyed by that cell, which the
+/// spelled name alone does not select.
+fn activation_slot_alias(
+    base: &str,
+    ctx: &ResolveContext,
+    registry: &CommandRegistry,
+) -> Option<Place> {
+    if ctx.alias_bindings.is_empty() && ctx.name_alias_bindings.is_empty() {
+        return None;
+    }
+    let slot = resolve_alias_destination_slot(base, ctx, registry);
+    if slot.kind == PlaceKind::Unknown || slot.is_global() {
+        return None;
+    }
+    let key = cell_key(&slot);
+    // A target the context cannot name stays with the slot, whose own
+    // contents then answer unknown (`captured_contents_presence`).
+    ctx.name_alias_bindings
+        .get(&key)
+        .map(|target| resolve_name_alias(target, ctx))
+        .or_else(|| ctx.alias_bindings.get(&key).cloned())
+        .filter(|target| target.kind != PlaceKind::Unknown && !target.dynamic)
 }
 
 fn namespace_slot_alias(
