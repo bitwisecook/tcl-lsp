@@ -232,7 +232,160 @@ pub fn document_symbols_from_analysis(
             symbols.push(unplaced);
         }
     }
+    let recovered = recovered_tail_symbols(source, analysis, &line_index)
+        .into_iter()
+        .filter(|symbol| !selects(&symbols, symbol.selection_range))
+        .collect::<Vec<_>>();
+    symbols.extend(recovered);
     symbols
+}
+
+/// Whether any symbol in the tree already selects `range`.
+fn selects(symbols: &[DocumentSymbol], range: LineRange) -> bool {
+    symbols
+        .iter()
+        .any(|symbol| symbol.selection_range == range || selects(&symbol.children, range))
+}
+
+/// Procedures written after an unterminated delimiter.
+///
+/// tclsh runs nothing of such a file, so the analysis holds no declaration
+/// past the cut. The outline is a display answer: it reads the commands the
+/// recovery segmenter finds there by their written words and the document's
+/// registry. A command whose head the analysis reached, is not one literal
+/// bareword, or is a name the document itself rebinds is not read. Nothing
+/// here is a declaration for any other consumer.
+fn recovered_tail_symbols(
+    source: &str,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+) -> Vec<DocumentSymbol> {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    if tcl_lexer::script_image_is_complete(
+        &tcl_lexer::SourceImage::document(source),
+        current.config(),
+    ) != Ok(false)
+    {
+        return Vec::new();
+    }
+    let Some(realm) = analysis.retained_command_realm() else {
+        return Vec::new();
+    };
+    let rebound = analysis
+        .all_procs
+        .keys()
+        .chain(analysis.command_aliases.keys())
+        .chain(analysis.renamed_commands.keys())
+        .chain(analysis.renamed_commands.values())
+        .map(|name| tcl_syntax::naming::written_command_tail(name.as_bytes()))
+        .collect();
+    let tail = RecoveredTail {
+        source,
+        line_index,
+        current: &current,
+        bindings: realm.source_bindings_ref(),
+        rebound,
+    };
+    let mut out = Vec::new();
+    tail.collect(0, 0, false, &mut out);
+    out
+}
+
+/// Nesting cap for unterminated braces read by [`RecoveredTail::collect`].
+const MAX_RECOVERED_DEPTH: u32 = 32;
+
+struct RecoveredTail<'a> {
+    source: &'a str,
+    line_index: &'a LineIndex,
+    current: &'a crate::original_context::CurrentSourceContext<'a>,
+    bindings: &'a tcl_compiler::command_binding::SourceCommandBindings,
+    rebound: std::collections::HashSet<&'a [u8]>,
+}
+
+impl RecoveredTail<'_> {
+    /// Read the script that starts at `base`: the procedures in the commands
+    /// recovered after its cut, or, where the script ends in an unterminated
+    /// brace word, the script inside that word.
+    fn collect(&self, base: u32, depth: u32, past_cut: bool, out: &mut Vec<DocumentSymbol>) {
+        use tcl_compiler::analyser::utils::{SharedNameSet, recovery_known_commands};
+        let Some(text) = self.source.get(base as usize..) else {
+            return;
+        };
+        if depth >= MAX_RECOVERED_DEPTH {
+            return;
+        }
+        let (config, registry) = (
+            self.current.config().at_depth(depth),
+            self.current.registry(),
+        );
+        let known = recovery_known_commands(text, registry, &SharedNameSet::default(), config);
+        let known: std::collections::HashSet<&str> = known.iter().collect();
+        let commands = tcl_compiler::segmenter::segment_commands_with_recovery_and_config(
+            text, &known, config,
+        );
+        // The cut is the partial command; a script inside an unterminated
+        // brace is past the cut as a whole.
+        let cut = commands
+            .iter()
+            .find(|command| command.is_partial)
+            .map(|command| command.span.start());
+        if cut.is_none() && !past_cut {
+            // An unterminated brace is closed by the segmenter without a
+            // partial command: its word runs to the end with no closer.
+            if let Some(word) = commands.last().and_then(|command| command.argv.last())
+                && word.kind == tcl_lexer::TokenType::Str
+                && word.content_offset == 1
+                && word.span.end() as usize >= text.len().saturating_sub(1)
+                && text.as_bytes().get(word.span.end() as usize) != Some(&b'}')
+                && !text.ends_with('}')
+            {
+                self.collect(base + word.span.start() + 1, depth + 1, true, out);
+            }
+            return;
+        }
+        let readable: Vec<_> = commands
+            .iter()
+            .filter(|command| {
+                let (Some(head), Some(word)) = (command.argv.first(), command.texts.first()) else {
+                    return false;
+                };
+                !command.is_partial
+                    && cut.is_none_or(|cut| command.span.start() > cut)
+                    && head.kind == tcl_lexer::TokenType::Esc
+                    && command.single_token_word.first() == Some(&true)
+                    && !self.bindings.reached_site(base + head.span.start())
+                    && !self
+                        .rebound
+                        .contains(tcl_syntax::naming::written_command_tail(word.as_bytes()))
+            })
+            .collect();
+        let scan =
+            tcl_compiler::signature_scan::extract_signatures_with_config(text, config, registry);
+        for declaration in &scan.procedure_declarations {
+            if !readable.iter().any(|command| {
+                command.span.start() <= declaration.name_range.start()
+                    && declaration.body_range.end() <= command.span.end()
+            }) {
+                continue;
+            }
+            let shift = |span: Span| Span::new(base + span.start(), base + span.end());
+            let name_range =
+                span_to_range(self.source, self.line_index, shift(declaration.name_range));
+            let body_range =
+                span_to_range(self.source, self.line_index, shift(declaration.body_range));
+            out.push(DocumentSymbol {
+                name: declaration.name.clone(),
+                detail: Some(format_param_list(&declaration.params)),
+                kind: SymbolKind::Function,
+                range: merge_ranges(name_range, body_range),
+                selection_range: name_range,
+                children: Vec::new(),
+            });
+        }
+    }
 }
 
 /// The outline of a **declaration document** — a `.sslictcl` file, whose
@@ -819,6 +972,40 @@ fn proc_symbol(
 mod tests {
     use super::*;
     use std::fmt::Write as _;
+
+    /// tclsh 8.6 runs nothing of these files (`missing close-bracket`,
+    /// `missing close-brace`), so the analysis declares nothing past the cut
+    /// and the outline reads the recovered words. The open-brace row runs
+    /// under the lenient environment: a release analysis of that document is
+    /// unavailable as a whole, so no outline can be read from it.
+    #[test]
+    fn a_procedure_after_an_unterminated_delimiter_is_outlined_from_its_written_words() {
+        for (dialect, source, expected) in [
+            (
+                "tcl8.6",
+                "set x [foo\nproc after_bracket {a} {}\n",
+                vec!["after_bracket"],
+            ),
+            (
+                "tcl8.6",
+                "set a [foo\nset b 2\nset c [bar\nproc after_two {} {}\n",
+                vec!["after_two"],
+            ),
+            (
+                "tcl",
+                "namespace eval n {\nproc in_open_brace {} {}\n",
+                vec!["n", "in_open_brace"],
+            ),
+            ("tcl8.6", "proc whole {} {}\n", vec!["whole"]),
+        ] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            let names: Vec<String> = document_symbols_from_analysis(source, &analysis)
+                .into_iter()
+                .map(|symbol| symbol.name)
+                .collect();
+            assert_eq!(names, expected, "{dialect} {source:?}");
+        }
+    }
 
     #[test]
     fn clay_outline_retains_source_class_and_unchanged_method_sites() {
