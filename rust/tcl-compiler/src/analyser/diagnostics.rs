@@ -132,6 +132,7 @@ mod original_control_advice;
 mod original_positioned_callee;
 mod original_roles;
 mod proven;
+mod recovered_tail;
 mod security;
 mod unresolved;
 mod usage;

@@ -895,6 +895,10 @@ pub struct Analyser {
     /// recovery segmenter's. No interpreter runs such a document, so the
     /// interpretation holds nothing for the recovered tail.
     pub(super) recovered_source: bool,
+    /// The first syntax cut of such a document and the registry's verdicts
+    /// on the commands recovered after it, published once every other
+    /// emitter has run.
+    pub(super) recovered_tail: Option<(u32, Vec<super::types::Diagnostic>)>,
     /// Safe-interpreter evaluation contexts currently on the walk stack:
     /// non-empty while walking an `interp eval` body whose target
     /// interpreter is safe.  The per-command gate consults the top —
@@ -1706,6 +1710,7 @@ impl Analyser {
             interp_epochs: HashMap::new(),
             interp_path_stack: Vec::new(),
             recovered_source: false,
+            recovered_tail: None,
             safe_interp_stack: Vec::new(),
             interp_var_bindings: HashMap::new(),
             unresolved_commands_emitted: false,
@@ -2684,6 +2689,7 @@ impl Analyser {
         Self::trace_analysis_phase(phase_start, source.len(), "walk-start");
         let workspace_walk = super::commands::WorkspaceWalkPhases::start();
         self.walk_commands_top_level(&commands, ghost_recovery_applied);
+        self.recovered_tail = self.recovered_tail_verdicts(&commands);
         if let Some(trace) = workspace_walk {
             trace.finish(source.len(), self.structure_only);
         }
@@ -3926,6 +3932,7 @@ impl Analyser {
         self.flush_tk_geometry_diagnostics();
         self.flush_version_gate_diagnostics();
         self.flush_dsl_gate_diagnostics();
+        self.publish_recovered_tail_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();

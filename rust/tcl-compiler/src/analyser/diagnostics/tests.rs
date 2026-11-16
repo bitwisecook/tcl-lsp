@@ -19473,3 +19473,52 @@ fn w143_withdraws_for_a_private_namespace_command_the_document_defines() {
     assert!(!has_code(own, "tcl8.6", "W143"));
     assert!(has_code("::tcl::dict::mine {a 1}\n", "tcl8.6", "W143"));
 }
+
+/// The commands recovered after a syntax cut are an editor tier: the registry
+/// reports its count errors over the written words of a literal bareword
+/// head the reached prefix does not rebind, and nothing else is reported
+/// there. tclsh 8.4.20, 8.6.18 and 9.0.4 raise `wrong # args: should be "set
+/// varName ?newValue?"` for a bare `set` and a `wrong # args` naming the
+/// missing subcommand for a bare `string`.
+#[test]
+fn a_recovered_tail_draws_registry_count_errors_and_nothing_else() {
+    let tail_codes = |src: &str, dialect: &str| -> Vec<String> {
+        let cut = src.find('\n').unwrap();
+        Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.span.start() as usize > cut)
+            .map(|diagnostic| diagnostic.code.to_string())
+            .collect()
+    };
+    for (src, expected) in [
+        ("set x [foo bar\nset\n", vec!["E002"]),
+        ("set x [foo bar\nstring\n", vec!["E001"]),
+        ("set x [foo bar\nputs a b c d\n", vec!["E003"]),
+        ("set x [foo bar\nset y 1\n", vec![]),
+        // No flow, existence or unknown-command diagnostic in the tail.
+        ("set x [foo bar\nputs $nope\n", vec![]),
+        ("set x [foo bar\nzz9unknowncmd a\n", vec![]),
+        // A computed or qualified head is not checked.
+        ("set x [foo bar\n$cmd\n", vec![]),
+        ("set x [foo bar\n::set\n", vec![]),
+    ] {
+        for dialect in ["tcl8.6", "tcl"] {
+            assert_eq!(tail_codes(src, dialect), expected, "{dialect}: {src:?}");
+        }
+    }
+    // A head the reached prefix rebinds is not the registry's to check.
+    let rebound = "proc set {args} {}\nset x [foo bar\nset\n";
+    let cut = rebound.rfind("set\n").unwrap();
+    for dialect in ["tcl8.6", "tcl"] {
+        assert!(
+            Analyser::new()
+                .analyse(rebound, dialect)
+                .diagnostics
+                .iter()
+                .all(|diagnostic| (diagnostic.span.start() as usize) < cut),
+            "{dialect}"
+        );
+    }
+}
