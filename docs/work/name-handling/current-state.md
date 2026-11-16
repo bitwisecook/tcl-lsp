@@ -21,6 +21,22 @@ Compiler suite by owning session (counts overlap the first row): analyser and bi
 
 Largest open causes, in order of tests blocked: walk facts the values and taint areas wait on (a list command over an unproved value, constructed `uplevel`, scope declarations inside loop bodies, a statement after a proved error); iRules handler bodies reaching SSA, taint and folding (handler store landed, sanitiser colours and fixtures to follow); code in bodies the analysis never entered (method bodies, iApp and tmsh procedures); the variable-link half of the `return`/`set` selection patch (the `return` half landed in `a4e9d10e`); the lenient `tcl` environment's display facts.
 
+## Coordinator rulings awaiting the owner's review, 16 November 2026
+
+Made so sessions were not stalled; each can be overruled.
+
+- **Recovered tail.** The proving walk does not enter commands recovered after an unterminated delimiter. The tail is an editor tier: display facts from written words plus the registry; diagnostics limited to registry-only arity, subcommand and option errors on a single literal bareword head the reached prefix does not rebind; no flow, existence, type or taint diagnostic and no edit-producing consumer there.
+- **Bytecode target.** Structured `if` / `while` / static `eval` are lowered under the bytecode target as on `origin/rust`, with the selected compiler's original vector kept on the statement for native emission, instead of teaching the escape summary and both inliners to read a control plan off a call.
+- **`return` / `set` selection.** The `return` half landed (`a4e9d10e`). The variable-link half may land with two named, owned regressions (a unit-scope seed and a taint summary) once no wrong fold remains; the open wrong fold is the walk holding separate existence facts for a `global`-linked name and its qualified spelling.
+- **Diagnostics.** A variable defined only in the body of a possibly-empty loop is silent; a standalone document's global frame is open except for what the document itself proves; the unreached-site `proc` fallback stays restricted to child-interpreter scripts.
+- **Taint.** Hosted metadata may supply getter colours and sanitiser transforms to the taint diagnostic only; each F5 claim has a BIG-IP check.
+- **F5.** An unpinned hook is still told 8.4 for F5 profiles (the F5-only rule read as about evaluation); procedure bodies under `f5-iapps` and `f5-tmsh` are entered for a braced body only.
+- **Common AOT plan.** Direct-body and constant-store proofs use the token-owned trace check, as the call decision does; a traced procedure or variable must still decline.
+- **Summaries.** A binding at the call's execution point decides a global-write summary; fixtures that relied on an installer nobody calls now call it, with one row kept for the as-written shape.
+- **Tooling.** Code that asks whether text is one complete command uses the checked segmenter; a supplied analysis input stays exact and the supplier resolves it once for unit and analysis; a directive that cannot be read selects nothing.
+- **References.** Callback selectors in unentered method bodies may be reported as read-only reference spans; rename keeps them as a hazard.
+- **Naming gate.** Colon trims count as hand-written name handling; four `::` joins in `f5-cli` and `tcl-bigip` are listed as not Tcl names.
+
 ## Measured state, 14 November 2026
 
 Measured at `775be44f` on one 4-core Linux host with `cargo nextest`, test profile `opt-level 1`, every test including the heavy tier.
