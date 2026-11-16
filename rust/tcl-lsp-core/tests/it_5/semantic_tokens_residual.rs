@@ -1365,3 +1365,69 @@ fn st_binary_non_format_subcommand_has_no_field_override() {
         "`encode` and `base64` are both subcommand words; got {toks:?}",
     );
 }
+
+/// Tokens are the same whether the analysis ran its diagnostic tier or
+/// stopped at structure, over a spread of the checked-in samples. The server
+/// can therefore serve analysed tokens from the structure-only tier, which
+/// costs about a third of the full analysis.
+#[test]
+fn tokens_do_not_depend_on_the_analysis_tier() {
+    use tcl_compiler::analyser::Analyser;
+    fn gather(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                gather(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "tcl") {
+                out.push(path);
+            }
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples");
+    let mut files = Vec::new();
+    gather(&root, &mut files);
+    files.sort();
+    // Every TclOO sample (where the tiers used to differ) and every third of
+    // the rest, small files only, to keep the test quick.
+    let mut compared = 0;
+    for (index, path) in files.iter().enumerate() {
+        let name = path.to_string_lossy();
+        if !name.contains("tcloo") && index % 3 != 0 {
+            continue;
+        }
+        let Ok(source) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        if source.len() > 8_000 {
+            continue;
+        }
+        let dialect = if name.contains("/irules/") {
+            "f5-irules"
+        } else {
+            "tcl8.6"
+        };
+        let registry = static_context_for(dialect).commands();
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let structure = Analyser::new().structure_only().analyse(&source, dialect);
+        let full = Analyser::new().analyse(&source, dialect);
+        let tokens = |analysis| {
+            tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
+                &source,
+                profile,
+                registry,
+                None,
+                Some(analysis),
+            )
+            .data
+        };
+        assert_eq!(tokens(&structure), tokens(&full), "{name}");
+        compared += 1;
+    }
+    assert!(
+        compared >= 20,
+        "expected the checked-in samples; compared {compared}"
+    );
+}

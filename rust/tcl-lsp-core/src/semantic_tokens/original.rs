@@ -36,6 +36,9 @@ pub(super) struct OriginalTokenRoles {
     formal_dialects: FxHashMap<u32, Option<tcl_registry::InvocationDialect>>,
     current: bool,
     lexical_oo: bool,
+    /// Heads the analysis recorded an invocation for. The structure-only
+    /// tier records few, so any other head asks the realm when it is walked.
+    recorded_heads: FxHashSet<u32>,
 }
 
 impl OriginalTokenRoles {
@@ -46,6 +49,11 @@ impl OriginalTokenRoles {
         let image = SourceImage::document(source);
         let mut roles = Self {
             lexical_oo: analysis.allows_lexical_declaration_advice(),
+            recorded_heads: analysis
+                .command_invocations
+                .iter()
+                .map(|invocation| invocation.range.start())
+                .collect(),
             ..Self::default()
         };
         roles.heads.extend(
@@ -131,6 +139,11 @@ impl OriginalTokenRoles {
                 roles.name(&image, key, ArgOverride::VarDecl);
             }
         }
+        roles.capture_class_heads(source, analysis);
+        roles
+    }
+
+    fn capture_class_heads(&mut self, source: &str, analysis: &AnalysisResult) {
         for invocation in &analysis.command_invocations {
             if matches!(
                 crate::original_oo::class_for_invocation(analysis, source, invocation),
@@ -138,10 +151,9 @@ impl OriginalTokenRoles {
             ) || crate::original_oo::counted_class_for_invocation(source, analysis, invocation)
                 .is_some()
             {
-                roles.class_heads.insert(invocation.range.start());
+                self.class_heads.insert(invocation.range.start());
             }
         }
-        roles
     }
 
     fn capture_counted_classes(
@@ -306,6 +318,22 @@ impl OriginalTokenRoles {
     }
     pub(super) fn is_class_head(&self, offset: u32) -> bool {
         self.class_heads.contains(&offset)
+    }
+
+    /// Whether the command's head names a class: recorded by the analysis,
+    /// or read from the realm for a head it recorded no invocation for.
+    pub(super) fn head_names_class(&self, ctx: ScriptCtx<'_>, command: &SegmentedCommand) -> bool {
+        let Some(head) = command.argv.first() else {
+            return false;
+        };
+        if self.is_class_head(head.span.start()) {
+            return true;
+        }
+        self.current
+            && !self.recorded_heads.contains(&head.span.start())
+            && ctx.analysis.is_some_and(|analysis| {
+                crate::original_oo::command_head_names_class(analysis, ctx.full_source, command)
+            })
     }
 
     pub(super) fn insert_overrides(

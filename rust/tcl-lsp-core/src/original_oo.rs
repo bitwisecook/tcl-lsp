@@ -155,6 +155,62 @@ pub(crate) fn positioned_class_at<'a>(
     Some(class)
 }
 
+/// Whether a command's head names a class declared in this document, read
+/// from the realm at the head. [`class_for_invocation`] answers the same
+/// question from the analysis's invocation list, which the structure-only
+/// tier does not record.
+pub(crate) fn command_head_names_class(
+    analysis: &AnalysisResult,
+    source: &str,
+    segment: &tcl_compiler::segmenter::SegmentedCommand,
+) -> bool {
+    let Some(config) = analysis.body_lexer_config else {
+        return false;
+    };
+    let image = SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) {
+        return false;
+    }
+    let Some(realm) = analysis.retained_command_realm() else {
+        return false;
+    };
+    let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        config,
+        segment,
+    );
+    realm.stamp_original_tokens(&mut tokens);
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    let Some(site) = binding.invocation_site() else {
+        return false;
+    };
+    if site.source.source_image() != &image {
+        return false;
+    }
+    let declared = |definition: &tcl_compiler::command_binding::SourceCommandDefinition| {
+        definition.kind() == tcl_compiler::command_binding::SourceCommandDefinitionKind::Class
+            && matches!(definition.allocation().site.source.kind(),
+                tcl_compiler::command_binding::SourceOriginKind::Authored(bytes) if bytes.as_ref() == source.as_bytes())
+            && analysis
+                .original_class_declarations()
+                .filter(|record| record.declaration_site() == &definition.allocation().site)
+                .count()
+                == 1
+    };
+    binding
+        .original_command_reference(&tokens)
+        .filter(|reference| reference.matches_original_invocation_site(site))
+        .is_some_and(|reference| reference.definition().is_some_and(declared))
+        || tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(
+            source,
+            analysis,
+            site.offset,
+        )
+        .is_some_and(|call| call.class_declaration().source_class(analysis).is_some())
+}
+
 pub(crate) fn class_for_invocation<'a>(
     analysis: &'a AnalysisResult,
     source: &str,

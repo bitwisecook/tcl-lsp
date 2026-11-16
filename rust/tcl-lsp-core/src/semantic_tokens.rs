@@ -3444,7 +3444,7 @@ fn emit_static_command_head(
     let Some(&head_tok) = seg.argv.first() else {
         return;
     };
-    let (kind, mods) = if ctx.original_roles.is_class_head(head_tok.span.start()) {
+    let (kind, mods) = if ctx.original_roles.head_names_class(ctx, seg) {
         (TokenKind::Class, 0)
     } else if original::definition_member_head(ctx, seg) {
         (TokenKind::Keyword, 0)
@@ -3658,7 +3658,7 @@ fn emit_selected_command_head(
             0,
             entries,
         );
-    } else if ctx.original_roles.is_class_head(head_tok.span.start()) {
+    } else if ctx.original_roles.head_names_class(ctx, seg) {
         push_token(
             ctx.line_index,
             full_source,
