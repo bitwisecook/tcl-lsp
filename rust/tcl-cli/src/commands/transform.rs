@@ -442,25 +442,19 @@ mod tests {
 
     /// `tcl format` must resolve the document's dialect onto the formatter,
     /// not format everything as modern Tcl. `}{` is the discriminator: TMM
-    /// parses it as two words, stock Tcl does not.
+    /// parses it as two words, stock Tcl does not. What the formatter then
+    /// writes for each profile is `tcl-lsp-core`'s
+    /// `the_irules_profile_alone_decides_the_ghost_separator`.
     #[test]
     fn the_resolved_dialect_reaches_the_formatter() {
         let irules = format_config("f5-irules", None, None, None);
         assert!(irules.profile.is_irules());
         assert!(irules.lexer_config().irules_brace_separator);
 
-        let registry = tcl_registry::model::static_context_for("f5-irules").commands();
-        let source = "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
-        let out = tcl_lsp_core::formatting::format_tcl(source, &irules, registry);
-        assert!(out.contains("} {"), "{out}");
-        assert!(!out.contains("}{"), "{out}");
-
-        // A Tcl release resolves its own profile, and leaves those bytes
-        // alone.
+        // A Tcl release resolves its own profile.
         let tcl9 = format_config("tcl9.0", None, None, None);
+        assert!(!tcl9.profile.is_irules());
         assert!(!tcl9.lexer_config().irules_brace_separator);
-        let out = tcl_lsp_core::formatting::format_tcl(source, &tcl9, registry);
-        assert!(out.contains("}{"), "{out}");
     }
 
     /// The style overrides still apply on top of the profile.

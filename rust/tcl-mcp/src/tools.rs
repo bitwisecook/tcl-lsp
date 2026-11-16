@@ -1021,29 +1021,27 @@ mod format_dialect_tests {
         "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
 
     #[test]
-    fn the_format_tool_resolves_the_requested_dialect() {
+    fn the_format_tool_formats_under_the_requested_dialect() {
         // `format_source` must project the tool's resolved dialect onto the
         // formatter config, not start from `FormatterConfig::default()`,
         // which would tokenise an iRule with the Tcl 9 lexer.
-        for dialect in ["f5-irules", "irules"] {
+        for (dialect, separated) in [("f5-irules", true), ("irules", true), ("tcl9.0", false)] {
             let result = format_source(&json!({
                 "source": GHOST_SEPARATOR_IRULE,
                 "dialect": dialect,
             }));
             let formatted = result["formatted"].as_str().expect("formatted string");
-            assert!(formatted.contains("} {"), "{dialect}: {formatted}");
-            assert!(!formatted.contains("}{"), "{dialect}: {formatted}");
+            assert_eq!(
+                formatted.contains("} {"),
+                separated,
+                "{dialect}: {formatted}"
+            );
+            assert_eq!(
+                formatted.contains("}{"),
+                !separated,
+                "{dialect}: {formatted}"
+            );
         }
-    }
-
-    #[test]
-    fn the_format_tool_leaves_the_ghost_separator_alone_under_core_tcl() {
-        let result = format_source(&json!({
-            "source": GHOST_SEPARATOR_IRULE,
-            "dialect": "tcl9.0",
-        }));
-        let formatted = result["formatted"].as_str().expect("formatted string");
-        assert!(formatted.contains("}{"), "{formatted}");
     }
 }
 
