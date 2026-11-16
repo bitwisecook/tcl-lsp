@@ -2018,6 +2018,27 @@ fn reaches_only_a_catalogued_absent_head(
         .is_some_and(|binding| binding.reaches_only_a_catalogued_absent_head(ctx.registry))
 }
 
+/// The source colour of a resolved command substitution, read with its
+/// receiver word and position.
+fn substitution_source_colour(
+    cmd: &str,
+    arg_refs: &[&str],
+    nested: Option<&CommandTokens>,
+    ctx: TaintCtx<'_>,
+) -> Option<TaintLattice> {
+    source_colour(
+        ctx.registry,
+        cmd,
+        arg_refs,
+        ctx.dialect,
+        ctx.instance_classes,
+        ctx.source_position,
+        nested
+            .and_then(|tokens| tokens.words().first())
+            .map(|word| (word, ctx.source.config)),
+    )
+}
+
 /// Everything a command substitution's taint needs before the recursive
 /// argument walk, or its answer when no walk is needed. A leaf, so these
 /// temporaries are not held on every level of nested substitution.
@@ -2068,20 +2089,18 @@ fn classify_substitution_taint(
         (ctx.source.allows_nominal_metadata() && ctx.source_tokens.is_none()) || resolved.is_some();
     if let Some(hosted) = hosted.as_ref() {
         let written = effective_args.as_deref().unwrap_or(args);
-        if let Some(taint) =
-            hosted_result_taint((&hosted.metadata, &hosted.effective), written, args, ctx)
-        {
-            return Err(taint);
-        }
-        let command = hosted.metadata.shape().command();
-        return Ok(Box::new(SubstitutionTaintPlan {
-            cmd: command.to_owned(),
-            hosted: true,
-            effective_args,
-            effective,
-            normal,
-            nested,
-        }));
+        let subject = (&hosted.metadata, &hosted.effective);
+        return match hosted_result_taint(subject, written, args, ctx) {
+            Some(taint) => Err(taint),
+            None => Ok(Box::new(SubstitutionTaintPlan {
+                cmd: hosted.metadata.shape().command().to_owned(),
+                hosted: true,
+                effective_args,
+                effective,
+                normal,
+                nested,
+            })),
+        };
     }
     if ctx.source_tokens.is_some()
         && point_target.is_none()
@@ -2106,18 +2125,7 @@ fn classify_substitution_taint(
         return Err(TaintLattice::clean());
     }
     if registry_allowed
-        && let Some(t) = source_colour(
-            ctx.registry,
-            cmd,
-            &arg_refs,
-            ctx.dialect,
-            ctx.instance_classes,
-            ctx.source_position,
-            nested
-                .as_ref()
-                .and_then(|tokens| tokens.words().first())
-                .map(|word| (word, ctx.source.config)),
-        )
+        && let Some(t) = substitution_source_colour(cmd, &arg_refs, nested.as_ref(), ctx)
     {
         return Err(t);
     }
