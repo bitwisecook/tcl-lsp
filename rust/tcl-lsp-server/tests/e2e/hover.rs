@@ -103,7 +103,9 @@ fn socket_server_option_hover() {
 fn socket_server_option_hover_ignores_semicolon_in_quoted_arg() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let source = "socket \"a;b\" -server accept 8080\n";
+    // `-server` follows a quoted option value: tclsh 8.6 rejects
+    // `socket "a;b" -server accept 8080` with a wrong-args error.
+    let source = "socket -myaddr \"a;b\" -server accept 8080\n";
     lsp.open_ready(&uri, source);
     let option_pos = u32::try_from(source.find("-server").unwrap()).unwrap() + 2;
     let text = hover(&mut lsp, &uri, 0, option_pos);

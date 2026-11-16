@@ -844,6 +844,10 @@ Fixed, fixtures only, 9 tests, new 0:
 | `compiler_check_*` memo parity, `tests::compiler_check_*`, method-body checks, existence guard | 8 | The expected O1xx, O122, IRULE1201 or I230 is not produced on either path. | Compiler facts, to send |
 | `overlay_generations` (2), `dialect_seam`, metadata advice (2), `memory_alias_graph`, `merged_role_index`, regex retag | 8 | Singles. | Not yet assigned |
 
+- Fixture fault: `hover::socket_server_option_hover_ignores_semicolon_in_quoted_arg` wrote `socket "a;b" -server accept 8080`, which tclsh 8.6 rejects with a wrong-args error; it now writes `socket -myaddr "a;b" -server accept 8080`.
+
+Held local at the pause of 16 November, not pushed: a one-line change in `tcl-lsp-core` `variable_symbol.rs` that leads the alias hover with `**Variable** name` (fixes `hover::namespace_var_hover` end to end; its effect on the core `hover::` and `variable_symbol::` unit tests, 21 of 234 failing with it applied, was not compared with the tree without it).
+
 Open server tests, by cause. "Sent" means the owner has the smallest fixture; "waits" means the cause was already in flight.
 
 | Module (tests) | Count | Cause | Owner |
