@@ -18,12 +18,18 @@
 
 //! Conditional cross-document declaration advice from the indexed source headers.
 
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::hover::{Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::{definition as core_definition, workspace_index as core_workspace_index};
+use tower_lsp_server::ls_types::{Location, Position, Uri};
+
+use crate::documents::DocumentSourceResult;
+use crate::protocol::{lift_lsp_range, line_col_to_byte_offset_indexed};
+use crate::{Backend, DocumentState};
+
 use super::{
-    AnalysisResult, Backend, CoreHover, CoreHoverKind, DocumentSourceResult, DocumentState,
-    Location, LogicalIndexedDefinitionTargets, LogicalMemberSourceCaller,
-    LogicalNamespaceLocationsPurpose, LogicalVariableLocationsPurpose, Position,
-    ReadonlyDeclarationLocation, ReadonlyDeclarationTarget, Uri, core_definition,
-    core_workspace_index, lift_lsp_range, line_col_to_byte_offset_indexed,
+    LogicalIndexedDefinitionTargets, LogicalMemberSourceCaller, LogicalNamespaceLocationsPurpose,
+    LogicalVariableLocationsPurpose, ReadonlyDeclarationLocation, ReadonlyDeclarationTarget,
 };
 
 impl Backend {

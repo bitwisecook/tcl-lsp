@@ -18,7 +18,17 @@
 
 //! Go-to-definition, hover, references, hierarchies and workspace symbols across documents.
 
-use super::*;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::definition::LspRange as CoreLspRange;
+use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
+use tcl_lsp_core::workspace_index as core_workspace_index;
+use tower_lsp_server::ls_types::{Location, Uri};
+
+use crate::DocumentState;
+use crate::documents::DocumentPathAdmission;
+use crate::protocol::lift_lsp_range;
 
 mod declaration_identity;
 mod declaration_sources;
@@ -35,7 +45,6 @@ mod symbol_resolution;
 mod workspace_symbols;
 
 pub(super) use definition::position_is_command_head;
-use symbol_resolution::{WorkspaceSymbolPurpose, WorkspaceSymbolSelection};
 pub(super) use workspace_symbols::WorkspaceSymbolDiagnostic;
 
 enum LogicalNamespaceLocationsPurpose {

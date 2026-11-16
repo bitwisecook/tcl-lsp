@@ -18,7 +18,21 @@
 
 //! The cancellable query-database passes: base analysis, project diagnostics and compiler checks.
 
-use super::*;
+use std::collections::HashSet;
+use std::ops::ControlFlow;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
+use tcl_registry::CommandRegistry;
+use tower_lsp_server::Client;
+use tower_lsp_server::ls_types::{MessageType, Uri};
+
+use super::SalsaAnalysisCtx;
+use crate::configuration::ResourceAnalyserInputs;
+use crate::recovery_source::{RecoveryWidenCtx, compute_recovery_analysis};
+use crate::tracked_locks::{TrackedMutex, cancellable_catch};
+use crate::uri_norm::DocumentPath as _;
+use crate::{Backend, diagnostic_read_cancellation};
 
 pub(in super::super) type CheckedCompletenessInput =
     Result<Arc<tcl_compiler::analyser::ResolvedAnalysisInput>, tcl_registry::model::OverlayMiss>;

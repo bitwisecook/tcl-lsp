@@ -18,7 +18,27 @@
 
 //! The diagnostics pipeline: scheduling, the analysis passes, workspace refinement, the report and its publication.
 
-use super::*;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use tcl_compiler::analyser::NonAsciiMode;
+use tcl_lsp_core::package_resolver::PackageResolver;
+use tcl_lsp_core::workspace_index as core_workspace_index;
+use tcl_registry::CommandRegistry;
+use tokio::sync::{Mutex, RwLock};
+use tower_lsp_server::Client;
+use tower_lsp_server::ls_types::Uri;
+
+use super::configuration::PolicyLayers;
+use super::current_diagnostics::{DiagnosticCacheReceipt, DiagnosticPass};
+use super::recovery_source::RecoveryNameCache;
+use super::source_publication::PublishedSourcePaths;
+use super::spec_packs::PublishedPackSet;
+use super::tracked_locks::{TrackedMutex, TrackedRwLock};
+use super::workspace_diagnostic_sources::WorkspaceDiagnosticSources;
+use crate::documents::DocumentStore;
+use crate::{fresh_analysis_cache, provider_source, rewrite_wire, vfs};
 
 mod analysis_passes;
 mod closed_files;
@@ -99,9 +119,7 @@ pub(super) use publisher::{
 pub(super) use pull::next_pull_diag_result_id;
 #[cfg(test)]
 pub(super) use report::lift_report;
-pub(super) use report::{
-    analyser_findings, document_policy, lifted_report, published_findings, published_report,
-};
+pub(super) use report::{analyser_findings, document_policy, published_findings, published_report};
 #[cfg(test)]
 pub(super) use report::{compiler_findings, xc_findings};
 #[cfg(test)]

@@ -18,7 +18,13 @@
 
 //! The `tclLsp.features.*` toggles and their per-folder resolution.
 
-use super::{Backend, HashMap, Uri, longest_folder_match};
+use std::collections::HashMap;
+
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+
+use super::longest_folder_match;
 
 /// Resolved `tclLsp.features.*` toggle state.
 ///

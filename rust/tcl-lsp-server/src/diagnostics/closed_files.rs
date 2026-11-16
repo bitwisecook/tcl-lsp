@@ -18,8 +18,14 @@
 
 //! Diagnostics badges of closed files.
 
+use std::sync::Arc;
+
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+
 use super::run::run_diagnostics_core;
-use super::{Arc, Backend, DiagCurrency, DiagJob, Uri};
+use super::{DiagCurrency, DiagJob};
 
 /// How many **closed** files keep a server-side diagnostics badge record
 /// (`pull_diag_cache` + `closed_diag_gen`) before the least-recently-published

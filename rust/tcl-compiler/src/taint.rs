@@ -948,7 +948,6 @@ mod substitution_taint;
 mod unit_report;
 mod word_taint;
 
-use callback_replay::taint_callback_substitution_report;
 #[cfg(test)]
 use callback_replay::{
     CALLBACK_REPLAY_INPUT_VAR_BASE, CALLBACK_REPLAY_PROC_BASE, CallbackReplayInsertions,
@@ -967,7 +966,6 @@ use definition_taint::{evaluate_taint_def, join_uses};
 pub use destructive_files::find_destructive_file_warnings;
 #[cfg(test)]
 use destructive_files::{extract_guard_var, extract_var_name, guard_var_from_string_command};
-use propagation::collect_global_reads;
 #[cfg(test)]
 use propagation::propagate_statement_taints;
 pub(crate) use propagation::{TaintGraph, propagate_taints};
@@ -979,6 +977,7 @@ use registry_colours::compiler_colour;
 pub(crate) use registry_colours::unique_instance_class;
 use registry_colours::{double_encode_label, reg_colour, transform_colour};
 pub use setter_constraints::find_setter_constraint_warnings;
+use sink_warnings::SourceWarningMetadata;
 #[cfg(test)]
 use sink_warnings::{
     ScaffoldConstructors, collect_coercion_operands, command_substitutions_in_word,
@@ -989,7 +988,6 @@ use sink_warnings::{
     shadowed_builtin_names, sink_var_position_safe, standalone_list_wrapper_head,
     var_consumed_by_sanitiser, var_wrapper_colours,
 };
-use sink_warnings::{SourceWarningMetadata, taint_warning_report_for_function_with_identities};
 #[cfg(test)]
 use sink_warnings::{
     classify_network_interp_sinks, classify_sink, irule3002_name_position_safe,

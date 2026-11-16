@@ -18,12 +18,19 @@
 
 //! Reading and reindexing closed files from disk.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use tokio::sync::Semaphore;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::analysis::FreshAnalysisDriver;
+use crate::documents::{DocumentPathAdmission, DocumentSourceResult, DocumentSourceUnavailable};
+use crate::source_publication::{AdmittedDiskBatch, DiskPublicationOutcome, DiskRemovalPolicy};
+use crate::{Backend, vfs};
+
 use super::folder_scan::WORKSPACE_ANALYSIS_MAX_CONCURRENCY;
-use super::{
-    AdmittedDiskBatch, Arc, Backend, DiskPublicationOutcome, DiskRemovalPolicy,
-    DocumentPathAdmission, DocumentSourceResult, DocumentSourceUnavailable, FreshAnalysisDriver,
-    HashMap, ScanAnalysisInputs, ScannedDocument, Semaphore, Uri, vfs,
-};
+use super::{ScanAnalysisInputs, ScannedDocument};
 
 pub(in super::super) enum DiskScanOutcome {
     Available(Box<ScannedDocument>),

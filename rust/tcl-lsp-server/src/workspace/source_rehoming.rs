@@ -18,10 +18,12 @@
 
 //! Reconciling files with the namespaces their `source` sites run them in.
 
-use super::{
-    Arc, Backend, DocumentPublication, DocumentSourceResult, DocumentSourceUnavailable,
-    DocumentState, Uri, readonly_reference_reports,
-};
+use std::sync::Arc;
+
+use tower_lsp_server::ls_types::Uri;
+
+use crate::documents::{DocumentPublication, DocumentSourceResult, DocumentSourceUnavailable};
+use crate::{Backend, DocumentState, readonly_reference_reports};
 
 /// A source-rehoming read that never waits for live publication while holding
 /// [`crate::BackendState::rehoming_gate`].

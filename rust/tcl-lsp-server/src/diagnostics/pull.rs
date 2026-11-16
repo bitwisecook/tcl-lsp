@@ -18,38 +18,36 @@
 
 //! Reports computed on request: the pull path and the synchronous publish.
 
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::compiler_checks::DiagCode;
 #[cfg(test)]
-use super::DocumentSourceResult;
+use tcl_lsp_core::{diagnostic_policy as core_policy, diagnostic_report as core_report};
+use tcl_registry::CommandRegistry;
+use tower_lsp_server::ls_types::Uri;
+
 #[cfg(test)]
-use super::F5ModelDocument;
-#[cfg(test)]
-use super::F5PullInputs;
+use crate::documents::DocumentSourceResult;
+use crate::{Backend, provider_source};
+
 use super::command_refinement::{
     cross_file_arity_diagnostics, refine_workspace_index_w123, refine_workspace_w123,
     settle_cross_file_calls,
 };
 #[cfg(test)]
-use super::core_policy;
+use super::{F5ModelDocument, F5PullInputs};
+
 #[cfg(test)]
-use super::core_report;
-#[cfg(test)]
-use super::f5_models::f5_dialect_diagnostics;
-#[cfg(test)]
-use super::f5_models::f5_model_report;
-#[cfg(test)]
-use super::f5_models::is_apl_source;
+use super::f5_models::{f5_dialect_diagnostics, f5_model_report, is_apl_source};
 use super::package_refinement::refine_workspace_w120;
 #[cfg(test)]
 use super::publisher::PackNoticeContext;
 #[cfg(test)]
-use super::report::lifted_report;
-#[cfg(test)]
-use super::report::published_findings;
+use super::report::{lifted_report, published_findings};
 use super::run::run_diagnostics_core;
-use super::{
-    AnalysisResult, Arc, Backend, CommandRegistry, CrossFileCalls, DiagCode, HashSet,
-    PullRefinementInputs, SourceInheritance, Uri, provider_source,
-};
+use super::{CrossFileCalls, PullRefinementInputs, SourceInheritance};
 
 /// Monotonic `result_id` for the pull-diagnostic cache.  A fresh id each time a
 /// document's diagnostics change lets a client's `previousResultId` be compared

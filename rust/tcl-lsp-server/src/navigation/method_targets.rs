@@ -18,17 +18,24 @@
 
 //! Object-method targets for readonly navigation and hover.
 
+use std::ops::ControlFlow;
 #[cfg(test)]
-use super::FromStr;
+use std::str::FromStr;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::hover::Hover as CoreHover;
+use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
+use tcl_lsp_core::{hover as core_hover, workspace_index as core_workspace_index};
 #[cfg(test)]
-use super::Range;
+use tower_lsp_server::ls_types::Range;
+use tower_lsp_server::ls_types::{Location, Position, Uri};
+
+use crate::documents::{DocumentPathAdmission, DocumentSourceResult};
+use crate::{Backend, DocumentState};
+
 #[cfg(test)]
 use super::dedup_locations;
-use super::{
-    AnalysisResult, Backend, ControlFlow, CoreHover, DocumentPathAdmission, DocumentSourceResult,
-    DocumentState, Location, OriginalIndexedSourceLocation, Position, ReadonlyDeclarationLocation,
-    ReadonlyDeclarationTarget, Uri, core_hover, core_workspace_index,
-};
+use super::{ReadonlyDeclarationLocation, ReadonlyDeclarationTarget};
 
 impl Backend {
     /// Shared typed OO selection for readonly editor consumers. An exact

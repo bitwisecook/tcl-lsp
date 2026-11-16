@@ -47,10 +47,7 @@ mod package_source;
 mod proposal_diagnostics;
 mod rewrite_wire;
 mod studio_source;
-use current_diagnostics::{
-    DiagnosticCacheReceipt, DiagnosticCompletionEntry, DiagnosticPass, DiagnosticSuppression,
-    DiagnosticUnavailable,
-};
+use current_diagnostics::{DiagnosticPass, DiagnosticUnavailable};
 mod environment_notice;
 /// The exit watchdog that backstops `Server::serve` returning promptly once
 /// the session is over. Native only: it wraps `tokio::io::Stdin` and hard
@@ -71,7 +68,7 @@ mod readonly_reference_reports;
 mod recovery_source;
 #[cfg(test)]
 use recovery_source::widen_recovery_extra_commands;
-use recovery_source::{RecoveryNameCache, RecoveryWidenCtx, compute_recovery_analysis};
+use recovery_source::{RecoveryNameCache, RecoveryWidenCtx};
 pub mod rt;
 pub mod service;
 /// The stdout decoupling pump the native binary serves through. Native only:
@@ -94,15 +91,17 @@ use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::task::Poll;
-use uri_norm::DocumentPath as _;
 // `FutureExt::shared` lets the progressive diagnostics path compute the base
 // per-file analysis once and await it from both the deep pass and the fast tier.
+#[cfg(test)]
 use futures_util::future::FutureExt;
 use sha2::{Digest, Sha256};
+#[cfg(test)]
 use tcl_compiler::compiler_checks::DiagCode;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
 use tcl_lsp_core::bigip as core_bigip;
+#[cfg(test)]
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
 use tcl_lsp_core::code_lens as core_code_lens;
@@ -119,12 +118,12 @@ use tcl_lsp_core::file_ops as core_file_ops;
 #[cfg(test)]
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
-use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
-use tcl_lsp_core::ilx_navigation as core_ilx;
+use tcl_lsp_core::hover as core_hover;
+#[cfg(test)]
+use tcl_lsp_core::hover::Hover as CoreHover;
 use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
-use tcl_lsp_core::minify as core_minify;
 use tcl_lsp_core::namespace_rename as core_namespace_rename;
 use tcl_lsp_core::namespace_symbol as core_namespace_symbol;
 use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
@@ -137,15 +136,13 @@ use tcl_lsp_core::selection_range as core_selection_range;
 use tcl_lsp_core::semantic_tokens as core_semantic_tokens;
 use tcl_lsp_core::signature_help as core_sig;
 use tcl_lsp_core::tcl_install as core_tcl_install;
-use tcl_lsp_core::tk_preview as core_tk_preview;
 use tcl_lsp_core::type_definition as core_type_definition;
 use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
 use tcl_lsp_core::workspace_index as core_workspace_index;
-use tcl_lsp_core::workspace_symbols::{
-    self as core_workspace_symbols, WorkspaceSymbolKind as CoreWorkspaceSymbolKind,
-};
+#[cfg(test)]
+use tcl_lsp_core::workspace_symbols as core_workspace_symbols;
 use tcl_registry::CommandRegistry;
-use tokio::sync::{Mutex, RwLock, Semaphore};
+use tokio::sync::{Mutex, RwLock};
 use tower_lsp_server::jsonrpc;
 use tower_lsp_server::ls_types::request::{
     GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
@@ -155,32 +152,33 @@ use tower_lsp_server::ls_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams, CompletionItem,
-    CompletionParams, CompletionResponse, ConfigurationItem, DidChangeConfigurationParams,
-    DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
-    DidChangeWatchedFilesRegistrationOptions, DidChangeWorkspaceFoldersParams,
+    CompletionParams, CompletionResponse, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentChanges,
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
     DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
     DocumentLink, DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol,
-    DocumentSymbolParams, DocumentSymbolResponse, ExecuteCommandParams, FileChangeType, FileEvent,
-    FileOperationFilter, FileOperationPattern, FileOperationPatternOptions,
-    FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange, FoldingRangeParams,
-    FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverParams, InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
-    InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
-    MessageType, OneOf, OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
-    Range, ReferenceParams, Registration, RelatedFullDocumentDiagnosticReport,
-    RelatedUnchangedDocumentDiagnosticReport, RelativePattern, RenameFilesParams, RenameParams,
-    SelectionRange, SelectionRangeParams, SemanticTokens as LspSemanticTokens,
-    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult, ServerInfo,
-    SignatureHelp, SignatureHelpParams, SymbolInformation, SymbolKind, TextDocumentEdit,
-    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
-    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
-    Unregistration, Uri, WatchKind, WillSaveTextDocumentParams, WorkspaceDiagnosticParams,
+    DocumentSymbolParams, DocumentSymbolResponse, ExecuteCommandParams, FoldingRange,
+    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
+    Hover, HoverParams, InitializeParams, InitializeResult, InitializedParams, InlayHint,
+    InlayHintKind, InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges,
+    Location, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
+    PrepareRenameResponse, Range, ReferenceParams, RelatedFullDocumentDiagnosticReport,
+    RelatedUnchangedDocumentDiagnosticReport, RenameFilesParams, RenameParams, SelectionRange,
+    SelectionRangeParams, SemanticTokens as LspSemanticTokens, SemanticTokensDeltaParams,
+    SemanticTokensFullDeltaResult, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, ServerInfo, SignatureHelp,
+    SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit, TypeHierarchyItem,
+    TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
+    UnchangedDocumentDiagnosticReport, Uri, WillSaveTextDocumentParams, WorkspaceDiagnosticParams,
     WorkspaceDiagnosticReport, WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport,
     WorkspaceEdit, WorkspaceFullDocumentDiagnosticReport, WorkspaceSymbolParams,
     WorkspaceSymbolResponse, WorkspaceUnchangedDocumentDiagnosticReport,
+};
+#[cfg(test)]
+use tower_lsp_server::ls_types::{
+    DidChangeWatchedFilesRegistrationOptions, FileChangeType, FileEvent, FileSystemWatcher,
+    GlobPattern, SymbolKind, WatchKind,
 };
 #[cfg(test)]
 use tower_lsp_server::ls_types::{
@@ -350,6 +348,8 @@ use commands::{
     tcl_installation_selection_paths,
 };
 #[cfg(test)]
+use configuration::resolve_ilx_specs;
+#[cfg(test)]
 use configuration::{
     BigipVersionSetting, CONFIG_RELOAD_DEBOUNCE, FolderGenericPatterns, IlxPluginSpec,
     collapse_inlay_alias, parse_bigip_version, parse_folder_config, parse_non_ascii_mode,
@@ -357,22 +357,19 @@ use configuration::{
 };
 use configuration::{
     ConfigReloadSlot, FeatureToggles, FolderConfig, PolicyLayers, ResourceAnalyserInputs,
-    apply_formatting_object, deepest_folder_containing, default_optimiser_profile,
-    formatter_config_from, longest_folder_match, normalize_config_payload, resolve_ilx_specs,
-    settings_environment_kind_enabled, settings_non_ascii_mode, workspace_trust_in,
+    apply_formatting_object, default_optimiser_profile, formatter_config_from,
+    longest_folder_match, normalize_config_payload, settings_environment_kind_enabled,
+    settings_non_ascii_mode, workspace_trust_in,
 };
 pub use diagnostics::SourceInheritance;
 use diagnostics::{
     AnalyserPathInputs, DeliveryCtx, DiagCurrency, DiagInputs, DiagJob, DiagSlot,
     DiagnosticPublisher, F5ReportInputs, LiftInputs, OrphanCommandDependencies, PackNoticeContext,
-    PackNoticeEntry, PackNoticeSourceOwner, PreparedCompletenessInput, PreparedPackNotice,
-    ProducedDiagnosticReport, PullDiagEntry, SalsaAnalysisCtx, WorkspaceCommandQueries,
-    analyser_findings, compute_base_analysis, compute_base_analysis_with_read_cancellations,
+    PreparedCompletenessInput, ProducedDiagnosticReport, PullDiagEntry, SalsaAnalysisCtx,
+    WorkspaceCommandQueries, compute_base_analysis, compute_base_analysis_with_read_cancellations,
     compute_deep_diagnostic_report, compute_deep_diagnostic_report_with_read_cancellations,
-    defined_original_commands_from_analysis, document_policy, f5_model_document_report,
-    is_apl_source, next_pull_diag_result_id, refresh_can_change_result,
-    report_analysis_worker_panic, reschedule_peers, settle_call_against_workspace,
-    sync_evaluator_epoch, workspace_reporting_context,
+    defined_original_commands_from_analysis, f5_model_document_report, is_apl_source,
+    next_pull_diag_result_id, report_analysis_worker_panic,
 };
 #[cfg(test)]
 use diagnostics::{
@@ -396,17 +393,22 @@ use diagnostics::{
     unindexed_open_documents, xc_findings,
 };
 #[cfg(test)]
-use dialects::IRULES_DIALECT;
+use diagnostics::{PackNoticeEntry, PackNoticeSourceOwner};
 #[cfg(test)]
-use dialects::LanguageDialect;
-use dialects::{
-    DEFAULT_SESSION_DIALECT, IAPPS_DIALECT, change_could_affect_dialect_hint, folder_dialect_for,
-    is_known_dialect_name, merged_folder_dialect_overrides, selectable_dialect_names,
-    session_dialect_from, unknown_dialect_error,
+use diagnostics::{
+    settle_call_against_workspace, sync_evaluator_epoch, workspace_reporting_context,
 };
+use dialects::{
+    DEFAULT_SESSION_DIALECT, change_could_affect_dialect_hint, merged_folder_dialect_overrides,
+    session_dialect_from,
+};
+#[cfg(test)]
+use dialects::{IRULES_DIALECT, LanguageDialect, folder_dialect_for, unknown_dialect_error};
 #[cfg(test)]
 use documents::apply_content_change_indexed;
 pub use documents::canonical_file_uri;
+#[cfg(test)]
+use documents::constructed_file_uri;
 #[cfg(test)]
 use documents::{
     DOCUMENTS_CONTENTION_SAMPLE_GAP, DocumentReadiness, DocumentsContention, HeldFor,
@@ -415,7 +417,7 @@ use documents::{
 };
 use documents::{
     DocumentPathAdmission, DocumentPublication, DocumentSourceResult, DocumentSourceUnavailable,
-    DocumentStore, DocumentsGuard, EditOrder, SavedSourceBytes, constructed_file_uri,
+    DocumentStore, DocumentsGuard, EditOrder, SavedSourceBytes,
 };
 #[cfg(not(target_family = "wasm"))]
 #[cfg(test)]
@@ -432,13 +434,13 @@ use navigation::{
 #[cfg(test)]
 use protocol::rename_file_operation_options;
 use protocol::{
-    CLIENT_REQUEST_TIMEOUT, FoldingRangeRefreshRequest, bounded_client_request,
-    build_server_capabilities, client_lacks_utf16_support, client_supports_message_action_items,
+    FoldingRangeRefreshRequest, bounded_client_request, build_server_capabilities,
+    client_lacks_utf16_support, client_supports_message_action_items,
     client_supports_pull_diagnostics, client_supports_relative_watch_patterns,
     client_supports_show_document, lift_bigip_range, lift_completion_item, lift_document_symbol,
     lift_folding_range, lift_hover, lift_lsp_range, lift_signature_help, lift_span,
-    line_col_to_byte_offset, line_col_to_byte_offset_indexed, lsp_severity,
-    materialise_selection_range, negotiate_position_encoding, position_within_line,
+    line_col_to_byte_offset, materialise_selection_range, negotiate_position_encoding,
+    position_within_line,
 };
 #[cfg(test)]
 use protocol::{bounded_client_request_with_timeout, lift_symbol_kind, semantic_tokens_capability};
@@ -449,13 +451,10 @@ use rename::{
     describe_variable_collision,
 };
 use rename::{OriginalDocumentSnapshot, client_supports_conditional_rename};
-#[cfg(test)]
-use semantic_tokens::SemanticTokensRefreshCtx;
 use semantic_tokens::{
     ConvergenceGuard, ConvergenceInFlight, EnrichedRefreshAsked, RangeConvergenceInputs,
-    RangeSettleOutcome, SemanticTokensCache, SemanticTokensRefreshReason,
-    coarse_semantic_source_changed, core_semantic_range, lift_semantic_token_data,
-    log_range_convergence_settled, range_token_data,
+    RangeSettleOutcome, SemanticTokensCache, coarse_semantic_source_changed, core_semantic_range,
+    lift_semantic_token_data, log_range_convergence_settled, range_token_data,
 };
 #[cfg(test)]
 use semantic_tokens::{
@@ -463,9 +462,12 @@ use semantic_tokens::{
     configured_coarse_semantic_tokens, describe_refresh_reasons, refresh_if_coalesced,
     unindexed_semantic_tokens, unindexed_semantic_tokens_for_range,
 };
+#[cfg(test)]
+use semantic_tokens::{SemanticTokensRefreshCtx, SemanticTokensRefreshReason};
+#[cfg(test)]
+use source_publication::DiskPublicationOutcome;
 use source_publication::{
-    AdmittedDiskBatch, DiskPublicationInputs, DiskPublicationOutcome, DiskRemovalPolicy,
-    PublishedSourcePath, PublishedSourcePaths,
+    AdmittedDiskBatch, DiskRemovalPolicy, PublishedSourcePath, PublishedSourcePaths,
 };
 #[cfg(test)]
 use source_publication::{LivePublicationRetry, LivePublicationWait, LiveSourceContents};
@@ -475,17 +477,15 @@ use spec_packs::{PackConfigurationPublication, PublishedPackSet, ReloadTrigger};
 #[cfg(test)]
 use spec_packs::{install_pack_overlays, whole_line_range};
 #[cfg(test)]
-use tracked_locks::TrackedMutexGuard;
-use tracked_locks::{DbSnapshot, TrackedMutex, TrackedRwLock, cancellable_catch};
-#[cfg(test)]
 use tracked_locks::{RwLockAccess, SnapshotCancellation, SnapshotCensus};
+use tracked_locks::{TrackedMutex, TrackedRwLock};
+#[cfg(test)]
+use tracked_locks::{TrackedMutexGuard, cancellable_catch};
 use workspace::{
     CLASS_FACTORY_SYNC_ROUNDS, CrossFileEvidenceSnapshot, EvidenceHandles,
     LibraryPublicationSource, RehomingDocumentSnapshot, WORKSPACE_SCAN_FILE_CAP,
     WatchedFileChanges, WorkspaceScanReadiness, WorkspaceStartupGuard,
-    capture_cross_file_evidence_snapshot, effective_auto_path, entry_point_uri, is_tcl_source,
-    new_workspace_index, partition_watched_file_changes, refresh_cross_file_evidence,
-    resolve_source_edge, uri_under_folder,
+    capture_cross_file_evidence_snapshot, new_workspace_index, partition_watched_file_changes,
 };
 #[cfg(test)]
 use workspace::{
@@ -496,6 +496,11 @@ use workspace::{
     files_with_covered_load_targets, is_config_file, is_package_metadata_file, is_skipped_scan_dir,
     is_spec_pack_file, reindex_unopened_factory_consumers, resolve_source_uri,
     sync_cross_file_evidence, sync_workspace_class_factories_round, tcl_source_watch_glob,
+};
+#[cfg(test)]
+use workspace::{
+    effective_auto_path, entry_point_uri, is_tcl_source, refresh_cross_file_evidence,
+    resolve_source_edge, uri_under_folder,
 };
 #[cfg(test)]
 use workspace::{sync_workspace_class_factories, tcl_source_glob};
@@ -1300,6 +1305,7 @@ impl Backend {
 /// find-references / rename-safety silently miss them — even though opening
 /// the file directly works fine, since that path doesn't go through this
 /// filter at all.
+#[cfg(test)]
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 
 #[cfg(test)]

@@ -18,7 +18,18 @@
 
 //! On-demand indexing of library and package files a query reaches.
 
-use super::*;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::{definition as core_definition, workspace_index as core_workspace_index};
+use tower_lsp_server::ls_types::{Position, Uri};
+
+use super::package_database::document_auto_path_dirs;
+use crate::documents::{DocumentPublication, DocumentSourceResult, canonical_file_uri};
+use crate::uri_norm::DocumentPath as _;
+use crate::{Backend, DocumentState};
 
 pub(in super::super) struct LibraryPublicationSource {
     pub(in super::super) uri: Uri,

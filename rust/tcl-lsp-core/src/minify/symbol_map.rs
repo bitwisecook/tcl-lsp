@@ -18,7 +18,7 @@
 
 //! The map from original to compacted names and its report format.
 
-use super::*;
+use std::collections::BTreeMap;
 
 /// Map of original names to compacted names, grouped by scope
 /// (only the fields the active tiers populate).

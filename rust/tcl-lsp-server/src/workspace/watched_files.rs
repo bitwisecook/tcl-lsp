@@ -18,7 +18,24 @@
 
 //! `workspace/didChangeWatchedFiles`: classification of a batch and its effect on open and closed files.
 
-use super::*;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+use tower_lsp_server::ls_types::{
+    DidChangeWatchedFilesRegistrationOptions, FileChangeType, FileEvent, FileSystemWatcher,
+    GlobPattern, MessageType, Registration, Uri, WatchKind,
+};
+
+use super::source_files::{is_tcl_source, tcl_source_watch_glob};
+use crate::diagnostics::PullDiagEntry;
+use crate::documents::{
+    DocumentPathAdmission, DocumentPublication, DocumentSourceResult, DocumentSourceUnavailable,
+};
+use crate::protocol::bounded_client_request;
+use crate::source_publication::{AdmittedDiskBatch, DiskRemovalPolicy};
+use crate::spec_packs::ReloadTrigger;
+use crate::uri_norm::DocumentPath as _;
+use crate::{Backend, vfs};
 
 impl Backend {
     pub(in super::super) async fn partition_open_watched_paths(

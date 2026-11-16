@@ -18,7 +18,14 @@
 
 //! The workspace index's `source`-path resolution and constant folding.
 
-use super::*;
+use std::path::Path;
+use std::str::FromStr;
+
+use tcl_lsp_core::workspace_index as core_workspace_index;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::documents::canonical_file_uri;
+use crate::uri_norm::DocumentPath as _;
 
 /// Resolve a literal `source` path written in `parent_uri` to the child
 /// document's URI string, keyed the same way the workspace index keys

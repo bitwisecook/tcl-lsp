@@ -18,11 +18,16 @@
 
 //! The workspace folder set and what leaving a folder retires.
 
+use std::str::FromStr;
+use std::sync::Arc;
+
+use tower_lsp_server::ls_types::{InitializeParams, Uri};
+
+use crate::Backend;
+use crate::documents::DocumentSourceResult;
+use crate::source_publication::{DiskPublicationInputs, DiskRemovalPolicy};
+
 use super::source_files::uri_under_folder;
-use super::{
-    Arc, Backend, DiskPublicationInputs, DiskRemovalPolicy, DocumentSourceResult, FromStr,
-    InitializeParams, Uri,
-};
 
 impl Backend {
     /// Return a snapshot of the current workspace folder

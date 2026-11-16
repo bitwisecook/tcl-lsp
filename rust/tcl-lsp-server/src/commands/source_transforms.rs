@@ -18,7 +18,13 @@
 
 //! Minify, optimise and unminify.
 
-use super::{Arc, Backend, core_minify, core_report, jsonrpc};
+use std::sync::Arc;
+
+use tcl_lsp_core::{diagnostic_report as core_report, minify as core_minify};
+use tower_lsp_server::jsonrpc;
+
+use crate::Backend;
+
 use crate::document_transform;
 
 impl Backend {

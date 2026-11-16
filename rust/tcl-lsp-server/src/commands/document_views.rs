@@ -18,7 +18,15 @@
 
 //! Read-only views of a document: Tk preview, diagram data and the compiler explorer.
 
-use super::{Arc, Backend, Digest, FromStr, Sha256, Uri, core_tk_preview, jsonrpc};
+use std::str::FromStr;
+use std::sync::Arc;
+
+use sha2::{Digest, Sha256};
+use tcl_lsp_core::tk_preview as core_tk_preview;
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
 
 fn sha256_hex(bytes: &[u8]) -> String {
     sha256_digest_hex(&Sha256::digest(bytes))

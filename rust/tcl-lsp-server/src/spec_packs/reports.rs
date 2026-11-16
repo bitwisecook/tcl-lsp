@@ -18,7 +18,7 @@
 
 //! What `getEffectiveConfig` reports about the configured and discovered packs.
 
-use super::Backend;
+use crate::Backend;
 
 impl Backend {
     /// `tclLsp.specPacks` and what discovery made of it, for

@@ -18,12 +18,21 @@
 
 //! The debounced per-document worker and the scheduler that feeds it.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+use tower_lsp_server::Client;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+use crate::documents::{DocumentPathAdmission, DocumentSourceResult};
+use crate::protocol::bounded_client_request;
+use crate::tracked_locks::TrackedMutex;
+use crate::workspace::{EvidenceHandles, refresh_cross_file_evidence};
+
 use super::run::run_diagnostics_core;
-use super::{
-    Arc, Backend, Client, DiagInputs, DiagSlot, DocumentPathAdmission, DocumentSourceResult,
-    EvidenceHandles, HashMap, Mutex, TrackedMutex, Uri, bounded_client_request,
-    refresh_cross_file_evidence,
-};
+use super::{DiagInputs, DiagSlot};
 
 /// Debounce interval before a scheduled diagnostics run starts work.  A burst
 /// of keystrokes within this window collapses to a single analysis (the

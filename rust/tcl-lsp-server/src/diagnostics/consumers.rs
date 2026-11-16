@@ -18,12 +18,19 @@
 
 //! Which open documents a publish must wake: the workspace facts another document's diagnostics depend on.
 
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::workspace_index as core_workspace_index;
+use tokio::sync::Mutex;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::workspace::{entry_point_uri, resolve_source_edge};
+use crate::{Backend, DocumentState};
+
 use super::package_refinement::workspace_source_edges;
-use super::{
-    AnalysisResult, Arc, Backend, DiagSlot, DocumentState, HashMap, HashSet,
-    IndexedDiagnosticChange, Mutex, Uri, core_workspace_index, entry_point_uri,
-    resolve_source_edge,
-};
+use super::{DiagSlot, IndexedDiagnosticChange};
 
 /// The workspace facts from one document that can change another open
 /// document's diagnostics.

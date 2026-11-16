@@ -18,7 +18,15 @@
 
 //! Queries over the command registry and the discovered packages and installations.
 
-use super::*;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use tcl_lsp_core::tcl_install as core_tcl_install;
+use tower_lsp_server::jsonrpc;
+
+use crate::Backend;
+use crate::uri_norm::DocumentPath as _;
+use crate::workspace::effective_auto_path;
 
 impl Backend {
     /// Handle `tcl-lsp.describeIruleEvent`: deterministic registry metadata

@@ -18,12 +18,16 @@
 
 //! File-extension registrations and external watchers kept in line with the loaded packs.
 
-use super::{
-    Backend, DidChangeWatchedFilesRegistrationOptions, FileOperationFilter, FileOperationPattern,
+use std::path::{Path, PathBuf};
+
+use tower_lsp_server::ls_types::{
+    DidChangeWatchedFilesRegistrationOptions, FileOperationFilter, FileOperationPattern,
     FileOperationPatternOptions, FileOperationRegistrationOptions, FileSystemWatcher, GlobPattern,
-    MessageType, OneOf, Path, PathBuf, Registration, RelativePattern, Unregistration, Uri,
-    WatchKind, bounded_client_request,
+    MessageType, OneOf, Registration, RelativePattern, Unregistration, Uri, WatchKind,
 };
+
+use crate::Backend;
+use crate::protocol::bounded_client_request;
 
 impl Backend {
     /// Bring the registrations and the index into line with the extensions

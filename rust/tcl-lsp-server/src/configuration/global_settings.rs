@@ -18,16 +18,18 @@
 
 //! Applying a pulled `tclLsp` section onto the session's global state.
 
+use tower_lsp_server::ls_types::MessageType;
+
+use crate::Backend;
+use crate::dialects::{DEFAULT_SESSION_DIALECT, is_known_dialect_name, selectable_dialect_names};
+use crate::documents::DocumentSourceResult;
+
 #[cfg(test)]
 use super::PolicyLayers;
 use super::folder_settings::signature_help_disabled_commands;
 use super::setting_parsers::{
     BigipVersionSetting, parse_bigip_version, parse_declared_targets, parse_package_provides,
     settings_environment_kind_enabled, settings_non_ascii_mode,
-};
-use super::{
-    Backend, DEFAULT_SESSION_DIALECT, DocumentSourceResult, MessageType, is_known_dialect_name,
-    selectable_dialect_names,
 };
 
 impl Backend {

@@ -18,7 +18,13 @@
 
 //! Setting and listing dialects.
 
-use super::{Backend, FromStr, Uri, is_known_dialect_name, jsonrpc, unknown_dialect_error};
+use std::str::FromStr;
+
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+use crate::dialects::{is_known_dialect_name, unknown_dialect_error};
 
 impl Backend {
     /// Handle `tcl-lsp.setDialect`: switch the session default dialect and

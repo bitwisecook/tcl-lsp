@@ -18,6 +18,21 @@
 
 //! Publishing a lifted report: the index refresh, the cache commit and the timing markers.
 
+use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::workspace_index as core_workspace_index;
+use tokio::sync::Mutex;
+use tower_lsp_server::ls_types::{MessageType, Uri};
+
+use crate::DocumentState;
+use crate::current_diagnostics::DiagnosticUnavailable;
+use crate::tracked_locks::TrackedRwLock;
+use crate::workspace_diagnostic_sources::WorkspaceDiagnosticSources;
+
 use super::consumers::{
     IndexedDiagnosticFacts, OrphanCommandDependencies, WorkspaceCommandQueries,
     add_entry_point_diagnostic_consumers, command_diagnostic_consumers,
@@ -28,10 +43,8 @@ use super::delivery::DeliveryCtx;
 use super::publisher::DiagnosticPublishOutcome;
 use super::scheduling::reschedule_peers;
 use super::{
-    AnalysisResult, Arc, ControlFlow, DiagnosticPublicationSources, DiagnosticUnavailable,
-    DocumentState, FromStr, HashMap, HashSet, IndexedDiagnosticChange, IssuedDiagnosticPublication,
-    MessageType, Mutex, PublishTiming, TrackedRwLock, Uri, WorkspaceDiagnosticSources,
-    core_workspace_index,
+    DiagnosticPublicationSources, IndexedDiagnosticChange, IssuedDiagnosticPublication,
+    PublishTiming,
 };
 
 pub(in super::super) type DiagnosticProviderResult = (

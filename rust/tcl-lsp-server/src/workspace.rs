@@ -18,7 +18,22 @@
 
 //! The workspace beyond open documents: folder scans, disk reindexing, watched files, libraries and project-wide facts.
 
-use super::*;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::workspace_index as core_workspace_index;
+use tokio::sync::Mutex;
+use tower_lsp_server::ls_types::Uri;
+
+use super::analysis::FreshAnalysisSeed;
+use super::diagnostics::DiagSlot;
+use super::tracked_locks::{TrackedMutex, TrackedRwLock};
+use crate::analysis::FreshAnalysisDriver;
+use crate::documents::DocumentStore;
+use crate::source_publication::AdmittedDiskBatch;
+use crate::vfs;
 
 mod class_factories;
 mod disk_reindex;
@@ -35,9 +50,11 @@ mod source_rehoming;
 mod warm;
 mod watched_files;
 
-pub(super) use class_factories::{
-    CLASS_FACTORY_SYNC_ROUNDS, reindex_unopened_factory_consumers, sync_workspace_class_factories,
-};
+pub(super) use class_factories::CLASS_FACTORY_SYNC_ROUNDS;
+#[cfg(test)]
+pub(super) use class_factories::reindex_unopened_factory_consumers;
+#[cfg(test)]
+pub(super) use class_factories::sync_workspace_class_factories;
 #[cfg(test)]
 pub(super) use class_factories::{
     ClassFactoryRound, apply_workspace_class_factories_if_current,
@@ -47,10 +64,11 @@ pub(super) use class_factories::{
 pub(super) use disk_reindex::DiskScanOutcome;
 pub(super) use folder_scan::{WorkspaceScanReadiness, WorkspaceStartupGuard};
 pub(super) use library_indexing::LibraryPublicationSource;
-use package_database::extend_resolver_with_document_auto_paths;
-pub(super) use package_database::{
-    build_package_resolver, document_auto_path_dirs, effective_auto_path,
-};
+#[cfg(test)]
+pub(super) use package_database::build_package_resolver;
+#[cfg(test)]
+pub(super) use package_database::document_auto_path_dirs;
+pub(super) use package_database::effective_auto_path;
 pub(super) use project_inputs::{
     CrossFileEvidenceSnapshot, capture_cross_file_evidence_snapshot, refresh_cross_file_evidence,
 };
@@ -58,16 +76,16 @@ pub(super) use project_inputs::{
 pub(super) use project_inputs::{
     apply_cross_file_evidence_if_current, files_with_covered_load_targets, sync_cross_file_evidence,
 };
-use project_inputs::{
-    sync_workspace_declared_commands, sync_workspace_source_modules,
-    sync_workspace_subclass_methods,
-};
-use scan_batches::{WorkspaceScanCandidate, WorkspaceScanTaskWindow};
+#[cfg(test)]
+pub(super) use source_files::WORKSPACE_SCAN_DIR_CAP;
+#[cfg(test)]
+pub(super) use source_files::collect_tcl_files;
 #[cfg(test)]
 pub(super) use source_files::is_skipped_scan_dir;
+#[cfg(test)]
+pub(super) use source_files::tcl_source_watch_glob;
 pub(super) use source_files::{
-    WORKSPACE_SCAN_DIR_CAP, WORKSPACE_SCAN_FILE_CAP, collect_tcl_files, is_tcl_source,
-    tcl_source_glob, tcl_source_watch_glob, uri_under_folder,
+    WORKSPACE_SCAN_FILE_CAP, is_tcl_source, tcl_source_glob, uri_under_folder,
 };
 #[cfg(test)]
 pub(super) use source_graph::resolve_source_uri;

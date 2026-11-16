@@ -18,12 +18,18 @@
 
 //! References across documents for commands, namespace variables and classes.
 
-use super::{
-    AnalysisResult, CoreLspRange, DocumentSourceResult, DocumentState, Location,
-    LogicalNamespaceLocationsPurpose, LogicalVariableLocationsPurpose,
-    OriginalIndexedSourceLocation, Position, Uri, core_definition, core_references,
-    dedup_locations, jsonrpc, lift_bigip_range, lift_lsp_range,
-};
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::definition::LspRange as CoreLspRange;
+use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
+use tcl_lsp_core::{definition as core_definition, references as core_references};
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::{Location, Position, Uri};
+
+use crate::DocumentState;
+use crate::documents::DocumentSourceResult;
+use crate::protocol::{lift_bigip_range, lift_lsp_range};
+
+use super::{LogicalNamespaceLocationsPurpose, LogicalVariableLocationsPurpose, dedup_locations};
 use crate::Backend;
 
 impl Backend {

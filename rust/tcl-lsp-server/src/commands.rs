@@ -18,8 +18,6 @@
 
 //! The `workspace/executeCommand` handlers.
 
-use super::*;
-
 mod bigip_objects;
 mod bigip_rules;
 mod catalogue_queries;

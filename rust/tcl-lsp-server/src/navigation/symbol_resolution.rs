@@ -18,11 +18,14 @@
 
 //! Resolving the symbol at a cursor against the workspace index.
 
-use super::{
-    AnalysisResult, DocumentSourceResult, DocumentSourceUnavailable, Position, Uri, core_hover,
-    core_workspace_index, line_col_to_byte_offset, settle_call_against_workspace,
-    workspace_reporting_context,
-};
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::{hover as core_hover, workspace_index as core_workspace_index};
+use tower_lsp_server::ls_types::{Position, Uri};
+
+use crate::diagnostics::{settle_call_against_workspace, workspace_reporting_context};
+use crate::documents::{DocumentSourceResult, DocumentSourceUnavailable};
+use crate::protocol::line_col_to_byte_offset;
+
 use crate::Backend;
 
 /// Readonly source relationships cannot be used by edit/binding consumers.

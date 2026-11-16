@@ -18,7 +18,16 @@
 
 //! The aggressive tier's aliases for repeated commands, arguments and string literals, and keyword abbreviation.
 
-use super::*;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Write as _;
+
+use tcl_compiler::analyser::Scope;
+use tcl_lexer::{LexerConfig, Span};
+use tcl_registry::Traits;
+use tcl_syntax::naming::AuthoredCompactNameSequence;
+
+use super::symbol_map::SymbolMap;
+use super::{Edit, MinifyEnv, apply_edits, lexical_keywords, lexical_metadata, original};
 
 // Aggressive-tier aliasing (command / argument / string-literal)
 

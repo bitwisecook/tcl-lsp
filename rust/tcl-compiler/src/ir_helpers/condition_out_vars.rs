@@ -18,7 +18,14 @@
 
 //! Out-variables assigned by the command substitutions of a condition expression.
 
-use super::*;
+use tcl_lexer::LexerConfig;
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
+
+use super::command_words::{CommandWord, tokenise_command_words};
+use super::substitution_surfaces::collect_expr_commands;
+use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
+use crate::expr_ast::ExprNode;
+use crate::naming::normalise_var_name;
 
 /// Out-variable names assigned by command substitutions appearing in
 /// `condition` (an `if`/`while` condition expr).

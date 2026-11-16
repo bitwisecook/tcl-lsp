@@ -18,12 +18,21 @@
 
 //! The persistent publisher: a latest-wins mailbox per URI, merged with pack notices.
 
+use std::collections::{HashMap, VecDeque};
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use tcl_registry::CommandRegistry;
+use tokio::sync::Mutex;
+use tower_lsp_server::Client;
+use tower_lsp_server::ls_types::{MessageType, Uri};
+
+use crate::current_diagnostics::DiagnosticCompletionEntry;
+use crate::documents::DocumentPathAdmission;
+use crate::workspace_diagnostic_sources::WorkspaceDiagnosticSources;
+use crate::{vfs, workspace_diagnostic_sources};
+
 use super::scheduling::deliver_diagnostics;
-use super::{
-    Arc, Client, CommandRegistry, DiagnosticCompletionEntry, DocumentPathAdmission, HashMap,
-    MessageType, Mutex, PathBuf, Uri, VecDeque, WorkspaceDiagnosticSources, vfs,
-    workspace_diagnostic_sources,
-};
 
 /// One diagnostics notification committed after its currency check.
 ///

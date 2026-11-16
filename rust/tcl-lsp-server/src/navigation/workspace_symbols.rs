@@ -18,12 +18,26 @@
 
 //! `workspace/symbol`: indexed hits and open documents the index does not hold yet.
 
-use super::{
-    Arc, Backend, Client, ControlFlow, CoreWorkspaceSymbolKind, DocumentPublication,
-    DocumentSourceResult, DocumentSourceUnavailable, DocumentState, FromStr, HashMap, HashSet,
-    Location, MessageType, Path, Position, Range, SymbolInformation, SymbolKind, Uri,
-    WorkspaceSymbolResponse, core_workspace_index, core_workspace_symbols, new_workspace_index,
+use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
+use std::path::Path;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use tcl_lsp_core::workspace_symbols::WorkspaceSymbolKind as CoreWorkspaceSymbolKind;
+use tcl_lsp_core::{
+    workspace_index as core_workspace_index, workspace_symbols as core_workspace_symbols,
 };
+use tower_lsp_server::Client;
+use tower_lsp_server::ls_types::{
+    Location, MessageType, Position, Range, SymbolInformation, SymbolKind, Uri,
+    WorkspaceSymbolResponse,
+};
+
+use crate::documents::{DocumentPublication, DocumentSourceResult, DocumentSourceUnavailable};
+use crate::workspace::new_workspace_index;
+use crate::{Backend, DocumentState};
+
 use crate::readonly_reference_reports;
 
 #[derive(Clone, Default)]

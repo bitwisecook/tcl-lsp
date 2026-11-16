@@ -18,14 +18,20 @@
 
 //! One workspace folder's overrides: their shape, their parse and their application.
 
+use std::collections::HashMap;
+use std::path::Path;
+
+use tcl_lsp_core::ilx_navigation as core_ilx;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+use crate::dialects::is_known_dialect_name;
+
 use super::setting_parsers::{
     BigipVersionSetting, parse_bigip_version, parse_declared_targets, parse_package_provides,
     settings_non_ascii_mode,
 };
-use super::{
-    Backend, FolderConfig, FolderGenericPatterns, HashMap, IlxPluginSpec, Path, PolicyLayers, Uri,
-    core_ilx, is_known_dialect_name,
-};
+use super::{FolderConfig, FolderGenericPatterns, IlxPluginSpec, PolicyLayers};
 
 impl Backend {
     /// Store the per-folder editor configs and refresh the per-folder salsa

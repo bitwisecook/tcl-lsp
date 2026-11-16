@@ -18,7 +18,19 @@
 
 //! Workspace-derived inputs of every project file: call-site evidence, declared commands, source modules and subclass methods.
 
-use super::*;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+use tower_lsp_server::ls_types::Uri;
+
+use super::class_factories::{reindex_unopened_factory_consumers, sync_workspace_class_factories};
+use super::{ClassFactorySync, EvidenceHandles, RoundReschedule};
+use crate::diagnostics::{
+    DiagInputs, DiagSlot, refresh_can_change_result, reschedule_peers, sync_evaluator_epoch,
+};
+use crate::tracked_locks::DbSnapshot;
+use crate::uri_norm::DocumentPath as _;
 
 /// Refresh the project's cross-file call-site evidence after a worker pass
 /// published, then reschedule whatever the refresh invalidated.

@@ -18,7 +18,7 @@
 
 //! The formatter configuration built from `tclLsp.formatting`.
 
-use super::core_formatting;
+use tcl_lsp_core::formatting as core_formatting;
 
 /// Build a [`core_formatting::FormatterConfig`] from the resolved
 /// `tclLsp.formatting` settings object, then apply the request's LSP

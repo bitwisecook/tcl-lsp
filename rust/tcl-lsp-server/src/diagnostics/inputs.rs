@@ -18,7 +18,17 @@
 
 //! The owned inputs of a diagnostics run and their capture.
 
-use super::*;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use tower_lsp_server::ls_types::Uri;
+
+use super::{DiagCurrency, DiagInputs, DiagJob, DiagToggles, XcToggles};
+use crate::configuration::{FolderConfig, longest_folder_match};
+use crate::documents::DocumentPublication;
+use crate::uri_norm::DocumentPath as _;
+use crate::workspace::uri_under_folder;
+use crate::{Backend, path_glob, provider_source};
 
 impl DiagInputs {
     /// Capture the document's current, self-consistent diagnostics input (live

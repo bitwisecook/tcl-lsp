@@ -18,7 +18,11 @@
 
 //! Translation of iRules to F5 Distributed Cloud constructs.
 
-use super::{Arc, Backend, document_transform, jsonrpc};
+use std::sync::Arc;
+
+use tower_lsp_server::jsonrpc;
+
+use crate::{Backend, document_transform};
 
 impl Backend {
     /// Handle `tcl-lsp.xcTranslate`: statically translate an iRule to F5

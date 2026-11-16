@@ -18,7 +18,22 @@
 
 //! The retained declaration identity call hierarchy, type hierarchy and reference lenses share.
 
-use super::*;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::{call_hierarchy as core_call_hierarchy, definition as core_definition};
+use tower_lsp_server::ls_types::{CallHierarchyItem, Position, SymbolKind, Uri};
+#[cfg(test)]
+use tower_lsp_server::ls_types::{Location, Range};
+
+#[cfg(test)]
+use super::dedup_span_targets;
+use crate::diagnostics::is_apl_source;
+use crate::documents::DocumentSourceResult;
+use crate::protocol::lift_lsp_range;
+use crate::uri_norm::DocumentPath as _;
+use crate::workspace::is_tcl_source;
+use crate::{Backend, DocumentState};
 
 impl Backend {
     pub(in super::super) async fn retain_original_declaration_data(

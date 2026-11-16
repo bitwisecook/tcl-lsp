@@ -18,7 +18,25 @@
 
 //! The workspace refinement of W120: package availability and `source`-graph inheritance.
 
-use super::*;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::compiler_checks::DiagCode;
+use tcl_lsp_core::package_resolver::PackageResolver;
+use tcl_lsp_core::workspace_index as core_workspace_index;
+use tcl_registry::CommandRegistry;
+use tokio::sync::RwLock;
+use tower_lsp_server::ls_types::Uri;
+
+use super::{OriginalSourceInheritance, SourceInheritance};
+use crate::configuration::FolderConfig;
+use crate::uri_norm::DocumentPath as _;
+#[cfg(test)]
+use crate::vfs;
+use crate::workspace::{entry_point_uri, resolve_source_edge, uri_under_folder};
+use crate::{Backend, provider_source};
 
 impl Backend {
     /// The project entry points and folder root that govern the W120

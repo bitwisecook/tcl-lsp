@@ -33,7 +33,7 @@
 //! barrier.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
 use std::rc::Rc;
 
@@ -54,19 +54,15 @@ mod source_context;
 use source_context::{NativeSummaryContext, SourceSummaryContext};
 pub(crate) use source_context::{OriginalSummaryExpression, OriginalSummaryScript};
 
-use crate::cfg::Function as CfgFunction;
 use crate::cfg_builder::global_write_info::GlobalWriteInfo;
 use crate::cfg_builder::upvar_info::UpvarInfo;
 use crate::command_binding::{ModuleCommandMutations, ProcBindingTrustProjection};
-use crate::ir::Statement;
 use crate::sccp::FoldTrust;
 use crate::ssa::SsaFunction;
 use crate::value_transfer::ExistenceStep;
 
 use super::ReturnKind;
-use crate::signature_scan::variable_symbol::{
-    SignatureSourceVariableOccurrence, SignatureSourceVariableSlot,
-};
+use crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence;
 
 mod original_source;
 mod outer_places;
@@ -76,7 +72,6 @@ mod summarisation;
 
 #[cfg(test)]
 use outer_places::alias_facts;
-use parameter_roles::{linked_cleanly, links_of};
 use reruns::RerunKey;
 pub(crate) use reruns::{Rerun, RerunStance};
 

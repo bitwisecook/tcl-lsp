@@ -18,14 +18,21 @@
 
 //! The report every path publishes: policy layers, findings and the lift onto the wire.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::{diagnostic_policy as core_policy, diagnostic_report as core_report};
+
+use crate::configuration::PolicyLayers;
+use crate::protocol::{lift_span, lsp_severity};
+use crate::rewrite_wire;
+
 use super::command_refinement::{
     cross_file_arity_diagnostics, refine_workspace_index_w123, refine_workspace_w123,
 };
 use super::package_refinement::refine_workspace_w120;
-use super::{
-    AnalysisResult, Arc, HashMap, LiftInputs, PolicyLayers, RefinementInputs, core_policy,
-    core_report, lift_span, lsp_severity, rewrite_wire,
-};
+use super::{LiftInputs, RefinementInputs};
 
 /// The policy one document's report is decided under: `layers` plus the
 /// document facts — the byte evidence, the dialect's overlap table and the

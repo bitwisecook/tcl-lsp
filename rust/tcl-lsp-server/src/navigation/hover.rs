@@ -18,7 +18,26 @@
 
 //! Hover for symbols another document or a library declares.
 
-use super::*;
+use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::hover::{Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
+use tcl_lsp_core::{
+    definition as core_definition, hover as core_hover, ilx_navigation as core_ilx,
+};
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::{Hover, Position, Uri};
+
+use super::LogicalIndexedDefinitionTargets;
+use super::symbol_resolution::{WorkspaceSymbolPurpose, WorkspaceSymbolSelection};
+use crate::documents::DocumentSourceResult;
+use crate::protocol::{lift_hover, line_col_to_byte_offset_indexed};
+use crate::uri_norm::DocumentPath as _;
+use crate::{Backend, DocumentState};
 
 struct FactoryHoverSources {
     pub(in super::super) file: tcl_lsp_db::SourceFile,

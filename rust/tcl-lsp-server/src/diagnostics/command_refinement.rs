@@ -18,13 +18,22 @@
 
 //! The workspace refinement of W123 and the cross-file argument-count check.
 
+use std::collections::HashSet;
+use std::sync::Arc;
+
 #[cfg(test)]
-use super::Analyser;
+use tcl_compiler::analyser::Analyser;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::compiler_checks::DiagCode;
+use tcl_lsp_core::package_resolver::PackageResolver;
+use tcl_lsp_core::{definition as core_definition, workspace_index as core_workspace_index};
+use tcl_registry::CommandRegistry;
+use tokio::sync::RwLock;
+
+use crate::provider_source;
+
 use super::consumers::WorkspaceCommandQueries;
-use super::{
-    AnalysisResult, Arc, CommandRegistry, CrossFileCalls, DiagCode, HashSet, PackageResolver,
-    RwLock, SourceInheritance, core_definition, core_workspace_index, provider_source,
-};
+use super::{CrossFileCalls, SourceInheritance};
 
 /// Original declaration slots for package availability, independent of the
 /// reporting maps used for completion labels.

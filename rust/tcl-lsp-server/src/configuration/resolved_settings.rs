@@ -18,11 +18,16 @@
 
 //! The setting values in force for one document: folder override, else the global value.
 
+use std::collections::HashSet;
+
+use tcl_compiler::analyser::NonAsciiMode;
+use tcl_lsp_core::formatting as core_formatting;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+
 use super::setting_parsers::BigipVersionSetting;
-use super::{
-    Backend, FolderGenericPatterns, HashSet, NonAsciiMode, PolicyLayers, ResourceAnalyserInputs,
-    Uri, core_formatting, longest_folder_match,
-};
+use super::{FolderGenericPatterns, PolicyLayers, ResourceAnalyserInputs, longest_folder_match};
 
 impl Backend {
     /// Resolve the analyser-affecting settings for `uri`: a per-folder editor

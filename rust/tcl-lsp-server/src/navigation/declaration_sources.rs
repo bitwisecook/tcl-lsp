@@ -18,12 +18,22 @@
 
 //! Revalidating declaration targets against their current documents and lifting them to locations.
 
-use super::{
-    AnalysisResult, Arc, Backend, DocumentPathAdmission, DocumentSourceResult, DocumentState,
-    FromStr, HashMap, HashSet, LibraryPublicationSource, Location, OriginalIndexedSourceLocation,
-    Path, Position, Range, ReadonlyDeclarationLocation, ReadonlyDeclarationTarget,
-    ReadonlySavedSource, Uri, core_definition, lift_lsp_range,
-};
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::definition as core_definition;
+use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
+use tower_lsp_server::ls_types::{Location, Position, Range, Uri};
+
+use crate::documents::{DocumentPathAdmission, DocumentSourceResult};
+use crate::protocol::lift_lsp_range;
+use crate::workspace::LibraryPublicationSource;
+use crate::{Backend, DocumentState};
+
+use super::{ReadonlyDeclarationLocation, ReadonlyDeclarationTarget, ReadonlySavedSource};
 
 impl Backend {
     /// Revalidate indexed facts in each actual current document before using

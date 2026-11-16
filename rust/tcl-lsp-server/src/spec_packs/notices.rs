@@ -18,11 +18,18 @@
 
 //! Pack load notices published as diagnostics on the pack files.
 
-use super::{
-    Arc, Backend, CommandRegistry, DocumentSourceResult, HashMap, MessageType, PackNoticeContext,
-    PackNoticeEntry, PackNoticeSourceOwner, PreparedPackNotice, Uri, canonical_file_uri,
-    core_code_actions, studio_source,
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use tcl_lsp_core::code_actions as core_code_actions;
+use tcl_registry::CommandRegistry;
+use tower_lsp_server::ls_types::{MessageType, Uri};
+
+use crate::diagnostics::{
+    PackNoticeContext, PackNoticeEntry, PackNoticeSourceOwner, PreparedPackNotice,
 };
+use crate::documents::{DocumentSourceResult, canonical_file_uri};
+use crate::{Backend, studio_source};
 
 impl Backend {
     /// Opt-in captured notice evidence before URI/source publication filters.

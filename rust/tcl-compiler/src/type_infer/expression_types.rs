@@ -18,7 +18,15 @@
 
 //! The type an expression node produces: operators and math-function calls.
 
-use super::*;
+use std::collections::HashMap;
+
+use tcl_dialect::NumberSyntax;
+use tcl_registry::TclType;
+
+use super::literals::expr_literal_type;
+use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
+use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
+use crate::types::{TypeKind, TypeLattice, type_join};
 
 /// Infer the type produced by an expression AST node.
 ///

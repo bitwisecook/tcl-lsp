@@ -18,7 +18,20 @@
 
 //! Reports for BIG-IP configuration and iApp APL documents.
 
-use super::*;
+use std::path::{Path, PathBuf};
+
+use tcl_lsp_core::{diagnostic_policy as core_policy, diagnostic_report as core_report};
+use tower_lsp_server::ls_types::Uri;
+
+use super::delivery::DeliveryCtx;
+use super::report::lifted_report;
+use super::{F5ModelDocument, LiftInputs};
+use crate::configuration::PolicyLayers;
+use crate::current_diagnostics::DiagnosticUnavailable;
+use crate::dialects::IAPPS_DIALECT;
+use crate::documents::DocumentStore;
+use crate::uri_norm::DocumentPath as _;
+use crate::{Backend, vfs};
 
 /// F5 dialect dispatch: BIG-IP config and iApp APL presentation documents are
 /// not Tcl source — they have model-level validators (`BIGIP6001`-`6011`,

@@ -18,6 +18,19 @@
 
 //! The deep pass: analyser, compiler checks and cross-file resolution joined into one report.
 
+use std::ops::ControlFlow;
+use std::sync::Arc;
+
+use futures_util::future::FutureExt;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::compiler_checks::DiagCode;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::current_diagnostics::DiagnosticUnavailable;
+use crate::documents::DocumentStore;
+use crate::workspace_diagnostic_sources::WorkspaceDiagnosticSources;
+use crate::{diagnostic_read_cancellation, provider_source};
+
 use super::analysis_passes::{
     compute_compiler_diags_after_base_with_read_cancellations,
     compute_project_diags_with_read_cancellations, unavailable_compiler_diagnostics,
@@ -30,10 +43,8 @@ use super::publication::publish_diagnostics_result_with_sources;
 use super::report::refine_and_lift_diagnostics;
 use super::run::FastTierGate;
 use super::{
-    AnalyserPathInputs, AnalysisResult, Arc, ControlFlow, CrossFileCalls, DiagCode,
-    DiagnosticPublicationSources, DiagnosticUnavailable, DocumentStore, FutureExt, LiftInputs,
-    PublishTiming, RefinementInputs, SalsaAnalysisCtx, SourceInheritance, Uri,
-    WorkspaceDiagnosticSources, diagnostic_read_cancellation, provider_source,
+    AnalyserPathInputs, CrossFileCalls, DiagnosticPublicationSources, LiftInputs, PublishTiming,
+    RefinementInputs, SalsaAnalysisCtx, SourceInheritance,
 };
 
 pub(in super::super) fn deep_provider_completion(

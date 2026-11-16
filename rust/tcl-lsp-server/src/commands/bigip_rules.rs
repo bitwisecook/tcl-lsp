@@ -18,11 +18,16 @@
 
 //! iRules embedded in a BIG-IP configuration: list, extract and write back.
 
-use super::{
-    Backend, DocumentChanges, DocumentState, FromStr, HashMap, OneOf,
-    OptionalVersionedTextDocumentIdentifier, Position, Range, TextDocumentEdit, TextEdit, Uri,
-    WorkspaceEdit, jsonrpc,
+use std::collections::HashMap;
+use std::str::FromStr;
+
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::{
+    DocumentChanges, OneOf, OptionalVersionedTextDocumentIdentifier, Position, Range,
+    TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
+
+use crate::{Backend, DocumentState};
 
 impl Backend {
     /// One `ltm rule` / `gtm rule` stanza, as the editors model it.

@@ -18,7 +18,12 @@
 
 //! The workspace's `SpecTcl` packs: discovery, reload, the registrations they claim and the notices they publish.
 
-use super::*;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use tcl_registry::CommandRegistry;
+
+use crate::{Backend, studio_source};
 
 mod notices;
 mod registrations;

@@ -18,7 +18,15 @@
 
 //! The package resolver and the `auto_path` it searches.
 
-use super::*;
+use std::path::PathBuf;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::package_resolver::PackageResolver;
+use tcl_lsp_core::tcl_install as core_tcl_install;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::uri_norm::DocumentPath as _;
+use crate::vfs;
 
 /// Build the package database (`pkgIndex.tcl` / `tclIndex`) the W120 refinement
 /// consults: the workspace trees (recursive — an IDE nests packages

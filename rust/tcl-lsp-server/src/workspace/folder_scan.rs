@@ -18,7 +18,39 @@
 
 //! The on-disk scan of the workspace folders into the index and the project, and the signal that its first pass has finished.
 
-use super::*;
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::Arc;
+
+#[cfg(test)]
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::package_resolver::PackageResolver;
+use tcl_lsp_core::tcl_install as core_tcl_install;
+use tokio::sync::Semaphore;
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::{MessageType, Uri};
+
+use super::class_factories::{reindex_unopened_factory_consumers, sync_workspace_class_factories};
+use super::package_database::build_package_resolver;
+use super::package_database::extend_resolver_with_document_auto_paths;
+use super::project_inputs::{
+    sync_workspace_declared_commands, sync_workspace_source_modules,
+    sync_workspace_subclass_methods,
+};
+use super::scan_batches::{WorkspaceScanCandidate, WorkspaceScanTaskWindow};
+use super::source_files::{WORKSPACE_SCAN_DIR_CAP, collect_tcl_files};
+use super::{
+    ClassFactorySync, EvidenceHandles, PublishedWorkspaceScanBatch, ScanAnalysisInputs,
+    WorkspaceScanWorker,
+};
+use crate::documents::{
+    DocumentPathAdmission, DocumentSourceResult, DocumentSourceUnavailable, constructed_file_uri,
+};
+#[cfg(test)]
+use crate::source_publication::DiskRemovalPolicy;
+use crate::uri_norm::DocumentPath as _;
+use crate::{Backend, vfs};
 
 /// Ceiling on how many workspace files [`Backend::scan_workspace_folders`] and
 /// the [`Backend::did_change_watched_files`] batch reindex analyse concurrently

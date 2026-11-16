@@ -18,7 +18,13 @@
 
 //! Editor and project settings: the pull, the layers, per-folder overrides and the values a document resolves.
 
-use super::*;
+use std::collections::HashSet;
+
+use tcl_compiler::analyser::{Analyser, NonAsciiMode};
+use tcl_lsp_core::diagnostic_policy as core_policy;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::workspace::uri_under_folder;
 
 mod feature_toggles;
 mod folder_settings;
@@ -30,16 +36,20 @@ mod resolved_settings;
 mod setting_parsers;
 
 pub(super) use feature_toggles::FeatureToggles;
-pub(super) use folder_settings::{
-    parse_folder_config, resolve_ilx_specs, signature_help_disabled_commands,
-};
+#[cfg(test)]
+pub(super) use folder_settings::parse_folder_config;
+pub(super) use folder_settings::resolve_ilx_specs;
 pub(super) use formatter_settings::{apply_formatting_object, formatter_config_from};
 #[cfg(test)]
 pub(super) use reload::CONFIG_RELOAD_DEBOUNCE;
 pub(super) use reload::ConfigReloadSlot;
+#[cfg(test)]
+pub(super) use setting_parsers::collapse_inlay_alias;
+#[cfg(test)]
+pub(super) use setting_parsers::read_ini_layer;
 pub(super) use setting_parsers::{
-    BigipVersionSetting, collapse_inlay_alias, default_optimiser_profile, normalize_config_payload,
-    read_ini_layer, settings_environment_kind_enabled, settings_non_ascii_mode, workspace_trust_in,
+    BigipVersionSetting, default_optimiser_profile, normalize_config_payload,
+    settings_environment_kind_enabled, settings_non_ascii_mode, workspace_trust_in,
 };
 #[cfg(test)]
 pub(super) use setting_parsers::{parse_bigip_version, parse_non_ascii_mode};

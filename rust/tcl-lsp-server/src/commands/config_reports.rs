@@ -18,10 +18,16 @@
 
 //! The effective configuration and its INI export.
 
-use super::{
-    Backend, FromStr, NonAsciiMode, Uri, core_formatting, deepest_folder_containing,
-    folder_dialect_for, jsonrpc,
-};
+use std::str::FromStr;
+
+use tcl_compiler::analyser::NonAsciiMode;
+use tcl_lsp_core::formatting as core_formatting;
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+use crate::configuration::deepest_folder_containing;
+use crate::dialects::folder_dialect_for;
 
 impl Backend {
     /// `tclLsp.formatting.docstringStyle` (#1314) as `getEffectiveConfig`

@@ -18,7 +18,24 @@
 
 //! The whole-unit taint pass: module variable traces, the per-function reports and the report with replay availability.
 
-use super::*;
+use std::collections::HashMap;
+
+use tcl_registry::CommandRegistry;
+
+use super::callback_replay::taint_callback_substitution_report;
+use super::destructive_files::find_destructive_file_warnings;
+use super::propagation::collect_global_reads;
+use super::setter_constraints::find_setter_constraint_warnings;
+use super::sink_warnings::{
+    shadowed_builtin_names_for_module_function, taint_warning_report_for_function_with_identities,
+};
+use super::source_context::TaintSourceContext;
+use super::source_warnings::{
+    find_destructive_file_warnings_for_module_function,
+    find_setter_constraint_warnings_for_module_function,
+};
+use super::{TaintLattice, TaintReplayAnalysis, TaintWarning, TaintWarningReport};
+use crate::ssa::{SsaFunction, ValueKey};
 
 /// Conservatively force every taint value touching a module-traced variable
 /// to fully tainted — the "unknown taint" fix for `trace add variable` /

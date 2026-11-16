@@ -18,13 +18,19 @@
 
 //! Go-to-definition: the local provider and its workspace and autoload fallbacks.
 
-use super::{
-    AnalysisResult, Arc, Backend, DocumentSourceResult, DocumentState, Location,
-    LogicalNamespaceLocationsPurpose, LogicalVariableLocationsPurpose,
-    OriginalIndexedSourceLocation, Position, Uri, canonical_file_uri, core_definition,
-    core_workspace_index, fresh_analysis_cache, jsonrpc, lift_lsp_range,
-    line_col_to_byte_offset_indexed,
-};
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
+use tcl_lsp_core::{definition as core_definition, workspace_index as core_workspace_index};
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::{Location, Position, Uri};
+
+use crate::documents::{DocumentSourceResult, canonical_file_uri};
+use crate::protocol::{lift_lsp_range, line_col_to_byte_offset_indexed};
+use crate::{Backend, DocumentState, fresh_analysis_cache};
+
+use super::{LogicalNamespaceLocationsPurpose, LogicalVariableLocationsPurpose};
 
 /// Observations that can require reissuing a failed readonly autoload query.
 /// They confer no header, lookup, completion or source-currentness authority.

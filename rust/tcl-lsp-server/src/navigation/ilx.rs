@@ -18,7 +18,21 @@
 
 //! The iRulesLX method relation: definition and references across the workspace and its plugins.
 
-use super::*;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::ilx_navigation as core_ilx;
+use tower_lsp_server::ls_types::{Location, Position, Uri};
+
+use crate::configuration::{FolderConfig, resolve_ilx_specs};
+use crate::documents::{DocumentSourceResult, canonical_file_uri};
+use crate::protocol::lift_lsp_range;
+use crate::uri_norm::DocumentPath as _;
+use crate::workspace::uri_under_folder;
+use crate::{Backend, DocumentState};
 
 /// A snapshot of what the editor holds for every open document, by path.
 ///

@@ -37,17 +37,13 @@ use std::collections::BTreeSet;
 #[cfg(test)]
 use tcl_lexer::{LexerConfig, SourceMap};
 #[cfg(test)]
-use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, Traits};
+use tcl_registry::{CommandRegistry, InvocationWord};
 
-#[cfg(test)]
-use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 #[cfg(test)]
 use crate::expr_ast::ExprNode;
 pub(crate) use crate::ir::ExecutionNamespace;
 #[cfg(test)]
 use crate::ir::{CommandTokens, Statement};
-#[cfg(test)]
-use crate::naming::normalise_var_name;
 
 mod command_words;
 #[cfg(test)]

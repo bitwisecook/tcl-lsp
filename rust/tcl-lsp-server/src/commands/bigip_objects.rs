@@ -18,11 +18,16 @@
 
 //! BIG-IP object graphs: linked objects, cleanup and partition rename.
 
-use super::{
-    Backend, DocumentChanges, DocumentState, FromStr, HashMap, HashSet, OneOf,
-    OptionalVersionedTextDocumentIdentifier, Position, Range, TextDocumentEdit, TextEdit, Uri,
-    WorkspaceEdit, jsonrpc,
+use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
+
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::{
+    DocumentChanges, OneOf, OptionalVersionedTextDocumentIdentifier, Position, Range,
+    TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
+
+use crate::{Backend, DocumentState};
 
 impl Backend {
     /// Handle `tcl-lsp.extractLinkedObjects`: the BIG-IP object at the cursor

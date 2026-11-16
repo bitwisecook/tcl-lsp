@@ -18,12 +18,15 @@
 
 //! The bounded worker window a scan analyses files through, and the batches it publishes.
 
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use crate::Backend;
+use crate::documents::{DocumentSourceResult, DocumentSourceUnavailable};
+use crate::source_publication::{DiskPublicationOutcome, DiskRemovalPolicy};
+
 use super::disk_reindex::DiskScanOutcome;
-use super::{
-    Arc, Backend, DiskPublicationOutcome, DiskRemovalPolicy, DocumentSourceResult,
-    DocumentSourceUnavailable, HashSet, PublishedWorkspaceScanBatch, ScannedDocument,
-    WorkspaceScanWorker,
-};
+use super::{PublishedWorkspaceScanBatch, ScannedDocument, WorkspaceScanWorker};
 
 pub(super) enum WorkspaceScanCandidate {
     Open,

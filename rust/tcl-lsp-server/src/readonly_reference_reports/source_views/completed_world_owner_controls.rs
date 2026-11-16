@@ -16,7 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::*;
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use tower_lsp_server::ls_types::Uri;
+
+use super::OriginalSourceViewSettlement;
+use crate::Backend;
+
 use crate::{DocumentPublication, DocumentState};
 
 struct Fixture {

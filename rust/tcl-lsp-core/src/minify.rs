@@ -127,8 +127,8 @@
 //! elimination (leaving the now-unused `set` is harmless, just
 //! larger).
 
+#[cfg(test)]
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fmt::Write as _;
 
 mod lexical_keywords;
 mod lexical_metadata;
@@ -137,9 +137,9 @@ pub use original::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_analysi
 
 use rustc_hash::FxHashSet;
 
+use tcl_compiler::analyser::AnalysisResult;
 #[cfg(test)]
 use tcl_compiler::analyser::ScopeKind;
-use tcl_compiler::analyser::{AnalysisResult, Scope};
 #[cfg(test)]
 use tcl_compiler::ir::Statement;
 #[cfg(test)]
@@ -151,8 +151,9 @@ use tcl_lexer::TokenType;
 #[cfg(test)]
 use tcl_lexer::close_quote_offset;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token};
-use tcl_registry::{CommandRegistry, Traits};
-use tcl_syntax::naming::AuthoredCompactNameSequence;
+use tcl_registry::CommandRegistry;
+#[cfg(test)]
+use tcl_registry::Traits;
 
 mod aliasing;
 mod case_lists;

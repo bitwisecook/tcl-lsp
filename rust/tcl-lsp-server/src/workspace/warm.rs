@@ -18,10 +18,16 @@
 
 //! The background warm of the memoised analysis for open documents.
 
-use super::{
-    Arc, Backend, DocumentStore, HashMap, Mutex, Semaphore, TrackedMutex, Uri, cancellable_catch,
-    longest_folder_match,
-};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use tokio::sync::{Mutex, Semaphore};
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+use crate::configuration::longest_folder_match;
+use crate::documents::DocumentStore;
+use crate::tracked_locks::{TrackedMutex, cancellable_catch};
 
 /// Ceiling on how many **open** documents the background workspace warm
 /// analyses concurrently.  The warm pre-populates the

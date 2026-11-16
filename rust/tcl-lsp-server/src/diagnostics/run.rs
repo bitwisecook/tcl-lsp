@@ -18,18 +18,26 @@
 
 //! One diagnostics run: the master switch, exclusions and the progressive analyser path with its fast tier.
 
+use std::ops::ControlFlow;
+use std::sync::Arc;
+
+use futures_util::future::FutureExt;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::compiler_checks::DiagCode;
+use tcl_lsp_core::{diagnostic_policy as core_policy, diagnostic_report as core_report};
+use tower_lsp_server::ls_types::{MessageType, Uri};
+
+use crate::current_diagnostics::{DiagnosticSuppression, DiagnosticUnavailable};
+use crate::recovery_source::RecoveryWidenCtx;
+use crate::{provider_source, rewrite_wire};
+
 use super::analysis_passes::compute_base_analysis;
 use super::deep_pass::run_deep_diagnostics;
 use super::delivery::DeliveryCtx;
 use super::f5_models::run_diagnostics_f5_dialect;
 use super::publisher::DiagnosticPublishOutcome;
 use super::report::{analyser_findings, lifted_report};
-use super::{
-    AnalyserPathInputs, AnalysisResult, Arc, ControlFlow, DiagCode, DiagInputs, DiagJob,
-    DiagnosticSuppression, DiagnosticUnavailable, FutureExt, LiftInputs, MessageType,
-    PublishTiming, RecoveryWidenCtx, SalsaAnalysisCtx, Uri, core_policy, core_report,
-    provider_source, rewrite_wire,
-};
+use super::{AnalyserPathInputs, DiagInputs, DiagJob, LiftInputs, PublishTiming, SalsaAnalysisCtx};
 
 /// Upper bound the diagnostics pipeline waits for the full deep pass — the
 /// compiler / optimiser checks, the cross-file resolution, the W120 / W123

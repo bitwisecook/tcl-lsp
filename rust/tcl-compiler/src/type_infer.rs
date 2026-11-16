@@ -48,11 +48,7 @@ use tcl_registry::{CommandRegistry, TclType};
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-#[cfg(test)]
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::ExprNode;
-#[cfg(test)]
-use crate::expr_ast::{BinOp, UnaryOp};
 use crate::ir::Statement;
 use crate::sccp::SccpResult;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};

@@ -18,7 +18,18 @@
 
 //! The configuration pull and the coalesced reload a `didChangeConfiguration` burst runs.
 
-use super::*;
+use tcl_lsp_core::{config_ini, tcl_install as core_tcl_install};
+use tower_lsp_server::ls_types::{ConfigurationItem, MessageType, Uri};
+
+use super::folder_settings::parse_folder_config;
+use super::folder_settings::signature_help_disabled_commands;
+use super::setting_parsers::{collapse_inlay_alias, normalize_config_payload, read_ini_layer};
+use super::{FolderConfig, PolicyLayers};
+use crate::Backend;
+use crate::documents::DocumentSourceResult;
+use crate::protocol::{CLIENT_REQUEST_TIMEOUT, FoldingRangeRefreshRequest, bounded_client_request};
+use crate::spec_packs::ReloadTrigger;
+use crate::uri_norm::DocumentPath as _;
 
 /// How long a `workspace/didChangeConfiguration` leader waits before running
 /// the reload, so the rest of a burst folds into the same generation.

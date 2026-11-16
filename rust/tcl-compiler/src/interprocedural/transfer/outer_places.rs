@@ -18,7 +18,18 @@
 
 //! Places outside a procedure's frame: the `Name` arguments that name them, the locals linked to them and the global and namespace writes of a component.
 
-use super::*;
+use std::collections::{BTreeSet, HashMap};
+
+use tcl_registry::frame_effect::FrameLevel;
+use tcl_registry::value_transfer::{BindingKind, ExistenceOutcome};
+use tcl_syntax::formal_params::FormalArgumentBinding;
+
+use super::parameter_roles::{linked_cleanly, links_of};
+use super::source_context::SourceSummaryContext;
+use super::{ModuleInputs, ModuleProcedures, OuterSourcePlace, ParamRole};
+use crate::cfg::Function as CfgFunction;
+use crate::ir::{CommandTokens, Statement};
+use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
 
 impl ModuleProcedures<'_> {
     /// The `Name` arguments of `qname`'s calls that name a place outside its

@@ -18,7 +18,12 @@
 
 //! The smallest document that still reports one diagnostic.
 
-use super::{Backend, FromStr, Uri, jsonrpc};
+use std::str::FromStr;
+
+use tower_lsp_server::jsonrpc;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
 
 impl Backend {
     /// Does `source` still report `code`?

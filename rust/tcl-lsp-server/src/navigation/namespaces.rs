@@ -18,11 +18,23 @@
 
 //! Namespace symbols: declarations, hover and references across documents.
 
-use super::{
-    AnalysisResult, Backend, CoreHover, CoreHoverKind, DocumentSourceResult, FromStr, HashSet,
-    Location, OriginalIndexedSourceLocation, Position, Uri, core_definition, core_hover,
-    core_namespace_symbol, core_workspace_index, dedup_span_targets, line_col_to_byte_offset,
+use std::collections::HashSet;
+use std::str::FromStr;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::hover::{Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
+use tcl_lsp_core::{
+    definition as core_definition, hover as core_hover, namespace_symbol as core_namespace_symbol,
+    workspace_index as core_workspace_index,
 };
+use tower_lsp_server::ls_types::{Location, Position, Uri};
+
+use crate::Backend;
+use crate::documents::DocumentSourceResult;
+use crate::protocol::line_col_to_byte_offset;
+
+use super::dedup_span_targets;
 
 impl Backend {
     /// The `::`-rooted namespace-variable cell the cursor names, or `None`

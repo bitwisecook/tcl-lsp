@@ -18,10 +18,18 @@
 
 //! The workspace class-factory oracle and its fixpoint publication.
 
-use super::{
-    AnalysisResult, Arc, Backend, ClassFactorySync, EvidenceHandles, FromStr, HashSet,
-    RoundReschedule, Uri, longest_folder_match, reschedule_peers,
-};
+use std::collections::HashSet;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use tcl_compiler::analyser::AnalysisResult;
+use tower_lsp_server::ls_types::Uri;
+
+use crate::Backend;
+use crate::configuration::longest_folder_match;
+use crate::diagnostics::reschedule_peers;
+
+use super::{ClassFactorySync, EvidenceHandles, RoundReschedule};
 
 /// Re-index closed factory consumers with their checked document input. The
 /// oracle supplies reporting hints; it does not replace source metadata.

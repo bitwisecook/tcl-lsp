@@ -19,31 +19,27 @@
 //! Type-hierarchy walks and cross-document call hierarchy.
 
 #[cfg(test)]
-use super::AnalysisResult;
+use std::collections::HashSet;
 #[cfg(test)]
-use super::Arc;
+use std::str::FromStr;
 #[cfg(test)]
-use super::CallHierarchyItem;
+use std::sync::Arc;
+
 #[cfg(test)]
-use super::CallHierarchyOutgoingCall;
+use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
 #[cfg(test)]
-use super::FromStr;
+use tcl_lsp_core::workspace_index as core_workspace_index;
 #[cfg(test)]
-use super::HashSet;
+use tcl_lsp_core::{call_hierarchy as core_call_hierarchy, definition as core_definition};
+use tower_lsp_server::jsonrpc;
 #[cfg(test)]
-use super::Position;
-#[cfg(test)]
-use super::Range;
-#[cfg(test)]
-use super::core_call_hierarchy;
-#[cfg(test)]
-use super::core_definition;
-#[cfg(test)]
-use super::core_workspace_index;
-use super::{
-    DocumentSourceResult, SymbolKind, TypeHierarchyItem, Uri, core_type_hierarchy, jsonrpc,
-    lift_lsp_range,
-};
+use tower_lsp_server::ls_types::{CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range};
+use tower_lsp_server::ls_types::{SymbolKind, TypeHierarchyItem, Uri};
+
+use crate::documents::DocumentSourceResult;
+use crate::protocol::lift_lsp_range;
+
 use crate::Backend;
 
 #[cfg(test)]

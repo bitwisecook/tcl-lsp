@@ -18,7 +18,12 @@
 
 //! Readers of individual settings and payload shapes shared by the global and per-folder parses.
 
-use super::{NonAsciiMode, PathBuf, config_ini, vfs};
+use std::path::PathBuf;
+
+use tcl_compiler::analyser::NonAsciiMode;
+use tcl_lsp_core::config_ini;
+
+use crate::vfs;
 
 /// Lift the analyser's diagnostic records into the LSP wire
 /// shape.  Shared by both the push-based `publish_diagnostics`

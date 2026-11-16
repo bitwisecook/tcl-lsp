@@ -18,7 +18,11 @@
 
 //! Which paths are Tcl sources: extensions, globs and the directory walk.
 
-use super::{Path, PathBuf, TCL_SOURCE_EXTENSIONS, vfs};
+use std::path::{Path, PathBuf};
+
+use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
+
+use crate::vfs;
 
 /// Default upper bound on the number of files the on-disk workspace scan
 /// will analyse, so a pathologically large tree can't stall
