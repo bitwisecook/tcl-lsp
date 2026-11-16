@@ -14583,6 +14583,23 @@ mod tests {
         analyser
     }
 
+    /// A document that does not parse is walked from the recovery
+    /// segmenter's stream, which no interpretation reaches; a procedure in
+    /// the recovered tail is still declared. tclsh runs none of it (`missing
+    /// close-bracket`), so this is an outline fact, not an execution one.
+    #[test]
+    fn a_procedure_after_an_unterminated_bracket_is_still_declared() {
+        for dialect in ["tcl8.6", "tcl"] {
+            let mut analyser = Analyser::new();
+            let result = analyser.analyse("set x [foo\nproc recovered {} {}\n", dialect);
+            assert!(
+                result.all_procs.contains_key("::recovered"),
+                "{dialect}: {:?}",
+                result.all_procs.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
     #[test]
     fn handle_set_defines_variable() {
         let a = analysed("set x 1\n");

@@ -1577,12 +1577,28 @@ mod unmatched_close_brace {
 mod unset_nocomplain {
     use super::*;
 
+    /// A document's global frame is open: another file or the host may have
+    /// set a global, so a file-level `unset x` with no earlier write here
+    /// reports nothing. It is closed for what the document itself proves, and
+    /// a procedure's locals are closed. tclsh 8.4.20 to 9.1.0 raise `can't
+    /// unset "x": no such variable` for the procedure form and for the second
+    /// file-level `unset` on every run.
     #[test]
-    fn unset_undefined_var_fires() {
-        let ds = of_code("unset x", D, "W213");
-        assert_eq!(ds.len(), 1);
-        assert!(ds[0].0.contains('x'));
-        assert!(ds[0].0.contains("nocomplain"));
+    fn unset_of_an_unbound_name_reports_where_the_document_proves_it() {
+        for (src, fires) in [
+            ("unset x", 0),
+            ("proc f {} {unset x}", 1),
+            ("set x 1\nunset x\nunset x", 1),
+        ] {
+            let ds = of_code(src, D, "W213");
+            assert_eq!(ds.len(), fires, "{src}: {ds:?}");
+            for (message, _, _) in &ds {
+                assert!(
+                    message.contains('x') && message.contains("nocomplain"),
+                    "{src}: {message}"
+                );
+            }
+        }
     }
 
     #[test]

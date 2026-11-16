@@ -48,6 +48,25 @@ fn has_code(src: &str, dialect: &str, code: &str) -> bool {
         .any(|d| d.code.as_str() == code)
 }
 
+/// `interp create` reads a `-` word as a flag before or after the path, so
+/// only the path is positional. tclsh 8.4.20 to 9.1.0 accept the first three
+/// forms (`interp issafe x` is 1) and raise `wrong # args` for the rest.
+#[test]
+fn interp_create_counts_only_its_path_as_positional() {
+    for (src, too_many) in [
+        ("interp create x -safe", false),
+        ("interp create -safe -- z", false),
+        ("interp create -safe y", false),
+        ("interp create a b", true),
+        ("interp create -safe c d", true),
+        ("interp create e -safe f", true),
+    ] {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            assert_eq!(has_code(src, dialect, "E003"), too_many, "{dialect}: {src}");
+        }
+    }
+}
+
 #[test]
 fn w307_selected_alias_slot_does_not_require_a_live_terminal_command() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
@@ -11788,28 +11807,44 @@ fn w210_phi_undef_use_after_unset_return() {
     );
 }
 
+/// A name defined only in a loop body is read after the loop. A loop that may
+/// run is taken to run, so only a collection that is provably empty warns.
+/// tclsh 8.4.20, 8.6.18, 9.0.4 and 9.1.0: over an unknown list the read raises
+/// `can't read "r": no such variable` for `{}` and returns `a b` for `{a b}`;
+/// over the literal `{a b}` it returns `a b`; over the literal `{}` it raises
+/// on every run.
 #[test]
-fn w210_loop_body_accumulator_requires_an_initial_value() {
-    // C8.6 has no custom list object callbacks. A possible ordinary iteration
-    // cannot establish a definite write on the zero-iteration path.
-    let got = w210_codes_in_dialect(
-        "proc f {items} { foreach i $items { lappend r $i }\n return $r }",
-        "tcl8.6",
-    );
-    assert!(
-        got.iter().any(|message| message.contains("'r'")),
-        "a possibly empty loop leaves its accumulator undefined; got {got:?}"
-    );
+fn w210_after_a_loop_follows_what_the_collection_proves() {
+    for (header, collection, fires) in [
+        ("proc f {items}", "$items", false),
+        ("proc f {}", "{a b}", false),
+        ("proc f {}", "{}", true),
+    ] {
+        let src = format!("{header} {{ foreach i {collection} {{ lappend r $i }}\n return $r }}");
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let got = w210_codes_in_dialect(&src, dialect);
+            assert_eq!(
+                got.iter().any(|message| message.contains("'r'")),
+                fires,
+                "{dialect}: {collection}: {got:?}"
+            );
+        }
+    }
     assert!(
         w210_codes_in_dialect(
             "proc f {items} { set r {}; foreach i $items { lappend r $i }; return $r }",
             "tcl8.6"
         )
         .is_empty(),
-        "initialisation must make the zero-iteration path safe"
+        "an initial value makes every path safe"
     );
-    // TP control: a *first-iteration* read of the accumulator, before its set,
-    // is a genuine read-before-set inside the body and still fires.
+}
+
+/// A first-iteration read of the accumulator, before its set, is a read
+/// before set inside the body: tclsh 8.6.18 raises `can't read "r": no such
+/// variable` for every non-empty list.
+#[test]
+fn w210_first_iteration_read_in_a_loop_body_fires() {
     let inbody = w210_codes_in_dialect(
         "proc f {items} { foreach i $items { puts $r; lappend r $i } }",
         "tcl8.6",
