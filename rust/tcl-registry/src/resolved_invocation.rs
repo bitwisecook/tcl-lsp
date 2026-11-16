@@ -2444,7 +2444,7 @@ pub fn count_invocation_argument_layout(
     // Options recognised anywhere are not operands wherever they sit, up to
     // an explicit `--`.
     let terminated =
-        |last: usize| arguments.get(last).and_then(|word| word.literal()) == Some("--");
+        |last: usize| arguments.get(last).and_then(crate::InvocationWord::literal) == Some("--");
     let mut open = options.placement == crate::spec::OptionPlacement::Anywhere
         && !(end > prefix && terminated(end - 1));
     let mut index = end;
