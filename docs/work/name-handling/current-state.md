@@ -586,7 +586,7 @@ Measuring: an uncommitted integration test in `rust/tcl-compiler/tests/` that bu
 
 ## Taint and iRules checks area, 15 November 2026
 
-Area: `taint`, `taint_interproc`, `irules_checks`, `uri_split`, `analyser::irules_event_checks` and the integration tests `it_3` `taint`, `it_4` `taint_depth`, `it_3` `side_effects_binding`. Baseline at `a170b3a0`, `cargo nextest` over `tcl-compiler` and `tcl-irules`, test profile `opt-level 1`: 13,211 run, 2,487 failing, 303 of them in this area. Nothing is fixed yet; this is the classification by first failing assertion, and what each group waits on.
+Area: `taint`, `taint_interproc`, `irules_checks`, `uri_split`, `analyser::irules_event_checks` and the integration tests `it_3` `taint`, `it_4` `taint_depth`, `it_3` `side_effects_binding`. Baseline at `a170b3a0`, `cargo nextest` over `tcl-compiler` and `tcl-irules`, test profile `opt-level 1`: 13,211 run, 2,487 failing, 303 of them in this area. The table is the classification by first failing assertion at that baseline; the handler section below it is the current state.
 
 | Group | Tests | Cause |
 | --- | --- | --- |
@@ -602,18 +602,22 @@ Execution walk under `tcl8.6`, traced through `emit_retained_invocation_warnings
 - A command nothing answers to: `set line [gets stdin]; foo $line; eval $line` gives no sink candidate for `foo` or for the `eval` after it.
 - Tk widget commands, in the table above.
 
-Handler bodies, measured under `f5-irules` through `find_taint_warnings_for_cu`:
+Handler bodies under `f5-irules`, state after the first code batch (whole `tcl-compiler` and `tcl-irules` suite: no test of the baseline list newly failing; the one new name, `caller_frame_effects::global_aliases_write_the_global_variable`, was added upstream after the baseline and runs no F5 dialect):
 
-- `when HTTP_REQUEST {set x [HTTP::uri]; HTTP::respond 200 content $x}` reports nothing. The sink statement carries a hosted candidate (`SourceWarningMetadata::Hosted`), but `selected_sink_schema` asks `resolved_tokens_invocation_with_metadata_context`, which has no answer in a handler.
-- With `selected_sink_schema` answering from the hosted candidate when the call's `source_read` is `SourceWarningMetadata::Hosted` (the command is `hosted.shape().command()`, the arguments are the call's own; held, not pushed), the sinks report: IRULE3001 for `HTTP::respond`, T100 for `eval`, IRULE3003 for `log`. Against the baseline that change alone fixes none and breaks ten: `taint_depth::irule3001_depth::html_escaped_body_suppresses`, five in `irule3002_depth` and `irule3003_depth`, two in `irule3004_depth` and `taint::irule3004_open_redirect::path_normalised_suppresses_irule3004` passed only because nothing was reported.
-- The handler function (`::when::HTTP_REQUEST`) has an SSA definition only for a literal store, and only with `fb83bbef` from `issues/irules`: `set x literal; HTTP::respond 200 content $x` gives `x#1` and a use of `x#1`, and is clean. `set x [HTTP::uri]` and `set enc [URI::encode $raw]` give no definition; the later read is `x#0`, which the hosted contract reads as possibly tainted. `fb83bbef` on its own fixes six tests of the baseline list and breaks none (`irules_checks::tests::irule1202_ignores_a_respond_in_a_dead_arm` and `irule5002_ignores_a_drop_in_a_dead_arm` among them).
+- **Handler stores have definitions.** The hosted advisory walk records a handler `set name WORD` with a frame-local literal name for any single unexpanded value word. A substituted word (`[HTTP::uri]`, `$x`, `"id=$n"`) is a contents write with no literal: `LogicalOriginalInvocation::capture` takes the head and name statically and marks the value unknown, `scalar_store` publishes the slot through `ResolveContext::define_stored_contents`, and `ConditionalLogicalScalarStore::value` is `None`, so SSA gets the definition and SCCP gets no contents. `when HTTP_REQUEST {set x [HTTP::uri]; HTTP::respond 200 content $x}` now reads `x#1`.
+- **Hosted sinks report.** `selected_sink_schema` answers from the hosted candidate (`SourceWarningMetadata::Hosted`) when the handler statement has no resolved invocation: IRULE3001 to IRULE3004, IRULE3101, T100 and T106 fire in handlers.
+- **Hosted colours, for the taint diagnostics only** (coordinator's ruling; `hosted-source-taint-descriptor.md` states it, BIG-IP check 16 lists each claim). `classify_substitution_taint` classifies a handler's vendor command from its guarded hosted row: a sanitiser is clean, a getter carries its colour, and a transform (`HTML::encode`, `URI::encode`) stamps its colour on the argument walk. A command the rule itself defines has no hosted row and keeps plain taint.
+- A word that is one variable read copies the value with its colours (`set copy $safe`), and a braced reference in a template (`"src=${addr}:80"`) finds its read: the access span ends on the last inner character, the component on the closer.
+- Registry: a getter called with nothing but its own flags keeps its getter colour (`HTTP::path -normalized` is still `PATH_PREFIXED`).
+- Fixtures: the four tests that normalised with `file normalize` under `f5-irules` (TMM has no `file`, and no TMM command produces `PATH_NORMALISED`) now use the getter's `-normalized` flag inside a handler; `REDIRECT_SAFE` containing `PATH_NORMALISED` stays pinned by `taint_depth::colour_masks`.
 
-What this area needs from handler entry, in order:
+Open in handlers, in the order this area takes them:
 
-1. The hosted advisory walk records a handler `set name WORD` with a frame-local literal name as a store for any single value word (a command substitution, a `$var`, a quoted template), contents unknown when the word is not literal, so the handler's SSA has a definition and a later read has a version. Today `LogicalOriginalInvocation::capture` takes static words only. Command binding; it builds on `fb83bbef`, which is not on `work`.
-2. The hosted sink schema in `taint.rs` (held, lands with 1).
-3. The taint transfer for such a definition takes its colours from the hosted metadata of the value word: getter colours (`IP::client_addr`, `HTTP::uri`) and sanitiser transforms (`HTML::encode`, `URI::encode`). `hosted-source-taint-descriptor.md` states that hosted metadata gives no sanitiser certainty; about 35 suppression tests require it. Proposed: allow it for the diagnostic only. Needs the owner's ruling.
-4. A value for a non-literal handler store (`set p [string range /api/v1 0 3]`), two tests.
+1. `uri_split` (IRULE3103) reports nothing in a handler: `when HTTP_REQUEST {if {[HTTP::uri] starts_with "/api"} {…}}` and `set parts [split $uri "?"]` both lower with their branch and definitions, but the trace from the operand to the getter finds nothing. Ten `it_3` `irule3103_*` tests pass today only at rule top level; they move into a handler with this fix.
+2. A sink whose argument is itself a command substitution: `HTTP::respond 200 content [HTML::encode $raw]` warns on `raw` although the encoder consumes it, and `HTTP::respond 200 content [HTTP::query]` reports nothing.
+3. A helper procedure's return colour does not reach the handler (`set safe [call clean $raw]`).
+4. The fixtures: with every `f5-irules` fixture of `it_3` `taint` and `it_4` `taint_depth` wrapped in `when HTTP_REQUEST {…}` (one shared helper, held until item 1), 150 of 504 fail against 170 before; the rest are the three items above, the mixed-dialect fixtures (`read $fd`, `regex::quote`, iRules getters under `tcl8.6`) and the non-handler groups in the table.
+5. `taint::tests::hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_claims` still fails; not yet traced past the sink.
 
 ## iRules area, 15 November 2026
 
