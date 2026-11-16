@@ -37521,6 +37521,8 @@ impl LanguageServer for Backend {
                     continue;
                 };
                 data["uri"] = serde_json::Value::String(uri.to_string());
+                // Presentation only: resolve reads the declaration handle.
+                data["qname"] = serde_json::Value::String(lens.qname);
                 if let Some(coverage) = lens.reference_coverage {
                     data["sourceReferenceCoverage"] =
                         serde_json::json!(readonly_reference_reports::coverage_tag(
