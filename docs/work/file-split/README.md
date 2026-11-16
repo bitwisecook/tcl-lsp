@@ -48,6 +48,10 @@ Applying the plans of one package:
 3. `python3 docs/work/file-split/tools/update_contract.py`: the owner-resolution contract names the file and module of every owner entry point and route; this follows the declarations the split moved.
 4. `cargo xtask file-sizes`, `cargo xtask registry-axes`, `cargo xtask value-transfers` to refresh the ledgers that list files, then `make xtask-gates`.
 
+## What a split does to the gates
+
+A gate that names files reads a module: `owner-resolution` checks written against a path read the file with the production text of its child modules; a `RATCHET` pin, a clean-file entry, a catalogue allowlist entry and a size-ledger entry each answer for the file's child modules (`util::listed_module_owner`). So a split edits no gate table. What does move is the owner-resolution contract's rows (file, module and visibility of each entry point and route), which `update_contract.py` rewrites from the tree.
+
 ## Status
 
 | Step | State |
@@ -56,7 +60,8 @@ Applying the plans of one package:
 | Gate: `cargo xtask file-sizes` (`docs/generated/rust-file-sizes.md`, the list only shrinks) | done |
 | Plans for every file on the ledger (287 plans, eleven groups, each validated with `--check`) | done |
 | Pilot: `tcl-lsp-core/src/semantic_tokens.rs` (6,186 lines to a 730-line facade and 15 modules) | done |
-| Applying the plans, crate by crate | in progress |
+| Applied: `tcl-lexer`, `tcl-syntax`, `tcl-dialect`, `tcl-bytecode`, `tcl-cmd-core`, `tcl-runtime-api`, `tcl-spectcl`, `tcl-codegen`, `tcl-engine-tclvm`, `tcl-spec-studio`, `tcl-bigip-query`, `bigip-report-gen`, `f5-xc`, `tcl-registry`, `tcl-vm` | done, 16 November 2026 |
+| Applying: `tcl-compiler`, `tcl-runtime`; then `tcl-lsp-core`, `tcl-lsp-db`, `tcl-lsp-server`, `tcl-mcp`, `tcl-explorer`, the `tcl-cli` tests, `xtask` | in progress |
 
 A dry run of every plan on a copy of the tree leaves these over the limit; each needs more than a move:
 
