@@ -80,7 +80,7 @@ mod heads;
 pub(crate) mod reference;
 mod rename;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::{LexerConfig, Span};
 
@@ -97,6 +97,8 @@ struct InliningSummaries<'a> {
     module: &'a Module,
     registry: &'a CommandRegistry,
     escapes: &'a HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+    /// The calls a pack's reference body answers, by where each stands.
+    reference_sites: Option<&'a reference::Sites>,
 }
 
 impl InliningSummaries<'_> {
@@ -104,6 +106,12 @@ impl InliningSummaries<'_> {
         self.escapes.get(&tcl_core_types::BodyFrameId::Body(*id))
     }
     fn selected_body(&self, tokens: &CommandTokens) -> Option<tcl_compiler::ir::ProcedureId> {
+        if let Some(id) = self
+            .reference_sites
+            .and_then(|sites| sites.get(&reference::site_key(tokens)?))
+        {
+            return Some(*id);
+        }
         let calls = tcl_compiler::registry_invocation::original_logical_procedure_calls_for_module(
             tokens,
             self.module,
@@ -771,6 +779,37 @@ fn build_inlinable_map(
     map
 }
 
+/// What the one procedure of `definition` splices in, decided in the module the
+/// definition was lowered in: its own text, bindings and frame.
+fn reference_inline_spec(definition: &Module, registry: &CommandRegistry) -> Option<InlineSpec> {
+    let escape =
+        tcl_compiler::var_escape::analyse_var_escape_with_registry(definition, true, registry);
+    let summaries = InliningSummaries {
+        module: definition,
+        registry,
+        escapes: &escape,
+        reference_sites: None,
+    };
+    build_inlinable_map(definition, &summaries, registry)
+        .into_values()
+        .next()
+}
+
+impl InlineSpec {
+    /// This decision for `procedure`, the same definition where it now stands.
+    fn moved_to(self, procedure: &Procedure) -> Self {
+        match self {
+            Self::Empty(definition, config) => Self::Empty(definition, config),
+            Self::Verbatim(_, definition, config) => {
+                Self::Verbatim(procedure.body.clone(), definition, config)
+            }
+            Self::Parameterised(_, rules, config) => {
+                Self::Parameterised(procedure.clone(), rules, config)
+            }
+        }
+    }
+}
+
 // the pass
 
 /// Inline eligible statement-position calls throughout `module`,
@@ -821,11 +860,13 @@ pub fn inline_reference_bodies(
         return module;
     }
     let imported = reference::import(&mut module, registry, config, profile);
-    if imported.is_empty() {
+    if imported.ids.is_empty() {
         return module;
     }
     let mut module = inline_procedures(module, registry, &Inlining::Only(&imported));
-    module.procedures.retain(|name, _| !imported.contains(name));
+    module
+        .procedures
+        .retain(|name, _| !imported.ids.contains(name));
     module
 }
 
@@ -835,14 +876,14 @@ enum Inlining<'a> {
     Everything,
     /// Only the procedures the importer added: the module's own are neither
     /// inlined nor rewritten.
-    Only(&'a BTreeSet<tcl_compiler::ir::ProcedureId>),
+    Only(&'a reference::Imported),
 }
 
 impl Inlining<'_> {
     fn admits(&self, id: &tcl_compiler::ir::ProcedureId) -> bool {
         match self {
             Self::Everything => true,
-            Self::Only(names) => names.contains(id),
+            Self::Only(imported) => imported.ids.contains(id),
         }
     }
 
@@ -904,8 +945,17 @@ fn inline_procedures(
         module: &catalogue,
         registry,
         escapes: &escape,
+        reference_sites: match scope {
+            Inlining::Everything => None,
+            Inlining::Only(imported) => Some(&imported.sites),
+        },
     };
-    let mut inlinable = build_inlinable_map(&catalogue, &summaries, registry);
+    // An imported definition was proved in the module it was lowered in: here
+    // its text is an appendix no source binding of this module describes.
+    let mut inlinable = match scope {
+        Inlining::Everything => build_inlinable_map(&catalogue, &summaries, registry),
+        Inlining::Only(imported) => imported.inlinable.clone(),
+    };
     inlinable.retain(|id, _| scope.admits(id));
     if inlinable.is_empty() {
         return module;
@@ -928,7 +978,7 @@ fn inline_procedures(
 
     let mut procedures = std::mem::take(&mut module.procedures);
     for (qname, proc) in &mut procedures {
-        if matches!(scope, Inlining::Only(names) if names.contains(qname)) {
+        if matches!(scope, Inlining::Only(imported) if imported.ids.contains(qname)) {
             continue;
         }
         let Some(caller_namespace) = proc
@@ -1014,10 +1064,23 @@ fn rewrite_script(
             }
         }
     }
-    (
-        Script::from_transformed_parts(out, command_binding_sites, procedure_binding_requirements),
-        changed,
-    )
+    // The rewritten script is still the script it was: the same namespace,
+    // the same evaluated source, and what its own expressions were prepared as.
+    let mut rewritten =
+        Script::from_transformed_parts(out, command_binding_sites, procedure_binding_requirements);
+    rewritten
+        .namespace_context
+        .clone_from(&script.namespace_context);
+    rewritten
+        .executed_source
+        .clone_from(&script.executed_source);
+    rewritten
+        .implicit_math_invocations
+        .clone_from(&script.implicit_math_invocations);
+    rewritten
+        .expression_preparations
+        .clone_from(&script.expression_preparations);
+    (rewritten, changed)
 }
 
 /// Return a replacement expansion, or `None` to keep `stmt`. An empty

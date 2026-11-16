@@ -30,13 +30,36 @@
 //! definition creates; the inliner decides, as it does for a procedure the module
 //! defines, which of the calls it may replace, and the module drops them again.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use tcl_lexer::{LexerConfig, Span};
 use tcl_registry::CommandRegistry;
 use tcl_runtime_api::BackingKind;
 
-use tcl_compiler::ir::{Module, Procedure, ReferenceImport, Statement};
+use tcl_compiler::ir::{CommandTokens, Module, Procedure, ReferenceImport, Statement};
+
+/// Where a call stands in the module's own text: the span of its command word.
+pub(super) type SiteKey = (u32, u32);
+
+/// The imported definition each call site of the module answers to.
+pub(super) type Sites = HashMap<SiteKey, tcl_compiler::ir::ProcedureId>;
+
+/// The key of the call `tokens` spells, `None` for one with no written word.
+pub(super) fn site_key(tokens: &CommandTokens) -> Option<SiteKey> {
+    let head = tokens.argv.first()?;
+    Some((head.start(), head.end()))
+}
+
+/// What [`import`] brought into a module.
+#[derive(Default)]
+pub(super) struct Imported {
+    /// The procedures added to [`Module::procedures`].
+    pub(super) ids: BTreeSet<tcl_compiler::ir::ProcedureId>,
+    /// What each splices in, proved in the module it was lowered in.
+    pub(super) inlinable: HashMap<tcl_compiler::ir::ProcedureId, super::InlineSpec>,
+    /// The calls of the module each answers.
+    pub(super) sites: Sites,
+}
 
 /// Append and import the definition of every command a pack declares
 /// `TclBody`-backed that `module` calls, returning the rooted names of the
@@ -53,18 +76,27 @@ pub(super) fn import(
     registry: &CommandRegistry,
     config: LexerConfig,
     profile: Option<&'static tcl_dialect::DialectProfile>,
-) -> BTreeSet<tcl_compiler::ir::ProcedureId> {
-    let mut imported = BTreeSet::new();
+) -> Imported {
+    let mut imported = Imported::default();
     // Read the original callers before an appended body changes the image.
     let called = called_descriptors(module, registry);
     for (spec, text) in registry.reference_bodies() {
-        if !called.contains(spec.name) {
+        let Some(sites) = called.get(spec.name) else {
             continue;
-        }
+        };
         let Some(facts) = tcl_compiler::site_claims::reference_body_facts(registry, spec) else {
             continue;
         };
-        let Some(definition) = lower_definition(text, spec, registry, config, profile) else {
+        // The definition is read as the module was: the same release and
+        // metadata, and none of what the module's own text declares.
+        let Some((definition, inlinable)) = lower_definition(
+            text,
+            spec,
+            registry,
+            config,
+            profile,
+            module.source_metadata_input.as_ref(),
+        ) else {
             continue;
         };
         let qualified = definition.qualified_name.clone();
@@ -83,21 +115,29 @@ pub(super) fn import(
             backing: spec.runtime_backing.kind(),
             facts,
         });
+        let inlinable = inlinable.map(|spec| spec.moved_to(&proc));
         let id = module.retain_procedure(proc);
-        imported.insert(id);
+        imported.ids.insert(id);
+        if let Some(spec) = inlinable {
+            imported.inlinable.insert(id, spec);
+            imported.sites.extend(sites.iter().map(|site| (*site, id)));
+        }
     }
     imported
 }
 
 /// Closed conditional Registry descriptor labels from the original module.
 /// These are import candidates, not entered command or pack/admission proofs.
-fn called_descriptors(module: &Module, registry: &CommandRegistry) -> BTreeSet<String> {
+fn called_descriptors(
+    module: &Module,
+    registry: &CommandRegistry,
+) -> HashMap<String, Vec<SiteKey>> {
     if tcl_compiler::registry_invocation::InvocationMetadataContext::for_module(registry, module)
         .is_none()
     {
-        return BTreeSet::new();
+        return HashMap::new();
     }
-    let mut labels = BTreeSet::new();
+    let mut labels: HashMap<String, Vec<SiteKey>> = HashMap::new();
     let mut note = |statement: &Statement| {
         if !matches!(statement, Statement::Call { .. }) {
             return;
@@ -121,7 +161,15 @@ fn called_descriptors(module: &Module, registry: &CommandRegistry) -> BTreeSet<S
             return;
         };
         if let Some(words) = advice.unanimous_command_words() {
-            labels.insert(words.command().to_owned());
+            let sites = labels.entry(words.command().to_owned()).or_default();
+            // A site is the command as written: a call reached through a
+            // prefix that adds words is not the definition's argument list.
+            if words.effective().binding_prefix.is_empty()
+                && words.effective().words.get(1..) == tokens.words().get(1..)
+                && let Some(site) = site_key(tokens)
+            {
+                sites.push(site);
+            }
         }
     };
     tcl_compiler::ir::for_each_statement(&module.top_level, &mut note);
@@ -140,10 +188,28 @@ fn lower_definition(
     registry: &CommandRegistry,
     config: LexerConfig,
     profile: Option<&'static tcl_dialect::DialectProfile>,
-) -> Option<Procedure> {
-    let mut lowered = tcl_compiler::lowering::lower_script_module_for_bytecode(
-        text, "", registry, config, profile, false,
-    );
+    input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> Option<(Procedure, Option<super::InlineSpec>)> {
+    let mut lowered = match input {
+        // A fresh interpreter of the caller's release evaluating the text.
+        Some(input) => {
+            let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
+                registry, input, config, profile,
+            );
+            let mut options = entry.options();
+            options.compilation_scope = tcl_runtime_api::SourceCompilationScope::WholeModule;
+            let mut lowerer = tcl_compiler::lowering::Lowerer::with_config(registry, config)
+                .with_dialect(profile)
+                .for_bytecode_backend()
+                .with_resolved_analysis_input(input.clone());
+            lowerer.set_source_analysis_options(options);
+            lowerer.lower_script_target(text, "");
+            lowerer.finish_module(text)
+        }
+        None => tcl_compiler::lowering::lower_script_module_for_bytecode(
+            text, "", registry, config, profile, false,
+        ),
+    };
     if lowered.top_level.statements.len() != 1
         || lowered.procedures.len() != 1
         || !lowered.redefined_procedures.is_empty()
@@ -151,13 +217,14 @@ fn lower_definition(
         return None;
     }
     let id = *lowered.procedures.keys().next()?;
+    let inlinable = super::reference_inline_spec(&lowered, registry);
     let proc = lowered.procedures.remove(&id)?;
     let selected = registry.get(&proc.qualified_name)?;
     if !std::ptr::eq(selected, expected) {
         return None;
     }
     // Without the body's text there is nothing for the runtime to compare.
-    proc.body_source.is_some().then_some(proc)
+    proc.body_source.is_some().then_some((proc, inlinable))
 }
 
 /// Append `text` to the module's source and shift `proc` to where it now stands.
@@ -250,15 +317,15 @@ mod tests {
             "interp alias {} originalAlias {} string length; originalAlias VALUE",
             &registry,
         );
-        assert!(called_descriptors(&selected, &registry).contains("string"));
-        assert!(!called_descriptors(&selected, &registry).contains("originalAlias"));
+        assert!(called_descriptors(&selected, &registry).contains_key("string"));
+        assert!(!called_descriptors(&selected, &registry).contains_key("originalAlias"));
         for source in [
             "other::string length VALUE",
             "namespace eval other {proc string args {}; string length VALUE}",
         ] {
             let module = logical_module(source, &registry);
             assert!(
-                !called_descriptors(&module, &registry).contains("string"),
+                !called_descriptors(&module, &registry).contains_key("string"),
                 "{source}"
             );
         }
@@ -280,14 +347,15 @@ mod tests {
         // Actual authored definition/source only; no body import or execution is granted.
         let registry = CommandRegistry::build_default();
         let selected = registry.get("string").unwrap();
-        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = LexerConfig::for_file_grammar(profile.grammar);
-        let declaration = lower_definition(
+        let (declaration, _) = lower_definition(
             "proc string {x} {return $x}",
             selected,
             &registry,
             config,
             Some(profile),
+            None,
         )
         .unwrap();
         assert_eq!(declaration.qualified_name, "::string");
@@ -298,6 +366,7 @@ mod tests {
                 &registry,
                 config,
                 Some(profile),
+                None,
             )
             .is_none()
         );
@@ -308,6 +377,7 @@ mod tests {
                 &registry,
                 config,
                 Some(profile),
+                None,
             )
             .is_none()
         );
@@ -320,6 +390,7 @@ mod tests {
                 &registry,
                 config,
                 Some(profile),
+                None,
             )
             .is_none()
         );
