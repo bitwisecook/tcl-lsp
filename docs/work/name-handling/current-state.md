@@ -2,6 +2,10 @@
 
 Updated 15 November 2026. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
 
+## Paused for the file restructuring, 16 November 2026, 10:54 UTC
+
+The owner paused the burn-down sessions so every large Rust file can be split first (`docs/work/file-split/README.md`). Each session pushed what was finished and holds the rest locally; none pushes until the coordinator sends a resume notice. On resuming, a session rebases onto the new layout: an item that moved is in the module its file's plan names (`docs/work/file-split/plans/<crate>/...`), and local hunks against a moved item are re-applied there.
+
 ## Scoreboard, 16 November 2026, 00:50 UTC
 
 Failing tests by area, from each session's last full run on `work`. The start-of-work figure for the whole workspace was about 4,940.

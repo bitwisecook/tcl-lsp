@@ -37,16 +37,30 @@ fmt() {
     cargo fmt --manifest-path "$manifest"
 }
 
+redirect_imports() {
+    if [ -n "$(created)" ]; then
+        # shellcheck disable=SC2046
+        python3 docs/work/file-split/tools/direct_imports.py $(created) | awk '{n += $1} END {print "    " n + 0 " imports now name their source"}'
+    fi
+}
+
+# Production code first: with the library compiling, narrow each new module's
+# `use super::*;`, point the names at their sources and drop what is unused.
 step check-lib cargo check --manifest-path "$manifest" -p "$package" --lib
 step narrow-wildcards cargo clippy --fix --allow-dirty --allow-staged --manifest-path "$manifest" -p "$package" --lib
-if [ -n "$(created)" ]; then
-    # shellcheck disable=SC2046
-    python3 docs/work/file-split/tools/direct_imports.py $(created) | awk '{n += $1} END {print "    " n + 0 " imports now name their source"}'
-fi
+redirect_imports
 step fmt-1 fmt
 step drop-unused cargo clippy --fix --allow-dirty --allow-staged --manifest-path "$manifest" -p "$package" --lib
 step fmt-2 fmt
+# Then every target: the same for the new test modules, plus the lints a move
+# brings that clippy can fix itself (a lifetime a smaller impl no longer needs,
+# a module doc that wants backticks).
 step check-all cargo check --manifest-path "$manifest" -p "$package" --all-targets
+step lint-fixes cargo clippy --fix --allow-dirty --allow-staged --manifest-path "$manifest" -p "$package" --all-targets
+redirect_imports
+step fmt-3 fmt
+step drop-unused-tests cargo clippy --fix --allow-dirty --allow-staged --manifest-path "$manifest" -p "$package" --all-targets
+step fmt-4 fmt
 step clippy-all cargo clippy --manifest-path "$manifest" -p "$package" --all-targets -- -D warnings -A clippy::assert_is_empty
 step fmt-check cargo fmt --manifest-path "$manifest" -- --check
 echo "OK: $package compiles and lints clean"

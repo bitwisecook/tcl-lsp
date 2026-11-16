@@ -406,6 +406,9 @@ def plan_file(root: Path, plan: dict, write: bool) -> list[tuple[str, int]]:
     # A crate-root integration test (`tests/name.rs`) becomes `tests/name/main.rs` first.
     origin = root / plan["move_from"] if "move_from" in plan and not parent.exists() else parent
     text = origin.read_text(encoding="utf-8")
+    if origin != parent:
+        # One directory deeper: every relative `#[path]` and include climbs one more level.
+        text = INCLUDE.sub(lambda match: match.group(0) + "../", re.sub(r'#\[path = "(?!/)', '#[path = "../', text))
     directory = child_dir(parent)
     header = licence_header(text)
     text, hoisted = hoist_modules(text, plan.get("hoist", []), deeper=parent.stem not in ROOT_STEMS)
