@@ -106,9 +106,99 @@ pub fn run() -> Result<ExitCode> {
     Ok(ExitCode::FAILURE)
 }
 
+/// The text a contract path stands for. A Rust path names a module: the
+/// file, with the production text of its child modules placed ahead of its
+/// own test modules, so a check written against a file still holds once the
+/// file is split into `file/<module>.rs`.
 fn read(root: &Path, relative: &str) -> Result<String> {
+    let mut text = read_file(root, relative)?;
+    if !is_rust_file(Path::new(relative)) {
+        return Ok(text);
+    }
+    let children = child_module_files(root, relative);
+    if children.is_empty() {
+        return Ok(text);
+    }
+    let mut below = String::new();
+    for child in &children {
+        let child_text = read(root, child)?;
+        below.push('\n');
+        below.push_str(production_part(&child_text));
+    }
+    let at = production_part(&text).len();
+    text.insert_str(at, &below);
+    Ok(text)
+}
+
+/// One file's own text.
+fn read_file(root: &Path, relative: &str) -> Result<String> {
     std::fs::read_to_string(root.join(relative))
         .with_context(|| format!("read owner-resolution input `{relative}`"))
+}
+
+fn is_rust_file(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
+}
+
+/// `text` up to its first test-module declaration.
+fn production_part(text: &str) -> &str {
+    let lines: Vec<&str> = text.lines().collect();
+    let Some(first_test_line) = crate::util::test_module_start(&lines) else {
+        return text;
+    };
+    let offset: usize = text
+        .split_inclusive('\n')
+        .take(first_test_line)
+        .map(str::len)
+        .sum();
+    &text[..offset]
+}
+
+/// The files of the modules directly below `relative` that are not test
+/// code, sorted. A `mod.rs`, `lib.rs` or `main.rs` owns its directory; any
+/// other file `a.rs` owns `a/`.
+fn child_module_files(root: &Path, relative: &str) -> Vec<String> {
+    let path = Path::new(relative);
+    let Some(parent) = path.parent() else {
+        return Vec::new();
+    };
+    let stem = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("");
+    let is_root = matches!(stem, "mod" | "lib" | "main");
+    let directory = if is_root {
+        parent.to_path_buf()
+    } else {
+        parent.join(stem)
+    };
+    let Ok(entries) = std::fs::read_dir(root.join(&directory)) else {
+        return Vec::new();
+    };
+    let mut children = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let child = if entry.path().is_dir() {
+            // A directory with its own `mod.rs`; one beside `<name>.rs` is that file's.
+            if name == "bin" || !entry.path().join("mod.rs").is_file() {
+                continue;
+            }
+            directory.join(&name).join("mod.rs")
+        } else if is_rust_file(Path::new(&name))
+            && !(is_root && matches!(name.as_str(), "mod.rs" | "lib.rs" | "main.rs" | "build.rs"))
+        {
+            directory.join(&name)
+        } else {
+            continue;
+        };
+        let child = child.to_string_lossy().replace('\\', "/");
+        if !crate::util::test_sources::is_test_module_file(&child) {
+            children.push(child);
+        }
+    }
+    children.sort();
+    children
 }
 
 fn validate_f5_string_predicate_consumers(root: &Path) -> Result<Vec<String>> {
@@ -1794,7 +1884,8 @@ fn workspace_name_delimiter_counts(
             .iter()
             .find(|(file, _, _)| *file == path)
             .map_or(0, |(_, sites, _)| *sites);
-        let count = name_delimiter_recipes(&read(root, &path)?).saturating_sub(other_text);
+        // Every file is visited on its own here, so each is read alone.
+        let count = name_delimiter_recipes(&read_file(root, &path)?).saturating_sub(other_text);
         if count > 0 {
             counts.insert(path, count);
         }

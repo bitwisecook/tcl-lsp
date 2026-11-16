@@ -20,7 +20,10 @@
 //! for the hand-maintained object specs.
 //!
 //! Specs under `rust/tcl-registry/src/bigip/data/` are grouped by each
-//! spec's `module` field, with one source file per tmsh module.
+//! spec's `module` field, with one source file per tmsh module. A large
+//! module is filed by tmsh component: `<module>.rs` declares one file per
+//! component under `<module>/`, and a large component does the same below
+//! it. Every rule here applies at each level.
 //! This gate checks their structural consistency:
 //!
 //! - **module-list agreement, from three independent sources** — the `.rs`
@@ -189,12 +192,83 @@ fn scan_directory_modules(dir: &std::path::Path) -> Result<BTreeSet<String>> {
 fn scan_declared_modules(mod_rs: &std::path::Path) -> Result<BTreeSet<String>> {
     let text =
         fs::read_to_string(mod_rs).with_context(|| format!("reading {}", mod_rs.display()))?;
-    let decl_re = Regex::new(r"^mod ([a-z_]+);").expect("static regex");
+    let decl_re = Regex::new(r"^(?:pub(?:\([a-z:]+\))? )?mod (?:r#)?([a-z_][a-z0-9_]*);")
+        .expect("static regex");
     Ok(text
         .lines()
         .filter_map(|line| decl_re.captures(line))
         .map(|c| c[1].to_owned())
         .collect())
+}
+
+/// The files that hold one module's specs: `<module>.rs`, and every file
+/// below `<module>/` when the module is filed by tmsh component.
+fn module_files(dir: &std::path::Path, module: &str) -> Vec<std::path::PathBuf> {
+    fn below(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                below(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+    let mut nested = Vec::new();
+    below(&dir.join(module), &mut nested);
+    nested.sort();
+    let file = dir.join(format!("{module}.rs"));
+    let mut files = Vec::new();
+    if file.is_file() {
+        files.push(file);
+    }
+    files.extend(nested);
+    files
+}
+
+/// The module-list agreement below the top level: for a module filed by
+/// component, the `mod x;` lines of `<module>.rs` against the files in
+/// `<module>/`, and so on down. Names are reported with their path
+/// (`ltm/profile/http`).
+fn nested_disagreements(
+    declaring: &std::path::Path,
+    children: &std::path::Path,
+    prefix: &str,
+    files_not_declared: &mut Vec<String>,
+    declared_files_missing: &mut Vec<String>,
+) -> Result<()> {
+    if !declaring.is_file() {
+        return Ok(());
+    }
+    let declared = scan_declared_modules(declaring)?;
+    let present = if children.is_dir() {
+        scan_directory_modules(children)?
+    } else {
+        BTreeSet::new()
+    };
+    files_not_declared.extend(
+        present
+            .difference(&declared)
+            .map(|name| format!("{prefix}/{name}")),
+    );
+    declared_files_missing.extend(
+        declared
+            .difference(&present)
+            .map(|name| format!("{prefix}/{name}")),
+    );
+    for name in declared.intersection(&present) {
+        nested_disagreements(
+            &children.join(format!("{name}.rs")),
+            &children.join(name),
+            &format!("{prefix}/{name}"),
+            files_not_declared,
+            declared_files_missing,
+        )?;
+    }
+    Ok(())
 }
 
 /// One module file's `(kind, module_field)` pairs, source-text order. The
@@ -298,14 +372,23 @@ fn analyse() -> Result<Findings> {
 
     let directory_modules = scan_directory_modules(&dir)?;
     let declared_modules = scan_declared_modules(&dir.join("mod.rs"))?;
-    let files_not_declared: Vec<String> = directory_modules
+    let mut files_not_declared: Vec<String> = directory_modules
         .difference(&declared_modules)
         .cloned()
         .collect();
-    let declared_files_missing: Vec<String> = declared_modules
+    let mut declared_files_missing: Vec<String> = declared_modules
         .difference(&directory_modules)
         .cloned()
         .collect();
+    for module in declared_modules.intersection(&directory_modules) {
+        nested_disagreements(
+            &dir.join(format!("{module}.rs")),
+            &dir.join(module),
+            module,
+            &mut files_not_declared,
+            &mut declared_files_missing,
+        )?;
+    }
 
     let mut kind_locations: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
@@ -317,21 +400,20 @@ fn analyse() -> Result<Findings> {
     // a file present but not declared is already reported above and would
     // not compile into the crate anyway, so it is not double-scanned here.
     for module in &declared_modules {
-        let path = dir.join(format!("{module}.rs"));
-        if !path.is_file() {
-            continue; // reported as declared_files_missing above
-        }
-        for (kind, module_field) in scan_module_file(&path)? {
-            scanned_kinds.insert(kind.clone());
-            kind_locations
-                .entry(kind.clone())
-                .or_default()
-                .push(module.clone());
-            if module_ident(&module_field) != *module {
-                misfiled.push((kind, module_field, module.clone()));
+        // No file at all is reported as declared_files_missing above.
+        for path in module_files(&dir, module) {
+            for (kind, module_field) in scan_module_file(&path)? {
+                scanned_kinds.insert(kind.clone());
+                kind_locations
+                    .entry(kind.clone())
+                    .or_default()
+                    .push(module.clone());
+                if module_ident(&module_field) != *module {
+                    misfiled.push((kind, module_field, module.clone()));
+                }
             }
+            all_references.extend(scan_references(&path)?);
         }
-        all_references.extend(scan_references(&path)?);
     }
 
     let registry_kinds: BTreeSet<String> = tcl_registry::bigip::data::all_specs()
@@ -535,6 +617,46 @@ mod tests {
     fn module_ident_converts_hyphens_to_underscores() {
         assert_eq!(module_ident("api-protection"), "api_protection");
         assert_eq!(module_ident("ltm"), "ltm");
+    }
+
+    /// A module filed by component is held to the same agreement one level
+    /// down, and all of its files are scanned.
+    #[test]
+    fn a_module_filed_by_component_is_checked_at_every_level() {
+        let dir = std::env::temp_dir().join(format!(
+            "bigip-data-schema-test-nested-{}",
+            std::process::id()
+        ));
+        let profile = dir.join("ltm").join("profile");
+        std::fs::create_dir_all(&profile).expect("create temp dirs");
+        std::fs::write(
+            dir.join("ltm.rs"),
+            "mod profile;\nmod r#virtual;\nmod gone;\n",
+        )
+        .expect("write ltm.rs");
+        std::fs::write(dir.join("ltm").join("profile.rs"), "mod http;\n").expect("write facade");
+        std::fs::write(dir.join("ltm").join("virtual.rs"), "// virtual\n").expect("write leaf");
+        std::fs::write(profile.join("http.rs"), "// http\n").expect("write leaf");
+        std::fs::write(profile.join("orphan.rs"), "// never wired in\n").expect("write orphan");
+
+        let mut not_declared = Vec::new();
+        let mut missing = Vec::new();
+        nested_disagreements(
+            &dir.join("ltm.rs"),
+            &dir.join("ltm"),
+            "ltm",
+            &mut not_declared,
+            &mut missing,
+        )
+        .expect("scan");
+        assert_eq!(not_declared, ["ltm/profile/orphan"]);
+        assert_eq!(missing, ["ltm/gone"]);
+
+        let files = module_files(&dir, "ltm");
+        assert_eq!(files.len(), 5, "the facade and every file below it");
+        assert_eq!(files[0], dir.join("ltm.rs"));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A module file physically added to `data/` but never declared via

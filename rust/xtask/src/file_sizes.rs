@@ -25,7 +25,9 @@
 //! (`docs/work/file-split/README.md`). A listed file that now fits fails
 //! `--check` until the ledger is regenerated, which drops it.
 //!
-//! A generated file (first line `// @generated`) is outside the budget.
+//! Outside the budget, as for the licence-header check: a generated file
+//! (first line `// @generated` or `// Generated from`) and recorded test data
+//! (a file under a `tests/data/` directory).
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -39,7 +41,8 @@ const LIMIT: usize = 2000;
 
 const LEDGER: &str = "docs/generated/rust-file-sizes.md";
 const ROOTS: &[&str] = &["rust", "runtime/rust"];
-const GENERATED_MARKER: &str = "// @generated";
+const GENERATED_MARKERS: &[&str] = &["// @generated", "// Generated from"];
+const RECORDED_DATA: &str = "/tests/data/";
 const ENTRY_PREFIX: &str = "- `";
 const ENTRY_SUFFIX: &str = "`";
 
@@ -63,7 +66,10 @@ fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
 
 /// Whether `text` is over the budget. A generated file never is.
 fn over_budget(text: &str) -> bool {
-    !text.starts_with(GENERATED_MARKER) && text.lines().count() > LIMIT
+    !GENERATED_MARKERS
+        .iter()
+        .any(|marker| text.starts_with(marker))
+        && text.lines().count() > LIMIT
 }
 
 /// Repo-relative paths of the hand-written files over the budget.
@@ -74,13 +80,15 @@ fn scan(root: &Path) -> BTreeSet<String> {
     }
     files
         .into_iter()
-        .filter(|path| std::fs::read_to_string(path).is_ok_and(|text| over_budget(&text)))
         .map(|path| {
-            path.strip_prefix(root)
-                .unwrap_or(&path)
-                .to_string_lossy()
-                .replace('\\', "/")
+            let relative = path.strip_prefix(root).unwrap_or(&path);
+            (relative.to_string_lossy().replace('\\', "/"), path)
         })
+        .filter(|(relative, path)| {
+            !relative.contains(RECORDED_DATA)
+                && std::fs::read_to_string(path).is_ok_and(|text| over_budget(&text))
+        })
+        .map(|(relative, _)| relative)
         .collect()
 }
 
@@ -183,9 +191,9 @@ mod tests {
     fn a_generated_file_is_outside_the_budget() {
         let long = "fn f() {}\n".repeat(LIMIT + 1);
         assert!(over_budget(&long));
-        assert!(!over_budget(&format!(
-            "{GENERATED_MARKER} — DO NOT EDIT.\n{long}"
-        )));
+        for marker in GENERATED_MARKERS {
+            assert!(!over_budget(&format!("{marker} a table.\n{long}")));
+        }
         assert!(!over_budget(&"fn f() {}\n".repeat(LIMIT)));
     }
 

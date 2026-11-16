@@ -119,7 +119,8 @@ const CLEAN_FILES: &[&str] = &[
 /// not listed here gains a site. A pin is lowered beside the review that
 /// removes or waives its sites — with the file's ledger row in
 /// [`LEDGER_PATH`] — and is never raised or added: a site that moves to a
-/// new file is reviewed there.
+/// new file is reviewed there. A listed file answers for its child modules
+/// too (`listed_module_owner`), so splitting it into modules moves no pin.
 const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/irules_event_checks.rs", 2),
     ("rust/tcl-codegen/src/codegen/cmd_subst.rs", 3),
@@ -291,7 +292,11 @@ fn lint(root: &Path) -> Lint {
         let Ok(text) = fs::read_to_string(&path) else {
             continue;
         };
-        let clean = CLEAN_FILES.contains(&rel.as_str());
+        // A file split into child modules still answers for what it held.
+        let owner = crate::util::listed_module_owner(&rel, |path| {
+            CLEAN_FILES.contains(&path) || RATCHET.iter().any(|(pinned, _)| *pinned == path)
+        });
+        let clean = CLEAN_FILES.contains(&owner.as_str());
         let file_waiver = file_waiver(&text);
         if let Some((axis, _)) = &file_waiver
             && !AXES.contains(&axis.as_str())
@@ -326,7 +331,10 @@ fn lint(root: &Path) -> Lint {
             } else if clean {
                 out.clean_hits.push(site);
             } else {
-                out.ratchet_hits.entry(rel.clone()).or_default().push(site);
+                out.ratchet_hits
+                    .entry(owner.clone())
+                    .or_default()
+                    .push(site);
             }
         }
     }

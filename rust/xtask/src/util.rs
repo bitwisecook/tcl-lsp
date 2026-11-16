@@ -95,6 +95,43 @@ pub fn test_module_start(lines: &[&str]) -> Option<usize> {
     })
 }
 
+/// The listed file that answers for `path`: `path` itself when listed, else
+/// the nearest listed module file above it (`a/b.rs` or `a/b/mod.rs` for
+/// `a/b/c.rs`, then further up, the crate root last), else `path`.
+///
+/// A per-file ledger names files; a file split into child modules keeps
+/// answering for the code it held, so the ledger does not move with it.
+pub fn listed_module_owner(path: &str, listed: impl Fn(&str) -> bool) -> String {
+    if listed(path) {
+        return path.to_owned();
+    }
+    let mut directory = Path::new(path).parent();
+    while let Some(dir) = directory {
+        let dir_text = dir.to_string_lossy().replace('\\', "/");
+        if dir_text.is_empty() {
+            break;
+        }
+        let candidates = [
+            format!("{dir_text}.rs"),
+            format!("{dir_text}/mod.rs"),
+            format!("{dir_text}/lib.rs"),
+            format!("{dir_text}/main.rs"),
+        ];
+        if let Some(owner) = candidates
+            .iter()
+            .find(|candidate| candidate.as_str() != path && listed(candidate))
+        {
+            return owner.clone();
+        }
+        // A crate root ends the walk: nothing above `src/` is this crate's module.
+        if dir.file_name().is_some_and(|name| name == "src") {
+            break;
+        }
+        directory = dir.parent();
+    }
+    path.to_owned()
+}
+
 /// The repository root, derived from this crate's location
 /// (`<root>/rust/xtask`) so tasks work regardless of the working
 /// directory `cargo xtask` is invoked from.
@@ -302,6 +339,36 @@ pub fn is_internal_or_test_harness_noise(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_child_module_answers_through_its_listed_parent() {
+        let listed = |path: &str| {
+            matches!(
+                path,
+                "rust/a/src/walk.rs" | "rust/a/src/deep/mod.rs" | "rust/b/src/lib.rs"
+            )
+        };
+        assert_eq!(
+            super::listed_module_owner("rust/a/src/walk/steps/first.rs", listed),
+            "rust/a/src/walk.rs"
+        );
+        assert_eq!(
+            super::listed_module_owner("rust/a/src/deep/part.rs", listed),
+            "rust/a/src/deep/mod.rs"
+        );
+        assert_eq!(
+            super::listed_module_owner("rust/b/src/other.rs", listed),
+            "rust/b/src/lib.rs"
+        );
+        assert_eq!(
+            super::listed_module_owner("rust/a/src/alone.rs", listed),
+            "rust/a/src/alone.rs"
+        );
+        assert_eq!(
+            super::listed_module_owner("rust/a/src/walk.rs", listed),
+            "rust/a/src/walk.rs"
+        );
+    }
+
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
 

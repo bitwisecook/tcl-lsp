@@ -462,7 +462,11 @@ fn lint(root: &Path, vocabulary: &Vocabulary) -> Lint {
 }
 
 fn lint_file(rel: &str, text: &str, vocabulary: &Vocabulary, out: &mut Lint) {
-    let clean = CLEAN_FILES.contains(&rel);
+    // A file split into child modules still answers for what it held.
+    let owner = crate::util::listed_module_owner(rel, |path| {
+        CLEAN_FILES.contains(&path) || RATCHET.iter().any(|(pinned, _)| *pinned == path)
+    });
+    let clean = CLEAN_FILES.contains(&owner.as_str());
     let comments = line_comments(text);
     let file_waiver = file_waiver(&comments);
     if let Some(Err(problem)) = &file_waiver {
@@ -497,7 +501,7 @@ fn lint_file(rel: &str, text: &str, vocabulary: &Vocabulary, out: &mut Lint) {
                 _ if clean => out.clean_hits.push(site),
                 _ => out
                     .ratchet_hits
-                    .entry(rel.to_owned())
+                    .entry(owner.clone())
                     .or_default()
                     .push(site),
             },
