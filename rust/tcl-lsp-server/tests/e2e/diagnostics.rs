@@ -1625,9 +1625,10 @@ fn unset_and_vwait_indirect_array_silent() {
 fn value_position_still_fires_w216() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "puts ${arr}(x)\n");
+    // `arr` is set first: an unset `${arr}` raises before the word is formed.
+    let diags = lsp.open_ready(&uri, "set arr a\nputs ${arr}(x)\n");
     assert!(has_code(&diags, "W216"), "{:?}", codes(&diags));
-    assert!(on_line(&diags, "W216").contains(&0));
+    assert!(on_line(&diags, "W216").contains(&1));
 }
 
 #[test]
@@ -3983,7 +3984,12 @@ fn analyser_noqa_suppresses_an_analyser_code() {
     // finding before the report is published.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let diags = lsp.open_ready(&uri, "# noqa: W210\nputs $alpha\nputs $beta\n");
+    // Each read sits in its own procedure: at top level tclsh stops at the
+    // first unset read, so the second is never reached.
+    let diags = lsp.open_ready(
+        &uri,
+        "proc a {} {\n    # noqa: W210\n    puts $alpha\n}\nproc b {} {\n    puts $beta\n}\n",
+    );
     assert!(
         diags.iter().all(|d| !message(d).contains("alpha")),
         "'# noqa: W210' must silence the W210 on the line it precedes: {diags:?}"

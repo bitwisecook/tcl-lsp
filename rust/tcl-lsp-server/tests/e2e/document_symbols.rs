@@ -237,7 +237,7 @@ fn constructor_symbol() {
 
 #[test]
 fn property_symbol() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
@@ -269,7 +269,7 @@ fn class_detail_shows_superclass() {
 
 #[test]
 fn class_detail_shows_metaclass() {
-    let mut lsp = Lsp::tcl();
+    let mut lsp = Lsp::tcl9();
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,

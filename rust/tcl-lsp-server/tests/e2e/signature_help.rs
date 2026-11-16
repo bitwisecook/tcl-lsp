@@ -76,7 +76,7 @@ fn proc_first_arg() {
     let uri = unique_uri("tcl");
     let src = "proc greet {name greeting} { puts \"$greeting $name\" }\ngreet World\n";
     lsp.open_ready(&uri, src);
-    let result = lsp.signature_help(&uri, 1, 12);
+    let result = lsp.signature_help(&uri, 1, 11);
     assert!(!is_empty(&result));
     let sigs = signatures(&result);
     assert_eq!(sigs.len(), 1);
@@ -103,7 +103,7 @@ fn proc_with_defaults_marks_optional() {
     let uri = unique_uri("tcl");
     let src = "proc greet {name {greeting Hello}} { puts \"$greeting $name\" }\ngreet World\n";
     lsp.open_ready(&uri, src);
-    let result = lsp.signature_help(&uri, 1, 12);
+    let result = lsp.signature_help(&uri, 1, 11);
     let ps = params(&signatures(&result)[0]);
     assert_eq!(ps.len(), 2);
     assert!(
