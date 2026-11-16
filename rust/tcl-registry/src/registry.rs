@@ -8505,7 +8505,15 @@ impl CommandRegistry {
                         projection.literal_names.push(effective_name);
                     }
                 }
-                _ => projection.opaque_variable_frame = true,
+                // An element whose key is computed still names its array.
+                _ => match args.array_element_root_at(index) {
+                    Some(root) if !root.is_empty() => {
+                        if !projection.literal_names.iter().any(|found| found == root) {
+                            projection.literal_names.push(root.to_owned());
+                        }
+                    }
+                    _ => projection.opaque_variable_frame = true,
+                },
             }
         }
         projection
