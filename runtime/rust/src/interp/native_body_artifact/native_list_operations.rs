@@ -18,7 +18,11 @@
 
 //! Original list receivers, sequential target stores and selected COW transactions.
 
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Builder, Code, CommandInstruction, EvaluatedTarget, HashMap,
+    Interp, NamespaceOperand, NativeBodyArtifact, NativeCompilerWords, NativeStringProtocol,
+    NativeVariableWordOperand, Target, WordInstruction,
+};
 use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
 use tcl_registry::native_list_operations_compilation::{
     NativeListOperationInstruction as Plan, NativeListVariableOperand,
@@ -566,6 +570,9 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::new_string;
+    use crate::interp::obj_bytes;
+    use crate::obj::TclObj;
     include!("../../../../../rust/tcl-registry/tests/data/native_list_operations/cases.rs");
     include!("../../../../../rust/tcl-registry/tests/data/native_list_operations/tables.rs");
     include!("../../../../../rust/tcl-registry/tests/data/native_list_assignment_order/cases.rs");

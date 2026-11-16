@@ -18,7 +18,10 @@
 
 //! Original List and index owners for the admitted C list-index instruction.
 
-use super::*;
+use super::{
+    obj, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp, NamespaceOperand,
+    NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_list_index_compilation::{
     NativeListIndexInstruction, NativeListIndexOperation,
 };
@@ -115,6 +118,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::new_string;
     include!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/cases.rs");
     const TABLES: &[(&str, &str)] = &[
         (
@@ -230,6 +234,9 @@ mod tests {
 #[cfg(test)]
 mod original_objects {
     use super::*;
+    use crate::interp::new_string;
+    use crate::interp::obj_bytes;
+    use crate::obj::TclObj;
     include!(
         "../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.rs"
     );

@@ -17,7 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::interp::{default_host, native_operation_currency::NativeOperationScope, WeakInterp};
+use crate::interp::default_host;
+use crate::interp::native_operation_currency::NativeOperationScope;
+use crate::interp::WeakInterp;
 use tcl_cmd_core::return_options::ReturnOptionPair;
 
 extern "C" fn retire(value: *mut TclObj) {

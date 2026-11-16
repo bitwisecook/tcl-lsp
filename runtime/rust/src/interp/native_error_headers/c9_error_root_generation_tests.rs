@@ -16,7 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::super::{default_host, Code, Interp};
+use super::super::{Code, Interp};
+use crate::interp::default_host;
 use crate::obj;
 
 fn public_roots(interpreter: &Interp) -> (Option<usize>, Option<usize>) {

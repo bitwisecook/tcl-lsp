@@ -18,7 +18,11 @@
 
 //! Retained original scalar operands and selected native getters/result owners.
 
-use super::*;
+use super::{
+    obj, BodyExecution, BodyListArguments, BodyListFrame, Builder, Code, CommandInstruction,
+    HashMap, Interp, NamespaceOperand, NativeBodyArtifact, NativeCompilerWords, ValueError,
+    WordInstruction,
+};
 use crate::interp::native_arguments::OriginalArguments;
 use tcl_registry::native_scalar_compilation::{NativeScalarInstruction, NativeScalarOperation};
 use tcl_syntax::value::ValueOps;
@@ -236,6 +240,8 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::native_body_artifact::cache;
+    use crate::interp::native_body_artifact::Operation;
     include!("../../../../../rust/tcl-registry/tests/data/native_scalar_compilation/cases.rs");
 
     fn primary(original: *mut obj::TclObj) -> String {

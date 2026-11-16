@@ -17,12 +17,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::interp::default_host;
 use crate::interp::native_operation_currency::{
     NativeOperationScope, SavedNativeOperationCurrency,
 };
 #[cfg(debug_assertions)]
 use crate::interp::Code;
-use crate::interp::{default_host, ExceptionState, Interp, WeakInterp, GLOBAL};
+use crate::interp::{ExceptionState, Interp, WeakInterp, GLOBAL};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,

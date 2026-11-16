@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::interp::new_string;
 
 #[test]
 fn host_refusal_preserves_an_unmaterialized_original_jim_namespace() {

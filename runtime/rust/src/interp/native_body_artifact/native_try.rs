@@ -18,7 +18,10 @@
 
 //! Original compiled try ranges, their anonymous cells, and RETURN_STK cleanup.
 use super::native_list_conversion::BodyObjectOperation;
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Builder, Code, CommandInstruction, Interp, NativeBodyArtifact,
+    NativeCompilerWords, Operation, PreparedControlOperands, Rc, TclObj,
+};
 use tcl_registry::native_control_compilation::{NativeControlCompilation, NativeControlOutcome};
 use tcl_registry::native_try_compilation::{NativeTryCondition, NativeTryInstruction};
 
@@ -723,8 +726,9 @@ impl TryOperation {
 #[cfg(test)]
 mod tests {
     #[cfg(debug_assertions)]
-    use super::native_list_conversion::BodyObjectOperation;
+    use super::super::native_list_conversion::BodyObjectOperation;
     use super::*;
+    use crate::interp::native_body_artifact::cache;
     fn bytes(hex: &str) -> Vec<u8> {
         assert!(hex.len().is_multiple_of(2));
         hex.as_bytes()

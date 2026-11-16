@@ -18,7 +18,7 @@
 
 //! Ordinary compiled UPVAR selects an actual frame and binds its exact local slot.
 
-use super::*;
+use super::{Code, Interp, NativeVariableNameLookupPurpose, TclObj, ValueError};
 
 impl Interp {
     pub(in crate::interp) fn link_original_compiled_upvar(

@@ -19,6 +19,7 @@
 //! Actual selected method entry and original Next callback controls.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::cmd_oo::nextto_cmd;
 use std::cell::Cell;
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::value::ValueError;

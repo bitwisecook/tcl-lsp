@@ -19,6 +19,9 @@
 //! Real ReturnError workers retain compiled frame, options and private-field roles.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_body_artifact::cache;
+use crate::interp::native_body_artifact::Operation;
+use crate::obj::TclObj;
 use crate::obj::TclObjType;
 use std::cell::{Cell, RefCell};
 use tcl_registry::native_return_options::NativeReturnOptionsApplication as Purpose;

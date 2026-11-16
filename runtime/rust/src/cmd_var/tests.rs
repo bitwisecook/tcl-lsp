@@ -528,12 +528,12 @@ fn original_array_read_destruction_matches_six_native_source_results() {
                 $engine,
                 [
                     include_str!(concat!(
-                        "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
+                        "../../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
                         $version,
                         "/variable_array_unset_live_member_read_trace_fires/stdout"
                     )),
                     include_str!(concat!(
-                        "../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
+                        "../../../../rust/tcl-registry/tests/data/native_array_read_destruction324/",
                         $version,
                         "/variable_array_unset_active_member_read_guard_survives/stdout"
                     )),

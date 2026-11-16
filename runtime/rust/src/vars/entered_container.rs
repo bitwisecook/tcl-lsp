@@ -19,7 +19,12 @@
 //! Reached variable-table continuations under the original operation.
 //! Classification and link steps remain in the shared variable resolver.
 
-use super::*;
+use super::{
+    classify_at_using, classify_using, exists_retained, follow_selected_link_using, read_retained,
+    selected_link_using, selected_table, separate_element, table_mut, CapturedByteStore,
+    FrameStack, Link, Namespaces, NsId, Place, Resolved, TclObj, TraceHome, VarError, VarHome,
+    LINK_LIMIT,
+};
 use crate::{
     frame::{CapturedJimLinkRoot, JimLinkStoreError},
     interp::{native_operation_currency::NativeOperationCurrency, Interp},

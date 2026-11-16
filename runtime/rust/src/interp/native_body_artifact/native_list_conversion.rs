@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Original compiled List headers and actual variable-frame/temporary selection.
-use super::*;
+use super::{obj, unavailable, Interp, NativeStringProtocol, Rc, TclObj, ValueError, Weak};
 use crate::interp::native_arguments::OriginalArguments;
 use tcl_cmd_core::CmdError;
 

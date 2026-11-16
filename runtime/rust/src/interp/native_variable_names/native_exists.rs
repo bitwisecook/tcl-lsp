@@ -18,7 +18,10 @@
 
 //! Existence observes the original receiver without a value or guest-error grant.
 
-use super::*;
+use super::{
+    Code, Interp, NativeVariableNameLookupPurpose, OriginalCVariableCapture, Owned, TclObj,
+    ValueError, ValueOps,
+};
 
 impl Interp {
     pub(crate) fn exists_original_c_parts(

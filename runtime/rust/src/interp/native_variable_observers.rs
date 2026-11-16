@@ -18,7 +18,7 @@
 
 //! Direct native callbacks share the stable-cell variable trace coordinator.
 
-use super::*;
+use super::{Code, GuardDomain, Interp, Rc, TclObj};
 use tcl_runtime_api::native_variable_trace::{
     NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
     NativeVariableTraceToken,
@@ -246,6 +246,9 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::new_string;
+    use crate::interp::obj_bytes;
+    use crate::obj::Owned;
     use std::cell::RefCell;
     struct Record(Rc<RefCell<Vec<NativeVariableTraceOperation>>>);
     impl NativeVariableObserver<Interp> for Record {
@@ -269,7 +272,7 @@ mod tests {
                 tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .unwrap();
-            let name = obj::Owned::fresh(new_string(b"x"));
+            let name = Owned::fresh(new_string(b"x"));
             let events = Rc::new(RefCell::new(Vec::new()));
             let token = interp
                 .add_native_variable_observer(
@@ -285,7 +288,7 @@ mod tests {
             drop(name);
             assert_eq!(interp.eval_str(b"trace info variable x"), Code::Ok);
             assert!(interp.result_bytes().is_empty());
-            let value = obj::Owned::fresh(new_string(b"A"));
+            let value = Owned::fresh(new_string(b"A"));
             interp.var_set(b"x", value.as_ptr()).unwrap();
             assert_eq!(*events.borrow(), [NativeVariableTraceOperation::Write]);
             assert!(interp.var_unset(b"x"));

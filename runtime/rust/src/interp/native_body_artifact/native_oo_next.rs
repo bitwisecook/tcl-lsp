@@ -18,7 +18,10 @@
 
 //! Compiled Next operands and actual late OO selection under one body owner.
 use super::native_list_conversion::BodyObjectOperation;
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Code, CommandInstruction, Interp, NativeArgumentListStep,
+    NativeBodyArtifact, NativeStringProtocol,
+};
 use crate::interp::native_arguments::OriginalArguments;
 
 impl Interp {

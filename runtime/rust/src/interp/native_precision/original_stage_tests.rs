@@ -20,7 +20,8 @@
 //! controls do not measure external Tcl callback chronology or grant Tcl32.
 
 use super::*;
-use crate::interp::{default_host, WeakInterp};
+use crate::interp::default_host;
+use crate::interp::WeakInterp;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,

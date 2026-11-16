@@ -17,7 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::super::native_jim_increment::OriginalJimDictionaryRoot;
-use super::*;
+use super::{
+    unavailable, Code, Data, Interp, NativeJimSourceOrigin, NativeObjectLifetime,
+    OriginalJimCommandInventoryReturn, OriginalJimInventoryMember, OriginalNamespaceInfoFrame,
+    OriginalSourceInvocation, Rc, RefCell, TclObj, ValueError, Weak,
+};
 use crate::dict::{OriginalDictionaryMutation, OriginalDictionarySet};
 
 fn hold_pairs(

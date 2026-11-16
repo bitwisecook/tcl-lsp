@@ -18,7 +18,10 @@
 
 //! Original C API collection/table reads retain header lifetime and entered currency.
 
-use super::*;
+use super::{
+    c_bytes, c_char, c_int, c_void, list, obj, read_table, words, CStr, Interp, TclObj, TclSize,
+    TCL_ERROR, TCL_EXACT, TCL_INDEX_TEMP_TABLE, TCL_NULL_OK, TCL_OK,
+};
 use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
 use crate::list::append_list_element;
 use crate::obj::TclObjType;

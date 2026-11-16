@@ -875,8 +875,9 @@ mod tests {
 mod original_syntax_transport_tests {
     #[cfg(debug_assertions)]
     use super::super::GLOBAL;
-    use super::super::{default_host, ExceptionState, WeakInterp};
+    use super::super::{ExceptionState, WeakInterp};
     use super::*;
+    use crate::interp::default_host;
     use crate::obj::{self, Owned};
     use std::cell::{Cell, RefCell};
     #[cfg(debug_assertions)]

@@ -20,6 +20,7 @@
 use super::native_list_conversion::BodyObjectOperation;
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::namespace::GLOBAL;
 use std::cell::{Cell, RefCell};
 use tcl_runtime_api::{
     native_variable_trace::{

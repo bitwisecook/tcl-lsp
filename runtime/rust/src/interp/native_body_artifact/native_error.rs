@@ -19,7 +19,10 @@
 //! Actual original Error stack objects and immediate completion.
 
 use super::native_list_conversion::BodyObjectOperation;
-use super::*;
+use super::{
+    obj, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp, NamespaceOperand,
+    NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_error_compilation::{NativeErrorInstruction, NativeErrorStep};
 
 pub(super) struct ErrorOperation {
@@ -165,6 +168,8 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::native_body_artifact::cache;
+    use crate::interp::native_body_artifact::Operation;
 
     #[test]
     fn original_error_artifacts_match_native_guest_result_and_local_order() {

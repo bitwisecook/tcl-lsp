@@ -144,6 +144,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::commands::CommandVisibilityOutcome;
 
     thread_local! {
         static FIRST: std::cell::RefCell<Option<NativeExecutionError>> = const { std::cell::RefCell::new(None) };
@@ -169,7 +170,7 @@ mod tests {
         interpreter.register_builtin(b"withdraw", withdraw_hidden_frame);
         assert!(matches!(
             interpreter.hide_command(b"withdraw", b"held"),
-            crate::interp::CommandVisibilityOutcome::Moved,
+            CommandVisibilityOutcome::Moved,
         ));
         let caller = interpreter.ensure_namespace(b"Caller");
         interpreter.enter_namespace_activation(caller);

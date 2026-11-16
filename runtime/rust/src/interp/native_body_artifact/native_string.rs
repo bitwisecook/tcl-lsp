@@ -18,7 +18,10 @@
 
 //! Original stack operands for the authenticated C StringMatch compiler.
 
-use super::*;
+use super::{
+    BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp, NamespaceOperand,
+    NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_string_compilation::{
     NativeStringMatchInstruction, NativeStringMatchOperation,
 };
@@ -100,6 +103,12 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::native_body_artifact::cache;
+    use crate::interp::native_body_artifact::Operation;
+    use crate::interp::new_string;
+    use crate::interp::obj_bytes;
+    use crate::obj;
+    use crate::obj::Owned;
 
     #[test]
     fn compiled_string_match_headers_match_33_original_native_windows() {
@@ -155,8 +164,8 @@ mod tests {
                     interp.native_access_refusal(),
                 );
                 let original = [b"p".as_slice(), b"*", b"A", b"-n"]
-                    .map(|bytes| obj::Owned::fresh(new_string(bytes)));
-                let argv = original.each_ref().map(obj::Owned::as_ptr);
+                    .map(|bytes| Owned::fresh(new_string(bytes)));
+                let argv = original.each_ref().map(Owned::as_ptr);
                 let code = interp.eval_original_object_vector(&argv);
                 assert!(
                     !interp.host_refusal_pending(),
@@ -272,7 +281,7 @@ mod tests {
             ("tcl9.1", tcl_dialect::TclVersion::V9_1),
         ] {
             let mut interp = super::super::tests::interpreter(profile);
-            let pattern = obj::Owned::fresh(new_string(b"*"));
+            let pattern = Owned::fresh(new_string(b"*"));
             let original = pattern.as_ptr();
             let result = interp
                 .native_compiled_match_result(
@@ -301,7 +310,7 @@ mod tests {
                 .is_none());
             drop(result);
 
-            let pattern = obj::Owned::fresh(new_string(b"*"));
+            let pattern = Owned::fresh(new_string(b"*"));
             let external = pattern.clone();
             let result = interp
                 .native_compiled_match_result(
@@ -318,7 +327,7 @@ mod tests {
             );
             assert_eq!(obj_bytes(external.as_ptr()), b"*");
             drop(result);
-            let pattern = obj::Owned::fresh(new_string(b"A"));
+            let pattern = Owned::fresh(new_string(b"A"));
             let original = pattern.as_ptr();
             let result = interp
                 .native_compiled_match_result(

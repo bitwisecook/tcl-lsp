@@ -18,6 +18,8 @@
 
 //! Actual no-tower software owner controls; no Native execution inference.
 use super::*;
+use crate::interp::native_body_artifact::cache;
+use crate::interp::native_body_artifact::Operation;
 
 fn native() -> Interp {
     Interp::with_native_core(

@@ -19,6 +19,7 @@
 //! Software controls for genuine argument, rewrite and cleanup owners.
 
 use super::*;
+use crate::interp::dispatch::EnsembleUnknown;
 use crate::{
     codegen_abi,
     interp::{Code, GLOBAL},
@@ -625,10 +626,10 @@ fn original_unknown_current_guest_results_keep_true_prefix_and_reparse_contracts
             &[invocation.as_ptr(), selector.as_ptr()],
         );
         match (mode, outcome) {
-            (7, super::super::EnsembleUnknown::Reparse) => {
+            (7, EnsembleUnknown::Reparse) => {
                 assert_eq!(interpreter.result_bytes(), b"")
             }
-            (8, super::super::EnsembleUnknown::Prefix(prefix)) => {
+            (8, EnsembleUnknown::Prefix(prefix)) => {
                 let members = crate::list::list_elements_native_checked(
                     prefix.as_ptr(),
                     interpreter
@@ -648,13 +649,13 @@ fn original_unknown_current_guest_results_keep_true_prefix_and_reparse_contracts
                 );
                 assert_eq!(interpreter.result_bytes(), b"");
             }
-            (9, super::super::EnsembleUnknown::Failed(Code::Error)) => {
+            (9, EnsembleUnknown::Failed(Code::Error)) => {
                 assert!(interpreter
                     .result_bytes()
                     .starts_with(b"unknown subcommand handler returned bad code: break"));
                 assert_eq!(interpreter.error_code(), b"TCL ENSEMBLE UNKNOWN_RESULT");
             }
-            (10, super::super::EnsembleUnknown::Failed(Code::Error)) => {
+            (10, EnsembleUnknown::Failed(Code::Error)) => {
                 assert_eq!(
                     interpreter.result_bytes(),
                     tcl_cmd_core::ensemble::UNKNOWN_DELETED_MESSAGE.as_bytes()
@@ -709,7 +710,7 @@ fn original_unknown_member_refusal_stops_later_getter_and_real_dispatch() {
                 &configuration,
                 &[invocation.as_ptr(), selector.as_ptr()]
             ),
-            super::super::EnsembleUnknown::Failed(Code::Error)
+            EnsembleUnknown::Failed(Code::Error)
         ));
         assert_eq!(UNKNOWN_CALLS.with(Cell::get), 0);
         assert_eq!(GETS.with(|value| *value.borrow()), [1, 0, 0, 0]);
@@ -762,7 +763,7 @@ fn original_unknown_result_primary_retirement_refuses_before_list_adoption() {
                 &configuration,
                 &[invocation.as_ptr(), selector.as_ptr()]
             ),
-            super::super::EnsembleUnknown::Failed(Code::Error)
+            EnsembleUnknown::Failed(Code::Error)
         ));
         assert_eq!(UNKNOWN_CALLS.with(Cell::get), 1);
         assert_eq!(FREES.with(Cell::get), 1);
@@ -816,7 +817,7 @@ fn original_unknown_returned_string_refusal_stops_result_list_and_guest_context(
                 &configuration,
                 &[invocation.as_ptr(), selector.as_ptr()]
             ),
-            super::super::EnsembleUnknown::Failed(Code::Error)
+            EnsembleUnknown::Failed(Code::Error)
         ));
         assert_eq!(UNKNOWN_CALLS.with(Cell::get), 1);
         assert_eq!(GETS.with(|value| *value.borrow()), [1, 0, 0, 0]);

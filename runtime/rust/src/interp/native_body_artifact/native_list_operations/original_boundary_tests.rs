@@ -20,7 +20,12 @@
 use super::super::native_list_conversion::BodyObjectOperation;
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_body_artifact::cache;
+use crate::interp::native_body_artifact::Operation;
+use crate::interp::obj_bytes;
+use crate::obj::TclObj;
 use std::cell::Cell;
+use std::rc::Rc;
 use tcl_runtime_api::NativeExecutionError;
 thread_local! {
     static MODE: Cell<u8> = const { Cell::new(0) };

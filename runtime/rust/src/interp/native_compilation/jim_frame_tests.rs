@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::interp::default_host;
 
 fn observe(interpreter: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // SAFETY: the actual command argv retains this live variadic List.

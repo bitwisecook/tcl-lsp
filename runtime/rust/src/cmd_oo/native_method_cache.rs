@@ -17,7 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Original TclOO method records retained by table and reached call-chain owners.
-use super::*;
+use super::{
+    native_context, obj, BTreeMap, CallStep, Interp, Method, OoId, OoState, Rc, RefCell, TclObj,
+};
 use std::ops::Deref;
 use tcl_registry::native_tcloo_method_definition::NativeTclooMethodReportRole;
 
@@ -733,6 +735,8 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::Code;
+    use tcl_registry::native_tcloo_method_definition::NativeTclooMethodPayloadType;
     fn interp(version: &str) -> Interp {
         Interp::with_native_core(
             crate::interp::default_host(),
@@ -1006,6 +1010,7 @@ mod tests {
 #[cfg(test)]
 mod original_ownership_tests {
     use super::*;
+    use crate::interp::Code;
     use std::cell::Cell;
     use tcl_runtime_api::native_procedure_roles::NativeProcedureRoleOwner;
 

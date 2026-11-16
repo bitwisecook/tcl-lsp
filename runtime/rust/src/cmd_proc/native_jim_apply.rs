@@ -18,7 +18,10 @@
 
 //! Original Jim lambda objects retain their namespace without a display getter.
 
-use super::*;
+use super::{
+    lambda_list_error, obj, parse_params_object, CallMeta, Code, Interp, Owned, ProcFrame, TclObj,
+    ValueOps,
+};
 
 pub(super) fn apply(
     interp: &mut Interp,

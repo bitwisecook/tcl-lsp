@@ -887,6 +887,7 @@ mod current_cache_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::commands::CommandVisibilityOutcome;
     use crate::{interp::Code, namespace::GLOBAL};
     use tcl_dialect::TclVersion;
 
@@ -1187,7 +1188,7 @@ mod tests {
         let initial = obj::native_command_name_cache(original.as_ptr()).unwrap();
         assert_eq!(
             interp.hide_command(b"p", b"hidden"),
-            super::super::CommandVisibilityOutcome::Moved
+            CommandVisibilityOutcome::Moved
         );
         assert!(interp
             .native_command_name_lookup_state(&initial)
@@ -1196,7 +1197,7 @@ mod tests {
             .is_none());
         assert_eq!(
             interp.expose_command(b"hidden", b"p"),
-            super::super::CommandVisibilityOutcome::Moved
+            CommandVisibilityOutcome::Moved
         );
         let exposed = interp
             .native_command_name_lookup_state(&initial)
@@ -1260,11 +1261,11 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 interp.hide_command(b"kept", b"hidden"),
-                super::super::CommandVisibilityOutcome::Moved
+                CommandVisibilityOutcome::Moved
             );
             assert_eq!(
                 interp.expose_command(b"hidden", b""),
-                super::super::CommandVisibilityOutcome::Moved
+                CommandVisibilityOutcome::Moved
             );
             assert_eq!(
                 interp

@@ -18,7 +18,9 @@
 
 //! Native procedure resources and actual command-binding references.
 
-use super::*;
+use super::{
+    obj, Cell, Interp, NativeProcEntry, NsId, Param, ProcDef, ProcLocation, Rc, RefCell, Weak,
+};
 use obj::{Owned, ProcedureObject};
 use tcl_runtime_api::native_procedure_roles::{
     NativeProcedureBinding, NativeProcedureRoleLedger, NativeProcedureRoleOwner,
@@ -660,6 +662,9 @@ impl ProcDef {
 #[cfg(test)]
 mod callable_tests {
     use super::*;
+    use crate::interp::default_host;
+    use crate::interp::Code;
+    use crate::namespace::GLOBAL;
 
     fn interp(version: &str) -> Interp {
         Interp::with_native_core(

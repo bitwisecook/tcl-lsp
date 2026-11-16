@@ -734,7 +734,8 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{interp::default_host, native_source};
+    use crate::interp::default_host;
+    use crate::native_source;
 
     #[test]
     fn sourced_jim_body_tokens_keep_original_lines_and_unlocated_objects_stay_unlocated() {

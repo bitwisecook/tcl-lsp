@@ -18,7 +18,10 @@
 
 //! Original namespace string operands and counted compiler result ownership.
 
-use super::*;
+use super::{
+    obj, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp, NamespaceOperand,
+    NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_namespace_string_compilation::{
     NativeNamespaceStringInstruction, NativeNamespaceStringOperation,
 };

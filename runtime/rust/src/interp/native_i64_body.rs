@@ -18,7 +18,7 @@
 
 //! Inert future body candidates and entered original-body execution.
 
-use super::*;
+use super::NativeProcEntry;
 
 pub(crate) struct FutureNativeI64AddPlan {
     parameters: Box<[u8]>,

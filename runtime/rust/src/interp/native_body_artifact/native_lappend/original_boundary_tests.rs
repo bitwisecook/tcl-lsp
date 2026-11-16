@@ -19,6 +19,8 @@
 //! Real compiled receiver conversion and checked argument-List controls.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_body_artifact::cache;
+use crate::interp::native_body_artifact::Operation;
 use crate::obj::TclObjType;
 use std::cell::RefCell;
 thread_local! {

@@ -17,7 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Original trim operand preparation and same-subject no-cut publication.
-use super::*;
+use super::{
+    BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp, NamespaceOperand,
+    NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_string_trim_compilation::{
     NativeStringTrimInstruction, NativeStringTrimOperation,
 };
@@ -89,6 +92,10 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::default_host;
+    use crate::namespace::GLOBAL;
+    use crate::obj;
+    use crate::obj::Owned;
     include!("../../../../../rust/tcl-registry/tests/data/native_string_trim_compilation/cases.rs");
     fn trim_interpreter(engine: &str) -> Interp {
         if engine != "jim" {
@@ -126,7 +133,7 @@ mod tests {
                     if case == 5 { " $c" } else { "" }
                 );
                 assert_eq!(interp.eval_str(source.as_bytes()), Code::Ok, "{row}");
-                let subject = obj::Owned::fresh(if engine == "jim" {
+                let subject = Owned::fresh(if engine == "jim" {
                     obj::new_string_bytes(TRIM_INPUTS[case])
                 } else {
                     crate::bytearray::new_byte_array(
@@ -137,13 +144,13 @@ mod tests {
                             .unwrap(),
                     )
                 });
-                let characters = obj::Owned::fresh(obj::new_string_bytes(b"-"));
-                let head = obj::Owned::fresh(obj::new_string_bytes(if mode == "1" {
+                let characters = Owned::fresh(obj::new_string_bytes(b"-"));
+                let head = Owned::fresh(obj::new_string_bytes(if mode == "1" {
                     b"p"
                 } else {
                     b"string"
                 }));
-                let member = obj::Owned::fresh(obj::new_string_bytes(member.as_bytes()));
+                let member = Owned::fresh(obj::new_string_bytes(member.as_bytes()));
                 let argv = if mode == "1" {
                     vec![head.as_ptr(), subject.as_ptr(), characters.as_ptr()]
                 } else {

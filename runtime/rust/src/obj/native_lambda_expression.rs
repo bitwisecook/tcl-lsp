@@ -18,7 +18,7 @@
 
 //! Actual anonymous C Proc and original namespace ownership in lambdaExpr.
 
-use super::*;
+use super::{change_type, internal_rep, obj_type_ptr, Owned, TclObj, TclObjType};
 use crate::interp::NativeCallableProcedure;
 use tcl_runtime_api::native_compilation::NativeInterpreterIdentity;
 

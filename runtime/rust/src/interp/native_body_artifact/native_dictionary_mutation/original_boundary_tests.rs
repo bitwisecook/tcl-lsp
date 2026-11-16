@@ -20,6 +20,8 @@
 use super::super::native_list_conversion::BodyObjectOperation;
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_body_artifact::cache;
+use crate::interp::native_body_artifact::Operation;
 use crate::obj::TclObjType;
 use std::cell::Cell;
 use tcl_registry::native_dictionary_compilation::NativeDictionaryMutationKind as Kind;

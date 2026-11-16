@@ -18,7 +18,11 @@
 
 //! Retained original expression operands and structured native control ranges.
 use super::native_list_conversion::BodyObjectOperation;
-use super::*;
+use super::{
+    obj, unavailable, ArenaInstruction, BodyExecution, Builder, Code, CommandInstruction,
+    EvaluatedTarget, ExecutablePartArena, HashMap, Interp, NativeBodyArtifact, NativeCompilerWords,
+    Span,
+};
 use tcl_registry::native_control_compilation::{NativeControlCompilation, NativeControlOutcome};
 use tcl_registry::native_control_instructions::{
     NativeControlBody, NativeControlInstruction, NativeControlTest,
@@ -1738,6 +1742,9 @@ mod original_cat_boundary_tests;
 #[cfg(test)]
 mod compiled_stack_object_tests {
     use super::*;
+    use crate::interp::native_body_artifact::cache;
+    use crate::interp::native_body_artifact::Operation;
+    use crate::obj::TclObj;
     use tcl_dialect::TclVersion;
     use tcl_syntax::native_object::NativeObjectCacheSnapshot;
 

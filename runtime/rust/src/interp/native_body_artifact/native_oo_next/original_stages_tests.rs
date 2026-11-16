@@ -21,6 +21,7 @@ use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
 use std::cell::Cell;
 use tcl_dialect::TclVersion;
+use tcl_syntax::value::ValueError;
 
 #[test]
 fn original_next_concat_retains_first_cause_through_reached_operand_cleanup() {

@@ -17,7 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Original native range header and allocated backing windows.
-use super::*;
+use super::{
+    list_mut, list_ref, native_list_copy, native_list_copy_using, new_list_obj_native, obj,
+    prepare_native_list_mutation, prepare_native_list_mutation_using, Cell, NativeListStorage,
+    NativeListStorageData, NativeStringProtocol, Rc, TclList, TclObj, TCL_LIST_TYPE,
+};
 use tcl_cmd_core::native_list_storage::{
     NativeListRangeAction, NativeListRangeSelection, NativeListRangeStorage,
 };

@@ -18,8 +18,9 @@
 
 //! Genuine Runtime query callbacks and full error transport.
 use super::super::native_procedure_resources::NativeProcedureDefinition;
-use super::super::{default_host, Code, NativeProcedureCommand, Param, ProcLocation, WeakInterp};
+use super::super::{Code, NativeProcedureCommand, Param, ProcLocation, WeakInterp};
 use super::*;
+use crate::interp::default_host;
 use crate::namespace::{NsId, GLOBAL};
 use crate::obj::Owned;
 use std::cell::{Cell, RefCell};

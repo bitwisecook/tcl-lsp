@@ -18,7 +18,11 @@
 
 //! Original native unset validation emits sequential receiver operations.
 
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Builder, Code, CommandInstruction, EvaluatedTarget, HashMap,
+    Interp, NativeBodyArtifact, NativeCompilerWords, NativeVariableWordOperand, Target,
+    WordInstruction,
+};
 use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;
 use tcl_registry::native_unset_compilation::{NativeUnsetInstruction, NativeUnsetReceiver};
 

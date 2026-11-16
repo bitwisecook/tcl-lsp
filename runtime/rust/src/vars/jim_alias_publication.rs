@@ -17,7 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Original shallow Jim local publication, independent of target resolution.
-use super::*;
+use super::{
+    classify, classify_at, entered_container, obj, table, table_mut, Link, Resolved, TclObj,
+    VarHome,
+};
 use crate::{
     frame::{PreparedJimAliasCell, RetiredVariableParts, WeakJimVariableCell},
     interp::{native_operation_currency::NativeOperationCurrency, Interp},

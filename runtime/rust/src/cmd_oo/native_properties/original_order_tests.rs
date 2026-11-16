@@ -19,6 +19,7 @@
 //! Selected property-list references and temporary object-hash key stages.
 use super::*;
 use std::cell::Cell;
+use std::cell::RefCell;
 
 const ORIGINAL: &str = include_str!(
     "../../../tests/data/native_property_slot_reference_order_original/509b/providers/9.1.0/execute.stdout"

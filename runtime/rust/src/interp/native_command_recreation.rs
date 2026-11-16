@@ -89,7 +89,8 @@ pub(super) fn discard_idle_recreated_object(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::interp::{default_host, Code, Interp, WeakInterp};
+    use crate::interp::default_host;
+    use crate::interp::{Code, Interp, WeakInterp};
     use crate::namespace::GLOBAL;
     use crate::obj::{self, TclObj};
     use std::cell::{Cell, RefCell};

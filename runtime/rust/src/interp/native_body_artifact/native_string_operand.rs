@@ -21,7 +21,10 @@
 //! `strtitle`): each operand is the original word, and the result is what the
 //! member's worker returns for the same words, read by the same shared core
 //! the `string` command uses.
-use super::*;
+use super::{
+    obj, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp, NamespaceOperand,
+    NativeBodyArtifact, NativeCompilerWords, TclObj, ValueError, WordInstruction,
+};
 use tcl_registry::native_string_operand_compilation::{
     NativeStringOperandInstruction, NativeStringOperandOperation,
 };

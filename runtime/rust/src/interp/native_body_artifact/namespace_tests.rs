@@ -18,6 +18,8 @@
 
 use super::tests::interpreter;
 use super::*;
+use crate::interp::Param;
+use crate::namespace::GLOBAL;
 
 mod upvar_inputs {
     include!(

@@ -18,7 +18,11 @@
 
 //! Whole-body compiler compaction retains the procedure local table across actual passes.
 
-use super::*;
+use super::{
+    obj, unavailable, Builder, CacheStamp, Command, HashMap, Interp, LiteralTable,
+    NativeLiteralAction, NativeLiteralAllocation, NativeRuntimeLiteral, NativeRuntimeLiteralAction,
+    NativeRuntimeLiteralArray, NsId, Operation, ProcDef, Rc, Span, TclObj, ValueError, Weak,
+};
 use tcl_registry::native_compiler_pass::{
     native_compiler_replays, NativeCompilerPassHazard as Hazard,
 };
@@ -323,6 +327,8 @@ impl Operation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::Code;
+    use crate::namespace::GLOBAL;
 
     #[test]
     fn enabling_native_limit_preserves_warm_original_bytecode_and_local_table() {
@@ -487,6 +493,8 @@ mod tests {
 #[cfg(test)]
 mod ordinary_entry_observer_tests {
     use super::*;
+    use crate::interp::Code;
+    use crate::namespace::GLOBAL;
 
     fn native() -> Interp {
         Interp::with_native_core(

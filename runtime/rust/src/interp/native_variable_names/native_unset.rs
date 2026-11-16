@@ -18,7 +18,10 @@
 
 //! Unset retains the selected physical receiver and original reporting operands.
 
-use super::*;
+use super::{
+    Code, Interp, NativeVariableNameLookupPurpose, OriginalCVariableCapture, TclObj, ValueError,
+    ValueOps,
+};
 use tcl_syntax::naming::{
     NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
     NativeVariableInputForm as Input,

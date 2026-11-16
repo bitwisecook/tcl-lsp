@@ -18,7 +18,11 @@
 
 //! Original compiled private names, ordered operands and late ordinary lookup.
 
-use super::*;
+use super::{
+    line_of, obj, unavailable, BodyExecution, BodyListArguments, BodyListFrame, Builder, Code,
+    CommandInstruction, HashMap, Interp, NamespaceOperand, NativeBodyArtifact, NativeCompilerWords,
+    ValueError, WordInstruction,
+};
 use crate::interp::native_arguments::OriginalArguments;
 use tcl_registry::native_compilation::NativeNamedInvocationProtocol;
 use tcl_registry::native_instruction_plan::{
@@ -225,6 +229,8 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::native_body_artifact::cache;
+    use crate::interp::native_body_artifact::Operation;
 
     #[test]
     fn compiled_named_invocations_retain_original_headers_and_late_lookup() {

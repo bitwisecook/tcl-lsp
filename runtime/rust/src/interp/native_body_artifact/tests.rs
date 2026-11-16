@@ -17,6 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use crate::interp::default_host;
+use crate::interp::obj_bytes;
+use crate::interp::Param;
+use crate::namespace::GLOBAL;
+use std::cell::RefCell;
 
 #[test]
 fn original_body_word_parts_match_native_concatenation_windows() {

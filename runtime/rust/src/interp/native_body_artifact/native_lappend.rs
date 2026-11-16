@@ -18,7 +18,11 @@
 
 //! Original compiled List append and argument-List publication stages.
 use super::native_list_conversion::BodyObjectOperation;
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Code, CommandInstruction, EvaluatedTarget, Interp,
+    NativeAppendInstruction, NativeAppendOperands, NativeArgumentListStep, NativeBodyArtifact,
+    NativeStringProtocol, Rc, Target, TclObj,
+};
 use crate::interp::native_arguments::OriginalArguments;
 use crate::interp::native_variable_names::OriginalCVariableCapture;
 use std::cell::Cell;

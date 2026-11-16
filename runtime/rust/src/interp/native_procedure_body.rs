@@ -155,6 +155,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::commands::CommandVisibilityOutcome;
     use tcl_runtime_api::native_procedure_roles::NativeProcedureRoleOwner;
 
     fn observe_active_procedure_role(
@@ -449,7 +450,7 @@ mod tests {
             }
             assert_eq!(
                 interp.hide_command(b"hidden", b"hidden"),
-                super::super::CommandVisibilityOutcome::Moved,
+                CommandVisibilityOutcome::Moved,
                 "{profile}"
             );
             drop(interp);

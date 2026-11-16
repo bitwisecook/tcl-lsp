@@ -17,7 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Selected C declaration-map references and old-visible retirement.
-use super::*;
+use super::{
+    native_context, obj, DeclaredVariable, DeclaredVariableFullName, DeclaredVariableHeader,
+    DefTarget, Interp, OoId, OoState, Rc, TclObj,
+};
 use crate::interp::native_arguments::OriginalArguments;
 use tcl_cmd_core::{native_oo_variable_mapping::NativeOoVariableMappingOps, CmdError};
 use tcl_syntax::{

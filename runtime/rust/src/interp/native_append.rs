@@ -902,9 +902,9 @@ impl Interp {
 #[cfg(test)]
 mod original_c84_counted_append_tests {
     use super::*;
-    use crate::interp::{
-        default_host, native_operation_currency::NativeOperationScope, WeakInterp, GLOBAL,
-    };
+    use crate::interp::default_host;
+    use crate::interp::native_operation_currency::NativeOperationScope;
+    use crate::interp::{WeakInterp, GLOBAL};
     use crate::obj;
     use std::{
         cell::{Cell, RefCell},
@@ -1453,9 +1453,11 @@ mod original_c84_counted_append_tests {
 #[cfg(test)]
 mod original_c84_pending_scalar_tests {
     use super::*;
+    use crate::interp::default_host;
+    use crate::interp::native_operation_currency::NativeOperationScope;
     #[cfg(debug_assertions)]
     use crate::interp::WeakInterp;
-    use crate::interp::{default_host, native_operation_currency::NativeOperationScope, GLOBAL};
+    use crate::interp::GLOBAL;
     use crate::obj;
     #[cfg(debug_assertions)]
     use std::cell::Cell;

@@ -17,7 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Native TclOO method-name primary sharing an original engine call-chain owner.
-use super::*;
+use super::{
+    change_type, check_native_liveness, discard_native_internal_representation, internal_rep,
+    obj_type_ptr, TclObj, TclObjType,
+};
 use crate::cmd_oo::native_method_cache::NativeMethodChain;
 use std::rc::Rc;
 extern "C" fn free(value: *mut TclObj) {

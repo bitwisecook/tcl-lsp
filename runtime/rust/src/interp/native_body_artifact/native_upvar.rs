@@ -18,7 +18,10 @@
 
 //! Ordinary UPVAR keeps its level header while each original target executes.
 
-use super::*;
+use super::{
+    unavailable, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp,
+    NamespaceOperand, NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_upvar_compilation::NativeUpvarInstruction;
 
 pub(super) struct UpvarOperation {

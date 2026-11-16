@@ -19,6 +19,8 @@
 //! Original native control and expression compiler windows.
 use super::tests::interpreter;
 use super::*;
+use crate::interp::default_host;
+use crate::namespace::GLOBAL;
 
 fn decode(hex: &str) -> Vec<u8> {
     hex.as_bytes()

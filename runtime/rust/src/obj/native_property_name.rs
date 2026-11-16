@@ -17,7 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Actual C91 property-name descriptor and original accessor child owners.
-use super::*;
+use super::{
+    change_type, check_native_liveness, internal_rep, new_string_bytes, obj_type_ptr,
+    retain_native_string_representation, Owned, TclObj, TclObjType,
+};
 use tcl_syntax::value::ValueError;
 #[derive(Clone)]
 struct PropertyName {
@@ -80,6 +83,10 @@ pub(crate) fn accessor(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::obj::bytes_of;
+    use crate::obj::invalidate_string;
+    use crate::obj::native_object_snapshot;
+    use crate::obj::native_string_available;
     #[test]
     fn original_property_name_duplicate_reuses_and_releases_accessor_children() {
         // Native proof: naming.property.original-accessor-name-cache-children

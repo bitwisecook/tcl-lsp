@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::interp::{default_host, ExceptionState, Interp, WeakInterp};
+use crate::interp::default_host;
+use crate::interp::{ExceptionState, Interp, WeakInterp};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,

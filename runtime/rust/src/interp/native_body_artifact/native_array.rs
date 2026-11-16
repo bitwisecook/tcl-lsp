@@ -19,7 +19,12 @@
 //! Selected Array opcodes retain true roots, private iterator locals and original List children.
 
 use super::native_list_conversion::BodyObjectOperation;
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, BodyListArguments, BodyListFrame, Builder, Cell, Code,
+    CommandInstruction, EvaluatedTarget, HashMap, Interp, NamespaceOperand, NativeBodyArtifact,
+    NativeCompilerWords, NativeVariableWordOperand, Operation, Rc, Target, ValueOps,
+    WordInstruction,
+};
 use tcl_registry::native_array_compilation::{NativeArrayCompilation, NativeArrayInstruction};
 use tcl_registry::native_compilation::NativeArrayCommand as Command;
 use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand;

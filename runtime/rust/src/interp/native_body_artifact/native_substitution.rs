@@ -19,7 +19,12 @@
 //! Original C substitution templates retain their own program and cache.
 
 use super::native_list_conversion::BodyObjectOperation;
-use super::*;
+use super::{
+    install, obj, unavailable, ArenaInstruction, BodyContext, BodyExecution, Builder, Code,
+    Context, ExecutablePart, ExecutablePartArena, HashMap, Interp, LiteralTable,
+    NativeBodyArtifact, NativeCompilationFrame, NativeCompilationMode, NativeStringProtocol, Rc,
+    RetainedBodyLocalTable, SourceImage, Span, TclObj,
+};
 use tcl_runtime_api::native_substitution::NativeSubstitutionFlags;
 
 struct NativeSubstitutionArtifact {
@@ -394,6 +399,7 @@ impl Interp {
 mod tests {
     use super::super::tests::interpreter;
     use super::*;
+    use crate::interp::new_string;
 
     fn decode(hex: &str) -> Vec<u8> {
         hex.as_bytes()
@@ -513,6 +519,7 @@ mod tests {
 #[cfg(test)]
 mod compiler_currency_tests {
     use super::*;
+    use crate::namespace::GLOBAL;
 
     #[test]
     fn substitution_does_not_recover_an_unknown_original_compiler_epoch() {

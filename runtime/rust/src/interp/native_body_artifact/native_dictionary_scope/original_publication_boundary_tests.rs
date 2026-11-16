@@ -20,6 +20,7 @@
 
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_body_artifact::cache;
 use std::cell::{Cell, RefCell};
 use tcl_runtime_api::native_variable_trace::{
     NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,

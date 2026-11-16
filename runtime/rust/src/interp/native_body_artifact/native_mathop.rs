@@ -17,7 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Execute the original mathematical compiler stack against actual frame cells.
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp,
+    NamespaceOperand, NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_mathop_compilation::{
     NativeMathOperator as M, NativeMathopInstruction, NativeMathopStep as S,
 };

@@ -17,7 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Original switch bodies use this unit's actual local and literal ownership.
-use super::*;
+use super::{
+    native_list_conversion, new_string, obj, BodyExecution, Builder, Code, CommandInstruction,
+    Interp, NativeBodyArtifact, Rc, SwitchOperation, TclObj, ValueError,
+};
 use tcl_registry::native_switch_compilation::{NativeSwitchMatch, NativeSwitchMode};
 impl Builder<'_> {
     pub(super) fn prepare_body_switch(

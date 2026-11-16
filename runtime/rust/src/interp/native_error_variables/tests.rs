@@ -16,8 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::super::{default_host, obj_bytes, ExceptionState};
+use super::super::{obj_bytes, ExceptionState};
 use super::*;
+use crate::interp::default_host;
 use crate::{counters, environment::profile_for_dialect};
 use tcl_registry::special_vars::NativeBootstrapInputs;
 

@@ -19,6 +19,8 @@
 //! Software callback boundaries in the actual original C preparation workers.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_operation_currency::NativeOperationScope;
+use crate::namespace::GLOBAL;
 use crate::obj::TclObjType;
 use std::cell::Cell;
 #[cfg(debug_assertions)]
@@ -221,8 +223,7 @@ fn original_preparation_source_string_keeps_frame_and_currency_before_cache_publ
                 let source = obj::Owned::fresh(obj::alloc_typed(&SOURCE, 0));
                 let prior = fixture::string(b"PRIOR");
                 actual.set_result(prior.as_ptr());
-                let scope =
-                    native_operation_currency::NativeOperationScope::enter(&actual).unwrap();
+                let scope = NativeOperationScope::enter(&actual).unwrap();
                 let reached = prepare(&mut actual, source.as_ptr(), substitution);
                 assert_eq!(GETTERS.get(), 1, "{profile}/{substitution}/{mode}");
                 assert_eq!(REFS.get(), 1);
@@ -267,8 +268,7 @@ fn original_preparation_old_primary_retirement_checks_real_frame_and_primary_aba
                 }
                 let prior = fixture::string(b"PRIOR");
                 actual.set_result(prior.as_ptr());
-                let scope =
-                    native_operation_currency::NativeOperationScope::enter(&actual).unwrap();
+                let scope = NativeOperationScope::enter(&actual).unwrap();
                 let reached = prepare(&mut actual, source.as_ptr(), substitution);
                 assert_eq!(GETTERS.get(), 0);
                 assert_eq!(FREES.get(), if mode == 3 { 2 } else { 1 });
@@ -352,7 +352,7 @@ fn original_preparation_borrowed_name_table_stops_at_actual_first_updater_withou
             let source = fixture::string(b"");
             let prior = fixture::string(b"PRIOR");
             actual.set_result(prior.as_ptr());
-            let scope = native_operation_currency::NativeOperationScope::enter(&actual).unwrap();
+            let scope = NativeOperationScope::enter(&actual).unwrap();
             let reached = actual.prepare_original_c_body(source.as_ptr(), GLOBAL, None);
             assert_eq!(GETTERS.get(), 1);
             assert_eq!(REFS.get(), 2);

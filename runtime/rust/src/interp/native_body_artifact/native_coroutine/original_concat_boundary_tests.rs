@@ -19,6 +19,10 @@
 //! Actual compiled coroutine List concat and terminal result retirement.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_body_artifact::cache;
+use crate::interp::native_body_artifact::EvaluatedTarget;
+use crate::interp::native_body_artifact::Operation;
+use crate::obj::TclObj;
 use std::cell::Cell;
 thread_local! {
     static MODE: Cell<u8> = const { Cell::new(0) };

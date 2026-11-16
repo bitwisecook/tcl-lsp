@@ -404,7 +404,8 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::interp::{default_host, Command};
+    use crate::interp::default_host;
+    use crate::interp::Command;
     use crate::namespace::GLOBAL;
 
     fn parent(engine: &str) -> Interp {
@@ -976,7 +977,8 @@ mod tests {
 #[cfg(test)]
 mod completion_capture_tests {
     use super::*;
-    use crate::interp::{default_host, Command, WeakInterp};
+    use crate::interp::default_host;
+    use crate::interp::{Command, WeakInterp};
     use tcl_runtime_api::NativeExecutionError;
     use tcl_syntax::raw_string::NativeValueAccessRefusal;
 

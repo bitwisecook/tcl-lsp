@@ -19,6 +19,7 @@
 //! Real property-report header Copy after a reached original member getter.
 use super::*;
 use std::cell::Cell;
+use std::cell::RefCell;
 thread_local! {
     static OWNER: RefCell<Option<crate::interp::WeakInterp>> = const { RefCell::new(None) };
     static HEADER: Cell<*mut TclObj> = const { Cell::new(core::ptr::null_mut()) };

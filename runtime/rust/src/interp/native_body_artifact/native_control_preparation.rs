@@ -17,7 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Chronological original compiler visits shared by protected control operations.
-use super::*;
+use super::{
+    native_control, obj, unavailable, Builder, Context, HashMap, NativeCompilerWords, ValueError,
+    WordInstruction,
+};
 use tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand as Operand;
 use tcl_registry::native_control_compilation::NativeControlPreparationStep as Visit;
 

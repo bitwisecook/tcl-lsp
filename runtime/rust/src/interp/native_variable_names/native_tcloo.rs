@@ -18,7 +18,9 @@
 
 //! Original TclOO explicit variable lookup, separate from automatic local binding.
 
-use super::*;
+use super::{
+    obj, Code, Interp, NativeVariableNameLookupPurpose, Owned, TclObj, ValueError, ValueOps,
+};
 
 impl Interp {
     pub(crate) fn link_original_c_oo_variable(

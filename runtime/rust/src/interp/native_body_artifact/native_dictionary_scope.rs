@@ -19,7 +19,11 @@
 //! Original compiled dictionary scope slots, expansion and protected writeback.
 
 use super::native_list_conversion::BodyObjectOperation;
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Builder, Code, CommandInstruction, EvaluatedTarget, Interp,
+    NativeBodyArtifact, NativeCompilerWords, NativeStringProtocol, Operation,
+    PreparedControlOperands, Rc, TclObj,
+};
 use crate::value_ops::RuntimeAppendValue;
 use tcl_cmd_core::native_dictionary::NativeDictionaryObjects;
 use tcl_registry::native_control_compilation::{NativeControlCompilation, NativeControlOutcome};
@@ -1052,6 +1056,7 @@ impl Interp {
 mod original_boundary_tests {
     use super::*;
     use crate::cmd_control::original_list_conversion_tests as fixture;
+    use crate::interp::native_body_artifact::cache;
     use std::cell::Cell;
     #[test]
     fn original_compiled_dictionary_writeback_restores_saved_fields_before_frame_refusal() {

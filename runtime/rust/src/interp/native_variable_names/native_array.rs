@@ -18,7 +18,10 @@
 
 //! Original array name lookup and element stores preserve the selected root through observers.
 
-use super::*;
+use super::{
+    obj, Code, Interp, NativeVariableNameLookupPurpose, OriginalArguments,
+    OriginalCVariableCapture, Owned, TclObj, ValueError, ValueOps,
+};
 
 enum OriginalArraySetValues {
     List {

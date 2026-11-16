@@ -18,7 +18,10 @@
 
 //! Original coroutine stack preparation and retained List/value handoff.
 
-use super::*;
+use super::{
+    obj, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp, NamespaceOperand,
+    NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_coroutine_compilation::{NativeCoroutineInstruction, NativeCoroutineStep};
 
 pub(super) struct CoroutineOperation {
@@ -246,6 +249,8 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::namespace::GLOBAL;
+    use crate::obj::TclObj;
 
     thread_local! {
         static RETIRING_FRAMES: std::cell::Cell<*const std::cell::RefCell<crate::frame::FrameStack>> = const { std::cell::Cell::new(std::ptr::null()) };

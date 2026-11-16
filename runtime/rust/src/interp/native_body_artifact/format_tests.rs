@@ -20,6 +20,7 @@
 
 use super::tests::interpreter;
 use super::*;
+use crate::namespace::GLOBAL;
 
 #[test]
 fn original_format_single_value_retains_its_actual_list_object() {

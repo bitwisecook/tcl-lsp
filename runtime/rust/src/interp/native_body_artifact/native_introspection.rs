@@ -18,7 +18,10 @@
 
 //! Native introspection over original command/frame receivers and scoped List children.
 
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp,
+    NamespaceOperand, NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_introspection_compilation::{
     NativeIntrospectionInstruction, NativeIntrospectionKind as Kind,
 };
@@ -156,6 +159,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::native_body_artifact::Operation;
     include!(
         "../../../../../rust/tcl-registry/tests/data/native_introspection_compilation/cases.rs"
     );

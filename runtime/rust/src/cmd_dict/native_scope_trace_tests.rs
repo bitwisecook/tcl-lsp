@@ -18,7 +18,8 @@
 
 //! Measured original variable reads at dictionary scope boundaries.
 
-use crate::interp::{default_host, Code, Interp};
+use crate::interp::default_host;
+use crate::interp::{Code, Interp};
 use crate::obj::{self, Owned};
 
 fn interpreter(profile: &str) -> Interp {

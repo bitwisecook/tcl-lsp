@@ -18,7 +18,11 @@
 
 //! Original dictionary mutation over the genuine retained indexed receiver.
 
-use super::*;
+use super::{
+    obj, unavailable, BodyExecution, Builder, Code, CommandInstruction, EvaluatedTarget, HashMap,
+    Interp, NamespaceOperand, NativeBodyArtifact, NativeCompilerWords, Rc, TclObj, ValueError,
+    WordInstruction,
+};
 use std::cell::Cell;
 
 pub(super) struct DictionaryMutationOperation {

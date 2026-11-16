@@ -18,7 +18,7 @@
 
 //! A completed actual Jim cat construction, borrowed until its result transfers.
 
-use super::*;
+use super::{obj, Interp, TclObj, ValueError};
 
 pub(crate) struct OriginalJimStringCatConstruction<'a> {
     inputs: &'a [obj::NativeObjectLifetime],

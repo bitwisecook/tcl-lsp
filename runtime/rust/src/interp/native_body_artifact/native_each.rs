@@ -18,7 +18,11 @@
 
 //! Original compiled foreach/lmap auxiliary groups and iterator ownership.
 
-use super::*;
+use super::{
+    drop_fresh, obj, unavailable, BodyExecution, BodyListArguments, BodyListFrame, Builder, Cell,
+    Code, CommandInstruction, EvaluatedTarget, Interp, NativeBodyArtifact, NativeCompilerWords,
+    NativeStringProtocol, Operation, PreparedControlOperands, TclObj, ValueError,
+};
 use tcl_registry::native_control_compilation::{NativeControlCompilation, NativeControlOutcome};
 use tcl_registry::native_each_compilation::{
     native_compiled_each_storage, NativeCompiledEachStorage as Storage, NativeEachCollection,
@@ -584,6 +588,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::native_body_artifact::cache;
     mod original_sources {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),

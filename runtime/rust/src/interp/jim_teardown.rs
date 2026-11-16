@@ -18,7 +18,7 @@
 
 //! Jim's last-live-handle retirement, before ordinary state destruction.
 
-use super::*;
+use super::{obj, Code, Interp, Rc};
 use tcl_runtime_api::jim_interpreter::{JimInterpreterObjectRole as Role, JimInterpreterTeardown};
 
 impl Interp {
@@ -169,6 +169,10 @@ impl Drop for Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::new_string;
+    use crate::interp::Command;
+    use crate::obj::TclObj;
+    use std::cell::Cell;
 
     thread_local! {
         static EXPECTED: Cell<Option<(*mut TclObj, *mut TclObj, *mut TclObj)>> = const { Cell::new(None) };

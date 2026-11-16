@@ -18,7 +18,9 @@
 
 //! Software controls of actual Runtime command roles, not Native outcomes.
 use super::*;
-use crate::interp::{default_host, Code, ObjCommand, WeakInterp};
+use crate::interp::commands::CommandVisibilityOutcome;
+use crate::interp::default_host;
+use crate::interp::{Code, ObjCommand, WeakInterp};
 use crate::namespace::GLOBAL;
 use crate::obj::{self, NativeObjectLifetime, Owned, TclObj, TclObjType};
 use std::cell::{Cell, RefCell};
@@ -596,7 +598,7 @@ fn original_hidden_and_oo_automatic_cleanup_withdraw_real_implementation_roles()
             .unwrap();
         assert_eq!(
             actual.hide_command(b"hiddenTarget", b"parked"),
-            crate::interp::CommandVisibilityOutcome::Moved
+            CommandVisibilityOutcome::Moved
         );
         assert!(actual.delete_command_generation(generation));
         assert_eq!(p.deletes[0].get(), 1);

@@ -60,7 +60,7 @@ pub fn install(interp: &mut Interp) {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod imp {
-    use super::*;
+    use super::{obj, Code, CoroContext, Interp, TclObj};
     use std::cell::RefCell;
     use std::panic::AssertUnwindSafe;
     use std::sync::mpsc::{Receiver, Sender};

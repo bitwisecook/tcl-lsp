@@ -19,6 +19,8 @@
 //! Original dynamic expression Cat uses its actual compiled frame before operands.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::interp::native_body_artifact::Operation;
+use crate::obj::TclObj;
 use crate::obj::TclObjType;
 use std::cell::Cell;
 thread_local! {

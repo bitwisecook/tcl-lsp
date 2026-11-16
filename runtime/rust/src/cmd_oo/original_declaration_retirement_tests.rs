@@ -18,6 +18,7 @@
 
 //! Actual declaration replacement, reached payload retirement and continuation.
 use super::*;
+use crate::cmd_oo::slots::slot_inst_get;
 use crate::interp::WeakInterp;
 use std::cell::Cell;
 

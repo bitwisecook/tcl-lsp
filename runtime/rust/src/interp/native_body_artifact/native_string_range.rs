@@ -18,7 +18,10 @@
 
 //! Original String range operand and explicit stack-result disposition.
 
-use super::*;
+use super::{
+    obj, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp, NamespaceOperand,
+    NativeBodyArtifact, NativeCompilerWords, Rc, WordInstruction,
+};
 use tcl_registry::native_string_range_compilation::{
     NativeStringRangeInstruction, NativeStringRangeOperation,
 };
@@ -171,6 +174,8 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::obj_bytes;
+    use crate::obj::TclObj;
     use tcl_cmd_core::string::{compiled_immediate_range, NativeCompiledRangeResult};
     use tcl_syntax::native_compiled_index::{NativeCompiledListIndex, NativeCompiledListRange};
 

@@ -18,7 +18,10 @@
 
 //! Original dictionary operands shared with the registered native compiler.
 
-use super::*;
+use super::{
+    native_list_conversion, obj, BodyExecution, Builder, Code, CommandInstruction, HashMap, Interp,
+    NamespaceOperand, NativeBodyArtifact, NativeCompilerWords, WordInstruction,
+};
 use tcl_registry::native_dictionary_compilation::{
     NativeDictionaryLookupInstruction, NativeDictionaryLookupKind,
 };
@@ -116,6 +119,7 @@ mod original_lookup_boundary_tests {
     use super::*;
     use crate::cmd_control::original_list_conversion_tests as fixture;
     use std::cell::Cell;
+    use tcl_syntax::native_string::NativeStringProtocol;
 
     #[cfg(debug_assertions)]
     #[test]

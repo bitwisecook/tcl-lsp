@@ -18,8 +18,12 @@
 
 //! Genuine Runtime declaration references and callbacks, separate from C source chronology.
 use super::*;
+use crate::cmd_oo::slots::slot_inst_get;
+use crate::cmd_oo::slots::slot_inst_set_original;
+use crate::interp::Code;
 use crate::interp::WeakInterp;
 use std::cell::Cell;
+use std::cell::RefCell;
 thread_local! {
     static OWNER: RefCell<Option<WeakInterp>> = const { RefCell::new(None) };
     static TARGET: Cell<OoId> = const { Cell::new(OoId(0)) };
