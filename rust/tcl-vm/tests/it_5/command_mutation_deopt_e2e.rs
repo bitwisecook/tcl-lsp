@@ -29,7 +29,7 @@ use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_codegen::inlining::inline_module;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::lowering::{lower_script_module_for_bytecode, lower_to_ir_traced_with_dialect};
+use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_lexer::LexerConfig;
 use tcl_vm::{
@@ -65,16 +65,36 @@ impl InliningCompilerSvc {
         target: ScriptCompileTarget<'_>,
         profile: &'static DialectProfile,
     ) -> Result<(tcl_bytecode::ModuleAsm, tcl_compiler::ir::Module), CompileError> {
-        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        // The document a fresh interpreter of `profile` runs, as the service
+        // lowers one: a module lowered with no entry has no source purpose,
+        // and the inliner proves nothing about it.
+        let context = tcl_registry::model::ingress::resolve_environment(profile.name)
+            .default_context_registry();
+        let registry = context.commands();
         let config = LexerConfig::from_grammar(profile.grammar);
-        let ir = lower_script_module_for_bytecode(
-            target.source,
-            target.namespace,
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry = tcl_compiler::command_binding::SourceAnalysisEntry::for_supplied_source(
             registry,
+            &input,
             config,
             Some(profile),
-            false,
         );
+        let mut options = entry.options();
+        options.compilation_scope = tcl_runtime_api::SourceCompilationScope::WholeModule;
+        options.native_compilation.mode =
+            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        let mut lowerer = tcl_compiler::lowering::Lowerer::with_config(registry, config)
+            .with_dialect(Some(profile))
+            .for_bytecode_backend()
+            .with_resolved_analysis_input(input.clone());
+        lowerer.set_source_analysis_options(options);
+        lowerer.lower_script_target(target.source, target.namespace);
+        let ir = lowerer.finish_module(target.source);
         let ir = inline_module(ir, registry);
         let cfg = build_cfg_codegen(&ir, false);
         let module = codegen_module(&cfg, &ir, registry)?;
