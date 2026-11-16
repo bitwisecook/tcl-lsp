@@ -174,7 +174,7 @@ pub fn declarations_from_analysis(
         analysis,
         current.context().as_ref(),
         grammar,
-        Span::new(0, end),
+        (Span::new(0, end), None),
         0,
         current.config(),
     )
@@ -185,7 +185,10 @@ fn collect_configured(
     analysis: &AnalysisResult,
     context: &tcl_registry::model::ContextRegistry,
     parent: &'static tcl_registry::definer::DefinitionBodyGrammar,
-    region: Span,
+    (region, body): (
+        Span,
+        Option<&tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
+    ),
     depth: u32,
     config: LexerConfig,
 ) -> Vec<BlockDeclaration> {
@@ -199,9 +202,15 @@ fn collect_configured(
     for command in
         segment_commands_with_offset_and_config(text, region.start(), config.at_depth(depth))
     {
-        if let Some(node) =
-            configured_command(source, analysis, context, parent, &command, depth, config)
-        {
+        if let Some(node) = configured_command(
+            source,
+            analysis,
+            context,
+            (parent, body),
+            &command,
+            depth,
+            config,
+        ) {
             out.push(node);
         }
     }
@@ -212,12 +221,22 @@ fn configured_command(
     source: &str,
     analysis: &AnalysisResult,
     context: &tcl_registry::model::ContextRegistry,
-    parent: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    (parent, enclosing): (
+        &'static tcl_registry::definer::DefinitionBodyGrammar,
+        Option<&tcl_compiler::registry_invocation::OriginalSourceScriptBody>,
+    ),
     command: &SegmentedCommand,
     depth: u32,
     config: LexerConfig,
 ) -> Option<BlockDeclaration> {
-    let words = source_registry_words(source, analysis, command)?;
+    // A nested declaration is a member of its block's body: its words are
+    // reborrowed from that body's complete plan, not issued as a fresh entry.
+    let words = match enclosing {
+        Some(body) => tcl_compiler::registry_invocation::source_structure::source_registry_words_in_definition_body(
+            source, analysis, command, body,
+        ),
+        None => source_registry_words(source, analysis, command),
+    }?;
     let head = words.head_source()?.word()?;
     let head_value = tcl_syntax::word_rules::original_static_word_unicode_value(head)?;
     let keyword = std::str::from_utf8(&head_value).ok()?;
@@ -242,6 +261,9 @@ fn configured_command(
     // Every segmented nested command must correspond to a complete retained
     // original vector before it can contribute to this readonly outline.
     let body_region = source_body.content_span();
+    // The body issues the owner its members are read under, from the block
+    // that encloses it.
+    let member_parent = source_body.definition_parent_for(context, enclosing)?;
     let selected_body_grammar = words.with_source_schema(context, |schema| {
         schema.authored_source_definition_body_grammar()
     })??;
@@ -253,7 +275,7 @@ fn configured_command(
         analysis,
         context,
         child_grammar,
-        body_region,
+        (body_region, Some(&member_parent)),
         depth + 1,
         config,
     );
