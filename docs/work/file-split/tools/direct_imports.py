@@ -64,7 +64,8 @@ def leaves(tree: str, prefix: tuple[str, ...] = ()) -> list[tuple[tuple[str, ...
     name, _, alias = head.partition(" as ")
     name, alias = name.strip(), alias.strip()
     if name == "self":
-        return [(prefix, alias or prefix[-1])]
+        # `a::{self}` imports only the module `a`; the path keeps the `self` so it is written back that way.
+        return [(prefix + ("self",), alias or prefix[-1])]
     return [(prefix + (name,), alias or name)]
 
 
@@ -102,7 +103,7 @@ def parent_scope(parent: Path) -> tuple[dict[str, tuple[str, ...]], set[str]]:
             continue
         for path, bound in leaves(use_tree(text, item)):
             if bound != "*" and path[-1] != "*":
-                imported[bound] = path
+                imported[bound] = path[:-1] if path[-1] == "self" else path
     return imported, modules
 
 
@@ -126,7 +127,7 @@ def render(groups: dict[tuple[str, ...], list[str]], attributes: str) -> str:
     lines = []
     for prefix, names in sorted(groups.items()):
         names = sorted(set(names))
-        joined = names[0] if len(names) == 1 else "{" + ", ".join(names) + "}"
+        joined = names[0] if len(names) == 1 and names[0] != "self" else "{" + ", ".join(names) + "}"
         lines.append(f"{attributes}use {'::'.join((*prefix, joined))};\n")
     return "".join(lines)
 
@@ -149,6 +150,9 @@ def rewrite(child: Path) -> int:
         for path, bound in leaves(tree):
             name = path[-1]
             spelled = name if bound == name else f"{name} as {bound}"
+            if name == "self":
+                direct.setdefault(path[:-1], []).append("self" if bound == path[-2] else f"self as {bound}")
+                continue
             if len(path) != 2 or name == "*" or bound not in imported or bound != name:
                 kept.append("::".join(path[1:-1] + (spelled,)))
                 continue

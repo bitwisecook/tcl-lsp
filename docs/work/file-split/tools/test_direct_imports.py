@@ -6,7 +6,7 @@ from direct_imports import leaves, rewrite
 def test_leaves_of_a_nested_tree() -> None:
     assert leaves("a::{b, c::{self, D as E}, f::*}") == [
         (("a", "b"), "b"),
-        (("a", "c"), "c"),
+        (("a", "c", "self"), "c"),
         (("a", "c", "D"), "E"),
         (("a", "f", "*"), "*"),
     ]
@@ -41,3 +41,15 @@ struct Walker;
     assert "use super::{Debug, Walker};\n" in text
     assert text.startswith("//! Steps.\n\nuse ") and text.count("//! Steps.") == 1
     assert text.endswith("\nfn step() {}\n")
+
+
+def test_a_module_only_import_is_written_back_as_one(tmp_path: Path) -> None:
+    parent = tmp_path / "resolve.rs"
+    parent.write_text("use std::fmt;\n\nmod cell_key;\nmod frames;\n")
+    (tmp_path / "resolve").mkdir()
+    child = tmp_path / "resolve" / "frames.rs"
+    child.write_text("use super::cell_key::{self};\nuse super::{cell_key::cell_key, fmt};\n\nfn f() {}\n")
+    rewrite(child)
+    text = child.read_text()
+    assert "use super::cell_key::{self};\n" in text
+    assert "use std::fmt;\n" in text

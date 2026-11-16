@@ -40,7 +40,10 @@ fmt() {
 # With every target compiling, settle the imports: narrow each new module's
 # `use super::*;`, point the names at their sources, drop what nothing uses
 # and gate what only tests use.
-step check-lib cargo check --manifest-path "$manifest" -p "$package" --lib
+# A package without a library (a tool such as xtask) is checked through its binaries.
+unit="--lib"
+[ -f "$crate_dir/src/lib.rs" ] || unit="--bins"
+step check-lib cargo check --manifest-path "$manifest" -p "$package" "$unit"
 step check-all cargo check --manifest-path "$manifest" -p "$package" --all-targets
 echo "==> settle-imports"
 if ! python3 docs/work/file-split/tools/settle_imports.py "$package" "$crate_dir" --log "$logs/import-edits.log" 2>&1 | tee "$logs/settle-imports.log"; then

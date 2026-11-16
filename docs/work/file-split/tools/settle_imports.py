@@ -27,7 +27,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from apply_split import is_test_file, prologue_end
-from direct_imports import leaves, rewrite
+from direct_imports import leaves, rewrite, use_items, use_tree
 
 TOOLS = Path(__file__).resolve().parent
 MAX_ROUNDS = 10
@@ -140,6 +140,8 @@ def render(attributes: str, visibility: str, imports: list[tuple[tuple[str, ...]
     for path, bound in imports:
         if path[-1] == "*":
             groups[path[:-1]].append("*")
+        elif path[-1] == "self":
+            groups[path[:-1]].append("self" if bound == path[-2] else f"self as {bound}")
         elif bound == path[-1]:
             groups[path[:-1]].append(bound)
         else:
@@ -147,7 +149,7 @@ def render(attributes: str, visibility: str, imports: list[tuple[tuple[str, ...]
     lines = []
     for prefix, names in sorted(groups.items()):
         names = sorted(set(names))
-        joined = names[0] if len(names) == 1 else "{" + ", ".join(names) + "}"
+        joined = names[0] if len(names) == 1 and names[0] != "self" else "{" + ", ".join(names) + "}"
         lines.append(f"{attributes}{visibility}use {'::'.join((*prefix, joined))};\n")
     return "".join(lines)
 
@@ -240,7 +242,9 @@ def drop_or_gate(plain: list[dict], tests: list[dict], compiled_plain: set[str],
             except (ValueError, IndexError):
                 continue
             plain_flags, test_flags = span in in_plain[file_name], span in in_test[file_name]
-            if unresolved or (plain_flags and test_flags) or (test_flags and file_name not in compiled_plain):
+            # An import already under `#[cfg(test)]` exists only in the test build.
+            test_only = "cfg(test)" in text[begin : text.index("use", begin) if "use" in text[begin:finish] else finish]
+            if unresolved or (plain_flags and test_flags) or (test_flags and (test_only or file_name not in compiled_plain)):
                 statements[(begin, finish)]["remove"] |= names
             elif plain_flags:
                 statements[(begin, finish)]["gate"] |= names
@@ -291,7 +295,12 @@ def restore_names(plain: list[dict], tests: list[dict], candidates: set[str], tr
         text = path.read_text(encoding="utf-8")
         first_use = re.search(r"^(?:#\[[^\n]*\]\n)*(?:pub(?:\([^)]*\))? )?use ", text, re.M)
         at = first_use.start() if first_use else prologue_end(text)
-        block = "".join(f"{gate}use super::{name};\n" for name, gate in sorted(names.items()))
+        # A name the file already imports is wanted here as a module: `{self}` imports only that.
+        bound = {leaf[1] for item in use_items(text) for leaf in leaves(use_tree(text, item))}
+        block = "".join(
+            f"{gate}use super::{name}::{{self}};\n" if name in bound else f"{gate}use super::{name};\n"
+            for name, gate in sorted(names.items())
+        )
         if not first_use:
             block = "\n\n" + block
         if LOG is not None:

@@ -128,7 +128,9 @@ def update_owner_row(root: Path, line: str) -> str:
         for source in sources:
             found = find_child(root, source, entry, exported=True) or find_child(root, source, entry, exported=False)
             if found:
-                added.append(found[0].relative_to(root).as_posix())
+                path = found[0].relative_to(root).as_posix()
+                if path not in sources:
+                    added.append(path)
                 break
     if not added:
         return line
