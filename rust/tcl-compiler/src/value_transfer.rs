@@ -6733,11 +6733,18 @@ pub(crate) fn view_of<'a>(
     let semantics = &resolved.semantics;
     let offset = semantics.argument_offset;
     let literals: Option<Vec<&str>> = words.iter().map(|w| w.literal()).collect();
-    let roles: Vec<(u8, ArgRole)> = match (semantics.arg_role_resolver, literals) {
-        (Some(role_resolver), Some(literals)) => literals
-            .get(offset..)
-            .map_or_else(|| semantics.arg_roles.to_vec(), role_resolver),
-        _ => semantics.arg_roles.to_vec(),
+    let roles: Vec<(u8, ArgRole)> = if semantics.arg_role_layout_resolver.is_some() {
+        // A layout resolver reads the structured operands themselves
+        // (`unset ?-nocomplain? ?--? name…`), so the roles are the
+        // registry's own projection of this invocation.
+        resolved.argument_roles().0
+    } else {
+        match (semantics.arg_role_resolver, literals) {
+            (Some(role_resolver), Some(literals)) => literals
+                .get(offset..)
+                .map_or_else(|| semantics.arg_roles.to_vec(), role_resolver),
+            _ => semantics.arg_roles.to_vec(),
+        }
     };
     let role_at = |index: usize| {
         index
