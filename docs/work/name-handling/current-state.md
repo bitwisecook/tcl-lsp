@@ -14,6 +14,7 @@ Failing tests by area, from each session's last full run on `work`. The start-of
 | `tcl-lsp-db` | about 80 | not re-measured | LSP server and database |
 | Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | 329 | 5,480 | execution |
 | Tooling (`tcl-cli` 42, `tcl-spectcl` 29, `tcl-explorer` 14, `tcl-diagram` 14, `tcl-mcp` 3, `tcl-irules` 3, `tcl-spec-studio` 1, `tcl-sslictcl` 1, `tcl-registry` 0; re-run on `631529c9`, 16 November) | 107 | | tooling |
+| Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the 319 above) | 34 | 131 | tooling |
 | `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | coordinator |
 | `xtask` (381 tests, 37 drift gates) | 0 | | coordinator |
 
@@ -748,6 +749,26 @@ Fourth batch, same day:
 Counts after this batch (same selection, fixed 18, new 0): `tcl-mcp` 6 to 4, `tcl-spec-studio` 11 to 1, `tcl-spectcl` 38 to 35, `tcl-cli` 51 to 48 (`spec import` listed two entry points where the C-shim fixture directory now holds three). What is left in `tcl-spec-studio` is `pack_formatting_uses_the_shared_spectcl_profile`: `tcl fmt --dialect spectcl` indents the `speclib` body and not the body of the nested `command` (handed to the analyser session with the repro; the formatter is `tcl-lsp-core`).
 
 After the `return [expr …]` selection fix (`a4e9d10e`), 16 November: the groups marked as waiting on it did not move. Re-run on `631529c9`: `tcl-cli` 42, `tcl-diagram` 14, `tcl-explorer` 14, `tcl-mcp` 3, `tcl-irules` 3, new 0. `tcl opt` does fold `proc f {} {return [expr {1+2}]}` now. What still fails in `value_transfers_cli` (25) is SCCP leaving values `overdefined` (`acc#1`, `r#1` in `explore sccp`, no fold of `set x foo; return foo` on Tcl 8.4, the `upvar`/`incr` summary witnesses) and iRules handler bodies showing no routes (`::when::RULE_INIT`: `routes entered: direct 0`), so those rows are Dataflow's and handler entry's, not that fix's.
+
+Server end-to-end groups taken over on 16 November (`irules::*`, `spec_packs::*`, `sslictcl::*`, `jim::*`; 131 tests): 38 failing at hand-over, classified by first failing assertion.
+
+Fixed:
+
+- **Nested declarations in an outline.** `declaration_outline::configured_command` looked every nested command up with `source_registry_words`, which answers only for a root command; a member of a block is read with `source_registry_words_in_definition_body` under the owner its block's body issues (`definition_parent_for`). The outline of a pack and of an SslicTcl document lists its nested blocks again (`spec_packs::a_pack_outlines_as_its_own_declarations`, `sslictcl::the_outline_names_the_declarations`).
+- **Fixture (case 4).** `irules::when_priority_and_timing_after_priority_value` expected `priority` offered again after `priority 500`; the registry's `declaration_slots_follow_the_declaration_layout` pins one clause keyword at most once (#2082), so the test now expects `timing` only.
+
+Open, with the owner:
+
+| Group | Count | First failing assertion | Owner |
+| --- | --- | --- | --- |
+| `irules` quick fixes: `irule3001_*` (3), `irule3002_wrap_uri_encode`, `irule3003_wrap_strip_crlf`, `t100`…`t106` (7), `braced_variable_wrapped`, `irule6001_*` (3) | 16 | the tests hand the server a hand-written diagnostic, and a context action now answers only for a diagnostic whose `data` token the server issued; they need a real rule that draws the code, and no taint or security diagnostic is issued inside a `when` body today | Taint (handler entry), then the fixtures move to the published diagnostic |
+| `irules` S110 payload round trips (`mqtt_…`, `payload_string_…`, `diameter_…`) | 3 | only IRULE1001/1005/1006 are published | Taint (handler entry) |
+| `irules` collect bootstrap: `irule1005_adds_only_registered_collect_bootstrap`, `irule1006_prefers_server_ssl_handshake_bootstrap`, `irule1006_bootstrap_action_is_deduplicated` | 3 | IRULE1005/1006 are published as conditional advice, which keeps no action subject, so the bootstrap fix is never built | Taint and iRules checks |
+| `irules::irules_event_valid_command_ranked_before_invalid` | 1 | completion inside an empty handler body has no `HTTP::header` entry | LSP features (completion in a handler body) |
+| `spec_packs::a_packs_blocks_are_folding_ranges`, `a_pack_statement_word_hovers_from_the_spectcl_surface`, `a_dropped_property_offers_a_did_you_mean_fix` | 3 | a block two levels down (`hover` inside `command`) has no fold, hover or fix: `SourceStructure::capture` walks document definition bodies only for the `DefinitionCursor` purpose (`definition_cursor_document_bodies`), and folding captures with the default one | LSP features (source structure); same root as the SpecTcl formatter not indenting a nested `command` body |
+| `spec_packs`: `a_closed_file_under_a_pack_extension_is_indexed`, `a_workspace_pack_subcommand_arity_error_is_published`, `granting_trust_reloads_and_installs_the_bodies`, `environment_lifecycle::unchanged_documents_follow_folder_pack_and_stub_generations`, `a_pack_added_after_startup_reloads_and_re_analyses_open_documents` and `a_pack_const_fold_body_folds_a_call_site_in_the_optimiser` (both pass in some runs and fail in others) | 6 | definition `null`; the built-in arity control not published; the `const_fold` row after trust; 0 of 1 | not reduced yet |
+| `spec_packs`: `an_open_pack_keeps_its_notices_while_it_is_edited`, `the_bundled_upf_body_resolver_reaches_editor_diagnostics_and_tokens` | 2 | diagnostics never settle (latency barrier timeout) | not reduced yet |
+| `jim::the_jim_program_draws_only_hints_as_a_tcl_jim_document` | 1 | W307 (non-literal command name) at severity 2 on line 14 | Analyser (Jim document diagnostics, with the other Jim rows) |
 
 Test-table collapse, second pass (16 November). A similarity scan of every test body in `tcl-spectcl` and `tcl-cli` (normalised text, ratio above 0.86) found eight near-duplicate pairs; the rest of the two crates' tests assert different facts. Collapsed in `tcl-spectcl`: `disabled_command_wording` 5 tests to 2 (the four "disabled" documents are one six-row table naming Tcl 8.4 to 9.0 and Jim; the open Jim/Expect row stays its own test so its failure stays visible), `upgrade` two refusal tests to one two-row table. Left alone on purpose: `jim_generation_zero` (each test needs a fresh process), `smoke_explore_reports_summary_for_tiny_snippet` (the Makefile's smoke tier selects `smoke_*` by name), the two `bundled` EDA tests (different pack sources), the `spec_verbs` timeout and policy pairs (different verbs and working directories).
 

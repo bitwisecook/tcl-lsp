@@ -304,14 +304,17 @@ fn irules_event_valid_command_ranked_before_invalid() {
     );
 }
 
+/// A clause keyword is written at most once (#2082), so after `priority N`
+/// only `timing` is offered: the registry's own
+/// `declaration_slots_follow_the_declaration_layout` pins the slot.
 #[test]
-fn when_priority_and_timing_after_priority_value() {
+fn when_only_timing_is_offered_after_a_priority_value() {
     let src = "when HTTP_REQUEST priority 500 ";
     let mut lsp = Lsp::irules();
     let uri = open_irule(&mut lsp, src);
     let ls = labels(&mut lsp, &uri, 0, u32::try_from(src.len()).unwrap());
-    assert!(ls.contains(&"priority".to_owned()));
-    assert!(ls.contains(&"timing".to_owned()));
+    assert!(ls.contains(&"timing".to_owned()), "{ls:?}");
+    assert!(!ls.contains(&"priority".to_owned()), "{ls:?}");
 }
 
 #[test]
