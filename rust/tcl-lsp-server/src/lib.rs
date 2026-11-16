@@ -94,6 +94,7 @@ use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::task::Poll;
+use uri_norm::DocumentPath as _;
 // `FutureExt::shared` lets the progressive diagnostics path compute the base
 // per-file analysis once and await it from both the deep pass and the fast tier.
 use futures_util::future::FutureExt;
@@ -5678,7 +5679,7 @@ async fn prepare_base_completeness_input(
         Backend::configured_analyser(disabled.clone(), mode, extra.clone(), packs, resource)
             .with_file_path(
                 ctx.uri
-                    .to_file_path()
+                    .document_path()
                     .map(|path| path.display().to_string()),
             );
     let input = {
@@ -7485,7 +7486,7 @@ fn files_with_covered_load_targets(
     let known_paths: HashSet<std::path::PathBuf> = files
         .iter()
         .filter(|(uri, _)| members.contains(uri))
-        .filter_map(|(uri, _)| uri.to_file_path().map(|p| p.to_path_buf()))
+        .filter_map(|(uri, _)| uri.document_path().map(|p| p.to_path_buf()))
         .collect();
     files
         .iter()
@@ -7495,7 +7496,7 @@ fn files_with_covered_load_targets(
             else {
                 return false;
             };
-            let Some(parent) = uri.to_file_path().map(|p| p.to_path_buf()) else {
+            let Some(parent) = uri.document_path().map(|p| p.to_path_buf()) else {
                 return targets.is_empty();
             };
             targets.iter().all(|site| {
@@ -16430,7 +16431,7 @@ impl Backend {
         text: &str,
         encoding: tcl_registry::value_transfer::ScriptEncoding,
     ) -> Option<tcl_lsp_core::source_decode::DecodeReport> {
-        let path = uri.to_file_path()?.into_owned();
+        let path = uri.document_path()?.into_owned();
         let store = Arc::clone(store);
         let (decoded, report) =
             crate::rt::spawn_blocking(move || store.read_source_as(&path, encoding))
@@ -16553,7 +16554,7 @@ impl Backend {
         {
             return Some(false);
         }
-        let source_file = uri.to_file_path().is_some_and(|path| is_tcl_source(&path));
+        let source_file = uri.document_path().is_some_and(|path| is_tcl_source(&path));
         let source_language = tcl_registry::model::resolve_language_id(&document.language_id)
             .is_some_and(|environment| environment.definition.core.is_some());
         if !source_file && !source_language {
@@ -18157,7 +18158,7 @@ impl Backend {
         pos: Position,
         include_decl: bool,
     ) -> DocumentSourceResult<Option<Vec<Location>>> {
-        let path = (match uri.to_file_path() {
+        let path = (match uri.document_path() {
             Some(__source_value) => __source_value,
             None => return Ok(None),
         })
@@ -18297,7 +18298,7 @@ impl Backend {
     ) -> Option<serde_json::Value> {
         let request = args.first().and_then(serde_json::Value::as_object)?;
         let uri = Uri::from_str(request.get("uri").and_then(serde_json::Value::as_str)?).ok()?;
-        let path = uri.to_file_path()?.into_owned();
+        let path = uri.document_path()?.into_owned();
         let text = request.get("text").and_then(serde_json::Value::as_str)?;
         let line = u32::try_from(request.get("line").and_then(serde_json::Value::as_u64)?).ok()?;
         let character = u32::try_from(
@@ -18386,7 +18387,7 @@ impl Backend {
         doc: &DocumentState,
         pos: Position,
     ) -> DocumentSourceResult<Option<Vec<Location>>> {
-        let path = (match uri.to_file_path() {
+        let path = (match uri.document_path() {
             Some(__source_value) => __source_value,
             None => return Ok(None),
         })
@@ -18434,7 +18435,7 @@ impl Backend {
             let docs = self.documents.lock("open_document_texts").await;
             texts.reserve(docs.len());
             for (uri, doc) in docs.iter() {
-                let Some(path) = uri.to_file_path() else {
+                let Some(path) = uri.document_path() else {
                     continue;
                 };
                 let path = path.into_owned();
@@ -20056,7 +20057,7 @@ impl Backend {
             }
             for source in std::iter::once(caller).chain(analysed.iter().map(|(source, _)| source)) {
                 if source.open_revision.is_none() {
-                    let Some(path) = source.uri.to_file_path().map(std::borrow::Cow::into_owned)
+                    let Some(path) = source.uri.document_path().map(std::borrow::Cow::into_owned)
                     else {
                         return false;
                     };
@@ -27444,7 +27445,7 @@ impl Backend {
             self.store.as_ref(),
             folders
                 .first()
-                .and_then(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
+                .and_then(|f| f.document_path().map(std::borrow::Cow::into_owned))
                 .map(|root| core_tcl_install::project_config_path(&root)),
             config_ini::Layer::Project,
         );
@@ -27488,7 +27489,7 @@ impl Backend {
                         let project = read_ini_layer(
                             self.store.as_ref(),
                             folder
-                                .to_file_path()
+                                .document_path()
                                 .map(std::borrow::Cow::into_owned)
                                 .map(|root| core_tcl_install::project_config_path(&root)),
                             config_ini::Layer::Project,
@@ -28396,7 +28397,7 @@ impl Backend {
             .workspace_folder_urls()
             .await
             .iter()
-            .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
+            .filter_map(|f| f.document_path().map(std::borrow::Cow::into_owned))
             .collect();
         let store = Arc::clone(&self.store);
         crate::rt::spawn_blocking(move || {
@@ -29172,7 +29173,7 @@ impl Backend {
         match best {
             Some((folder, fc)) => (
                 fc.entry_points.clone().unwrap_or_default(),
-                folder.to_file_path().map(std::borrow::Cow::into_owned),
+                folder.document_path().map(std::borrow::Cow::into_owned),
             ),
             None => (Vec::new(), None),
         }
@@ -29233,7 +29234,7 @@ impl Backend {
         let configs = self.folder_configs.lock().await;
         let mut out: Vec<core_ilx::IlxPluginRoot> = Vec::new();
         for (folder, fc) in configs.iter() {
-            let Some(root) = folder.to_file_path().map(std::borrow::Cow::into_owned) else {
+            let Some(root) = folder.document_path().map(std::borrow::Cow::into_owned) else {
                 continue;
             };
             out.extend(resolve_ilx_specs(&fc.iruleslx, &root));
@@ -29259,7 +29260,7 @@ impl Backend {
         if fc.iruleslx.is_empty() {
             return Vec::new();
         }
-        let Some(root) = folder.to_file_path().map(std::borrow::Cow::into_owned) else {
+        let Some(root) = folder.document_path().map(std::borrow::Cow::into_owned) else {
             return Vec::new();
         };
         resolve_ilx_specs(&fc.iruleslx, &root)
@@ -29274,7 +29275,7 @@ impl Backend {
         if patterns.is_empty() {
             return false;
         }
-        let Some(path) = uri.to_file_path() else {
+        let Some(path) = uri.document_path() else {
             return false;
         };
         let set = path_glob::PathGlobSet::new(&patterns);
@@ -29307,7 +29308,7 @@ impl Backend {
             best.map(|(folder, fc)| {
                 (
                     fc.diagnostics_exclude.clone(),
-                    folder.to_file_path().map(std::borrow::Cow::into_owned),
+                    folder.document_path().map(std::borrow::Cow::into_owned),
                 )
             })
         };
@@ -30063,7 +30064,7 @@ impl Backend {
             .lock()
             .await
             .iter()
-            .filter_map(|uri| uri.to_file_path().map(std::borrow::Cow::into_owned))
+            .filter_map(|uri| uri.document_path().map(std::borrow::Cow::into_owned))
             .collect();
         let configured = self
             .spec_pack_paths
@@ -30081,7 +30082,7 @@ impl Backend {
             .iter()
             .filter_map(|(uri, config)| {
                 let paths = config.spec_packs.as_ref()?;
-                let folder = uri.to_file_path()?.into_owned();
+                let folder = uri.document_path()?.into_owned();
                 Some((folder, paths.iter().map(PathBuf::from).collect()))
             })
             .collect();
@@ -31519,7 +31520,7 @@ impl Backend {
         let folders = self.workspace_folder_urls().await;
         let Some(roots) = folders
             .iter()
-            .map(|folder| folder.to_file_path().map(std::borrow::Cow::into_owned))
+            .map(|folder| folder.document_path().map(std::borrow::Cow::into_owned))
             .collect::<Option<Vec<_>>>()
         else {
             return Ok(());
@@ -31571,7 +31572,7 @@ impl Backend {
         let folders = self.workspace_folders.lock().await;
         let Some(mut current_roots) = folders
             .iter()
-            .map(|folder| folder.to_file_path().map(std::borrow::Cow::into_owned))
+            .map(|folder| folder.document_path().map(std::borrow::Cow::into_owned))
             .collect::<Option<Vec<_>>>()
         else {
             return false;
@@ -33289,7 +33290,7 @@ impl Backend {
         // tiers below. The body always says which of the two ILX
         // commands reached it — they share the method target but not the
         // semantics — and, when nothing resolved, why.
-        if let Some(path) = uri.to_file_path()
+        if let Some(path) = uri.document_path()
             && let Some((call, target)) = self.ilx_method_at(uri, doc, &path, pos).await?
         {
             return Ok(ControlFlow::Break(Some(lift_hover(CoreHover {
@@ -33805,7 +33806,7 @@ impl Backend {
     fn scan_folder_roots(folders: &[Uri]) -> Vec<PathBuf> {
         folders
             .iter()
-            .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
+            .filter_map(|f| f.document_path().map(std::borrow::Cow::into_owned))
             .collect()
     }
 
@@ -37320,10 +37321,10 @@ impl LanguageServer for Backend {
         // the URI isn't a `file://` URL we leave the workspace
         // root unset and only absolute paths surface as links.
         let doc_path = uri
-            .to_file_path()
+            .document_path()
             .and_then(|p| p.to_str().map(str::to_owned));
         let workspace_root = uri
-            .to_file_path()
+            .document_path()
             .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             .and_then(|p| p.to_str().map(str::to_owned));
         // The document's own path is what `[info script]` answers while it is
@@ -39278,7 +39279,7 @@ impl tower_lsp_server::ls_types::notification::Notification for SpecPacksReloade
 
 /// `true` when `uri` names a `.tclspec` `SpecTcl` pack.
 fn is_spec_pack_file(uri: &Uri) -> bool {
-    uri.to_file_path()
+    uri.document_path()
         .is_some_and(|path| tcl_spectcl::discovery::is_pack_file(&path))
 }
 
@@ -39291,7 +39292,7 @@ const PACKAGE_LOCKFILE_GLOB: &str = "**/tclpkg.lock";
 /// dependency tier is read from at discovery, so a change to one changes what
 /// the packs beside a manifest may declare without any pack file moving.
 fn is_package_metadata_file(uri: &Uri) -> bool {
-    uri.to_file_path()
+    uri.document_path()
         .and_then(|path| {
             path.file_name()
                 .map(|name| name.to_string_lossy().into_owned())
@@ -39314,7 +39315,7 @@ fn is_config_file(uri: &Uri) -> bool {
 /// kept outside [`is_tcl_source`]: a `.tcl.stubs` file controls analysis but is
 /// never itself indexed or diagnosed as Tcl source.
 fn is_sidecar_stubs_file(uri: &Uri) -> bool {
-    uri.to_file_path()
+    uri.document_path()
         .and_then(|path| {
             path.file_name()
                 .map(|name| name.to_string_lossy().into_owned())
@@ -39348,7 +39349,7 @@ fn partition_watched_file_changes(changes: Vec<FileEvent>) -> WatchedFileChanges
             partition.spec_pack_changed = true;
         } else if change
             .uri
-            .to_file_path()
+            .document_path()
             .is_none_or(|path| is_tcl_source(&path))
         {
             partition.last_kind.insert(change.uri, change.typ);
@@ -40204,7 +40205,7 @@ async fn find_sibling_impl_vars(
     documents: &DocumentStore,
     store: &dyn vfs::SourceStore,
 ) -> Option<tcl_bigip::apl::IappSourceReferences> {
-    let path = uri.to_file_path()?;
+    let path = uri.document_path()?;
     let dir = path.parent()?.to_path_buf();
     let is_impl_name = |p: &Path| {
         p.file_name()
@@ -40227,7 +40228,7 @@ async fn find_sibling_impl_vars(
             if doc_uri == uri {
                 return None;
             }
-            let doc_path = doc_uri.to_file_path()?;
+            let doc_path = doc_uri.document_path()?;
             (doc_path.parent() == Some(dir.as_path()) && is_impl_name(&doc_path))
                 .then(|| doc.text.to_string())
         })
@@ -41615,6 +41616,13 @@ impl ConstructedFileUri {
 }
 
 fn constructed_file_uri(path: &Path) -> Option<ConstructedFileUri> {
+    // A virtual-workspace document keeps the scheme it was opened under.
+    if let Some(original) = tcl_lsp_core::file_uri::from_virtual_uri_path(path) {
+        return Some(ConstructedFileUri {
+            path: path.to_path_buf(),
+            uri: Uri::from_str(&original).ok()?,
+        });
+    }
     // Preserve the original absolute/no-existence and relative/canonicalise policy.
     // A browser worker (wasm32-unknown-unknown) has neither `Path::is_absolute`
     // for a rooted path nor a filesystem to canonicalise against; its store's
@@ -41641,7 +41649,7 @@ fn constructed_file_uri(path: &Path) -> Option<ConstructedFileUri> {
 #[cfg(test)]
 fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
     let parent = Uri::from_str(parent_uri).ok()?;
-    let parent_path = parent.to_file_path()?;
+    let parent_path = parent.document_path()?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), raw_path);
     canonical_file_uri(&child).map(|u| u.as_str().to_owned())
 }
@@ -41676,7 +41684,10 @@ fn fold_document_constants(
     imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
 ) -> tcl_compiler::auto_path_eval::FoldedPathConstants {
     let parsed = Uri::from_str(uri).ok();
-    let path = parsed.as_ref().and_then(Uri::to_file_path);
+    let path = parsed
+        .as_ref()
+        .filter(|uri| uri.scheme().as_str().eq_ignore_ascii_case("file"))
+        .and_then(Uri::to_file_path);
     tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
         writes,
         path.as_deref().and_then(std::path::Path::to_str),
@@ -41704,7 +41715,7 @@ fn resolve_source_edge(
         return None;
     }
     let parent = Uri::from_str(parent_uri).ok()?;
-    let parent_path = parent.to_file_path()?;
+    let parent_path = parent.document_path()?;
     let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
         raw_constants,
         parent_path.to_str(),
@@ -41894,7 +41905,7 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
     if analysis.auto_path_entries.is_empty() {
         return Vec::new();
     }
-    let Some(file_path) = uri.to_file_path() else {
+    let Some(file_path) = uri.document_path() else {
         return Vec::new();
     };
     // The document's own single-assignment constants, chain-folded, so the
@@ -73949,5 +73960,169 @@ mod cooperative_fresh_analysis_tests {
             .unwrap();
         assert!(Arc::ptr_eq(&seed.analysis, &cached.analysis));
         assert_eq!(backend.fresh_analysis_cache.lock().unwrap().len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod virtual_workspace_uri_tests_1734 {
+    use super::*;
+    use tower_lsp_server::ls_types::{
+        PartialResultParams, ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
+    };
+
+    /// What the browser host does for a closed file: `vfs_upsert_bytes`.
+    fn upload(store: &vfs::MemoryStore, uri: &str, text: &str) {
+        use vfs::SourceStore as _;
+        let selected = store.document_uri_path(uri).expect(uri);
+        let canonical = uri_norm::canonical_uri_string(uri);
+        store
+            .try_upsert_uri_aliases(
+                &[uri, canonical.as_ref()],
+                selected.path().to_path_buf(),
+                text.as_bytes().to_vec(),
+            )
+            .expect(uri);
+    }
+
+    async fn open(backend: &Backend, uri: &Uri, src: &str, dialect: &str) {
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), dialect.to_owned()),
+        );
+        backend
+            .db_set_source(uri, src, dialect.to_owned())
+            .await
+            .expect("the fixture retains its source");
+        let analysis = backend
+            .analysis_for(uri, Arc::from(src), dialect.to_owned())
+            .await
+            .expect("the fixture analyses its source");
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+    }
+
+    fn backend_over(store: &Arc<vfs::MemoryStore>) -> Backend {
+        let mut backend = tests::test_backend();
+        backend.state_mut_for_test().store = store.clone();
+        backend
+    }
+
+    #[tokio::test]
+    async fn cross_file_navigation_keeps_a_virtual_workspace_scheme() {
+        for root in ["vscode-vfs://github/owner/repo", "vscode-test-web://mount"] {
+            let lib = Uri::from_str(&format!("{root}/lib/crossFileDefLib.tcl")).unwrap();
+            let caller = Uri::from_str(&format!("{root}/crossFileCaller.tcl")).unwrap();
+            let store = Arc::new(vfs::MemoryStore::new());
+            upload(
+                &store,
+                lib.as_str(),
+                "proc libtest {a} {\n    return $a\n}\n",
+            );
+            let backend = backend_over(&store);
+            *backend.workspace_folders.lock().await = vec![Uri::from_str(root).unwrap()];
+            backend.scan_workspace_folders().await.unwrap();
+            assert!(
+                backend
+                    .workspace_index
+                    .read()
+                    .await
+                    .contains_document(lib.as_str()),
+                "the scan indexes the closed file under its own URI: {root}"
+            );
+            open(
+                &backend,
+                &caller,
+                "set x [libtest 1]\nlibtest 2\n",
+                "tcl8.6",
+            )
+            .await;
+
+            let defs = Box::pin(backend.compute_definition(&caller, Position::new(1, 2)))
+                .await
+                .expect("definition");
+            assert_eq!(defs.len(), 1, "{root}: {defs:?}");
+            assert_eq!(defs[0].uri, lib, "{root}: {defs:?}");
+            assert_eq!(defs[0].range.start.line, 0, "{root}: {defs:?}");
+
+            let refs = backend
+                .references(ReferenceParams {
+                    text_document_position: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier {
+                            uri: caller.clone(),
+                        },
+                        position: Position::new(1, 2),
+                    },
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                    context: ReferenceContext {
+                        include_declaration: true,
+                    },
+                })
+                .await
+                .expect("references")
+                .unwrap_or_default();
+            assert!(
+                refs.iter().any(|l| l.uri == lib),
+                "{root}: the declaration keeps the scheme: {refs:?}"
+            );
+            assert_eq!(
+                refs.iter().filter(|l| l.uri == caller).count(),
+                2,
+                "{root}: {refs:?}"
+            );
+            assert!(
+                refs.iter().all(|l| l.uri.scheme().as_str() != "file"),
+                "{root}: {refs:?}"
+            );
+        }
+    }
+
+    const ILX_EXTENSION: &str = concat!(
+        "var f5 = require('f5-nodejs');\n",
+        "var ilx = new f5.ILXServer();\n",
+        "ilx.addMethod('my_js_function', function (req, res) {\n",
+        "    res.reply('ok');\n",
+        "});\n",
+        "ilx.listen();\n",
+    );
+
+    #[tokio::test]
+    async fn the_ilx_relation_crosses_a_virtual_workspace_in_both_directions() {
+        for root in ["vscode-vfs://github/owner/repo", "vscode-test-web://mount"] {
+            let rule = Uri::from_str(&format!("{root}/ilx_ws/rules/rule1.tcl")).unwrap();
+            let js = format!("{root}/ilx_ws/extensions/my_extension/index.js");
+            let rule_src = "when HTTP_REQUEST {\n    set handle [ILX::init ilx_ws my_extension]\n    set reply [ILX::call $handle my_js_function [HTTP::uri]]\n}\n";
+            let store = Arc::new(vfs::MemoryStore::new());
+            upload(&store, &js, ILX_EXTENSION);
+            upload(&store, rule.as_str(), rule_src);
+            let backend = backend_over(&store);
+            *backend.workspace_folders.lock().await = vec![Uri::from_str(root).unwrap()];
+            open(&backend, &rule, rule_src, IRULES_DIALECT).await;
+
+            let defs = Box::pin(backend.compute_definition(&rule, Position::new(2, 34)))
+                .await
+                .expect("definition");
+            assert_eq!(defs.len(), 1, "{root}: {defs:?}");
+            assert_eq!(defs[0].uri.as_str(), js, "{root}: {defs:?}");
+            assert_eq!(defs[0].range.start, Position::new(2, 14), "{root}");
+
+            let from_js = backend
+                .ilx_references_command(&[serde_json::json!({
+                    "uri": js,
+                    "text": ILX_EXTENSION,
+                    "line": 2,
+                    "character": 20,
+                    "includeDeclaration": false,
+                })])
+                .await
+                .expect("the JavaScript end answers");
+            let found: Vec<Location> = serde_json::from_value(from_js).unwrap();
+            assert_eq!(found.len(), 1, "{root}: {found:?}");
+            assert_eq!(found[0].uri, rule, "{root}: {found:?}");
+            assert_eq!(found[0].range.start.line, 2, "{root}: {found:?}");
+        }
     }
 }

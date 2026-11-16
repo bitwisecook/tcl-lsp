@@ -415,12 +415,18 @@ directly (restart returns, the client object is a new one, and the server
 answers afterwards); with the stop/start shape that test hangs rather than
 failing, which is why its wait is bounded.
 
-**Known gap.** On github.dev and vscode.dev the workspace is on a virtual
-scheme (`vscode-vfs:`), so by the rule above every upsert is discarded and only
-open documents are analysed. The host says so at startup rather than leaving it
-to be discovered. Closing it means teaching the store to key a URI that names
-no filesystem path — the alias table already exists, but `vfs_upsert`,
-`uri_norm`, and the workspace scan's folder walk all assume a path.
+**Virtual schemes.** On github.dev and vscode.dev the workspace is on a
+virtual scheme (`vscode-vfs:`). `MemoryStore::document_uri_path` admits a
+hierarchical non-`file:` URI at `file_uri::to_virtual_uri_path`'s path under
+`VIRTUAL_URI_MOUNT` (`/\0.tcl-lsp/uri/<scheme>/<authority>/<path>`). The NUL
+byte keeps the mount out of every `file:` URI's reach, as it does for the spec
+pack mount. The server's URI-to-path sites go through
+`uri_norm::DocumentPath::document_path`, which selects the same path. `canonical_file_uri` applies the exact inverse,
+`file_uri::from_virtual_uri_path`, so the scan, the `source` resolver and every
+`Location` name the document by its original URI. `NativeStore` still refuses
+these URIs: a desktop document on a virtual scheme stays `NoFilesystemPath`.
+An authority with an empty path (`vscode-test-web://mount`) is that
+authority's root. An opaque URI (`untitled:`) is still `NotFile`.
 
 ## Two wasm-only constraints
 

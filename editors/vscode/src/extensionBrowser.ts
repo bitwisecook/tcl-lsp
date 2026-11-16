@@ -37,6 +37,7 @@
 import { registerSourceActionCommands } from "./codeActionSource";
 import { findGenerateDocstringAction } from "./codeActionKinds";
 import { insertPackageRequirement } from "./packageRequire";
+import { registerIlxReferenceProvider } from "./ilxReferences";
 import * as vscode from "vscode";
 import {
   commands,
@@ -646,6 +647,7 @@ function registerCommands(context: ExtensionContext): void {
     }),
     registerSourceActionCommands(),
     commands.registerCommand("tclLsp.generateDocstring", generateDocstring),
+    registerIlxReferenceProvider(getClient),
   );
 
   // Everything the manifest contributes that this host cannot honour answers

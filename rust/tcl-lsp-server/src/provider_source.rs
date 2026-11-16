@@ -366,7 +366,7 @@ impl ProviderCaptureInputs<'_> {
             paths
                 .into_iter()
                 .filter_map(|path| {
-                    let uri = Uri::from_file_path(&path)?;
+                    let uri = crate::canonical_file_uri(&path)?;
                     let config = longest_folder_match(&folders, &uri)
                         .copied()
                         .unwrap_or(global);

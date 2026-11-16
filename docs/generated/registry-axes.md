@@ -14,7 +14,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | 15 |
 | options | 19 |
 | special_vars | 2 |
-| irreducible | 49 |
+| irreducible | 51 |
 
 | Axis | Until | File | Sites | Waiver | Reason |
 |---|---|---|---|---|---|
@@ -43,7 +43,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs` | 2 | site | selects which calls a debug trace logs |
 | irreducible | never | `rust/tcl-compiler/src/parsing/spectcl_source.rs` | 1 | site | the SpecTcl DSL's own include row, which the loader defines |
 | irreducible | never | `rust/tcl-diagram/src/graph.rs` | 12 | file | the diagram IR's own node kinds and branch labels, not Tcl words |
-| irreducible | never | `rust/tcl-lsp-core/src/file_uri.rs` | 2 | file | a URI scheme and a home-directory marker, not Tcl words |
+| irreducible | never | `rust/tcl-lsp-core/src/file_uri.rs` | 4 | file | a URI scheme and a home-directory marker, not Tcl words |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/config.rs` | 1 | site | an editor-settings spelling for `tclLsp.formatting.docstringStyle` (a stub-placement choice), not a Tcl clause-grammar keyword; "body" here coincides with the registry's `ArgRole::Body` word by English spelling only |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/docstring.rs` | 1 | site | `args` here is a proc's own *formal parameter* name (Tcl's variadic-last-parameter convention, checked against the signature this stub is generated from), not a call to `info args`; the spelling coincides with `info`'s subcommand by coincidence only |
 | irreducible | never | `rust/tcl-lsp-core/src/minify.rs` | 2 | site | `section` is this parser's own section tag, set a few lines up from *this format's own* `# Procs` / `# Variables in …` headers (the `Self::format` writer's own vocabulary for its symbol-map file), not a dispatch on `info procs` / `info variables`; the spelling coincides with `info`'s subcommand names only |

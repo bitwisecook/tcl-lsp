@@ -26,7 +26,7 @@
  * in the web extension host and calls `run()`.
  *
  * Deliberately mocha-free: mocha would have to be bundled into the worker, and
- * this suite is four assertions about the one thing the desktop suite cannot
+ * this suite is a handful of assertions about the one thing the desktop suite cannot
  * check — that the browser entry point activates, starts the wasm language
  * server, and produces real analysis for a workspace file that the extension
  * had to read and upsert itself, because the server has no filesystem.
@@ -196,9 +196,60 @@ export async function run(): Promise<void> {
     (diagnostics ?? []).map((d) => String(d.code)).join(","),
   );
 
+  await checkCrossFileNavigation(folder);
+
   await checkRestart(api, document);
 
   report();
+}
+
+/**
+ * Cross-file navigation into a file the editor never opened (#1734).
+ *
+ * The workspace is on `vscode-test-web:`, so the sibling reaches the server
+ * only through the store sweep, which keys it by its original URI. The answer
+ * must come back on that scheme: a `file:` Location here is one the web
+ * client cannot open.
+ */
+async function checkCrossFileNavigation(folder: vscode.WorkspaceFolder): Promise<void> {
+  const caller = await vscode.workspace.openTextDocument(
+    vscode.Uri.joinPath(folder.uri, "crossFileCaller.tcl"),
+  );
+  await vscode.window.showTextDocument(caller);
+  const callLine = caller
+    .getText()
+    .split("\n")
+    .findIndex((line) => line.startsWith("libtest "));
+  const definitions = await waitFor("a cross-file definition", ANALYSIS_TIMEOUT_MS, async () => {
+    const found = await vscode.commands.executeCommand<
+      Array<vscode.Location | vscode.LocationLink>
+    >("vscode.executeDefinitionProvider", caller.uri, new vscode.Position(callLine, 2));
+    const uris = (found ?? []).map((item) => ("targetUri" in item ? item.targetUri : item.uri));
+    return uris.some((uri) => uri.path.endsWith("/crossFileDefLib.tcl")) ? uris : undefined;
+  });
+  const target = definitions?.find((uri) => uri.path.endsWith("/crossFileDefLib.tcl"));
+  check(
+    "go-to-definition reaches an unopened sibling on the workspace scheme",
+    target !== undefined && target.scheme === folder.uri.scheme,
+    target ? target.toString() : "no definition within the timeout",
+  );
+
+  const references = await waitFor("cross-file references", ANALYSIS_TIMEOUT_MS, async () => {
+    const found = await vscode.commands.executeCommand<vscode.Location[]>(
+      "vscode.executeReferenceProvider",
+      caller.uri,
+      new vscode.Position(callLine, 2),
+    );
+    return (found ?? []).some((loc) => loc.uri.path.endsWith("/crossFileDefLib.tcl"))
+      ? found
+      : undefined;
+  });
+  check(
+    "find-references reports the unopened definition on the workspace scheme",
+    (references ?? []).every((loc) => loc.uri.scheme === folder.uri.scheme) &&
+      (references ?? []).length > 0,
+    (references ?? []).map((loc) => loc.uri.toString()).join(", ") || "none within the timeout",
+  );
 }
 
 /**

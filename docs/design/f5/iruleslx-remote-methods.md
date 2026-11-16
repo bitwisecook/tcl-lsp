@@ -273,26 +273,29 @@ Registering the provider is not itself an activation event: the extension
 activates on a Tcl language id or on a workspace containing Tcl sources, which
 an ILX workspace always does. A JavaScript-only project never activates it.
 
-### Desktop only, and why
+### On the web
 
-The whole relation — definition, hover and both directions of
-find-references — is **filesystem-path** shaped: `extensions/<name>/` is
-matched on path components, the entry point is resolved through
-`package.json`'s `main`, and the caller search lists directories. Every server
-tier therefore starts by turning the request's URI into a path and reads the
+The whole relation (definition, hover and both directions of find-references)
+is **filesystem-path** shaped. `extensions/<name>/` is matched on path
+components, the entry point is resolved through `package.json`'s `main`, and
+the caller search lists directories. Every server tier turns the request's URI
+into a store path with `uri_norm::DocumentPath::document_path` and reads the
 files around it through the server's source store.
 
-On the web hosts (vscode.dev / github.dev, where documents are `vscode-vfs:`
-and friends) the browser worker's store admits only `file:` sources
-(`file_uri::to_source_namespace_path` refuses any other scheme), so it holds
-no entry point, `package.json` or sibling rule to read, and every ILX tier
-finds nothing. A path the tiers did resolve would also be reported back as a
-`file:` URI, since the store has no path-to-original-URI inverse. The browser entry point deliberately does
-**not** register the JavaScript reference provider: it would send a request the server cannot answer. Making this work on
-the web means giving the relation a URI-shaped discovery path rather than a
-path-shaped one — extension lookup, entry-point resolution and directory
-listing all over the virtual filesystem — which is its own change, not a
-registration.
+On the web hosts (vscode.dev and github.dev, where documents are `vscode-vfs:`,
+and the web smoke test, where they are `vscode-test-web:`) the browser store
+keys a non-`file:` document by its original URI. `file_uri::to_virtual_uri_path`
+places it at `VIRTUAL_URI_MOUNT/<scheme>/<authority>/<path>`. The mount carries a
+NUL byte, so no `file:` URI can spell it. Everything below the mount is an
+ordinary rooted path, so `extensions/`, `rules/` and sibling listing work
+unchanged. `file_uri::from_virtual_uri_path` is the exact inverse, and the
+server's one path-to-URI constructor (`canonical_file_uri`) applies it, so every
+`Location` comes back on the scheme the client sent.
+
+The browser host sweeps `extensions/*/package.json` and `extensions/*/*.js`
+into the store alongside the Tcl sources. A `main` nested deeper than the
+extension directory is read only while it is open. The browser entry point
+registers the JavaScript reference provider as the desktop one does.
 
 ## Anchors
 

@@ -396,6 +396,130 @@ fn document_file_path_spelling(
     }
 }
 
+/// The store mount that holds documents named by a hierarchical non-`file:`
+/// URI, such as `vscode-vfs://github/owner/repo/a.tcl`.
+///
+/// The NUL byte is deliberate, as for the spec-pack mount: no `file:` URI can
+/// spell a path under it, so a virtual document never shadows a file one.
+pub const VIRTUAL_URI_MOUNT: &str = "/\0.tcl-lsp/uri";
+
+/// The authority segment for a URI with no authority (`memfs:/a.tcl`).
+const NO_AUTHORITY: &str = "~";
+/// The prefix of the authority segment for a URI with one
+/// (`vscode-vfs://github/…` → `@github`).
+const AUTHORITY_PREFIX: char = '@';
+
+/// The rooted store path for a hierarchical non-`file:` document URI.
+///
+/// The path is `VIRTUAL_URI_MOUNT/<scheme>/<authority>/<decoded path>`. The
+/// scheme is lower-cased; the authority segment is `~` when the URI has none
+/// and `@<decoded host>` when it has one, so the two spellings never meet.
+/// [`from_virtual_uri_path`] is the inverse in VS Code's spelling. Decoding
+/// is as strict as the `file:` recipe: invalid Unicode, NUL and an encoded
+/// `/` refuse.
+///
+/// # Errors
+/// `NotFile` for an opaque URI (`untitled:Untitled-1`), which names no path;
+/// `UnsupportedNativeGeometry` for a `file:` URI, which has a real path of
+/// its own; otherwise the strict query, authority and decoding refusals.
+pub fn to_virtual_uri_path(
+    original_uri: &str,
+) -> Result<std::path::PathBuf, FileUriPathUnavailable> {
+    use FileUriPathUnavailable as Unavailable;
+    let uri = fluent_uri::Uri::parse(original_uri).map_err(|_| Unavailable::InvalidUri)?;
+    let scheme = uri.scheme().as_str().to_ascii_lowercase();
+    if scheme == "file" {
+        return Err(Unavailable::UnsupportedNativeGeometry);
+    }
+    // With an authority, an empty path is the authority's root
+    // (`vscode-test-web://mount`); without one, a path that is not absolute is
+    // opaque (`untitled:Untitled-1`).
+    let segments = match uri.path().segments_if_absolute() {
+        Some(segments) => Some(segments),
+        None if uri.authority().is_some() && uri.path().is_empty() => None,
+        None => return Err(Unavailable::NotFile),
+    };
+    if uri.query().is_some() || uri.fragment().is_some() {
+        return Err(Unavailable::QueryOrFragment);
+    }
+    let authority = match uri.authority() {
+        None => Cow::Borrowed(NO_AUTHORITY),
+        Some(authority) => {
+            if authority.userinfo().is_some() || authority.port().is_some() {
+                return Err(Unavailable::UnsupportedAuthority);
+            }
+            let host = match authority.host_parsed() {
+                fluent_uri::component::Host::RegName(name) => name
+                    .decode()
+                    .to_string()
+                    .map_err(|_| Unavailable::InvalidUnicode)?,
+                fluent_uri::component::Host::Ipv4(..) => Cow::Borrowed(authority.host()),
+                _ => return Err(Unavailable::UnsupportedAuthority),
+            };
+            if host.contains('\0') {
+                return Err(Unavailable::Nul);
+            }
+            if host.contains('/') {
+                return Err(Unavailable::UnsupportedAuthority);
+            }
+            Cow::Owned(format!("{AUTHORITY_PREFIX}{host}"))
+        }
+    };
+    let mut spelling = format!("{VIRTUAL_URI_MOUNT}/{scheme}/{authority}");
+    for segment in segments.into_iter().flatten() {
+        let decoded = segment
+            .decode()
+            .to_string()
+            .map_err(|_| Unavailable::InvalidUnicode)?;
+        if decoded.contains('\0') {
+            return Err(Unavailable::Nul);
+        }
+        if decoded.contains('/') {
+            return Err(Unavailable::EncodedSeparator);
+        }
+        spelling.push('/');
+        spelling.push_str(&decoded);
+    }
+    Ok(std::path::PathBuf::from(spelling))
+}
+
+/// The document URI a [`to_virtual_uri_path`] path was made from, spelled as
+/// VS Code spells it: `None` for a path outside [`VIRTUAL_URI_MOUNT`].
+#[must_use]
+pub fn from_virtual_uri_path(path: &Path) -> Option<String> {
+    let rest = path
+        .to_str()?
+        .strip_prefix(VIRTUAL_URI_MOUNT)?
+        .strip_prefix('/')?;
+    let (scheme, rest) = rest.split_once('/')?;
+    let scheme_ok = scheme
+        .as_bytes()
+        .first()
+        .is_some_and(u8::is_ascii_lowercase)
+        && scheme.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'+' | b'-' | b'.')
+        });
+    if !scheme_ok || scheme == "file" {
+        return None;
+    }
+    let (authority, tail) = match rest.split_once('/') {
+        Some((authority, tail)) => (authority, Some(tail)),
+        None => (rest, None),
+    };
+    let mut uri = format!("{scheme}:");
+    if let Some(host) = authority.strip_prefix(AUTHORITY_PREFIX) {
+        uri.push_str("//");
+        uri.push_str(&escaped_path(host, FileUriEscaping::Unreserved));
+    } else if authority != NO_AUTHORITY || tail.is_none() {
+        return None;
+    }
+    if let Some(tail) = tail {
+        uri.push('/');
+        uri.push_str(&escaped_path(tail, FileUriEscaping::Unreserved));
+    }
+    Some(uri)
+}
+
 #[cfg(test)]
 pub(crate) fn standalone_windows_path(path: &str, escaping: FileUriEscaping) -> Option<String> {
     from_rooted_spelling(path, true, escaping)
@@ -781,5 +905,109 @@ mod vscode_forward_projection_tests {
             vscode_document_spelling(r"C:\work\é.tcl", true),
             from_rooted_spelling(r"C:\work\é.tcl", true, FileUriEscaping::Unreserved)
         );
+    }
+}
+
+#[cfg(test)]
+mod virtual_uri_tests {
+    use super::*;
+
+    #[test]
+    fn a_hierarchical_virtual_uri_round_trips_through_its_store_path_1734() {
+        for (uri, path) in [
+            (
+                "vscode-vfs://github/owner/repo/lib/a.tcl",
+                "/\0.tcl-lsp/uri/vscode-vfs/@github/owner/repo/lib/a.tcl",
+            ),
+            (
+                "vscode-test-web://mount/src/main.tcl",
+                "/\0.tcl-lsp/uri/vscode-test-web/@mount/src/main.tcl",
+            ),
+            ("memfs:/a%20b.tcl", "/\0.tcl-lsp/uri/memfs/~/a b.tcl"),
+            (
+                "vscode-vfs://github/o/r/%C3%A9%3A%40.tcl",
+                "/\0.tcl-lsp/uri/vscode-vfs/@github/o/r/é:@.tcl",
+            ),
+            (
+                "vscode-vfs://github/",
+                "/\0.tcl-lsp/uri/vscode-vfs/@github/",
+            ),
+            (
+                "vscode-test-web://mount",
+                "/\0.tcl-lsp/uri/vscode-test-web/@mount",
+            ),
+            (
+                "vscode-vfs://10.0.0.1/a.tcl",
+                "/\0.tcl-lsp/uri/vscode-vfs/@10.0.0.1/a.tcl",
+            ),
+        ] {
+            let store = to_virtual_uri_path(uri).expect(uri);
+            assert_eq!(store.to_str(), Some(path), "{uri}");
+            assert_eq!(from_virtual_uri_path(&store).as_deref(), Some(uri), "{uri}");
+        }
+    }
+
+    #[test]
+    fn the_scheme_is_case_folded_and_the_authority_spelling_stays_distinct() {
+        assert_eq!(
+            to_virtual_uri_path("VSCode-VFS://github/a.tcl").ok(),
+            to_virtual_uri_path("vscode-vfs://github/a.tcl").ok()
+        );
+        assert_ne!(
+            to_virtual_uri_path("memfs:///a.tcl").ok(),
+            to_virtual_uri_path("memfs:/a.tcl").ok()
+        );
+    }
+
+    #[test]
+    fn a_virtual_uri_without_a_lossless_path_refuses() {
+        use FileUriPathUnavailable as Unavailable;
+        for (uri, cause) in [
+            ("untitled:Untitled-1", Unavailable::NotFile),
+            ("file:///a.tcl", Unavailable::UnsupportedNativeGeometry),
+            (
+                "vscode-vfs://github/a.tcl?ref=main",
+                Unavailable::QueryOrFragment,
+            ),
+            ("vscode-vfs://github/a.tcl#L1", Unavailable::QueryOrFragment),
+            (
+                "vscode-vfs://u@github/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            (
+                "vscode-vfs://github:443/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            (
+                "vscode-vfs://[::1]/a.tcl",
+                Unavailable::UnsupportedAuthority,
+            ),
+            (
+                "vscode-vfs://github/a%2Fb.tcl",
+                Unavailable::EncodedSeparator,
+            ),
+            ("vscode-vfs://github/a%00.tcl", Unavailable::Nul),
+            ("vscode-vfs://github/a%FF.tcl", Unavailable::InvalidUnicode),
+            ("not a uri", Unavailable::InvalidUri),
+        ] {
+            assert_eq!(to_virtual_uri_path(uri), Err(cause), "{uri}");
+        }
+    }
+
+    #[test]
+    fn only_a_mounted_path_has_a_virtual_uri() {
+        for path in [
+            "/work/a.tcl",
+            "/\0.tcl-lsp/specs/x.tcl",
+            "/\0.tcl-lsp/uri",
+            "/\0.tcl-lsp/uri/vscode-vfs",
+            "/\0.tcl-lsp/uri/file/~/a.tcl",
+            "/\0.tcl-lsp/uri/Bad/~/a.tcl",
+            "/\0.tcl-lsp/uri/1x/~/a.tcl",
+            "/\0.tcl-lsp/uri/memfs/github/a.tcl",
+            "/\0.tcl-lsp/uri/memfs/~",
+        ] {
+            assert_eq!(from_virtual_uri_path(Path::new(path)), None, "{path:?}");
+        }
     }
 }

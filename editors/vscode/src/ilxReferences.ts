@@ -78,10 +78,10 @@ export function createIlxReferenceProvider(
 ): vscode.ReferenceProvider {
   return {
     async provideReferences(document, position, context, token) {
-      if (document.uri.scheme !== "file") {
-        return undefined;
-      }
-      if (!looksLikeIlxExtensionSource(document.uri.fsPath)) {
+      // `fsPath` is a host path only for `file:`; a virtual workspace
+      // (`vscode-vfs:`, `vscode-test-web:`) names its file by the URI path.
+      const path = document.uri.scheme === "file" ? document.uri.fsPath : document.uri.path;
+      if (!looksLikeIlxExtensionSource(path)) {
         return undefined;
       }
       const client = getClient();
@@ -138,22 +138,17 @@ export function createIlxReferenceProvider(
  * workspace always does (its `rules/`). A JavaScript-only project therefore
  * never activates it, and never pays for this.
  *
- * The **browser** entry point (`extensionBrowser.ts`) deliberately does not
- * call this. The whole ILX relation is filesystem-path shaped — `extensions/`
- * matched on path components, `package.json`'s `main`, directory listing — so
- * every server tier begins by turning the URI into a path, and abstains for the
- * `vscode-vfs:`-style URIs a web host uses. Registering there would send a
- * request the server cannot answer. See
+ * No scheme filter: the browser entry point (`extensionBrowser.ts`) registers
+ * it too, and a web workspace is `vscode-vfs:` or `vscode-test-web:`. The
+ * browser server stores those files under a URI-keyed virtual path and answers
+ * with Locations on the original scheme. See
  * `docs/design/f5/iruleslx-remote-methods.md`.
  */
 export function registerIlxReferenceProvider(
   getClient: () => IlxReferenceClient | undefined,
 ): vscode.Disposable {
   return vscode.languages.registerReferenceProvider(
-    [
-      { scheme: "file", language: "javascript" },
-      { scheme: "file", language: "javascriptreact" },
-    ],
+    [{ language: "javascript" }, { language: "javascriptreact" }],
     createIlxReferenceProvider(getClient),
   );
 }

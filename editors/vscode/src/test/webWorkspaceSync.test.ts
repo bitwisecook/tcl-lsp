@@ -126,6 +126,14 @@ suite("Web workspace sync", () => {
     assert.ok(globs.includes("**/*.tcl.stubs"));
   });
 
+  test("carries an iRulesLX extension's manifest and entry point", () => {
+    // The ILX relation resolves `package.json`'s `main`, else `index.js`; on
+    // the web the store is the only place the server can read either.
+    const globs = deriveSyncGlobs({});
+    assert.ok(globs.includes("**/extensions/*/package.json"), globs.join(" "));
+    assert.ok(globs.includes("**/extensions/*/*.js"), globs.join(" "));
+  });
+
   test("falls back to the registered extensions when no activation glob exists", () => {
     const globs = deriveSyncGlobs({
       contributes: { languages: [{ extensions: [".tcl", ".irule"] }] },

@@ -183,8 +183,10 @@ impl LspWorker {
     /// Register (or replace) the contents of a file the editor does not have
     /// open, so cross-file navigation and `source` resolution can reach it.
     ///
-    /// `uri` must be admitted by the MemoryStore's strict virtual file-URI
-    /// policy. The original and service-canonical URI select one retained
+    /// `uri` must be admitted by the MemoryStore's strict virtual URI policy:
+    /// a `file:` URI, or a hierarchical virtual-workspace URI such as
+    /// `vscode-vfs://github/o/r/a.tcl`, filed under
+    /// `tcl_lsp_core::file_uri::VIRTUAL_URI_MOUNT`. The original and service-canonical URI select one retained
     /// registration; invalid data is refused before any map or bytes change.
     pub fn vfs_upsert(&self, uri: &str, text: &str) -> bool {
         self.vfs_upsert_bytes(uri, text.as_bytes().to_vec())

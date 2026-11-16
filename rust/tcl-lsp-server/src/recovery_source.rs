@@ -29,6 +29,7 @@ use super::{
     ResourceAnalyserInputs, RwLock, SalsaAnalysisCtx, TrackedRwLock, core_workspace_index,
     defined_original_commands_from_analysis, provider_source, report_analysis_worker_panic,
 };
+use crate::uri_norm::DocumentPath as _;
 use provider_source::{ProviderCaptureInputs, ProviderSourceUnavailable};
 use tcl_compiler::analyser::ResolvedAnalysisInput;
 use tcl_lsp_core::package_resolver::{
@@ -126,7 +127,7 @@ pub(super) async fn compute_recovery_analysis(
         .with_workspace_subclass_methods(subclasses.clone())
         .with_file_path(
             ctx.uri
-                .to_file_path()
+                .document_path()
                 .map(|path| path.display().to_string()),
         )
     });
@@ -163,7 +164,7 @@ pub(super) async fn compute_recovery_analysis(
     let disabled = disabled.clone();
     let path = ctx
         .uri
-        .to_file_path()
+        .document_path()
         .map(|path| path.display().to_string());
     match crate::rt::spawn_blocking(move || {
         {

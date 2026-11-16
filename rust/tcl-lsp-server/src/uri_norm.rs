@@ -289,6 +289,31 @@ pub fn document_file_path(uri: &Uri) -> Result<std::path::PathBuf, DocumentFileP
     )
 }
 
+/// The analyser path of a document or workspace-folder URI.
+///
+/// A `file:` URI keeps its native path. A hierarchical virtual-workspace URI
+/// (`vscode-vfs://github/o/r/a.tcl`) maps into the store's
+/// [`tcl_lsp_core::file_uri::VIRTUAL_URI_MOUNT`], the same path the browser
+/// `MemoryStore` files it under, and `canonical_file_uri` maps it back. An
+/// opaque URI (`untitled:Untitled-1`) has none. This grants no file action:
+/// that is [`file_action_path`].
+pub trait DocumentPath {
+    /// See [`DocumentPath`].
+    fn document_path(&self) -> Option<Cow<'_, std::path::Path>>;
+}
+
+impl DocumentPath for Uri {
+    fn document_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        if self.scheme().as_str().eq_ignore_ascii_case("file") {
+            self.to_file_path()
+        } else {
+            tcl_lsp_core::file_uri::to_virtual_uri_path(self.as_str())
+                .ok()
+                .map(Cow::Owned)
+        }
+    }
+}
+
 /// Strict incoming file-URI boundary for host file actions. URI repair and
 /// display normalization cannot establish a path. Decode with the protocol
 /// provider, rejecting its lossy Unicode fallback and unsupported authorities.

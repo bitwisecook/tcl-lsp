@@ -156,6 +156,15 @@ export interface SyncManifest {
 }
 
 /**
+ * An iRulesLX extension's manifest and top-level scripts. The ILX relation
+ * resolves the entry point from `package.json`'s `main`, else `index.js`, and
+ * reads the `addMethod` registrations there. Only the extension directory's
+ * own level is swept, so `node_modules` never spends the budget; a `main`
+ * deeper than that is read only while it is open.
+ */
+const ILX_EXTENSION_GLOBS = ["**/extensions/*/package.json", "**/extensions/*/*.js"];
+
+/**
  * What the sweep must carry that no derived glob names: the config files
  * `is_config_file` recognises, the sidecar stub bundle, and the classic
  * autoloader's `tclIndex`. None of them carries a Tcl source extension, and
@@ -176,6 +185,7 @@ const NON_SOURCE_GLOBS = [
   "**/tcl-lsp/config.ini",
   "**/*.tcl.stubs",
   "**/[tT][cC][lL][iI][nN][dD][eE][xX]",
+  ...ILX_EXTENSION_GLOBS,
 ];
 
 /**
@@ -604,7 +614,6 @@ export class WorkspaceStoreSync {
       this.log("[web] no workspace folder open — the server sees only the editor's open documents");
       return report;
     }
-    this.warnAboutNonFileSchemes(folders);
     this.sourceInventories.clear();
     this.rootScans.clear();
     const scanGenerations = new Map<string, number>();
@@ -733,35 +742,6 @@ export class WorkspaceStoreSync {
     this.publishSourceInventories();
     this.reportBudget(report, uris.length, budget);
     return report;
-  }
-
-  /**
-   * Say so, once, when the workspace is not on the `file:` scheme.
-   *
-   * `LspWorker::vfs_upsert` keys the store on the filesystem path a `file:` URI
-   * names (`Uri::to_file_path`), and drops an upsert whose URI names none — so
-   * on github.dev (`vscode-vfs:`) and every other virtual provider, the sweep
-   * below runs, reads the workspace, and the server keeps none of it. The open
-   * document still analyses in full, because `didOpen` carries its text and
-   * never touches the store; what is missing is everything cross-file.
-   *
-   * The sweep still runs: it is cheap next to the wasm module, it is correct
-   * the moment the store learns to key a non-path URI, and a `file:`-scheme web
-   * host works today. Saying nothing would be the wrong trade — a user would
-   * see confident single-file answers and silently absent cross-file ones.
-   */
-  private warnAboutNonFileSchemes(folders: readonly vscode.WorkspaceFolder[]): void {
-    const virtual = folders.filter((folder) => folder.uri.scheme !== "file");
-    if (virtual.length === 0) {
-      return;
-    }
-    this.log(
-      `[web] this workspace is on the ${[...new Set(virtual.map((f) => f.uri.scheme))].join("/")} ` +
-        "scheme, not file:. The browser server keys its closed-file store on the path a file: URI " +
-        "names, so it discards these files: analysis of open documents is complete, and cross-file " +
-        "results (definitions in un-opened siblings, the package database, workspace symbols) are " +
-        "not available.",
-    );
   }
 
   private reportBudget(report: SyncReport, candidates: number, budget: WorkspaceSyncBudget): void {
@@ -977,7 +957,6 @@ export class WorkspaceStoreSync {
     budget: WorkspaceSyncBudget,
     notify: (changes: Array<{ uri: string; type: number }>) => void,
   ): Promise<void> {
-    this.warnAboutNonFileSchemes(folders);
     this.refreshRootSelections(budget);
     const scanGenerations = new Map<string, number>();
     for (const folder of folders) {

@@ -1199,10 +1199,18 @@ impl SourceStore for MemoryStore {
     ) -> Result<SourceUriPath, SourceUriPathUnavailable> {
         // Strictly validate the entire URI even when an exact registered alias
         // selects a different virtual path. Raw URI data never receives lossy decoding.
-        let derived = crate::file_uri::to_source_namespace_path(
+        // A hierarchical non-`file:` URI (a virtual workspace) lives under
+        // its own mount; one with no lossless path stays a non-file document.
+        let derived = match crate::file_uri::to_source_namespace_path(
             original_uri,
             crate::file_uri::SourceFileUriNamespace::Virtual,
-        )?;
+        ) {
+            Err(crate::file_uri::FileUriPathUnavailable::NotFile) => {
+                crate::file_uri::to_virtual_uri_path(original_uri)
+                    .map_err(|_| crate::file_uri::FileUriPathUnavailable::NotFile)?
+            }
+            derived => derived?,
+        };
         let binding = self.registered_uri_binding(original_uri);
         let path = binding
             .as_ref()

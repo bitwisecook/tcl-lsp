@@ -116,6 +116,36 @@ suite("iRulesLX JavaScript references", () => {
     assert.strictEqual(locations[0].range.start.character, 34);
   });
 
+  test("a virtual-workspace extension reaches the server and keeps its scheme", async () => {
+    // github.dev serves `vscode-vfs:`; the browser server answers on the same
+    // scheme, so the Location must open there rather than as a host path.
+    let seen: Record<string, unknown> | undefined;
+    const rule = "vscode-vfs://github/o/r/rules/rule1.tcl";
+    const client: IlxReferenceClient = {
+      sendRequest: async (_method, param) => {
+        seen = (param as { arguments: Record<string, unknown>[] }).arguments[0];
+        return [
+          {
+            uri: rule,
+            range: { start: { line: 2, character: 34 }, end: { line: 2, character: 48 } },
+          },
+        ];
+      },
+    };
+    const entry = vscode.Uri.parse("vscode-vfs://github/o/r/extensions/my_extension/index.js");
+    const provider = createIlxReferenceProvider(() => client);
+    const found = await provider.provideReferences(
+      { uri: entry, getText: () => "ilx.addMethod('m', cb);" } as unknown as vscode.TextDocument,
+      new vscode.Position(0, 16),
+      WITH_DECLARATION,
+      NEVER_CANCELLED,
+    );
+    assert.strictEqual(seen?.uri, entry.toString());
+    const locations = found as vscode.Location[];
+    assert.strictEqual(locations.length, 1);
+    assert.strictEqual(locations[0].uri.toString(), rule);
+  });
+
   test("no answer stays undefined so the JavaScript provider's own results survive", async () => {
     const doc = jsDocument("/w/ws/extensions/my_extension/index.js", "ilx.listen();");
     const empty = createIlxReferenceProvider(() => ({ sendRequest: async () => [] }));
