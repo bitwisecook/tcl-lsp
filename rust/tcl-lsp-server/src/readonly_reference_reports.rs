@@ -438,10 +438,14 @@ impl OriginalReadonlyReferenceReport {
             self.locations.len(),
             self.coverage,
         );
-        let clickable = self.coverage == ReadonlyReferenceCoverage::ExistingInventory
-            || self.coverage == ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
-                && !self.locations.is_empty()
-            || self.coverage == ReadonlyReferenceCoverage::Partial && !self.locations.is_empty();
+        // A complete count of zero is an answer, and its empty peek a valid
+        // target; an incomplete one with nothing found is not.
+        let clickable = match self.coverage {
+            ReadonlyReferenceCoverage::ExistingInventory
+            | ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus => true,
+            ReadonlyReferenceCoverage::Partial => !self.locations.is_empty(),
+            ReadonlyReferenceCoverage::Unavailable => false,
+        };
         tower_lsp_server::ls_types::Command {
             title,
             command: if clickable {
@@ -3497,16 +3501,21 @@ mod tests {
             assert_eq!(command.command, "");
             assert!(command.arguments.is_none());
         }
-        let report = OriginalReadonlyReferenceReport {
-            locations: Vec::new(),
-            coverage: ReadonlyReferenceCoverage::ExistingInventory,
-        };
-        let command = report.lens_command(
-            &"file:///readonly-empty.tcl".parse().unwrap(),
-            Position::new(0, 0),
-        );
-        assert_eq!(command.title, "0 references");
-        assert_eq!(command.command, "tcl-lsp.showReferences");
+        for coverage in [
+            ReadonlyReferenceCoverage::ExistingInventory,
+            ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus,
+        ] {
+            let report = OriginalReadonlyReferenceReport {
+                locations: Vec::new(),
+                coverage,
+            };
+            let command = report.lens_command(
+                &"file:///readonly-empty.tcl".parse().unwrap(),
+                Position::new(0, 0),
+            );
+            assert_eq!(command.title, "0 references");
+            assert_eq!(command.command, "tcl-lsp.showReferences");
+        }
     }
 
     #[tokio::test]
