@@ -6123,12 +6123,18 @@ impl Analyser {
         // Direct named construction retains its genuine original factory,
         // family layout and canonical class declaration. This is source class
         // presentation only; successful publication belongs to binding state.
+        // A logical source input pins no interpreter: its class is the
+        // retained logical declaration, and the label is conditional.
+        let logical = self.result.allows_retained_logical_declaration_advice();
         if let Some(call) = crate::registry_invocation::source_structure::source_constructor_call_at(
             &self.source,
             &self.result,
             site_offset,
-        ) && let Some(shape) = call.constructor_shape(&self.result)
-        {
+        ) && let Some(shape) = if logical {
+            call.logical_constructor_shape(&self.result)
+        } else {
+            call.constructor_shape(&self.result)
+        } {
             let arguments = call.arguments();
             let name_at = match shape {
                 crate::command_binding::OriginalSourceConstructorShape::Method(method) => {
@@ -6142,9 +6148,15 @@ impl Analyser {
                     .and_then(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
                     .and_then(|bytes| std::str::from_utf8(bytes).ok())
                 && !name.is_empty()
-                && let Some(class) = call.class_declaration().source_class(&self.result)
+                && let Some(class) = if logical {
+                    call.class_declaration().logical_source_class(&self.result)
+                } else {
+                    call.class_declaration().source_class(&self.result).map(
+                        crate::signature_scan::original_name::SourceDeclarationMetadata::metadata,
+                    )
+                }
             {
-                let class_q = class.metadata().qualified_name.clone();
+                let class_q = class.qualified_name.clone();
                 self.result
                     .instance_classes
                     .insert(name.to_owned(), class_q.clone());
