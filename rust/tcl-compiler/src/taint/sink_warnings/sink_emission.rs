@@ -18,15 +18,15 @@
 
 //! One warning per tainted use reaching a classified sink: mitigating colours, safe positions, argument spans and the message.
 
+use super::super::{
+    ArgRole, CommandRegistry, DiagCode, SinkCall, Span, TaintColour, TaintLattice, TaintScan,
+    TaintWarning, Traits, WordExpr, arg_var_names_with_config, reg_colour,
+};
 use super::classification::{classify_network_interp_sinks, selected_sink_schema};
 use super::sink_wrappers::{
     list_wrapped_arg_command_is_literal, var_consumed_by_sanitiser, var_wrapper_colours,
 };
 use super::source_reads::{operand_read_taint, original_sink_argument, reference_root_with_config};
-use super::{
-    ArgRole, CommandRegistry, DiagCode, SinkCall, Span, TaintColour, TaintLattice, TaintScan,
-    TaintWarning, Traits, WordExpr, arg_var_names_with_config, reg_colour,
-};
 
 /// Return `true` when a tainted value `lat` carries a colour that mitigates
 /// the given output-sink code.

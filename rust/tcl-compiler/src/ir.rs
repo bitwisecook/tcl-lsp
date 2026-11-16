@@ -27,8 +27,10 @@
 //! [`SourceMap`](tcl_lexer::SourceMap). This mirrors the span-first
 //! design established in the lexer crate.
 
+#[cfg(any(test, feature = "test-support"))]
+use tcl_lexer::Span;
 #[cfg(test)]
-use tcl_lexer::{LexerConfig, SourceMap, Span};
+use tcl_lexer::{LexerConfig, SourceMap};
 /// A [`TryHandler`]'s selection vocabulary, the registry's clause-row fact.
 pub use tcl_registry::value_transfer::HandlerMatch;
 pub use tcl_runtime_api::CommandEvaluation;

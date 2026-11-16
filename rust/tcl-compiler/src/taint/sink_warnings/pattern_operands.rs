@@ -18,12 +18,12 @@
 
 //! T103: tainted values in regular-expression and glob pattern operands.
 
-use super::sink_wrappers::var_wrapper_colours;
-use super::source_reads::operand_read_taint;
-use super::{
+use super::super::{
     CommandRegistry, CommandTokens, DiagCode, HashSet, Span, TaintColour, TaintCtx, TaintLattice,
     TaintScan, TaintSourceContext, TaintWarning, scan_argument_names, word_taint,
 };
+use super::sink_wrappers::var_wrapper_colours;
+use super::source_reads::operand_read_taint;
 
 /// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
 /// the regex-pattern argument of a regex command (`regexp` / `regsub` —

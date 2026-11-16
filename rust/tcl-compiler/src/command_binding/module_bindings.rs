@@ -86,12 +86,6 @@ pub(crate) struct ResolvedBindingInvocation {
 }
 
 impl ModuleCommandBindings {
-    /// Build the closed may-binding state for every retained executable root.
-    #[must_use]
-    pub(crate) fn analyse(module: &Module, registry: &CommandRegistry) -> Self {
-        Self::analyse_with_options(module, registry, module.source_entry.options())
-    }
-
     /// Build the executable may-state under the same entry contract as source
     /// interpretation. Catalogue-only callers retain unknown loader effects.
     #[must_use]

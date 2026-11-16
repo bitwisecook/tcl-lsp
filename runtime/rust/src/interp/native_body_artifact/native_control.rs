@@ -23,12 +23,18 @@ use super::{
     EvaluatedTarget, ExecutablePartArena, HashMap, Interp, NativeBodyArtifact, NativeCompilerWords,
     Span,
 };
+#[cfg(have_tommath)]
+use std::rc::Rc;
+#[cfg(have_tommath)]
+use tcl_lexer::{ExecutablePart, SourceImage};
 use tcl_registry::native_control_compilation::{NativeControlCompilation, NativeControlOutcome};
 use tcl_registry::native_control_instructions::{
     NativeControlBody, NativeControlInstruction, NativeControlTest,
 };
 use tcl_registry::native_expression_program::{NativeExpressionProgram, NativeExpressionTree};
 use tcl_syntax::expr::ExprNode;
+#[cfg(have_tommath)]
+use tcl_syntax::value::ValueError;
 
 pub(super) struct PreparedNativeExpression {
     #[cfg_attr(not(have_tommath), allow(dead_code))]

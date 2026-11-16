@@ -19,6 +19,8 @@
 //! What follows the pinned release: the number grammar, the command surface, core packages, build info and the context an interpreter states.
 
 use super::*;
+#[cfg(have_tommath)]
+use crate::interp::setup::DEFAULT_RUNTIME_VERSION;
 
 /// Selecting the release selects the *numeral grammar* the whole runtime
 /// reads with, because every numeral goes through one facility

@@ -18,7 +18,7 @@
 
 //! Wrappers around a tainted variable in a sink argument: literal `list` commands, sanitisers and the colours transforms stamp.
 
-use super::{
+use super::super::{
     CommandRegistry, CommandTokens, SinkCall, TaintColour, TaintSourceContext, WordExpr, WordPart,
     arg_var_names_with_config, is_sanitiser, parse_command_substitution_with_config, reg_colour,
     transform_colour,

@@ -18,17 +18,18 @@
 
 //! Warnings for a block's branch condition and the command substitutions nested in it.
 
+use super::super::{
+    BlockId, CfgFunction, ExprNode, HashMap, MAX_EXPR_NODE_DEPTH, SinkCall, SourceWarningRead,
+    Span, Symbol, TaintScan, TaintWarning, Terminator, all_argument_candidates,
+    parse_command_substitution_with_config,
+};
+use super::BranchTaintCtx;
 use super::classification::{classify_sink, classify_source_sink};
 use super::numeric_coercion::{
     CoercionOperand, CoercionTaint, emit_expr_coercion_warnings, expression_read_taint,
 };
 use super::sink_emission::emit_sink_warnings;
 use super::source_reads::SourceWarningMetadata;
-use super::{
-    BlockId, BranchTaintCtx, CfgFunction, ExprNode, HashMap, MAX_EXPR_NODE_DEPTH, SinkCall,
-    SourceWarningRead, Span, Symbol, TaintScan, TaintWarning, Terminator, all_argument_candidates,
-    parse_command_substitution_with_config,
-};
 
 /// Emit taint warnings for a block's `if`/`while`/`for` branch condition:
 /// T100 for a numeric-coercion-risk operand directly in the condition

@@ -1418,6 +1418,50 @@ pub(crate) struct EnsembleRewrite {
 }
 
 impl Interp {
+    /// The namespace tree (read) — for the `namespace` builtin's queries. The
+    /// returned `Ref` must not be held across a call that mutably borrows the
+    /// namespaces (it would panic); callers use it for a single query.
+    pub(crate) fn namespaces(&self) -> std::cell::Ref<'_, Namespaces> {
+        self.namespaces.borrow()
+    }
+
+    /// Observe the actual table owner's policy revision before any guard door.
+    /// A mutable namespace borrow alone is not a lookup-policy mutation.
+    fn synchronise_command_environment_guards(&self) {
+        let revision = self.namespaces().guard_lookup_environment_revision();
+        let policy = self.namespaces().guard_command_lookup_policy_revision();
+        let previous = self.guard_lookup_environment_revision.replace(revision);
+        let previous_policy = self.guard_command_lookup_policy_revision.replace(policy);
+        remember_guard_sync(previous, revision, previous_policy, policy);
+        let unknown = self
+            .resolve_dispatchable_with_generation(self.current_ns.get(), b"::unknown")
+            .and_then(|(_, generation)| generation);
+        if self
+            .guard_unknown_binding
+            .replace(Some(unknown))
+            .is_some_and(|seen| seen != unknown)
+        {
+            self.invalidate_guard_domain(GuardDomain::UnknownHandling);
+        }
+        if revision.is_none() || policy.is_none() {
+            let mut guards = self.guards.borrow_mut();
+            for domain in [
+                GuardDomain::CommandEnvironment,
+                GuardDomain::Namespace,
+                GuardDomain::UnknownHandling,
+            ] {
+                guards.poison(domain);
+            }
+        } else {
+            if previous != revision {
+                self.invalidate_namespace_structure_guards();
+            }
+            if previous_policy != policy {
+                self.invalidate_guard_domain(GuardDomain::CommandEnvironment);
+            }
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn original_variable_storage_borrows_are_available(&self) -> bool {
         self.frames.try_borrow_mut().is_ok() && self.namespaces.try_borrow_mut().is_ok()

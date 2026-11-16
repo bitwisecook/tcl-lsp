@@ -18,11 +18,11 @@
 
 //! T106: a tainted value encoded twice by the same transform.
 
-use super::source_reads::reference_root_with_config;
-use super::{
+use super::super::{
     DiagCode, FxHashSet, HashMap, HashSet, Span, Symbol, TaintCtx, TaintLattice, TaintWarning,
     ValueKey, double_encode_label, reg_colour, transform_colour, word_taint,
 };
+use super::source_reads::reference_root_with_config;
 
 /// **T106.** Emit a double-encoding warning when a tainted value that
 /// already carries a command's `taint_double_encode_colour` is passed

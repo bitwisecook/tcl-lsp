@@ -19,6 +19,8 @@
 //! What an activation retains: the running procedure and its native execution role, Jim frame objects, and the TclOO variable resolver.
 
 use super::{FrameStack, OriginalJimVariadic, RetiredJimFrame, VarError};
+#[cfg(have_tommath)]
+use crate::frame::Var;
 use crate::namespace::NsId;
 use crate::obj;
 use std::rc::Rc;

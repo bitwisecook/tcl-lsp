@@ -18,12 +18,12 @@
 
 //! T102: tainted values where a command still scans for options.
 
-use super::source_reads::{SourceWarningMetadata, operand_read_taint, original_sink_argument};
-use super::{
+use super::super::{
     CodeFix, DiagCode, FxHashSet, HashSet, SinkCall, Span, Statement, TaintColour, TaintScan,
     TaintWarning, dialect_to_point, parse_command_substitution_with_spans_and_config,
     scan_argument_names,
 };
+use super::source_reads::{SourceWarningMetadata, operand_read_taint, original_sink_argument};
 
 /// Emit T102 warnings for option injection into a command declaring a `--`
 /// option terminator.

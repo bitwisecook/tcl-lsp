@@ -18,7 +18,7 @@
 
 //! Command guards: issuing, re-checking and releasing a guard, executing an intrinsic under one, and invalidating guard domains.
 
-use super::super::{remember_guard_sync, Code, Interp};
+use super::super::{Code, Interp};
 #[cfg(test)]
 use crate::interp::command_guard_lookup;
 use crate::obj::TclObj;
@@ -197,43 +197,6 @@ impl Interp {
             self.raw_command_location_by_generation(*generation)
                 .is_some()
         });
-    }
-
-    /// Observe the actual table owner's policy revision before any guard door.
-    /// A mutable namespace borrow alone is not a lookup-policy mutation.
-    pub(in super::super) fn synchronise_command_environment_guards(&self) {
-        let revision = self.namespaces().guard_lookup_environment_revision();
-        let policy = self.namespaces().guard_command_lookup_policy_revision();
-        let previous = self.guard_lookup_environment_revision.replace(revision);
-        let previous_policy = self.guard_command_lookup_policy_revision.replace(policy);
-        remember_guard_sync(previous, revision, previous_policy, policy);
-        let unknown = self
-            .resolve_dispatchable_with_generation(self.current_ns.get(), b"::unknown")
-            .and_then(|(_, generation)| generation);
-        if self
-            .guard_unknown_binding
-            .replace(Some(unknown))
-            .is_some_and(|seen| seen != unknown)
-        {
-            self.invalidate_guard_domain(GuardDomain::UnknownHandling);
-        }
-        if revision.is_none() || policy.is_none() {
-            let mut guards = self.guards.borrow_mut();
-            for domain in [
-                GuardDomain::CommandEnvironment,
-                GuardDomain::Namespace,
-                GuardDomain::UnknownHandling,
-            ] {
-                guards.poison(domain);
-            }
-        } else {
-            if previous != revision {
-                self.invalidate_namespace_structure_guards();
-            }
-            if previous_policy != policy {
-                self.invalidate_guard_domain(GuardDomain::CommandEnvironment);
-            }
-        }
     }
 
     /// Invalidate the guard domains that depend on the command lookup

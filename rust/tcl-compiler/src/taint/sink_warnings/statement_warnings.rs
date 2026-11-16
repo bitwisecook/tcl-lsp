@@ -18,6 +18,12 @@
 
 //! Warnings for one SSA statement: sink candidates, retained invocations, expression statements and the dispatch to each check.
 
+use super::super::{
+    CommandHeadContext, CommandRegistry, CommandTokens, HashMap, HashSet, SinkCall,
+    SinkWarningContext, SourceWarningRead, SsaFunction, SsaStatement, Statement, Symbol, TaintCtx,
+    TaintLattice, TaintScan, TaintSinkSource, TaintWarning, ValueKey, Version,
+    callback_static_word_value, parse_command_substitution_with_config,
+};
 use super::classification::{classify_network_interp_sinks, classify_sink, classify_source_sink};
 use super::command_heads::{
     StaticCommandHead, emit_command_head_substitution_warnings, emit_dynamic_command_head_warning,
@@ -32,12 +38,6 @@ use super::option_injection::emit_option_injection;
 use super::pattern_operands::emit_regexp_pattern_warnings;
 use super::sink_emission::emit_sink_warnings;
 use super::source_reads::SourceWarningMetadata;
-use super::{
-    CommandHeadContext, CommandRegistry, CommandTokens, HashMap, HashSet, SinkCall,
-    SinkWarningContext, SourceWarningRead, SsaFunction, SsaStatement, Statement, Symbol, TaintCtx,
-    TaintLattice, TaintScan, TaintSinkSource, TaintWarning, ValueKey, Version,
-    callback_static_word_value, parse_command_substitution_with_config,
-};
 
 fn emit_original_assign_value_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,

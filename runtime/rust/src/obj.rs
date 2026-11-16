@@ -183,6 +183,8 @@ pub(crate) use lookup_caches::{
     retire_native_command_name_cache,
 };
 use lookup_caches::{NATIVE_COMMAND_NAME_TYPE, NATIVE_FRAME_LEVEL_TYPE};
+#[cfg(have_tommath)]
+pub(crate) use scalar_types::may_cache_parsed_rep;
 use scalar_types::native_word_boolean_origin;
 pub(crate) use scalar_types::{
     adopt_native_numeric_representation, adopt_native_scalar_cache,
@@ -195,6 +197,8 @@ pub(crate) use scalar_types::{
 pub use scalar_types::{
     new_boolean_obj, new_double_obj, new_wide_int_obj, TCL_DOUBLE_TYPE, TCL_INT_TYPE,
 };
+#[cfg(have_tommath)]
+pub(crate) use string_representations::jim_character_count;
 use string_representations::NATIVE_STRING_TYPE;
 pub(crate) use string_representations::{
     is_plain_string, jim_string_count, native_c_string_storage_checked, native_character_count,

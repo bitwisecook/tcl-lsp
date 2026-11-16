@@ -18,13 +18,13 @@
 
 //! T100: tainted operands an expression or a command argument coerces to a number.
 
-use super::classification::selected_sink_schema;
-use super::sink_wrappers::var_consumed_by_sanitiser;
-use super::{
+use super::super::{
     CommandRegistry, DiagCode, ExprNode, FxHashSet, HashMap, HashSet, MAX_EXPR_NODE_DEPTH,
     SinkCall, Span, Symbol, TaintLattice, TaintScan, TaintWarning, ValueKey, Version, WordExpr,
     dialect_to_point, scan_argument_names,
 };
+use super::classification::selected_sink_schema;
+use super::sink_wrappers::var_consumed_by_sanitiser;
 
 /// One `ExprNode::Var` occurrence sitting in a numeric-coercion-relevant
 /// operator position — the KCS T100 "expr operand: numeric coercion"

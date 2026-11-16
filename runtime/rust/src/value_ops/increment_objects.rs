@@ -18,6 +18,8 @@
 
 //! The `incr` adapters over original objects: the legacy C 8.4 and Jim owners, their amount getters, and the modern integer update.
 
+#[cfg(have_tommath)]
+use super::integer_object;
 use super::{IncrementContext, RuntimeAppendValue, RuntimeIncrementObjects};
 use crate::interp::Interp;
 use crate::obj;

@@ -19,6 +19,8 @@
 //! `ValueOps` for `Interp`: the shared command logic's view of the runtime's `*mut TclObj` values.
 
 use super::append_objects::RuntimeAppendObjects;
+#[cfg(have_tommath)]
+use super::integer_object;
 use super::native_jim_cat::OriginalJimStringCatConstruction;
 use super::{
     integer_operand, native_concat, native_jim_index, value_error, RuntimeAppendValue,
@@ -29,6 +31,10 @@ use crate::obj::TclObj;
 use crate::{list, obj};
 use std::rc::Rc;
 use tcl_syntax::number::Number;
+#[cfg(have_tommath)]
+use tcl_syntax::number::{self, Radix};
+#[cfg(have_tommath)]
+use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{ValueError, ValueOps};
 
 #[cfg(have_tommath)]

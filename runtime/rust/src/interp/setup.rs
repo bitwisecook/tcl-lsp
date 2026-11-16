@@ -29,6 +29,8 @@ mod pinned_context;
 
 #[cfg(test)]
 pub(crate) use construction::default_host;
+#[cfg(all(test, have_tommath))]
+pub(super) use construction::DEFAULT_RUNTIME_VERSION;
 
 impl Interp {
     /// Actual Jim interpreter objects; source grammar cannot issue this context.

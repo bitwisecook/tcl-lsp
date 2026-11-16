@@ -23,6 +23,7 @@ use super::super::{
     OriginalCommandPublication,
 };
 use super::Command;
+#[cfg(not(have_tommath))]
 use crate::builtins;
 #[cfg(test)]
 use crate::interp::constructor_diagnostics::ConstructorDiagnostics;

@@ -20,6 +20,7 @@
 use super::*;
 use crate::interp::native_i64_body::FutureNativeI64AddPlan;
 use tcl_registry::native_return_compilation::{NativeReturnExit, NativeReturnOptionsOperand};
+use tcl_runtime_api::native_compilation::NativeCompiledLocalLayoutKind;
 
 macro_rules! i64_observed_some {
     ($expression:expr, $stage:literal) => {{

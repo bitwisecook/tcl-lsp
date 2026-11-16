@@ -80,10 +80,6 @@ mod original_name_birth_tests;
 use std::rc::Rc;
 
 use tcl_syntax::number::Number;
-#[cfg(have_tommath)]
-use tcl_syntax::number::{self, Radix};
-#[cfg(have_tommath)]
-use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::ValueError;
 #[cfg(test)]
 use tcl_syntax::value::ValueOps;

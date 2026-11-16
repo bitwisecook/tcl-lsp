@@ -18,7 +18,12 @@
 
 //! Sink warnings for one function: classification, the per-statement and branch-condition emitters and the sink-specific checks.
 
-use super::*;
+use super::{
+    BlockId, CfgFunction, CommandHeadContext, CommandRegistry, HashMap, HashSet,
+    SinkWarningContext, Span, SsaFunction, TaintLattice, TaintReplayAnalysis,
+    TaintReplaySourceSnapshot, TaintSourceContext, TaintWarning, TaintWarningReport,
+    UnavailableTaintReplay, UnavailableTaintReplayReason, ValueKey, cfg_order,
+};
 
 mod branch_conditions;
 mod classification;

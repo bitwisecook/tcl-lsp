@@ -1525,6 +1525,14 @@ pub struct ModuleCommandBindings {
     source_order_user_call_effects: Option<Arc<Self>>,
 }
 
+impl ModuleCommandBindings {
+    /// Build the closed may-binding state for every retained executable root.
+    #[must_use]
+    pub(crate) fn analyse(module: &Module, registry: &CommandRegistry) -> Self {
+        Self::analyse_with_options(module, registry, module.source_entry.options())
+    }
+}
+
 #[derive(Default)]
 struct DiscardedProcedureHistory {
     modules: Vec<Module>,

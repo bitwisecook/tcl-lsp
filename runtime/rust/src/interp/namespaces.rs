@@ -56,13 +56,6 @@ impl Interp {
         }
     }
 
-    /// The namespace tree (read) — for the `namespace` builtin's queries. The
-    /// returned `Ref` must not be held across a call that mutably borrows the
-    /// namespaces (it would panic); callers use it for a single query.
-    pub(crate) fn namespaces(&self) -> std::cell::Ref<'_, Namespaces> {
-        self.namespaces.borrow()
-    }
-
     /// The namespace tree (mutable) — for the `namespace` builtin's mutations
     /// (`export`/`import`/`forget`/`path`).
     pub(crate) fn namespaces_mut(&self) -> std::cell::RefMut<'_, Namespaces> {

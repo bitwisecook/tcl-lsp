@@ -18,7 +18,7 @@
 
 //! Taint of original operand reads: reference roots, sink arguments and the positioned `SourceWarningRead` projection.
 
-use super::{
+use super::super::{
     HashMap, SinkCall, SourceWarningRead, TaintLattice, TaintScan, ValueKey, WordExpr, var_taint,
 };
 

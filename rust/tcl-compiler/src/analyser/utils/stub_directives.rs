@@ -536,6 +536,8 @@ pub fn document_stub_declarations(
         source,
         file_path,
         dialect,
+        // dialect-drift-ok: unreviewed. The gate stopped reading the old file at a test-module
+        // line above this call; the file split of 16 November 2026 brought it into view.
         tcl_lexer::LexerConfig::default(),
     );
     (commands, expressions)

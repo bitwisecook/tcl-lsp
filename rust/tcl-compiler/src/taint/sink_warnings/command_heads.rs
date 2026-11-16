@@ -18,13 +18,13 @@
 
 //! The command a statement runs when its head is static, dynamic or a `$var` resolved from reaching definitions.
 
-use super::isolated_scripts::emit_isolated_script_warnings;
-use super::source_reads::{original_scalar_reference_name, reference_root_with_config};
-use super::{
+use super::super::{
     CommandHeadContext, CommandTokens, DiagCode, HashMap, SinkWarningContext, Span, SsaFunction,
     SsaStatement, Statement, TaintLattice, TaintWarning, ValueKey, WordExpr, WordPart,
     decoded_text_fragment,
 };
+use super::isolated_scripts::emit_isolated_script_warnings;
+use super::source_reads::{original_scalar_reference_name, reference_root_with_config};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in super::super) struct StaticCommandHead {

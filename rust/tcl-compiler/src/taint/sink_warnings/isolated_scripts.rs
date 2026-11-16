@@ -18,7 +18,7 @@
 
 //! Analysing a nested script in isolation: the synthetic replay procedure, its outer constants and the ambient command table.
 
-use super::*;
+use super::super::*;
 
 fn build_isolated_taint_unit<H>(
     source: &str,

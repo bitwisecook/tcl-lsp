@@ -18,8 +18,8 @@
 
 //! Which sink a command is: the diagnostic code and label from the selected registry schema, and the network and cross-interpreter sinks.
 
+use super::super::{CommandRegistry, DiagCode, DiagFamily, SinkCall, is_irules_dialect};
 use super::source_reads::SourceWarningMetadata;
-use super::{CommandRegistry, DiagCode, DiagFamily, SinkCall, is_irules_dialect};
 
 // Sink detection
 

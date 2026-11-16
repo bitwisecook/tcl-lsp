@@ -28,6 +28,8 @@ use tcl_platform::Env;
 use tcl_platform::{Capabilities, Clock, Host, NumericEnvironment, StdIo};
 #[cfg(debug_assertions)]
 use tcl_runtime_api::NativeExecutionError;
+#[cfg(have_tommath)]
+use tcl_syntax::number::Radix;
 #[cfg(debug_assertions)]
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
 

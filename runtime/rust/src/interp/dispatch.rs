@@ -20,6 +20,8 @@
 
 use super::commands::Command;
 use super::native_procedure_resources::NativeCallableProcedure;
+#[cfg(have_tommath)]
+use super::{error_code_list, new_string, release_all, Code};
 use super::{Interp, NativeProcEntry, ProcDef};
 use crate::namespace::{CommandBinding, NsId};
 use crate::obj;

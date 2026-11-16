@@ -21,31 +21,32 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | clause_grammar | the case-list query names the fallthrough arm | `rust/tcl-mcp/src/datagroup.rs` | 1 | site | a switch case list's fallthrough arm and body marker |
 | clause_grammar | the clause plan names the trap handler | `rust/tcl-compiler/src/lowering/structured.rs` | 1 | site | try's trap clause |
 | command | the definition-body query identifies a procedure definition | `rust/tcl-codegen/src/codegen/wasm/native_add/retained_publication.rs` | 1 | site | the WASM publisher admits only a procedure definition |
-| command | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs` | 1 | site | the hardening edit rewrites subst's own option word |
-| command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts.rs` | 5 | site | tokenless legacy fold; the tokened path asks the registry |
+| command | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions/context_diagnostics.rs` | 1 | site | the hardening edit rewrites subst's own option word |
+| command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs` | 4 | site | tokenless legacy fold; the tokened path asks the registry |
+| command | the tokenless SCCP caller is retired | `rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs` | 1 | site | tokenless legacy fold; the tokened path asks the registry |
 | definition_body | member metadata carries a typed kind | `rust/tcl-lsp-core/src/method_symbol.rs` | 1 | site | an Itcl class-body proc member's recorded kind |
 | definition_body | member metadata carries a typed kind | `rust/tcl-lsp-core/src/original_member_rename.rs` | 1 | site | a native classmethod row's recorded kind |
 | definition_body | member metadata carries a typed visibility | `rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs` | 2 | site | TclOO member visibility as the declaration records it |
 | definition_body | member metadata carries a typed visibility | `rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs` | 1 | site | TclOO member visibility as the declaration records it |
 | definition_body | the definition-body grammar exposes lifecycle members | `rust/tcl-lsp-core/src/hover/original_registry.rs` | 2 | site | TclOO lifecycle member keywords |
-| definition_body | the definition-body grammar exposes property accessors | `rust/tcl-compiler/src/analyser/oo.rs` | 3 | site | property accessor keywords of the class body |
-| definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/oo.rs` | 2 | site | class-definition relation keywords |
+| definition_body | the definition-body grammar exposes property accessors | `rust/tcl-compiler/src/analyser/oo/member_effects.rs` | 3 | site | property accessor keywords of the class body |
+| definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/oo/retained_member_source.rs` | 2 | site | class-definition relation keywords |
 | definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/original_members.rs` | 2 | site | class-definition relation keywords |
 | definition_body | the snit definition grammar marks callable members | `rust/tcl-compiler/src/command_binding/snit_definition.rs` | 1 | site | snit member keywords that define a callable |
 | irreducible | never | `rust/tcl-bigip/src/f5_trailer.rs` | 1 | site | the keys of the data schema's `ip_fields` table, not a Tcl command word: `offset` coincides with `grapheme`'s subcommand by spelling only |
 | irreducible | never | `rust/tcl-codegen/src/codegen/native_namespace_upvar_tests.rs` | 1 | site | a test asserting which registry compiler was selected |
-| irreducible | never | `rust/tcl-compiler/src/analyser/handlers.rs` | 1 | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
+| irreducible | never | `rust/tcl-compiler/src/analyser/handlers/definition_warnings.rs` | 1 | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
 | irreducible | never | `rust/tcl-compiler/src/analyser/recovery.rs` | 1 | site | this whole function is a switch-specific parser-repair heuristic (splicing orphaned pattern/body segments into a switch's argv when the source is missing its opening brace); no registry fact picks which command's *malformed* source this repair applies to more abstractly than its own name, and every other command's malformed source is left unrepaired |
 | irreducible | never | `rust/tcl-compiler/src/command_binding/original_command_table.rs` | 1 | site | a field label of the command-table trace, not the namespace command |
 | irreducible | never | `rust/tcl-compiler/src/command_binding/root_owner_work.rs` | 5 | file | work-stage labels of the root owner's trace, not Tcl words |
 | irreducible | never | `rust/tcl-compiler/src/command_binding/source_analysis_cache_corpus.rs` | 2 | site | a corpus fixture key, not a command |
-| irreducible | never | `rust/tcl-compiler/src/command_binding/source_transition_advice.rs` | 2 | site | selects which calls a debug trace logs |
+| irreducible | never | `rust/tcl-compiler/src/command_binding/source_transition_advice/transition_capture.rs` | 2 | site | selects which calls a debug trace logs |
 | irreducible | never | `rust/tcl-compiler/src/parsing/spectcl_source.rs` | 1 | site | the SpecTcl DSL's own include row, which the loader defines |
 | irreducible | never | `rust/tcl-diagram/src/graph.rs` | 12 | file | the diagram IR's own node kinds and branch labels, not Tcl words |
 | irreducible | never | `rust/tcl-lsp-core/src/file_uri.rs` | 4 | file | a URI scheme and a home-directory marker, not Tcl words |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/config.rs` | 1 | site | an editor-settings spelling for `tclLsp.formatting.docstringStyle` (a stub-placement choice), not a Tcl clause-grammar keyword; "body" here coincides with the registry's `ArgRole::Body` word by English spelling only |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/docstring.rs` | 1 | site | `args` here is a proc's own *formal parameter* name (Tcl's variadic-last-parameter convention, checked against the signature this stub is generated from), not a call to `info args`; the spelling coincides with `info`'s subcommand by coincidence only |
-| irreducible | never | `rust/tcl-lsp-core/src/minify.rs` | 2 | site | `section` is this parser's own section tag, set a few lines up from *this format's own* `# Procs` / `# Variables in …` headers (the `Self::format` writer's own vocabulary for its symbol-map file), not a dispatch on `info procs` / `info variables`; the spelling coincides with `info`'s subcommand names only |
+| irreducible | never | `rust/tcl-lsp-core/src/minify/symbol_map.rs` | 2 | site | `section` is this parser's own section tag, set a few lines up from *this format's own* `# Procs` / `# Variables in …` headers (the `Self::format` writer's own vocabulary for its symbol-map file), not a dispatch on `info procs` / `info variables`; the spelling coincides with `info`'s subcommand names only |
 | irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs` | 1 | site | same proposal-template boundary |
 | irreducible | never | `rust/tcl-lsp-core/src/refactor/datagroup.rs` | 1 | site | this renderer accepts the literal proposal template syntax. The actual-document route independently validates each original arm's selected Set/Return operation before calling it; these spellings establish no command identity or effects |
 | irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens/command_roles.rs` | 1 | site | same reason as this function's other "--" check above: no `CommandSpec` exists for this head |
@@ -59,19 +60,19 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs` | 1 | site | same primitive-syntax reason |
 | irreducible | never | `rust/tcl-syntax/src/execution_conformance.rs` | 1 | file | a conformance table's empty-cell marker, not a Tcl word |
 | irreducible | never | `rust/tcl-syntax/src/expr/jim_function_tree.rs` | 1 | file | expression operators, not commands |
-| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers.rs` | 5 | site | namespace ensemble configuration options |
+| options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers/ensembles.rs` | 5 | site | namespace ensemble configuration options |
 | options | the getter's option table marks the normalising flag | `rust/tcl-compiler/src/rendered_properties.rs` | 1 | site | the HTTP getter's normalising flag |
-| options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers.rs` | 2 | site | the interp create flag run |
+| options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers/interpreters.rs` | 2 | site | the interp create flag run |
 | options | the option table marks the force flag | `rust/tcl-syntax/src/naming/native.rs` | 1 | site | the native name policy's force flag |
 | options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow/catch_command.rs` | 3 | site | return's -code/-level options in codegen |
-| options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions.rs` | 2 | site | the hardening edit rewrites subst's own option word |
+| options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions/context_diagnostics.rs` | 2 | site | the hardening edit rewrites subst's own option word |
 | options | the switch option table selects the match mode | `rust/tcl-compiler/src/lowering/structured.rs` | 5 | site | switch's match-mode options |
-| special_vars | the snit definition grammar declares its implicit variables | `rust/tcl-compiler/src/analyser/oo.rs` | 1 | site | snit's implicit type variable in a typemethod body |
-| special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers.rs` | 1 | site | the auto_path special variable |
+| special_vars | the snit definition grammar declares its implicit variables | `rust/tcl-compiler/src/analyser/oo/snit.rs` | 1 | site | snit's implicit type variable in a typemethod body |
+| special_vars | the special-variable table marks the package search path | `rust/tcl-compiler/src/analyser/handlers/code_loading.rs` | 1 | site | the auto_path special variable |
 | subcommands | the native compilation descriptor selects them | `rust/tcl-codegen/src/codegen/control_flow/release_compiles.rs` | 3 | site | dict's scoping subcommands in codegen |
-| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs` | 1 | site | a dict merge value shape |
-| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs` | 1 | site | a namespace eval wrapper's subcommand |
-| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers.rs` | 2 | site | namespace ensemble create and configure |
+| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers/ensembles.rs` | 1 | site | a dict merge value shape |
+| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers/ensembles.rs` | 2 | site | namespace ensemble create and configure |
+| subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/analyser/handlers/interpreters.rs` | 1 | site | a namespace eval wrapper's subcommand |
 | subcommands | the resolved invocation's selected subcommand is read | `rust/tcl-compiler/src/lowering/structured.rs` | 3 | site | dict's iterating and scoping subcommands |
 | subcommands | the resolver reads its typed configuration layout | `rust/tcl-irules/src/source_object.rs` | 2 | site | iRules source-object resolver selectors |
 
