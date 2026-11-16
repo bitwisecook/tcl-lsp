@@ -115,7 +115,7 @@ pub fn md4() -> CommandSpec {
             examples: "",
             return_value: "The 16-byte MD4 digest (binary, or hex with -hex).",
         }),
-        side_effects: READS,
+        side_effects: crate::knowledge::Knowledge::declared(READS),
         tcllib_package: Some("md4"),
         required_package: Some("md4"),
         semantics: SemanticsDeclaration::Declared(
@@ -142,7 +142,7 @@ pub fn hmac() -> CommandSpec {
             examples: "",
             return_value: "The HMAC-MD4 value (binary, or hex with -hex).",
         }),
-        side_effects: READS,
+        side_effects: crate::knowledge::Knowledge::declared(READS),
         tcllib_package: Some("md4"),
         required_package: Some("md4"),
         semantics: SemanticsDeclaration::Declared(

@@ -42,7 +42,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The trimmed text.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("textutil"),
         required_package: Some("textutil"),
         ..CommandSpec::DEFAULT

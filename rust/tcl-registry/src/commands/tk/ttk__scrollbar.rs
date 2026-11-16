@@ -92,7 +92,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName get",
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -103,7 +103,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName set first last",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -113,7 +113,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName delta deltaX deltaY",
         pure: true,
         return_type: Some(TclType::Double),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -124,7 +124,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName fraction x y",
         pure: true,
         return_type: Some(TclType::Double),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -153,7 +153,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: SUBCOMMANDS,
         object_class: Some(&CLASS),
         creates_instance_at: Some(0),

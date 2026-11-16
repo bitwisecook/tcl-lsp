@@ -154,6 +154,7 @@ fn timer_is_91_only_with_scheduler_side_effects() {
     assert!(spec.subcommand("in").unwrap().mutator);
     assert!(
         spec.side_effects
+            .lower_bound()
             .iter()
             .any(|e| e.target == SideEffectTarget::InterpState && e.writes),
         "timer schedules events → InterpState write (like `after`)",
@@ -351,6 +352,7 @@ fn coroutine_probe_and_inject_run_arbitrary_code() {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
         assert!(
             spec.side_effects
+                .lower_bound()
                 .iter()
                 .any(|e| e.target == SideEffectTarget::Unknown && e.reads && e.writes),
             "{name} runs arbitrary code → Unknown read+write effect",

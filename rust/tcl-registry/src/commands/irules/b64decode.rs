@@ -36,11 +36,11 @@ pub const fn spec() -> CommandSpec {
             synopsis: "b64decode ANY_CHARS",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         traits: Traits::IS_UNESCAPE,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::B64DECODE),
         ..CommandSpec::DEFAULT

@@ -208,7 +208,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         arg_values: &[(1, FIRST_CLAUSE_KEYWORD_VALUES)],
         closed_value_args: &[1],
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         semantics: SemanticsDeclaration::Declared(&SEMANTICS),
         ..CommandSpec::DEFAULT
     }

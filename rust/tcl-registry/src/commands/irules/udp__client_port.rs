@@ -49,12 +49,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "UDP::client_port",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::UdpState,
             reads: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -36,11 +36,11 @@ pub const fn spec() -> CommandSpec {
             synopsis: "sha512 ANY_CHARS",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::SHA512),
         ..CommandSpec::DEFAULT
     }

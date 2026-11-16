@@ -54,12 +54,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "serverside (NESTING_SCRIPT)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ConnectionControl,
             reads: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

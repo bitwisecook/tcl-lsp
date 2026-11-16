@@ -135,11 +135,11 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(read_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Channel],
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         // `-nonewline` is documented identically — name, shape, and
         // behaviour — in every fetched version, 8.4 through 9.1.
         options: const {

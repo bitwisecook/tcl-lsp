@@ -28,12 +28,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get TCP option value.",
         synopsis: "TCP::option get <kind>",
         pure: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -43,13 +43,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set TCP option value.",
         synopsis: "TCP::option set <kind> <value> ?all?",
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -58,12 +58,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Prevent option from being set.",
         synopsis: "TCP::option noset <kind>",
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];
@@ -98,12 +98,12 @@ pub const fn spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

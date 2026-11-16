@@ -89,11 +89,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Write a list of every currently allocated memory block to file.",
         synopsis: "memory active file",
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -132,11 +132,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // through 9.1 all list ten, adding `objs` in the same position
         // (raw manpage HTML fetched and diffed for every version).
         surface: Some(SpecSurface::TCL85_PLUS),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -144,11 +144,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Write a list of all still-allocated memory to file while the memory subsystem finalizes, to help confirm memory is cleaned up at process exit.",
         synopsis: "memory onexit file",
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -207,7 +207,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         forms: FORMS,
         hover: Some(HoverSnippet {
             summary: "Control Tcl's memory-debugging capabilities (debug builds only).",

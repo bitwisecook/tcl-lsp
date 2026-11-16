@@ -36,10 +36,10 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ASN1::decode ELEMENT FORMAT (VAR_NAME)*",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

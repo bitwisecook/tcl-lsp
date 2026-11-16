@@ -46,12 +46,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ADAPT::service_down_action (ADAPT_CTX)? (ADAPT_SIDE)? ('ignore' | 'reset' | 'drop')?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::IcapState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

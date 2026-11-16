@@ -112,7 +112,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         return_type: Some(TclType::String),
         ..CommandSpec::DEFAULT
     }

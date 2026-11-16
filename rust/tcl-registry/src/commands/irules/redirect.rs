@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "redirect to HOST_URI",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ResponseCommit,
             writes: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("HTTP::redirect"),
         ..CommandSpec::DEFAULT
     }

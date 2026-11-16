@@ -179,7 +179,7 @@ pub(crate) fn authored_dictionary_scope_source_phase(
         crate::world_effect::EffectFootprint::from_legacy_with_transition_coverage(
             invocation.facts().effects.legacy().command_table_mutation,
             invocation.semantics.frame_effect,
-            invocation.semantics.side_effects,
+            invocation.semantics.side_effects.lower_bound(),
             &coverage,
         );
     if invocation.semantics.world_effects.is_declared() {

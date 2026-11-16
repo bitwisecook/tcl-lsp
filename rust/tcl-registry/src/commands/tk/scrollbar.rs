@@ -234,7 +234,7 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         synopsis: "pathName activate ?element?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     super::common::CLASSIC_WIDGET_CGET,
@@ -246,7 +246,7 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         synopsis: "pathName delta deltaX deltaY",
         pure: true,
         return_type: Some(TclType::Double),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -256,7 +256,7 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         synopsis: "pathName fraction x y",
         pure: true,
         return_type: Some(TclType::Double),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -266,7 +266,7 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         synopsis: "pathName get",
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -276,7 +276,7 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         synopsis: "pathName identify x y",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -286,7 +286,7 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         synopsis: "pathName set first last",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
 ];
@@ -316,7 +316,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         object_class: Some(&SCROLLBAR_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT

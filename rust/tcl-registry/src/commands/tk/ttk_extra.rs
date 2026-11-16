@@ -156,7 +156,7 @@ super::common::ttk_widget_class!(
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
 );
@@ -180,7 +180,7 @@ fn checkbutton() -> CommandSpec {
         lifecycle: Lifecycle::introduced_in("8.5"),
         warn_missing_import: false,
         options: CHECKBUTTON_OPTS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: CHECKBUTTON_METHODS,
         object_class: Some(&CHECKBUTTON_CLASS),
         creates_instance_at: Some(0),
@@ -302,7 +302,7 @@ fn menubutton() -> CommandSpec {
         lifecycle: Lifecycle::introduced_in("8.5"),
         warn_missing_import: false,
         options: MENUBUTTON_OPTS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: MENUBUTTON_METHODS,
         object_class: Some(&MENUBUTTON_CLASS),
         creates_instance_at: Some(0),
@@ -436,7 +436,7 @@ fn panedwindow() -> CommandSpec {
         lifecycle: Lifecycle::introduced_in("8.5"),
         warn_missing_import: false,
         options: PANEDWINDOW_OPTS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: PANEDWINDOW_METHODS,
         object_class: Some(&PANEDWINDOW_CLASS),
         creates_instance_at: Some(0),
@@ -556,7 +556,7 @@ super::common::ttk_widget_class!(
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
 );
@@ -580,7 +580,7 @@ fn radiobutton() -> CommandSpec {
         lifecycle: Lifecycle::introduced_in("8.5"),
         warn_missing_import: false,
         options: RADIOBUTTON_OPTS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: RADIOBUTTON_METHODS,
         object_class: Some(&RADIOBUTTON_CLASS),
         creates_instance_at: Some(0),
@@ -767,7 +767,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName bbox index",
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -779,7 +779,7 @@ super::common::ttk_widget_class!(
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -790,7 +790,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName get",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -801,7 +801,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName icursor index",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -811,7 +811,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName index index",
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -823,7 +823,7 @@ super::common::ttk_widget_class!(
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -833,7 +833,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName selection option ?arg ...?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::ENTRY_SELECTION_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -845,7 +845,7 @@ super::common::ttk_widget_class!(
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -856,7 +856,7 @@ super::common::ttk_widget_class!(
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::Boolean),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -866,7 +866,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName xview ?args?",
         mutator: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -891,7 +891,7 @@ fn spinbox() -> CommandSpec {
         lifecycle: Lifecycle::introduced_in("8.5"),
         warn_missing_import: false,
         options: SPINBOX_OPTS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: SPINBOX_METHODS,
         object_class: Some(&SPINBOX_CLASS),
         creates_instance_at: Some(0),

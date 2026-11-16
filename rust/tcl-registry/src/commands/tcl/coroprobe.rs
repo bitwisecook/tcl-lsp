@@ -60,7 +60,7 @@ pub fn spec() -> CommandSpec {
         // appended (variadic ⇒ Unknown: a reference, not arity-checked).
         command_prefixes: &[(1, AppendedArity::Unknown)],
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Run a command inside a suspended coroutine, without resuming it.",
             synopsis: &["coroprobe coroName command ?arg ...?"],

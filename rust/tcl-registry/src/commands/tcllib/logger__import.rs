@@ -45,7 +45,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("logger"),
         required_package: Some("logger"),
         ..CommandSpec::DEFAULT

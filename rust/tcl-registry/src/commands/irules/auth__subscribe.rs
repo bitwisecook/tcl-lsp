@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "AUTH::subscribe AUTH_ID",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

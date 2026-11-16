@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "DNS::last_act ('allow' | 'drop' | 'reject' | 'hint' | 'noerror')",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

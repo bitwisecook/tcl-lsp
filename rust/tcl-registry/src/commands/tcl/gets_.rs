@@ -102,7 +102,7 @@ pub fn spec() -> CommandSpec {
         // Int).  Type the target as the line it always receives, not the
         // count.
         var_write_typing: VarWriteTyping::Fixed(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -113,7 +113,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Read a line from a channel.",
             synopsis: &["gets channelId ?varName?"],

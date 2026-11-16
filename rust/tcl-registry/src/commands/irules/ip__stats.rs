@@ -43,12 +43,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ],
         )],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -73,12 +73,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 },
             ],
         )],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -89,12 +89,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get all inbound stats.",
         synopsis: "IP::stats in",
         pure: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -104,12 +104,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get all outbound stats.",
         synopsis: "IP::stats out",
         pure: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -119,12 +119,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get connection age in ms.",
         synopsis: "IP::stats age",
         pure: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -150,12 +150,12 @@ pub const fn spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

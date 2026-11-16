@@ -36,13 +36,13 @@ pub const fn spec() -> CommandSpec {
             synopsis: "DNS::tsig 'remove'",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

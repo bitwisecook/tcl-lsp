@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "xff_list ?xff_header_name?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpHeader,
             reads: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

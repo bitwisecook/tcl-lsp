@@ -124,12 +124,12 @@ pub const fn spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         options: OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -67,7 +67,7 @@ pub fn spec() -> CommandSpec {
         // unchanged across every version examined.
         arity: Arity::new(1, 2),
         return_type: Some(TclType::Boolean),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -78,7 +78,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Load the definition of an auto-loadable command.",
             synopsis: &["auto_load cmd ?namespace?"],

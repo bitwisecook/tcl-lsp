@@ -43,7 +43,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The arithmetic mean.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("math::statistics"),
         required_package: Some("math::statistics"),
         semantics: SemanticsDeclaration::Declared(

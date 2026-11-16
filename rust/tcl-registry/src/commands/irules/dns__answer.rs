@@ -28,12 +28,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Clear all answer RRs.",
         synopsis: "DNS::answer clear",
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -42,12 +42,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert an RR into the answer section.",
         synopsis: "DNS::answer insert <rr_object>",
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -56,12 +56,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove an RR from the answer section.",
         synopsis: "DNS::answer remove <rr_object>",
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];
@@ -93,13 +93,13 @@ pub const fn spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

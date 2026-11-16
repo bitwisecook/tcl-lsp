@@ -63,11 +63,11 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Test whether the last input operation on a channel was blocked by exhausted input.",
             synopsis: &["fblocked channel"],

@@ -193,7 +193,7 @@ pub fn spec() -> CommandSpec {
             ..StateTransitionDescriptor::EMPTY
         }),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Handle attempts to use non-existent commands",
             synopsis: &["unknown cmdName ?arg arg ...?"],

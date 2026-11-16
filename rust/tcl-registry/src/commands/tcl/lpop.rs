@@ -115,7 +115,7 @@ pub fn spec() -> CommandSpec {
         // not the popped element's return type.
         var_write_typing: VarWriteTyping::Fixed(TclType::List),
         inferred_storage_type: Some(StorageType::List),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Get and remove an element from a list variable, in place.",
             synopsis: &["lpop varName ?index ...?"],

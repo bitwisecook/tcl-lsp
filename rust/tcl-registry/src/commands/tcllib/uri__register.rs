@@ -48,7 +48,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("uri"),
         required_package: Some("uri"),
         ..CommandSpec::DEFAULT

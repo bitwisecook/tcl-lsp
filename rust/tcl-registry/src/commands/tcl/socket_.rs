@@ -187,12 +187,12 @@ pub fn spec() -> CommandSpec {
         // to be what remains, so the last word is never an option.
         reserved_trailing_words: 1,
         return_type: Some(TclType::Channel),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Open a TCP client connection or listening server socket as a channel.",
             synopsis: &[

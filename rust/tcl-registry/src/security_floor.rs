@@ -87,6 +87,18 @@ impl SecurityFloor {
             .fold(Traits::empty(), Traits::union)
     }
 
+    /// The override's effects as a lower bound over the shipped ones: it
+    /// cannot claim completeness the shipped command does not evidence.
+    fn floored_effects(
+        effects: crate::knowledge::Knowledge<&'static [crate::side_effects::SideEffect]>,
+        shipped: crate::knowledge::Knowledge<&'static [crate::side_effects::SideEffect]>,
+    ) -> crate::knowledge::Knowledge<&'static [crate::side_effects::SideEffect]> {
+        crate::knowledge::Knowledge::declared(union_leaked(
+            effects.lower_bound(),
+            shipped.lower_bound(),
+        ))
+    }
+
     /// Raise `spec` to this floor, in place.
     ///
     /// Three merge rules, one per shape of fact:
@@ -107,7 +119,7 @@ impl SecurityFloor {
 
         spec.traits = spec.traits.union(Self::security_traits(shipped.traits));
 
-        spec.side_effects = union_leaked(spec.side_effects, shipped.side_effects);
+        spec.side_effects = Self::floored_effects(spec.side_effects, shipped.side_effects);
         spec.taint_output_sink_subcommands = union_leaked(
             spec.taint_output_sink_subcommands,
             shipped.taint_output_sink_subcommands,

@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "findclass STRING DATA_GROUP (SEPARATOR)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DataGroup,
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("class match / class search"),
         ..CommandSpec::DEFAULT
     }

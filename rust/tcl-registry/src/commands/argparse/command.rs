@@ -250,7 +250,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         // `argparse` creates one local per recognised element **in the frame
         // that called it** — `argparse.tcl:964` runs
         // `uplevel 1 [list ::upvar … $val $key]` for `-upvar` elements and

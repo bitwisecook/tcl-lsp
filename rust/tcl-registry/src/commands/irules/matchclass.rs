@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "matchclass CLASS_OR_VALUE KEYWORDS VALUE_OR_CLASS",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DataGroup,
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("class"),
         source_deprecation_advice: Some(
             crate::deprecation::SourceDeprecationAdvice::IruleMatchclass,

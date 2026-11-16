@@ -28,12 +28,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get the agent identifier.",
         synopsis: "ACCESS::policy agent_id",
         pure: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -54,13 +54,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 effect: None,
             }]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -81,12 +81,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 effect: None,
             }]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -96,12 +96,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if URI is internal to ACCESS.",
         synopsis: "ACCESS::policy uri",
         pure: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -138,12 +138,12 @@ pub const fn spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

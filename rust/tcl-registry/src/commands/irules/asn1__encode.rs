@@ -39,10 +39,10 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ASN1::encode ('BER' | 'DER') FORMAT (VALUE)*",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

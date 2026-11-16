@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "NSH::md1 DIRECTION UNSIGNED_INT UNSIGNED_INT (METADATA)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

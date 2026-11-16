@@ -82,7 +82,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The result of evaluating the function body.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Apply),
         // Only `func` (arg 0, the `{argList body ?ns?}` lambda) is the
         // code-execution sink: trailing `arg1 arg2 ...` are ordinary values

@@ -387,7 +387,7 @@ pub fn spec() -> CommandSpec {
         arg_role_layout_resolver: Some(return_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Result],
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         world_effects: Some(RETURN_WORLD_EFFECTS),
         state_transitions: Some(RETURN_STATE_TRANSITIONS),
         hover: Some(HoverSnippet {

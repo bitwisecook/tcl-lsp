@@ -163,7 +163,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),
         ..CommandSpec::DEFAULT
     }

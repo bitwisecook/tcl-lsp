@@ -352,6 +352,28 @@ option_conflict {-glob -regexp} -introduced 8.5
 sub_subcommand call -detail {…} -introduced 9.0
 ```
 
+### How completely the effects are known (`effects`)
+
+A scope's `side_effect` rows say what it does; the `effects` row says how
+much of that is known (issue #1712). Without it, rows are a lower bound and
+no rows claim nothing, so an empty list is never read as "no effects".
+
+```tcl
+effects -partial                     ;# the rows hold; there may be more (also: none known yet)
+effects -complete {8.4 9.1}          ;# the rows are every effect, 8.4 through 9.1 inclusive
+effects -complete {9.0 9.0}          ;# evidenced for 9.0 only; elsewhere still a lower bound
+effects -complete {package struct::list}           ;# a package's own implementation, every version
+effects -complete {package mypkg 1.2 2.0}          ;# half-open on the package's version axis
+```
+
+`-complete` is a claim about the implementation, evidenced from its source
+for the releases named; one release never vouches for another, and a query
+that does not name a release is complete only when every release on the
+ladder is. Only a complete, empty list lets purity be derived. The row
+works in a command, `subcommand` and `refine` body; in a `refine` body,
+`side_effects none` is still the spelling for "replaces the parent's effects
+with none known".
+
 A second-level operation whose options are not its siblings' takes a block
 instead of staying a flag row — the only reason to write one:
 
@@ -1437,7 +1459,7 @@ schema order. "excluded" rows carry the reason.
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
-| `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per effect; the three releases are `SideEffect.lifecycle` |
+| `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` and `effects -partial` / `effects -complete {FROM UNTIL}` | one row per effect; the three releases are `SideEffect.lifecycle`. The `Knowledge` wrapper is `Unknown` with no rows, `Partial` with rows or `-partial`, `Complete` with `-complete` |
 | `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; unsupported semantic rows exclude strong analysis with a notice |
 | `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit, every row loaded; `resolver` takes `none`, `from-frame-effect`, `-native ID`, or a body whose verbs are `alias LOCAL TARGET ?-level LEVEL?` / `namespace-variable NAME` (variable-cell alias facts only); no call = no transitions |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |

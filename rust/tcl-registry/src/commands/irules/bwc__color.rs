@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "BWC::color ('set' | 'unset') POLICY_NAME APPLICATION_NAME",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ConnectionControl,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

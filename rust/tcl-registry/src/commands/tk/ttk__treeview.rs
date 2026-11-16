@@ -820,7 +820,9 @@ const SELECTION_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(0),
         traits: Some(Traits::PURE.union(Traits::TAINT_SOURCE_ZERO_ARGS)),
         mutator: Some(false),
-        side_effects: Some(super::common::TTK_WIDGET_READS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            super::common::TTK_WIDGET_READS,
+        )),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -828,7 +830,9 @@ const SELECTION_FORMS: &[SubCommandForm] = &[
         arity: Arity::new(1, 5),
         traits: Some(Traits::empty()),
         mutator: Some(true),
-        side_effects: Some(super::common::TTK_WIDGET_READS_WRITES),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            super::common::TTK_WIDGET_READS_WRITES,
+        )),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -842,7 +846,9 @@ const ROW_CONFIGURE_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(1),
         traits: Some(Traits::PURE),
         mutator: Some(false),
-        side_effects: Some(super::common::TTK_WIDGET_READS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            super::common::TTK_WIDGET_READS,
+        )),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -850,7 +856,9 @@ const ROW_CONFIGURE_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(2),
         traits: Some(Traits::PURE),
         mutator: Some(false),
-        side_effects: Some(super::common::TTK_WIDGET_READS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            super::common::TTK_WIDGET_READS,
+        )),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -858,7 +866,9 @@ const ROW_CONFIGURE_FORMS: &[SubCommandForm] = &[
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
         traits: Some(Traits::CONFIGURES_INSTANCE_OPTIONS),
         mutator: Some(true),
-        side_effects: Some(super::common::TTK_WIDGET_READS_WRITES),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            super::common::TTK_WIDGET_READS_WRITES,
+        )),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -871,7 +881,7 @@ macro_rules! tag_query_form {
             literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&[$($word),+])),
             traits: Some(Traits::PURE),
             mutator: Some(false),
-            side_effects: Some(super::common::TTK_WIDGET_READS),
+            side_effects: Some(crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS)),
             ..SubCommandForm::DEFAULT
         }
     };
@@ -885,7 +895,7 @@ macro_rules! tag_mutation_form {
             literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&[$($word),+])),
             traits: Some(Traits::empty()),
             mutator: Some(true),
-            side_effects: Some(super::common::TTK_WIDGET_READS_WRITES),
+            side_effects: Some(crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES)),
             ..SubCommandForm::DEFAULT
         }
     };
@@ -901,7 +911,9 @@ const TAG_FORMS: &[SubCommandForm] = &[
         literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["bind"])),
         traits: Some(Traits::DEFERS_BODY),
         mutator: Some(true),
-        side_effects: Some(super::common::TTK_WIDGET_READS_WRITES),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            super::common::TTK_WIDGET_READS_WRITES,
+        )),
         ..SubCommandForm::DEFAULT
     },
     tag_mutation_form!("cell-add", Arity::exact(4), "cell", "add"),
@@ -933,7 +945,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName cget option",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -954,7 +966,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -965,7 +977,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName bbox item ?column?",
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -977,7 +989,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1009,7 +1021,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName children item ?newchildren?",
         mutator: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1020,7 +1032,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1042,7 +1054,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1053,7 +1065,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName delete itemList",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1064,7 +1076,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1075,7 +1087,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName detach itemList",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1086,7 +1098,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.0"),
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1098,7 +1110,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("8.5"),
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1109,7 +1121,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("8.6"),
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1119,7 +1131,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName exists item",
         pure: true,
         return_type: Some(TclType::Boolean),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1131,7 +1143,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1151,7 +1163,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::Boolean),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1174,7 +1186,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1185,7 +1197,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1196,7 +1208,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName identify ?component? x y",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1208,7 +1220,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1220,7 +1232,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName index item ?index?",
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1232,7 +1244,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         options: INSERT_OPTIONS,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1252,7 +1264,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName move item parent index | pathName move item before|after otherItem",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1262,7 +1274,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName next item",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1273,7 +1285,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName parent item",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1284,7 +1296,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName prev item",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1296,7 +1308,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1309,7 +1321,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1321,7 +1333,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName see item ?column?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1341,7 +1353,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName set item ?column? ?value? ?column value ...?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1352,7 +1364,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1366,7 +1378,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1382,7 +1394,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         body_kind: BodyKind::Structural,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         sub_subcommands: TAG_SUBCOMMANDS,
         subcommand_forms: TAG_FORMS,
         ..SubCommand::DEFAULT
@@ -1395,7 +1407,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arg_roles: &[(1, ArgRole::Body)],
         traits: Traits::EVALUATES_CODE,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_INSTATE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_INSTATE_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1415,7 +1427,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.0"),
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1427,7 +1439,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1438,7 +1450,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         lifecycle: Lifecycle::introduced_in("9.1"),
         pure: true,
         return_type: Some(TclType::Boolean),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -1449,7 +1461,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName xview | pathName xview moveto fraction | pathName xview scroll number units|pages",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -1460,7 +1472,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName yview | pathName yview moveto fraction | pathName yview scroll number units|pages",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -1496,7 +1508,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: &SUBCOMMANDS,
         object_class: Some(&TTK_TREEVIEW_CLASS),
         creates_instance_at: Some(0),
@@ -1670,7 +1682,7 @@ mod tests {
         assert_eq!(command.role, ArgRole::CommandPrefix);
         assert_eq!(command.appended_arity, AppendedArity::Exactly(2));
         assert!(sort.traits.contains(Traits::EVALUATES_CODE));
-        assert!(sort.side_effects.iter().any(|effect| {
+        assert!(sort.side_effects.lower_bound().iter().any(|effect| {
             effect.target == SideEffectTarget::Unknown && effect.reads && effect.writes
         }));
         let configure = sub("configure");
@@ -1729,10 +1741,19 @@ mod tests {
         ] {
             let sub = sub(name);
             assert!(sub.pure, "{name}");
-            assert!(!sub.side_effects.is_empty(), "{name}");
-            assert!(sub.side_effects.iter().any(|effect| effect.reads), "{name}");
+            assert!(!sub.side_effects.lower_bound().is_empty(), "{name}");
             assert!(
-                !sub.side_effects.iter().any(|effect| effect.writes),
+                sub.side_effects
+                    .lower_bound()
+                    .iter()
+                    .any(|effect| effect.reads),
+                "{name}"
+            );
+            assert!(
+                !sub.side_effects
+                    .lower_bound()
+                    .iter()
+                    .any(|effect| effect.writes),
                 "{name}"
             );
             assert!(sub.return_type.is_some(), "{name}");
@@ -1741,7 +1762,10 @@ mod tests {
             let sub = sub(name);
             assert!(sub.mutator, "{name}");
             assert!(
-                sub.side_effects.iter().any(|effect| effect.writes),
+                sub.side_effects
+                    .lower_bound()
+                    .iter()
+                    .any(|effect| effect.writes),
                 "{name}"
             );
             assert!(sub.return_type.is_some(), "{name}");
@@ -1755,7 +1779,10 @@ mod tests {
         ] {
             let sub = sub(name);
             assert!(!sub.mutator, "neutral parent row: {name}");
-            assert!(sub.side_effects.is_empty(), "neutral parent row: {name}");
+            assert!(
+                sub.side_effects.lower_bound().is_empty(),
+                "neutral parent row: {name}"
+            );
             assert!(!sub.subcommand_forms.is_empty(), "form refinement: {name}");
         }
     }

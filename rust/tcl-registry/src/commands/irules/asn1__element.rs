@@ -41,10 +41,10 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ASN1::element init ('BER' | 'DER')",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

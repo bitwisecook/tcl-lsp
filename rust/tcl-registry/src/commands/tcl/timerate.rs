@@ -234,7 +234,7 @@ pub fn spec() -> CommandSpec {
             ),
         ],
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Measure the calibrated rate of execution of a script.",
             synopsis: &[

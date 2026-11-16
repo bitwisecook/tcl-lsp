@@ -92,7 +92,7 @@ pub fn spec() -> CommandSpec {
             return_value: "An empty string.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Rename),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         // The command-table mutation is declared **once**, by naming the

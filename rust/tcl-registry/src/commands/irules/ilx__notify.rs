@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ILX::notify HANDLE METHOD (ARGS)*",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         // Same method target as `ILX::call`, different dispatch: F5 documents
         // the delivery as "best effort", with no reply, so the descriptor
         // carries `RemoteDispatch::Notification` and hover keeps the two

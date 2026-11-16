@@ -43,7 +43,7 @@ pub fn spec() -> CommandSpec {
             return_value: "A huddle object representing the YAML structure.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("yaml"),
         required_package: Some("yaml"),
         ..CommandSpec::DEFAULT

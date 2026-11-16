@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ASM::violation_data",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("ASM::violation"),
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT

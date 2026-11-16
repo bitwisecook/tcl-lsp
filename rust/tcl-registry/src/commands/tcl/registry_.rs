@@ -106,12 +106,12 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(2, 5),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Manipulate the Windows registry (Windows-only).",
             synopsis: &[

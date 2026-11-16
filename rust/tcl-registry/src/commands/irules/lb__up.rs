@@ -28,13 +28,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Mark node as up.",
         synopsis: "LB::up node <address>",
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -46,13 +46,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Mark pool member as up.",
         synopsis: "LB::up pool <pool> member <address> <port>",
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];
@@ -79,12 +79,12 @@ pub const fn spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

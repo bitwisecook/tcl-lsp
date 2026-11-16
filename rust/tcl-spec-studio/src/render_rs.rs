@@ -1322,6 +1322,62 @@ fn form_expr(entry: &Value, indent: &str) -> String {
     row_literal("FormSpec", &parts, indent)
 }
 
+/// The `Knowledge` literal a facts domain's rows and its draft knowledge
+/// object (`{level, complete}`) state together (issue #1712).
+///
+/// `None` is the `Unknown` default, which the literal leaves to `DEFAULT`.
+pub(crate) fn knowledge_expr(rows: Option<String>, knowledge: &Value) -> Option<String> {
+    let path = "crate::knowledge::Knowledge";
+    let level =
+        knowledge["level"]
+            .as_str()
+            .unwrap_or(if rows.is_some() { "partial" } else { "unknown" });
+    let rows = rows.unwrap_or_else(|| "&[]".to_owned());
+    match level {
+        "partial" => Some(format!("{path}::Partial({rows})")),
+        "complete" => {
+            let surfaces: Vec<String> = as_array(&knowledge["complete"])
+                .iter()
+                .filter_map(complete_surface_expr)
+                .collect();
+            Some(format!(
+                "{path}::Complete({rows}, &[{}])",
+                surfaces.join(", ")
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// One `effects -complete` window as a `SpecSurface` literal.
+fn complete_surface_expr(words: &Value) -> Option<String> {
+    let words: Vec<&str> = as_array(words).iter().filter_map(Value::as_str).collect();
+    let surface = "tcl_dialect::model::SpecSurface";
+    match words.as_slice() {
+        ["package", name] => Some(format!("{surface}::package({})", rust_string(name))),
+        ["package", name, from, until] => Some(format!(
+            "{surface}::package_in({}, &[({}, Some({}))])",
+            rust_string(name),
+            rust_string(from),
+            rust_string(until)
+        )),
+        [from, until] => {
+            let first = from.parse::<tcl_dialect::model::Release>().ok()?;
+            let last = until.parse::<tcl_dialect::model::Release>().ok()?;
+            let family = first.family();
+            let end = family.next_release(last).map_or_else(
+                || "None".to_owned(),
+                |next| format!("Some({})", rust_string(next.as_str())),
+            );
+            Some(format!(
+                "{surface}::core_in(tcl_dialect::model::Family::{family:?}, &[({}, {end})])",
+                rust_string(first.as_str())
+            ))
+        }
+        _ => None,
+    }
+}
+
 fn side_effect_expr(entry: &Value, indent: &str) -> String {
     let mut parts = vec![format!(
         "{indent}    target: SideEffectTarget::{},",
@@ -1409,9 +1465,18 @@ fn command_form_expr(entry: &Value, indent: &str) -> String {
         parts.push(format!("{inner}mutator: Some({mutator}),"));
     }
     if let Some(effects) = entry["side_effects"].as_array() {
+        let rows = list_expr(effects, &inner, side_effect_expr);
+        let knowledge = &entry["side_effects_knowledge"];
+        // A form's empty row list replaces its parent's effects with none,
+        // so its default level is partial rather than unknown.
+        let expr = if knowledge.is_null() {
+            knowledge_expr(Some(rows.unwrap_or_else(|| "&[]".to_owned())), knowledge)
+        } else {
+            knowledge_expr(rows, knowledge)
+        };
         parts.push(format!(
             "{inner}side_effects: Some({}),",
-            list_expr(effects, &inner, side_effect_expr).unwrap_or_else(|| "&[]".to_owned())
+            expr.unwrap_or_else(|| "crate::knowledge::Knowledge::Unknown".to_owned())
         ));
     }
     if let Some(expr) = entry["representation_effect"].as_str() {
@@ -1608,6 +1673,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::Refinements => list_expr(as_array(value), indent, command_form_expr)?,
         FieldKind::SubCommands => "SUBCOMMANDS".to_owned(),
         FieldKind::SideEffects => list_expr(as_array(value), indent, side_effect_expr)?,
+        FieldKind::Knowledge => return None,
         FieldKind::SetterConstraints => list_expr(as_array(value), indent, setter_constraint_expr)?,
         FieldKind::ManufacturerMethods => {
             list_expr(as_array(value), indent, manufacturer_method_expr)?
@@ -1709,6 +1775,10 @@ fn subcommand_literal(sub: &Value, default: &Draft, indent: &str) -> String {
                     Some(format!("&[\n{}\n{inner}]", rendered.join("\n")))
                 }
             }
+            FieldKind::SideEffects => knowledge_expr(
+                field_expr(field, value, default_value, &inner),
+                sub.get("side_effects_knowledge").unwrap_or(&Value::Null),
+            ),
             _ => field_expr(field, value, default_value, &inner),
         };
         if let Some(expr) = expr {
@@ -2092,7 +2162,14 @@ pub fn render(draft: &Draft) -> String {
         }
         let value = draft.get(field.key).unwrap_or(&Value::Null);
         let default_value = default.get(field.key).unwrap_or(&Value::Null);
-        if let Some(expr) = field_expr(field, value, default_value, "        ") {
+        let expr = match field.kind {
+            FieldKind::SideEffects => knowledge_expr(
+                field_expr(field, value, default_value, "        "),
+                draft.get("side_effects_knowledge").unwrap_or(&Value::Null),
+            ),
+            _ => field_expr(field, value, default_value, "        "),
+        };
+        if let Some(expr) = expr {
             out.push_str("        ");
             out.push_str(field.key);
             out.push_str(": ");

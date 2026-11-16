@@ -337,7 +337,7 @@ const VSATISFIES_FORMS: &[SubCommandForm] = &[
         source_package_query: Some(crate::source_navigation::SourcePackageQuery::VersionSatisfies),
         arity: Arity::exact(2),
         surface: Some(SpecSurface::TCL84),
-        side_effects: Some(&[]),
+        side_effects: Some(crate::knowledge::Knowledge::Partial(&[])),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -345,7 +345,7 @@ const VSATISFIES_FORMS: &[SubCommandForm] = &[
         source_package_query: Some(crate::source_navigation::SourcePackageQuery::VersionSatisfies),
         arity: Arity::at_least(2),
         surface: Some(SpecSurface::TCL85_PLUS),
-        side_effects: Some(&[]),
+        side_effects: Some(crate::knowledge::Knowledge::Partial(&[])),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -360,11 +360,11 @@ const PROVIDE_FORMS: &[SubCommandForm] = &[SubCommandForm {
     source_package_query: Some(crate::source_navigation::SourcePackageQuery::ProvidedVersion),
     arity: Arity::exact(1),
     arg_roles: &[(0, ArgRole::Name)],
-    side_effects: Some(&[SideEffect {
+    side_effects: Some(crate::knowledge::Knowledge::Partial(&[SideEffect {
         target: SideEffectTarget::InterpState,
         reads: true,
         ..SideEffect::DEFAULT
-    }]),
+    }])),
     world_effects: Some(WorldEffectDescriptor {
         composition: crate::world_effect::WorldEffectComposition::Replace,
         static_footprint: StaticEffectFootprint {
@@ -415,11 +415,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // an error, and forgetting never depends on existing state the
         // way `provide`/`ifneeded`/`unknown`'s query forms do. Precise
         // enough to override the command-level (read+write) fallback.
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -772,12 +772,12 @@ pub fn spec() -> CommandSpec {
         // (`files`/`names`/`present`/`vcompare`/`versions`/`vsatisfies`)
         // bypass this entirely via their `pure: true` short-circuit in
         // `tcl_compiler::side_effects::classify_side_effects`.
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Facilities for package loading and version control",
             synopsis: &[

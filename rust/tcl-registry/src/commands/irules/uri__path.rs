@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "URI::path URI_STRING (depth | START | (START END))?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         taint_source: Some(TaintColour::TAINTED),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::URI_PATH),
         ..CommandSpec::DEFAULT

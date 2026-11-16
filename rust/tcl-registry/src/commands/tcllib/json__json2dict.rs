@@ -42,7 +42,7 @@ pub fn spec() -> CommandSpec {
             return_value: "A Tcl dict representing the JSON structure.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("json"),
         required_package: Some("json"),
         ..CommandSpec::DEFAULT

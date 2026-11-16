@@ -228,11 +228,11 @@ pub fn spec() -> CommandSpec {
         // `FORMS`).
         arity: Arity::at_least(2),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Create link to variable in a different stack frame",
             synopsis: &["upvar ?level? otherVar myVar ?otherVar myVar ...?"],

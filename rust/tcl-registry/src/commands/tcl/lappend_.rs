@@ -102,8 +102,9 @@ pub fn spec() -> CommandSpec {
                 transparent_from: &[],
             },
         )],
-        side_effects:
+        side_effects: crate::knowledge::Knowledge::declared(
             crate::value_transfer::conditional_list_append::CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS,
+        ),
         hover: Some(HoverSnippet {
             summary: "Append list elements to a variable, creating it if it does not already exist.",
             synopsis: &["lappend varName ?value value value ...?"],

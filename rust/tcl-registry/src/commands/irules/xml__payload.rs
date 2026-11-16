@@ -40,12 +40,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "XML::payload (LENGTH | (OFFSET LENGTH))?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::StreamProfile,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         taint_source: Some(TaintColour::TAINTED),
         data_collection: Some(XML_PAYLOAD),
         ..CommandSpec::DEFAULT

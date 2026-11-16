@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "MQTT::replace ( (('type' 'CONNECT') ('client_id' NAME)",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "HTTP2::disable ('clientside')? ('serverside')? ('discard')?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Http2State,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

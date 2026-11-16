@@ -655,6 +655,20 @@ append log $line",
         },
     ),
     (
+        "side_effects_knowledge",
+        Example {
+            code: "set n [llength $items]\nset n [llength $items]",
+            focuses: &[
+                focus(
+                    0,
+                    "llength",
+                    "complete and empty from the 8.4–9.1 sources, so the call is effect-free",
+                ),
+                focus(1, "llength", "and its repeat can reuse the first result"),
+            ],
+        },
+    ),
+    (
         "world_effects",
         Example {
             code: "set before [info commands ::app::*]\nnamespace delete ::app\nset after [info commands ::app::*]",

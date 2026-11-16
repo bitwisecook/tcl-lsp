@@ -9903,9 +9903,9 @@ impl Analyser {
             });
         if !has_script_argument {
             let effects = resolved_sub
-                .filter(|sub| !sub.side_effects.is_empty())
+                .filter(|sub| !sub.side_effects.lower_bound().is_empty())
                 .map_or(spec.side_effects, |sub| sub.side_effects);
-            if effects.iter().any(|effect| {
+            if effects.lower_bound().iter().any(|effect| {
                 effect.writes
                     && matches!(
                         effect.target,

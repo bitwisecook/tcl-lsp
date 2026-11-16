@@ -109,7 +109,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED.union(Traits::CREATES_DYNAMIC_BARRIER),
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Process pending events and idle callbacks.",
             synopsis: &["update ?idletasks?"],

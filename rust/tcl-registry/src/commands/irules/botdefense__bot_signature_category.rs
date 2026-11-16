@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "BOTDEFENSE::bot_signature_category",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

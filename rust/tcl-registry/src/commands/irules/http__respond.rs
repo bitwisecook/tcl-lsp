@@ -144,13 +144,13 @@ pub const fn spec() -> CommandSpec {
             synopsis: "HTTP::respond <status> ?option value ...?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ResponseCommit,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

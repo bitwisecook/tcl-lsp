@@ -46,12 +46,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ASM::signature (ids | names | set_names | staged_ids | staged_names | staged_set_names)",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -46,7 +46,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clipboard get ?-displayof window? ?-type type?",
         options: GET_OPTIONS,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT
     },
 ];
@@ -189,7 +189,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }

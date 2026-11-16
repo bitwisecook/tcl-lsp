@@ -48,12 +48,12 @@ pub fn spec() -> CommandSpec {
         // comment) — left unconstrained rather than modelling an
         // invocation shape that doesn't exist.
         arity: Arity::any(),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Client-side implementation of the HTTP/1.x protocol, built around http::geturl and a per-transaction state token.",
             synopsis: &["package require http ?version?"],

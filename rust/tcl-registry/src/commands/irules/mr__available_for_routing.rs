@@ -36,13 +36,13 @@ pub const fn spec() -> CommandSpec {
             synopsis: "MR::available_for_routing (BOOLEAN)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::MessageState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -118,7 +118,7 @@ pub fn spec() -> CommandSpec {
         // five fetched source tags (module doc comment).
         arity: Arity::exact(4),
         return_type: Some(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             // Writes one `auto_index($cmd)` entry per command name listed
             // in each `files` entry; never reads the array first, so a
             // colliding `$cmd` from an earlier call is silently replaced.
@@ -136,7 +136,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Declare a package provided and register per-command auto-loading stubs for it.",
             synopsis: &["tclPkgSetup dir pkg version files"],

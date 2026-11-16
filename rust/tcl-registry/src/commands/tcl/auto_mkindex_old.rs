@@ -84,12 +84,12 @@ pub fn spec() -> CommandSpec {
         // itself is unaffected, only the manual's presentation changed.
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         // The `error $msg $info $code` bug described in the hover text
         // below is narrower than "the shipped Tcl 8.6 implementation": it
         // affects only the tclIndex-write failure branch, and only from

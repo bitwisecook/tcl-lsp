@@ -663,6 +663,84 @@ fn structured_examples_survive_the_round_trip() {
     );
 }
 
+/// A side-effect list states how completely it is known, and the `SpecTcl`
+/// `effects` row, the Studio draft and the reloaded spec agree on it (issue
+/// #1712). Completeness windows are release-ladder facts: the test covers
+/// 8.4–9.1 and a 9.0-only window, and a package axis.
+#[test]
+fn side_effect_knowledge_survives_the_round_trip() {
+    use tcl_dialect::model::{Family, SpecSurface};
+    use tcl_registry::knowledge::Knowledge;
+    use tcl_registry::side_effects::{SideEffect, SideEffectTarget};
+    const WRITES: &[SideEffect] = &[SideEffect {
+        target: SideEffectTarget::FileIo,
+        writes: true,
+        ..SideEffect::DEFAULT
+    }];
+    const NINE: &[SpecSurface] = &[SpecSurface::core_in(Family::Tcl, &[("9.0", Some("9.1"))])];
+    const PACKAGE: &[SpecSurface] = &[SpecSurface::package("struct::list")];
+    for (label, knowledge) in [
+        (
+            "complete and empty",
+            Knowledge::Complete(&[][..], SpecSurface::ALL_TCL),
+        ),
+        ("complete at 9.0", Knowledge::Complete(WRITES, NINE)),
+        (
+            "complete in a package",
+            Knowledge::Complete(&[][..], PACKAGE),
+        ),
+        ("partial and empty", Knowledge::Partial(&[][..])),
+        ("partial", Knowledge::Partial(WRITES)),
+        ("unknown", Knowledge::Unknown),
+    ] {
+        let spec = tcl_registry::CommandSpec {
+            name: "mypkg::emit",
+            arity: tcl_registry::arity::Arity::exact(1),
+            side_effects: knowledge,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let draft = Value::Object(draft::from_command_spec(&spec));
+        let trip = round_trip(&draft);
+        assert!(
+            trip.notices.is_empty(),
+            "{label}: {:?}\n{}",
+            trip.notices,
+            trip.text
+        );
+        for key in ["side_effects", "side_effects_knowledge"] {
+            assert_eq!(
+                trip.reloaded[key], draft[key],
+                "{label}: {key}\n{}",
+                trip.text
+            );
+        }
+    }
+}
+
+/// A completeness window that names no release ladder is refused with a
+/// notice, and the row with it.
+#[test]
+fn an_unreadable_completeness_window_is_refused() {
+    let spec = tcl_registry::CommandSpec {
+        name: "mypkg::emit",
+        arity: tcl_registry::arity::Arity::exact(1),
+        side_effects: tcl_registry::knowledge::Knowledge::Partial(&[]),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = draft::from_command_spec(&spec);
+    let text = render_spectcl::render_pack(&[draft], "pack");
+    assert!(text.contains("effects -partial"), "{text}");
+    let pack =
+        spectcl::evaluate_pack(&text.replace("effects -partial", "effects -complete {8.6 jim}"));
+    assert!(
+        pack.notices
+            .iter()
+            .any(|notice| notice.message.contains("effects -complete")),
+        "{:?}",
+        pack.notices
+    );
+}
+
 /// A note whose text is not on its line is refused with a notice, and the
 /// example with it, rather than drawn somewhere else.
 #[test]

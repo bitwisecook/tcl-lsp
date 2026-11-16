@@ -111,11 +111,11 @@ pub fn spec() -> CommandSpec {
         // plain-Tcl `close` classifies as exactly one `FileIo` effect, and
         // `close` only ever *waits for* a process `open` already started
         // rather than spawning one itself.
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         arg_values: &[(1, DIRECTION_VALUES)],
         hover: Some(HoverSnippet {
             summary: "Close, or half-close, an open channel.",

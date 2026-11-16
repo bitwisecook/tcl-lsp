@@ -60,11 +60,11 @@ const CONVERTTO_FORMS: &[crate::forms::SubCommandForm] = &[crate::forms::SubComm
         },
     ),
     traits: Some(Traits::FRAMELESS_RUNTIME),
-    side_effects: Some(&[SideEffect {
+    side_effects: Some(crate::knowledge::Knowledge::Partial(&[SideEffect {
         target: SideEffectTarget::InterpState,
         reads: true,
         ..SideEffect::DEFAULT
-    }]),
+    }])),
     completion: Some(CompletionDescriptor::exact(&[
         crate::completion::CompletionCode::Ok,
         crate::completion::CompletionCode::Error,
@@ -268,7 +268,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "encoding convertfrom ?encoding? data",
         options: CONVERTFROM_OPTIONS,
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             // -failindex (Tcl 9.0+) optionally writes its `var` argument;
             // the static spec can't see whether a given call uses it, so
             // conservatively declare the write rather than staying `pure`.
@@ -276,7 +276,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             surface: Some(SpecSurface::TCL90_PLUS),
             ..SideEffect::DEFAULT
-        }],
+        }]),
         is_unescape: true,
         ..SubCommand::DEFAULT
     },
@@ -304,14 +304,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // a *string*, not as bytes.
         byte_array_effect: ByteArrayEffect::Encodes,
         return_type: Some(TclType::ByteArray),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             // -failindex (Tcl 9.0+) optionally writes its `var` argument;
             // see the identical note on `convertfrom` above.
             target: SideEffectTarget::Variable,
             writes: true,
             surface: Some(SpecSurface::TCL90_PLUS),
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -323,7 +323,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get or set the search path for *.enc encoding data files. It is an error for directoryList not to be a valid list; an unreadable/unsearchable directory in it is silently ignored when searching.",
         synopsis: "encoding dirs ?directoryList?",
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             // Getter when called with 0 args, setter (interpreter-wide
             // state) with 1 — the static spec can't see which, so declare
             // both.
@@ -331,7 +331,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         // Added in Tcl 8.5 — absent from the 8.4 synopsis and DESCRIPTION;
         // present, unchanged, in 8.5 through 9.1.
         surface: Some(SpecSurface::TCL85_PLUS),
@@ -357,7 +357,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get or set the system encoding, used whenever Tcl passes strings to system calls.",
         synopsis: "encoding system ?encoding?",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             // Getter when called with 0 args, setter (interpreter-wide
             // state) with 1 — the static spec can't see which, so declare
             // both.
@@ -365,7 +365,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -437,7 +437,7 @@ pub fn spec() -> CommandSpec {
             return_value: "Depends on the subcommand: convertfrom returns the decoded string, convertto the encoded byte sequence; dirs/names/profiles return a list; system/user return an encoding name. dirs and system also act as setters, in which case they return the empty string.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

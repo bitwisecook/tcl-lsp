@@ -104,7 +104,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         subcommands: &SUBCOMMANDS,
         return_type: Some(TclType::String),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Manage subprocesses created by exec or a command-pipeline open, tracked by process id.",
             synopsis: &[
@@ -159,7 +159,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         detail: "Query the autopurge flag, or set it first when flag (a boolean) is given; returns the resulting value either way. Defaults to on.",
         synopsis: "tcl::process autopurge ?flag?",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Process,
             // Always reads back the (possibly just-set) flag; writes it
             // only when `flag` is given — the static spec can't see
@@ -167,7 +167,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -176,11 +176,11 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         detail: "Return the PIDs of every tracked subprocess: still running, or terminated but not yet purged.",
         synopsis: "tcl::process list",
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Process,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -189,7 +189,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         detail: "Discard bookkeeping for terminated subprocesses, optionally limited to pids. Silently ignores a pid that is still running or unrecognised.",
         synopsis: "tcl::process purge ?pids?",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Process,
             // Reaps any freshly-exited children unconditionally
             // (`Tcl_ReapDetachedProcs`) before reading the table to
@@ -197,7 +197,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -209,7 +209,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         synopsis: "tcl::process status ?switches? ?pids?",
         return_type: Some(TclType::Dict),
         options: &STATUS_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Process,
             // Refreshing a process's status can call Tcl_WaitPid
             // (reaping it at the OS level) and, when autopurge is on,
@@ -219,7 +219,7 @@ static SUBCOMMANDS: [SubCommand; 4] = [
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];

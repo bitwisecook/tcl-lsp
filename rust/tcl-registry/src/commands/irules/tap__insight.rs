@@ -39,12 +39,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "TAP::insight set (TAP_INSIGHT_KEY TAP_INSIGHT_VALUE)*",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -142,7 +142,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         subcommands: &SUBCOMMANDS,
         return_type: Some(TclType::String),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Mount ZIP archives as a Tcl virtual filesystem, and build ZIP archives or self-contained executables.",
             synopsis: &[
@@ -189,11 +189,11 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Test whether filename exists in a mounted archive; also true for a directory that is only implied by a mounted file's path, not just a literal archive entry.",
         synopsis: "zipfs exists filename",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -202,11 +202,11 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Recursively list, in sorted order, every path under directoryName (which need not be inside a mounted archive — any real directory works). Also used internally by mkzip/mkimg to walk their input directory. Silently returns an empty list rather than erroring if directoryName can't be read.",
         synopsis: "zipfs find directoryName",
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -215,11 +215,11 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Return {archive uncompressedSize compressedSize offset} for a file in a mounted archive. Querying the mount point itself gives the start of the ZIP data as offset. Errors (\"not found in any zipfs volume\") for a path that doesn't exist, including a path that is only an ancestor of a mount point rather than the mount point itself.",
         synopsis: "zipfs info file",
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -229,11 +229,11 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         synopsis: "zipfs list ?(-glob|-regexp)? ?pattern?",
         return_type: Some(TclType::List),
         options: &LIST_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -242,12 +242,12 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Like mkimg, but inlist is a flat Tcl list of alternating source-file/archive-name pairs instead of a directory: odd elements are files to copy in, even elements are their names inside the archive.",
         synopsis: "zipfs lmkimg outfile inlist ?password? ?infile?",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -256,12 +256,12 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Like mkzip, but inlist is a flat Tcl list of alternating source-file/archive-name pairs instead of a directory: odd elements are files to copy in, even elements are their names inside the archive.",
         synopsis: "zipfs lmkzip outfile inlist ?password?",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -270,12 +270,12 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Like mkzip, but prepends the result to infile (default: the running tclsh/wish executable) to build a self-contained image, silently overwriting outfile and discarding any ZIP already attached to infile. If the archive's root has a main.tcl and the base image is a tclsh/wish, the built image sources it after mounting and exits once it returns.",
         synopsis: "zipfs mkimg outfile indir ?strip? ?password? ?infile?",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -293,12 +293,12 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Create outfile from the regular files under indir, stripping the strip prefix from each stored name if given (typically indir itself or its parent, since whatever remains becomes the archive's root name) and encrypting with password if given.",
         synopsis: "zipfs mkzip outfile indir ?strip? ?password?",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -315,7 +315,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Three forms: no arguments returns a dict mapping every mount point to its archive's path; mountpoint alone returns the archive path mounted there; zipfile and mountpoint (with optional password) mounts zipfile there and returns the normalized mount point — an empty mountpoint defaults to the zipfs root. Errors if mountpoint names a drive or UNC volume.",
         synopsis: "zipfs mount ?zipfile? ?mountpoint? ?password?",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             // Every form reads (the query forms read the mount table;
             // the mounting form also reads zipfile from disk to
@@ -323,7 +323,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -332,11 +332,11 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Mount the in-memory ZIP archive content data as a virtual filesystem at mountpoint — like mount's third form, but reading from a byte string instead of a file.",
         synopsis: "zipfs mountdata data mountpoint",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -354,12 +354,12 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Dismount a previously mounted ZIP archive. Errors if any file inside it is still open.",
         synopsis: "zipfs unmount mountpoint",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];

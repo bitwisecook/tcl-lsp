@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "imid",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("IMID::id"),
         ..CommandSpec::DEFAULT
     }

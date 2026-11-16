@@ -118,7 +118,7 @@ pub fn spec() -> CommandSpec {
             return_value: "An empty string.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
 
         // An already-resolved core `proc` consults neither TclOO dispatch nor

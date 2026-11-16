@@ -91,7 +91,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarRead), (1, ArgRole::Pattern)],
         pattern_type: Some(PatternType::Glob),
         return_type: Some(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 writes: true,
@@ -103,7 +103,7 @@ pub fn spec() -> CommandSpec {
                 reads: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Print an array's names and values to standard output.",
             synopsis: &["parray arrayName ?pattern?", "parray arrayName"],

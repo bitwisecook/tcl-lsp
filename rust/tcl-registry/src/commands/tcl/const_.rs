@@ -56,11 +56,11 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::cell_write::CONST_WRITE),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Create and initialize an unmodifiable constant variable.",
             synopsis: &["const varName value"],

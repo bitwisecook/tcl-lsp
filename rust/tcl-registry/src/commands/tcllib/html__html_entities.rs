@@ -43,7 +43,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The entity-encoded string.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("html"),
         required_package: Some("html"),
         semantics: SemanticsDeclaration::Declared(

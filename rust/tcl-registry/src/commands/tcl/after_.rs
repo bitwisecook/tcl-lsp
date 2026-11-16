@@ -113,11 +113,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "after info ?id?",
         return_type: Some(TclType::List),
         pure: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -173,11 +173,11 @@ pub fn spec() -> CommandSpec {
         // delayed-execution form rather than dispatching on a subcommand.
         default_form_first_word: Some(DefaultFormFirstWord::Integer),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Delay execution, or schedule a script to run later.",
             synopsis: &[

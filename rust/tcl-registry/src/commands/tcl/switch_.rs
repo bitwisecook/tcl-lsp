@@ -304,7 +304,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The result of evaluating the matched body, or an empty string when no pattern matches and there is no default clause.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         // `TclNRSwitchObjCmd` (generic/tclCmdMZ.c) normally only scans for
         // `-flag` words up to `objc - 2`: the trailing `string` and
         // pattern-list-or-first-pattern words are never mistaken for options,

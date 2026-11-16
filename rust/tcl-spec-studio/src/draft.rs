@@ -190,6 +190,28 @@ fn opt_index(value: Option<u8>) -> Value {
     value.map_or(Value::Null, |n| json!(n))
 }
 
+/// A facts domain's completeness as the draft states it: `{level}` plus,
+/// when complete, the `effects -complete` window words (issue #1712).
+pub(crate) fn knowledge<T>(knowledge: &tcl_registry::knowledge::Knowledge<T>) -> Value {
+    let mut out = serde_json::Map::new();
+    out.insert("level".into(), json!(knowledge.level().as_str()));
+    if let Some(surfaces) = knowledge.complete_surfaces() {
+        out.insert(
+            "complete".into(),
+            Value::Array(
+                surfaces
+                    .iter()
+                    .map(|surface| {
+                        tcl_registry::knowledge::complete_window_words(surface)
+                            .map_or(Value::Null, |words| json!(words))
+                    })
+                    .collect(),
+            ),
+        );
+    }
+    Value::Object(out)
+}
+
 fn dialects(value: Option<&'static [SpecSurface]>) -> Value {
     match value {
         None => Value::Null,
@@ -1528,7 +1550,16 @@ fn subcommand_value_and_effect_fields(d: &mut Draft, sub: &SubCommand, lost: &mu
     );
     d.insert(
         "side_effects".into(),
-        nested_rows(sub.side_effects, "side_effects", lost, side_effect),
+        nested_rows(
+            sub.side_effects.lower_bound(),
+            "side_effects",
+            lost,
+            side_effect,
+        ),
+    );
+    d.insert(
+        "side_effects_knowledge".into(),
+        knowledge(&sub.side_effects),
     );
     d.insert("destructive".into(), json!(sub.destructive));
     d.insert("returns_path".into(), json!(sub.returns_path));
@@ -1943,8 +1974,18 @@ fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
     d.insert(
         "side_effects".into(),
         form.side_effects.map_or(Value::Null, |effects| {
-            Value::Array(effects.iter().map(|effect| side_effect(effect).0).collect())
+            Value::Array(
+                effects
+                    .lower_bound()
+                    .iter()
+                    .map(|effect| side_effect(effect).0)
+                    .collect(),
+            )
         }),
+    );
+    d.insert(
+        "side_effects_knowledge".into(),
+        form.side_effects.as_ref().map_or(Value::Null, knowledge),
     );
     d.insert(
         "representation_effect".into(),
@@ -2348,7 +2389,16 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "side_effects".into(),
-        nested_rows(spec.side_effects, "side_effects", lost, side_effect),
+        nested_rows(
+            spec.side_effects.lower_bound(),
+            "side_effects",
+            lost,
+            side_effect,
+        ),
+    );
+    d.insert(
+        "side_effects_knowledge".into(),
+        knowledge(&spec.side_effects),
     );
     d.insert(
         "world_effects".into(),

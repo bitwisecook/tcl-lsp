@@ -197,9 +197,10 @@ pub struct CommandForm {
 
     /// Legacy structured side effects for this concrete invocation shape.
     ///
-    /// `Some` replaces the inherited slice, including `Some(&[])` for no
-    /// effect. `None` inherits. Mutable-world facts use [`Self::world_effects`].
-    pub side_effects: Option<&'static [SideEffect]>,
+    /// `Some` replaces the inherited knowledge, including
+    /// `Some(Knowledge::Unknown)` for a form that withdraws its parent's
+    /// claims. `None` inherits. Mutable-world facts use [`Self::world_effects`].
+    pub side_effects: Option<crate::knowledge::Knowledge<&'static [SideEffect]>>,
 
     /// Mutable Tcl-world effects specific to this concrete form.
     ///

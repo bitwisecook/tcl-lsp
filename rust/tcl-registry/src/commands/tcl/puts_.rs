@@ -125,11 +125,11 @@ pub fn spec() -> CommandSpec {
             id: IntrinsicId::ChannelWrite,
             arity: ArityRule::Range { min: 1, max: 3 },
         }),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         // `-nonewline` is documented identically — name, shape, and
         // behaviour — in every fetched version, 8.4 through 9.1.
         options: const {

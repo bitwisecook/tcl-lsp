@@ -219,8 +219,9 @@ impl ResolvedInvocation<'_, '_> {
             || self.selected.form.is_some()
             || self.selected.instance
             || !direct_phase_layout_is_supported(self)
-            || self.selected.spec.side_effects != CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS
-            || self.semantics.side_effects != CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS
+            || self.selected.spec.side_effects.lower_bound()
+                != CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS
+            || self.semantics.side_effects.lower_bound() != CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS
             || self.selected.spec.representation_effect != Some(representation)
             || self.semantics.representation_effect != representation
             || self.semantics.argument_offset != 0
@@ -330,12 +331,14 @@ mod tests {
             }
             SchemaChange::RawExtra | SchemaChange::FormHidesRawExtra => {
                 let mut spec = registry.get("lappend")?.clone();
-                spec.side_effects = EXTRA_EFFECTS;
+                spec.side_effects = crate::knowledge::Knowledge::declared(EXTRA_EFFECTS);
                 if matches!(change, SchemaChange::FormHidesRawExtra) {
                     const FORM: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
                         name: "hidden-raw-effects",
                         arity: crate::Arity::at_least(2),
-                        side_effects: Some(CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS),
+                        side_effects: Some(crate::knowledge::Knowledge::declared(
+                            CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS,
+                        )),
                         ..crate::forms::CommandForm::DEFAULT
                     }];
                     spec.command_forms = FORM;
@@ -363,12 +366,18 @@ mod tests {
             )
             .resolved()?;
         match change {
-            SchemaChange::EffectiveExtra => selected.semantics.side_effects = EXTRA_EFFECTS,
+            SchemaChange::EffectiveExtra => {
+                selected.semantics.side_effects =
+                    crate::knowledge::Knowledge::declared(EXTRA_EFFECTS);
+            }
             SchemaChange::FormHidesRawExtra => {
                 assert!(selected.selected.form.is_some());
-                assert_eq!(selected.selected.spec.side_effects, EXTRA_EFFECTS);
                 assert_eq!(
-                    selected.semantics.side_effects,
+                    selected.selected.spec.side_effects.lower_bound(),
+                    EXTRA_EFFECTS
+                );
+                assert_eq!(
+                    selected.semantics.side_effects.lower_bound(),
                     CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS
                 );
             }
@@ -391,7 +400,8 @@ mod tests {
             }
             SchemaChange::RawExtra => {
                 assert_eq!(
-                    selected.selected.spec.side_effects, EXTRA_EFFECTS,
+                    selected.selected.spec.side_effects.lower_bound(),
+                    EXTRA_EFFECTS,
                     "selected raw extra-effect descriptor"
                 );
             }

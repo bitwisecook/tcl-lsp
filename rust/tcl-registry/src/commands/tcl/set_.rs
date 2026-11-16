@@ -90,7 +90,7 @@ const COMMAND_FORMS: &[CommandForm] = &[
         }),
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: Some(READ_EFFECTS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(READ_EFFECTS)),
         world_effects: Some(crate::WorldEffectDescriptor {
             composition: crate::world_effect::WorldEffectComposition::Replace,
             ..crate::WorldEffectDescriptor::VARIABLE_READ
@@ -105,7 +105,7 @@ const COMMAND_FORMS: &[CommandForm] = &[
         }),
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::VarWrite)],
-        side_effects: Some(WRITE_EFFECTS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(WRITE_EFFECTS)),
         world_effects: Some(crate::WorldEffectDescriptor {
             composition: crate::world_effect::WorldEffectComposition::Replace,
             ..crate::WorldEffectDescriptor::VARIABLE_WRITE
@@ -178,7 +178,7 @@ pub fn spec() -> CommandSpec {
         inline_codegen_hook: Some(InlineCodegenHookId::Set),
         native_lowering: Some(NativeLowering::Structured(LoweringHookId::Set)),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::cell_write::CELL_WRITE),
         ..CommandSpec::DEFAULT
     }

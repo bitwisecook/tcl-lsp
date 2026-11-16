@@ -643,6 +643,19 @@ What state the command touches, as structured reads and writes: variables, chann
 
 This is the backbone of dead-code and ordering analysis: a command with no declared effects and no result being used looks removable. When a command does anything externally visible, say so here.
 
+### `side_effects_knowledge` — Side-effect completeness
+
+*command and subcommand* — How completely the side effects are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.
+
+How much of the side-effect list is known. **Unknown** claims nothing: an empty list is not a promise of no effects. **Partial** says the rows hold and there may be more. **Complete** says the rows are every effect the implementation has, for the release windows you evidenced from its source; only a complete, empty list lets the optimiser treat the call as effect-free.
+
+```
+side_effect FileIo -writes
+effects -complete {8.4 9.1}
+```
+
+One release never vouches for another: a window outside the evidenced ones stays a lower bound.
+
 ### `world_effects` — World effects
 
 *command and subcommand* — Target-neutral mutable-world footprint for common compiler analysis.

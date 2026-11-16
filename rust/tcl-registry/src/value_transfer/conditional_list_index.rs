@@ -177,8 +177,8 @@ impl ResolvedInvocation<'_, '_> {
             || self.selected.sub.is_some()
             || self.selected.form.is_some()
             || self.selected.instance
-            || !self.selected.spec.side_effects.is_empty()
-            || !self.semantics.side_effects.is_empty()
+            || !self.selected.spec.side_effects.lower_bound().is_empty()
+            || !self.semantics.side_effects.lower_bound().is_empty()
             || self.selected.spec.representation_effect != Some(representation)
             || self.semantics.representation_effect != representation
             || self.semantics.argument_offset != 0

@@ -71,7 +71,7 @@ const fn step_sub(name: &'static str, synopsis: &'static str, detail: &'static s
         mutator: true,
         traits: Traits::READS_BEFORE_WRITE,
         safe_on_uninit: Some(SpecSurface::TCL91),
-        side_effects: VAR_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(VAR_EFFECTS),
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::GRAPHEME_CURSOR,

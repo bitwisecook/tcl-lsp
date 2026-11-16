@@ -195,11 +195,11 @@ pub fn spec() -> CommandSpec {
         arg_role_layout_resolver: Some(glob_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern],
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         options: const {
             &[
                 OptionSpec {

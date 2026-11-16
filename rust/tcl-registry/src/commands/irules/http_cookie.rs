@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "http_cookie ANY_CHARS",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpCookie,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("HTTP::cookie"),
         deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT

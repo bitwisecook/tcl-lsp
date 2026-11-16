@@ -46,7 +46,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         arg_roles: &[(2, ArgRole::Body)],
         tcllib_package: Some("snit"),
         required_package: Some("snit"),

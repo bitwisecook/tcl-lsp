@@ -48,12 +48,12 @@ pub const fn spec() -> CommandSpec {
         }],
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

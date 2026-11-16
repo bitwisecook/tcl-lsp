@@ -87,6 +87,7 @@ fn source_object_attachment(
         selected
             .semantics
             .side_effects
+            .lower_bound()
             .iter()
             .any(|effect| effect.writes && effect.target == target)
     };

@@ -783,12 +783,12 @@ pub fn spec() -> CommandSpec {
         // Jim's listing/miss parser can call current lsort, and individual
         // operations can call namespace info, os.gethostname or a Tcl proc.
         // The table does not close those actual commands' effects.
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Information about the selected Jim interpreter",
             synopsis: &["info subcommand ?arg ...?"],

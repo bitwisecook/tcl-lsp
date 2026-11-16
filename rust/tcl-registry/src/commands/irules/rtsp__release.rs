@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "RTSP::release",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         data_collection: Some(RTSP_RELEASE),
         ..CommandSpec::DEFAULT
     }

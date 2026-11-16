@@ -523,7 +523,7 @@ fn check_extension_default_spec(spec: &tcl_registry::CommandSpec) {
 
     assert_eq!(spec.arity, Arity::any());
     assert_eq!(
-        spec.side_effects,
+        spec.side_effects.lower_bound(),
         [SideEffect {
             target: SideEffectTarget::Unknown,
             reads: true,
@@ -845,7 +845,7 @@ fn check_command_accessors(
     // `ProcDefinition` *definitional* effect (it neither reads nor writes
     // program state, it introduces a binding), so we do NOT require
     // reads||writes here; we just exercise the accessors.
-    for se in spec.side_effects {
+    for se in spec.side_effects.lower_bound() {
         let _ = (se.target, se.reads, se.writes, se.connection_side);
     }
 
@@ -1643,7 +1643,7 @@ fn check_subcommand_dialect_nesting(
     for o in sub.options {
         assert_dialects_nest(effective, o.surface, &format!("{ctx} option {}", o.name));
     }
-    for se in sub.side_effects {
+    for se in sub.side_effects.lower_bound() {
         assert_dialects_nest(
             effective,
             se.surface,
@@ -1670,7 +1670,7 @@ fn check_command_dialect_nesting(dname: &str, name: &str, spec: &tcl_registry::C
             &format!("{ctx} option {}", opt.name),
         );
     }
-    for se in spec.side_effects {
+    for se in spec.side_effects.lower_bound() {
         assert_dialects_nest(
             spec.surface,
             se.surface,
@@ -2272,6 +2272,7 @@ fn family_io_shapes() {
     assert!(
         close
             .side_effects
+            .lower_bound()
             .iter()
             .any(|e| e.target == SideEffectTarget::FileIo),
         "plain-Tcl close is file I/O: {:?}",
@@ -2568,7 +2569,7 @@ fn check_subcommand_lifecycles(path: &str, sub: &tcl_registry::SubCommand) {
         let what = format!("{path} relation {}", constraint.describe());
         check_lifecycle_under(&what, constraint.lifecycle, sub.lifecycle);
     }
-    for effect in sub.side_effects {
+    for effect in sub.side_effects.lower_bound() {
         let what = format!("{path} side_effect {:?}", effect.target);
         check_lifecycle_under(&what, effect.lifecycle, sub.lifecycle);
     }
@@ -2606,7 +2607,7 @@ fn check_command_lifecycles(root: &str, spec: &tcl_registry::CommandSpec) {
         let what = format!("{root} form {}", form.synopsis);
         check_lifecycle_under(&what, form.lifecycle, spec.lifecycle);
     }
-    for effect in spec.side_effects {
+    for effect in spec.side_effects.lower_bound() {
         let what = format!("{root} side_effect {:?}", effect.target);
         check_lifecycle_under(&what, effect.lifecycle, spec.lifecycle);
     }

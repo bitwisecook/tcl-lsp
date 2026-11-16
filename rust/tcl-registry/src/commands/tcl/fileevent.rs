@@ -99,7 +99,7 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         arg_values: &[(1, EVENT_VALUES)],
         closed_value_args: &[1],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             // Omitting `script` reads back the currently registered
             // handler (or "" if none is set); giving `script` — even an
@@ -109,7 +109,7 @@ pub fn spec() -> CommandSpec {
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Execute a script when a channel becomes readable or writable.",
             synopsis: &[

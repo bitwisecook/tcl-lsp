@@ -60,12 +60,12 @@ pub const fn spec() -> CommandSpec {
                 },
             ]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         // METHOD names a Node.js function the extension registered with
         // `ILXServer.addMethod` — the descriptor is what lets go-to-definition
         // cross into the JavaScript.  `AfterOptions(1)` reads the

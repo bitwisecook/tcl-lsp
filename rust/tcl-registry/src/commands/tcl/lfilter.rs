@@ -147,7 +147,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The elements of the first value list for which the predicate evaluated true (a possibly empty list).",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

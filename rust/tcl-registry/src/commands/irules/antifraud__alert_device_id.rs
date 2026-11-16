@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ANTIFRAUD::alert_device_id",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::AsmState,
             reads: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("ANTIFRAUD::device_id"),
         ..CommandSpec::DEFAULT
     }

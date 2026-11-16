@@ -69,6 +69,7 @@ export const STRUCTURAL_KINDS = new Set([
   "subCommands",
   "hover",
   "documentationExamples",
+  "knowledge",
   "objectClass",
   "tkGeometry",
   "definitionBody",
@@ -1428,6 +1429,49 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         set,
         "operation",
       ),
+
+    knowledge: (_kind, value, set) => {
+      const knowledge = asRecord(value ?? {});
+      const level = asString(knowledge.level) || "unknown";
+      const select = el("select", {}, [
+        el("option", { value: "unknown", text: "unknown" }),
+        el("option", { value: "partial", text: "partial (lower bound)" }),
+        el("option", { value: "complete", text: "complete (evidenced)" }),
+      ]);
+      select.value = level;
+      select.addEventListener("change", () =>
+        set(
+          select.value === "complete"
+            ? { level: "complete", complete: asArray(knowledge.complete ?? []) }
+            : { level: select.value },
+        ),
+      );
+      const controls: HTMLElement[] = [labelled("level", select)];
+      if (level === "complete") {
+        controls.push(
+          rowList<Json>(
+            asArray(knowledge.complete ?? []),
+            () => ["8.4", "9.1"],
+            (item, _i, update, remove) =>
+              el("div", { class: "ctl" }, [
+                textInput(
+                  asStringList(item).join(" "),
+                  (t) =>
+                    update(
+                      t.split(/\s+/).filter((w) => w !== ""),
+                      false,
+                    ),
+                  { placeholder: "8.4 9.1 or package NAME ?FROM UNTIL?", size: 28 },
+                ),
+                removeButton(remove),
+              ]),
+            (next, structural) => set({ level: "complete", complete: next }, structural),
+            "window",
+          ),
+        );
+      }
+      return el("div", { class: "ctl" }, controls);
+    },
 
     documentationExamples: (_kind, value, set) =>
       rowList<Json>(

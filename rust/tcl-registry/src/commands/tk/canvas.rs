@@ -29,7 +29,9 @@ const SELECT_FORMS: &[SubCommandForm] = &[SubCommandForm {
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["item"])),
     traits: Some(Traits::PURE),
     mutator: Some(false),
-    side_effects: Some(super::common::TTK_WIDGET_READS),
+    side_effects: Some(crate::knowledge::Knowledge::declared(
+        super::common::TTK_WIDGET_READS,
+    )),
     ..SubCommandForm::DEFAULT
 }];
 
@@ -228,7 +230,7 @@ static SUBCOMMANDS: [SubCommand; 32] = [
         detail: "Implement scanning for the canvas.",
         synopsis: "pathName scan option args",
         mutator: true,
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -237,7 +239,7 @@ static SUBCOMMANDS: [SubCommand; 32] = [
         detail: "Manipulate the selection in text, line, or polygon items.",
         synopsis: "pathName select option ?tagOrId arg?",
         mutator: true,
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: SELECT_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -254,7 +256,7 @@ static SUBCOMMANDS: [SubCommand; 32] = [
         detail: "Query or change the horizontal view position.",
         synopsis: "pathName xview ?args?",
         mutator: true,
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -264,7 +266,7 @@ static SUBCOMMANDS: [SubCommand; 32] = [
         detail: "Query or change the vertical view position.",
         synopsis: "pathName yview ?args?",
         mutator: true,
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -602,7 +604,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: &SUBCOMMANDS,
         object_class: Some(&CANVAS_CLASS),
         creates_instance_at: Some(0),

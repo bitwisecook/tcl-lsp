@@ -297,7 +297,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The result of whichever body script ran, or an empty string if no expr was true and no final body was given.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

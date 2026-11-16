@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "client_addr",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Client,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("IP::client_addr"),
         deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT

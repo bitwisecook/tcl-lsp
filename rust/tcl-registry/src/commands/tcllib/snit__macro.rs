@@ -43,7 +43,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         arg_roles: &[(1, ArgRole::ParamList), (2, ArgRole::Body)],
         // `DEFERS_BODY`: the macro body is stored against the name and runs
         // only when a type definition invokes it. tclsh 8.6.16 / 9.0.4,

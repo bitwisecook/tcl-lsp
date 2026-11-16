@@ -182,7 +182,7 @@ pub fn spec() -> CommandSpec {
         // boundaries and suppresses T100.
         taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         xc_translatable: Some(false),
         unsafe_command: true,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Uplevel),

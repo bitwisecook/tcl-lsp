@@ -195,7 +195,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The fully-qualified name of the newly created object or class.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         world_effects: Some(COPY_EFFECTS),
         state_transitions: Some(COPY_TRANSITIONS),
         ..CommandSpec::DEFAULT

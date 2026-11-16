@@ -1178,7 +1178,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(0, TRACE_TYPE_VALUES), (2, TRACE_OPS_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
-        side_effects: TRACE_REGISTRATION_SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(TRACE_REGISTRATION_SIDE_EFFECTS),
         world_effects: Some(TRACE_ADD_EFFECTS),
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
@@ -1211,11 +1211,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(0, TRACE_TYPE_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         world_effects: Some(TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // measurements §5: 8.3-form-only on TMM — see `add` above.
@@ -1244,12 +1244,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(0, TRACE_TYPE_VALUES), (2, TRACE_OPS_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         world_effects: Some(TRACE_REMOVE_EFFECTS),
         state_transitions: Some(TRACE_REMOVE_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
@@ -1274,11 +1274,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(trace_variable_command_prefixes),
         script_timing_resolver: Some(trace_variable_script_timing),
         arg_values: &[(1, TRACE_LEGACY_OPS_VALUES)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         world_effects: Some(LEGACY_TRACE_ADD_EFFECTS),
         state_transitions: Some(LEGACY_TRACE_ADD_TRANSITIONS),
         literal_argument_validator: Some(validate_legacy_trace_operations),
@@ -1315,12 +1315,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(trace_vdelete_command_prefixes),
         script_timing_resolver: Some(trace_vdelete_script_timing),
         arg_values: &[(1, TRACE_LEGACY_OPS_VALUES)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         world_effects: Some(LEGACY_TRACE_REMOVE_EFFECTS),
         state_transitions: Some(LEGACY_TRACE_REMOVE_TRANSITIONS),
         literal_argument_validator: Some(validate_legacy_trace_operations),
@@ -1347,11 +1347,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         result_stability: Some(ResultStability::ReadsVersionedWorld(&[
             WorldStateDomain::VariableTraces,
         ])),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         world_effects: Some(LEGACY_TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
@@ -1437,7 +1437,7 @@ pub fn spec() -> CommandSpec {
             return_value: "Depends on the subcommand: an empty string (add, remove, and the deprecated variable/vdelete), or a list of the matching traces — one element per trace, each itself a two-element {opList commandPrefix} list (info, and the deprecated vinfo).",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
             DispatchDependencies::NONE,
         )),

@@ -48,12 +48,12 @@ pub const fn spec() -> CommandSpec {
                 effect: None,
             }]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("active_members"),
         deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT

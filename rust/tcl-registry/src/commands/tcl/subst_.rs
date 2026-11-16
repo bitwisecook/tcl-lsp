@@ -149,7 +149,7 @@ fn bare_template_effects(arguments: crate::InvocationArguments<'_>) -> crate::Ef
 const NATIVE_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
     name: "template",
     arity: Arity::exact(1),
-    side_effects: Some(&[]),
+    side_effects: Some(crate::knowledge::Knowledge::Partial(&[])),
     world_effects: Some(crate::WorldEffectDescriptor {
         resolver: Some(bare_template_effects),
         ..crate::WorldEffectDescriptor::EMPTY
@@ -343,7 +343,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         command_forms: NATIVE_FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         taint_sink_gate: Some(subst_evaluates_commands),
         semantics: SemanticsDeclaration::Declared(&TEMPLATE),
         ..CommandSpec::DEFAULT

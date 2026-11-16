@@ -96,7 +96,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         }),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Report whether a coroutine is active, or how it last suspended.",
             synopsis: &["::tcl::unsupported::corotype coroName"],

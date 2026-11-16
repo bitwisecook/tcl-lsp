@@ -212,7 +212,7 @@ fn crc16_cmd(variant: &'static str, synopsis: &'static [&'static str]) -> Comman
             examples: "",
             return_value: "The 16-bit CRC value (formatted per -format).",
         }),
-        side_effects: READS,
+        side_effects: crate::knowledge::Knowledge::declared(READS),
         tcllib_package: Some("crc16"),
         required_package: Some("crc16"),
         semantics: SemanticsDeclaration::Declared(
@@ -328,7 +328,7 @@ fn crc32_family() -> Vec<CommandSpec> {
                 examples: "",
                 return_value: "The 32-bit CRC value (formatted per -format).",
             }),
-            side_effects: READS,
+            side_effects: crate::knowledge::Knowledge::declared(READS),
             tcllib_package: Some("crc32"),
             required_package: Some("crc32"),
             semantics: SemanticsDeclaration::Declared(
@@ -378,7 +378,7 @@ fn cksum_family() -> Vec<CommandSpec> {
                 examples: "",
                 return_value: "The cksum(1)-compatible checksum value.",
             }),
-            side_effects: READS,
+            side_effects: crate::knowledge::Knowledge::declared(READS),
             tcllib_package: Some("cksum"),
             required_package: Some("cksum"),
             semantics: SemanticsDeclaration::Declared(
@@ -427,7 +427,7 @@ fn sum_cmd() -> CommandSpec {
             examples: "",
             return_value: "The sum(1)-compatible checksum value.",
         }),
-        side_effects: READS,
+        side_effects: crate::knowledge::Knowledge::declared(READS),
         tcllib_package: Some("sum"),
         required_package: Some("sum"),
         semantics: SemanticsDeclaration::Declared(

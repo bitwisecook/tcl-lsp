@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "NAME::response",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("RESOLV::lookup"),
         ..CommandSpec::DEFAULT
     }

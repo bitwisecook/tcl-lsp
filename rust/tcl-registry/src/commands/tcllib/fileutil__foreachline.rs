@@ -43,7 +43,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
         tcllib_package: Some("fileutil"),
         required_package: Some("fileutil"),

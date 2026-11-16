@@ -80,7 +80,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Replace a range of elements in a list variable, in place.",
             synopsis: &["ledit listVar first last ?value value ...?"],

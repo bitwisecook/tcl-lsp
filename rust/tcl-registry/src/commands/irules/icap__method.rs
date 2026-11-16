@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ICAP::method",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::IcapState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

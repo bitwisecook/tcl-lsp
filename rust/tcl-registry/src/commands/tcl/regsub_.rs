@@ -279,11 +279,11 @@ pub fn spec() -> CommandSpec {
         // switches can consume more argv words but cannot make the optional
         // varName appear before the fourth post-head word.
         variable_write_min_args: Some(4),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         options: OPTIONS,
         // A metacharacter-escaping substitution returns a literal pattern:
         // `regsub -all {[][{}()*+?.\\^$|]} $s {\\&}` (tclsh 8.6 and 9.0:

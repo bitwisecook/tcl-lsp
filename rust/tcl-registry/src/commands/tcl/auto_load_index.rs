@@ -61,7 +61,7 @@ pub fn spec() -> CommandSpec {
         // from 8.4 through 9.1 — no arguments in any version.
         arity: Arity::exact(0),
         return_type: Some(TclType::Boolean),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -73,7 +73,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Rebuild the auto-load index from the tclIndex files on auto_path.",
             synopsis: &["auto_load_index"],

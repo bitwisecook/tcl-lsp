@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "WAM::enable",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::StreamProfile,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("(removed)"),
         ..CommandSpec::DEFAULT
     }

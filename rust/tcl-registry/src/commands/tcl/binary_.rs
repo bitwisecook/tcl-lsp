@@ -597,7 +597,7 @@ pub fn spec() -> CommandSpec {
             return_value: "format, encode, and decode return the newly built value (format/decode a byte array, encode a text string); scan returns the number of variables it successfully set.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),

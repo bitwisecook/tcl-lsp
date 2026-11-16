@@ -366,7 +366,7 @@ impl DeclaredCommand {
         let default = CommandSpec::extension_default("");
         Self::new(name, arguments, provenance)
             .with_traits(default.traits)
-            .with_side_effects(default.side_effects.to_vec())
+            .with_side_effects(default.side_effects.lower_bound().to_vec())
     }
 
     /// Narrow this declaration by facts it states, axis by axis.
@@ -793,7 +793,10 @@ impl<'a> DocumentCommandSurface<'a> {
     /// neither the document nor the catalogue knows it.
     #[must_use]
     pub fn side_effects(&self, name: &str) -> Option<Cow<'a, [SideEffect]>> {
-        let shipped = self.commands.get(name).map(|spec| spec.side_effects);
+        let shipped = self
+            .commands
+            .get(name)
+            .map(|spec| spec.side_effects.lower_bound());
         match self.declaration(name) {
             Some(declared) => Some(match shipped {
                 Some(shipped) if !shipped.is_empty() => {
@@ -1112,7 +1115,7 @@ mod tests {
         let exec = view.traits("exec").expect("declared");
         assert!(exec.contains(Traits::PURE) && exec.contains(floor));
         assert!(
-            shipped.side_effects.iter().all(|effect| view
+            shipped.side_effects.lower_bound().iter().all(|effect| view
                 .side_effects("exec")
                 .is_some_and(|effects| effects.contains(effect))),
             "the shipped effects stay beneath the declaration"
@@ -1173,7 +1176,7 @@ mod tests {
         let command = extension("pkga_calc");
         let default = CommandSpec::extension_default("pkga_calc");
         assert_eq!(command.traits, default.traits);
-        assert_eq!(command.side_effects, default.side_effects);
+        assert_eq!(command.side_effects, default.side_effects.lower_bound());
         assert_eq!(command.provenance(), Provenance::Document);
         assert!(!command.traits.contains(Traits::PURE));
 

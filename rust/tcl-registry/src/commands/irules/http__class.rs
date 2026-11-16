@@ -74,13 +74,13 @@ pub const fn spec() -> CommandSpec {
             },
         ],
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ClassificationState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("CLASSIFY::application"),
         ..CommandSpec::DEFAULT
     }

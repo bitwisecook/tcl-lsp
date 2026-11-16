@@ -206,8 +206,8 @@ impl crate::ResolvedInvocation<'_, '_> {
             || semantics.body_execution.is_some()
             || semantics.state_transitions.is_declared()
             || semantics.world_effects.is_declared()
-            || semantics.side_effects != PAIRED_LOOP_LEGACY_EFFECTS
-            || self.selected.spec.side_effects != PAIRED_LOOP_LEGACY_EFFECTS
+            || semantics.side_effects.lower_bound() != PAIRED_LOOP_LEGACY_EFFECTS
+            || self.selected.spec.side_effects.lower_bound() != PAIRED_LOOP_LEGACY_EFFECTS
             || facts.arity_accepts_frozen_arguments() != Some(true)
             || facts.iteration_entry(arguments) != IterationEntry::Empty
             || facts.finite_iteration(arguments)?.iterations() != 0
@@ -235,7 +235,7 @@ impl crate::ResolvedInvocation<'_, '_> {
             .semantics()?
             .conditional_source_paired_loop_handler()?;
         let native = semantics.native_compilation?;
-        if self.selected.spec.side_effects != PAIRED_LOOP_LEGACY_EFFECTS
+        if self.selected.spec.side_effects.lower_bound() != PAIRED_LOOP_LEGACY_EFFECTS
             || self.selected.sub.is_some()
             || self.selected.instance
             || self.selected.form.is_some()
@@ -254,7 +254,7 @@ impl crate::ResolvedInvocation<'_, '_> {
             || self.facts().arity_accepts_frozen_arguments() != Some(true)
             || semantics.state_transitions.is_declared()
             || semantics.world_effects.is_declared()
-            || semantics.side_effects != PAIRED_LOOP_LEGACY_EFFECTS
+            || semantics.side_effects.lower_bound() != PAIRED_LOOP_LEGACY_EFFECTS
         {
             return None;
         }
@@ -566,7 +566,7 @@ mod tests {
         let selected = foreach.resolved().unwrap();
         assert!(selected.conditional_source_single_loop_binding().is_some());
         let mut extra = selected;
-        extra.semantics.side_effects = EXTRA;
+        extra.semantics.side_effects = crate::knowledge::Knowledge::Partial(EXTRA);
         assert!(extra.conditional_source_single_loop_binding().is_none());
         let mut declined = selected;
         declined.semantics.value =
@@ -657,13 +657,15 @@ mod tests {
             name: "three",
             arity: Arity::exact(3),
             arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
-            side_effects: Some(PAIRED_LOOP_LEGACY_EFFECTS),
+            side_effects: Some(crate::knowledge::Knowledge::declared(
+                PAIRED_LOOP_LEGACY_EFFECTS,
+            )),
             ..crate::forms::CommandForm::DEFAULT
         }];
         let mut registry = crate::CommandRegistry::build_default();
         let mut spec = registry.get("foreach").unwrap().clone();
         spec.name = "test-paired-loop";
-        spec.side_effects = EXTRA;
+        spec.side_effects = crate::knowledge::Knowledge::Partial(EXTRA);
         spec.command_forms = FORMS;
         registry.insert(spec);
         let profile = crate::model::ingress::resolve_environment("tcl9.0").unit_profile();
@@ -676,8 +678,11 @@ mod tests {
         );
         let selected = resolution.resolved().expect("selected fixture");
         assert!(selected.form.is_some());
-        assert_eq!(selected.semantics.side_effects, PAIRED_LOOP_LEGACY_EFFECTS);
-        assert_eq!(selected.selected.spec.side_effects, EXTRA);
+        assert_eq!(
+            selected.semantics.side_effects.lower_bound(),
+            PAIRED_LOOP_LEGACY_EFFECTS
+        );
+        assert_eq!(selected.selected.spec.side_effects.lower_bound(), EXTRA);
         assert!(selected.conditional_source_single_loop_binding().is_none());
     }
 

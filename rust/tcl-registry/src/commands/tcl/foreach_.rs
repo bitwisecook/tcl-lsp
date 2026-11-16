@@ -126,7 +126,9 @@ pub fn spec() -> CommandSpec {
             return_value: "An empty string.",
         }),
         forms: FORMS,
-        side_effects: crate::iteration_entry::PAIRED_LOOP_LEGACY_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(
+            crate::iteration_entry::PAIRED_LOOP_LEGACY_EFFECTS,
+        ),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Foreach),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::iteration::FOREACH),
         ..CommandSpec::DEFAULT

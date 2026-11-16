@@ -42,7 +42,7 @@ pub fn spec() -> CommandSpec {
             return_value: "1 on success, 0 when done, -1 on error.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("cmdline"),
         required_package: Some("cmdline"),
         ..CommandSpec::DEFAULT

@@ -29,13 +29,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "table set ?-notouch? ?-subtable name | -georedundancy? ?-mustexist | -excl? key value ?timeout ?lifetime??",
         mutator: true,
         options: SET_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -45,13 +45,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "table add ?-notouch? ?-subtable name | -georedundancy? key value ?timeout ?lifetime??",
         mutator: true,
         options: SUBTABLE_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -61,13 +61,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "table incr ?-notouch? ?-subtable name | -georedundancy? ?-mustexist? key ?delta?",
         mutator: true,
         options: MUSTEXIST_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -77,13 +77,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "table delete ?-subtable name | -georedundancy? key | -all",
         mutator: true,
         options: DELETE_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -93,13 +93,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "table append ?-notouch? ?-subtable name | -georedundancy? ?-mustexist? key string",
         mutator: true,
         options: MUSTEXIST_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -109,13 +109,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "table replace ?-notouch? ?-subtable name | -georedundancy? key value ?timeout ?lifetime??",
         mutator: true,
         options: SUBTABLE_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -124,12 +124,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "table keys -subtable name ?-count | -notouch?",
         options: KEYS_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -138,12 +138,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "table lifetime ?-subtable name | -georedundancy? key ?value | -remaining?",
         options: REMAINING_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -152,12 +152,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "table timeout ?-subtable name | -georedundancy? key ?value | -remaining?",
         options: REMAINING_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -166,12 +166,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "",
         synopsis: "table lookup ?-notouch? ?-subtable name | -georedundancy? key",
         options: SUBTABLE_OPTIONS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];
@@ -592,13 +592,13 @@ pub const fn spec() -> CommandSpec {
         }],
         options: OPTIONS_1,
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -140,7 +140,7 @@ pub fn spec() -> CommandSpec {
         assigns_variable_at: Some(5),
         return_type: Some(TclType::String),
         var_write_typing: VarWriteTyping::Fixed(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -162,7 +162,7 @@ pub fn spec() -> CommandSpec {
             SideEffect {
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Search standard directories for an extension's script library and source its init script.",
             synopsis: &["tcl_findLibrary basename version patch initScript enVarName varName"],

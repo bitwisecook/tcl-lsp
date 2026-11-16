@@ -110,7 +110,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::new(2, 3),
         return_type: Some(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 writes: true,
@@ -126,7 +126,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Write contents to a file, as text or as raw bytes.",
             synopsis: &["writeFile filename ?text|binary? contents"],

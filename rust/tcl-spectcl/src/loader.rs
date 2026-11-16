@@ -135,6 +135,7 @@ use tcl_registry::hover::{
     OptionArity, OptionSpec, OptionValue, OptionValueOutcome, ScriptTiming, VariableScope,
 };
 use tcl_registry::intrinsic::IntrinsicId;
+use tcl_registry::knowledge::Knowledge;
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::literal_validation::LiteralArgumentValidation;
 use tcl_registry::option_effect::{
@@ -172,7 +173,7 @@ use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
 use crate::backing::BackingSyntax;
 use crate::catalogue;
-use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::{Family, SpecSurface, SpecWindow};
 
 mod available;
 mod dialect_block;
@@ -6405,6 +6406,7 @@ struct CommandAcc {
     forms: Vec<FormSpec>,
     refinements: Vec<CommandForm>,
     side_effects: Vec<SideEffect>,
+    effects: Option<StatedKnowledge>,
     subcommands: Vec<SubCommand>,
     manufacturers: Vec<ManufacturerMethod>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
@@ -6567,7 +6569,7 @@ fn command_from_parts(
         );
         spec.command_forms = leak_slice(acc.refinements);
         spec.forms = leak_slice(acc.forms);
-        spec.side_effects = leak_slice(acc.side_effects);
+        spec.side_effects = effects_knowledge(acc.side_effects, acc.effects);
         spec.subcommands = leak_slice(acc.subcommands);
         spec.manufacturer_methods = leak_slice(acc.manufacturers);
         spec.repeated_args = leak_slice(acc.repeats);
@@ -6665,7 +6667,7 @@ fn check_command_containment(spec: &CommandSpec, line: u32, log: &mut Log) {
             log,
         );
     }
-    for effect in spec.side_effects {
+    for effect in spec.side_effects.lower_bound() {
         check_contained(
             &format!("side_effect `{:?}`", effect.target),
             effect.lifecycle,
@@ -6737,7 +6739,7 @@ fn check_subcommand_containment(sub: &SubCommand, line: u32, log: &mut Log) {
             log,
         );
     }
-    for effect in sub.side_effects {
+    for effect in sub.side_effects.lower_bound() {
         check_contained(
             &format!("subcommand `{path}` side_effect `{:?}`", effect.target),
             effect.lifecycle,
@@ -7200,6 +7202,7 @@ fn apply_command_stmt(
                 acc.side_effects.push(effect);
             }
         }
+        "effects" => acc.effects = effects_row(stmt, log),
         "command_table_effect" => {
             const EFFECTS: &[CommandTableEffect] = &[
                 CommandTableEffect::DefinesProcedure,
@@ -7800,6 +7803,104 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
         log,
     );
     form
+}
+
+/// How completely a scope's `side_effect` rows describe it: the
+/// `effects -partial` / `effects -complete {FROM UNTIL}` row (issue #1712).
+/// Omitted, a scope's rows are a lower bound, or nothing at all when it has
+/// none.
+#[derive(Clone, Copy)]
+enum StatedKnowledge {
+    Partial,
+    Complete(&'static [SpecSurface]),
+}
+
+/// Read an `effects` row.
+///
+/// `-complete` takes one window per flag: `{FROM UNTIL}` on a family's
+/// release ladder, both releases inclusive, or `{package NAME ?FROM UNTIL?}`
+/// on a package's own axis. Repeated `-complete` flags add windows.
+fn effects_row(stmt: &Stmt, log: &mut Log) -> Option<StatedKnowledge> {
+    let words = &stmt.words;
+    let mut stated: Option<StatedKnowledge> = None;
+    let mut surfaces: Vec<SpecSurface> = Vec::new();
+    let mut i = 1;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-partial" => stated = Some(StatedKnowledge::Partial),
+            "-complete" => {
+                let text = next_text(words, &mut i);
+                surfaces.push(complete_window(&text, stmt.line, log)?);
+                stated = Some(StatedKnowledge::Complete(&[]));
+            }
+            _ => log.unknown_flag("effects", stmt.line, &words[i]),
+        }
+        i += 1;
+    }
+    match stated {
+        Some(StatedKnowledge::Complete(_)) => Some(StatedKnowledge::Complete(leak_slice(surfaces))),
+        Some(StatedKnowledge::Partial) => Some(StatedKnowledge::Partial),
+        None => {
+            log.say(
+                stmt.line,
+                "`effects` takes `-partial` or `-complete {FROM UNTIL}`",
+            );
+            None
+        }
+    }
+}
+
+fn complete_window(text: &str, line: u32, log: &mut Log) -> Option<SpecSurface> {
+    let window = |from: &str, until: &str| -> Option<(SpecWindow, Option<Family>)> {
+        let first = from.parse::<tcl_dialect::model::Release>().ok();
+        let last = until.parse::<tcl_dialect::model::Release>().ok();
+        match (first, last) {
+            (Some(first), Some(last)) if first.family() == last.family() && first <= last => {
+                let family = first.family();
+                let end = family
+                    .next_release(last)
+                    .map(tcl_dialect::model::Release::as_str);
+                Some(((first.as_str(), end), Some(family)))
+            }
+            _ => None,
+        }
+    };
+    let parts = list_words(text);
+    let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
+    let surface = match parts.as_slice() {
+        ["package", name] => Some(SpecSurface::package(leak_str(name))),
+        [from, until] => window(from, until).and_then(|(window, family)| {
+            Some(SpecSurface::core_in(family?, leak_slice(vec![window])))
+        }),
+        ["package", name, from, until] => Some(SpecSurface::package_in(
+            leak_str(name),
+            leak_slice(vec![(leak_str(from), Some(leak_str(until)))]),
+        )),
+        _ => None,
+    };
+    if surface.is_none() {
+        log.say(
+            line,
+            format!(
+                "`effects -complete` takes `{{FROM UNTIL}}` on one release ladder or \
+                 `{{package NAME ?FROM UNTIL?}}`, not `{{{text}}}`"
+            ),
+        );
+    }
+    surface
+}
+
+/// The knowledge a scope's effect rows and its `effects` row state together.
+fn effects_knowledge(
+    rows: Vec<SideEffect>,
+    stated: Option<StatedKnowledge>,
+) -> Knowledge<&'static [SideEffect]> {
+    let rows = leak_slice(rows);
+    match stated {
+        None => Knowledge::declared(rows),
+        Some(StatedKnowledge::Partial) => Knowledge::Partial(rows),
+        Some(StatedKnowledge::Complete(surfaces)) => Knowledge::Complete(rows, surfaces),
+    }
 }
 
 fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
@@ -8529,6 +8630,7 @@ struct RefineAcc {
     /// `side_effects none` — declaring the parent's effects away is not the
     /// same as saying nothing, so the empty slice needs a spelling of its own.
     silenced_side_effects: bool,
+    effects: Option<StatedKnowledge>,
     declarations: semantics::Declarations,
 }
 
@@ -8576,10 +8678,10 @@ fn load_refinement(
         form.arg_roles = leak_slice(args.roles);
         form.options = leak_slice(acc.options);
         form.option_relations = leak_slice(acc.option_relations);
-        if !acc.side_effects.is_empty() {
-            form.side_effects = Some(leak_slice(acc.side_effects));
+        if !acc.side_effects.is_empty() || acc.effects.is_some() {
+            form.side_effects = Some(effects_knowledge(acc.side_effects, acc.effects));
         } else if acc.silenced_side_effects {
-            form.side_effects = Some(&[]);
+            form.side_effects = Some(Knowledge::Partial(&[]));
         }
         Some(form)
     })
@@ -8725,6 +8827,7 @@ fn apply_refine_stmt(
                 acc.side_effects.push(effect);
             }
         }
+        "effects" => acc.effects = effects_row(stmt, log),
         "side_effects" => {
             if value == "none" {
                 acc.silenced_side_effects = true;
@@ -8832,6 +8935,7 @@ struct SubAcc {
     options: Vec<OptionSpec>,
     refinements: Vec<CommandForm>,
     side_effects: Vec<SideEffect>,
+    effects: Option<StatedKnowledge>,
     sub_subcommands: Vec<SubSubCommand>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
     option_relations: Vec<tcl_registry::spec::OptionRelation>,
@@ -8944,7 +9048,7 @@ fn subcommand_from_parts(
             log,
         );
         sub.subcommand_forms = leak_slice(acc.refinements);
-        sub.side_effects = leak_slice(acc.side_effects);
+        sub.side_effects = effects_knowledge(acc.side_effects, acc.effects);
         sub.sub_subcommands = leak_slice(acc.sub_subcommands);
         sub.repeated_args = leak_slice(acc.repeats);
         sub.option_relations = leak_slice(acc.option_relations);
@@ -9261,6 +9365,7 @@ fn apply_subcommand_stmt(
                 acc.side_effects.push(effect);
             }
         }
+        "effects" => acc.effects = effects_row(stmt, log),
         "sub_subcommand" => acc
             .sub_subcommands
             .push(sub_subcommand_row(stmt, tables, log)),
@@ -10887,7 +10992,11 @@ mod tests {
         assert_eq!(form.lifecycle.introduced, Some("1.1"));
         assert_eq!(form.lifecycle.retired, Some("2.0"));
 
-        let effect = spec.side_effects.first().expect("the side_effect loads");
+        let effect = spec
+            .side_effects
+            .lower_bound()
+            .first()
+            .expect("the side_effect loads");
         assert_eq!(effect.lifecycle.introduced, Some("1.1"));
 
         let constraint = spec
@@ -12240,7 +12349,10 @@ mod tests {
         assert_eq!(query.arity, Arity::exact(0));
         assert_eq!(query.traits, Some(Traits::PURE));
         assert_eq!(query.mutator, Some(false));
-        assert_eq!(query.side_effects, Some(&[] as &[SideEffect]));
+        assert_eq!(
+            query.side_effects,
+            Some(Knowledge::Partial(&[] as &[SideEffect]))
+        );
         assert_eq!(set.name, "set");
         assert_eq!(set.arity, Arity::exact(2));
         // An unmentioned overlay is inherited, not blanked.
@@ -12249,7 +12361,7 @@ mod tests {
         let selector = set.literal_argument_prefix.expect("a selector");
         assert_eq!(selector.words, ["put"]);
         assert_eq!(selector.prefix_matching, PrefixMatching::Enabled);
-        let [effect] = set.side_effects.expect("declared effects") else {
+        let [effect] = set.side_effects.expect("declared effects").lower_bound() else {
             panic!("one effect");
         };
         assert_eq!(effect.target, SideEffectTarget::InterpState);

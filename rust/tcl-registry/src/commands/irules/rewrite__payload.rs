@@ -48,13 +48,13 @@ pub const fn spec() -> CommandSpec {
             synopsis: "REWRITE::payload (LENGTH | (OFFSET LENGTH))?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::StreamProfile,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         taint_source: Some(TaintColour::TAINTED),
         data_collection: Some(REWRITE_PAYLOAD),
         ..CommandSpec::DEFAULT

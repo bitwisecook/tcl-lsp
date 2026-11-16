@@ -69,11 +69,11 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(1, 3),
         completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Generate an error",
             synopsis: &["error message ?info? ?code?"],

@@ -36,13 +36,13 @@ pub const fn spec() -> CommandSpec {
             synopsis: "link_qos (QOS_LEVEL)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("LINK::qos"),
         deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT

@@ -187,7 +187,7 @@ super::common::ttk_widget_class!(
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
 );
@@ -215,7 +215,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: SUBCOMMANDS,
         object_class: Some(&CLASS),
         creates_instance_at: Some(0),

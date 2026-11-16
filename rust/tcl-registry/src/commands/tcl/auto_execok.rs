@@ -55,11 +55,11 @@ pub fn spec() -> CommandSpec {
         // 8.4 through 9.1.
         arity: Arity::exact(1),
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Resolve a command name to its exec argument list, or return an empty string.",
             synopsis: &["auto_execok cmd"],

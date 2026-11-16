@@ -262,7 +262,7 @@ pub fn spec() -> CommandSpec {
         // options are not a leading run.
         option_placement: OptionPlacement::Anywhere,
         required_package: Some("http"),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

@@ -57,7 +57,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Describe a value's internal representation, for debugging shimmering.",
             synopsis: &["::tcl::unsupported::representation value"],

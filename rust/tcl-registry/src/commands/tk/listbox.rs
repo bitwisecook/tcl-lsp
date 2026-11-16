@@ -326,7 +326,9 @@ const SELECTION_FORMS: &[SubCommandForm] = &[SubCommandForm {
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["includes"])),
     traits: Some(Traits::PURE),
     mutator: Some(false),
-    side_effects: Some(super::common::TTK_WIDGET_READS),
+    side_effects: Some(crate::knowledge::Knowledge::declared(
+        super::common::TTK_WIDGET_READS,
+    )),
     ..SubCommandForm::DEFAULT
 }];
 
@@ -339,7 +341,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName activate index",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -349,7 +351,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName cget option",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -369,7 +371,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName bbox index",
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -381,7 +383,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName curselection",
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -392,7 +394,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName delete first ?last?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -402,7 +404,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName get first ?last?",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -413,7 +415,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName index index",
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -424,7 +426,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName insert index ?element ...?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -434,7 +436,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName itemcget index option",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -445,7 +447,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName itemconfigure index ?option? ?value option value ...?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -455,7 +457,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName nearest y",
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -466,7 +468,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName scan mark|dragto x y",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -476,7 +478,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName see index",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -486,7 +488,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName selection option first ?last?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: SELECTION_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -497,7 +499,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName size",
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -508,7 +510,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName xview ?args?",
         mutator: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -519,7 +521,7 @@ static SUBCOMMANDS: [SubCommand; 18] = [
         synopsis: "pathName yview ?args?",
         mutator: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -558,7 +560,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: &SUBCOMMANDS,
         object_class: Some(&LISTBOX_CLASS),
         creates_instance_at: Some(0),

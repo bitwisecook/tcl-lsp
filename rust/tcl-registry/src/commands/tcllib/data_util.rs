@@ -51,7 +51,7 @@ fn cmd(
         },
         arity,
         hover: Some(HoverSnippet::brief(summary, synopsis, "tcllib package")),
-        side_effects: if stateful { STATEFUL } else { &[] },
+        side_effects: crate::knowledge::Knowledge::declared(if stateful { STATEFUL } else { &[] }),
         tcllib_package: Some(pkg),
         required_package: Some(pkg),
         semantics: if stateful {
@@ -294,7 +294,7 @@ fn inifile_specs() -> Vec<CommandSpec> {
             examples: "",
             return_value: "A handle identifying the open INI file.",
         }),
-        side_effects: STATEFUL,
+        side_effects: crate::knowledge::Knowledge::declared(STATEFUL),
         tcllib_package: Some("inifile"),
         required_package: Some("inifile"),
         ..CommandSpec::DEFAULT

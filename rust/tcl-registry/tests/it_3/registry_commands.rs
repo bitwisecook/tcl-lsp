@@ -1058,6 +1058,7 @@ fn close_side_effects_differ_by_dialect() {
     assert!(
         tcl_close
             .side_effects
+            .lower_bound()
             .iter()
             .any(|e| e.target == SideEffectTarget::FileIo),
         "tcl close is file I/O"
@@ -1070,6 +1071,7 @@ fn close_side_effects_differ_by_dialect() {
     assert!(
         ir_close
             .side_effects
+            .lower_bound()
             .iter()
             .any(|e| e.target == SideEffectTarget::ConnectionControl),
         "irules close is connection control"

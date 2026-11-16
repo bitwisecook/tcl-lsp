@@ -56,7 +56,7 @@ pub fn spec() -> CommandSpec {
             | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::Process,
                 reads: true,
@@ -72,7 +72,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         // ``--`` is the option terminator that drives W304's
         // ``resolve_option_terminator`` lookup; the registry also
         // surfaces the two boolean switches for completion.

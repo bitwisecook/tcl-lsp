@@ -46,7 +46,7 @@ pub fn spec() -> CommandSpec {
             return_value: "A DNS query token.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("dns"),
         required_package: Some("dns"),
         ..CommandSpec::DEFAULT

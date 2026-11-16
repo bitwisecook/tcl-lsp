@@ -911,6 +911,7 @@ fn collect_known_widget_mutation(
         && !invocation
             .semantics
             .side_effects
+            .lower_bound()
             .iter()
             .any(|effect| effect.writes)
     {
@@ -966,6 +967,7 @@ fn apply_pending_widget_calls(
             || invocation
                 .semantics
                 .side_effects
+                .lower_bound()
                 .iter()
                 .any(|effect| effect.writes)
         {

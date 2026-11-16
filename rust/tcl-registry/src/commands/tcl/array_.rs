@@ -228,11 +228,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array anymore arrayName searchId",
         return_type: Some(TclType::Boolean),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -271,12 +271,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(0, DEFAULT_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -288,11 +288,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array donesearch arrayName searchId",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -312,11 +312,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array exists arrayName",
         return_type: Some(TclType::Boolean),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -352,11 +352,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         lowering_hook: Some(crate::hooks::LoweringHookId::ArrayFor),
         loop_list_header: true,
         surface: Some(SpecSurface::TCL90_PLUS),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -371,11 +371,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array get arrayName ?pattern?",
         return_type: Some(TclType::List),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -396,11 +396,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // (see the doc comment on `NAMES_MODE_VALUES`), so this is not
         // `closed_value_args`.
         arg_values: &[(1, NAMES_MODE_VALUES)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -412,11 +412,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array nextelement arrayName searchId",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -447,11 +447,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::ARRAY_SET),
         ..SubCommand::DEFAULT
     },
@@ -464,11 +464,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array size arrayName",
         return_type: Some(TclType::Int),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -480,11 +480,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array startsearch arrayName",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -495,11 +495,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "array statistics arrayName",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::VarRead)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -536,11 +536,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // arrayName doesn't exist, isn't an array, or pattern matches
         // nothing (confirmed against tclsh 8.6.14).
         destructive: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];
@@ -584,12 +584,12 @@ pub fn spec() -> CommandSpec {
         subcommands: SUBCOMMANDS,
         // Coarse fallback for any call the per-subcommand hints above don't
         // cover (e.g. an unresolvable subcommand word).
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Manipulate array variables.",
             synopsis: &["array option arrayName ?arg arg ...?"],

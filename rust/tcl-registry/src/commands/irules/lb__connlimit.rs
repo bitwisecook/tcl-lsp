@@ -29,13 +29,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "LB::connlimit virtual ?limit <value>? ?key <value>?",
         pure: true,
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -46,13 +46,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "LB::connlimit node ?limit <value>? ?key <value>?",
         pure: true,
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -63,13 +63,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "LB::connlimit poolmember ?limit <value>? ?key <value>?",
         pure: true,
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -95,7 +95,7 @@ pub const fn spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::ConnectionControl,
                 writes: true,
@@ -109,7 +109,7 @@ pub const fn spec() -> CommandSpec {
                 connection_side: ConnectionSide::Server,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         ..CommandSpec::DEFAULT
     }
 }

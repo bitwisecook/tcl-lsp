@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ILX::init (EXTENSION | (PLUGIN EXTENSION))",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         // The handle this returns names one Node.js extension, and that is what
         // lets `ILX::call $handle METHOD` reach the extension's
         // `ILXServer.addMethod("METHOD", …)` registration.  Only

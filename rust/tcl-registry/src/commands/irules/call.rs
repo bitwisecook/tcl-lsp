@@ -61,12 +61,12 @@ pub const fn spec() -> CommandSpec {
                 effect: None,
             }]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ProcDefinition,
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         arg_role_resolver: Some(call_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Name],
         ..CommandSpec::DEFAULT

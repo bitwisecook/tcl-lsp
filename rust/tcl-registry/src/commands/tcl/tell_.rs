@@ -87,14 +87,14 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Int),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             // Query-only: reads the channel's current position but never
             // moves it — contrast `seek`, which is `writes: true` for the
             // identical FileIo target.
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Return the current access position for an open channel.",
             synopsis: &["tell channelId"],

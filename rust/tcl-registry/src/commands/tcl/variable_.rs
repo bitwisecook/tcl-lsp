@@ -214,11 +214,11 @@ pub fn spec() -> CommandSpec {
         repeated_args: REPEATED,
         assigns_variable_at: Some(0),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Create and initialize a namespace variable, or link to one from inside a procedure.",
             synopsis: &["variable name", "variable ?name value...?"],

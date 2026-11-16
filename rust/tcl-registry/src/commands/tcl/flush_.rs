@@ -49,11 +49,11 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Flush buffered output for a channel.",
             synopsis: &["flush channelId"],

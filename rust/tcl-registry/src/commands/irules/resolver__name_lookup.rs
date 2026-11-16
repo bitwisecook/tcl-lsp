@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "RESOLVER::name_lookup NET_RESOLVER_NAME NAME TYPE",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

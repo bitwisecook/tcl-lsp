@@ -104,7 +104,7 @@ pub fn console_spec() -> CommandSpec {
         // `interp eval`.
         taint_interp_eval_subcommands: &["eval"],
         forms: CONSOLE_FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }
@@ -163,7 +163,7 @@ pub fn consoleinterp_spec() -> CommandSpec {
         // cross-interpreter code injection (T105).
         taint_interp_eval_subcommands: &["eval", "record"],
         forms: CONSOLEINTERP_FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

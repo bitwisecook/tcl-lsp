@@ -82,7 +82,7 @@ pub fn spec() -> CommandSpec {
         required_package: Some("Tk"),
         warn_missing_import: false,
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

@@ -113,7 +113,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Body)],
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Time the execution of a script.",
             synopsis: &["time script ?count?"],

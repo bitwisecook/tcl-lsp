@@ -150,7 +150,7 @@ pub(crate) const CONFIGURE_FORMS: &[SubCommandForm] = &[
         arity: Arity::new(0, 1),
         traits: Some(Traits::PURE),
         mutator: Some(false),
-        side_effects: Some(TTK_WIDGET_READS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -158,7 +158,9 @@ pub(crate) const CONFIGURE_FORMS: &[SubCommandForm] = &[
         arity: Arity::stepped(2, Arity::UNLIMITED, 2),
         traits: Some(Traits::CONFIGURES_INSTANCE_OPTIONS),
         mutator: Some(true),
-        side_effects: Some(TTK_WIDGET_READS_WRITES),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            TTK_WIDGET_READS_WRITES,
+        )),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -170,7 +172,7 @@ pub(crate) const QUERY_OR_SET_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(0),
         traits: Some(Traits::PURE),
         mutator: Some(false),
-        side_effects: Some(TTK_WIDGET_READS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -178,7 +180,9 @@ pub(crate) const QUERY_OR_SET_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(1),
         traits: Some(Traits::empty()),
         mutator: Some(true),
-        side_effects: Some(TTK_WIDGET_READS_WRITES),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            TTK_WIDGET_READS_WRITES,
+        )),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -190,7 +194,7 @@ pub(crate) const TAINTED_QUERY_OR_SET_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(0),
         traits: Some(Traits::PURE.union(Traits::TAINT_SOURCE_ZERO_ARGS)),
         mutator: Some(false),
-        side_effects: Some(TTK_WIDGET_READS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -198,7 +202,9 @@ pub(crate) const TAINTED_QUERY_OR_SET_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(1),
         traits: Some(Traits::empty()),
         mutator: Some(true),
-        side_effects: Some(TTK_WIDGET_READS_WRITES),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            TTK_WIDGET_READS_WRITES,
+        )),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -211,7 +217,7 @@ pub(crate) const VIEW_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(0),
         traits: Some(Traits::PURE),
         mutator: Some(false),
-        side_effects: Some(TTK_WIDGET_READS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -219,7 +225,9 @@ pub(crate) const VIEW_FORMS: &[SubCommandForm] = &[
         arity: Arity::at_least(1),
         traits: Some(Traits::empty()),
         mutator: Some(true),
-        side_effects: Some(TTK_WIDGET_READS_WRITES),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            TTK_WIDGET_READS_WRITES,
+        )),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -232,7 +240,7 @@ pub(crate) const ENTRY_SELECTION_FORMS: &[SubCommandForm] = &[SubCommandForm {
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["present"])),
     traits: Some(Traits::PURE),
     mutator: Some(false),
-    side_effects: Some(TTK_WIDGET_READS),
+    side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
     ..SubCommandForm::DEFAULT
 }];
 
@@ -284,7 +292,7 @@ pub(crate) const CLASSIC_WIDGET_CGET: SubCommand = SubCommand {
     synopsis: "pathName cget option",
     pure: true,
     return_type: Some(TclType::String),
-    side_effects: TTK_WIDGET_READS,
+    side_effects: crate::knowledge::Knowledge::declared(TTK_WIDGET_READS),
     ..SubCommand::DEFAULT
 };
 
@@ -342,7 +350,7 @@ macro_rules! ttk_widget_class {
                 synopsis: "pathName cget option",
                 pure: true,
                 return_type: Some(TclType::String),
-                side_effects: $crate::commands::tk::common::TTK_WIDGET_READS,
+                side_effects: $crate::knowledge::Knowledge::declared($crate::commands::tk::common::TTK_WIDGET_READS),
                 semantics: SemanticsDeclaration::Declared(
                     &$crate::value_transfer::builtins::STATE_DECIDED,
                 ),
@@ -364,7 +372,7 @@ macro_rules! ttk_widget_class {
                 synopsis: "pathName identify element x y",
                 pure: true,
                 return_type: Some(TclType::String),
-                side_effects: $crate::commands::tk::common::TTK_WIDGET_READS,
+                side_effects: $crate::knowledge::Knowledge::declared($crate::commands::tk::common::TTK_WIDGET_READS),
                 semantics: SemanticsDeclaration::Declared(
                     &$crate::value_transfer::builtins::STATE_DECIDED,
                 ),
@@ -377,7 +385,7 @@ macro_rules! ttk_widget_class {
                 synopsis: "pathName instate statespec ?script?",
                 arg_roles: &[(1, ArgRole::Body)],
                 traits: Traits::EVALUATES_CODE,
-                side_effects: $crate::commands::tk::common::TTK_INSTATE_EFFECTS,
+                side_effects: $crate::knowledge::Knowledge::declared($crate::commands::tk::common::TTK_INSTATE_EFFECTS),
                 ..SubCommand::DEFAULT
             },
             SubCommand {
@@ -397,7 +405,7 @@ macro_rules! ttk_widget_class {
                 synopsis: "pathName style",
                 pure: true,
                 return_type: Some(TclType::String),
-                side_effects: $crate::commands::tk::common::TTK_WIDGET_READS,
+                side_effects: $crate::knowledge::Knowledge::declared($crate::commands::tk::common::TTK_WIDGET_READS),
                 semantics: SemanticsDeclaration::Declared(
                     &$crate::value_transfer::builtins::STATE_DECIDED,
                 ),

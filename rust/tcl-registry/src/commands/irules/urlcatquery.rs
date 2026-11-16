@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "urlcatquery URL_STRING",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DataGroup,
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("CATEGORY::lookup"),
         ..CommandSpec::DEFAULT
     }

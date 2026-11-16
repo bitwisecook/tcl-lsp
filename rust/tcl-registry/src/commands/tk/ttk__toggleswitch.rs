@@ -32,7 +32,9 @@ const SWITCHSTATE_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(0),
         traits: Some(Traits::PURE.union(Traits::TAINT_SOURCE_ZERO_ARGS)),
         mutator: Some(false),
-        side_effects: Some(super::common::TTK_WIDGET_READS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            super::common::TTK_WIDGET_READS,
+        )),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -40,7 +42,9 @@ const SWITCHSTATE_FORMS: &[SubCommandForm] = &[
         arity: Arity::exact(1),
         traits: Some(Traits::EVALUATES_CODE),
         mutator: Some(true),
-        side_effects: Some(super::common::TTK_CALLBACK_EFFECTS),
+        side_effects: Some(crate::knowledge::Knowledge::declared(
+            super::common::TTK_CALLBACK_EFFECTS,
+        )),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -165,7 +169,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName toggle",
         traits: Traits::EVALUATES_CODE,
         mutator: true,
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -179,7 +183,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName get ?min|max|x?",
         pure: true,
         return_type: Some(TclType::Double),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -190,7 +194,7 @@ super::common::ttk_widget_class!(
         synopsis: "pathName set value",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -201,7 +205,7 @@ super::common::ttk_widget_class!(
         traits: Traits::TAINT_SOURCE_ZERO_ARGS,
         pure: true,
         return_type: Some(TclType::Double),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -231,7 +235,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: SUBCOMMANDS,
         object_class: Some(&CLASS),
         creates_instance_at: Some(0),

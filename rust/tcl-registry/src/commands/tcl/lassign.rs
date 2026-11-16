@@ -90,7 +90,7 @@ pub fn spec() -> CommandSpec {
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::LASSIGN),
         forms: FORMS,
         world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_WRITE),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         repeated_args: REPEATED,
         arg_types: &[(
             0,

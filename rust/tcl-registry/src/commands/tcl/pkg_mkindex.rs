@@ -157,7 +157,7 @@ pub fn spec() -> CommandSpec {
         // every documented release, Tcl pkgMkIndex.n 8.4 through 9.1.
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -170,7 +170,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         // Two behavioural facts below are not documented in any of the
         // five manpages and were only found by diffing the real
         // `library/package.tcl` proc body across the `core-8-4-20`,

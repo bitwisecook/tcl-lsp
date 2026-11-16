@@ -85,7 +85,7 @@ pub fn spec() -> CommandSpec {
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FOREACH_LINE),
         return_type: Some(TclType::String),
         lowering_hook: Some(LoweringHookId::ForeachLine),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -97,7 +97,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Iterate over each line of a text file, evaluating a script once per line.",
             synopsis: &["foreachLine varName filename body"],

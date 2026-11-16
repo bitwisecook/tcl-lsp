@@ -139,7 +139,7 @@ pub fn spec() -> CommandSpec {
         object_class: Some(&TRAVERSE_CLASS),
         options: TRAVERSE_OPTIONS,
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Create a directory-traversal object rooted at basedir.",
             synopsis: &["::fileutil::traverse ?objectName? basedir ?option value ...?"],

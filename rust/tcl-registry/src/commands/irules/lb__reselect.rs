@@ -49,12 +49,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "LB::reselect (clone pool POOL_OBJ (member IP_ADDR)?)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             writes: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

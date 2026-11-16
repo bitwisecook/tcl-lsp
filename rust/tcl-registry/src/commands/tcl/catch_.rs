@@ -140,7 +140,7 @@ pub fn spec() -> CommandSpec {
             return_value: "An integer completion code — 0 (TCL_OK) through 4 (TCL_CONTINUE) for the standard completion codes, or a larger custom code set via `return -code`.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Catch),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::completion::CATCH),
         ..CommandSpec::DEFAULT

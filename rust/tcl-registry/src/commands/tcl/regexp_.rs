@@ -334,11 +334,11 @@ pub fn spec() -> CommandSpec {
         // dynamic pattern could begin with `-` and make option selection
         // source-opaque.
         variable_write_min_args: Some(3),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         options: REGEXP_OPTIONS,
         option_effect_families: FAMILIES,
         option_relations: &[INLINE_FORBIDS_MATCH_VARIABLES],

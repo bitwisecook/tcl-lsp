@@ -55,7 +55,7 @@ pub fn spec() -> CommandSpec {
         // No arguments, ever.
         arity: Arity::exact(0),
         return_type: Some(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             // Unsets its own cache variables and re-reads/repairs
             // `auto_path`. The exact variable set moved over time: 8.4
             // unsets `auto_execs`, `auto_index`, and `auto_oldpath`, and
@@ -89,7 +89,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Discard the auto-loading and auto-exec caches, deleting any commands they previously loaded.",
             synopsis: &["auto_reset"],

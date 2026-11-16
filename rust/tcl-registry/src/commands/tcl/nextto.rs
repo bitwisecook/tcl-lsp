@@ -72,7 +72,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Invoke a specific class's implementation of the currently executing method.",
             synopsis: &["nextto class ?arg ...?"],

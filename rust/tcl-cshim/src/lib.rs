@@ -1446,7 +1446,8 @@ mod tests {
         for command in &declared {
             assert_eq!(command.traits, default.traits, "{}", command.name);
             assert_eq!(
-                command.side_effects, default.side_effects,
+                command.side_effects,
+                default.side_effects.lower_bound(),
                 "{}",
                 command.name
             );

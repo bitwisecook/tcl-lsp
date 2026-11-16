@@ -106,6 +106,9 @@ pub enum FieldKind {
     Refinements,
     /// `&'static [SideEffect]`.
     SideEffects,
+    /// How completely a sibling facts field is known: `{level, complete}`
+    /// (issue #1712). Rendered into that field's `Knowledge` literal.
+    Knowledge,
     /// `&'static [SetterConstraint]`.
     SetterConstraints,
     /// `&'static [ManufacturerMethod]` — class-command instance factories.
@@ -187,6 +190,7 @@ impl FieldKind {
             Self::Forms => "forms",
             Self::Refinements => "refinements",
             Self::SideEffects => "sideEffects",
+            Self::Knowledge => "knowledge",
             Self::SetterConstraints => "setterConstraints",
             Self::ManufacturerMethods => "manufacturerMethods",
             Self::Hover => "hover",
@@ -938,6 +942,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         EFFECTS,
         FieldKind::SideEffects,
         "Structured declarations of the state the command reads and writes, each with its own release window.",
+    ),
+    f(
+        "side_effects_knowledge",
+        "Side-effect completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely the side effects are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.",
     ),
     f(
         "world_effects",
@@ -2381,6 +2392,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         EFFECTS,
         FieldKind::SideEffects,
         "Structured side-effect declarations for this subcommand.",
+    ),
+    f(
+        "side_effects_knowledge",
+        "Side-effect completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely this subcommand's side effects are known.",
     ),
     f(
         "world_effects",

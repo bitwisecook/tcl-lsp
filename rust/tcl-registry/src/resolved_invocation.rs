@@ -196,16 +196,18 @@ fn resolve_invocation_semantics<'r, 'w>(
     } else {
         Traits::empty()
     } | sub.map_or_else(Traits::empty, SubCommand::semantic_traits);
-    let inherited_side_effects = sub.filter(|sub| !sub.side_effects.is_empty()).map_or_else(
-        || {
-            if inherit_command {
-                spec.side_effects
-            } else {
-                &[]
-            }
-        },
-        |sub| sub.side_effects,
-    );
+    let inherited_side_effects = sub
+        .filter(|sub| !sub.side_effects.is_unknown())
+        .map_or_else(
+            || {
+                if inherit_command {
+                    spec.side_effects
+                } else {
+                    crate::knowledge::Knowledge::Unknown
+                }
+            },
+            |sub| sub.side_effects,
+        );
     let operation = if inherit_command {
         resolved_operation(spec, sub, form, query)
     } else {
@@ -1204,10 +1206,10 @@ pub struct InvocationSemantics<'r, 'w> {
     /// registry-to-common-IR dispatch key and will ultimately become the
     /// semantic operation selected by the registry.
     pub lowering_hook: Option<LoweringHookId>,
-    /// Structured side effects.  A non-empty resolved-subcommand declaration
-    /// takes precedence over the command-level declaration, matching the
-    /// existing side-effect classifier.
-    pub side_effects: &'r [SideEffect],
+    /// Structured side effects and how completely they are known.  A
+    /// resolved subcommand that states any knowledge takes precedence over
+    /// the command-level declaration, and a form's over both.
+    pub side_effects: crate::knowledge::Knowledge<&'static [SideEffect]>,
     /// Effective declared mutable-world descriptor.
     ///
     /// Command, resolved-subcommand, and form descriptors in composition
@@ -2776,7 +2778,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// declaration. Availability, normal entry and full effects are separate.
     #[must_use]
     pub fn selected_side_effect_hints(&self) -> &'r [SideEffect] {
-        self.semantics.side_effects
+        self.semantics.side_effects.lower_bound()
     }
 
     fn legacy_effect_footprint(
@@ -2992,7 +2994,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .resolve_authored_source_completion(arguments);
         if transitions.facts().is_empty()
             || transitions != selected.transitions
-            || self.semantics.side_effects != selected.legacy_effects
+            || self.semantics.side_effects.lower_bound() != selected.legacy_effects
         {
             return None;
         }
@@ -3054,7 +3056,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         let (raw, transitions) = self.authored_source_effects_and_state_transitions(source_dialect);
         if transitions != selected.transitions
             || transitions.facts().is_empty()
-            || self.semantics.side_effects != selected.legacy_effects
+            || self.semantics.side_effects.lower_bound() != selected.legacy_effects
             || transitions.facts().iter().any(|fact| {
                 fact.commit != crate::StateTransitionCommit::OnOkOnly
                     || matches!(fact.transition, crate::StateTransition::Widen(_))

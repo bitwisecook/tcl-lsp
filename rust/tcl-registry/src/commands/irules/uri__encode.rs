@@ -40,12 +40,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "URI::encode URI_STRING",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::URI_ENCODE),
         ..CommandSpec::DEFAULT
     }

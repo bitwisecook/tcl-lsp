@@ -853,12 +853,12 @@ pub fn side_effect_hints_in_context<'r>(
         }
         if let Some(sub_name) = subcommand
             && let Some(sub) = spec.resolve_subcommand(sub_name)
-            && !sub.side_effects.is_empty()
+            && !sub.side_effects.lower_bound().is_empty()
         {
-            return Some(sub.side_effects);
+            return Some(sub.side_effects.lower_bound());
         }
-        if !spec.side_effects.is_empty() {
-            return Some(spec.side_effects);
+        if !spec.side_effects.lower_bound().is_empty() {
+            return Some(spec.side_effects.lower_bound());
         }
     }
     None
@@ -1136,12 +1136,12 @@ pub(crate) mod tests {
                 }
                 if let Some(sub_name) = subcommand
                     && let Some(sub) = spec.resolve_subcommand(sub_name)
-                    && !sub.side_effects.is_empty()
+                    && !sub.side_effects.lower_bound().is_empty()
                 {
-                    return Some(sub.side_effects.to_vec());
+                    return Some(sub.side_effects.lower_bound().to_vec());
                 }
-                if !spec.side_effects.is_empty() {
-                    return Some(spec.side_effects.to_vec());
+                if !spec.side_effects.lower_bound().is_empty() {
+                    return Some(spec.side_effects.lower_bound().to_vec());
                 }
             }
             None
@@ -1229,11 +1229,12 @@ pub(crate) mod tests {
                 .resolve_spec(generation.commands(), command)?;
             if let Some(sub_name) = subcommand
                 && let Some(sub) = spec.resolve_subcommand(sub_name)
-                && !sub.side_effects.is_empty()
+                && !sub.side_effects.lower_bound().is_empty()
             {
-                return Some(sub.side_effects.to_vec());
+                return Some(sub.side_effects.lower_bound().to_vec());
             }
-            (!spec.side_effects.is_empty()).then(|| spec.side_effects.to_vec())
+            (!spec.side_effects.lower_bound().is_empty())
+                .then(|| spec.side_effects.lower_bound().to_vec())
         }
 
         let mut divergences: Vec<String> = Vec::new();

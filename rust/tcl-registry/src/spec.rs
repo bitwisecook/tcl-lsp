@@ -2023,8 +2023,9 @@ pub struct CommandSpec {
     /// shipped spec names directly.
     pub command_table_effect: Option<CommandTableEffect>,
 
-    /// Structured side-effect declarations.
-    pub side_effects: &'static [SideEffect],
+    /// Structured side-effect declarations, and how completely they are
+    /// known: an empty list is no longer a claim that there are none.
+    pub side_effects: crate::knowledge::Knowledge<&'static [SideEffect]>,
 
     /// Mutable Tcl-world effects for common command analysis.
     ///
@@ -3052,7 +3053,7 @@ impl CommandSpec {
         semantics: SemanticsDeclaration::Inherited,
         analyser_hook: None,
         command_table_effect: None,
-        side_effects: &[],
+        side_effects: crate::knowledge::Knowledge::Unknown,
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,
@@ -3160,7 +3161,9 @@ impl CommandSpec {
         Self {
             name,
             traits: crate::extension_default::TRAITS,
-            side_effects: crate::extension_default::SIDE_EFFECTS,
+            side_effects: crate::knowledge::Knowledge::declared(
+                crate::extension_default::SIDE_EFFECTS,
+            ),
             completion: Some(crate::completion::CompletionDescriptor::CONSERVATIVE),
             runtime_backing: crate::runtime_backing::RuntimeBacking::HostNative,
             ..Self::DEFAULT
@@ -4569,8 +4572,9 @@ pub struct SubCommand {
     /// parent command's [`CommandSpec::format_string_type`].
     pub format_string_type: Option<FormatType>,
 
-    /// Structured side-effect declarations for this subcommand.
-    pub side_effects: &'static [SideEffect],
+    /// Structured side-effect declarations for this subcommand, and how
+    /// completely they are known.
+    pub side_effects: crate::knowledge::Knowledge<&'static [SideEffect]>,
 
     /// Mutable Tcl-world effects for this subcommand.
     ///
@@ -4980,7 +4984,7 @@ impl SubCommand {
         sensitive_headers: &[],
         pattern_type: None,
         format_string_type: None,
-        side_effects: &[],
+        side_effects: crate::knowledge::Knowledge::Unknown,
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,

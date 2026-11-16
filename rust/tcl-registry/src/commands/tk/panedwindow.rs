@@ -27,7 +27,9 @@ const PROXY_FORMS: &[SubCommandForm] = &[SubCommandForm {
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["coord"])),
     traits: Some(Traits::PURE),
     mutator: Some(false),
-    side_effects: Some(super::common::TTK_WIDGET_READS),
+    side_effects: Some(crate::knowledge::Knowledge::declared(
+        super::common::TTK_WIDGET_READS,
+    )),
     ..SubCommandForm::DEFAULT
 }];
 
@@ -37,7 +39,9 @@ const SASH_FORMS: &[SubCommandForm] = &[SubCommandForm {
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["coord"])),
     traits: Some(Traits::PURE),
     mutator: Some(false),
-    side_effects: Some(super::common::TTK_WIDGET_READS),
+    side_effects: Some(crate::knowledge::Knowledge::declared(
+        super::common::TTK_WIDGET_READS,
+    )),
     ..SubCommandForm::DEFAULT
 }];
 
@@ -90,7 +94,7 @@ static SUBCOMMANDS: [SubCommand; 8] = [
         detail: "Query or manipulate the sash-drag proxy.",
         synopsis: "pathName proxy ?args?",
         mutator: true,
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: PROXY_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -100,7 +104,7 @@ static SUBCOMMANDS: [SubCommand; 8] = [
         detail: "Query or adjust sash positions.",
         synopsis: "pathName sash option ?arg ...?",
         mutator: true,
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: SASH_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -338,7 +342,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: &SUBCOMMANDS,
         object_class: Some(&PANEDWINDOW_CLASS),
         creates_instance_at: Some(0),

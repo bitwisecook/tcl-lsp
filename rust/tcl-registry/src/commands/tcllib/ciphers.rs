@@ -296,7 +296,7 @@ fn cipher_specs(c: &Cipher) -> Vec<CommandSpec> {
                 examples: "",
                 return_value: "The transformed data (binary, or hex with -hex).",
             }),
-            side_effects: IO,
+            side_effects: crate::knowledge::Knowledge::declared(IO),
             tcllib_package: Some(c.pkg),
             required_package: Some(c.pkg),
             ..CommandSpec::DEFAULT

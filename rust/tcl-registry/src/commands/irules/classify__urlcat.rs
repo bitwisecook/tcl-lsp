@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "CLASSIFY::urlcat ('set' | 'add') CLASSIFY_URL_CATEGORY_NAME",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ClassificationState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

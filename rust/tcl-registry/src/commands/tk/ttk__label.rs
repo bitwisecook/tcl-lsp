@@ -252,7 +252,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: SUBCOMMANDS,
         object_class: Some(&CLASS),
         creates_instance_at: Some(0),

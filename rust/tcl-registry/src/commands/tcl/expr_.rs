@@ -84,7 +84,7 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::Structured(LoweringHookId::Expr)),
         inline_codegen_hook: Some(InlineCodegenHookId::Expr),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

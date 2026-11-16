@@ -189,6 +189,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "mutator",
             "destructive",
             "side_effects",
+            "side_effects_knowledge",
             "world_effects",
             "state_transitions",
             "result_stability",

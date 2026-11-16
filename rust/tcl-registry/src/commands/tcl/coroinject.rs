@@ -74,7 +74,7 @@ pub fn spec() -> CommandSpec {
         command_prefixes: &[(1, AppendedArity::Exactly(2))],
         script_timing_resolver: Some(coroinject_script_timing),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Queue a command to run inside a suspended coroutine when it next resumes.",
             synopsis: &["coroinject coroName command ?arg ...?"],

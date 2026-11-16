@@ -532,7 +532,7 @@ mod tests {
         let switchstate = toggleswitch.resolve_subcommand("switchstate").unwrap();
         assert!(switchstate.traits.is_empty());
         assert!(!switchstate.mutator);
-        assert_eq!(switchstate.side_effects.len(), 0);
+        assert_eq!(switchstate.side_effects.lower_bound().len(), 0);
         assert_eq!(switchstate.subcommand_forms.len(), 2);
         let get = toggleswitch.resolve_subcommand("get").unwrap();
         assert_eq!(get.return_type, Some(crate::TclType::Double));
@@ -599,6 +599,7 @@ mod tests {
         );
         assert!(
             send.side_effects
+                .lower_bound()
                 .iter()
                 .any(|effect| { effect.target == SideEffectTarget::NetworkIo && effect.writes })
         );
@@ -620,7 +621,7 @@ mod tests {
             assert!(invoke.traits.contains(Traits::EVALUATES_CODE), "{widget}");
             assert!(invoke.mutator, "{widget}");
             assert!(
-                invoke.side_effects.iter().any(|effect| {
+                invoke.side_effects.lower_bound().iter().any(|effect| {
                     effect.target == SideEffectTarget::InterpState && effect.writes
                 })
             );
@@ -634,7 +635,13 @@ mod tests {
             let method = progress.resolve_subcommand(method).unwrap();
             assert!(method.mutator);
             assert_eq!(method.return_type, Some(TclType::String));
-            assert!(method.side_effects.iter().any(|effect| effect.writes));
+            assert!(
+                method
+                    .side_effects
+                    .lower_bound()
+                    .iter()
+                    .any(|effect| effect.writes)
+            );
         }
 
         for widget in ["ttk::entry", "ttk::spinbox"] {
@@ -646,7 +653,7 @@ mod tests {
                     method.traits.contains(Traits::EVALUATES_CODE),
                     "{widget} {method:?} must model validation callbacks"
                 );
-                assert!(method.side_effects.iter().any(|effect| {
+                assert!(method.side_effects.lower_bound().iter().any(|effect| {
                     effect.target == SideEffectTarget::Unknown && effect.reads && effect.writes
                 }));
             }
@@ -707,6 +714,7 @@ mod tests {
             assert!(!get.synopsis.is_empty(), "{command} get synopsis");
             assert!(
                 get.side_effects
+                    .lower_bound()
                     .iter()
                     .any(|effect| effect.target == SideEffectTarget::InterpState && effect.reads),
                 "{command} get must declare its widget-state read"
@@ -844,7 +852,7 @@ mod tests {
             );
             assert!(!sub.mutator, "neutral parent row: {command} {method}");
             assert!(
-                sub.side_effects.is_empty(),
+                sub.side_effects.lower_bound().is_empty(),
                 "neutral parent row: {command} {method}"
             );
             let query = registry
@@ -865,6 +873,7 @@ mod tests {
                     && query
                         .semantics
                         .side_effects
+                        .lower_bound()
                         .iter()
                         .all(|effect| !effect.writes),
                 "query form must not write: {command} {method}"
@@ -874,6 +883,7 @@ mod tests {
                     && setter
                         .semantics
                         .side_effects
+                        .lower_bound()
                         .iter()
                         .any(|effect| effect.writes),
                 "setter form must write: {command} {method}"
@@ -947,6 +957,7 @@ mod tests {
                 query
                     .semantics
                     .side_effects
+                    .lower_bound()
                     .iter()
                     .all(|effect| !effect.writes)
             );
@@ -964,6 +975,7 @@ mod tests {
                 mutation
                     .semantics
                     .side_effects
+                    .lower_bound()
                     .iter()
                     .any(|effect| effect.writes)
             );
@@ -992,6 +1004,7 @@ mod tests {
             switchstate
                 .semantics
                 .side_effects
+                .lower_bound()
                 .iter()
                 .any(|effect| effect.target == SideEffectTarget::Unknown && effect.writes)
         );
@@ -1071,6 +1084,7 @@ mod tests {
                 query
                     .semantics
                     .side_effects
+                    .lower_bound()
                     .iter()
                     .all(|effect| !effect.writes),
                 "query effects: {class} {query_args:?}"
@@ -1084,6 +1098,7 @@ mod tests {
                     && mutation
                         .semantics
                         .side_effects
+                        .lower_bound()
                         .iter()
                         .any(|effect| effect.writes),
                 "mutation: {class} {mutation_args:?}"
@@ -1113,6 +1128,7 @@ mod tests {
             invocation
                 .semantics
                 .side_effects
+                .lower_bound()
                 .iter()
                 .any(|effect| effect.writes)
         );
@@ -1172,7 +1188,7 @@ mod tests {
                 assert_ne!(sub.synopsis.len(), 0);
                 assert!(sub.return_type.is_some());
                 if method == "cget" {
-                    assert!(sub.side_effects.iter().any(|effect| {
+                    assert!(sub.side_effects.lower_bound().iter().any(|effect| {
                         effect.target == SideEffectTarget::InterpState && effect.reads
                     }));
                 } else {
@@ -1198,7 +1214,12 @@ mod tests {
                 .unwrap();
             let cget = class.instance_method("cget").unwrap();
             assert!(cget.pure && !cget.mutator, "{command} cget");
-            assert!(cget.side_effects.iter().all(|effect| !effect.writes));
+            assert!(
+                cget.side_effects
+                    .lower_bound()
+                    .iter()
+                    .all(|effect| !effect.writes)
+            );
 
             let configure = class.instance_method("configure").unwrap();
             assert!(
@@ -1207,7 +1228,7 @@ mod tests {
             );
             assert!(configure.traits.is_empty(), "neutral {command} configure");
             assert!(
-                configure.side_effects.is_empty(),
+                configure.side_effects.lower_bound().is_empty(),
                 "neutral {command} configure"
             );
             let query = registry
@@ -1219,6 +1240,7 @@ mod tests {
                 query
                     .semantics
                     .side_effects
+                    .lower_bound()
                     .iter()
                     .all(|effect| !effect.writes)
             );
@@ -1232,9 +1254,18 @@ mod tests {
                     .traits
                     .contains(Traits::CONFIGURES_INSTANCE_OPTIONS)
             );
-            assert!(setter.semantics.side_effects.iter().any(|effect| {
-                effect.target == SideEffectTarget::InterpState && effect.reads && effect.writes
-            }));
+            assert!(
+                setter
+                    .semantics
+                    .side_effects
+                    .lower_bound()
+                    .iter()
+                    .any(|effect| {
+                        effect.target == SideEffectTarget::InterpState
+                            && effect.reads
+                            && effect.writes
+                    })
+            );
             assert!(class.instance_method("conf").is_some(), "{command} prefix");
         }
 
@@ -1251,7 +1282,7 @@ mod tests {
         );
         let invoke = button_class.instance_method("invoke").unwrap();
         assert!(invoke.traits.contains(Traits::EVALUATES_CODE));
-        assert!(invoke.side_effects.iter().any(|effect| {
+        assert!(invoke.side_effects.lower_bound().iter().any(|effect| {
             effect.target == SideEffectTarget::Unknown && effect.reads && effect.writes
         }));
         assert_eq!(
@@ -1286,12 +1317,24 @@ mod tests {
             let method = scrollbar_class.instance_method(method).unwrap();
             assert!(method.pure && !method.mutator, "{method:?}");
             assert!(method.return_type.is_some(), "{method:?}");
-            assert!(method.side_effects.iter().all(|effect| !effect.writes));
+            assert!(
+                method
+                    .side_effects
+                    .lower_bound()
+                    .iter()
+                    .all(|effect| !effect.writes)
+            );
         }
         for method in ["activate", "set"] {
             let method = scrollbar_class.instance_method(method).unwrap();
             assert!(method.mutator && !method.pure, "{method:?}");
-            assert!(method.side_effects.iter().any(|effect| effect.writes));
+            assert!(
+                method
+                    .side_effects
+                    .lower_bound()
+                    .iter()
+                    .any(|effect| effect.writes)
+            );
         }
 
         for (command, method) in [
@@ -1305,7 +1348,7 @@ mod tests {
             let spec = specs.iter().find(|spec| spec.name == command).unwrap();
             let sub = spec.object_class.unwrap().instance_method(method).unwrap();
             assert!(sub.traits.contains(Traits::EVALUATES_CODE));
-            assert!(sub.side_effects.iter().any(|effect| {
+            assert!(sub.side_effects.lower_bound().iter().any(|effect| {
                 effect.target == SideEffectTarget::Unknown && effect.reads && effect.writes
             }));
         }
@@ -1332,6 +1375,7 @@ mod tests {
                     .instance_method(method)
                     .unwrap()
                     .side_effects
+                    .lower_bound()
                     .iter()
                     .any(|effect| effect.target == SideEffectTarget::Unknown
                         && effect.reads
@@ -1368,7 +1412,7 @@ mod tests {
         };
         assert_eq!(command.role, ArgRole::CommandPrefix);
         assert_eq!(command.appended_arity, AppendedArity::Exactly(3));
-        assert!(dump.side_effects.iter().any(|effect| {
+        assert!(dump.side_effects.lower_bound().iter().any(|effect| {
             effect.target == SideEffectTarget::Unknown && effect.reads && effect.writes
         }));
     }

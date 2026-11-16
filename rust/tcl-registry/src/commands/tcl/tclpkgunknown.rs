@@ -130,7 +130,7 @@ pub fn spec() -> CommandSpec {
         // for `package vsatisfies`'s own arity.
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Scan auto_path for pkgIndex.tcl files as Tcl's default package unknown handler.",
             synopsis: &[

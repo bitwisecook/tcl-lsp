@@ -126,6 +126,7 @@ pub mod intrinsic;
 pub mod invocation_words;
 pub mod irules_policy;
 pub mod iteration_entry;
+pub mod knowledge;
 pub mod lambda_invocation;
 pub mod lifecycle;
 pub mod list_object_methods;

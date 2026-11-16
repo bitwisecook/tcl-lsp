@@ -450,11 +450,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -475,11 +475,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[1],
         arg_values_accept_prefix: true,
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -492,12 +492,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         channel_configuration: Some(ChannelConfigurationSpec::EncodingTranslation),
         option_prefix_words: 1,
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -509,12 +509,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         options: COPY_OPTIONS,
         option_prefix_words: 2,
         return_type: Some(TclType::Int),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -528,11 +528,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `cmdPrefix subcommand channelId ?args...?` — every method appends at
         // least the subcommand and channel id ⇒ AtLeast(2).
         command_prefixes: &[(1, AppendedArity::AtLeast(2))],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -544,11 +544,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -579,12 +579,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // own `BODY_RUNS_NOW` sweep missed it because its probe leads never
         // select an ensemble's `event` subcommand.
         traits: Traits::DEFERS_BODY,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -596,11 +596,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -613,7 +613,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::GETS),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -624,7 +624,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -636,11 +636,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::Pattern)],
         pattern_type: Some(PatternType::Glob),
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -654,11 +654,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_values: &[(0, PENDING_MODE_VALUES)],
         closed_value_args: &[0],
         return_type: Some(TclType::Int),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -671,11 +671,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Create a standalone connected pipe (Tcl 8.6+); returns its two channels.",
         synopsis: "chan pipe",
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -688,11 +688,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -709,11 +709,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `cmdPrefix subcommand handle ?args...?` (a reflected-transform
         // dispatch) — minimum appended is subcommand + handle ⇒ AtLeast(2).
         command_prefixes: &[(1, AppendedArity::AtLeast(2))],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -726,11 +726,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         options: PUTS_OPTIONS,
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -741,11 +741,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan read channelId ?numChars?",
         options: READ_OPTIONS,
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -760,11 +760,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[2],
         arg_values_accept_prefix: true,
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -776,11 +776,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Int),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -791,11 +791,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "chan truncate channelId ?length?",
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -809,11 +809,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -825,11 +825,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::Channel)],
         arg_values: &[(1, POSTEVENT_VALUES)],
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];
@@ -943,7 +943,7 @@ pub fn spec() -> CommandSpec {
             return_value: "Depends on the subcommand — see each subcommand's detail.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

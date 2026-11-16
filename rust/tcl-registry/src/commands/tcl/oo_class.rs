@@ -317,7 +317,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         arg_values: &[(0, CLASS_METHOD_VALUES)],
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
         manufacturer_methods: crate::definer::TCLOO_ROOT_CLASS_MANUFACTURERS,
         ..CommandSpec::DEFAULT

@@ -220,7 +220,7 @@ pub fn spec() -> CommandSpec {
         command_forms: COMMAND_FORMS,
         body_execution: Some(crate::body_execution::BodyExecutionSpec::SourceFile),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         options: const {
             &[
                 OptionSpec {

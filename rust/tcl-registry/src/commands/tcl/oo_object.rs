@@ -251,7 +251,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The fully qualified name of the new object for new and create; the empty string for destroy; otherwise whatever the invoked method returns.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

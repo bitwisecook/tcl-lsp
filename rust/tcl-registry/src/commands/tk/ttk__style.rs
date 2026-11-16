@@ -139,7 +139,7 @@ pub fn spec() -> CommandSpec {
         lifecycle: Lifecycle::introduced_in("8.5"),
         warn_missing_import: false,
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
     }

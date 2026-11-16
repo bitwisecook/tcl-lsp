@@ -150,7 +150,7 @@ pub fn spec() -> CommandSpec {
         analyser_hook: Some(crate::hooks::AnalyserHookId::Switch),
         semantics: SemanticsDeclaration::Declared(&SEMANTICS),
         return_type: Some(TclType::String),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         deprecated_replacement: Some("switch"),
         // Not a drop-in rename — `case` has no options and an extra optional
         // `in` word; see the module comment.

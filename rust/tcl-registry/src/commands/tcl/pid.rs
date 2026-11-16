@@ -144,7 +144,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The current process's identifier as a decimal string, or, given fileId, a list of the decimal-string process identifiers of every process in that pipeline — empty if fileId is an open channel that is not a process pipeline.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

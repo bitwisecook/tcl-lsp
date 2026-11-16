@@ -42,11 +42,11 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Check for end of file condition on channel",
             synopsis: &["eof channel"],

@@ -91,7 +91,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The value passed to the coroutine's first yield or yieldto call, or command's own result if it returns without ever yielding.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

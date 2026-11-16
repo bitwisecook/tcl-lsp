@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "STATS::setmin PROFILE_NAME FIELD_NAME (VALUE)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::IStats,
             writes: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

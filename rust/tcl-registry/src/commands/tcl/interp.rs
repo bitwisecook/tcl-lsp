@@ -531,7 +531,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(interp_alias_command_prefixes),
         script_timing_resolver: Some(interp_alias_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
-        side_effects: ALIAS_SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(ALIAS_SIDE_EFFECTS),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
         ..SubCommand::DEFAULT
@@ -964,12 +964,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Read or write a variable in another interpreter.",
         synopsis: "interp set path varName ?value?",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1072,7 +1072,7 @@ pub fn jim_spec() -> CommandSpec {
             synopsis: "interp",
             ..FormSpec::DEFAULT
         }],
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor {
             logical_source_resolver: None,
             success_resolver: None,
@@ -1112,7 +1112,7 @@ pub fn spec() -> CommandSpec {
         // another interpreter — cross-interp code injection (T105).
         taint_interp_eval_subcommands: &["eval", "invokehidden"],
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }
@@ -1136,12 +1136,12 @@ pub fn init_auto_path_spec() -> CommandSpec {
         runtime_backing: RuntimeBacking::shipped("tcl::InitAutoPath"),
         surface: Some(SpecSurface::TCL91),
         arity: Arity::exact(0),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

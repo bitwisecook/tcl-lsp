@@ -169,11 +169,11 @@ static SUBCOMMANDS: [SubCommand; 6] = [
         // about existing event handlers") — the same correction
         // `after info` makes over `after`'s own command-level default
         // (see `commands/tcl/after_.rs`).
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -222,9 +222,9 @@ static SUBCOMMANDS: [SubCommand; 6] = [
         // interpreter-visible state — it just blocks the calling thread
         // ("While the command is sleeping the application does not
         // respond to events").
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];
@@ -273,7 +273,7 @@ pub fn spec() -> CommandSpec {
         subcommands: &SUBCOMMANDS,
         return_type: Some(TclType::String),
         forms: FORMS,
-        side_effects: &SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(&SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Schedule a script on the monotonic or wall clock, or block for an interval (Tcl 9.1).",
             synopsis: &[

@@ -59,12 +59,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ProcDefinition,
             writes: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
         // Declared once, by naming the stock descriptor.
         state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),

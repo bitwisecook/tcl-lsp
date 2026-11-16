@@ -127,7 +127,8 @@ fn the_loaded_report_bridges_to_the_default_fact() {
     for command in &declared {
         assert_eq!(command.traits, default.traits, "{}", command.name);
         assert_eq!(
-            command.side_effects, default.side_effects,
+            command.side_effects,
+            default.side_effects.lower_bound(),
             "{}",
             command.name
         );

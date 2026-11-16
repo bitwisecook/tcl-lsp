@@ -86,15 +86,20 @@ fn default_initialiser_fields(source: &str, after_marker: &str) -> Vec<String> {
 /// releases and one quick-fix hook in the form, so the schema names them
 /// separately and the draft carries all four. Everything else is one field,
 /// one key.
-const EXPANDED_FIELDS: &[(&str, &[&str])] = &[(
-    "lifecycle",
-    &[
-        "introduced_version",
-        "deprecated_version",
-        "retired_version",
-        "deprecation_fix",
-    ],
-)];
+const EXPANDED_FIELDS: &[(&str, &[&str])] = &[
+    (
+        "lifecycle",
+        &[
+            "introduced_version",
+            "deprecated_version",
+            "retired_version",
+            "deprecation_fix",
+        ],
+    ),
+    // A `Knowledge`-wrapped facts field is edited as its rows plus how
+    // completely they are known (issue #1712).
+    ("side_effects", &["side_effects", "side_effects_knowledge"]),
+];
 
 fn expansion_of(field: &str) -> &'static [&'static str] {
     EXPANDED_FIELDS

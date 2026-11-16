@@ -200,7 +200,7 @@ pub fn spec() -> CommandSpec {
             | Traits::TAINT_SINK,
         arity: Arity::new(1, 3),
         return_type: Some(TclType::Channel),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -213,7 +213,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Open a file, device, or command pipeline as a channel.",
             synopsis: &[

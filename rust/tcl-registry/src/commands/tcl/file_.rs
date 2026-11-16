@@ -124,12 +124,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file atime name ?time?",
         return_type: Some(TclType::Int),
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -147,12 +147,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file attributes name\nfile attributes name option\nfile attributes name option value ?option value ...?",
         return_type: Some(TclType::List),
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -210,12 +210,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -266,11 +266,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         destructive: true,
         ..SubCommand::DEFAULT
     },
@@ -302,11 +302,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if file name is executable by the current user, 0 otherwise. On Windows, which has no executable attribute, every directory and any file with extension exe, com, cmd, or bat is treated as executable.",
         synopsis: "file executable name",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -320,11 +320,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if file name exists and the current user has search privileges for the directories leading to it, 0 otherwise.",
         synopsis: "file exists name",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -371,11 +371,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if file name is a directory, 0 otherwise.",
         synopsis: "file isdirectory name",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -389,11 +389,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if file name is a regular file, 0 otherwise.",
         synopsis: "file isfile name",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -456,12 +456,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -484,7 +484,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_LSTAT),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -495,7 +495,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -519,11 +519,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file mkdir ?dir ...?",
         return_type: Some(TclType::String),
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         destructive: true,
         ..SubCommand::DEFAULT
     },
@@ -546,12 +546,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file mtime name ?time?",
         return_type: Some(TclType::Int),
         mutator: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -588,11 +588,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // (traversal-safe).
         taint_transform: Some(TaintColour::PATH_NORMALISED),
         returns_path: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         // The host decides: its working directory and its links.
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -610,11 +610,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if file name is owned by the current user, 0 otherwise.",
         synopsis: "file owned name",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -645,11 +645,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if file name is readable by the current user, 0 otherwise.",
         synopsis: "file readable name",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -664,11 +664,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file readlink name",
         return_type: Some(TclType::String),
         returns_path: true,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -713,11 +713,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         destructive: true,
         ..SubCommand::DEFAULT
     },
@@ -765,11 +765,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns a decimal string giving the size of file name in bytes.",
         synopsis: "file size name",
         return_type: Some(TclType::Int),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -809,7 +809,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_STAT),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -820,7 +820,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -834,11 +834,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns a one- or two-element list: the name of the filesystem responsible for name (e.g. native), and if given, a filesystem-specific type string (e.g. NTFS, FAT on Windows, or vfs ftp for a mounted virtual filesystem). Errors if the file belongs to no filesystem.",
         synopsis: "file system name",
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -873,11 +873,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         mutator: true,
         surface: Some(SpecSurface::TCL90_PLUS),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         returns_path: true,
         ..SubCommand::DEFAULT
     },
@@ -897,11 +897,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::VarWrite)],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::FILE_TEMPFILE),
         surface: Some(SpecSurface::TCL86_PLUS),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         returns_path: true,
         ..SubCommand::DEFAULT
     },
@@ -935,11 +935,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns a string giving the type of file name: one of file, directory, characterSpecial, blockSpecial, fifo, link, or socket.",
         synopsis: "file type name",
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -953,11 +953,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the absolute paths to the volumes mounted on the system, as a Tcl list. On Unix this is typically just \"/\" (or additionally a zipfs root); on Windows it is the available local drive letters. Any volumes mounted by a virtual filesystem are included too.",
         synopsis: "file volumes",
         return_type: Some(TclType::List),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -971,11 +971,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if file name is writable by the current user, 0 otherwise.",
         synopsis: "file writable name",
         return_type: Some(TclType::Boolean),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
 ];
@@ -1004,12 +1004,12 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Manipulate file names and attributes",
             synopsis: &["file option name ?arg arg ...?"],

@@ -256,7 +256,7 @@ fn sub_record_json(sub: &SubCommand) -> String {
         arg_roles_json(sub.arg_roles),
         arg_values_json(sub.arg_values),
         sub.subcommand_forms.len(),
-        side_effects_json(sub.side_effects),
+        side_effects_json(sub.side_effects.lower_bound()),
         sub.safe_on_uninit.is_some(),
         sub.credential_arg
             .map_or_else(|| "null".to_string(), |n| n.to_string()),
@@ -385,7 +385,7 @@ fn deep_dump(group: &str) {
         println!(
             "{{\"name\":{},\"snippet\":{snippet},\"side_effects\":{},\"arg_types\":{},\"arg_roles\":{},\"options\":{},\"subs\":{subs_json},\"scalars\":{scalars},\"bools\":{{{}}}}}",
             json_str(spec.name),
-            side_effects_json(spec.side_effects),
+            side_effects_json(spec.side_effects.lower_bound()),
             arg_types_json(spec.arg_types),
             arg_roles_json(spec.arg_roles),
             options_json(spec.options),
@@ -590,7 +590,10 @@ fn main() {
             "\"subcommands\":{}",
             json_str_list(&subcommand_names)
         ));
-        fields.push(format!("\"n_side_effects\":{}", spec.side_effects.len()));
+        fields.push(format!(
+            "\"n_side_effects\":{}",
+            spec.side_effects.lower_bound().len()
+        ));
         fields.push(format!(
             "\"event_profiles\":{}",
             json_str_list(&event_profiles)

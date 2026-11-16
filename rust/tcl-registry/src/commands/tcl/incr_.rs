@@ -112,7 +112,7 @@ pub fn spec() -> CommandSpec {
         command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
         forms: FORMS,
         world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

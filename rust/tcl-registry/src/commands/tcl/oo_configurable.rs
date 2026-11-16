@@ -74,7 +74,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The fully qualified name of the newly created class for create/new/createWithNamespace; otherwise whatever the invoked oo::class-inherited method returns.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         // The configurable-specific grammar: the same TclOO definition body,
         // plus the `configure` method this metaclass generates for the
         // class's `property` members (`property_accessor_methods`).

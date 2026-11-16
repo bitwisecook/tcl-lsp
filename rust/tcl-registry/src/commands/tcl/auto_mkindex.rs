@@ -95,12 +95,12 @@ pub fn spec() -> CommandSpec {
         // documented release, Tcl library.n 8.4 through 9.1.
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Generate a tclIndex file from Tcl source files in a directory.",
             synopsis: &["auto_mkindex dir ?pattern ...?"],

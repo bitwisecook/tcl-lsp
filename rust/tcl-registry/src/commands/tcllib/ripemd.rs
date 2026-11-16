@@ -101,7 +101,7 @@ fn digest(
             synopsis,
             "tcllib ripemd package",
         )),
-        side_effects: READS,
+        side_effects: crate::knowledge::Knowledge::declared(READS),
         tcllib_package: Some(pkg),
         required_package: Some(pkg),
         semantics: SemanticsDeclaration::Declared(

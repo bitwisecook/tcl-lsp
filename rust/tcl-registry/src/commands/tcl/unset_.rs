@@ -208,11 +208,11 @@ pub fn spec() -> CommandSpec {
                 },
             ]
         },
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Delete one or more variables.",
             synopsis: &["unset ?-nocomplain? ?--? ?name name name ...?"],

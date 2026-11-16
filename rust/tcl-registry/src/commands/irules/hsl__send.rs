@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "HSL::send HANDLE DATA",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::LogIo,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         arg_roles: &[(0, ArgRole::Channel)],
         ..CommandSpec::DEFAULT
     }

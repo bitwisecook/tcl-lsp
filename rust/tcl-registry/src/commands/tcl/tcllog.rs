@@ -104,7 +104,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::TAINT_SINK,
         arity: Arity::exact(1),
         return_type: Some(TclType::Int),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Default logging hook for Tcl's library code; writes to stderr unless redefined.",
             synopsis: &["tclLog string"],

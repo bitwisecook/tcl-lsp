@@ -148,7 +148,7 @@ fn file_codec(
             examples: "",
             return_value: "The encoded / decoded data.",
         }),
-        side_effects: READS,
+        side_effects: crate::knowledge::Knowledge::declared(READS),
         tcllib_package: Some(pkg),
         required_package: Some(pkg),
         ..CommandSpec::DEFAULT

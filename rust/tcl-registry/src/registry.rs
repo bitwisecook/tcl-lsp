@@ -12753,6 +12753,7 @@ mod tests {
         // The body runs arbitrary code → an UNKNOWN-target read+write effect.
         assert!(
             spec.side_effects
+                .lower_bound()
                 .iter()
                 .any(|e| e.target == SideEffectTarget::Unknown && e.reads && e.writes),
             "timerate should declare an UNKNOWN read+write side effect",
@@ -17799,8 +17800,8 @@ mod tests {
             .expect("HTTP::header insert resolves in the iRules dialect");
 
         assert!(resolved.semantics.traits.contains(Traits::PURE));
-        assert_eq!(resolved.semantics.side_effects.len(), 1);
-        let effect = resolved.semantics.side_effects[0];
+        assert_eq!(resolved.semantics.side_effects.lower_bound().len(), 1);
+        let effect = resolved.semantics.side_effects.lower_bound()[0];
         assert_eq!(
             effect.target,
             crate::side_effects::SideEffectTarget::HttpHeader

@@ -43,12 +43,12 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(2, 6),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],
         return_type: Some(TclType::Int),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Copy data from one channel to another",
             synopsis: &["fcopy inputChan outputChan ?-size size? ?-command callback?"],

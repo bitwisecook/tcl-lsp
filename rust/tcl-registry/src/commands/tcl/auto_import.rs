@@ -59,7 +59,7 @@ pub fn spec() -> CommandSpec {
         // every documented release, Tcl library.n 8.4 through 9.1.
         arity: Arity::exact(1),
         return_type: Some(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -70,7 +70,7 @@ pub fn spec() -> CommandSpec {
                 writes: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Load auto-loadable commands matching a namespace-import pattern.",
             synopsis: &["auto_import pattern"],

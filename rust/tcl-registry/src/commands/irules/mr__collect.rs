@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "MR::collect (COLLECT)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::MessageState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         data_collection: Some(MR_COLLECT),
         ..CommandSpec::DEFAULT
     }

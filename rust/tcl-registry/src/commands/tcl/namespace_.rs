@@ -1258,7 +1258,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         traits: Traits::WRAPS_COMMAND_PREFIX.union(Traits::DEFERS_BODY),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        side_effects: NAMESPACE_READ_SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
@@ -1277,7 +1277,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        side_effects: NAMESPACE_READ_SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
@@ -1605,7 +1605,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        side_effects: NAMESPACE_READ_SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
@@ -1629,7 +1629,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        side_effects: NAMESPACE_READ_SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
@@ -1825,7 +1825,7 @@ pub fn spec() -> CommandSpec {
             | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        side_effects: NAMESPACE_PARENT_SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_PARENT_SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate contexts for commands and variables.",
             synopsis: &["namespace subcommand ?arg ...?"],

@@ -36,13 +36,13 @@ pub const fn spec() -> CommandSpec {
             synopsis: "ip_ttl",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("IP::ttl"),
         deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT

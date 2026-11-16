@@ -49,7 +49,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
         // A separate definition scope, not enclosing-scope data flow —
         // matches `oo::class`'s own `Structural` classification.

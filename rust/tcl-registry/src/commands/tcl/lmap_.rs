@@ -137,7 +137,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The accumulator list: one element per iteration of body that completed normally (break/continue iterations contribute nothing).",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }
 }

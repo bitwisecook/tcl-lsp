@@ -77,6 +77,7 @@ fn commits_response_commands() -> &'static HashSet<String> {
             .filter(|name| {
                 reg.get(name).is_some_and(|spec| {
                     spec.side_effects
+                        .lower_bound()
                         .iter()
                         .any(|h| h.target == SideEffectTarget::ResponseCommit && h.writes)
                 })

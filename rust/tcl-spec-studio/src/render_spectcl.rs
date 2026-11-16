@@ -3144,11 +3144,52 @@ fn versioned_arg_value_rows_for(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 }
 
 fn side_effect_rows(out: &mut Out, draft: &Draft, availability: bool) {
-    side_effect_rows_of(
+    let rows = draft.get("side_effects").unwrap_or(&Value::Null);
+    side_effect_rows_of(out, rows, availability);
+    effects_row(
         out,
-        draft.get("side_effects").unwrap_or(&Value::Null),
-        availability,
+        draft.get("side_effects_knowledge").unwrap_or(&Value::Null),
+        !as_array(rows).is_empty(),
     );
+}
+
+/// A `refine` body's effect rows: `side_effects none` replaces the parent's
+/// effects with none known, and an `effects` row states anything stronger.
+fn form_side_effect_rows(out: &mut Out, form: &Value, availability: bool) {
+    let knowledge = &form["side_effects_knowledge"];
+    match form["side_effects"].as_array() {
+        Some(effects) if effects.is_empty() => {
+            if knowledge["level"].as_str() == Some("complete") {
+                effects_row(out, knowledge, false);
+            } else {
+                out.line("side_effects none");
+            }
+        }
+        Some(_) => {
+            side_effect_rows_of(out, &form["side_effects"], availability);
+            effects_row(out, knowledge, true);
+        }
+        None => {}
+    }
+}
+
+/// The `effects` row a scope's knowledge needs beside its `side_effect`
+/// rows (issue #1712). Rows alone already read back as a lower bound and no
+/// rows as unknown, so only the other states are written.
+fn effects_row(out: &mut Out, knowledge: &Value, has_rows: bool) {
+    match knowledge["level"].as_str() {
+        Some("partial") if !has_rows => out.line("effects -partial"),
+        Some("complete") => {
+            let mut row = vec!["effects".to_owned()];
+            for words in as_array(&knowledge["complete"]) {
+                let words: Vec<&str> = as_array(words).iter().filter_map(Value::as_str).collect();
+                row.push("-complete".to_owned());
+                row.push(format!("{{{}}}", words.join(" ")));
+            }
+            emit_row(out, "side_effects_knowledge", &row, false, "");
+        }
+        _ => {}
+    }
 }
 
 /// The `side_effect …` rows of one effect table, wherever it hangs.
@@ -3266,11 +3307,7 @@ fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key: &str) {
             if let Some(mutator) = form["mutator"].as_bool() {
                 out.line(&format!("mutator {}", if mutator { "yes" } else { "no" }));
             }
-            match form["side_effects"].as_array() {
-                Some(effects) if effects.is_empty() => out.line("side_effects none"),
-                Some(_) => side_effect_rows_of(out, &form["side_effects"], ctx.availability),
-                None => {}
-            }
+            form_side_effect_rows(out, &form, ctx.availability);
             if let Some(expr) = form["representation_effect"].as_str() {
                 match representation_effect_word(expr) {
                     Some(spelling) => out.line(&format!("representation_effect {spelling}")),

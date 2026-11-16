@@ -43,11 +43,11 @@ const COMMAND_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm 
     byte_array_effect: Some(ByteArrayEffect::None),
     safe_on_uninit: Some(None),
     traits: Some(Traits::FRAMELESS_RUNTIME.union(Traits::FIRST_ARG_VARNAME)),
-    side_effects: Some(&[SideEffect {
+    side_effects: Some(crate::knowledge::Knowledge::Partial(&[SideEffect {
         target: SideEffectTarget::Variable,
         reads: true,
         ..SideEffect::DEFAULT
-    }]),
+    }])),
     ..crate::forms::CommandForm::DEFAULT
 }];
 
@@ -108,12 +108,12 @@ pub fn spec() -> CommandSpec {
                 transparent_from: &[],
             },
         )],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Append values to a variable, creating it if it does not already exist.",
             synopsis: &["append varName ?value value value ...?"],

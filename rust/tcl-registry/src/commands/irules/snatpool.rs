@@ -37,12 +37,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "snatpool SNAT_POOL_OBJ (member IP_ADDR)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SnatSelection,
             writes: true,
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

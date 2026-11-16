@@ -77,11 +77,11 @@ pub fn spec() -> CommandSpec {
             ..StateTransitionDescriptor::EMPTY
         }),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Change the process's current working directory.",
             synopsis: &["cd ?dirName?"],

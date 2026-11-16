@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "SSL::nextproto",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("SSL::alpn"),
         ..CommandSpec::DEFAULT
     }

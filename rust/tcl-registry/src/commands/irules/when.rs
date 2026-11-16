@@ -125,12 +125,12 @@ pub const fn spec() -> CommandSpec {
         // `irules_event_declaration_slot`, not a per-index table.  Event-name
         // completion at index 0 is handled via `Traits::IS_EVENT_HANDLER`.
         arg_values: &[(1, WHEN_KEYWORD_VALUES), (2, WHEN_TIMING_VALUES)],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

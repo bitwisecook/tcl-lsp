@@ -52,7 +52,7 @@ fn cmd(
         hover: Some(HoverSnippet::brief(summary, synopsis, "Tk man page")),
         required_package: Some("Tk"),
         warn_missing_import: false,
-        side_effects: WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(WRITES),
         ..CommandSpec::DEFAULT
     }
 }

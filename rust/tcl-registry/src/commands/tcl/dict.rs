@@ -893,7 +893,7 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Dict),
         lowering_hook: Some(crate::hooks::LoweringHookId::Dict),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         implementation_namespace: Some("::tcl::dict"),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,

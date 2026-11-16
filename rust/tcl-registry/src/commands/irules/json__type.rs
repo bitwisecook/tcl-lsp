@@ -36,10 +36,10 @@ pub const fn spec() -> CommandSpec {
             synopsis: "JSON::type JSON_ELEMENT",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             reads: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

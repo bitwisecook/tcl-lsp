@@ -175,7 +175,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         synopsis: "pathName cget option",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -196,7 +196,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         options: TAB_OPTIONS,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -206,7 +206,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         synopsis: "pathName forget tabid",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -216,7 +216,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         synopsis: "pathName hide tabid",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -226,7 +226,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         synopsis: "pathName identify component x y",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -237,7 +237,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         synopsis: "pathName index tabid",
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -249,7 +249,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         options: TAB_OPTIONS,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -269,7 +269,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         options: TAB_OPTIONS,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -279,7 +279,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         synopsis: "pathName tabs",
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -292,7 +292,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         // — a real Tcl body.
         arg_roles: &[(1, ArgRole::Body)],
         traits: Traits::EVALUATES_CODE,
-        side_effects: super::common::TTK_INSTATE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_INSTATE_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -312,7 +312,7 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         lifecycle: Lifecycle::introduced_in("8.7"),
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -347,7 +347,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: &SUBCOMMANDS,
         object_class: Some(&TTK_NOTEBOOK_CLASS),
         creates_instance_at: Some(0),
@@ -370,10 +370,14 @@ mod tests {
     fn notebook_cget_is_a_plain_widget_read() {
         let cget = sub("cget");
         assert!(cget.pure);
-        assert_eq!(cget.side_effects, super::super::common::TTK_WIDGET_READS);
+        assert_eq!(
+            cget.side_effects.lower_bound(),
+            super::super::common::TTK_WIDGET_READS
+        );
         assert!(
             !cget
                 .side_effects
+                .lower_bound()
                 .iter()
                 .any(|effect| effect.target == SideEffectTarget::Unknown)
         );
@@ -384,7 +388,7 @@ mod tests {
         let configure = sub("configure");
         assert!(configure.traits.is_empty());
         assert!(!configure.mutator);
-        assert_eq!(configure.side_effects.len(), 0);
+        assert_eq!(configure.side_effects.lower_bound().len(), 0);
         let setter = configure
             .subcommand_forms
             .iter()
@@ -399,7 +403,7 @@ mod tests {
         assert!(
             setter
                 .side_effects
-                .is_some_and(|effects| effects.iter().any(|effect| effect.writes))
+                .is_some_and(|effects| effects.lower_bound().iter().any(|effect| effect.writes))
         );
     }
 }

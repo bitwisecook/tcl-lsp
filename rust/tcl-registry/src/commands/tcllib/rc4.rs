@@ -92,7 +92,7 @@ pub fn specs() -> Vec<CommandSpec> {
                 examples: "",
                 return_value: "The transformed data (binary, or hex with -hex).",
             }),
-            side_effects: IO,
+            side_effects: crate::knowledge::Knowledge::declared(IO),
             tcllib_package: Some("rc4"),
             required_package: Some("rc4"),
             ..CommandSpec::DEFAULT

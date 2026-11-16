@@ -36,11 +36,11 @@ pub const fn spec() -> CommandSpec {
             synopsis: "decode_uri ANY_CHARS",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             reads: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("URI::decode"),
         deprecated_replacement_drop_in: true,
         traits: Traits::IS_UNESCAPE,

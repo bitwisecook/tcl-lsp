@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "http_version",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpStatus,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         deprecated_replacement: Some("HTTP::version"),
         deprecated_replacement_drop_in: true,
         ..CommandSpec::DEFAULT

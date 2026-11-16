@@ -36,13 +36,13 @@ pub const fn spec() -> CommandSpec {
             synopsis: "TCP::lossfilter TCP_IGNORE_RATE TCP_IGNORE_BURST",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

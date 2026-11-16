@@ -344,12 +344,12 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         options: OPTIONS,
         channel_configuration: Some(ChannelConfigurationSpec::EncodingTranslation),
         option_prefix_words: 1,

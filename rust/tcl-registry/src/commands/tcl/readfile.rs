@@ -95,7 +95,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::new(1, 2),
         return_type: Some(TclType::String),
-        side_effects: &[
+        side_effects: crate::knowledge::Knowledge::Partial(&[
             SideEffect {
                 target: SideEffectTarget::FileIo,
                 reads: true,
@@ -110,7 +110,7 @@ pub fn spec() -> CommandSpec {
                 reads: true,
                 ..SideEffect::DEFAULT
             },
-        ],
+        ]),
         hover: Some(HoverSnippet {
             summary: "Read the whole contents of a file and return them.",
             synopsis: &["readFile filename ?text|binary?"],

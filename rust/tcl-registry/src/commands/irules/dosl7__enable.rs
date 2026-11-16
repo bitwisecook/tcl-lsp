@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "DOSL7::enable (DOSL7_PROFILE_OBJ)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Dosl7State,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

@@ -404,7 +404,9 @@ const SELECTION_FORMS: &[SubCommandForm] = &[SubCommandForm {
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["present"])),
     traits: Some(Traits::PURE),
     mutator: Some(false),
-    side_effects: Some(super::common::TTK_WIDGET_READS),
+    side_effects: Some(crate::knowledge::Knowledge::declared(
+        super::common::TTK_WIDGET_READS,
+    )),
     ..SubCommandForm::DEFAULT
 }];
 
@@ -416,7 +418,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         synopsis: "pathName bbox index",
         pure: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -427,7 +429,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         synopsis: "pathName cget option",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -450,7 +452,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -461,7 +463,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         synopsis: "pathName get",
         pure: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -472,7 +474,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         synopsis: "pathName icursor index",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -482,7 +484,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         synopsis: "pathName index index",
         pure: true,
         return_type: Some(TclType::Int),
-        side_effects: super::common::TTK_WIDGET_READS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -495,7 +497,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -504,7 +506,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         detail: "Implement fast scanning/scrolling; option is mark or dragto.",
         synopsis: "pathName scan option arg",
         mutator: true,
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -514,7 +516,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         synopsis: "pathName selection option ?arg ...?",
         mutator: true,
         return_type: Some(TclType::String),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: SELECTION_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -526,7 +528,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         traits: Traits::EVALUATES_CODE,
         mutator: true,
         return_type: Some(TclType::Boolean),
-        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_CALLBACK_EFFECTS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -536,7 +538,7 @@ static SUBCOMMANDS: [SubCommand; 12] = [
         synopsis: "pathName xview ?args?",
         mutator: true,
         return_type: Some(TclType::List),
-        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
@@ -576,7 +578,7 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         subcommands: &SUBCOMMANDS,
         object_class: Some(&ENTRY_CLASS),
         creates_instance_at: Some(0),

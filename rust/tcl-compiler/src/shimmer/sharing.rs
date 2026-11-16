@@ -616,12 +616,12 @@ mod tests {
             arg_roles: &[(0, ArgRole::VarWrite)],
             assigns_variable_at: Some(0),
             representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
-            side_effects: &[SideEffect {
+            side_effects: tcl_registry::knowledge::Knowledge::Partial(&[SideEffect {
                 target: SideEffectTarget::Variable,
                 reads: true,
                 writes: true,
                 ..SideEffect::DEFAULT
-            }],
+            }]),
             ..CommandSpec::DEFAULT
         });
         let warnings = warnings_for_fn_with_registry(

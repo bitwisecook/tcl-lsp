@@ -98,7 +98,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::any(),
         return_type: Some(TclType::String),
         completion: Some(crate::completion::CompletionDescriptor::tailcall()),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             // Scheduling (or clearing) the frame's deferred replacement
             // call and forcing the current evaluation to complete
@@ -109,7 +109,7 @@ pub fn spec() -> CommandSpec {
             // `exit`), all of which declare `writes: true` here too.
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Replace the currently executing procedure, lambda, or method with a tail call to another command.",
             synopsis: &["tailcall command ?arg ...?"],

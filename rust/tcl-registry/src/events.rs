@@ -91,14 +91,19 @@ impl crate::ResolvedInvocation<'_, '_> {
     /// actual surface and package floor. This supplies no reached effect.
     #[must_use]
     pub fn authored_source_may_commit_response(&self) -> bool {
-        self.semantics.side_effects.iter().any(|effect| {
-            effect.target == crate::side_effects::SideEffectTarget::ResponseCommit
-                && effect.writes
-                && effect.surface.is_none_or(|surface| {
-                    tcl_dialect::model::surface_admits(surface, self.dialect.as_ref())
-                })
-                && effect.available_for_version(self.semantics.options.availability.package_version)
-        })
+        self.semantics
+            .side_effects
+            .lower_bound()
+            .iter()
+            .any(|effect| {
+                effect.target == crate::side_effects::SideEffectTarget::ResponseCommit
+                    && effect.writes
+                    && effect.surface.is_none_or(|surface| {
+                        tcl_dialect::model::surface_admits(surface, self.dialect.as_ref())
+                    })
+                    && effect
+                        .available_for_version(self.semantics.options.availability.package_version)
+            })
     }
 }
 

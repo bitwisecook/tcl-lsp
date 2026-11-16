@@ -406,7 +406,10 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("semantics", Surface::Key("semantics")),
     f("analyser_hook", Surface::Key("analyser_hook")),
     f("command_table_effect", Surface::Key("command_table_effect")),
-    f("side_effects", Surface::Key("side_effects")),
+    f(
+        "side_effects",
+        Surface::Keys(&["side_effects", "side_effects_knowledge"]),
+    ),
     f("world_effects", Surface::Key("world_effects")),
     f("state_transitions", Surface::Key("state_transitions")),
     f(
@@ -803,7 +806,10 @@ pub const SUB_COMMAND: &[Field] = &[
     f("sensitive_headers", Surface::Key("sensitive_headers")),
     f("pattern_type", Surface::Key("pattern_type")),
     f("format_string_type", Surface::Key("format_string_type")),
-    f("side_effects", Surface::Key("side_effects")),
+    f(
+        "side_effects",
+        Surface::Keys(&["side_effects", "side_effects_knowledge"]),
+    ),
     f("world_effects", Surface::Key("world_effects")),
     f("state_transitions", Surface::Key("state_transitions")),
     f(

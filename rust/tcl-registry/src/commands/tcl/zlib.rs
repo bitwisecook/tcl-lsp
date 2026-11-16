@@ -327,11 +327,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // this override the type lattice defaults to `ReturnValue` and
         // would mistype the header variable as a String.
         var_write_typing: VarWriteTyping::Fixed(TclType::Dict),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -369,11 +369,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[0],
         options: PUSH_OPTIONS,
         return_type: Some(TclType::Channel),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -385,11 +385,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[0],
         options: STREAM_OPTIONS,
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -441,11 +441,11 @@ pub fn spec() -> CommandSpec {
         // reaches this): mirrors `encoding`'s top-level `Unknown` r/w
         // fallback for the same reason (a genuinely mixed-effect
         // ensemble, unlike `chan`'s uniformly-FileIo one).
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             reads: true,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Compress, decompress, and checksum data using zlib; also attaches a compression transform to a channel.",
             synopsis: &[

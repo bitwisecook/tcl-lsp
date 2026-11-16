@@ -1493,7 +1493,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             &[crate::forms::SubCommandForm {
                 name: "value",
                 arity: Arity::exact(2),
-                side_effects: Some(&[]),
+                side_effects: Some(crate::knowledge::Knowledge::Partial(&[])),
                 world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
                 state_transitions: Some(crate::StateTransitionDescriptor::EMPTY),
                 result_stability: Some(crate::ResultStability::ReferentiallyTransparent),
@@ -1511,11 +1511,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // looks at `side_effects` when it's set, so marking this pure
         // would let dead-code-elimination/CSE silently drop or reorder a
         // real variable write.
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         options: const {
             &[
                 OptionSpec {

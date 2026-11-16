@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "XLAT::listen_lifetime (HANDLE)+ (XLAT_LIFETIME)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::LsnState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }

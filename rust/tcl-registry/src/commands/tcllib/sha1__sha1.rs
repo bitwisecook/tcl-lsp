@@ -43,7 +43,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The SHA-1 hash as a hex or binary string.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         tcllib_package: Some("sha1"),
         required_package: Some("sha1"),
         semantics: SemanticsDeclaration::Declared(

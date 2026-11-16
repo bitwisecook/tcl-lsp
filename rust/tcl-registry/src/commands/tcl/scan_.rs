@@ -276,7 +276,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The number of successful conversions, or -1 if the end of string is reached before any conversion completes. With no varName arguments, returns the converted values as a list instead, or the empty string on that same end-of-input failure.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         arg_role_count_resolver: Some(scan_arg_roles),
         arg_role_resolver_roles: &[ArgRole::ScanFormat, ArgRole::VarWrite],
         // `scan`'s conversion string is the same printf-style mini-language

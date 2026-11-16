@@ -95,11 +95,11 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(2),
         completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Generate a machine-readable error",
             synopsis: &["throw type message"],

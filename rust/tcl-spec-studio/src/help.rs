@@ -589,6 +589,17 @@ removable. When a command does anything externally visible, say so \
 here.",
     ),
     (
+        "side_effects_knowledge",
+        "How much of the side-effect list is known. **Unknown** claims \
+nothing: an empty list is not a promise of no effects. **Partial** says the \
+rows hold and there may be more. **Complete** says the rows are every effect \
+the implementation has, for the release windows you evidenced from its \
+source; only a complete, empty list lets the optimiser treat the call as \
+effect-free.\n\n```\nside_effect FileIo -writes\neffects -complete {8.4 9.1}\n```\n\n\
+One release never vouches for another: a window outside the evidenced ones \
+stays a lower bound.",
+    ),
+    (
         "world_effects",
         "A compiler-oriented summary of the same idea as side effects: which \
 broad domains of the running interpreter's world (variables, commands, \

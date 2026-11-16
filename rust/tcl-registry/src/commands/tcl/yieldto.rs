@@ -147,7 +147,7 @@ pub fn spec() -> CommandSpec {
         // this call's own `arg ...` words — `ListOfArgs` would misdescribe
         // it.
         return_type: Some(TclType::List),
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Suspend the current coroutine, ceding execution to another command until resumed.",
             synopsis: &["yieldto command ?arg ...?"],

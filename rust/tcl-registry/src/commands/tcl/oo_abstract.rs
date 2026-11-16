@@ -75,7 +75,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The fully qualified name of the newly created class or object for create/new/createWithNamespace; otherwise whatever the invoked oo::class-inherited method returns.",
         }),
         forms: FORMS,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         definition_body: Some(&crate::definer::TCLOO_ABSTRACT_GRAMMAR),
         manufacturer_methods: crate::definer::TCLOO_DERIVED_METACLASS_MANUFACTURERS,
         ..CommandSpec::DEFAULT

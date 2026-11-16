@@ -36,13 +36,13 @@ pub const fn spec() -> CommandSpec {
             synopsis: "sharedvar VARIABLE",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
             writes: true,
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         arg_roles: &[(0, ArgRole::VarWrite)],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::SHAREDVAR),
         ..CommandSpec::DEFAULT

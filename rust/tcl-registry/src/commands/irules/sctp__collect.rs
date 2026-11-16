@@ -36,12 +36,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "SCTP::collect (COLLECT_BYTES)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         data_collection: Some(SCTP_COLLECT),
         ..CommandSpec::DEFAULT
     }

@@ -80,11 +80,11 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
     arg_role_resolver: Some(my_variable_arg_roles),
     arg_role_resolver_roles: &[ArgRole::VarWrite],
     creates_scope_alias: true,
-    side_effects: &[SideEffect {
+    side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
         target: SideEffectTarget::Variable,
         writes: true,
         ..SideEffect::DEFAULT
-    }],
+    }]),
     surface: Some(SpecSurface::TCL86_PLUS),
     semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::MY_VARIABLE),
     ..SubCommand::DEFAULT
@@ -143,7 +143,7 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         subcommands: SUBCOMMANDS,
         allow_unknown_subcommands: true,
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "invoke any method, including non-exported ones, of the current object",
             synopsis: &["my methodName ?arg ...?"],

@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "MQTT::collect (COLLECT)?",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         data_collection: Some(MQTT_COLLECT),
         ..CommandSpec::DEFAULT
     }

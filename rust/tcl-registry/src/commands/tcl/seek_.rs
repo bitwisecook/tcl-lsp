@@ -104,7 +104,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::FileIo,
             // Repositioning mutates the channel's access position (and,
             // per the manpage, flushes pending output and discards
@@ -115,7 +115,7 @@ pub fn spec() -> CommandSpec {
             reads: false,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "Change the access position for an open channel.",
             synopsis: &["seek channelId offset ?origin?"],

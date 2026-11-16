@@ -722,16 +722,15 @@ mod tests {
             registries.iter().any(|registry| {
                 registry.command_names().any(|name| {
                     registry.get(name).is_some_and(|spec| {
-                        declares(spec.side_effects, target)
+                        declares(spec.side_effects.lower_bound(), target)
                             || spec
                                 .subcommands
                                 .iter()
-                                .any(|sub| declares(sub.side_effects, target))
+                                .any(|sub| declares(sub.side_effects.lower_bound(), target))
                             || spec.object_class.is_some_and(|class| {
-                                class
-                                    .instance_methods
-                                    .iter()
-                                    .any(|method| declares(method.side_effects, target))
+                                class.instance_methods.iter().any(|method| {
+                                    declares(method.side_effects.lower_bound(), target)
+                                })
                             })
                     })
                 })
@@ -766,8 +765,10 @@ mod tests {
                     let facts = match (registry.get(head), class) {
                         (Some(spec), _) => {
                             let sub = args.first().and_then(|word| spec.resolve_subcommand(word));
-                            if declares(spec.side_effects, target)
-                                || sub.is_some_and(|sub| declares(sub.side_effects, target))
+                            if declares(spec.side_effects.lower_bound(), target)
+                                || sub.is_some_and(|sub| {
+                                    declares(sub.side_effects.lower_bound(), target)
+                                })
                             {
                                 return true;
                             }

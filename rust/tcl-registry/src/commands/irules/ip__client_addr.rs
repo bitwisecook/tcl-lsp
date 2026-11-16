@@ -46,12 +46,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "IP::client_addr",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         xc_translatable: Some(true),
         taint_source: Some(TaintColour::TAINTED.union(TaintColour::IP_ADDRESS)),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),

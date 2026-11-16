@@ -67,11 +67,11 @@ pub fn spec() -> CommandSpec {
         // a static non-integer returnCode is TCL_ERROR, while a substituted
         // one is the typed ProcessExit-or-Error union for flow consumers.
         completion: Some(CompletionDescriptor::process_exit_status()),
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         hover: Some(HoverSnippet {
             summary: "End the application",
             synopsis: &["exit ?returnCode?"],

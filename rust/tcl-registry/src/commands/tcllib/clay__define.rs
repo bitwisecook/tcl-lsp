@@ -41,7 +41,7 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_DYNAMIC_BARRIER,
         arity: Arity::at_least(1),
         command_forms: &[SCRIPT_FORM],
-        side_effects: SIDE_EFFECTS,
+        side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         body_kind: BodyKind::Structural,
         tcllib_package: Some("clay"),
         required_package: Some("clay"),

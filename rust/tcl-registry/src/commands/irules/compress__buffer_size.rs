@@ -44,12 +44,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "COMPRESS::buffer_size (request | response)? NONNEGATIVE_INTEGER",
             ..FormSpec::DEFAULT
         }],
-        side_effects: &[SideEffect {
+        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::StreamProfile,
             writes: true,
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
-        }],
+        }]),
         ..CommandSpec::DEFAULT
     }
 }
