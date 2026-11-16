@@ -87,7 +87,8 @@ Stay inside your area's crates so sessions do not collide; a fix that needs anot
 | Taint and iRules checks | `tcl-compiler`: `taint`, `taint_interproc`, `irules_checks`, `uri_split`, `irules_event_checks` and their integration tests |
 | Value transfers, escape, shimmer, types | `tcl-compiler`: value-transfer witnesses, `var_escape_*`, `shimmer`, `type_infer`, `dynamic_names`, `native_integer_proof`, `upvar_info`, `global_write_info`, `unit_scope` |
 | Execution | `tcl-codegen`, `tcl-vm`, `tcl-engine-*`, `tcl-cmd-core`, `runtime/rust`, `tcl-cshim` |
-| LSP features | `tcl-lsp-core` and `tcl-lsp-server` outside semantic tokens, `tcl-lsp-db` |
+| LSP features | the `tcl-lsp-core` library suite outside semantic tokens, and the navigation family of the server suite (definition, references, rename, rename safety, TclOO navigation, name resolution) |
+| LSP server end-to-end and database | the rest of the `tcl-lsp-server` e2e suite (diagnostics, iRules, recovery, code actions, completion, hover, spec packs, editor features) and `tcl-lsp-db` |
 | Tokens, owner | semantic tokens, `tcl-syntax::naming`, `tcl-lexer`, `xtask` |
 | iRules, registry, SpecTcl, tooling | `tcl-irules`, `tcl-registry`, `tcl-spectcl`, `tcl-sslictcl`, `tcl-cli`, `tcl-mcp`, `tcl-explorer`, `tcl-diagram`, `tcl-spec-studio`, the iRules rule-loader paths of `tcl-compiler` |
 | Analysis performance | hot paths of `tcl-compiler` and `tcl-lexer`; behaviour must not change |
