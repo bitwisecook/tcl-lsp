@@ -55,15 +55,21 @@ fn c_source_class_query_preserves_independently_completed_world() {
 fn c_source_namespace_class_after_unentered_definition_body_keeps_unknown_mutation() {
     // naming.source.original-class-constructor-call
     // docs/design/analysis/name-resolution-proofs/source-original-class-constructor-call.md
-    // An unentered non-empty `TclOO` definition body leaves the
+    // A definition body that runs an ordinary command leaves the
     // unresolved-command uncertainty: the later relative factory head in
     // the same namespace is still a source class, with that obligation.
     // `uplevel 1 {namespace path ::P}` in the body reaches the caller
-    // frame (tclsh 8.6.18 / 9.0.4 / 9.1.0 then dispatch the later
-    // `oo::class` to `::P::oo::class`), so the obligation must remain.
+    // frame, where a `::P::oo::class` would then answer the later
+    // `oo::class`. A body that only declares members publishes its class
+    // and nothing else, so the later head carries no such obligation.
+    // tclsh 8.6.18 and 9.0.4 run both sources to completion, and
+    // `info commands ::outer::*` answers `::outer::A ::outer::B`.
     use super::super::SourceCommandTransitionObligation;
     use crate::registry_invocation::source_structure::source_class_declaration_at;
-    for body in ["method m {} {}", "uplevel 1 {namespace path ::P}"] {
+    for (body, unknown_mutation) in [
+        ("method m {} {}", false),
+        ("uplevel 1 {namespace path ::P}", true),
+    ] {
         let source = format!(
             "namespace eval ::P {{}}\nnamespace eval outer {{oo::class create A {{{body}}}; \
                  oo::class create B {{}}}}\n"
@@ -82,11 +88,12 @@ fn c_source_namespace_class_after_unentered_definition_body_keeps_unknown_mutati
                 "::outer::B",
                 "{dialect}: {source}"
             );
-            assert!(
+            assert_eq!(
                 declaration
                     .factory
                     .obligations()
                     .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation),
+                unknown_mutation,
                 "{dialect}: {source}"
             );
         }

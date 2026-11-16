@@ -104,6 +104,66 @@ struct PreparedBodyRegionBranch {
 }
 
 // Keep materialisation frames outside recursive source-body descent.
+impl AdviceGraph {
+    /// Take the command world a completed body left behind, keeping this
+    /// script's own namespace, frame and handle context.
+    fn adopt_completed_body_world(&mut self, body: Self) {
+        let Self {
+            stock_source_effects,
+            cells,
+            namespaces,
+            namespace_exports,
+            namespace_paths,
+            namespace_imports,
+            unknown_exports,
+            unknown_paths,
+            uncertain_operations,
+            possible_occupants,
+            arity_debts,
+            procedure_declarations,
+            class_declarations,
+            ..
+        } = body;
+        self.stock_source_effects = stock_source_effects;
+        self.cells = cells;
+        self.namespaces = namespaces;
+        self.namespace_exports = namespace_exports;
+        self.namespace_paths = namespace_paths;
+        self.namespace_imports = namespace_imports;
+        self.unknown_exports = unknown_exports;
+        self.unknown_paths = unknown_paths;
+        self.uncertain_operations = uncertain_operations;
+        self.possible_occupants = possible_occupants;
+        self.arity_debts = arity_debts;
+        self.procedure_declarations = procedure_declarations;
+        self.class_declarations = class_declarations;
+    }
+}
+
+/// The applicability a class declared in an entered body carries: a Logical
+/// body always, a C source namespace body on a Tcl release, nothing else.
+fn body_class_obligation(
+    context: &AdviceInvocationContext<'_>,
+    graph: &AdviceGraph,
+) -> Option<SourceCommandTransitionObligation> {
+    match context.policy {
+        AdviceNamingPolicy::Logical(_) => {
+            Some(SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability)
+        }
+        AdviceNamingPolicy::Native(policy)
+            if matches!(
+                policy.recipe(),
+                tcl_syntax::naming::NativeNameProtocol::C(_)
+            ) && context.dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+                && !graph.native_baseline
+                && graph.c_source_namespace.is_some() =>
+        {
+            Some(SourceCommandTransitionObligation::ConditionalCBodyApplicability)
+        }
+        AdviceNamingPolicy::Native(_) => None,
+    }
+}
+
 #[inline(never)]
 pub(super) fn boxed_body_resolution<'r: 'w, 'w>(
     context: &'r tcl_registry::model::ContextRegistry,
@@ -211,6 +271,7 @@ impl AdviceInvocationContext<'_> {
         command: &str,
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        residual_footprint: bool,
     ) {
         let transitions = schema.state_transitions();
         let receipt = capture_transition(
@@ -230,7 +291,9 @@ impl AdviceInvocationContext<'_> {
         {
             graph.widen(invocation.native);
         }
-        Self::apply_source_lookup_residual_effects(graph, invocation, schema);
+        if residual_footprint {
+            Self::apply_source_lookup_residual_effects(graph, invocation, schema);
+        }
     }
 
     pub(super) fn apply_source_lookup_residual_effects(
@@ -830,6 +893,7 @@ impl BodyWalk<'_, '_> {
         // Checked empty coverage supplies no evaluated child mutation and remains
         // complete. Reference-only bodies are one such complete case.
         let original = graph.clone();
+        let runs_once = self.body_runs_once(schema, lifecycle, regions.len());
         for region in regions {
             if !region.matches_source(self.context.origin.source_image(), self.context.config)
                 || !region.matches_context(self.context.context)
@@ -869,14 +933,65 @@ impl BodyWalk<'_, '_> {
             self.source_body = parent;
             self.catalogue_body = catalogue;
             walked?;
-            Self::retain_prepared_region_effects(
-                graph,
-                &original,
-                prepared,
-                advice.original_words(),
-            );
+            if runs_once {
+                graph.adopt_completed_body_world(prepared.graph);
+            } else {
+                Self::retain_prepared_region_effects(
+                    graph,
+                    &original,
+                    prepared,
+                    advice.original_words(),
+                );
+            }
         }
         Some(())
+    }
+
+    /// Whether this invocation is a `TclOO` definer whose every script region
+    /// only declares members. Unavailable coverage answers no.
+    fn definition_declares_members_only(
+        &self,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> bool {
+        if schema
+            .authored_source_definition_body_grammar()
+            .is_none_or(|grammar| grammar.family != tcl_registry::definer::DefinerFamily::TclOo)
+            || !original_operand_effects(invocation.native).is_empty()
+        {
+            return false;
+        }
+        boxed_body_advice(self.context, invocation, graph, schema)
+            .and_then(|advice| boxed_region_words(self.context, &advice))
+            .and_then(|words| {
+                words.source_script_bodies_for_mutation_coverage(self.context.context)
+            })
+            .is_some_and(|regions| {
+                regions
+                    .iter()
+                    .all(|region| self.declares_tcloo_members_only(region))
+            })
+    }
+
+    /// A namespace body is its command's one script and runs once, in the
+    /// same invocation: whatever follows the command in this script runs only
+    /// after the body completed. Its command-world effects are then this
+    /// script's own, where every other region stays a possibility.
+    fn body_runs_once(
+        &self,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        lifecycle: bool,
+        regions: usize,
+    ) -> bool {
+        matches!(self.context.policy, AdviceNamingPolicy::Native(_))
+            && !lifecycle
+            && regions == 1
+            && schema.semantics.body_kind == tcl_registry::BodyKind::Structural
+            && schema
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::DECLARES_NAMESPACE)
     }
 
     /// A `TclOO` definition body whose every command is a written member of
@@ -1451,6 +1566,7 @@ impl BodyWalk<'_, '_> {
             self.context
                 .observe_source_point(graph, invocation.native, &schema);
         }
+        self.retain_requested_body_class_relation(graph, invocation, &schema);
         self.retain_child_schema(graph, invocation, &schema)?;
         let retained_lifecycle = if let Some(tape) = &mut self.inventory {
             self.context.retain_c_source_lifecycle_inventory(
@@ -1713,23 +1829,7 @@ impl BodyWalk<'_, '_> {
             .as_mut()
             .zip(self.source_body.as_ref())
             .and_then(|(tape, body)| {
-                let obligation = match self.context.policy {
-                    AdviceNamingPolicy::Logical(_) => {
-                        SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability
-                    }
-                    AdviceNamingPolicy::Native(policy)
-                        if matches!(
-                            policy.recipe(),
-                            tcl_syntax::naming::NativeNameProtocol::C(_)
-                        ) && self.context.dialect.family()
-                            == Some(tcl_dialect::model::Family::Tcl)
-                            && !graph.native_baseline
-                            && graph.c_source_namespace.is_some() =>
-                    {
-                        SourceCommandTransitionObligation::ConditionalCBodyApplicability
-                    }
-                    AdviceNamingPolicy::Native(_) => return None,
-                };
+                let obligation = body_class_obligation(self.context, graph)?;
                 self.context.source_class_declaration_in_body(
                     tape,
                     graph,
@@ -1738,8 +1838,18 @@ impl BodyWalk<'_, '_> {
                     (body, obligation, self.logical_scope.as_ref()),
                 )
             });
-        self.context
-            .apply_source_body_lookup_effects(graph, command, invocation, schema);
+        // A TclOO definer whose script only declares members publishes its
+        // class and nothing else, as at the top level, where such a region is
+        // skipped; its blanket footprint would mark every later command of
+        // the body as following an unknown mutation.
+        let residual_footprint = !self.definition_declares_members_only(graph, invocation, schema);
+        self.context.apply_source_body_lookup_effects(
+            graph,
+            command,
+            invocation,
+            schema,
+            residual_footprint,
+        );
         AdviceInvocationContext::install_source_class_handle(graph, class_handle);
         if let Some(tape) = &mut self.inventory {
             AdviceInvocationContext::install_source_class(tape, graph, class);
@@ -1750,6 +1860,45 @@ impl BodyWalk<'_, '_> {
                 .unwrap_or(&mut self.authored_prefixes),
             graph,
             authored_jim,
+        );
+    }
+    /// Answer a class-relation query whose parent this body walk retains,
+    /// under the body ownership its class declaration and advice carry.
+    fn retain_requested_body_class_relation(
+        &self,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        // A catalogue walk reads syntax on a branch graph of its own and
+        // owns no parent advice, so it neither answers nor refuses a query.
+        if self.inventory.is_none()
+            || self.source_body.is_none()
+            || self.catalogue_body.is_some()
+            || self.member_catalogue_body.is_some()
+        {
+            return;
+        }
+        let owner = self.source_body.as_ref().and_then(|body| {
+            Some((
+                body,
+                body_class_obligation(self.context, graph)?,
+                self.logical_scope.as_ref(),
+            ))
+        });
+        self.context.retain_requested_class_relation_with(
+            invocation,
+            graph,
+            schema,
+            owner,
+            |advice| {
+                if let Some(body) = &self.source_body {
+                    Self::retain_source_body(self.context.policy, advice, body);
+                    if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
+                        advice.logical_scope.clone_from(&self.logical_scope);
+                    }
+                }
+            },
         );
     }
     fn retain_child_schema(

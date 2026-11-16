@@ -960,7 +960,7 @@ impl LogicalBodyWalk<'_, '_> {
             )?;
         } else {
             self.context
-                .apply_source_body_lookup_effects(graph, selected, invocation, schema);
+                .apply_source_body_lookup_effects(graph, selected, invocation, schema, true);
         }
         if operand_barrier {
             graph.widen(native);

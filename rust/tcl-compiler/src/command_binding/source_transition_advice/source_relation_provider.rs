@@ -304,6 +304,20 @@ impl AdviceInvocationContext<'_> {
     ) {
         self.retain_requested_logical_class_relation(invocation, graph, schema);
         self.retain_requested_logical_class_relation_candidates(invocation, graph, schema);
+        self.retain_requested_class_relation_with(invocation, graph, schema, None, |_| {});
+    }
+
+    /// As [`Self::retain_requested_class_relation`], for a parent retained
+    /// inside an entered body: `retained` applies the same body ownership the
+    /// walk records on that parent's advice.
+    pub(super) fn retain_requested_class_relation_with(
+        &self,
+        invocation: AdviceInvocation<'_>,
+        graph: &AdviceGraph,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        owner: Option<super::source_class::SourceClassDeclarationOwner<'_>>,
+        retained: impl FnOnce(&mut OriginalSourceCommandTransitionAdvice),
+    ) {
         let Some(super::SourceAdviceQuery::ClassRelation(query)) = self.query else {
             return;
         };
@@ -317,13 +331,14 @@ impl AdviceInvocationContext<'_> {
             return;
         }
         let receipt = (|| {
-            let current = self.schema_advice(invocation, graph, schema)?;
+            let mut current = self.schema_advice(invocation, graph, schema)?;
+            retained(&mut current);
             if !graph.uncertain_operations.is_empty()
                 || !super::body_effects::original_operand_effects(invocation.native).is_empty()
             {
                 return None;
             }
-            let receiver = self.source_class_declaration(graph, invocation, schema);
+            let receiver = self.source_class_declaration_owned(graph, invocation, schema, owner);
             if current != *query.request.parent
                 && receiver.as_ref().is_none_or(|declaration| {
                     declaration.factory() != query.request.parent.as_ref()

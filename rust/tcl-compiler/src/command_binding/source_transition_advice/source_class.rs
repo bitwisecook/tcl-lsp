@@ -34,7 +34,7 @@ use tcl_registry::{
     model::ContextRegistry,
 };
 
-type SourceClassDeclarationOwner<'a> = (
+pub(super) type SourceClassDeclarationOwner<'a> = (
     &'a Arc<crate::registry_invocation::OriginalSourceScriptBody>,
     SourceCommandTransitionObligation,
     Option<&'a Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>>,
@@ -784,6 +784,18 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<Arc<OriginalSourceClassDeclaration>> {
         self.source_class_declaration_attempt(graph, invocation, schema, None)?
+            .class
+    }
+
+    /// The declaration as an entered body's walk owns it.
+    pub(super) fn source_class_declaration_owned(
+        &self,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        owner: Option<SourceClassDeclarationOwner<'_>>,
+    ) -> Option<Arc<OriginalSourceClassDeclaration>> {
+        self.source_class_declaration_attempt(graph, invocation, schema, owner)?
             .class
     }
 
