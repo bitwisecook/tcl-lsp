@@ -80,9 +80,24 @@ const D: &str = "tcl8.6";
 /// IRULE3003.
 const IR: &str = "f5-irules";
 
+/// The source a fixture is analysed as. Only `when`, `proc`, `priority` and
+/// `timing` are legal at the top level of an iRule, so an iRules fixture that
+/// declares no handler of its own is the body of an `HTTP_REQUEST` handler.
+/// Offsets in such a fixture's warnings are shifted by [`RULE_PREFIX`].
+fn rule_source(src: &str, dialect: &str) -> String {
+    if dialect == IR && !src.contains("when ") {
+        format!("{RULE_PREFIX}{src}\n}}")
+    } else {
+        src.to_owned()
+    }
+}
+
+const RULE_PREFIX: &str = "when HTTP_REQUEST {\n";
+
 /// Every `TaintWarning` the whole-unit taint pass surfaces for `src` under
 /// `dialect`.
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
+    let src = &rule_source(src, dialect);
     let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let dialect_opt = (!dialect.is_empty())
@@ -92,6 +107,7 @@ fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
 
 /// [`warns`] for a unit built with the profile's invocation dialect.
 fn dialect_warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
+    let src = &rule_source(src, dialect);
     let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for_dialect(src, registry, false, dialect);
     let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
@@ -296,7 +312,7 @@ mod source_breadth {
     /// `<src>` taints `x`, which then reaches `eval` → T100 on `x`.
     fn source_taints(src_cmd: &str) -> bool {
         let snippet = format!("set x [{src_cmd}]\neval $x");
-        has(&snippet, D, "T100", "x")
+        has(&snippet, IR, "T100", "x")
     }
 
     #[test]
@@ -1338,7 +1354,11 @@ mod irule3101_depth {
     fn dynamic_interpolation_target_always_warns() {
         // A `${x}`-interpolated value cannot be proven `/`-prefixed at analysis
         // time → IRULE3101 (the "dynamic" case, distinct from a pure var-ref).
-        let ws = of_code("set x [read $fd]\nHTTP::uri \"${x}/p\"", IR, "IRULE3101");
+        let ws = of_code(
+            "set x [HTTP::payload]\nHTTP::uri \"${x}/p\"",
+            IR,
+            "IRULE3101",
+        );
         assert_eq!(ws.len(), 1);
         assert!(ws[0].sink_command.contains("HTTP::uri"));
     }
@@ -1367,7 +1387,7 @@ mod irule3101_depth {
     #[test]
     fn http_path_dynamic_target_warns() {
         let ws = of_code(
-            "set seg [read $fd]\nHTTP::path \"api/${seg}\"",
+            "set seg [HTTP::payload]\nHTTP::path \"api/${seg}\"",
             IR,
             "IRULE3101",
         );
@@ -1758,9 +1778,10 @@ mod dialect_gating {
     }
 
     #[test]
-    fn irules_source_taints_under_plain_tcl() {
-        // HTTP::uri is a global source → T100 at eval even under tcl8.6.
-        assert!(has("set u [HTTP::uri]\neval $u", D, "T100", "u"));
+    fn an_irules_getter_is_no_command_under_plain_tcl() {
+        // tclsh 8.6.18: `HTTP::uri` raises `invalid command name "HTTP::uri"`,
+        // so the `eval` after it never runs and nothing is reported.
+        assert!(!has("set u [HTTP::uri]\neval $u", D, "T100", "u"));
     }
 
     #[test]
@@ -1780,8 +1801,8 @@ mod dialect_gating {
     #[test]
     fn generic_t100_t101_work_in_both_dialects() {
         // eval/puts sinks are dialect-agnostic.
-        assert!(has("set x [read $fd]\neval $x", IR, "T100", "x"));
-        assert!(has("set x [read $fd]\nputs $x", IR, "T101", "x"));
+        assert!(has("set x [HTTP::payload]\neval $x", IR, "T100", "x"));
+        assert!(has("set x [HTTP::payload]\nputs $x", IR, "T101", "x"));
     }
 }
 
@@ -1821,7 +1842,7 @@ mod interproc_depth {
         let src =
             "proc wrap {x} { return $x }\nset uri [HTTP::uri]\nset w [wrap $uri]\nregexp $w test";
         assert_ne!(
-            of_code(src, D, "T102"),
+            of_code(src, IR, "T102"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
