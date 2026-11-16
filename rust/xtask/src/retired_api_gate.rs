@@ -666,6 +666,15 @@ fn is_waived(text: &str, line_no: usize, marker: &str) -> bool {
         .any(|l| l.contains(marker))
 }
 
+/// Whether `owner` (a directory prefix or one file) covers `rel`. A file
+/// owner covers the modules split out of it: `a/b.rs` covers `a/b/…`.
+fn owner_covers(owner: &str, rel: &Path) -> bool {
+    rel.starts_with(Path::new(owner))
+        || owner
+            .strip_suffix(".rs")
+            .is_some_and(|module| rel.starts_with(Path::new(module)))
+}
+
 /// Yield `(1-based line, matched needle)` for every **owned** spelling
 /// written in a file that does not own it (ruling R10). Comment lines are
 /// exempt for the same reason the retired family exempts them: the ledger
@@ -689,21 +698,14 @@ fn scan_owned(text: &str, rel: impl AsRef<Path>) -> Vec<(usize, &'static str)> {
         }
         for pattern in OWNED_READS {
             if reads
-                && !pattern
-                    .owners
-                    .iter()
-                    .any(|owner| rel.starts_with(Path::new(owner)))
+                && !pattern.owners.iter().any(|owner| owner_covers(owner, rel))
                 && find_needle(line, pattern.needle)
             {
                 out.push((idx + 1, pattern.needle));
             }
         }
         for pattern in OWNED {
-            if pattern
-                .owners
-                .iter()
-                .any(|owner| rel.starts_with(Path::new(owner)))
-            {
+            if pattern.owners.iter().any(|owner| owner_covers(owner, rel)) {
                 continue;
             }
             if find_needle(line, pattern.needle) {

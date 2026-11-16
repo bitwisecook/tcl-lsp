@@ -70,7 +70,10 @@ pub fn run(_check: bool) -> ExitCode {
             .replace('\\', "/");
         // Test code pins behaviour rather than resolving names — skip
         // integration-test trees and test-only modules.
-        if SANCTIONED_FILES.contains(&rel.as_str())
+        // A sanctioned file answers for the modules split out of it.
+        let sanctioned =
+            crate::util::listed_module_owner(&rel, |path| SANCTIONED_FILES.contains(&path));
+        if SANCTIONED_FILES.contains(&sanctioned.as_str())
             || rel.contains("/tests/")
             || rel.ends_with("/tests.rs")
             || crate::util::test_sources::is_test_module_file(&rel)
