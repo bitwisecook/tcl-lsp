@@ -22028,12 +22028,12 @@ impl Backend {
             dedup_locations(&mut locations);
             return Ok(locations);
         }
-        let mut locations = match self
+        let identity = self
             .original_declaration_identity_at(uri, &doc.text, analysis, position)
-            .await?
-        {
+            .await?;
+        let mut locations = match &identity {
             Some(identity) => self
-                .readonly_original_declaration_reference_report(&identity, uri, include_declaration)
+                .readonly_original_declaration_reference_report(identity, uri, include_declaration)
                 .await?
                 .map_or_else(Vec::new, |report| report.locations),
             None => Vec::new(),
@@ -22042,8 +22042,11 @@ impl Backend {
         // whose definition lives in another document, and the calls other
         // documents make to a definition here, are listed from the workspace
         // index, as on the unversioned profile. A listing only: rename does
-        // not read it.
-        let cross = if locations.is_empty() {
+        // not read it. A declaration in this document keeps its own analysis
+        // as the answer for this document's calls, an empty one included: the
+        // index has no order, and would list a call that runs before the
+        // declaration exists.
+        let cross = if identity.is_none() {
             self.workspace_resolved_references(
                 uri,
                 &doc.text,

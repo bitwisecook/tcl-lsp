@@ -125,16 +125,19 @@ fn test_no_lens_without_procs() {
 fn test_count_matches_reference_list_for_forward_call() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
+    // tclsh 8.4, 8.5, 8.6, 9.0 and 9.1 stop this script at
+    // `invalid command name "fwd637"`: the call runs before the procedure
+    // exists and never reaches it, so it is no reference.
     lsp.open_ready(&uri, "fwd637\nproc fwd637 {} { return }\n");
     let ls = lenses(&mut lsp, &uri);
     let resolved = resolve_for_qname(&mut lsp, &ls, "::fwd637");
-    assert_eq!(resolved["command"]["title"], json!("1 reference"));
+    assert_eq!(resolved["command"]["title"], json!("0 references"));
     // The reference list at the proc name (declaration excluded) agrees.
     let refs = match lsp.references(&uri, 1, 5, false) {
         Value::Array(a) => a,
         _ => Vec::new(),
     };
-    assert_eq!(refs.len(), 1, "{refs:?}");
+    assert_eq!(refs.len(), 0, "{refs:?}");
     let title = resolved["command"]["title"].as_str().unwrap_or("");
     assert!(title.starts_with(&refs.len().to_string()), "{title:?}");
 }
@@ -149,9 +152,12 @@ fn test_unresolved_call_scoped_to_namespace() {
          namespace eval nsb644 {\n    proc dup644 {} {}\n}\n",
     );
     let ls = lenses(&mut lsp, &uri);
+    // tclsh 8.4, 8.5, 8.6, 9.0 and 9.1 stop this script at
+    // `invalid command name "dup644"`: the call in `nsa644` runs before
+    // either procedure exists, so neither namespace's procedure is credited.
     let a = resolve_for_qname(&mut lsp, &ls, "::nsa644::dup644");
     let b = resolve_for_qname(&mut lsp, &ls, "::nsb644::dup644");
-    assert_eq!(a["command"]["title"], json!("1 reference"));
+    assert_eq!(a["command"]["title"], json!("0 references"));
     assert_eq!(b["command"]["title"], json!("0 references"));
 }
 
