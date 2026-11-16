@@ -1358,7 +1358,8 @@ fn source_role_hover(
 /// The card for a class member whose declaring class this document's analysis
 /// holds: the class's qualified name, the declared parameters and the MRO
 /// note. Display only; the candidate's own card states its purpose.
-fn declared_member_hover(
+#[must_use]
+pub fn declared_member_hover(
     source: &str,
     analysis: &AnalysisResult,
     candidate: &crate::method_symbol::OriginalMethodCandidate,

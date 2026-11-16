@@ -19124,11 +19124,17 @@ impl Backend {
         let ReadonlyDeclarationLocation::OriginalMethod { candidate, .. } = &target.location else {
             return Ok(ControlFlow::Break(None));
         };
-        let hover = candidate.hover();
+        let candidate = candidate.clone();
         let mut rendered = self
-            .with_current_declaration_sources(caller, vec![target], epoch, |_, _, _, _| {
-                hover.clone()
-            })
+            .with_current_declaration_sources(
+                caller,
+                vec![target],
+                epoch,
+                |_, document, analysis, _| {
+                    core_hover::declared_member_hover(&document.text, analysis, &candidate)
+                        .or_else(|| candidate.hover())
+                },
+            )
             .await?;
         Ok(ControlFlow::Break(rendered.pop()))
     }
@@ -38304,17 +38310,21 @@ impl LanguageServer for Backend {
         {
             return Ok(Some(lift_hover(hover)));
         }
-        if let std::ops::ControlFlow::Break(hover) =
-            Box::pin(self.original_method_hover_for_snapshot(
-                (uri.clone(), doc.clone(), source_generation),
-                &analysis,
-                pos,
-                source_epoch,
-            ))
-            .await?
+        // A member route with no card still lets the document's own hover
+        // answer from its declared classes; only the workspace fallback,
+        // which knows nothing of the member, is withheld.
+        let member_route_declined = match Box::pin(self.original_method_hover_for_snapshot(
+            (uri.clone(), doc.clone(), source_generation),
+            &analysis,
+            pos,
+            source_epoch,
+        ))
+        .await?
         {
-            return Ok(hover.map(lift_hover));
-        }
+            std::ops::ControlFlow::Break(Some(hover)) => return Ok(Some(lift_hover(hover))),
+            std::ops::ControlFlow::Break(None) => true,
+            std::ops::ControlFlow::Continue(()) => false,
+        };
         let text = doc.text.clone();
         let analysis_worker = Arc::clone(&analysis);
         let exports = self.export_snapshot().await;
@@ -38337,6 +38347,9 @@ impl LanguageServer for Backend {
         .map_err(|err| Self::hover_worker_error(&err))?;
         if let Some(hover) = result {
             return Ok(Some(lift_hover(hover)));
+        }
+        if member_route_declined {
+            return Ok(None);
         }
         self.hover_workspace_fallback(&uri, &doc, &analysis, pos, on_command_head)
             .await
