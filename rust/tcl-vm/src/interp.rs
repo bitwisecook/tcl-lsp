@@ -549,6 +549,9 @@ struct InterpSlot {
     /// Deleted while active: unreachable by name/path, state torn down when
     /// the last in-flight evaluation unwinds.
     dying: bool,
+    /// The command that names this interp is being deleted: its delete traces
+    /// are running and its own deletion has not yet retired the interp.
+    command_dying: bool,
     /// The interp that created this one (`None` for the root).
     parent: Option<InterpId>,
 }
@@ -3413,6 +3416,7 @@ impl Vm {
                 parked: None,
                 active: 0,
                 dying: false,
+                command_dying: false,
                 parent: None,
             }],
             activation_depth: 0,
@@ -4392,6 +4396,7 @@ impl Vm {
             parked: Some(state),
             active: 0,
             dying: false,
+            command_dying: false,
             parent: Some(parent),
         });
         id
@@ -6722,6 +6727,10 @@ impl Vm {
                 } else if replacing_real_command {
                     vm.retire_real_command_after_trace(&live_token, command);
                 }
+            } else if replacing_real_command && matches!(command, Command::ChildInterp(_)) {
+                // A delete trace unlinked the name by deleting the interp again.
+                // The replaced command's own deletion still retires the interp.
+                vm.retire_replaced_real_command(token, command);
             }
         });
     }
@@ -6840,6 +6849,11 @@ impl Vm {
                 .as_ref()
                 .is_some_and(|token| original_cleanup.unlink_recursive_c_delete(self, token));
             if !recursive {
+                if let Some(Command::ChildInterp(child)) = &replaced_command
+                    && let Some(slot) = self.interps.get_mut(child.0)
+                {
+                    slot.command_dying = true;
+                }
                 self.detach_active_sidecars(&CommandSidecarKey::visible(name));
                 self.on_command_removed(name);
                 if let (Some(token), Some(command)) = (&replaced_token, &replaced_command) {
@@ -10251,6 +10265,23 @@ impl Vm {
             .is_some_and(|s| !s.dying && !s.is_root())
         {
             return false;
+        }
+        if self.interps[id.0].command_dying {
+            // The naming command is already being deleted, and its deletion is
+            // what retires the interp. Deleting it again only unlinks the name
+            // (C's `Tcl_DeleteCommandFromToken` on a dying command): the
+            // interp stays in its parent's table until the outer deletion ends.
+            if let Some(parent) = self.interps[id.0].parent {
+                self.in_interp(parent, |vm| {
+                    if let Some(token) = vm
+                        .child_command_sidecar_key(id)
+                        .and_then(|key| vm.command_token_identity(&key))
+                    {
+                        vm.unlink_dying_command_name(&token);
+                    }
+                });
+            }
+            return true;
         }
         self.retire_authored_static_worker(id);
         // Unhook the child mapping + command in the owning parent (the interp

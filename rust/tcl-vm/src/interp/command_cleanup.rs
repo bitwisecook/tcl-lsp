@@ -374,6 +374,11 @@ impl OriginalCommandCleanup {
             self.unlink(vm, source, true);
             return;
         }
+        if let Command::ChildInterp(child) = command
+            && let Some(slot) = vm.interps.get_mut(child.0)
+        {
+            slot.command_dying = true;
+        }
         if trace {
             let _ = self.in_original(vm, |vm| vm.on_command_removed_for(&source.key));
         }
@@ -423,6 +428,13 @@ impl Vm {
     ) {
         let original = OriginalCommandCleanup::enter(self);
         original.real(self, source, command, false);
+    }
+    /// Unlink the name of a command whose deletion is already under way, as a
+    /// second deletion of the same token does in C.
+    pub(super) fn unlink_dying_command_name(&mut self, source: &CommandTokenIdentity) {
+        let original = OriginalCommandCleanup::enter(self);
+        original.unlink(self, source, true);
+        let _ = original.check(self);
     }
     pub(super) fn retire_replaced_real_command(
         &mut self,
