@@ -3337,6 +3337,7 @@ impl<'r> Lowerer<'r> {
         // Release availability is selected before recursive body lowering.
         let tokens = self.cmd_tokens_boxed(seg);
         if self.target.is_bytecode()
+            && self.native_entry.is_some()
             && tokens
                 .source_binding
                 .as_ref()
@@ -3348,8 +3349,11 @@ impl<'r> Lowerer<'r> {
                     )
                 })
         {
-            // The selected compiler owns expression preparation and body visits.
-            // Retain its original vector until the native emission work list.
+            // Under a live native entry the selected compiler owns expression
+            // preparation and body visits: emission recomputes its plan from
+            // the call's original vector, so the call is kept. A unit with no
+            // native entry has no such emission, and its analyses (escape
+            // summary, inliners, optimiser) need the structured statement.
             return Some(self.lower_default_boxed(seg, namespace));
         }
         let admitted = self.target.is_bytecode().then(|| {
