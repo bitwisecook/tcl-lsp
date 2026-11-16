@@ -1,0 +1,108 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! E006: an invalid formal parameter list.
+
+use super::*;
+
+#[test]
+fn e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles() {
+    // Tcl 9.0.4 rejects a formal specifier with three fields, a namespace
+    // qualified name, and an array element.  Duplicate parameter names remain
+    // legal, and a value computed at runtime is deliberately outside the
+    // analyser's proof boundary.
+    for src in [
+        "proc invalid {{a b c}} {}\n",
+        "proc invalid {a::b} {}\n",
+        "proc invalid {a(x)} {}\n",
+    ] {
+        assert!(has_code(src, "tcl9.0", "E006"), "expected E006 for {src:?}");
+    }
+    for src in [
+        "proc duplicate {a a} {}\n",
+        "set params {a::b}\nproc dynamic $params {}\n",
+    ] {
+        assert!(!has_code(src, "tcl9.0", "E006"), "must abstain for {src:?}");
+    }
+}
+
+#[test]
+fn e006_requires_unanimous_actual_formal_grammar_after_alias_mapping() {
+    assert!(has_code(
+        "interp alias {} declare {} proc p; declare {{a b c}} {}",
+        "tcl8.6",
+        "E006",
+    ));
+    for source in [
+        "rename proc original; original proc args {return ordinary}; proc p {{a b c}} {}",
+        "if {$unknown} {rename proc original; original proc args {return ordinary}}; proc p {{a b c}} {}",
+        "proc p {*}$unknown",
+        "external p {{a b c}} {}",
+    ] {
+        assert!(
+            !has_code(source, "tcl8.6", "E006"),
+            "opaque grammar: {source}"
+        );
+    }
+}
+
+#[test]
+fn e006_offers_only_the_structurally_unambiguous_parameter_repair() {
+    let mut analyser = crate::analyser::Analyser::new();
+    let result = analyser.analyse("proc invalid {{a b c}} {}\n", "tcl9.0");
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == DiagCode::E006)
+        .expect("E006 is emitted");
+
+    assert_eq!(diagnostic.fixes.len(), 1);
+    assert_eq!(diagnostic.fixes[0].new_text, "{a b c}");
+    assert_eq!(
+        diagnostic.fixes[0].safety,
+        crate::analyser::types::FixSafety::RequiresReview
+    );
+
+    for source in ["proc invalid {a::b} {}\n", "proc invalid {a(x)} {}\n"] {
+        let result = analyser.analyse(source, "tcl9.0");
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::E006)
+            .expect("E006 is emitted");
+        assert_eq!(diagnostic.fixes.len(), 0, "must abstain for {source:?}");
+    }
+}
+
+#[test]
+fn e006_discovers_definition_body_and_lambda_parameter_shapes() {
+    // These are not ordinary top-level command arguments.  The TclOO method
+    // shape comes from DefinitionBodyGrammar::member / MemberSpec::arg_roles;
+    // `apply`'s nested first field comes from ArgRole::LambdaLiteral.
+    assert!(has_code(
+        "oo::class create C { method invalid {{a b c}} {} }\n",
+        "tcl9.0",
+        "E006",
+    ));
+    assert!(has_code(
+        "oo::class create C {}\noo::define C method invalid {{a b c}} {}\n",
+        "tcl9.0",
+        "E006",
+    ));
+    assert!(has_code("apply {{{a b c}} {return 1}}\n", "tcl9.0", "E006",));
+}
