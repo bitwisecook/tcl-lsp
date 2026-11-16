@@ -582,12 +582,11 @@ fn original_return_word_uses(
             tcl_syntax::naming::substitution_variable_candidates(spelling.as_bytes(), config);
         out.unknown |= candidates.has_unknown_residual();
         for name in candidates.names() {
-            match ssa
-                .var_symbol(name)
-                .and_then(|symbol| versions.get(&symbol).map(|&version| (symbol, version)))
-            {
-                Some((symbol, version)) => {
-                    out.uses.insert(symbol, version);
+            match ssa.var_symbol(name) {
+                // A name the block never defines still holds its entry value.
+                Some(symbol) => {
+                    out.uses
+                        .insert(symbol, versions.get(&symbol).copied().unwrap_or(0));
                 }
                 None => out.unknown = true,
             }
@@ -745,7 +744,21 @@ fn collect_return_taint(
         {
             ret = ret.join(TaintLattice::tainted());
         }
-        ret = ret.join(word_taint(value, &inventory.uses, taints, returned));
+        // A return word that is one variable read returns that variable's
+        // value at the block's exit, which the inventory already resolved.
+        let copied = value_word
+            .as_ref()
+            .and_then(crate::ir::WordExpr::sole_variable_substitution)
+            .filter(|_| !inventory.unknown && inventory.uses.len() == 1)
+            .and_then(|_| inventory.uses.iter().next())
+            .map(|(&symbol, &version)| {
+                taints
+                    .get(&(symbol, version))
+                    .copied()
+                    .unwrap_or_else(TaintLattice::clean)
+            });
+        ret = ret
+            .join(copied.unwrap_or_else(|| word_taint(value, &inventory.uses, taints, returned)));
     }
     ret
 }
