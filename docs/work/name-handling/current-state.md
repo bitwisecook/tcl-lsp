@@ -2,6 +2,25 @@
 
 Updated 15 November 2026. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
 
+## Scoreboard, 16 November 2026, 00:50 UTC
+
+Failing tests by area, from each session's last full run on `work`. The start-of-work figure for the whole workspace was about 4,940.
+
+| Area | Failing | Of | Session |
+| --- | --- | --- | --- |
+| `tcl-compiler` (all areas below share this suite) | about 2,390 | 13,120 | six compiler sessions |
+| `tcl-lsp-core` library | 551 (semantic tokens 14 of 239) | 3,642 | LSP features; tokens with the coordinator |
+| `tcl-lsp-server` end to end | 319 | 1,651 | LSP features (navigation), LSP server and database |
+| `tcl-lsp-db` | about 80 | not re-measured | LSP server and database |
+| Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | 329 | 5,480 | execution |
+| Tooling (`tcl-cli` 42, `tcl-spectcl` 29, `tcl-explorer` 15, `tcl-diagram` 14, `tcl-mcp` 4, `tcl-irules` 3, `tcl-spec-studio` 1, `tcl-sslictcl` 1, `tcl-registry` 0) | 109 | | tooling |
+| `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | coordinator |
+| `xtask` (381 tests, 37 drift gates) | 0 | | coordinator |
+
+Compiler suite by owning session (counts overlap the first row): analyser and binding (walk) is the critical path; class and object facts (new, about 50 class-factory tests plus method-body and lenient-environment facts); diagnostics about 440; dataflow and optimiser; taint and iRules checks about 300; value transfers, escape, shimmer and types 349.
+
+Largest open causes, in order of tests blocked: walk facts the values and taint areas wait on (a list command over an unproved value, constructed `uplevel`, scope declarations inside loop bodies, a statement after a proved error); iRules handler bodies reaching SSA, taint and folding (handler store landed, sanitiser colours and fixtures to follow); code in bodies the analysis never entered (method bodies, iApp and tmsh procedures); the variable-link half of the `return`/`set` selection patch (the `return` half landed in `a4e9d10e`); the lenient `tcl` environment's display facts.
+
 ## Measured state, 14 November 2026
 
 Measured at `775be44f` on one 4-core Linux host with `cargo nextest`, test profile `opt-level 1`, every test including the heavy tier.

@@ -81,7 +81,8 @@ Stay inside your area's crates so sessions do not collide; a fix that needs anot
 
 | Area | Crates |
 | --- | --- |
-| Compiler analyser and binding | `tcl-compiler`: the binding walk, realm, `command_binding`, `registry_invocation`, class factories |
+| Compiler analyser and binding | `tcl-compiler`: the execution walk (command world, delegated scripts, selections, procedure-body entry), realm, `command_binding`, `registry_invocation` |
+| Class and object facts | `tcl-compiler`: class factories, class definition scripts, method bodies, named instances and class cards, the lenient `tcl` environment's display facts |
 | Compiler diagnostics | `tcl-compiler`: `analyser/diagnostics`, `analyser::handlers`, `param_traits`, `types`, the diagnostic integration tests |
 | Compiler dataflow and optimiser | `tcl-compiler`: lowering, CFG, SSA, SCCP, optimiser, interprocedural transfer, object types |
 | Taint and iRules checks | `tcl-compiler`: `taint`, `taint_interproc`, `irules_checks`, `uri_split`, `irules_event_checks` and their integration tests |
