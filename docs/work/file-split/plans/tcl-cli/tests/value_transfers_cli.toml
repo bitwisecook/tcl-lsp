@@ -1,8 +1,7 @@
 # The crate root keeps the spawn helpers and the reference-interpreter oracle every
 # module shares: `tcl`, `run_tcl`, `RELEASES`, `run_tclsh`, `tclshs_from`,
 # `diagnostics_at`, `opt_under` and `statements_of`.
-file = "rust/tcl-cli/tests/value_transfers_cli/main.rs"
-move_from = "rust/tcl-cli/tests/value_transfers_cli.rs"
+file = "rust/tcl-cli/tests/value_transfers_cli.rs"
 
 [[module]]
 name = "transfer_routes"

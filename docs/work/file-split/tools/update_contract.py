@@ -126,7 +126,7 @@ def update_owner_row(root: Path, line: str) -> str:
         if any((root / source).exists() and declared(root / source, entry) == "pub" for source in sources + added):
             continue
         for source in sources:
-            found = find_child(root, source, entry, exported=True)
+            found = find_child(root, source, entry, exported=True) or find_child(root, source, entry, exported=False)
             if found:
                 added.append(found[0].relative_to(root).as_posix())
                 break

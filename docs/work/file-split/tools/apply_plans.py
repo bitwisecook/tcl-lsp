@@ -33,7 +33,7 @@ def main() -> int:
     while waiting and progress:
         progress = False
         for path, plan in list(waiting.items()):
-            if not any((arguments.root / plan[key]).exists() for key in ("file", "move_from") if key in plan):
+            if not (arguments.root / plan["file"]).exists():
                 continue
             del waiting[path]
             progress = True

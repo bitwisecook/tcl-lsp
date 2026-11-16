@@ -37,7 +37,7 @@ items = ["enum:TokenKind..const:MOD_DECLARATION", "fn:legend_extra"]
 
 - `a..b` takes every item from `a` to `b` in file order: both top-level, or both methods of one inherent impl (`impl:Walker::first..impl:Walker::last`). A whole impl block moves by its own id (`impl:fmt::Display for Walker`); a trait impl only moves whole.
 - `use`, `mod` and macro items stay in the parent. Keep a type in the parent when its private fields are read in several modules: children see the parent's private items, the parent does not see theirs.
-- `hoist = ["name"]` turns an inline `mod name { ... }` into `mod name;` with its own file before the modules are cut; an inline module can also be listed as an item and moves whole. `move_from = "rust/x/tests/name.rs"` beside `file = "rust/x/tests/name/main.rs"` gives a crate-root integration test its own directory first.
+- `hoist = ["name"]` turns an inline `mod name { ... }` into `mod name;` with its own file before the modules are cut; an inline module can also be listed as an item and moves whole. A crate-root integration test (`tests/name.rs`) keeps its place: its modules go to `tests/name/` and are declared with `#[path]`, as `tcl-lsp-server/tests/e2e.rs` already does.
 - A test file is planned the same way: helpers stay in the parent, tests move to modules named for what they test, matching the production module names where there are any.
 - A good plan follows the seams already in the file: section comments, a type with its impls, a family of functions with one caller. `semantic_tokens.toml` is the worked example.
 

@@ -12,8 +12,8 @@ A plan names one file and the modules its items move to:
     doc = "The token legend and its wire encoding."
     items = ["const:TOKEN_TYPES", "fn:legend..fn:encode", "impl:Walker::emit"]
 
-`move_from = "rust/x/tests/name.rs"` beside `file = "rust/x/tests/name/main.rs"`
-moves a crate-root integration test into its own directory first.
+A crate-root integration test (`tests/name.rs`) keeps its place; its modules
+go to `tests/name/` and are declared with `#[path]`.
 
 A plan may also start with `hoist = ["name"]`: each inline `mod name { ... }`
 becomes `mod name;` with its body in `name.rs`, before the modules are cut.
@@ -45,6 +45,7 @@ from rust_items import Item, parse_items
 
 LIMIT = 2000
 ROOT_STEMS = ("lib", "main", "mod")
+TEST_ROOT_DIRS = ("tests", "benches", "examples")
 WIDENABLE = ("fn", "struct", "enum", "union", "trait", "type", "const", "static", "mod")
 IMMOVABLE = ("use", "mod", "macro_rules", "macro", "extern crate")
 SUPER_PATH = re.compile(r"(?<![\w:])super::(?=(\w+|\*|\{))")
@@ -403,12 +404,7 @@ def impl_opening(text: str, owner: Item) -> str:
 
 def plan_file(root: Path, plan: dict, write: bool) -> list[tuple[str, int]]:
     parent = root / plan["file"]
-    # A crate-root integration test (`tests/name.rs`) becomes `tests/name/main.rs` first.
-    origin = root / plan["move_from"] if "move_from" in plan and not parent.exists() else parent
-    text = origin.read_text(encoding="utf-8")
-    if origin != parent:
-        # One directory deeper: every relative `#[path]` and include climbs one more level.
-        text = INCLUDE.sub(lambda match: match.group(0) + "../", re.sub(r'#\[path = "(?!/)', '#[path = "../', text))
+    text = parent.read_text(encoding="utf-8")
     directory = child_dir(parent)
     header = licence_header(text)
     text, hoisted = hoist_modules(text, plan.get("hoist", []), deeper=parent.stem not in ROOT_STEMS)
@@ -463,8 +459,9 @@ def plan_file(root: Path, plan: dict, write: bool) -> list[tuple[str, int]]:
     whole = Census.of(text)
 
     parent_is_test = is_test_file(parent)
-    # A file loaded through `#[path]` looks for its child modules beside itself.
-    path_loaded = not is_root and parent.resolve() in path_loaded_files(root)
+    # A file loaded through `#[path]`, or a crate root that is not `main.rs` (an
+    # integration test), looks for its child modules beside itself.
+    path_loaded = not is_root and (parent.parent.name in TEST_ROOT_DIRS or parent.resolve() in path_loaded_files(root))
     declarations = []
     outputs = []
     for child in children:
@@ -542,8 +539,6 @@ def plan_file(root: Path, plan: dict, write: bool) -> list[tuple[str, int]]:
         for path, content in outputs:
             path.write_text(content, encoding="utf-8")
         parent.write_text(new_parent, encoding="utf-8")
-        if origin != parent:
-            origin.unlink()
     return sizes
 
 

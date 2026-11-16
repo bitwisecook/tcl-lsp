@@ -1,7 +1,6 @@
 # The crate root keeps the spawn helpers every module shares: the reused `tcl`
 # process, the isolated configuration home, `Scratch` and the `diag --json` readers.
-file = "rust/tcl-cli/tests/cli/main.rs"
-move_from = "rust/tcl-cli/tests/cli.rs"
+file = "rust/tcl-cli/tests/cli.rs"
 
 [[module]]
 name = "inspection_verbs"

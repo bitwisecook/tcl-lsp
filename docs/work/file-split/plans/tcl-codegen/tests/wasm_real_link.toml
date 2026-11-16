@@ -1,9 +1,6 @@
-# move to tests/wasm_real_link/main.rs first
-# (the two `#[path]` attributes then need one more `../`). `main.rs` keeps the
-# module docs and the shared harness: the bootstrap WAT texts, the compile and
+# The crate root keeps the module docs and the shared harness: the bootstrap WAT texts, the compile and
 # link runners for each tier and the native admission and depth reports.
-file = "rust/tcl-codegen/tests/wasm_real_link/main.rs"
-move_from = "rust/tcl-codegen/tests/wasm_real_link.rs"
+file = "rust/tcl-codegen/tests/wasm_real_link.rs"
 
 [[module]]
 name = "linked_modules"

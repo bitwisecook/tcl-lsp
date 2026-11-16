@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Finish a split of one package after `apply_plans.py` and `cargo fmt`:
-# narrow the wildcard imports, point each new module's imports at their real
-# sources, drop what became unused, then check and lint every target.
+# check every target, settle the imports of the new modules
+# (settle_imports.py), then lint.
 #
 #   finish_split.sh PACKAGE CRATE_DIR [LOG_DIR]
 #
@@ -37,30 +37,25 @@ fmt() {
     cargo fmt --manifest-path "$manifest"
 }
 
-redirect_imports() {
-    if [ -n "$(created)" ]; then
-        # shellcheck disable=SC2046
-        python3 docs/work/file-split/tools/direct_imports.py $(created) | awk '{n += $1} END {print "    " n + 0 " imports now name their source"}'
-    fi
-}
-
-# Production code first: with the library compiling, narrow each new module's
-# `use super::*;`, point the names at their sources and drop what is unused.
+# With every target compiling, settle the imports: narrow each new module's
+# `use super::*;`, point the names at their sources, drop what nothing uses
+# and gate what only tests use.
 step check-lib cargo check --manifest-path "$manifest" -p "$package" --lib
-step narrow-wildcards cargo clippy --fix --allow-dirty --allow-staged --manifest-path "$manifest" -p "$package" --lib
-redirect_imports
-step fmt-1 fmt
-step drop-unused cargo clippy --fix --allow-dirty --allow-staged --manifest-path "$manifest" -p "$package" --lib
-step fmt-2 fmt
-# Then every target: the same for the new test modules, plus the lints a move
-# brings that clippy can fix itself (a lifetime a smaller impl no longer needs,
-# a module doc that wants backticks).
 step check-all cargo check --manifest-path "$manifest" -p "$package" --all-targets
+echo "==> settle-imports"
+if ! python3 docs/work/file-split/tools/settle_imports.py "$package" "$crate_dir" --log "$logs/import-edits.log" 2>&1 | tee "$logs/settle-imports.log"; then
+    echo "FAILED: settle-imports — see $logs/settle-imports.log"
+    exit 1
+fi
+if grep -q '^settle_imports:' "$logs/settle-imports.log"; then
+    echo "FAILED: settle-imports — see $logs/settle-imports.log"
+    exit 1
+fi
+step fmt-1 fmt
+# The lints a move brings that clippy fixes itself: a lifetime a smaller impl
+# no longer needs, a module doc that wants backticks.
 step lint-fixes cargo clippy --fix --allow-dirty --allow-staged --manifest-path "$manifest" -p "$package" --all-targets
-redirect_imports
-step fmt-3 fmt
-step drop-unused-tests cargo clippy --fix --allow-dirty --allow-staged --manifest-path "$manifest" -p "$package" --all-targets
-step fmt-4 fmt
+step fmt-2 fmt
 step clippy-all cargo clippy --manifest-path "$manifest" -p "$package" --all-targets -- -D warnings -A clippy::assert_is_empty
 step fmt-check cargo fmt --manifest-path "$manifest" -- --check
 echo "OK: $package compiles and lints clean"
