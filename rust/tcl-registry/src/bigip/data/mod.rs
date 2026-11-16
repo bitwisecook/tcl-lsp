@@ -47,25 +47,27 @@ mod wom;
 #[must_use]
 pub fn all_specs() -> Vec<&'static BigipObjectSpec> {
     let mut v: Vec<&'static BigipObjectSpec> = Vec::new();
-    v.extend(analytics::SPECS.iter());
+    v.extend(analytics::tables().into_iter().flatten());
     v.extend(api_protection::SPECS.iter());
-    v.extend(apm::SPECS.iter());
+    v.extend(apm::tables().into_iter().flatten());
     v.extend(asm::SPECS.iter());
     v.extend(auth::SPECS.iter());
     v.extend(cli::SPECS.iter());
     v.extend(cm::SPECS.iter());
-    v.extend(gtm::SPECS.iter());
+    v.extend(gtm::tables().into_iter().flatten());
     v.extend(ilx::SPECS.iter());
-    v.extend(ltm::SPECS.iter());
+    v.extend(ltm::tables().into_iter().flatten());
     v.extend(mgmt::SPECS.iter());
-    v.extend(net::SPECS.iter());
-    v.extend(pem::SPECS.iter());
+    v.extend(net::tables().into_iter().flatten());
+    v.extend(pem::tables().into_iter().flatten());
     v.extend(saas::SPECS.iter());
-    v.extend(security::SPECS.iter());
-    v.extend(sys::SPECS.iter());
+    v.extend(security::tables().into_iter().flatten());
+    v.extend(sys::tables().into_iter().flatten());
     v.extend(util::SPECS.iter());
     v.extend(vcmp::SPECS.iter());
-    v.extend(wam::SPECS.iter());
+    v.extend(wam::tables().into_iter().flatten());
     v.extend(wom::SPECS.iter());
+    // A module filed by component lists its tables in filing order.
+    v.sort_by_key(|spec| spec.kind_spec.kind);
     v
 }

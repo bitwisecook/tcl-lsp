@@ -175,6 +175,38 @@ pub struct BigipPropertySpec {
     pub block: &'static [BigipPropertySpec],
 }
 
+/// One table from property tables filed in several files, in the order given.
+/// `N` is the sum of their lengths; a kind too large for one file builds its
+/// table this way.
+///
+/// # Panics
+///
+/// At compile time, when `N` is not that sum.
+#[must_use]
+pub const fn join_property_tables<const N: usize>(
+    parts: &[&[BigipPropertySpec]],
+) -> [BigipPropertySpec; N] {
+    let mut joined = [BigipPropertySpec::DEFAULT; N];
+    let mut filled = 0;
+    let mut part = 0;
+    while part < parts.len() {
+        let table = parts[part];
+        let mut index = 0;
+        while index < table.len() {
+            assert!(filled < N, "the parts hold more properties than the table");
+            joined[filled] = table[index];
+            filled += 1;
+            index += 1;
+        }
+        part += 1;
+    }
+    assert!(
+        filled == N,
+        "the parts hold fewer properties than the table"
+    );
+    joined
+}
+
 impl BigipPropertySpec {
     /// Const default — use with `..BigipPropertySpec::DEFAULT`.
     pub const DEFAULT: Self = Self {
@@ -497,6 +529,27 @@ impl BigipRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn property_tables_join_in_order() {
+        const FIRST: &[BigipPropertySpec] = &[BigipPropertySpec {
+            name: "a",
+            ..BigipPropertySpec::DEFAULT
+        }];
+        const REST: &[BigipPropertySpec] = &[
+            BigipPropertySpec {
+                name: "b",
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "c",
+                ..BigipPropertySpec::DEFAULT
+            },
+        ];
+        let joined: [BigipPropertySpec; 3] = join_property_tables(&[FIRST, REST]);
+        let names: Vec<&str> = joined.iter().map(|property| property.name).collect();
+        assert_eq!(names, ["a", "b", "c"]);
+    }
 
     #[test]
     fn registry_builds_and_resolves() {

@@ -1,0 +1,134 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! BIG-IP object specs for `net cos`. Hand-maintained: edit them directly.
+
+use crate::bigip::{BigipObjectKindSpec, BigipObjectSpec, BigipPropertySpec, ValueKind};
+
+pub(super) static SPECS: &[BigipObjectSpec] = &[
+    BigipObjectSpec {
+        kind_spec: BigipObjectKindSpec {
+            kind: "net_cos_global_settings",
+            table_name: None,
+            resolver_name: None,
+            module: Some("net"),
+            object_types: &["cos global-settings"],
+        },
+        header_types: &[("net", "cos global-settings")],
+        properties: &[
+            BigipPropertySpec {
+                name: "default-map-8021p",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "default-map-dscp",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "default-traffic-priority",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "feature-disabled",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "feature-enabled",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "precedence",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+        ],
+    },
+    BigipObjectSpec {
+        kind_spec: BigipObjectKindSpec {
+            kind: "net_cos_map_8021p",
+            table_name: None,
+            resolver_name: None,
+            module: Some("net"),
+            object_types: &["cos map-8021p"],
+        },
+        header_types: &[("net", "cos map-8021p")],
+        properties: &[
+            BigipPropertySpec {
+                name: "traffic-priority",
+                value_type: ValueKind::Reference,
+                references: &["net_cos_traffic_priority"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "value",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+        ],
+    },
+    BigipObjectSpec {
+        kind_spec: BigipObjectKindSpec {
+            kind: "net_cos_map_dscp",
+            table_name: None,
+            resolver_name: None,
+            module: Some("net"),
+            object_types: &["cos map-dscp"],
+        },
+        header_types: &[("net", "cos map-dscp")],
+        properties: &[
+            BigipPropertySpec {
+                name: "traffic-priority",
+                value_type: ValueKind::Reference,
+                references: &["net_cos_traffic_priority"],
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "value",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+        ],
+    },
+    BigipObjectSpec {
+        kind_spec: BigipObjectKindSpec {
+            kind: "net_cos_traffic_priority",
+            table_name: None,
+            resolver_name: None,
+            module: Some("net"),
+            object_types: &["cos traffic-priority"],
+        },
+        header_types: &[("net", "cos traffic-priority")],
+        properties: &[
+            BigipPropertySpec {
+                name: "buffer",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+            BigipPropertySpec {
+                name: "weight",
+                value_type: ValueKind::Unknown,
+                ..BigipPropertySpec::DEFAULT
+            },
+        ],
+    },
+];

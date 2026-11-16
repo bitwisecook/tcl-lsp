@@ -28,7 +28,11 @@ consumers are `rust/tcl-bigip` (graph, links, tmsh emission) and
 
 Every object kind is a curated `BigipObjectSpec` entry under
 `rust/tcl-registry/src/bigip/data/`, one module per TMSH module (`ltm.rs`,
-`gtm.rs`, `net.rs`, `security.rs`, `sys.rs`, …). Hundreds of distinct kinds
+`gtm.rs`, `net.rs`, `security.rs`, `sys.rs`, …). A large module is filed by
+tmsh word: `ltm profile http` is in `data/ltm/profile/http.rs`, and each
+level's file lists its tables in `tables()`. A kind too large for one file
+(`security dos profile`) keeps its spec in that file and its property table in
+files below it, joined by `join_property_tables`. Hundreds of distinct kinds
 across:
 
 - **`ltm.*`** — pool, virtual, monitor (40+ types), profile (60+ types),
@@ -248,7 +252,7 @@ Adding a new typed value:
 1. Define the type in `rust/tcl-bigip/src/value/` with `Display` +
    `parse` / `try_parse`, and re-export it from `value/mod.rs`.
 2. Give the property its `BigipPropertySpec` fields in the relevant
-   `rust/tcl-registry/src/bigip/data/*.rs` file — at minimum `value_type`,
+   file under `rust/tcl-registry/src/bigip/data/` — at minimum `value_type`,
    plus `references` and `list_operators` where they apply.
 3. Add a `ReferenceEdge` if the property names another kind.
 4. Add an arm to `pilot_references` in `rust/tcl-bigip/src/graph.rs` so the
