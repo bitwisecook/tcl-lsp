@@ -969,6 +969,7 @@ where
                         entry_versions: &sb.entry_versions,
                         block_stmts: &sb.statements,
                         stmt_idx: idx,
+                        operand_versions: None,
                     };
                     ctx.process(&cand, &site, &mut findings);
                 }
@@ -1064,9 +1065,23 @@ struct CandidateSite<'a> {
     entry_versions: &'a HashMap<Symbol, Version>,
     block_stmts: &'a [crate::ssa::SsaStatement],
     stmt_idx: usize,
+    /// Versions the sole command of a returned value reads its operands at:
+    /// those reaching the effect markers that command leaves before the
+    /// terminator.
+    operand_versions: Option<HashMap<Symbol, Version>>,
 }
 
 impl CandidateSite<'_> {
+    fn read_word(&self, ssa: &SsaFunction, word: &crate::ir::WordExpr) -> Option<ValueKey> {
+        let read = self.source_view(ssa).read_word(word)?;
+        let version = self
+            .operand_versions
+            .as_ref()
+            .and_then(|versions| versions.get(&read.symbol).copied())
+            .or(read.version)?;
+        Some((read.symbol, version))
+    }
+
     fn source_view<'a>(&self, ssa: &'a SsaFunction) -> SsaSourceView<'a> {
         if self.stmt_idx == self.block_stmts.len() {
             SsaSourceView::at_terminator(ssa, self.bn)
@@ -1145,9 +1160,8 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
                 tcl_syntax::word_rules::WordValueRules::from_grammar(&self.grammar),
             );
         }
-        let view = site.source_view(ssa);
-        let read = view.read_word(cand.list_word.as_ref()?)?;
-        resolve_list_length(read.symbol, read.version?, &proofs)
+        let (symbol, version) = site.read_word(ssa, cand.list_word.as_ref()?)?;
+        resolve_list_length(symbol, version, &proofs)
     }
 
     fn selected_index_version(
@@ -1156,11 +1170,9 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
         site: &CandidateSite,
     ) -> Option<(Symbol, Version)> {
         let ssa = self.ssa;
-        let read = cand
-            .index_word
+        cand.index_word
             .as_ref()
-            .and_then(|word| site.source_view(ssa).read_word(word));
-        read.and_then(|read| read.version.map(|version| (read.symbol, version)))
+            .and_then(|word| site.read_word(ssa, word))
             .or_else(|| {
                 if !cand.conditional_handler {
                     return None;
@@ -1217,8 +1229,8 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
                 .and_then(|value| StringCharacterModel::count_for(self.characters, value))
                 .and_then(|length| i64::try_from(length).ok())
                 .or_else(|| {
-                    let read = site.source_view(ssa).read_word(cand.list_word.as_ref()?)?;
-                    self.str_lengths.get(&(read.symbol, read.version?)).copied()
+                    let read = site.read_word(ssa, cand.list_word.as_ref()?)?;
+                    self.str_lengths.get(&read).copied()
                 })
         } else {
             self.length_for_list(cand, site)
@@ -1297,20 +1309,40 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
         bn: crate::cfg::BlockId,
         findings: &mut Vec<BoundsFinding>,
     ) {
-        let exit_site = |span: Span| CandidateSite {
+        let exit_site = |span: Span, operand_versions| CandidateSite {
             bn,
             span,
             entry_versions: &sb.exit_versions,
             block_stmts: &sb.statements,
             stmt_idx: sb.statements.len(),
+            operand_versions,
         };
         if let Some(tokens) = SsaSourceView::at_terminator(self.ssa, bn).source_tokens()
             && let Some(span) = block.terminator.as_ref().and_then(Terminator::span)
         {
-            for nested in crate::word_subst::lifted_calls(
+            let lifted = crate::word_subst::lifted_calls(
                 Some(tokens),
                 tcl_lexer::LexerConfig::from_grammar(self.grammar),
-            ) {
+            );
+            // A lone command reads its operands before its own effects, which
+            // the builder states as markers ahead of the terminator.
+            let operand_versions = (lifted.len() == 1).then(|| {
+                let own_effects = sb
+                    .statements
+                    .iter()
+                    .rev()
+                    .take_while(|statement| {
+                        statement.statement.synthetic_marker().is_some()
+                            && statement_span(&statement.statement) == Some(span)
+                    })
+                    .count();
+                reaching_versions(
+                    &sb.entry_versions,
+                    &sb.statements,
+                    sb.statements.len() - own_effects,
+                )
+            });
+            for nested in lifted {
                 if let Some(tokens) = nested.tokens.as_ref()
                     && let Some(invocation) =
                         crate::registry_invocation::normal_representation_invocation_with_metadata_context(
@@ -1320,7 +1352,11 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
                         )
                     && let Some(candidate) = invocation_candidate(&invocation)
                 {
-                    self.process(&candidate, &exit_site(span), findings);
+                    self.process(
+                        &candidate,
+                        &exit_site(span, operand_versions.clone()),
+                        findings,
+                    );
                 }
             }
         }
