@@ -394,14 +394,15 @@ mod tests {
             result.unit.ir_module.source_metadata_input.as_ref(),
             Some(&input)
         );
-        assert_eq!(
+        // Tcl 8.4 is a native release, so the supplied input is the module's
+        // source metadata and no logical source input is recorded for it.
+        assert!(
             result
                 .unit
                 .ir_module
                 .source_entry
                 .logical_source_input
-                .as_ref(),
-            Some(&input)
+                .is_none()
         );
         assert!(result.unit.ir_module.source_entry.native_entry.is_none());
     }
