@@ -535,6 +535,7 @@ mod tests {
                 parent_surface: None,
                 form_surface: None,
                 prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+                placement: crate::spec::OptionPlacement::Leading,
                 positional_prefix_words: 0,
                 reserved_trailing_words: 0,
                 case_list: None,

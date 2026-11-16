@@ -441,6 +441,7 @@ mod object_class_role_tests {
                 parent_surface: None,
                 form_surface: None,
                 prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+                placement: crate::spec::OptionPlacement::Leading,
                 positional_prefix_words: 1,
                 reserved_trailing_words: 0,
                 case_list: None,

@@ -698,6 +698,8 @@ pub struct InvocationOptions<'r, 'q> {
     pub form_surface: Option<&'static [SpecSurface]>,
     /// The selected option table's actual prefix policy.
     pub prefix_matching: crate::abbrev::PrefixMatching,
+    /// Where the selected descriptor's options may appear.
+    pub placement: crate::spec::OptionPlacement,
     /// Authored constructor or lifecycle operands preceding the option prefix.
     pub positional_prefix_words: usize,
     /// Native operands excluded from the leading option scan.
@@ -1068,6 +1070,22 @@ impl<'r> InvocationOptions<'r, '_> {
             self.reserved_word_count(arguments)?,
         )?;
         self.positional_prefix_words.checked_add(consumed)
+    }
+
+    /// Words the option run starting at `index` consumes; zero where that
+    /// word is an operand.
+    fn option_run_at(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        index: usize,
+    ) -> Option<usize> {
+        let table = self.available().collect::<Vec<_>>();
+        crate::spec::leading_option_word_count_for_arguments(
+            &table,
+            arguments.slice_from(index),
+            self.prefix_matching,
+            0,
+        )
     }
 }
 
@@ -2323,6 +2341,7 @@ pub(crate) fn invocation_options<'r, 'w>(
         parent_surface,
         form_surface: form.and_then(|form| form.surface).or(parent_surface),
         prefix_matching: sub.map_or(spec.prefix_matching, |sub| sub.prefix_matching),
+        placement: sub.map_or(spec.option_placement, |sub| sub.option_placement),
         positional_prefix_words: if let Some(sub) = sub {
             sub.option_prefix_words
         } else if spec.option_prefix_words > 0 {
@@ -2421,7 +2440,26 @@ pub fn count_invocation_argument_layout(
     } else {
         options.leading_word_count(arguments)?.max(prefix)
     };
-    let indices = (0..prefix).chain(end..count).collect::<Vec<_>>();
+    let mut indices = (0..prefix).collect::<Vec<_>>();
+    // Options recognised anywhere are not operands wherever they sit, up to
+    // an explicit `--`.
+    let terminated =
+        |last: usize| arguments.get(last).and_then(|word| word.literal()) == Some("--");
+    let mut open = options.placement == crate::spec::OptionPlacement::Anywhere
+        && !(end > prefix && terminated(end - 1));
+    let mut index = end;
+    while index < count {
+        if open {
+            let run = options.option_run_at(arguments, index)?;
+            if run > 0 {
+                open = !terminated(index + run - 1);
+                index += run;
+                continue;
+            }
+        }
+        indices.push(index);
+        index += 1;
+    }
     let indeterminate = false;
     let minimum = u16::try_from(indices.len()).ok()?;
     let operands = indices
@@ -9603,6 +9641,7 @@ mod tests {
             parent_surface: None,
             form_surface: None,
             prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+            placement: crate::spec::OptionPlacement::Leading,
             positional_prefix_words: 0,
             reserved_trailing_words: 0,
             case_list: None,

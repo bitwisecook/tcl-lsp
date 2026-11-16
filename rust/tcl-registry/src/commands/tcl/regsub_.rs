@@ -122,6 +122,7 @@ fn regsub_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, Appende
         parent_surface: Some(SpecSurface::ALL_TCL),
         form_surface: None,
         prefix_matching: crate::abbrev::PrefixMatching::Strict,
+        placement: crate::spec::OptionPlacement::Leading,
         positional_prefix_words: 0,
         reserved_trailing_words: 0,
         case_list: None,

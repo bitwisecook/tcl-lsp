@@ -609,10 +609,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         native_compilation: Some(NATIVE_INTERP),
         name: "create",
-        // Positional arity is `?name?` only (0..=1); the `-safe` / `--`
-        // option words are consumed by the leading-option skip, not counted
-        // here. A prior `Arity::new(0, 2)` masked a genuine extra-name error.
+        // Positional arity is `?name?` only (0..=1). C examines every word
+        // and reads a `-` word as a flag until `--`, before or after the
+        // path (tclsh 8.4.20 to 9.1.0: `interp create x -safe` makes a safe
+        // `x`; `interp create a b` is `wrong # args`), so the option words
+        // are not counted wherever they sit.
         arity: Arity::new(0, 1).with_positionals(),
+        option_placement: crate::spec::OptionPlacement::Anywhere,
         detail: "Create a child interpreter.",
         synopsis: "interp create ?-safe? ?--? ?name?",
         // `interp create NAME` binds NAME as the child interpreter's command
