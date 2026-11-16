@@ -1921,38 +1921,31 @@ mod tests {
         }
     }
 
-    /// Q3: `f5-bigip` refuses the whole file rather than being translated
-    /// into a claim about the Tcl axis.
+    /// A 1.x dialect word the upgrade cannot carry refuses the whole file,
+    /// which is left as written. Q3: `f5-bigip` is not translated into a
+    /// claim about the Tcl axis. U0: the 1.x vocabulary is closed, so a word
+    /// outside it is not carried through unread.
     #[test]
-    fn f5_bigip_refuses_the_file() {
-        let source = "speclib probe 1.2 {\n command demo {\n arity 1\n \
-                      dialects f5-bigip\n }\n}\n";
-        let outcome = upgrade_source(source, &UpgradeOptions::default());
-        assert_eq!(outcome.status, UpgradeStatus::Refused);
-        assert_eq!(outcome.source, source, "a refused file is not rewritten");
-        assert!(
-            outcome.refusals[0].message.contains("leaves the Tcl axis"),
-            "{:#?}",
-            outcome.refusals
-        );
-    }
-
-    /// U0: the 1.x vocabulary is closed, so a word outside it refuses the
-    /// file rather than being carried through unread.
-    #[test]
-    fn a_non_vocabulary_word_refuses_the_file() {
-        let source = "speclib probe 1.2 {\n command demo {\n arity 1\n \
-                      dialects klingon\n }\n}\n";
-        let outcome = upgrade_source(source, &UpgradeOptions::default());
-        assert_eq!(outcome.status, UpgradeStatus::Refused);
-        assert_eq!(outcome.source, source);
-        assert!(
-            outcome.refusals[0]
-                .message
-                .contains("is not a SpecTcl 1.x dialect word"),
-            "{:#?}",
-            outcome.refusals
-        );
+    fn a_dialect_word_the_upgrade_cannot_carry_refuses_the_file() {
+        for (word, reason) in [
+            ("f5-bigip", "leaves the Tcl axis"),
+            ("klingon", "is not a SpecTcl 1.x dialect word"),
+        ] {
+            let source = format!(
+                "speclib probe 1.2 {{\n command demo {{\n arity 1\n dialects {word}\n }}\n}}\n"
+            );
+            let outcome = upgrade_source(&source, &UpgradeOptions::default());
+            assert_eq!(outcome.status, UpgradeStatus::Refused, "{word}");
+            assert_eq!(
+                outcome.source, source,
+                "{word}: a refused file is not rewritten"
+            );
+            assert!(
+                outcome.refusals[0].message.contains(reason),
+                "{word}: {:#?}",
+                outcome.refusals
+            );
+        }
     }
 
     /// U10: downgrades are refused.

@@ -46,42 +46,48 @@ fn on_head(dialect: &str, word: &str, body: &str) -> Vec<(DiagCode, String)> {
         .collect()
 }
 
-/// A `tcl8.4` document writing a `tcl8.6` command: the command exists in the
-/// family the document belongs to, only not at the release it targets.
+/// A command some dialect related to the document has is disabled, and where
+/// only another family has it the report names that family:
+///
+/// - a `tcl8.4` document writing `lmap`: the command exists in the family the
+///   document belongs to, only not at the release it targets;
+/// - a `jim` document writing `coroutine`: Jim reimplements Tcl's surface, so
+///   the command is Tcl's and Jim's roster omits it;
+/// - a Tcl 8.4, 8.6 or 9.0 document writing `curry`, which only Jim has: Jim
+///   is on Tcl 8.6's line, so the report says `available in: jim`;
+/// - a `tcl8.6` document writing Expect's `system`: a Tcl document could
+///   `package require Expect`.
 #[test]
-fn an_older_tcl_document_using_a_newer_tcl_command_is_disabled() {
-    let found = on_head("tcl8.4", "lmap", "lmap x {1 2} {puts $x}");
-    assert!(
-        found.iter().any(|(code, message)| *code == DiagCode::W002
-            && message.contains("disabled in the active dialect profile")),
-        "{found:?}"
-    );
-}
-
-/// A `jim` document writing a Tcl command Jim's roster omits: Jim
-/// reimplements Tcl's surface, so the command is Tcl's and Jim does not
-/// have it.
-#[test]
-fn a_jim_document_using_a_tcl_command_jim_omits_is_disabled() {
-    let found = on_head("jim", "coroutine", "coroutine gen {puts 1}");
-    assert!(
-        found.iter().any(|(code, message)| *code == DiagCode::W002
-            && message.contains("disabled in the active dialect profile")),
-        "{found:?}"
-    );
-}
-
-/// A Tcl document writing a command only Jim has: Jim is on Tcl 8.6's line, so
-/// the command is disabled here and the report names the dialect that has it.
-#[test]
-fn a_tcl_document_using_a_jim_only_command_is_disabled_and_names_jim() {
-    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
-        let found = on_head(dialect, "curry", "curry puts hello");
+fn a_command_a_related_dialect_has_is_disabled_under_tcl_8_4_to_9_0_and_jim() {
+    const DISABLED: &str = "disabled in the active dialect profile";
+    for (dialect, head, body, wording) in [
+        ("tcl8.4", "lmap", "lmap x {1 2} {puts $x}", &[DISABLED][..]),
+        ("jim", "coroutine", "coroutine gen {puts 1}", &[DISABLED]),
+        (
+            "tcl8.4",
+            "curry",
+            "curry puts hello",
+            &[DISABLED, "available in: jim"],
+        ),
+        (
+            "tcl8.6",
+            "curry",
+            "curry puts hello",
+            &[DISABLED, "available in: jim"],
+        ),
+        (
+            "tcl9.0",
+            "curry",
+            "curry puts hello",
+            &[DISABLED, "available in: jim"],
+        ),
+        ("tcl8.6", "system", "system ls", &[]),
+    ] {
+        let found = on_head(dialect, head, body);
         assert!(
             found.iter().any(|(code, message)| *code == DiagCode::W002
-                && message.contains("disabled in the active dialect profile")
-                && message.contains("available in: jim")),
-            "{dialect}: {found:?}"
+                && wording.iter().all(|part| message.contains(part))),
+            "{dialect} `{head}`: {found:?}"
         );
     }
 }
@@ -95,16 +101,4 @@ fn a_jim_document_using_an_expect_command_finds_it_unknown() {
     let codes: Vec<DiagCode> = found.iter().map(|(code, _)| *code).collect();
     assert_eq!(codes, [DiagCode::W123], "{found:?}");
     assert!(found[0].1.contains("Unknown command"), "{found:?}");
-}
-
-/// The same command in a document of a family that ships Expect keeps the
-/// disabled wording: `system` exists in the `expect` environment, and a
-/// `tcl8.6` document could `package require Expect`.
-#[test]
-fn a_tcl_document_using_an_expect_command_keeps_the_disabled_wording() {
-    let found = on_head("tcl8.6", "system", "system ls");
-    assert!(
-        found.iter().any(|(code, _)| *code == DiagCode::W002),
-        "{found:?}"
-    );
 }
