@@ -181,6 +181,7 @@ fn test_backend_state_over(
         document_transforms: std::sync::Mutex::new(document_transform::TransformLedger::default()),
         documents: Arc::new(DocumentStore::default()),
         diag_slots: Arc::new(Mutex::new(HashMap::new())),
+        diagnostics_admission: crate::diagnostics::AnalysisAdmission::shared(),
         default_dialect: Arc::new(Mutex::new("tcl8.6".to_owned())),
         default_dialect_explicit: Mutex::new(false),
         warned_session_dialect: Mutex::new(None),

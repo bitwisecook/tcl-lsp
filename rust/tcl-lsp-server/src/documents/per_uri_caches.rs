@@ -193,6 +193,7 @@ impl Backend {
             folder_db_configs: _,
             folder_db_config_tombstones: _,
             // Not keyed by a URI.
+            diagnostics_admission: _,
             client: _,
             diagnostic_publisher: _,
             document_transforms: _,
