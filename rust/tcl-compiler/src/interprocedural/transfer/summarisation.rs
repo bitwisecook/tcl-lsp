@@ -39,15 +39,19 @@ use tcl_registry::world_effect::EffectFootprint;
 impl ModuleProcedures<'_> {
     /// Compute every procedure's summary, callees before callers.
     pub(super) fn summarise(&self, inputs: &ModuleInputs<'_>, rounds: RecursionLimit) {
-        // A module that may rebind a builtin may turn a typed statement into
-        // a call this scan cannot see.
-        if self.source.is_none() || inputs.mutations.rebinds_builtins() {
+        // A rebinding whose subject the scan cannot name may have moved any
+        // command a typed statement stands for.
+        let Some(rebound) = inputs.mutations.nameable_rebound_builtins() else {
+            return;
+        };
+        if self.source.is_none() {
             return;
         }
         let mut names: Vec<crate::ir::ProcedureId> = inputs.ir.procedures.keys().copied().collect();
         names.sort_unstable();
         let mut calls: HashMap<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>> = names
             .iter()
+            .filter(|qname| !spells_a_rebound_builtin(inputs.ir, qname, rebound))
             .filter_map(|&qname| Some((qname, self.local_calls(&qname, inputs)?)))
             .collect();
         // A procedure that calls a barrier is one.
@@ -81,6 +85,9 @@ impl ModuleProcedures<'_> {
         let cfg = inputs.cfg.procedures.get(qname)?;
         let source = self.source.as_ref()?;
         let declared = source.procedure(qname)?;
+        if !source.walked_in_declared_frame(qname) {
+            return None;
+        }
         // Count/formal syntax is not an activation. This conditional scalar
         // model also needs the existing selected binder's local scalar closure.
         crate::registry_invocation::original_procedure_scalar_bindings(
@@ -384,6 +391,32 @@ fn procedure_binding(qname: &str) -> BindingIdentity {
         name: qname.to_owned(),
         identity: format!("proc {qname}"),
     }
+}
+
+/// Whether `qname`'s body may run a core builtin the module rebinds: the
+/// lowering turns a builtin into a typed statement with no call in it, so a
+/// call to the replacement there is invisible to the summary's call walk. Any
+/// spelling of the builtin's tail in the body counts, which also covers a
+/// qualified or substituted spelling; a body without retained source text may
+/// run any of them.
+fn spells_a_rebound_builtin(
+    module: &crate::ir::Module,
+    qname: &crate::ir::ProcedureId,
+    rebound: &HashSet<String>,
+) -> bool {
+    if rebound.is_empty() {
+        return false;
+    }
+    let Some(body) = module
+        .procedures
+        .get(qname)
+        .and_then(|procedure| procedure.body_source.as_deref())
+    else {
+        return true;
+    };
+    rebound
+        .iter()
+        .any(|name| body.contains(tcl_syntax::naming::key_tail(name)))
 }
 
 /// The strongly connected sets of `calls`' procedures, each after every set

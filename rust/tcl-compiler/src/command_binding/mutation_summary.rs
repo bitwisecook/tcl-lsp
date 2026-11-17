@@ -278,12 +278,12 @@ impl ModuleCommandMutations {
             && self.observed_proc_binding(proc_name)
     }
 
-    /// Whether the module may rebind any builtin: a shadowing `proc`, a
-    /// `rename` or alias onto a builtin's name, or a rebinding whose subject
-    /// this scan could not name.
+    /// The canonical names of the core builtins some body may rebind, when
+    /// this scan could name every rebinding subject; `None` when one may have
+    /// moved any command.
     #[must_use]
-    pub fn rebinds_builtins(&self) -> bool {
-        !self.names.is_empty() || self.rebinding_subjects != RebindingSubjects::AllNameable
+    pub fn nameable_rebound_builtins(&self) -> Option<&std::collections::HashSet<String>> {
+        (self.rebinding_subjects == RebindingSubjects::AllNameable).then_some(&self.names)
     }
 
     /// The **named-subject** half of [`Self::trusts_proc_binding`], as

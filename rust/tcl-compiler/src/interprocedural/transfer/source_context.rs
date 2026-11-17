@@ -184,6 +184,35 @@ impl<'a> SourceSummaryContext<'a> {
         })
     }
 
+    /// Whether the procedure's body was walked in its own declared frame, the
+    /// frame a summary describes: under the Logical survey always; for a
+    /// release unit, only where every command of the body carries the
+    /// declaration's frame, not a caller's activation or a join of several.
+    pub(super) fn walked_in_declared_frame(&self, id: &crate::ir::ProcedureId) -> bool {
+        if self.logical() {
+            return true;
+        }
+        let declared = || {
+            let procedure = self.procedure(id)?;
+            let frame =
+                crate::command_binding::SourceOriginalVariableFrame::from_authored_procedure(
+                    procedure,
+                    self.module.source_metadata_input.as_ref()?,
+                )?;
+            let commands = self.same_frame_commands(procedure)?;
+            commands
+                .iter()
+                .all(|tokens| {
+                    tokens
+                        .source_binding
+                        .as_ref()
+                        .is_some_and(|binding| &binding.variable_frame == frame.frame())
+                })
+                .then_some(())
+        };
+        declared().is_some()
+    }
+
     /// Whether the procedure SSA defines a local at a write through its
     /// caller link, so the summary run can read the linked place's outcome:
     /// the Logical survey's frames do; a release unit's walk stores through
