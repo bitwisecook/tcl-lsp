@@ -62,7 +62,7 @@ use tcl_runtime_api::{
 /// document: the profile's default availability over the caller's exact
 /// command store and its lexer configuration. `None` when the store's
 /// metadata cannot correspond to that profile's availability.
-fn fresh_document_input(
+pub(crate) fn fresh_document_input(
     registry: &CommandRegistry,
     config: LexerConfig,
     profile: &'static DialectProfile,
