@@ -127,6 +127,8 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 - *A statement after a proved error in an executed unit yields no facts for proof consumers or the call graph* (no object handles, call edges or definitions); it keeps the editor tier only. Uncalled procedure bodies are not affected.
 - *A hardening action is offered only on a proof:* the inserted command is the release's builtin at that site, the registry declares its evaluation effect-free, and the single read stays in place. It is a single, not-preferred action, never in fix-all.
 - *Branch conversion keeps its control-flow obligation only where a variable trace cannot be ruled out;* expression bracing beyond the literal subset and dictionary conversion keep theirs until they have evidence.
+- *A red test is not turned green by expecting the product's refusal.* Where tclsh shows a minifier rewrite equivalent under conditions the fixture meets (keyword abbreviation over a stock ensemble), the test keeps expecting the shorter text and stays red until the product can issue the receipt; the loss is tracked in the minifier open item. Only a rewrite tclsh shows not equivalent has its expectation changed to the refusal.
+- *A Logical class call publishes no Native class record;* the lenient environment's class facts live in the Logical domain, so they cannot reach proof consumers.
 - *Same input, same result, to the byte, is a contract of the analysis.* Incremental reuse and reproducible diagnostics rest on it; a difference between two runs is a wrong answer.
 - *Abstaining at `source -encoding` with a decode obligation recorded is sound* when nothing can decode; the command world after it must not stay proved.
 - *The generic entry covers a procedure the body defines on every call:* the nested procedure's body gets its own generic entry. It covers that body's facts only; whether the nested procedure exists for an outside caller still depends on whether the outer one surely ran.
@@ -224,13 +226,13 @@ Updated at the hourly check from the ledgers on `work`.
 | Session | Failing tests to triage (about) | Rows in ledger | Sampled by the coordinator |
 | --- | ---: | ---: | --- |
 | diagnostics | 397 | 397, complete (KEEP-ORACLE 143, KEEP-CONTRACT 94, FIX-FIXTURE 62, REWRITE 36, FIX-EXPECTATION 33, KEEP-F5 17, UNDECIDED 6 ruled, RETIRE 5, MERGE 1) | signed off 21:20 UTC |
-| analyser-binding | 418 | 302 (KEEP-CONTRACT 103, KEEP-ORACLE 75, FIX-FIXTURE 62, REWRITE 35, FIX-EXPECTATION 20, KEEP-F5 7); two parts running | parts 1 to 4 read: accepted so far |
+| analyser-binding | 418 | 370; one part and the ranked list to come | parts 1 to 5 read: accepted so far |
 | class-facts | 246 | 246, complete (KEEP-ORACLE 74, FIX-FIXTURE 67, KEEP-CONTRACT 43, REWRITE 40, FIX-EXPECTATION 14, UNDECIDED 4 ruled, KEEP-F5 2, RETIRE 1, MERGE 1); BIG-IP checks CF-01, CF-02 | signed off 21:30 UTC |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
 | taint | 171 | 174, complete (FIX-FIXTURE 81, KEEP-CONTRACT 38, REWRITE 18, KEEP-ORACLE 18, KEEP-F5 13, MERGE 4, RETIRE 1, FIX-EXPECTATION 1); BIG-IP checks 049, 071, 072, 073 | signed off 21:50 UTC |
 | analysis-performance | 46 | 46, complete (KEEP-CONTRACT 41, REWRITE 4, UNDECIDED 1 to diff) | signed off 21:33 UTC |
-| lsp-features | about 470 core, 180 routed from the server | 404 (parts 1 and 2); the server slices and the summary to come | read 22:20 UTC: accepted so far |
+| lsp-features | 492 core, 180 routed from the server | 492 (the core library complete); the server slices and the summary to come | parts 1 to 3 read 22:30 UTC: accepted, the minifier contract rows to re-read |
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
 | execution | 264 (23 routed to live-inlining) | 264, complete (KEEP-ORACLE 109, KEEP-CONTRACT 56, MERGE 49, REWRITE 33, RETIRE 8, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | signed off 21:20 UTC, after the receipt-ordering retirements were redone test by test (26 back to KEEP-CONTRACT) |
 | irules-registry-tooling | 151 | 151, complete (KEEP-F5 48, KEEP-CONTRACT 47, KEEP-ORACLE 40, MERGE 15, FIX-FIXTURE 1); BIG-IP checks TS-01 to TS-10 | signed off 21:00 UTC |
