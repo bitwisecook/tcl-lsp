@@ -33,50 +33,55 @@ const SHAPES: &[(&str, &str, usize, &str)] = &[
     ("vapply", "2", 2, "proc vapply {cmd x} {$cmd $x}"),
     ("vdef", "1..2", 2, "proc vdef {x {y 10}} {expr {$x + $y}}"),
     ("vcount", "0..", 0, "proc vcount {args} {llength $args}"),
+    ("vformat", "1", 1, "proc vformat {x} {format %d $x}"),
 ];
 
 /// Each shape's caller, the calls made of it, and how many definitions the
 /// VM's compile of the caller splices in where the release splices at all: as
-/// many as the release-unit compile splices. A body that runs a parameter as a
+/// many as the release-unit compile splices, where the body may be run again
+/// from its start (`re_executable_body`). A body that runs a parameter as a
 /// command stays a call by decision: the command it runs is a value only the
-/// call knows, so no splice can bind it.
+/// call knows, so no splice can bind it. A body using `expr` stays a call while
+/// the registry declares every expression able to call back.
 const CASES: &[(&str, &[&str], usize)] = &[
-    ("proc caller {} {vthree}", &["caller"], 1),
+    ("proc caller {} {vthree}", &["caller"], 0),
     ("proc caller {n} {vupper $n}", &["caller abc"], 1),
     (
         "proc caller {n} {vdouble $n}",
         &["caller 21", "caller abc"],
-        1,
+        0,
     ),
     (
         "proc caller {c n} {vapply $c $n}",
         &["caller llength {a b c}", "caller nosuch x"],
         0,
     ),
-    ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 1),
+    ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 0),
+    // An error inside a body that is spliced.
+    (
+        "proc caller {n} {vformat $n}",
+        &["caller 7", "caller abc"],
+        1,
+    ),
     // The caller's frame after the call holds only the caller's variables,
     // whoever looks: the caller itself, or a procedure it calls next.
+    ("proc caller {n} {vupper $n; info locals}", &["caller 2"], 1),
     (
-        "proc caller {n} {vdouble $n; info locals}",
+        "proc caller {n} {vupper $n; lsort [info vars]}",
         &["caller 2"],
         1,
     ),
-    (
-        "proc caller {n} {vdouble $n; lsort [info vars]}",
-        &["caller 2"],
-        1,
-    ),
-    ("proc caller {n} {vdouble $n; peek}", &["caller 2"], 1),
+    ("proc caller {n} {vupper $n; peek}", &["caller 2"], 1),
     // A caller's own variables spelled as a splice would name its locals,
     // written and read directly and through a computed name around the call.
     (
-        "proc caller {n} {set __inline_0__x 5; set __inline_1__x 6; vdouble $n; \
+        "proc caller {n} {set __inline_0__x 5; set __inline_1__x 6; vupper $n; \
          list $__inline_0__x $__inline_1__x}",
         &["caller 2"],
         1,
     ),
     (
-        "proc caller {n} {set v __inline_; append v 1__x; set $v 5; vdouble $n; \
+        "proc caller {n} {set v __inline_; append v 1__x; set $v 5; vupper $n; \
          list [set $v] [info exists __inline_0__x]}",
         &["caller 2"],
         1,

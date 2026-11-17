@@ -21,14 +21,14 @@
 use super::*;
 
 /// A body the splice renames nothing in, spliced by the VM's own compile of
-/// its caller under the live native entry: the spliced `expr` keeps the native
+/// its caller under the live native entry: the spliced command keeps the native
 /// selection the runtime replays, so the function runs as compiled where the
 /// pack's facts are held, and is refused and recompiled plain where they are not.
 #[test]
 fn a_body_with_nothing_to_rename_is_spliced_by_the_live_compile() {
     let pack = Spliced::new(
         "splice-live-verbatim",
-        &[("vthree", 0, "proc vthree {} {expr {1 + 2}}")],
+        &[("vthree", 0, "proc vthree {} {string length abc}")],
     );
     let caller = "proc caller {} {vthree}";
     assert_eq!(
