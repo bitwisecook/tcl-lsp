@@ -37,7 +37,7 @@ The run takes about 14 minutes once built and 25 to 30 minutes with the rebuild 
 
 Edit loop for one module: `cargo nextest run -p tcl-compiler --lib -E 'test(/name_fragment/)'`. For an integration group: `--test it_3 -E 'test(/…/)'`.
 
-Gates before a push: `cargo fmt --all -- --check`; `cargo clippy -p tcl-compiler --all-targets -- -D warnings -A clippy::assert_is_empty`; `make xtask-gates` from the repository root (38 gates, about five minutes). A change to `optimiser/propagation/` or any value-transfer site makes `docs/generated/value-transfers.md` stale: run `cargo xtask value-transfers` and commit the result.
+Gates before a push: `cargo fmt --all -- --check`; `cargo clippy -p tcl-compiler --all-targets -- -D warnings -A clippy::assert_is_empty`; `make xtask-gates` from the repository root (39 gates, about five minutes). A change to `optimiser/propagation/` or any value-transfer site makes `docs/generated/value-transfers.md` stale: run `cargo xtask value-transfers` and commit the result.
 
 To list panic messages for a group of failures from a log:
 

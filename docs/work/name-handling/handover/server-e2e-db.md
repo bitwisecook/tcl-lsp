@@ -38,7 +38,7 @@ CARGO_PROFILE_TEST_INCREMENTAL=false cargo nextest run -p tcl-lsp-db \
 - Core unit tests for one module, same selection so nothing rebuilds: `--lib -E 'package(tcl-lsp-core) and test(/document_symbols::/)'`.
 - Keep the one package selection for the server work. The database selection rebuilds separately.
 - The e2e suite is not deterministic. Rerun a new failure three times alone (`--test-threads 1`) before believing it.
-- Gates before a push: `cargo fmt --all -- --check`, `cargo clippy -p <changed crates> --all-targets -- -D warnings -A clippy::assert_is_empty` with `CARGO_PROFILE_TEST_INCREMENTAL=false`, and `make xtask-gates` (38 gates, about four minutes).
+- Gates before a push: `cargo fmt --all -- --check`, `cargo clippy -p <changed crates> --all-targets -- -D warnings -A clippy::assert_is_empty` with `CARGO_PROFILE_TEST_INCREMENTAL=false`, and `make xtask-gates` (39 gates, about four minutes).
 
 ## Current numbers
 
