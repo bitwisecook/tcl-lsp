@@ -88,15 +88,10 @@ fn interp_create_value_words_reject_an_unmatched_brace_issue_1025() {
 // whose option scan mirrors tclInterp.c (`create_reads_the_c_option_scan`
 // in `tcl-registry`'s `interp.rs` pins every row against tclsh 8.4–9.1).
 
-/// Dispatch `interp create WORDS…` and report whether `path` was
-/// recorded, and as safe.
+/// Analyse `interp create WORDS…` under Tcl 8.6 and report whether `path`
+/// was recorded, and as safe.
 fn created_by(words: &[&str], path: &str) -> Option<bool> {
-    let mut a = Analyser::new();
-    let call: Vec<&str> = ["interp", "create"]
-        .into_iter()
-        .chain(words.iter().copied())
-        .collect();
-    dispatch_words(&mut a, &call);
+    let a = analysed(&format!("interp create {}\n", words.join(" ")));
     let key = a.qualified_interp_key(path);
     a.interpreters.get(&key).map(|state| state.safe)
 }
@@ -142,12 +137,10 @@ fn interp_create_bare_and_flag_only_forms_are_unchanged() {
     // TN control: a named child is recorded; an auto-named one has no
     // name this file can reference, so nothing is.
     assert_eq!(created_by(&["child"], "child"), Some(false));
-    let mut a = Analyser::new();
-    dispatch_words(&mut a, &["interp", "create", "-safe"]);
+    let a = analysed("interp create -safe\n");
     assert!(a.interpreters.is_empty());
     // A computed path makes interpreter existence unknowable.
-    let mut a = Analyser::new();
-    dispatch_words(&mut a, &["interp", "create", "$name"]);
+    let a = analysed("set name [gets stdin]\ninterp create $name\n");
     assert!(a.interpreters.is_empty());
     assert!(a.dynamic_interp_ops);
 }
