@@ -360,6 +360,11 @@ pub struct ReferenceBodies {
     pub appendix_start: Option<usize>,
     /// The definitions appended, by what identifies each to the runtime.
     pub imports: Vec<ReferenceImport>,
+    /// Prefixes of the names a splice gave the locals of a body it inlined,
+    /// none of which the module's own source spells: codegen gives each such
+    /// name an anonymous slot, so the caller's frame holds no variable of that
+    /// name for anything to list, reach or collide with.
+    pub hidden_local_prefixes: Vec<String>,
 }
 
 /// One pack command's definition, as copied into a module.

@@ -210,7 +210,7 @@ fn splice_v3(
     for name in collect_local_names(&proc.body) {
         rename
             .entry(name.clone())
-            .or_insert_with(|| format!("__inline_{cid}__{name}"));
+            .or_insert_with(|| format!("{}{name}", super::local_prefix(cid)));
     }
 
     let renamed_body = match renamed {
@@ -226,7 +226,7 @@ fn splice_v3(
         if !body_has_trailing_return && let Some(trailing) = renamed_body.statements.last() {
             implicit = Some(capture_implicit_return_value(trailing)?);
         }
-        let result_var = format!("__inline_{cid}__RESULT");
+        let result_var = format!("{}RESULT", super::local_prefix(cid));
         let mut wrapped = wrap_with_irreturn_loop(&renamed_body, &result_var, span, implicit);
         if tail == Tail::Returned {
             // The value is the result's, which is read as the lowering spells a
@@ -250,7 +250,7 @@ fn splice_v3(
     if body_has_trailing_return && tail != Tail::Returned {
         // Trailing return where the value is not the procedure's — wrap so it
         // doesn't short-circuit the rest of the caller's body.
-        let result_var = format!("__inline_{cid}__RESULT");
+        let result_var = format!("{}RESULT", super::local_prefix(cid));
         out.extend(wrap_with_irreturn_loop(
             &renamed_body,
             &result_var,

@@ -114,3 +114,32 @@ fn native_unnamed_slots_preserve_indices_without_source_aliases() {
     assert_eq!(table.find_bytes(b"k\0b"), Some(0));
     assert_eq!(table.find_bytes(b""), Some(3));
 }
+
+/// A hidden name reaches one anonymous slot by every lookup, and the layout
+/// keeps no name for it, as tclsh's `temp` slots have none
+/// (`tcl::unsupported::disassemble` shows `slot 4, scalar, temp`, absent from
+/// `info locals`, tclsh 9.0.4).
+#[test]
+fn a_hidden_name_reaches_an_anonymous_slot_by_every_lookup() {
+    use tcl_syntax::naming::NativeCompiledVariableProtocol;
+    let mut table = LocalVarTable::from_names(&[NameBytes::from(b"n")]);
+    table.hide_names_with_prefixes(vec![NameBytes::from(b"__inline_1__")]);
+    assert_eq!(table.find("__inline_1__x"), None);
+    let slot = table.intern("__inline_1__x");
+    assert_eq!(slot, 1);
+    assert_eq!(table.intern_bytes(b"__inline_1__x"), slot);
+    assert_eq!(table.find("__inline_1__x"), Some(slot));
+    let protocol = NativeCompiledVariableProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0);
+    assert_eq!(table.find_native(protocol, b"__inline_1__x"), Some(slot));
+    assert_eq!(table.intern_native(protocol, b"__inline_1__x"), slot);
+    assert_eq!(
+        table.native_slot_names(),
+        vec![Some(NameBytes::from(b"n")), None]
+    );
+    // A name outside the prefixes stays an ordinary named local.
+    assert_eq!(table.intern("__inline_2__x"), 2);
+    assert_eq!(
+        table.native_slot_names()[2],
+        Some(NameBytes::from(b"__inline_2__x"))
+    );
+}

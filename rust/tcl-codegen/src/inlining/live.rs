@@ -192,6 +192,9 @@ pub(super) fn import<'a>(
         ) else {
             continue;
         };
+        if re_executable(&definition).is_err() {
+            continue;
+        }
         let qualified = definition.qualified_name.clone();
         if module.procedures.has_display(&qualified)
             || module.redefined_procedures.contains(&qualified)
@@ -231,6 +234,22 @@ pub(super) fn import<'a>(
         image: RefCell::new(module.source.clone()),
     };
     (imported, bodies)
+}
+
+/// Why a definition cannot be run again from its start after something fails
+/// inside its splice, which the VM does to present that failure as the called
+/// procedure's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum NotReExecutable {
+    /// The proof is not yet agreed with the analysis owner; no body has it.
+    Unproved,
+}
+
+/// Whether `definition`'s body may be run again from its start: everything it
+/// does before any failure is confined to its splice's anonymous slots and is
+/// repeatable.
+fn re_executable(_definition: &Procedure) -> Result<(), NotReExecutable> {
+    Err(NotReExecutable::Unproved)
 }
 
 /// The calls of `module` whose execution the live entry proves reaches one

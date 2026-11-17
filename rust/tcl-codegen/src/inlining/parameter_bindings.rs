@@ -54,7 +54,7 @@ pub(super) fn build_param_bindings(
     let cid = *counter;
     let mut rename: HashMap<String, String> = HashMap::new();
     for p in &proc.params {
-        rename.insert(p.clone(), format!("__inline_{cid}__{p}"));
+        rename.insert(p.clone(), format!("{}{p}", super::local_prefix(cid)));
     }
 
     let params = &proc.params;
