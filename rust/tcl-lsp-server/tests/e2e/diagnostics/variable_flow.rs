@@ -97,10 +97,11 @@ fn w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122() {
     // A condition call to a proc that does *not* upvar-write its argument
     // must still warn: the check must not blanket-suppress every
     // `$var`-in-condition read, only ones a known upvar proc actually
-    // populates.
+    // populates. The proc returns 1: tclsh 8.4 to 9.1 error on the empty
+    // result (`expected boolean value but got ""`) before `$opt` is read.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "proc doesNothing {ovar} {\n    puts \"called with $ovar\"\n}\nwhile {[doesNothing opt]} {\n    puts $opt\n    break\n}\n";
+    let src = "proc doesNothing {ovar} {\n    puts \"called with $ovar\"\n    return 1\n}\nwhile {[doesNothing opt]} {\n    puts $opt\n    break\n}\n";
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
