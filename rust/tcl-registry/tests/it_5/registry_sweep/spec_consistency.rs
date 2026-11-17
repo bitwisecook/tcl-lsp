@@ -244,6 +244,12 @@ fn is_core_command(spec: &tcl_registry::CommandSpec) -> bool {
             .is_none_or(|rows| tcl_dialect::model::surface_admits_from(rows, Family::Tcl, "9.0"))
 }
 
+/// The bare operator spelling of a `tcl::mathop` command (`+`, `<<`): grammar
+/// read inside `expr`, not a command a runtime dispatches.
+fn is_bare_operator_head(spec: &tcl_registry::CommandSpec) -> bool {
+    spec.traits.contains(tcl_registry::Traits::OPERATOR_COMMAND) && !spec.name.contains("::")
+}
+
 /// A command outside the core set claims nothing it does not have. The WASM
 /// command-parity gate asks the runtime about core commands only, so a row
 /// outside that set declares no backing, or the one its command's core row
@@ -261,7 +267,10 @@ fn a_spec_outside_the_core_set_declares_only_its_own_builtin() {
     let specs = tcl_registry::commands::tcl::tcl_command_specs();
     let core: std::collections::BTreeMap<&str, RuntimeBacking> = specs
         .iter()
-        .filter(|spec| is_core_command(spec))
+        // The bare operator spelling (`+`) is `expr` grammar that nothing
+        // dispatches as a command, so it says nothing about the backing of a
+        // real command spelled the same: Jim's `+ - * /` (jim.c) are builtins.
+        .filter(|spec| is_core_command(spec) && !is_bare_operator_head(spec))
         .map(|spec| (spec.name, spec.runtime_backing))
         .collect();
     let mut outside = 0usize;

@@ -743,3 +743,25 @@ fn source_aware_lsearch_dynamic_prefix_and_suffix_have_distinct_obligations() {
         );
     }
 }
+
+/// `string is class ?-strict? ?-failindex varName? string` writes its index
+/// variable (tclCmdMZ.c `StringIsCmd`, Tcl 8.5 to 9.1): the option's value is
+/// a variable-write word under every release that has the option.
+#[test]
+fn string_is_failindex_names_a_variable_it_writes() {
+    for environment in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let context = crate::model::ingress::resolve_environment(environment).default_context_registry();
+        let reg = context.commands();
+        for args in [
+            ["is", "integer", "-failindex", "bad", "$s"].as_slice(),
+            ["is", "integer", "-strict", "-failindex", "bad", "$s"].as_slice(),
+        ] {
+            let at = args.iter().position(|word| *word == "bad").unwrap();
+            assert_eq!(
+                reg.arg_indices_for_role("string", args, ArgRole::VarWrite),
+                vec![at],
+                "{environment}: {args:?}"
+            );
+        }
+    }
+}
