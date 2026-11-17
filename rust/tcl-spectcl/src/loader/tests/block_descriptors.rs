@@ -87,7 +87,7 @@ fn case_list_rows_author_every_descriptor_field_issue_2140() {
     // …and the list above is the whole struct. Counted from the
     // definition rather than from `Debug`, whose field *values*
     // contain `": "` of their own.
-    let spec_source = include_str!("../../../../tcl-registry/src/spec.rs");
+    let spec_source = include_str!("../../../../tcl-registry/src/spec/case_list.rs");
     let from = spec_source
         .find("pub struct CaseListSpec")
         .expect("`CaseListSpec` by that name");

@@ -24,7 +24,7 @@
 //! studio silently drops, so a draft seeded from a real command would render
 //! back out having lost behaviour.
 //!
-//! This test reads the registry's own `spec.rs` and compares the fields listed
+//! This test reads the registry's own `spec/defaults.rs` and compares the fields listed
 //! in the `CommandSpec::DEFAULT` / `SubCommand::DEFAULT` initialisers against
 //! [`tcl_spec_studio::schema`]. Adding a field to the registry without adding
 //! it to the schema fails here, naming the field.
@@ -33,7 +33,7 @@ use tcl_spec_studio::{coverage, schema};
 
 /// The registry's spec definitions, read at compile time so the test needs no
 /// filesystem access and cannot go stale against a moved file.
-const SPEC_SOURCE: &str = include_str!("../../../tcl-registry/src/spec.rs");
+const SPEC_SOURCE: &str = include_str!("../../../tcl-registry/src/spec/defaults.rs");
 
 /// Field names from a `pub const DEFAULT: Self = Self { … };` initialiser.
 ///
@@ -43,7 +43,7 @@ const SPEC_SOURCE: &str = include_str!("../../../tcl-registry/src/spec.rs");
 fn default_initialiser_fields(source: &str, after_marker: &str) -> Vec<String> {
     let start = source
         .find(after_marker)
-        .unwrap_or_else(|| panic!("spec.rs no longer contains {after_marker}"));
+        .unwrap_or_else(|| panic!("spec/defaults.rs no longer contains {after_marker}"));
     let body = &source[start..];
     let open = body
         .find("pub const DEFAULT: Self = Self {")
