@@ -89,7 +89,8 @@ Made so sessions were not stalled; each can be overruled.
   - *The rule loader's declarations are an inventory, not an execution.* A top-level `when` or rule `proc` has no proved execution target and Unknown native admission (the `rule_declaration` tests stand); a hosted entry gives the handler body advisory facts only. Taint's hosted-lookup fix delivers handler facts as advice on the deferred body.
   - *O100's partial expression path is not built out.* It is unreachable for three independent reasons; the dead branch goes. The row `prop_assign_expr_o100_keeps_expr_wrapper_when_partly_constant` is re-pointed at O102 (a written-out literal is O102's by the KCS page) and kept, red if nothing yet produces `3 + $y`.
   - *The four red narrowing rows in `core_analyses` are not a regression.* `591dea33` rewrote them to the diagnostics verdicts and they have been red since; the product half is dataflow's.
-  - Left for the owner: whether the minifier's lexical naming passes get a shared transactional rename planner or the forty expectations are retired; whether rename-grade code may read a command's descriptor in a body the analysis did not enter. Whether the original-variable rename contract (`name-handling.md`, alias-source coverage) is amended to allow a compiler-proved per-cell exclusion: `set ::other::$n` and `namespace upvar $ns counter local` cannot name `::mypkg::version`, yet the contract makes any unknown or computed target a barrier, so `tn_namespace_variable_rename_ignores_a_dynamic_name_under_another_namespace` and `fn_guard_namespace_variable_rename_ignores_a_computed_alias_of_another_cell` stay red until it is decided (amend, or the two tests expect refusal).
+  - **Owner decisions of 17 November, 19:50 UTC.** *Namespace variable rename:* the contract is amended, narrowly. A computed variable name blocks a rename only when it could spell the old or the new name; the exclusion is a compiler fact (an absolute written namespace prefix that diverges from the target's path, or a fully written final component that differs from its tail), proved against both names; every other computed name stays a barrier; an excluded site is neither edited nor counted as covered; custom variable resolvers are out of scope. tclsh 8.4.20 and 9.0.4: `set ::other::$n 2` with `n` as `::mypkg::version` creates `::other::mypkg::version`. LSP features drafts, analyser-binding reviews. *Minifier naming passes:* the forty expectations are retired, no planner now; any code-size loss is measured and tracked as its own item to fix.
+  - Left for the owner: whether rename-grade code may read a command's descriptor in a body the analysis did not enter.
 - **Naming gate.** Colon trims count as hand-written name handling; four `::` joins in `f5-cli` and `tcl-bigip` are listed as not Tcl names.
 
 ## Measured state, 14 November 2026
@@ -230,7 +231,7 @@ Traced, not changed here: rename's collision coverage needs a completed or condi
 
 Asked of the coordinator: four lenient and release namespace-variable renames (`tn_…_dynamic_name_under_another_namespace`, `tp_…_alias_in_another_namespace`, `fn_guard_…_computed_alias_of_another_cell`) refuse because `original_variable_rename_is_complete` counts every dynamic name and alias obligation in the document, though the per-site hazard rules the site out; narrowing that gate is a strict-rename change in `tcl-compiler`.
 
-Not touched, owner decisions pending: the minifier naming passes; descriptors in bodies the analysis did not enter (refactors, call hierarchy).
+Not touched, owner decision pending: descriptors in bodies the analysis did not enter (refactors, call hierarchy).
 
 ## Compiler dataflow and optimiser area, 17 November 2026
 
