@@ -6,7 +6,7 @@ Updated 15 November 2026. Results apply to their captured source and stated purp
 
 Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); the split moved items without renaming them, and test paths gained a module, so failing lists are compared by last path segment. The sessions that worked until 16 November were paused for the split and then replaced on the owner's instruction. Each left a hand-over in `docs/work/name-handling/handover/<slug>.md`, its last failing list in `docs/work/name-handling/lists/<slug>-failing-2026-11-16.txt`, and any unfinished work as `docs/work/name-handling/patches/handover-<slug>-*.patch`. The new sessions, their models and how they work together are in `docs/work/name-handling/handover/successors.md`. The area sections below are the outgoing sessions' notes and name pre-split paths; a successor replaces its own section with a current snapshot after its first full run.
 
-## Scoreboard, 17 November 2026, 16:55 UTC
+## Scoreboard, 17 November 2026, 17:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
 
@@ -14,7 +14,7 @@ Failing tests by area on the restructured tree, from the successor sessions' bas
 
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
-| `tcl-compiler` (all areas below share this suite) | 2,138 (areas: values 299, taint 186; includes the accepted exposures of the stock-object-type rule) | 13,138 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
+| `tcl-compiler` (all areas below share this suite) | 2,124 (areas: values 296, taint 186; includes the accepted exposures of the stock-object-type rule) | 13,145 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
 | `tcl-lsp-core` library | 510 (semantic tokens 14) | 3,649 | lsp-features |
 | `tcl-lsp-server` end to end | 265 | 1,651 | lsp-features (navigation), server-e2e-db |
 | `tcl-lsp-server` library unit tests | 128 | 1,002 | server-e2e-db (navigation reports to lsp-features) |
@@ -22,9 +22,9 @@ Failing tests by area on the restructured tree, from the successor sessions' bas
 | Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | about 242, after 51 compiler-only tests in `tcl-codegen`'s test crate moved to dataflow-optimiser (23) and values (28) | 5,485 | execution; `live-inlining` for the splice of pack reference bodies (off) |
 | `runtime/rust` (its own workspace) | 41 | 2,726 | execution |
 | Tooling (17 November, 16:00: `tcl-cli` 40, `tcl-spectcl` 23, `tcl-diagram` 13, `tcl-explorer` 13, `tcl-mcp` 3, `tcl-irules` 1, `tcl-spec-studio` 1, `tcl-sslictcl` 0, `tcl-registry` 0; plus 4 rule-loader tests in `tcl-compiler`) | 94 | | irules-registry-tooling |
-| F5 crates (17 November on `30783a0e` and later: `f5-xc` 11 of 57, `tcl-irule-test` 27 of 61, `bigip-report-gen-rust` 5 of 126, `f5-cli` 2 of 185; `tcl-bigip` 0 of 362 after the cleanup golden and certificate fixes; `tcl-bigip-io`, `tcl-bigip-query` (also the x509-only recipe, 4 of 4), `tcl-f5mku` 0; list `lists/irules-registry-tooling-f5-crates-failing-2026-11-17.txt`) | 45 | | tooling |
+| F5 crates (`tcl-irule-test` 27 of 61, `f5-xc` 11 of 57, `bigip-report-gen` 5 of 126, `f5-cli` 2 of 185, `tcl-bigip` 0 of 362, `tcl-bigip-io` 0 of 28, `tcl-bigip-query` 0 of 179, `tcl-f5mku` 0 of 6) | 45 | 1,004 | irules-registry-tooling; the 29 simulator refusals with execution; the `f5-xc` and report causes with taint |
 | F5 crates (first baseline, 17 November: `tcl-irule-test` 27 of 61, `f5-xc` 11 of 57, `bigip-report-gen` 5 of 126, `f5-cli` 2 of 185, `tcl-bigip` 1 of 362, `tcl-bigip-io` 0 of 28, `tcl-bigip-query` 0 of 179, `tcl-f5mku` 0 of 6) | 46 | 1,004 | irules-registry-tooling; the 29 simulator refusals with execution |
-| Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the server row above) | 32 | 131 | irules-registry-tooling |
+| Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the server row above) | 26 | 131 | irules-registry-tooling |
 | `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | no session; the coordinator rules |
 | `xtask` (38 drift gates) | 0 | | coordinator |
 
