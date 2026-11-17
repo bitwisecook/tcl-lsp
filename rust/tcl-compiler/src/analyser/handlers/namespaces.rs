@@ -250,6 +250,10 @@ impl Analyser {
         }
         if args.len() > 3 {
             self.analyse_namespace_eval_tail(args, arg_tokens, &child_path);
+        } else if let Some(tok) = body_tok.filter(|tok| tok.kind != TokenType::Str) {
+            // A `[list …]` script's operands are substituted in the calling
+            // frame before the namespace is entered.
+            self.analyse_list_quoted_body_reading_in(tok, &child_path, scope_path);
         } else if let (Some(text), Some(tok)) = (body_text, body_tok) {
             self.analyse_body(&text, tok, &child_path);
         }

@@ -650,3 +650,29 @@ fn two_dynamic_namespace_eval_blocks_sharing_a_variable_name_never_collide() {
         "each is genuinely its own definition, not the same one twice: {helpers:?}",
     );
 }
+
+/// `namespace eval :: [list puts $file]` builds its script in the calling
+/// frame, so `$file` reads the procedure's parameter before the namespace
+/// is entered. tclsh 8.6.18 and 9.0.4: `proc ::p {file} {namespace eval ::
+/// [list puts $file]}; p hello` prints `hello`.
+#[test]
+fn a_list_built_namespace_script_reads_its_operands_in_the_calling_frame() {
+    let src = "proc ::p {file} {\n    namespace eval :: [list puts $file]\n}\np hello\n";
+    let read = src.find("$file").unwrap();
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let r = Analyser::new().analyse(src, dialect);
+        let procedure = r
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == crate::analyser::types::ScopeKind::Proc)
+            .expect("procedure scope");
+        let references = &procedure.variables["file"].references;
+        assert!(
+            references
+                .iter()
+                .any(|span| span.start() as usize == read || span.start() as usize == read + 1),
+            "{dialect}: {references:?}"
+        );
+    }
+}
