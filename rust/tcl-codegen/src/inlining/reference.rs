@@ -448,6 +448,19 @@ mod tests {
             ("set ::g $x", Err(Decline::ForeignVariables)),
             // `global` declares a link: a state transition of the frame.
             ("global g; set g $x", Err(Decline::StateTransition)),
+            // A completion other than normal is re-executable where nothing
+            // else is declared: running `break` again breaks again.
+            ("break", Ok(())),
+            ("continue", Ok(())),
+            (
+                "return -code error -errorcode {VENDOR BAD} $x",
+                Err(Decline::StateTransition),
+            ),
+            (
+                "error $x {custom info} {VENDOR ERR}",
+                Err(Decline::Callback),
+            ),
+            ("return -level 2 $x", Err(Decline::IncompleteRoles)),
         ] {
             let (_, _, re_execution) = lower_definition(
                 &format!("proc format {{x}} {{{body}}}"),

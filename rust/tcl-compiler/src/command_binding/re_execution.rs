@@ -50,6 +50,10 @@ pub enum ReExecutionDecline {
     /// An argument has a role other than a value or a plain variable read or
     /// write: a variable cell, a link, a name list, a script or a command.
     UnclosedRole(tcl_registry::ArgRole),
+    /// The registry does not declare a role for every argument.
+    IncompleteRoles,
+    /// The target is reached through words an alias or ensemble prepends.
+    PrependedWords,
 }
 
 /// Whether `body`, a procedure body of `module` as a fresh interpreter of the
@@ -178,7 +182,7 @@ fn binding_re_executable(
         return Err(Decline::TracedRead);
     }
     if !target.prepended.is_empty() {
-        return Err(Decline::ForeignVariables);
+        return Err(Decline::PrependedWords);
     }
     variables_local(module, tokens, binding, &invocation.facts)
 }
@@ -195,7 +199,7 @@ fn variables_local(
     use ReExecutionDecline as Decline;
     let context = &binding.variable_context;
     if !facts.arg_roles_complete {
-        return Err(Decline::ForeignVariables);
+        return Err(Decline::IncompleteRoles);
     }
     // Each variable the invocation names, as an operand or a substitution,
     // is a plain local of the frame.

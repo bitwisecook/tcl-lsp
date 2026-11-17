@@ -34,6 +34,7 @@ const SHAPES: &[(&str, &str, usize, &str)] = &[
     ("vdef", "1..2", 2, "proc vdef {x {y 10}} {expr {$x + $y}}"),
     ("vcount", "0..", 0, "proc vcount {args} {llength $args}"),
     ("vformat", "1", 1, "proc vformat {x} {format %d $x}"),
+    ("vlevel", "1", 1, "proc vlevel {x} {return -level 2 $x}"),
 ];
 
 /// Each shape's caller, the calls made of it, and how many definitions the
@@ -103,6 +104,13 @@ const CASES: &[(&str, &[&str], usize)] = &[
     (
         "proc caller {} {set ::n 0; vformat [incr ::n]x}",
         &["list [catch caller] $::n"],
+        0,
+    ),
+    // A body that returns from its caller stays a call: the registry
+    // declares no role for each of `return`'s words (`IncompleteRoles`).
+    (
+        "proc caller {n} {vlevel $n; return after}",
+        &["caller z", "list [caller z] tail"],
         0,
     ),
     // The call's own argument count is wrong.
