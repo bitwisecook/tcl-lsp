@@ -280,9 +280,10 @@ impl<'a> ModuleProcedures<'a> {
         })
     }
 
-    /// `callee`'s flow graph and SSA: the built unit's where there is one,
-    /// else the module's flow graph with its SSA built once. `None` for a
-    /// body the complexity guard stops.
+    /// `callee`'s flow graph and SSA: the graph of its body in its declared
+    /// frame where it has one, else the built unit's, else the module's, with
+    /// the summary's SSA built once over it. `None` for a body the complexity
+    /// guard stops.
     pub(super) fn flow_of(
         &self,
         callee: &crate::ir::ProcedureId,
@@ -308,22 +309,25 @@ impl<'a> ModuleProcedures<'a> {
             .borrow_mut()
             .entry(callee.to_owned())
             .or_insert_with(|| {
-                Rc::new(unit.map_or_else(
-                    || {
-                        crate::ssa::build_ssa_with_context_for_entry_and_metadata(
-                            cfg,
-                            self.registry,
-                            self.config,
-                            crate::compilation_unit::function_source_entry(cfg, None),
-                            Some(&declared.params),
-                            crate::registry_invocation::InvocationMetadataContext::for_module(
-                                self.registry,
-                                self.ir,
-                            ),
-                            cfg.metadata_context.is_standalone(),
-                        )
-                    },
-                    |unit| unit.ssa.clone(),
+                // The summary's SSA, not the unit's: a write through a local
+                // linked to a caller's place defines the local there.
+                let linked: Vec<String> = self
+                    .links(callee)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(_, local)| local)
+                    .collect();
+                Rc::new(crate::ssa::build_summary_ssa(
+                    cfg,
+                    (self.registry, self.config),
+                    crate::compilation_unit::function_source_entry(cfg, None),
+                    Some(&declared.params),
+                    crate::registry_invocation::InvocationMetadataContext::for_module(
+                        self.registry,
+                        self.ir,
+                    ),
+                    cfg.metadata_context.is_standalone(),
+                    &linked,
                 ))
             })
             .clone();

@@ -213,14 +213,6 @@ impl<'a> SourceSummaryContext<'a> {
         declared().is_some()
     }
 
-    /// Whether the procedure SSA defines a local at a write through its
-    /// caller link, so the summary run can read the linked place's outcome:
-    /// the Logical survey's frames do; a release unit's walk stores through
-    /// the link to its target instead.
-    pub(super) fn reads_linked_locals(&self) -> bool {
-        self.logical()
-    }
-
     /// Whether the module was read under the Logical survey, whose
     /// navigation and variable scopes the operand queries read.
     fn logical(&self) -> bool {

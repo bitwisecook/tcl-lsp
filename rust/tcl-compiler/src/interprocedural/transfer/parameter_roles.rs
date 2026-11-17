@@ -46,10 +46,10 @@ impl ModuleProcedures<'_> {
         if links.is_empty() {
             return Some(value_roles(qname, declared, inputs));
         }
-        let ssa = crate::ssa::build_ssa_with_context_for_entry_and_metadata(
+        let linked: Vec<String> = links.iter().map(|(_, local)| local.clone()).collect();
+        let ssa = crate::ssa::build_summary_ssa(
             cfg,
-            inputs.registry,
-            inputs.config,
+            (inputs.registry, inputs.config),
             crate::compilation_unit::function_source_entry(cfg, None),
             Some(&declared.params),
             crate::registry_invocation::InvocationMetadataContext::for_module(
@@ -57,6 +57,7 @@ impl ModuleProcedures<'_> {
                 inputs.ir,
             ),
             cfg.metadata_context.is_standalone(),
+            &linked,
         );
         let owned: HashSet<String> = links.iter().map(|(_, local)| local.clone()).collect();
         let runs = [Existence::Bound(BindingKind::Either), Existence::Unbound]
@@ -64,9 +65,7 @@ impl ModuleProcedures<'_> {
         // Where each linked local stands at the normal exits of each run:
         // `None` for a run that completes nowhere — no normal exit reached,
         // or every path to one through a callee that never completes — and
-        // a `None` slot where a run completes but cannot state the local
-        // (a release unit's SSA sends a write through a caller link to the
-        // link's target rather than defining the local).
+        // a `None` slot where a run completes but cannot state the local.
         let facts = runs.each_ref().map(|run| {
             let exits = normal_exits(cfg, run);
             if exits.is_empty() {
@@ -89,18 +88,12 @@ impl ModuleProcedures<'_> {
         let mut roles = value_roles(qname, declared, inputs);
         for (slot, (index, local)) in links.iter().enumerate() {
             let param = &declared.params[*index];
-            // A release unit's SSA sends a write through a caller link to the
-            // link's target rather than defining the local, so its exit facts
-            // cannot state the place's outcome.
             let source = self.source.as_ref()?;
             let slot_facts = facts
                 .each_ref()
                 .map(|facts| facts.as_ref().map(|facts| facts[slot]));
             let stated = slot_facts.iter().all(|fact| !matches!(fact, Some(None)));
-            let outcomes = if stated
-                && source.reads_linked_locals()
-                && linked_cleanly(cfg, &ssa, local, param, qname, source)
-            {
+            let outcomes = if stated && linked_cleanly(cfg, &ssa, local, param, qname, source) {
                 let [bound, unbound] = slot_facts.map(Option::flatten);
                 outcomes_of(bound, unbound, defined_in(&ssa, &reached, local))
             } else {
