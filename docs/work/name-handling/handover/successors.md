@@ -19,7 +19,7 @@ The burn-down continues with new sessions. This file is what every one of them r
 | `irules-registry-tooling` | iRules, registry, SpecTcl, tooling | Sonnet | `session_017u5g3GuvSUJA9Qanj2AVvk` |
 | `tk-oo` | Tk and TclOO issues (#2324, #2427, #1956, #1655, #832) | Opus | `session_017u5g3KsHnGzMmqgP3e6dJj` |
 
-The coordinator is session `session_017u5g3KpKgjfMZcPMj8rx4F`. It rules on questions, keeps the scoreboard and does not write area code.
+The coordinator is session `session_017u5g3KpKgjfMZcPMj8rx4F`. It rules on questions, keeps the scoreboard and does not write area code. `tcl-syntax::naming`, `tcl-lexer` and `xtask` have no session: a session that needs a change there asks the coordinator, then makes it as one small separate commit with the tclsh oracle in the test, after the `tcl-syntax` and `tcl-lexer` suites, `make xtask-gates` and the whole `tcl-compiler` suite against its baseline, and tells the analyser-binding session before pushing.
 
 ## Starting
 
