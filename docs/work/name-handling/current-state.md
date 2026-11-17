@@ -6,9 +6,11 @@ Updated 15 November 2026. Results apply to their captured source and stated purp
 
 Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); the split moved items without renaming them, and test paths gained a module, so failing lists are compared by last path segment. The sessions that worked until 16 November were paused for the split and then replaced on the owner's instruction. Each left a hand-over in `docs/work/name-handling/handover/<slug>.md`, its last failing list in `docs/work/name-handling/lists/<slug>-failing-2026-11-16.txt`, and any unfinished work as `docs/work/name-handling/patches/handover-<slug>-*.patch`. The new sessions, their models and how they work together are in `docs/work/name-handling/handover/successors.md`. The area sections below are the outgoing sessions' notes and name pre-split paths; a successor replaces its own section with a current snapshot after its first full run.
 
-## Scoreboard, 17 November 2026, 15:55 UTC
+## Scoreboard, 17 November 2026, 16:55 UTC
 
-Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes. The start-of-work figure for the whole workspace was about 4,940.
+Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
+
+**Open regression, 16:50 UTC:** the source optimiser drops a statement that runs. `tcl-codegen` `it_3` `release_optimiser_safety::issue_2262` and `additional_reported_witnesses` fail since today: for `proc p {} {set n 1; foreach v [incr n] {}; puts $n}; p` under `tcl8.4` the rewrite loses `puts $n` (tclsh 8.4.20 prints `2` then `0 {}`; the rewrite prints only `0 {}`). The dataflow area has it first; the unreachable-code deletion re-enabled in `2743377c7` is the first suspect, and it is switched off again if it cannot be made sound quickly. The start-of-work figure for the whole workspace was about 4,940.
 
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
