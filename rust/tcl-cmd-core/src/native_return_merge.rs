@@ -182,6 +182,23 @@ pub fn merge<O: NativeReturnMergeObjects>(
     })
 }
 
+/// The options of a compiled syntax error: the validated words as one
+/// dictionary in argv order, `-code` and `-level` kept as members.
+/// # Errors
+/// Preserves the merge's validation failures.
+pub fn merge_retaining_controls<O: NativeReturnMergeObjects>(
+    ops: &mut O,
+    protocol: ReturnOptionsProtocol,
+    arguments: &[O::Value],
+) -> Result<(MergedNativeReturnOptions<O::Value>, O::Value), CmdError> {
+    let merged = merge(ops, protocol, arguments)?;
+    let mut root = ops.fresh_dictionary()?;
+    for pair in arguments.as_chunks::<2>().0 {
+        ops.put(&mut root, &pair[0], &pair[1])?;
+    }
+    Ok((merged, ops.finish(root)))
+}
+
 /// `Tcl_SetReturnOptions` validates the original outer even List before merging.
 /// # Errors
 /// Preserves original cache effects and the instruction's invalid-dictionary diagnostic.

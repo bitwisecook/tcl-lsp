@@ -757,23 +757,35 @@ impl CodegenCtx<'_> {
                     // without folding and raises the error as it runs.
                     let direct = self.direct_statement.is_some() || self.in_direct_statement();
                     let shares_message = syntax.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::syntax_options_share_message);
+                    // `TclCompileSyntaxError` stores `Tcl_GetReturnOptions(interp,
+                    // TCL_ERROR)`: `-code 1 -level 0 -errorcode .. -errorinfo ..
+                    // -errorline 1` in 8.5-9.1. 9.1 shares the message object as
+                    // `-errorinfo`; this placeholder holds the key's position.
                     let mut words = vec![
+                        word(b"-code".to_vec()),
+                        word(b"1".to_vec()),
+                        word(b"-level".to_vec()),
+                        word(b"0".to_vec()),
                         word(b"-errorcode".to_vec()),
                         word(error_code.unwrap_or_else(|| b"NONE".to_vec())),
                     ];
-                    // Before 9.1 `Tcl_GetReturnOptions` copies the message
-                    // into the options as their own `-errorinfo`.
-                    if !direct && syntax.is_some() && !shares_message {
-                        words.extend([word(b"-errorinfo".to_vec()), word(message.clone())]);
+                    if !direct && syntax.is_some() {
+                        words.extend([
+                            word(b"-errorinfo".to_vec()),
+                            word(message.clone()),
+                            word(b"-errorline".to_vec()),
+                            word(b"1".to_vec()),
+                        ]);
                     }
-                    let size = words.len() / 2;
+                    let size = words.len() / 2 - 2;
                     let options =
                         tcl_runtime_api::native_return_literal::NativeReturnOptionsLiteral {
                             protocol,
                             words,
-                            code: 0,
-                            level: 1,
+                            code: 1,
+                            level: 0,
                             size,
+                            retains_controls: true,
                         };
                     let index = self.literals.register_private_return_options(options);
                     if !direct && shares_message {

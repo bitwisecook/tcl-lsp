@@ -343,6 +343,7 @@ pub fn native_return_instruction(
             code,
             level,
             size,
+            retains_controls: false,
         }),
         exit,
     })

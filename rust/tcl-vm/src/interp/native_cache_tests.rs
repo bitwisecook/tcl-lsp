@@ -1032,6 +1032,7 @@ fn syntax_first_pass() -> tcl_bytecode::LiteralTable {
         code: 0,
         level: 1,
         size: 1,
+        retains_controls: false,
     });
     literals.retain_syntax_error_info(options, message);
     literals

@@ -748,6 +748,7 @@ mod tests {
                 code: 0,
                 level: 1,
                 size: 1,
+                retains_controls: false,
             },
         )
         .unwrap();

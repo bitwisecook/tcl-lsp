@@ -306,6 +306,7 @@ impl Builder<'_> {
                     code: 0,
                     level: 1,
                     size: 1,
+                    retains_controls: false,
                 },
             );
             prepared.rejected = Some((message, options));
@@ -427,7 +428,7 @@ impl Builder<'_> {
                                         pieces: vec![error.code.unwrap_or_else(|| b"NONE".to_vec())], composite: false,
                                     },
                                 ],
-                                code: 0, level: 1, size: 1,
+                                code: 0, level: 1, size: 1, retains_controls: false,
                             },
                         );
                         if self.interp.native_invocation_dialect()
