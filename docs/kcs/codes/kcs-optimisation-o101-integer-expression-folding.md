@@ -54,14 +54,6 @@ puts 5
 - Skipped when `expr` itself, or a math function used in the expression (`abs`, `sqrt`, …), has been renamed, aliased, or redefined by a `proc`.
 - Skipped when a variable's value can't be proven unchanged across an intervening call — for example, a helper procedure that writes the same global/namespace variable, or a variable under a `trace` installed anywhere in the file.
 
-## Standalone expression limitation
-
-A standalone `expr {2 + 3}` is currently rewritten to the bare command `5`,
-which Tcl cannot execute. The safe example above folds a command
-substitution inside `puts`. For code with standalone expressions, disable
-O101 until the command wrapper is preserved. See the
-[precision limitations](../../design/compiler/precision-limitations.md#open--a-standalone-expression-fold-drops-its-command-wrapper).
-
 ## How to disable
 
 Toggle the optimiser profile in your editor settings. See the [optimiser feature](../features/kcs-feature-optimiser.md) for profile options.

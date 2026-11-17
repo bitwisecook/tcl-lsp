@@ -515,16 +515,3 @@ remains a separate diagnostic concern.
 A detached `module = None` compatibility path can use nominal metadata under
 its explicit nominal policy. That path is not source-backed evidence and does
 not confer Native dispatch or `Normal` execution authority.
-
-## Open — a standalone expression fold drops its command wrapper
-
-`optimiser::expr_simplify::try_rewrite_expr` uses the folded value as the
-replacement for the whole standalone `expr` statement. `expr {2 + 3}`
-therefore becomes `5`, which `tclsh` 9.0.4 rejects with
-`invalid command name "5"`. In a procedure the same rewrite also loses the
-implicit return value's executable command. Folding `[expr {2 + 3}]`
-inside `puts` produces the valid `puts 5` instead.
-
-The standalone rewrite must retain an `expr` command and render its result
-as a valid expression operand, including string-valued results. Until then,
-disable O101 when optimising standalone expressions.
