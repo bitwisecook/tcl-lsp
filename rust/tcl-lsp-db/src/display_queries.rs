@@ -317,6 +317,11 @@ pub fn semantic_tokens_project(
     let proc_roles = project_proc_var_index(db, project);
     let named_instances = project_named_instance_index(db, project);
     let analysis = file_analysis_incremental(db, file, config);
+    if analysis.analysis_context_unavailable.is_some() {
+        // A missing overlay: advise from the plain registry, as the
+        // document-level query does, rather than blanking.
+        return semantic_tokens(db, file, config);
+    }
     tcl_lsp_core::semantic_tokens::full_with_cu_and_facts(
         file.text(db),
         tcl_lsp_core::profile_for_dialect(file.dialect(db)),
