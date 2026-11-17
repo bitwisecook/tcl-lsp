@@ -1,0 +1,94 @@
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+index bf1f85e2..fc80b589 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+@@ -19473,3 +19473,89 @@ fn w143_withdraws_for_a_private_namespace_command_the_document_defines() {
+     assert!(!has_code(own, "tcl8.6", "W143"));
+     assert!(has_code("::tcl::dict::mine {a 1}\n", "tcl8.6", "W143"));
+ }
++
++fn zz_dump(scope: &crate::analyser::types::Scope, depth: usize) {
++    let mut vars: Vec<_> = scope
++        .variables
++        .iter()
++        .map(|(name, var)| (name, &var.link_target, var.link_target_span))
++        .collect();
++    vars.sort_by(|a, b| a.0.cmp(b.0));
++    eprintln!(
++        "  scope{} {:?} {:?} vars={vars:?}",
++        "  ".repeat(depth),
++        scope.kind,
++        scope.name
++    );
++    for child in &scope.children {
++        zz_dump(child, depth + 1);
++    }
++}
++
++#[test]
++fn zz_probe_file() {
++    let Ok(path) = std::env::var("ZZ_SRC") else {
++        return;
++    };
++    let dialects = std::env::var("ZZ_DIALECT").unwrap_or_else(|_| "tcl8.6".to_owned());
++    let text = std::fs::read_to_string(path).unwrap();
++    for src in text.split("\n----\n") {
++        for dialect in dialects.split(',') {
++            let mut retained = Analyser::new();
++            retained.analyse_and_retain_result_for_test(src, dialect);
++            let native;
++            let r = if std::env::var("ZZ_NATIVE").is_ok() {
++                native = native_existence_result(src, dialect);
++                (*native).clone()
++            } else {
++                Analyser::new().analyse(src, dialect)
++            };
++            eprintln!("=== {dialect} {src:?}");
++            eprintln!("  full={:?}", super::fp::codes(src, dialect));
++            eprintln!(
++                "  objdefined={:?} ns_paths={:?}",
++                retained.objdefined_vars, retained.namespace_paths
++            );
++            for d in &r.diagnostics {
++                eprintln!(
++                    "  {} {}..{} {:?} {}",
++                    d.code,
++                    d.span.start(),
++                    d.span.end(),
++                    src.get(
++                        d.span.start() as usize
++                            ..=(d.span.end() as usize).min(src.len().saturating_sub(1))
++                    ),
++                    d.message
++                );
++            }
++            eprintln!("  procs={:?}", r.all_procs.keys().collect::<Vec<_>>());
++            eprintln!("  renamed={:?}", r.renamed_commands);
++            eprintln!(
++                "  regex={:?}",
++                r.regex_patterns
++                    .iter()
++                    .map(|p| (&p.pattern, &p.command))
++                    .collect::<Vec<_>>()
++            );
++            zz_dump(&r.global_scope, 0);
++            eprintln!("  classes={:?}", r.all_classes.keys().collect::<Vec<_>>());
++            eprintln!(
++                "  object_methods={:?}",
++                r.object_methods.keys().collect::<Vec<_>>()
++            );
++            eprintln!(
++                "  dynamic_providers={} unknown={:?}",
++                r.has_dynamic_providers, r.unknown_proc_info
++            );
++            eprintln!("  requires={:?}", r.package_requires);
++            eprintln!("  imports={:?}", r.namespace_imports);
++            eprintln!("  aliases={:?}", r.command_aliases);
++            if std::env::var("ZZ_INV").is_ok() {
++                for inv in &r.command_invocations {
++                    eprintln!("  inv {inv:?}");
++                }
++            }
++        }
++    }
++}
