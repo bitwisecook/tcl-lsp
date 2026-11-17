@@ -891,3 +891,31 @@ fn ensemble_management_operations_are_registry_nested_subcommands() {
     );
     assert!(ensemble.resolve_sub_subcommand("c").is_none());
 }
+
+/// `namespace qualifiers` and `namespace tail` split the word they are given
+/// and look no namespace up, on every release. Run with the current
+/// namespace `::other` and namespaces that do not exist:
+///
+/// ```tcl
+/// puts [list [namespace tail ::no::such::ns::x] [namespace qualifiers ::no::such::ns::x]]
+/// namespace eval ::other {puts [list [namespace tail a::b] [namespace qualifiers a::b]]}
+/// ```
+///
+/// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all print `x ::no::such::ns`
+/// and `b a`.
+#[test]
+fn namespace_string_subcommands_read_no_namespace() {
+    let spec = spec();
+    for name in ["qualifiers", "tail"] {
+        let sub = spec
+            .subcommands
+            .iter()
+            .find(|sub| sub.name == name)
+            .expect("namespace subcommand");
+        assert!(
+            !sub.side_effects.is_unknown() && sub.side_effects.lower_bound().is_empty(),
+            "namespace {name}: {:?}",
+            sub.side_effects
+        );
+    }
+}
