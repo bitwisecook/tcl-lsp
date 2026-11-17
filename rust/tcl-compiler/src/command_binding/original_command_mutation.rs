@@ -54,11 +54,12 @@ impl OriginalCommandMove {
         Self::capture_in_view(native, facts, state, context, false)
     }
 
-    /// The delete form for the diagnostic view, which also admits a class.
-    /// Deleting a class destroys its instances and subclasses, which this
-    /// receipt does not model: their slots stay as they were, so the view can
-    /// only claim the deleted class name itself absent. Not a completion
-    /// receipt.
+    /// The delete form for the diagnostic view, which also admits a class or
+    /// any builtin. Deleting either may run cleanup that removes further
+    /// commands (a class's instances and subclasses, a builtin's own
+    /// delete callback), which this receipt does not model: their slots stay
+    /// as they were, and cleanup never adds a command, so the view can only
+    /// claim the deleted name itself absent. Not a completion receipt.
     pub(super) fn capture_deletion_for_diagnostics(
         native: SourceNativeInvocation<'_>,
         facts: &InvocationFacts,
@@ -128,7 +129,8 @@ impl OriginalCommandMove {
         };
         let destination = match &to {
             None => {
-                let modelled = diagnostic && target.kind == BindingKind::Class;
+                let modelled =
+                    diagnostic && matches!(target.kind, BindingKind::Class | BindingKind::Builtin);
                 if !(modelled
                     || Self::deletion_runs_no_cleanup(state, &current, &source, &binding, &target))
                 {
@@ -555,6 +557,24 @@ mod tests {
                     version.dialect_name()
                 );
             }
+        }
+    }
+
+    #[test]
+    fn a_deleted_builtin_is_absent_for_diagnostics_only() {
+        // tclsh 8.4-9.1: `rename puts {}; puts x` raises
+        // `invalid command name "puts"`.
+        for version in tcl_dialect::TclVersion::ALL {
+            let source = "rename puts {}\nputs x\n";
+            let bindings = analyse(source, version);
+            let at = u32::try_from(source.find("\nputs").unwrap() + 1).unwrap();
+            assert_eq!(
+                bindings.diagnostic_slot_presence_at(at),
+                super::super::SourceCommandSlotPresence::Absent,
+                "{}",
+                version.dialect_name()
+            );
+            assert!(bindings.original_completed_command_world().is_none());
         }
     }
 }
