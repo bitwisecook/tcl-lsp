@@ -103,7 +103,44 @@ pub(super) fn positioned_class_hover(
 ) -> Option<Hover> {
     crate::original_oo::positioned_class_at(source, analysis, cursor)
         .map(|class| Hover::markdown(class_hover_text(analysis, class.metadata())))
+        .or_else(|| relation_class_hover(source, analysis, cursor))
         .or_else(|| counted_class_source_hover(source, analysis, cursor))
+}
+
+/// A `superclass` / `mixin` word hovers as the class its own recorded lookup
+/// selects among the document's class declarations (current namespace, then
+/// global). Display only.
+fn relation_class_hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Hover> {
+    use tcl_compiler::analyser::types::OriginalSourceClassRelationKind as Kind;
+    let (image, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
+    let relation = analysis
+        .original_class_declarations()
+        .flat_map(|record| record.metadata().original_relations.effects())
+        .filter(|effect| matches!(effect.kind(), Kind::Superclass | Kind::Mixin))
+        .flat_map(|effect| effect.values().unwrap_or_default())
+        .find(|relation| {
+            relation
+                .name_input()
+                .original_word_key()
+                .is_some_and(|key| {
+                    key.source_image() == &image
+                        && key.lexer_config() == config
+                        && key.span().start() <= cursor
+                        && cursor < key.span().end()
+                })
+        })?;
+    let selected = relation.lookup().first_matching_publications(
+        analysis
+            .original_class_declarations()
+            .map(|record| (record.name(), record)),
+    );
+    let [class] = selected.as_slice() else {
+        return None;
+    };
+    Some(Hover::markdown(class_hover_text(
+        analysis,
+        class.metadata(),
+    )))
 }
 
 pub(super) fn original_property_source_hover(
