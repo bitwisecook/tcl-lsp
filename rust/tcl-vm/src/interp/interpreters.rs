@@ -130,6 +130,14 @@ impl Vm {
         r
     }
 
+    /// Whether `id` is torn down when the evaluation running in it unwinds: it
+    /// was deleted, and that evaluation is its last in-flight one.
+    pub(super) fn interp_retires_on_return(&self, id: InterpId) -> bool {
+        self.interps
+            .get(id.0)
+            .is_some_and(|slot| slot.dying && slot.active == 1)
+    }
+
     fn cleanup_return_target(
         &self,
         original: InterpId,

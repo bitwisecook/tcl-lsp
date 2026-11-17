@@ -605,6 +605,13 @@ impl Vm {
                     Err(error) => return crate::command::completion_from_tcl_error(vm, error),
                 };
             }
+            // C hands the child's result to the caller (`TclTransferResult`)
+            // before `Tcl_Release` can delete the child, so the result
+            // outlives the child's objects.
+            if vm.interp_retires_on_return(id) {
+                completion.result = completion.result.into_native_reference();
+                completion.options = completion.options.into_native_reference();
+            }
             completion
         });
         if let Err(error) = original_name_scope.check(self) {
