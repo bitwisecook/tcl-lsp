@@ -1,61 +1,61 @@
-kind	cluster	target	path	failing
-overlap_cluster	6c9c811ffca0	lib	tests::document_analysis::body_edit_recomputes_one_item	1
-overlap_cluster	6c9c811ffca0	lib	tests::function_lattices::function_lattice_reused_on_body_shift	1
-overlap_cluster	74d32a83484b	e2e	code_actions::quick_fixes::test_e004_missing_first_clause_offers_no_fix	0
-overlap_cluster	74d32a83484b	e2e	diagnostics::syntax_errors::e004_condition_without_body_anchors_on_the_condition_word	0
-overlap_cluster	e329d52754f8	e2e	code_actions::refactor_actions::test_cursor_past_end_of_line_does_not_crash	0
-overlap_cluster	e329d52754f8	e2e	code_actions::refactor_actions::test_cursor_past_last_line_does_not_crash	0
-overlap_cluster	470a62843b64	e2e	completion::dollar_completion_tolerates_cursor_past_eol	0
-overlap_cluster	470a62843b64	e2e	completion::dollar_triggers_vars	0
-exact_cluster	b0121659c425	e2e	diagnostic_matrix::constant_expr_folds	0
-exact_cluster	b0121659c425	e2e	diagnostic_matrix::expr_not_redefined_still_folds	0
-overlap_cluster	6a6c4c8033d4	e2e	diagnostic_matrix::constant_expr_folds	0
-overlap_cluster	6a6c4c8033d4	e2e	diagnostic_matrix::expr_not_redefined_still_folds	0
-overlap_cluster	557dbe7181c9	e2e	diagnostics::code_canaries::unbraced_expr_is_w100	0
-overlap_cluster	557dbe7181c9	e2e	diagnostics::publication::fixing_the_source_clears_the_diagnostic	0
-overlap_cluster	d650c2ccdb27	e2e	diagnostics::constant_conditions::bang_equals_string_condition_folds	0
-overlap_cluster	d650c2ccdb27	e2e	diagnostics::constant_conditions::double_equals_string_condition_folds	0
-overlap_cluster	2f1bd94acd2f	e2e	diagnostics::dialect_gating::issue_968_version_gated_math_function_dual_fires_end_to_end	0
-overlap_cluster	2f1bd94acd2f	e2e	diagnostics::dialect_gating::undotted_vscode_language_ids_resolve_to_the_same_dialect_end_to_end	0
-overlap_cluster	e99b46a04be9	e2e	diagnostics::publication::introducing_an_error_publishes_it	0
-overlap_cluster	e99b46a04be9	e2e	edit_tracking_stress::introduce_then_immediately_fix_error	0
-overlap_cluster	1a76dbccd23d	e2e	editor_features::test_legacy_inlay_hints_alias_enables_type_only	0
-overlap_cluster	1a76dbccd23d	e2e	editor_features::test_parameter_hints_only_produce_labels_no_type_hints	0
-overlap_cluster	1a76dbccd23d	e2e	editor_features::test_type_hints_only_emit_no_parameter_labels	0
-overlap_cluster	331993ae7e08	e2e	hover::var_hover	0
-overlap_cluster	331993ae7e08	e2e	hover::var_hover_shows_refs	0
-overlap_cluster	b842c6488646	e2e	jim::a_plain_tcl_document_is_not_analysed_as_jim	0
-overlap_cluster	b842c6488646	e2e	jim::a_tcl_jim_document_is_analysed_as_jim	0
-overlap_cluster	0855073eaa17	e2e	navigation::hover_on_a_caller_frame_read_names_the_creating_call_not_a_method	0
-overlap_cluster	0855073eaa17	e2e	navigation::hover_on_a_literal_upvar_target_read_names_the_creating_call	0
-overlap_cluster	aaee1bbaa08e	e2e	navigation_extras::incoming_calls	0
-overlap_cluster	aaee1bbaa08e	e2e	navigation_extras::outgoing_calls	0
-overlap_cluster	c24c7565dd11	e2e	recovery::c5_break_then_fix	0
-overlap_cluster	c24c7565dd11	e2e	recovery::c5_rapid_toggling_stays_consistent	0
-overlap_cluster	c6aaa50d2962	e2e	references::references_from_an_alias_call_site_offer_the_targets_sites	0
-overlap_cluster	c6aaa50d2962	e2e	references::references_include_call_sites_spelled_through_an_alias	0
-overlap_cluster	c185697c2445	e2e	references::var_refs_respect_shadowing_global_target	0
-overlap_cluster	c185697c2445	e2e	references::var_refs_respect_shadowing_local_target	0
-overlap_cluster	3924b83d606a	e2e	rename::prepare_rename_variable	0
-overlap_cluster	3924b83d606a	e2e	rename::prepare_rename_variable_from_definition_site	0
-overlap_cluster	b238dce69990	e2e	rename::rejects_invalid_new_symbol_name	0
-overlap_cluster	b238dce69990	e2e	rename::rejects_proc_rename_to_builtin	0
-overlap_cluster	cd1376b93c96	e2e	rename::rename_var	0
-overlap_cluster	cd1376b93c96	e2e	rename::rename_var_from_definition_site	0
-overlap_cluster	dadc5c42e0ef	e2e	spec_packs::pack_commands::a_workspace_pack_makes_an_unknown_command_resolve_with_hover	0
-overlap_cluster	dadc5c42e0ef	e2e	spec_packs::pack_commands::the_spec_packs_setting_reaches_a_pack_convention_would_miss	0
-overlap_cluster	92645d20273d	e2e	tcloo_navigation::tn_renaming_a_moved_member_onto_an_earlier_deleted_name_is_allowed	1
-overlap_cluster	92645d20273d	e2e	tcloo_navigation::tp_renaming_a_moved_member_onto_a_live_sibling_is_refused	1
-overlap_cluster	c0940595c514	lib	studio_source::tests::cross_backend_same_uri_token_cannot_publish_or_retire_new_owner	0
-overlap_cluster	c0940595c514	lib	studio_source::tests::replaced_or_stale_revision_and_missing_entropy_never_donate_a_live_lease	0
-overlap_cluster	38d9e33b8d2c	lib	tests::diagnostics::closed_files::did_close_clears_badge_when_file_deleted_before_close	0
-overlap_cluster	38d9e33b8d2c	lib	tests::diagnostics::closed_files::publish_closed_is_noop_for_open_document	0
-overlap_cluster	38d9e33b8d2c	lib	tests::workspace::watched_files::watched_delete_clears_closed_file_badge	0
-overlap_cluster	0e68ddf15a38	lib	tests::diagnostics::closed_files::did_close_retains_diagnostics_for_on_disk_file_with_problems	0
-overlap_cluster	0e68ddf15a38	lib	tests::diagnostics::closed_files::reschedule_closed_file_diagnostics_clears_badge_when_master_off	0
-overlap_cluster	b9217a793dd2	lib	tests::diagnostics::f5_models::bigip_config_findings_surface_codes	0
-overlap_cluster	b9217a793dd2	lib	tests::diagnostics::f5_models::the_f5_report_honours_a_disabled_model_code	0
-overlap_cluster	690629f007f7	lib	tests::method_families::cross_file_method_definition_jumps_to_inherited_declaration	1
-overlap_cluster	690629f007f7	lib	tests::method_families::goto_definition_follows_inherited_method_cross_file	1
-overlap_cluster	7c43bb81a09d	lib	tests::navigation::references::cross_document_references_reach_caller_from_shadowed_duplicate_decl	0
-overlap_cluster	7c43bb81a09d	lib	tests::rename::cross_document_rename_reaches_caller_from_shadowed_duplicate_decl	1
+kind	cluster	member	layer	failing	class	oracle	lines	role
+exact	b0121659c425	tcl-lsp-server::e2e diagnostic_matrix::expr_not_redefined_still_folds	server-e2e	0	C-uncited	0	11	SURVIVOR
+exact	b0121659c425	tcl-lsp-server::e2e diagnostic_matrix::constant_expr_folds	server-e2e	0	C-uncited	0	8	MERGE-candidate
+overlap	0855073eaa17	tcl-lsp-server::e2e navigation::hover_on_a_caller_frame_read_names_the_creating_call_not_a_method	server-e2e	0	C-uncited	0	15	SURVIVOR
+overlap	0855073eaa17	tcl-lsp-server::e2e navigation::hover_on_a_literal_upvar_target_read_names_the_creating_call	server-e2e	0	C-uncited	0	11	MERGE-candidate
+overlap	0e68ddf15a38	tcl-lsp-server::lib tests::diagnostics::closed_files::reschedule_closed_file_diagnostics_clears_badge_when_master_off	server-lib	0	C-uncited	0	44	SURVIVOR
+overlap	0e68ddf15a38	tcl-lsp-server::lib tests::diagnostics::closed_files::did_close_retains_diagnostics_for_on_disk_file_with_problems	server-lib	0	C-uncited	0	38	MERGE-candidate
+overlap	1a76dbccd23d	tcl-lsp-server::e2e editor_features::test_legacy_inlay_hints_alias_enables_type_only	server-e2e	0	C-uncited	0	33	SURVIVOR
+overlap	1a76dbccd23d	tcl-lsp-server::e2e editor_features::test_parameter_hints_only_produce_labels_no_type_hints	server-e2e	0	C-uncited	0	25	MERGE-candidate
+overlap	1a76dbccd23d	tcl-lsp-server::e2e editor_features::test_type_hints_only_emit_no_parameter_labels	server-e2e	0	C-uncited	0	25	MERGE-candidate
+overlap	2f1bd94acd2f	tcl-lsp-server::e2e diagnostics::dialect_gating::issue_968_version_gated_math_function_dual_fires_end_to_end	server-e2e	0	A-oracle	1	24	SURVIVOR
+overlap	2f1bd94acd2f	tcl-lsp-server::e2e diagnostics::dialect_gating::undotted_vscode_language_ids_resolve_to_the_same_dialect_end_to_end	server-e2e	0	C-uncited	0	33	MERGE-candidate
+overlap	331993ae7e08	tcl-lsp-server::e2e hover::var_hover_shows_refs	server-e2e	0	C-uncited	0	10	SURVIVOR
+overlap	331993ae7e08	tcl-lsp-server::e2e hover::var_hover	server-e2e	0	C-uncited	0	8	MERGE-candidate
+overlap	38d9e33b8d2c	tcl-lsp-server::lib tests::diagnostics::closed_files::publish_closed_is_noop_for_open_document	server-lib	0	C-uncited	0	37	SURVIVOR
+overlap	38d9e33b8d2c	tcl-lsp-server::lib tests::workspace::watched_files::watched_delete_clears_closed_file_badge	server-lib	0	C-uncited	0	36	MERGE-candidate
+overlap	38d9e33b8d2c	tcl-lsp-server::lib tests::diagnostics::closed_files::did_close_clears_badge_when_file_deleted_before_close	server-lib	0	C-uncited	0	35	MERGE-candidate
+overlap	3924b83d606a	tcl-lsp-server::e2e rename::prepare_rename_variable	server-e2e	0	C-uncited	0	8	SURVIVOR
+overlap	3924b83d606a	tcl-lsp-server::e2e rename::prepare_rename_variable_from_definition_site	server-e2e	0	C-uncited	0	8	MERGE-candidate
+overlap	470a62843b64	tcl-lsp-server::e2e completion::dollar_completion_tolerates_cursor_past_eol	server-e2e	0	C-uncited	0	6	SURVIVOR
+overlap	470a62843b64	tcl-lsp-server::e2e completion::dollar_triggers_vars	server-e2e	0	C-uncited	0	6	MERGE-candidate
+overlap	557dbe7181c9	tcl-lsp-server::e2e diagnostics::publication::fixing_the_source_clears_the_diagnostic	server-e2e	0	C-uncited	0	29	SURVIVOR
+overlap	557dbe7181c9	tcl-lsp-server::e2e diagnostics::code_canaries::unbraced_expr_is_w100	server-e2e	0	C-uncited	0	5	MERGE-candidate
+overlap	690629f007f7	tcl-lsp-server::lib tests::method_families::goto_definition_follows_inherited_method_cross_file	server-lib	1	C-uncited	0	29	SURVIVOR
+overlap	690629f007f7	tcl-lsp-server::lib tests::method_families::cross_file_method_definition_jumps_to_inherited_declaration	server-lib	1	C-uncited	0	26	MERGE-candidate
+overlap	6a6c4c8033d4	tcl-lsp-server::e2e diagnostic_matrix::expr_not_redefined_still_folds	server-e2e	0	C-uncited	0	11	SURVIVOR
+overlap	6a6c4c8033d4	tcl-lsp-server::e2e diagnostic_matrix::constant_expr_folds	server-e2e	0	C-uncited	0	8	MERGE-candidate
+overlap	6c9c811ffca0	tcl-lsp-db::lib tests::document_analysis::body_edit_recomputes_one_item	tcl-lsp-db	1	C-uncited	0	57	SURVIVOR
+overlap	6c9c811ffca0	tcl-lsp-db::lib tests::function_lattices::function_lattice_reused_on_body_shift	tcl-lsp-db	1	C-uncited	0	56	MERGE-candidate
+overlap	74d32a83484b	tcl-lsp-server::e2e code_actions::quick_fixes::test_e004_missing_first_clause_offers_no_fix	server-e2e	0	C-uncited	0	16	SURVIVOR
+overlap	74d32a83484b	tcl-lsp-server::e2e diagnostics::syntax_errors::e004_condition_without_body_anchors_on_the_condition_word	server-e2e	0	C-uncited	0	9	MERGE-candidate
+overlap	7c43bb81a09d	tcl-lsp-server::lib tests::navigation::references::cross_document_references_reach_caller_from_shadowed_duplicate_decl	server-lib	0	A-oracle	1	26	SURVIVOR
+overlap	7c43bb81a09d	tcl-lsp-server::lib tests::rename::cross_document_rename_reaches_caller_from_shadowed_duplicate_decl	server-lib	1	C-uncited	0	35	MERGE-candidate
+overlap	92645d20273d	tcl-lsp-server::e2e tcloo_navigation::tn_renaming_a_moved_member_onto_an_earlier_deleted_name_is_allowed	server-e2e	1	C-uncited	0	21	SURVIVOR
+overlap	92645d20273d	tcl-lsp-server::e2e tcloo_navigation::tp_renaming_a_moved_member_onto_a_live_sibling_is_refused	server-e2e	1	C-uncited	0	20	MERGE-candidate
+overlap	aaee1bbaa08e	tcl-lsp-server::e2e navigation_extras::incoming_calls	server-e2e	0	C-uncited	0	13	SURVIVOR
+overlap	aaee1bbaa08e	tcl-lsp-server::e2e navigation_extras::outgoing_calls	server-e2e	0	C-uncited	0	13	MERGE-candidate
+overlap	b238dce69990	tcl-lsp-server::e2e rename::rejects_invalid_new_symbol_name	server-e2e	0	A-oracle	1	16	SURVIVOR
+overlap	b238dce69990	tcl-lsp-server::e2e rename::rejects_proc_rename_to_builtin	server-e2e	0	C-uncited	0	14	MERGE-candidate
+overlap	b842c6488646	tcl-lsp-server::e2e jim::a_plain_tcl_document_is_not_analysed_as_jim	server-e2e	0	A-oracle	1	7	SURVIVOR
+overlap	b842c6488646	tcl-lsp-server::e2e jim::a_tcl_jim_document_is_analysed_as_jim	server-e2e	0	C-uncited	0	6	MERGE-candidate
+overlap	b9217a793dd2	tcl-lsp-server::lib tests::diagnostics::f5_models::bigip_config_findings_surface_codes	server-lib	0	C-uncited	0	16	SURVIVOR
+overlap	b9217a793dd2	tcl-lsp-server::lib tests::diagnostics::f5_models::the_f5_report_honours_a_disabled_model_code	server-lib	0	C-uncited	0	14	MERGE-candidate
+overlap	c0940595c514	tcl-lsp-server::lib studio_source::tests::replaced_or_stale_revision_and_missing_entropy_never_donate_a_live_lease	server-lib	0	C-uncited	0	29	SURVIVOR
+overlap	c0940595c514	tcl-lsp-server::lib studio_source::tests::cross_backend_same_uri_token_cannot_publish_or_retire_new_owner	server-lib	0	C-uncited	0	21	MERGE-candidate
+overlap	c185697c2445	tcl-lsp-server::e2e references::var_refs_respect_shadowing_global_target	server-e2e	0	C-uncited	0	9	SURVIVOR
+overlap	c185697c2445	tcl-lsp-server::e2e references::var_refs_respect_shadowing_local_target	server-e2e	0	C-uncited	0	9	MERGE-candidate
+overlap	c24c7565dd11	tcl-lsp-server::e2e recovery::c5_rapid_toggling_stays_consistent	server-e2e	0	C-uncited	0	24	SURVIVOR
+overlap	c24c7565dd11	tcl-lsp-server::e2e recovery::c5_break_then_fix	server-e2e	0	C-uncited	0	20	MERGE-candidate
+overlap	c6aaa50d2962	tcl-lsp-server::e2e references::references_include_call_sites_spelled_through_an_alias	server-e2e	0	A-oracle	1	15	SURVIVOR
+overlap	c6aaa50d2962	tcl-lsp-server::e2e references::references_from_an_alias_call_site_offer_the_targets_sites	server-e2e	0	C-uncited	0	15	MERGE-candidate
+overlap	cd1376b93c96	tcl-lsp-server::e2e rename::rename_var	server-e2e	0	C-uncited	0	8	SURVIVOR
+overlap	cd1376b93c96	tcl-lsp-server::e2e rename::rename_var_from_definition_site	server-e2e	0	C-uncited	0	8	MERGE-candidate
+overlap	d650c2ccdb27	tcl-lsp-server::e2e diagnostics::constant_conditions::bang_equals_string_condition_folds	server-e2e	0	C-uncited	0	8	SURVIVOR
+overlap	d650c2ccdb27	tcl-lsp-server::e2e diagnostics::constant_conditions::double_equals_string_condition_folds	server-e2e	0	C-uncited	0	8	MERGE-candidate
+overlap	dadc5c42e0ef	tcl-lsp-server::e2e spec_packs::pack_commands::a_workspace_pack_makes_an_unknown_command_resolve_with_hover	server-e2e	0	C-uncited	0	34	SURVIVOR
+overlap	dadc5c42e0ef	tcl-lsp-server::e2e spec_packs::pack_commands::the_spec_packs_setting_reaches_a_pack_convention_would_miss	server-e2e	0	C-uncited	0	25	MERGE-candidate
+overlap	e329d52754f8	tcl-lsp-server::e2e code_actions::refactor_actions::test_cursor_past_end_of_line_does_not_crash	server-e2e	0	C-uncited	0	9	SURVIVOR
+overlap	e329d52754f8	tcl-lsp-server::e2e code_actions::refactor_actions::test_cursor_past_last_line_does_not_crash	server-e2e	0	C-uncited	0	7	MERGE-candidate
+overlap	e99b46a04be9	tcl-lsp-server::e2e diagnostics::publication::introducing_an_error_publishes_it	server-e2e	0	C-uncited	0	12	SURVIVOR
+overlap	e99b46a04be9	tcl-lsp-server::e2e edit_tracking_stress::introduce_then_immediately_fix_error	server-e2e	0	C-uncited	0	11	MERGE-candidate
