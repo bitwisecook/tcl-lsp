@@ -82,6 +82,37 @@ fn original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_u
     }
 }
 
+/// tclsh 8.6 and 9.0: `oo::class create A {method Foo {} {}; export Foo}`
+/// lists `Foo` among the exported methods; the export follows the rename.
+/// An `export Bar` already present would export the renamed member.
+#[test]
+fn original_member_rename_rewrites_the_visibility_words_naming_the_member() {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let source = "oo::class create A {\n    method Foo {} { return foo }\n    export Foo\n}\nset a [A new]\nputs [$a Foo]\n";
+        let analysis = Analyser::new().analyse(source, dialect);
+        let target = identity(source, &analysis);
+        let edits = original_member_rename_edits(&[document(source, &analysis)], &target, "Bar")
+            .unwrap_or_else(|refusal| panic!("{dialect}: {refusal:?}"));
+        let mut changed = source.to_owned();
+        for edit in edits.iter().rev() {
+            changed.replace_range(edit.span.as_range(), &edit.new_text);
+        }
+        assert_eq!(
+            changed,
+            "oo::class create A {\n    method Bar {} { return foo }\n    export Bar\n}\nset a [A new]\nputs [$a Bar]\n",
+            "{dialect}"
+        );
+        let occupied = "oo::class create A {\n    method Foo {} {}\n    export Bar\n}\n";
+        let analysis = Analyser::new().analyse(occupied, dialect);
+        let target = identity(occupied, &analysis);
+        assert_eq!(
+            original_member_rename_edits(&[document(occupied, &analysis)], &target, "Bar"),
+            Err(OriginalMemberRenameRefusal::ChangesVisibility),
+            "{dialect}"
+        );
+    }
+}
+
 #[test]
 fn original_member_body_coverage_uses_whole_words_and_formed_content() {
     // Implementation contract: naming.editor.original-instance-member-rename-plans

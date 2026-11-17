@@ -40,8 +40,8 @@ mod readonly_references;
 mod registry;
 
 pub(crate) use member_census::{
-    CommandRenameMember, class_relation_member, command_rename_member, complete_member_name_census,
-    word_member_mentions,
+    CommandRenameMember, class_relation_member, class_visibility_member, command_rename_member,
+    complete_member_name_census, word_member_mentions,
 };
 pub use readonly_references::{
     ReadonlyReferenceCoverage, ReadonlyReferenceReport, readonly_reference_report, reference_spans,

@@ -426,6 +426,31 @@ pub(crate) fn class_relation_member(
         })
 }
 
+/// An `export`/`unexport` definition member naming methods only.
+pub(crate) fn class_visibility_member(
+    syntax: &crate::source_structure::SourceSyntaxStructure,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+) -> bool {
+    use tcl_registry::definer::{MemberEffect, MemberRefKind};
+    let Some(head) = command.argv.first() else {
+        return false;
+    };
+    let Ok(Some(member)) = syntax.definition_member_at(head.span.start()) else {
+        return false;
+    };
+    let region = member.region();
+    let words = member.original_words();
+    census_member_matches(&member, command)
+        && region
+            .checked_member_row(words)
+            .is_some_and(|row| matches!(row.effect, MemberEffect::Visibility))
+        && region.checked_references(words).is_some_and(|references| {
+            references
+                .iter()
+                .all(|reference| reference.kind() == MemberRefKind::Method)
+        })
+}
+
 /// How a command rename covers one selected definition member.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommandRenameMember {
