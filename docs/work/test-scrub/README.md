@@ -119,6 +119,9 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 - *O101 declines on 8.4 for a shift count outside the word width.* What one build of tclsh 8.4 printed for undefined C behaviour is not the release's behaviour.
 - *Precision at a call site is sound; a procedure's own summary stays pessimistic.* A caller passing a written name to `upvar 1 $n a` has exactly that variable touched; with the interprocedural step off no caller is consulted and the answer is unbounded.
 - *A diagnostic about one argument's value is anchored on that argument's word.* The statement is the anchor only when the fault is the command as a whole or the word cannot be located. One site reports once: the pass with the narrower anchor owns it.
+- *W304 is silent on a value proved to be a constant that cannot be read as an option.* The dash-literal warning and the unpinned-value information are unchanged.
+- *A switch-dispatch `proc unknown` bounds its calls:* a name its switch handles is known; a name that falls to a raising arm draws W123, instead of W123 being off for the whole file.
+- *A resolver derived from a pack's frame effect does exactly what `upvar` does* for a computed level: the local exists as a link to an unknown frame.
 
 ## Wrong answers found by the scrub
 
@@ -141,6 +144,8 @@ These go ahead of missing facts once the ledgers are in.
 | A procedure recorded under the raw text `::${c}` when its name is a substitution inside a `foreach` | diagnostics |
 | Two `helper` procedures created in two child interpreters share one key (`@interp@${s}`); navigation crosses between them | diagnostics |
 | False W001 on `dict is_dict` and false W214 after the `dict` ensemble's `-map` is reconfigured | diagnostics |
+| A debug assertion in the lexer's variable scan fires on a backslash-continued parameter list (a caller passes an offset that is not at a `$`); a silent misread in a release build | diagnostics to name the caller |
+| W304 (information) on a value proved to be a constant that cannot be read as an option | diagnostics |
 
 ## Passing tests the oracle contradicts
 
@@ -177,7 +182,7 @@ Updated at the hourly check from the ledgers on `work`.
 
 | Session | Failing tests to triage (about) | Rows in ledger | Sampled by the coordinator |
 | --- | ---: | ---: | --- |
-| diagnostics | 405 | 291; the last 106 in progress | parts 1 to 4 read; accepted so far |
+| diagnostics | 397 | 397, complete (KEEP-ORACLE 143, KEEP-CONTRACT 94, FIX-FIXTURE 62, REWRITE 36, FIX-EXPECTATION 33, KEEP-F5 17, UNDECIDED 6 ruled, RETIRE 5, MERGE 1) | signed off 21:20 UTC |
 | analyser-binding | 330 | 0 | |
 | class-facts | 250 (with the 44 class-factory tests) | 0 (started 20:45 UTC) | |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
