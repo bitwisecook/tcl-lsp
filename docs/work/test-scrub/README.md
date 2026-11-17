@@ -122,6 +122,7 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 - *W304 is silent on a value proved to be a constant that cannot be read as an option.* The dash-literal warning and the unpinned-value information are unchanged.
 - *A switch-dispatch `proc unknown` bounds its calls:* a name its switch handles is known; a name that falls to a raising arm draws W123, instead of W123 being off for the whole file.
 - *A resolver derived from a pack's frame effect does exactly what `upvar` does* for a computed level: the local exists as a link to an unknown frame.
+- *A `link` with written names puts exactly those names into the receiver namespace.* It refuses the generic entry of an uncalled method body only for those names; a computed name refuses it for every relative head.
 
 ## Wrong answers found by the scrub
 
@@ -148,6 +149,8 @@ These go ahead of missing facts once the ledgers are in.
 | W304 (information) on a value proved to be a constant that cannot be read as an option | diagnostics |
 | IRULE5001 fires where the setup event sets the flag (three tests) | taint |
 | IRULE3102 reported inside an event body the rule loader rejects | taint |
+| A duplicate eval-sink warning for each procedure | taint |
+| IRULE3101 on a path proved to be `/` | taint |
 
 ## Passing tests the oracle contradicts
 
@@ -186,10 +189,10 @@ Updated at the hourly check from the ledgers on `work`.
 | --- | ---: | ---: | --- |
 | diagnostics | 397 | 397, complete (KEEP-ORACLE 143, KEEP-CONTRACT 94, FIX-FIXTURE 62, REWRITE 36, FIX-EXPECTATION 33, KEEP-F5 17, UNDECIDED 6 ruled, RETIRE 5, MERGE 1) | signed off 21:20 UTC |
 | analyser-binding | 330 | 0 | |
-| class-facts | 250 (with the 44 class-factory tests) | 0 (started 20:45 UTC) | |
+| class-facts | 250 (with the 44 class-factory tests) | 131 (KEEP-ORACLE 48, FIX-FIXTURE 26, KEEP-CONTRACT 24, REWRITE 24, FIX-EXPECTATION 7, RETIRE 1, UNDECIDED 1); parts 3 and 4 in progress | parts 1 and 2 sampled 21:25 UTC: accepted |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
-| taint | 171 | 55 (FIX-FIXTURE 34 on one cause: helpers build a unit with no dialect; KEEP-F5 12; REWRITE 6; KEEP-CONTRACT 2; UNDECIDED 1); BIG-IP checks 049, 071, 072 | |
+| taint | 171 | 108 (FIX-FIXTURE 45, KEEP-CONTRACT 19, KEEP-F5 12, REWRITE 13, KEEP-ORACLE 8, FIX-EXPECTATION 1, UNDECIDED 10); BIG-IP checks 049, 071, 072 | |
 | analysis-performance | 30 | 0 | |
 | lsp-features | 500 | 0 | |
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
