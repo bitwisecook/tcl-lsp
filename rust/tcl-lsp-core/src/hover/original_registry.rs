@@ -119,9 +119,17 @@ pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Opt
     if let Some(text) = scoped_hover(source, analysis, command.span.start(), cursor) {
         return Some(Hover::markdown(text));
     }
-    let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+    let parent = structure.definition_parent_of(command.span);
+    let Some(words) = tcl_compiler::registry_invocation::source_structure::source_registry_words(
         source, analysis, command,
-    )?;
+    )
+    .or_else(|| {
+        tcl_compiler::registry_invocation::source_structure::source_registry_words_in_definition_body(
+            source, analysis, command, parent?,
+        )
+    }) else {
+        return document_member_row_hover(analysis, command, parent?, cursor).map(Hover::markdown);
+    };
     if let Some(head) = words.head_source()
         && contains(head.span(), cursor)
         && let Some(word) = head.word()
@@ -132,6 +140,36 @@ pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Opt
     }
     let text = schema_hover(analysis, &words, cursor)?;
     Some(Hover::markdown(text))
+}
+
+/// A declaration document's own non-block member row (a `SpecTcl` property
+/// inside `command { ... }`) documented from the document registry's
+/// descriptor for that keyword. Display only: the member grammar of the
+/// retained parent selects the keyword; no runtime command is selected.
+fn document_member_row_hover(
+    analysis: &AnalysisResult,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    parent: &tcl_compiler::registry_invocation::OriginalSourceScriptBody,
+    cursor: u32,
+) -> Option<String> {
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let registry = context.commands();
+    let document = registry.document_grammar()?;
+    let grammar = parent
+        .source_words()
+        .with_source_schema(&context, |schema| {
+            schema.authored_source_definition_body_grammar()
+        })
+        .flatten()?;
+    (grammar.family == document.family).then_some(())?;
+    let members = parent.definition_member_region(&context, parent.content_span())?;
+    let words = members.original_command_words_at(command.argv.first()?.span.start())?;
+    contains(words.first()?.span(), cursor).then_some(())?;
+    let member = members.member_keyword(words)?;
+    let spec = registry.get(member.keyword)?;
+    let mut text = command_text(spec, context.context(), None)?;
+    text.push_str("\n\n_Closed document member documentation from its original parent; no runtime command availability follows._");
+    Some(text)
 }
 
 /// Documentation from the exact selected source definition member. This is
@@ -504,6 +542,27 @@ mod tests {
             Some(crate::registry_for_dialect("jim")),
             crate::profile_for_dialect("jim"),
         )
+    }
+
+    #[test]
+    fn spectcl_property_rows_hover_from_the_document_registry() {
+        let source = "speclib mylib 1 {\n    command mylib::x {\n        arity 1\n        hover {\n            summary {Do a thing.}\n        }\n    }\n}\n";
+        let analysis = Analyser::new().analyse(source, "spectcl");
+        let arity = super::super::hover(source, 2, 9, &analysis, None).expect("property row");
+        assert!(
+            arity
+                .value
+                .contains("Declare how many argument words the call takes."),
+            "{arity:?}"
+        );
+        assert!(arity.value.contains("Closed document member"), "{arity:?}");
+        let operand = super::super::hover(source, 2, 14, &analysis, None);
+        assert!(
+            operand
+                .as_ref()
+                .is_none_or(|hover| !hover.value.contains("Closed document member")),
+            "{operand:?}"
+        );
     }
 
     #[test]

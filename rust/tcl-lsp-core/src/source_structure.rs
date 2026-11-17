@@ -110,6 +110,10 @@ pub(crate) struct SourceStructure {
     package_census: Option<PackageCensusState>,
     definition_cursor_regions: Vec<DefinitionCursorRegion>,
     definition_cursor_unavailable: Vec<Span>,
+    definition_command_parents: Vec<(
+        Span,
+        tcl_compiler::registry_invocation::OriginalSourceScriptBody,
+    )>,
 }
 
 struct DefinitionCursorRegion {
@@ -218,6 +222,7 @@ impl SourceStructure {
             scoped_environment_regions: Vec::new(),
             definition_cursor_regions: Vec::new(),
             definition_cursor_unavailable: Vec::new(),
+            definition_command_parents: Vec::new(),
             package_census: (purpose == CapturePurpose::CheckedSyntax)
                 .then(PackageCensusState::default),
         };
@@ -376,9 +381,32 @@ impl SourceStructure {
             {
                 self.definition_members.push(members);
             }
+            if purpose == CapturePurpose::Readonly
+                && let Some(parent) = definition_parent
+            {
+                self.definition_command_parents.extend(
+                    commands
+                        .iter()
+                        .map(|command| (command.span, parent.clone())),
+                );
+            }
         }
         self.commands.extend(commands);
         Some(())
+    }
+
+    /// The definition body that directly holds `command`, when it was reached
+    /// as a member body of a definition parent.
+    pub(crate) fn definition_parent_of(
+        &self,
+        command: Span,
+    ) -> Option<&tcl_compiler::registry_invocation::OriginalSourceScriptBody> {
+        let mut parents = self
+            .definition_command_parents
+            .iter()
+            .filter(|(span, _)| *span == command);
+        let (_, parent) = parents.next()?;
+        parents.all(|(_, other)| other == parent).then_some(parent)
     }
 
     pub(crate) fn command_at(&self, cursor: u32) -> Option<Span> {
