@@ -258,17 +258,19 @@ Next: the hand-over queue from item 2 (values walk block remainder, then taint f
 
 ## Value transfers, escape, shimmer and types area, 17 November 2026
 
-Session `values` (hand-over `handover/values.md`; its evidence record was this section on 16 November, now in git history). Last whole `tcl-compiler` run: 13,142 run, 2,180 failing, 299 in this area (325 at the 17 November baseline, list `lists/values-failing-2026-11-17.txt`; 342 on the hand-over list). New against each previous run: 0.
+Session `values` (hand-over `handover/values.md`). Last whole `tcl-compiler` run (17 November, 16:00 UTC): 13,145 run, 2,124 failing, 296 in this area (325 at the baseline, `lists/values-failing-2026-11-17.txt`). New against each previous run: 0.
 
-Fixed on 17 November: the owed witness row for an unresolvable head (`an_unresolvable_head_ends_every_refinement`); `scan` declared through a count resolver had no `VarWrite` operand in the value view; a `foreach` loop variable lost its element type (scope-alias guard on the synthetic iteration bindings, and a per-variable key missing for a name first defined there); the native store route admitted one written variable only; a literal `incr` amount made an opaque `catch` body a dynamic barrier; two expectations by ruling (`cu_top_level_eval_body_escapes_via_cu_map`, `catch_body_incr_escapes_counter` plus a flattened-catch row). The stock-object-type walk change cleared 23 more.
+Fixed on 17 November: the owed unresolvable-head witness row; `scan` roles from the count resolver in the value view; `foreach` loop-variable element types; the native store route admits every written variable; a literal `incr` amount no longer makes an opaque catch a barrier; a transfer summary whose link fact is unstated no longer claims error-only completion (unsound); top-level re-runs; a nested write lands in an ordered evaluation on the native source (`expr {$x + [incr x] + $x}`); a definition-free statement is asked how it completes on the value route (`error boom`); the tcl-codegen residual place tests read the consumers' positioned route; two expectations by ruling.
 
 Open, by owner:
 
-- This area: 110 value-transfer witnesses. By first failing dialect: tcl8.4 41 (procedure summaries: the argument-sensitive rerun through `upvar` leaves the caller's place `Overdefined`; catch result variables; loop enumeration), f5-irules 21, `the variable` panics 16, tcl8.6 13. `type_infer` 9, `shimmer`, `native_integer_proof`, `unit_scope` (including the cross-file slice question forwarded from `tcl-lsp-db`), and the 28 `tcl-codegen` `compiler_analysis_residual` tests assigned on 17 November.
-- Analyser and binding: no invocation metadata for a command inside a literal `uplevel 1` body (`global_write_info::uplevel_caller_frame_is_not_a_global_write`); under the lenient `tcl` environment every command in a procedure body reads as an unseen call (`unset_nocomplain_never_raises_bound_or_not` and other rows over `RELEASE_DIALECTS`).
-- Class and object facts: the walk loses the frame's contents across `Foo new` of a class with no constructor (`lappend_object_evolves_element_class_through_rename`, `list_of_objects_lindex_types_element`).
-- Dataflow: an unsound O100 in a `try` body, where `set x $i` inside a nested `for` has no SSA def once the walk follows the called procedure (`a_try_body_is_thrown_to_from_between_its_stores`).
-- Unassigned: f5-irules procedure and handler bodies (a procedure called at an iRule's top level gets a variable named after its frame identity and no `x`; `set` in a `when` body defines nothing; `call p` from `RULE_INIT` leaves `x` `Overdefined`). Asked the coordinator.
+- This area: 108 witnesses, 35 `shimmer`, 27 `unit_scope`, 22 `global_write_info`, 21 `core_analyses`, 13 each `var_escape_cfg`, `native_integer_proof`, `dynamic_names`. Per-dialect expectations for the f5-irules handler rows (ruling of 17 November: handler stores stay Overdefined in `sccp.values`) once the taint session's frame-identity fix lands. The `handler_widening` fixtures to state bounded or unbounded unknown heads (ruling of 17 November) once the flow-sensitive untrust lands. The `tcl-lsp-db` cross-file slice question (`::other` recorded with an opaque caller).
+- Analyser and binding: module-wide untrust after a top-level proved error (`module_bindings`); no invocation metadata inside a literal `uplevel 1` body; the source purpose is None for statements in a procedure body under the lenient `tcl` environment (barrier on every command there); a catch result variable gets no place (no binding site for the catch end; captured outputs resolve to an unknown place); two occurrence facts from lsp-features.
+- Dataflow: a flow-sensitive untrust after an unknown head (ruling); a write that vanishes from SSA (`set x $i` in a `for` inside a `try`).
+- Dataflow issue session (#2408): SSA symbols for a link local through `upvar 1 $name v` (procedure-summary witnesses).
+- Class and object facts: frame contents across `Foo new` of a class with no constructor.
+- Taint: f5-irules procedure called at a rule's top level names its variable by a frame identity.
+- Analysis performance: the three tcl-codegen `rebase` tests (memoised receipts).
 
 ## Analyser diagnostics area, 17 November 2026
 
