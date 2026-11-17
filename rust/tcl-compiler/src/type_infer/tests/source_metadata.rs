@@ -386,6 +386,7 @@ fn positional_type_facts_retain_native_cell_keys_without_display_lookup() {
         tokens: None,
         source: crate::ssa::SsaSourceView::unpositioned(&ssa),
         uses: &uses,
+        defs: None,
         context: registry
             .profile()
             .map(tcl_registry::model::semantic::SemanticContext::for_profile)

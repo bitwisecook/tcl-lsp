@@ -40,6 +40,7 @@ fn eval_def(
         tokens: stmt.tokens(),
         source: crate::ssa::SsaSourceView::unpositioned(ssa),
         uses: &uses,
+        defs: None,
         context: registry
             .profile()
             .map(tcl_registry::model::semantic::SemanticContext::for_profile)

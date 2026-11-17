@@ -210,6 +210,14 @@ fn original_scope_alias_call(
         ));
     }
     let tokens = tokens.as_ref()?;
+    // The element stores of a proved iteration write its loop variables in
+    // this frame; they never link a local to another frame's cell.
+    if matches!(
+        tokens.synthetic,
+        Some(crate::ir::SyntheticMarker::IterationBindings(_))
+    ) {
+        return Some(false);
+    }
     let binding = tokens.source_binding.as_ref()?;
     let purpose = binding.original_invocation_source_purpose(tokens, metadata, registry)?;
     let selected = match purpose {
@@ -262,6 +270,9 @@ struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
     tokens: Option<&'a crate::ir::CommandTokens>,
     source: crate::ssa::SsaSourceView<'a>,
     uses: &'a HashMap<Symbol, u32>,
+    /// The definitions of the statement being typed, when one is: a name it
+    /// defines for the first time has no reaching spelling at its own point.
+    defs: Option<&'a HashMap<Symbol, u32>>,
     /// Complete retained availability; this supplies no executed handler.
     context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     /// Exact lexical and list policy of the original source.
@@ -291,7 +302,18 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
     fn variable_key(&self, spelling: &str) -> Option<VariableCellKey> {
         self.source
             .symbol(spelling)
+            .or_else(|| self.defined_symbol(spelling))
             .and_then(|symbol| self.ssa.cell_key(symbol).cloned())
+    }
+
+    /// The one symbol the statement being typed defines under `spelling`.
+    fn defined_symbol(&self, spelling: &str) -> Option<Symbol> {
+        let mut named = self
+            .defs?
+            .keys()
+            .filter(|symbol| self.ssa.var_name(**symbol) == spelling);
+        let symbol = *named.next()?;
+        named.next().is_none().then_some(symbol)
     }
 
     fn variable_type(&self, spelling: &str) -> Option<TypeLattice> {
@@ -397,6 +419,7 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
             tokens: Some(tokens),
             source: self.source,
             uses: self.uses,
+            defs: self.defs,
             context: self.context,
             config: self.config,
             types: self.types,
@@ -864,6 +887,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     tokens: stmt.tokens(),
                     source,
                     uses: &ssa_stmt.uses,
+                    defs: Some(&ssa_stmt.defs),
                     context: ctx.context,
                     config: ctx.config,
                     types,
@@ -1041,6 +1065,7 @@ pub(crate) fn infer_function_return_type_with_results<S: std::hash::BuildHasher>
                     tokens: tokens.as_deref(),
                     source: crate::ssa::SsaSourceView::at_terminator(ssa, *bn),
                     uses: &ssa_block.exit_versions,
+                    defs: None,
                     context: Some(context),
                     config: metadata.config,
                     types,

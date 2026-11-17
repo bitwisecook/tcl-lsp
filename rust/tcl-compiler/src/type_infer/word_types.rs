@@ -405,6 +405,7 @@ pub(super) fn type_of_read_contents<S: std::hash::BuildHasher>(
             tokens: statement.statement.tokens(),
             source: crate::ssa::SsaSourceView::at_statement(ctx.ssa, block, index),
             uses: &statement.uses,
+            defs: Some(&statement.defs),
             context: ctx.context,
             config: ctx.config,
             types: ctx.types,
