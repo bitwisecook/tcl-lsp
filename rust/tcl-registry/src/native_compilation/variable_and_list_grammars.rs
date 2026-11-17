@@ -333,48 +333,84 @@ pub(super) fn upvar_grammar(
     Ok(true)
 }
 
-/// Compile-time leading-word probe shared by the original upvar recipe and
-/// grammar selector. This does not select a runtime frame or install a cache.
+/// How many leading level words C's `TclCompileUpvarCmd` compiles for an
+/// `upvar` of `count` arguments whose first is the literal `first`, or why it
+/// leaves the command to be invoked.
+///
+/// C decides on a fresh object holding `first`: under 8.5–9.0 the word is a
+/// level when `TclObjGetFrame` changed that object's type, under 9.1 when it
+/// returned nonzero with no frame to resolve. Neither consults the current
+/// level, so the answer is the word's spelling under the release
+/// ([`upvar_compiles_level_word`]). A level word with an even number of
+/// words after it, or no level word with an odd number, is not compiled.
 ///
 /// # Errors
-/// Returns native decline or unavailable invocation-stack evidence.
+/// [`NativeCompilationSelection::Generic`] where C invokes the command.
 pub fn original_upvar_level_width(
     first: &str,
     count: usize,
     version: TclVersion,
 ) -> Result<usize, NativeCompilationSelection> {
-    use crate::frame_effect::{
-        FrameArgLayout, FrameArgumentResolution, FrameLevel, FrameLevelWord,
+    let level = upvar_compiles_level_word(first, version);
+    let words = count + 1;
+    match (level, words.is_multiple_of(2)) {
+        (true, true) => Ok(1),
+        (false, false) => Ok(0),
+        _ => Err(NativeCompilationSelection::Generic),
+    }
+}
+
+/// Whether `TclCompileUpvarCmd` takes the literal `word` as a level.
+///
+/// tclsh 8.5.19, 8.6.18, 9.0.4 and 9.1.0 disassembly of `upvar WORD x y` and
+/// `upvar WORD x y z` in a fresh procedure for each word:
+/// - 8.5: a word starting with a digit that `Tcl_GetInt` reads, or `#` and a
+///   non-negative integer.
+/// - 8.6: any number `Tcl_GetIntFromObj` parses (it leaves a double or a
+///   bignum rep), or `#` and a non-negative integer.
+/// - 9.0: any integer, or `#` and an integer that is zero or unsigned
+///   positive.
+/// - 9.1: any integer, or any word starting with `#`.
+fn upvar_compiles_level_word(word: &str, version: TclVersion) -> bool {
+    use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
+    let numbers = ParseFlags::for_syntax(version.number_syntax());
+    let integers = ParseFlags {
+        integer_only: true,
+        ..numbers
     };
-    use NativeCompilationSelection as Selection;
-    let mut operands = vec![crate::InvocationWord::Dynamic; count];
-    let Some(leading) = operands.first_mut() else {
-        return Err(Selection::Generic);
-    };
-    *leading = crate::InvocationWord::Literal(first);
-    let grammar = crate::FrameEffectSpec {
-        level_word: FrameLevelWord::LeadingProbe,
-        layout: FrameArgLayout::AliasPairs,
-    };
-    let arguments = InvocationWords::structured(crate::InvocationWord::Dynamic, &operands)
-        .arguments()
-        .with_dialect(InvocationDialect::for_version(version));
-    match grammar.resolve_arguments(arguments) {
-        FrameArgumentResolution::Valid {
-            level_word_len,
-            level,
-        } => {
-            if level_word_len != 0
-                && !matches!(
-                    level,
-                    FrameLevel::Relative(0 | 1) | FrameLevel::Absolute(0 | 1)
-                )
-            {
-                return Err(Selection::Unknown);
-            }
-            Ok(level_word_len)
+    let c_int = |text: &str| match parse_whole_with(text, integers) {
+        Some(Number::Int(value))
+            if (-i64::from(u32::MAX)..=i64::from(u32::MAX)).contains(&value) =>
+        {
+            Some(tcl_syntax::number::native_int32_low_bits(value))
         }
-        FrameArgumentResolution::Invalid => Err(Selection::Generic),
-        FrameArgumentResolution::Unknown => Err(Selection::Unknown),
+        _ => None,
+    };
+    let any_integer = || {
+        matches!(
+            parse_whole_with(word, integers),
+            Some(Number::Int(_) | Number::Big { .. })
+        )
+    };
+    let hash = word.strip_prefix('#');
+    match version {
+        TclVersion::V8_4 => false,
+        TclVersion::V8_5 => match hash {
+            Some(rest) => c_int(rest).is_some_and(|level| level >= 0),
+            None => {
+                word.as_bytes().first().is_some_and(u8::is_ascii_digit) && c_int(word).is_some()
+            }
+        },
+        TclVersion::V8_6 => match hash {
+            Some(rest) => c_int(rest).is_some_and(|level| level >= 0),
+            None => parse_whole_with(word, numbers).is_some(),
+        },
+        TclVersion::V9_0 => match hash {
+            Some(rest) => {
+                c_int(rest).is_some_and(|level| level == 0 || (level > 0 && !rest.starts_with('-')))
+            }
+            None => any_integer(),
+        },
+        TclVersion::V9_1 => hash.is_some() || any_integer(),
     }
 }
