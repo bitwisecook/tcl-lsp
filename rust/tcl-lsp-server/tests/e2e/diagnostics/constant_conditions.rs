@@ -364,6 +364,17 @@ fn unresolved_word_without_an_unknown_handler_still_fires_i230() {
 
 /// The library file from the issue: no `package provide`, two agreeing
 /// in-file callers.
+/// The file name a sibling document writes in its `source` statement: the
+/// harness gives every document a unique name, so a literal `lib.tcl` links
+/// to nothing.
+fn sibling_name(uri: &str) -> &str {
+    uri.rsplit('/').next().unwrap_or(uri)
+}
+
+/// A line that always draws W123, so a wait can name a positive signal: a
+/// retracted I230 leaves an empty list that looks like "nothing published yet".
+const SETTLED_MARKER: &str = "neverDefinedAnywhereAtAll x\n";
+
 const CROSS_FILE_LIB: &str = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nhelper prod\nhelper prod\n";
 
 /// Also the standing proof that the project's call-site evidence is **not**
@@ -378,15 +389,18 @@ fn caller_in_a_sourcing_file_with_a_differing_literal_clears_i230() {
     let lib_uri = unique_uri("tcl");
     // Open the caller first so it is already in the project when the library
     // is analysed — the same ordering a workspace scan produces.
-    lsp.open_ready(&main_uri, "source lib.tcl\nhelper dev\n");
-    lsp.open_document(&lib_uri, CROSS_FILE_LIB);
+    lsp.open_ready(
+        &main_uri,
+        &format!("source {}\nhelper dev\n", sibling_name(&lib_uri)),
+    );
+    lsp.open_document(&lib_uri, &format!("{CROSS_FILE_LIB}{SETTLED_MARKER}"));
     // The cross-file retraction lands on a *later* publish than the library's
     // own first result: the project's call-site evidence is refreshed after
     // publishing, not in front of it (putting it in front delayed the
     // semantic-token enrichment tier on a large document). Wait for the
     // converged state rather than the first publish.
     let diags = lsp.await_diagnostics_settled(&lib_uri, Duration::from_secs(20), |d| {
-        !d.is_empty() && !has_code(d, "I230")
+        has_code(d, "W123") && !has_code(d, "I230")
     });
     assert!(
         !has_code(&diags, "I230"),
@@ -402,7 +416,10 @@ fn caller_in_another_file_agreeing_on_the_literal_still_fires_i230() {
     let mut lsp = Lsp::tcl();
     let main_uri = unique_uri("tcl");
     let lib_uri = unique_uri("tcl");
-    lsp.open_ready(&main_uri, "source lib.tcl\nhelper prod\n");
+    lsp.open_ready(
+        &main_uri,
+        &format!("source {}\nhelper prod\n", sibling_name(&lib_uri)),
+    );
     let diags = lsp.open_ready(&lib_uri, CROSS_FILE_LIB);
     assert!(
         has_code(&diags, "I230"),
@@ -437,10 +454,13 @@ fn callback_from_a_sourced_file_clears_i230_in_the_sourcing_file() {
     let lib_uri = unique_uri("tcl");
     let main_uri = unique_uri("tcl");
     lsp.open_ready(&lib_uri, "local dev\n");
-    let src = "source lib.tcl\nproc local {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nlocal prod\nlocal prod\n";
-    lsp.open_document(&main_uri, src);
+    let src = format!(
+        "source {}\nproc local {{mode}} {{\n    if {{$mode eq \"prod\"}} {{ set r 1 }} else {{ set r 2 }}\n}}\nlocal prod\nlocal prod\n{SETTLED_MARKER}",
+        sibling_name(&lib_uri),
+    );
+    lsp.open_document(&main_uri, &src);
     let diags = lsp.await_diagnostics_settled(&main_uri, Duration::from_secs(20), |d| {
-        !d.is_empty() && !has_code(d, "I230")
+        has_code(d, "W123") && !has_code(d, "I230")
     });
     assert!(
         !has_code(&diags, "I230"),
