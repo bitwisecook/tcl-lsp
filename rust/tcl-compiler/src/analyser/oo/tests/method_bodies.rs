@@ -174,13 +174,14 @@ fn a_method_read_without_classvariable_still_warns() {
     );
 }
 
-/// The same snippet under 8.6 reports what 8.6 actually lacks —
-/// `initialize` and `const` are both 9.0 members — and never W210.
-/// `classvariable` itself is reachable there only through Tcllib's
-/// `ooutil`, which the document requires.
+/// The same snippet under 8.6 reports what 8.6 actually lacks and never
+/// W210. `initialize` is a 9.0 member, so tclsh 8.6 stops at it with
+/// `invalid command name "initialize"` and the `const` inside is never
+/// reached. `classvariable` is reachable there only through Tcllib's
+/// `oo::util`, which the document requires.
 #[test]
 fn the_reporter_snippet_under_86_reports_the_missing_commands() {
-    let src = "package require ooutil\n\
+    let src = "package require oo::util\n\
                    oo::class create Foo {\n\
                    initialize { variable Pitch; const Pitch 5e-6 }\n\
                    method m {} { classvariable Pitch; return $Pitch }\n\
@@ -196,8 +197,8 @@ fn the_reporter_snippet_under_86_reports_the_missing_commands() {
     assert!(
         r.diagnostics
             .iter()
-            .any(|d| d.code.as_str() == "W002" && d.message.contains("'const'")),
-        "8.6 has no `const` (TIP 677 is 9.0): {:?}",
+            .any(|d| d.code.as_str() == "W002" && d.message.contains("'initialize'")),
+        "8.6 has no `initialize` in oo::define (it is 9.0): {:?}",
         r.diagnostics
     );
 }
