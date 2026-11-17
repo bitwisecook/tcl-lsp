@@ -8,7 +8,7 @@ The orchestrator is session `session_017u5g3KDVBH5v5PXpMYy7KP`. It records the o
 
 | Slug | Issues | Model | Session | Hand-over |
 | --- | --- | --- | --- | --- |
-| `bytecode` | #2490 | Opus | `session_017u5g3KBvRVWYHVoF5FSZmT` | `handover/bytecode.md` |
+| `bytecode` | #2490, then #2542 | Opus | `session_017u5g3KBvRVWYHVoF5FSZmT` | `handover/bytecode.md` |
 | `server` | #1657, #2243 | Opus | `session_017u5g3HDHiPN1CimB7QiVSF` | `handover/infra.md` |
 | `dataflow` | #2408, #1796 | Opus | `session_017u5g3JkH4kppJ1LJpZQUus` | `handover/dataflow.md`, and the #1796 part of `handover/irules-taint.md` |
 | `audit` | #1712, #1710 | Opus | `session_017u5g3MNKJTTq44wzXNszit` | `handover/audit.md` |
