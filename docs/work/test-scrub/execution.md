@@ -1,6 +1,6 @@
 # Test scrub: execution
 
-Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim` and `tcl-spec-hooks` as of 17 November 2026 evening (latest runs: tcl-vm 3,208 tests, runtime/rust 2,726, the selection 9,479), less the 51 routed to dataflow and values and the tests fixed since. One row per test in `ledger/execution.tsv`. Grouped by cause, then the first pass's undecided rows read test by test (part 2): 28 remain `UNDECIDED`, 23 of them the inliner question below.
+Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim` and `tcl-spec-hooks` as of 17 November 2026 evening (latest runs: tcl-vm 3,208 tests, runtime/rust 2,726, the selection 9,479), less the 51 routed to dataflow and values and the tests fixed since. One row per test in `ledger/execution.tsv`. Grouped by cause, then the first pass's undecided rows read test by test (part 2): 5 remain `UNDECIDED`; the 23 inliner tests are routed to live-inlining by ruling.
 
 ## Counts by verdict
 
@@ -8,12 +8,13 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 | --- | ---: |
 | `REWRITE` | 117 |
 | `KEEP-ORACLE` | 107 |
-| `UNDECIDED` | 28 |
 | `KEEP-CONTRACT` | 26 |
+| `UNDECIDED` | 5 |
 | `FIX-EXPECTATION` | 4 |
 | `FIX-FIXTURE` | 3 |
 | `KEEP-F5` | 1 |
-| total | 286 |
+| total kept here | 263 |
+| routed to live-inlining (`ledger/live-inlining.tsv`) | 23 |
 
 ## Causes ranked by tests blocked
 
@@ -22,7 +23,6 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 | `native-artefact-ordering` | REWRITE | 39 | tcl-cshim, tcl-engine-tclvm, tcl-runtime, tcl-vm |
 | `codegen-internal-record` | REWRITE | 37 | tcl-codegen, tcl-vm |
 | `wasm-native-tier-plan-record` | REWRITE | 29 | tcl-codegen |
-| `inliner-unshipped` | UNDECIDED | 23 | tcl-codegen, tcl-vm |
 | `runtime-compile-admission-refused` | KEEP-ORACLE | 22 | tcl-engine-tclvm, tcl-runtime, tcl-vm |
 | `native-conformance-vector` | KEEP-ORACLE | 22 | tcl-runtime, tcl-vm |
 | `per-release-script-divergence` | KEEP-ORACLE | 19 | tcl-runtime, tcl-vm |
@@ -74,9 +74,13 @@ Each line is one behaviour tclsh, Jim or a contract shows that the product gets 
 
 ## Open questions for the coordinator
 
-- `inliner-unshipped` (23): tests of `inlining::inline_module`, which no production path calls (guarded by c0ed6978). Keep as the design tests the splice work will need, or retire with the guard as the reason.
+- `inliner-unshipped` (23): routed to live-inlining by the coordinator's ruling (read per test: answers as the original → KEEP-ORACLE; inliner shape → REWRITE to the differential or MERGE into a `live_differential` row; visible `__inline_N__` names → FIX-EXPECTATION).
 - Part 2 read the native-artefact rows: C-API and extension behaviours are KEEP-ORACLE or KEEP-CONTRACT (`c-api-*`, `engine-value-bridge`, `c-extension-vectors`); the rest assert a refusal or ordering point through receipts or pointers and are REWRITE (`native-artefact-ordering`): the behaviour is real, the observable is the script result and the absence of later effects. Still undecided: `callback_namespace_primary_retains_private_scope_and_descriptor` (engine), `measured_bare_matches_runtime_requires_independent_authored_policy` (runtime), `unrepresented_native_byte_literal_is_a_host_refusal` (vm) and the two `families_e2e::*::runtime` pack-family rows (contract owner irules-registry-tooling).
 - `codegen-internal-record` (37): REWRITE, each re-pointed at tclsh disassembly or the replay/deopt behaviour it guards.
+
+## Still to do under the consumer rule
+
+The `native-artefact-ordering` REWRITE rows name a generic observable (the script's result and the absence of later effects). The consumer rule asks each to name its own script-level observable, or to be RETIRE with the argument written. That per-test pass is not done; until it is, those rows are provisional. Any row whose script answers wrongly will move to its own cause slug, ahead of the others.
 
 ## tcl-vm and tcl-runtime: both copies
 
