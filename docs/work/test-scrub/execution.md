@@ -6,16 +6,24 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 
 | Verdict | Tests |
 | --- | ---: |
-| `KEEP-ORACLE` | 109 |
+| `KEEP-ORACLE` | 110 |
 | `KEEP-CONTRACT` | 56 |
 | `MERGE` | 49 |
 | `REWRITE` | 33 |
 | `RETIRE` | 8 |
-| `FIX-EXPECTATION` | 4 |
+| `FIX-EXPECTATION` | 3 |
 | `FIX-FIXTURE` | 3 |
 | `KEEP-F5` | 2 |
 | total kept here | 264 |
 | routed: live-inlining (inliner, `ledger/live-inlining.tsv`) | 23 |
+
+## Status (the ledger's `status` column)
+
+257 open, 5 fixed, 2 repaired, as of 17 November 2026 night:
+- Fixed: `errorstack-inner-uplevel-and-fold-options` (8c92829a, the folded syntax options), `bad-option-wording-below-8.6` (ec05d9fc: `encoding` below 8.6 was a product fault, the expectation half right) and the three `optimiser-drops-effectful-foreach-list` rows (fixed upstream).
+- Repaired: `delete-proc-runs-in-delete-command` (42cde941) and `interp-option-list` (f4452996).
+- Re-read: `switch_exact_return_arms_jump_table` is `KEEP-ORACLE` (`switch-exact-jump-table-declined`), not `FIX-EXPECTATION`. tclsh 8.5-9.1 compile the test's own `switch -exact -- $cmd {...}` to a `jumpTable`; only the form without `--` is invoked. The codegen invokes it.
+- `runtime-compile-admission-refused`: every refusal is a tcl-compiler preflight or tcl-registry selection `require_provider()` (clock 18, set/variable command target 10, `string wordstart|wordend` 2, five singles), routed with fixtures.
 
 ## Causes ranked by tests blocked
 
@@ -95,7 +103,7 @@ Each line is one behaviour tclsh, Jim or a contract shows that the product gets 
 
 ## Where the verdict says the expectation, not the product, is wrong
 
-`FIX-EXPECTATION` (4): `switch -exact` with returning arms is invoked by tclsh 8.6/9.0, not a jump table; `binary d`/`encoding d` below 8.6 say `bad option`; `Tcl_DeleteCommandFromToken` runs the delete proc before returning; `interp bogus` lists cancel/share/transfer on 9.0. The last three are runtime/rust tests whose corrections I hold locally (applied after the coordinator samples this ledger, per the rules).
+`FIX-EXPECTATION` (3): `binary d`/`encoding d` below 8.6 say `bad option`; `Tcl_DeleteCommandFromToken` runs the delete proc before returning; `interp bogus` lists cancel/share/transfer on 9.0. The last three are runtime/rust tests whose corrections I hold locally (applied after the coordinator samples this ledger, per the rules).
 
 ## Open questions for the coordinator
 
