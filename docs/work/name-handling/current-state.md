@@ -264,19 +264,26 @@ Handed to others: walk retention of loop-body and multiply-walked operands, and 
 
 ## Compiler analyser and binding area, 17 November 2026
 
-Session `analyser-binding` (hand-over `handover/analyser-binding.md`). Whole `tcl-compiler` suite, test profile `opt-level 1`, compared by test name against `lists/analyser-binding-failing-2026-11-17.txt`.
+Session `analyser-binding` (hand-over `handover/analyser-binding.md`). Whole `tcl-compiler` suite, test profile `opt-level 1`, compared by test name against `lists/analyser-binding-failing-2026-11-17.txt` and then each previous run; other areas' commits arrive with every rebase, so "new" is checked against the parent before it is called mine.
 
 | Point | Run | Failing |
 | --- | --- | --- |
 | Baseline at `30783a0e` | 13,130 | 2,229 |
 | Grammar threading and startup variables (`a2946113`, `9d1fe0e7`) | 13,131 | 2,226 (fixed 3, new 0) |
-| Stock object types (`d2cd6f83`) | 13,133 | 2,194 (fixed 39, new 7) |
+| Stock object types (`ae7b3871`) | 13,133 | 2,194 (fixed 39, new 7, all handed over) |
+| Path barriers, caller scan, advice frame, quoted expr operands, `entered_site` (`1b8133e8`..`9d663f53`) | 13,153 | 2,118 (each new 0) |
 
-Landed: both `dialect-drift-ok: unreviewed` markers removed (stub scan and literal `namespace path` read under the document's grammar); startup variables seeded under the namespace-cell key; the stock-object-type ruling, with the premise ended by any host entry, including `host_extensible_command_table`. Tests that stated the opposite rule run through `SourceAnalysisEntry::analyse_in_extensible_host_for_test` / `build_unit_in_extensible_host_for_test`.
+Landed: both `dialect-drift-ok: unreviewed` markers removed; startup variables seeded under the namespace-cell key; the stock-object-type ruling, the premise ended by any host entry including `host_extensible_command_table` (fixtures: `SourceAnalysisEntry::analyse_in_extensible_host_for_test`, `build_unit_in_extensible_host_for_test`); an unread command's path-constant barrier after its own words; the caller scan skips `<word-effects>` carriers (hand-over item 9); an unentered site takes its declaration advice's frame (lenient `tcl` body statements get their Logical purpose); a command in a quoted expression operand is a source command (hand-over item 7, first gap); `SourceCommandBindings::entered_site` for diagnostics.
 
-Unmasked by the stock-object-type change, expectation right for a fresh interpreter, owned elsewhere and handed over: W210 after a nested unknown command and a false W242 (diagnostics: `fp_rbs_19_reporter_foreach_accumulator_silent`, `declared_empty_loop_reads_keep_real_entry_and_unknown_writer_controls`, `w241_reads_a_proven_bound_and_step`); a `try` handler thrown to from inside a `for` body (dataflow: `a_try_body_is_thrown_to_from_between_its_stores`); `cu_top_level_eval_body_escapes_via_cu_map` (values); the two `phi_undef_memo` 60-stage budgets (analysis performance; linear walk cost).
+Handed over and accepted (coordinator): W210 after a nested unknown head and a false W242 (diagnostics), the `try`-in-`for` handler fold (dataflow), `cu_top_level_eval_body_escapes_via_cu_map` (values), `phi_undef_memo` budgets (analysis performance). Routed: the `namespace eval [list ...]` reference, the dead-site resolver fallback (diagnostics, landed); lenient `tcl` `calls()` purpose (values); F5 handler and rule bodies (taint, by ruling).
 
-Next: the hand-over queue from item 2 (values walk block remainder, then taint fixture (b), the uncalled-procedure loop-body lookup state, walk leftovers, iRules inventory gaps, wildcard import, the unit-scope seed), then the two reviews (class-facts uncalled receiver methods, analysis-performance per-body receipts). The unentered-command descriptor waits for the owner.
+Open, with what is known:
+- Operands of a body walked more than once (two calls, loop iterations): the walk withdraws a site's retained operands when walks differ, and compiled operands carry the activation (`.../site:47` vs `.../site:51`); the body unit's SSA context is a joined `Unknown` frame. A per-argument operand join is held (scratch diff) until the `dataflow` issue session's `declared_frame_view` lands; then land it with `written_definition_places` returning unknown places for missing operands. Witnesses: it_3 `a_store_does_not_sink_past_a_condition_that_reads_it` (control row), values' for-body store, w241 `incr i $s`.
+- Catch result variable has no SSA definition: the catch end has no source carrier (`CapturedCatchOutputs` evaluates no words), and its point context is widened because point contexts widen every call's after-state (the transfer re-resolves under a profile-only context and declines) and the exception edge joins those after-states. Needs a decision on what partial effects a raising statement contributes to its handler.
+- `source $dir/leaf.tcl` with `dir` unbound records no path plan: written-word observations exist only at dispatched sites; asked lsp-features whether the plan is navigation-only before adding a lexical fallback.
+- `puts [info exists x]` in a lenient `tcl` procedure has no declaration advice (statements with a command substitution get no declared layout there).
+- `uplevel 1` body in an uncalled procedure is never entered (needs an unknown-namespace walk); a child interpreter has no command world of its own.
+- Queue from peers: W123/W125 presence at unreached sites (`then` after a raising `if`), coroutine `yield`, `rename puts {}`, `namespace unknown {}`, auto_path providers; param-trait formal values after a raising consumer; `info exists` condition barrier under a captured native entry; computed-index array roots and `namespace upvar` otherVar as declarations; `lassign` in a nested body; `foreach x [list ...]` unstructured; package_requires gaps; pack Body-role scripts; db logical callback arity; lsp-db project selectors; wildcard import, dispatch-table literal, `OptProc`, Jim `alias`, Tk ensemble `-map` splice; `clock format` ensemble admission; `tcl::idna` registry words under 9.0.
 
 ## Class and object facts area, 17 November 2026
 
