@@ -414,6 +414,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "completion_knowledge",
+        Example {
+            code: "set n [llength $items]\nputs $n",
+            focuses: &[
+                focus(
+                    0,
+                    "llength",
+                    "completes only normally or with an error, complete from the 8.4–9.1 sources",
+                ),
+                focus(
+                    1,
+                    "puts",
+                    "so control reaches the next command whenever it succeeds",
+                ),
+            ],
+        },
+    ),
+    (
         "const_fold",
         Example {
             code: "set order [lreverse {c b a}]",

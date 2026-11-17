@@ -144,7 +144,7 @@ const WORLD_SUBCOMMANDS: &[SubCommand] = &[
 const RUN_FORMS: &[CommandForm] = &[CommandForm {
     name: "custom-code-form",
     arity: Arity::exact(0),
-    completion: Some(CompletionDescriptor::exact(FORM_CODES)),
+    completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(FORM_CODES)),
     ..CommandForm::DEFAULT
 }];
 
@@ -152,14 +152,18 @@ const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "run",
         arity: Arity::exact(0),
-        completion: Some(CompletionDescriptor::exact(SUBCOMMAND_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            SUBCOMMAND_CODES,
+        )),
         subcommand_forms: RUN_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "plain",
         arity: Arity::exact(0),
-        completion: Some(CompletionDescriptor::exact(SUBCOMMAND_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            SUBCOMMAND_CODES,
+        )),
         ..SubCommand::DEFAULT
     },
 ];
@@ -202,7 +206,9 @@ fn registry_with_completion_fixture() -> CommandRegistry {
         name: "completion-fixture",
         arity: Arity::any(),
         subcommands: SUBCOMMANDS,
-        completion: Some(CompletionDescriptor::exact(COMMAND_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            COMMAND_CODES,
+        )),
         ..CommandSpec::DEFAULT
     });
     registry

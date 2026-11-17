@@ -299,9 +299,9 @@ pub struct SubCommand {
 
     /// Target-neutral completion semantics for this subcommand.
     ///
-    /// A matching subcommand form takes precedence. `None` inherits the
+    /// A matching subcommand form takes precedence. `Unknown` inherits the
     /// parent command's descriptor.
-    pub completion: Option<crate::completion::CompletionDescriptor>,
+    pub completion: crate::knowledge::Knowledge<crate::completion::CompletionDescriptor>,
 
     /// Result-dependency refinement for this subcommand. `None` inherits the
     /// parent command declaration.

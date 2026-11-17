@@ -130,10 +130,12 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         runtime_backing: RuntimeBacking::shipped("set"),
         // A core variable primitive with no filesystem/process/network access,
         // present unmodified in every dialect that hosts a real Tcl core

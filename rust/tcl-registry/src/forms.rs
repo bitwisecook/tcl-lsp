@@ -147,9 +147,9 @@ pub struct CommandForm {
     /// Completion semantics specific to this form.
     ///
     /// When present, this takes precedence over a resolved subcommand's and
-    /// parent command's completion descriptors. `None` inherits the more
+    /// parent command's completion descriptors. `Unknown` inherits the more
     /// general descriptor.
-    pub completion: Option<CompletionDescriptor>,
+    pub completion: crate::knowledge::Knowledge<CompletionDescriptor>,
 
     /// Result-dependency refinement for this concrete invocation shape.
     /// `None` inherits the resolved subcommand or command declaration.
@@ -255,7 +255,7 @@ impl CommandForm {
         semantic_operation: None,
         successful_handler: None,
         variable_receivers: None,
-        completion: None,
+        completion: crate::knowledge::Knowledge::Unknown,
         result_stability: None,
         native_result: None,
         return_type: None,

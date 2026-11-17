@@ -224,10 +224,12 @@ pub fn spec() -> CommandSpec {
         name: "scan",
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         successful_handler: Some(
             crate::native_compilation::SuccessfulHandlerSpec::ConditionalVariableOperands(
                 crate::variable_output::NativeVariableOutputSpec::Scan,

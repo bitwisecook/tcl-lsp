@@ -74,7 +74,7 @@ impl CommandSpec {
         command_forms: &[],
         semantic_operation: None,
         semantic_operation_windows: &[],
-        completion: None,
+        completion: crate::knowledge::Knowledge::Unknown,
         result_stability: None,
         native_result: None,
         assigns_variable_at: None,
@@ -203,7 +203,9 @@ impl CommandSpec {
             side_effects: crate::knowledge::Knowledge::declared(
                 crate::extension_default::SIDE_EFFECTS,
             ),
-            completion: Some(crate::completion::CompletionDescriptor::CONSERVATIVE),
+            completion: crate::knowledge::Knowledge::Partial(
+                crate::completion::CompletionDescriptor::CONSERVATIVE,
+            ),
             runtime_backing: crate::runtime_backing::RuntimeBacking::HostNative,
             ..Self::DEFAULT
         }
@@ -305,7 +307,7 @@ impl SubCommand {
         subcommand_forms: &[],
         semantic_operation: None,
         semantic_operation_windows: &[],
-        completion: None,
+        completion: crate::knowledge::Knowledge::Unknown,
         result_stability: None,
         native_result: None,
         surface: None,

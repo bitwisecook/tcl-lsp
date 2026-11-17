@@ -11,5 +11,5 @@ dialects []
 registrations 2
 notices 0
 commands 2
-command uri::geturl line 16 overrides false degraded false spec f845f1d9afea9a06 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command http::geturl line 38 overrides false degraded false spec 8f43906dfe1d2e28 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command uri::geturl line 16 overrides false degraded false spec c81aa3d354ddecc4 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command http::geturl line 38 overrides false degraded false spec 8416917e5e2ca462 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

@@ -467,9 +467,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Completion contract",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(CompletionDescriptor::exact(COMPLETION_CODES))",
+            hint: "Knowledge::Partial(CompletionDescriptor::exact(COMPLETION_CODES))",
         },
         "Subcommand-specific Tcl completion and payload obligations.",
+    ),
+    f(
+        "completion_knowledge",
+        "Completion completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely this subcommand's completion codes are known.",
     ),
     f(
         "surface",

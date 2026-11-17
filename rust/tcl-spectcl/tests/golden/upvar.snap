@@ -12,4 +12,4 @@ registrations 1
 notices 1
 notice command upvar 51 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command upvar line 16 overrides false degraded false spec 852c8dee6672f7ed hooks 0e9154028cee36a5 grammar 715ea0deb6f6f5f9
+command upvar line 16 overrides false degraded false spec 67a659b8d805c398 hooks 0e9154028cee36a5 grammar 715ea0deb6f6f5f9

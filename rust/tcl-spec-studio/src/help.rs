@@ -440,6 +440,15 @@ in a loop. This powers checks like \"this `break` is outside any loop\" \
 and dead-code reasoning after a command that always raises.",
     ),
     (
+        "completion_knowledge",
+        "How much of the completion contract is known. **Unknown** claims \
+nothing, and the call may finish with any code. **Partial** says the codes \
+listed can occur and others may. **Complete** says they are every code the \
+implementation can finish with, for the release windows you evidenced from \
+its source; a complete contract of `Ok` and `Error` only is one of the four \
+facts purity is derived from.\n\n```\ncompletion {Ok Error} -complete {8.4 9.1}\n```",
+    ),
+    (
         "assigns_variable_at",
         "The one argument position naming a variable the command writes — 0 \
 for `set varName value`. This is the older, simpler cousin of a VarWrite \

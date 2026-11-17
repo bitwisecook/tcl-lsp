@@ -93,6 +93,10 @@ const NO_SUBS: &[(&str, &str, &str)] = &[];
 /// `world_effects` is a descriptor the port does not transcribe: the
 /// completeness travels on the `world_effects` row, so a port without the
 /// row states none (issue #1712).
+/// The same for `completion_knowledge` beside an untranscribed `completion`.
+const UNTRANSCRIBED_COMPLETION_KNOWLEDGE: &str = "the completeness of a shipped \
+     `completion` descriptor the port does not transcribe; it is spelled on that \
+     row, so the port states none";
 const UNTRANSCRIBED_WORLD_KNOWLEDGE: &str = "the completeness of a shipped \
      `world_effects` descriptor the port does not transcribe; it is spelled on that \
      row, so the port states none";
@@ -184,14 +188,17 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "upvar",
             dialect: "tcl9.1",
-            unequal: &[(
-                "__unrenderable",
-                "the shipped spec carries the compiler-owned `native_lowering` \
+            unequal: &[
+                (
+                    "__unrenderable",
+                    "the shipped spec carries the compiler-owned `native_lowering` \
                  descriptor (the native-tier shape stamped beside the lowering \
                  hook); SpecTcl has no surface for it, so it stays on the \
                  unrenderable list and the port does not transcribe it. Every \
                  field the port does carry matches",
-            )],
+                ),
+                ("completion_knowledge", UNTRANSCRIBED_COMPLETION_KNOWLEDGE),
+            ],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -354,6 +361,11 @@ const PORTS: &[Port] = &[
                     "world_effects_knowledge",
                     UNTRANSCRIBED_WORLD_KNOWLEDGE,
                 ),
+                (
+                    "length",
+                    "completion_knowledge",
+                    UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
+                ),
                 ("is", "__unrenderable", NATIVE_COMPILATION),
                 (
                     "map",
@@ -369,11 +381,21 @@ const PORTS: &[Port] = &[
                     "world_effects_knowledge",
                     UNTRANSCRIBED_WORLD_KNOWLEDGE,
                 ),
+                (
+                    "map",
+                    "completion_knowledge",
+                    UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
+                ),
                 ("range", "successful_handler", SUCCESSFUL_HANDLER),
                 (
                     "range",
                     "world_effects_knowledge",
                     UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
+                (
+                    "range",
+                    "completion_knowledge",
+                    UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
                 ),
                 (
                     "range",

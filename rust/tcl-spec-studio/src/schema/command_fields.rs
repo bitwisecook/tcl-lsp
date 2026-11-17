@@ -355,9 +355,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Completion contract",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(CompletionDescriptor::exact(COMPLETION_CODES))",
+            hint: "Knowledge::Partial(CompletionDescriptor::exact(COMPLETION_CODES))",
         },
         "Possible Tcl completion codes and result/options payload obligations.",
+    ),
+    f(
+        "completion_knowledge",
+        "Completion completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely the completion codes are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.",
     ),
     f(
         "assigns_variable_at",

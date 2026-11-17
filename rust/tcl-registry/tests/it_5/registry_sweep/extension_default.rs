@@ -76,7 +76,10 @@ fn check_extension_default_spec(spec: &tcl_registry::CommandSpec) {
         }],
         "unknown reads and writes"
     );
-    assert_eq!(spec.completion, Some(CompletionDescriptor::CONSERVATIVE));
+    assert_eq!(
+        spec.completion,
+        tcl_registry::knowledge::Knowledge::Partial(CompletionDescriptor::CONSERVATIVE)
+    );
     assert_eq!(
         CompletionDescriptor::CONSERVATIVE.codes,
         CompletionCodeDomain::Any

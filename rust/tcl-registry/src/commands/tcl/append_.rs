@@ -77,7 +77,7 @@ pub fn spec() -> CommandSpec {
             | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(1),
         command_forms: COMMAND_FORMS,
-        completion: Some(crate::CompletionDescriptor::exact(&[
+        completion: crate::knowledge::Knowledge::Partial(crate::CompletionDescriptor::exact(&[
             crate::CompletionCode::Ok,
             crate::CompletionCode::Error,
         ])),

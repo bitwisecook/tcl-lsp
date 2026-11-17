@@ -118,6 +118,17 @@ impl<T: Copy> Knowledge<T> {
         }
     }
 
+    /// This knowledge, or `other` when this states nothing: how a more
+    /// specific layer (a form, then a subcommand) overrides the one it
+    /// refines.
+    #[must_use]
+    pub const fn or(self, other: Self) -> Self {
+        match self {
+            Self::Unknown => other,
+            stated => stated,
+        }
+    }
+
     /// The knowledge an optional authored value states before any evidence: a
     /// value is a lower bound, no value says nothing.
     #[must_use]

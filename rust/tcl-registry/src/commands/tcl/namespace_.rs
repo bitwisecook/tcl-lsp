@@ -1272,7 +1272,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
-        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1291,7 +1291,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
-        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1619,7 +1619,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
-        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1643,7 +1643,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
-        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1727,7 +1727,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // 8.6.18, 9.0.4 and 9.1.0 answer 5 for a linked read, and raise
         // `namespace "::nope" not found` and `variable "l" already exists`.
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_UPVAR_SIDE_EFFECTS),
-        completion: Some(CompletionDescriptor::exact(&[
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(&[
             CompletionCode::Ok,
             CompletionCode::Error,
         ])),

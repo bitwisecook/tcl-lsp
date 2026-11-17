@@ -222,10 +222,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 implementation_from: tcl_dialect::TclVersion::V8_5,
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         native_compilation: Some(
             crate::native_dictionary::NativeDictionaryCommand::Create.spec(true),
         ),

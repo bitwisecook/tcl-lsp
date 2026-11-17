@@ -629,6 +629,16 @@ What state the command touches — variables, channels, files, network, logs, HT
 
 Which of Tcl's completion codes the command can finish with — normal return, `error`, `break`, `continue`, `return` — and what it promises about the result. `error` always raises; `break` only makes sense in a loop. This powers checks like "this `break` is outside any loop" and dead-code reasoning after a command that always raises.
 
+### `completion_knowledge` — Completion completeness
+
+*command and subcommand* — How completely the completion codes are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.
+
+How much of the completion contract is known. **Unknown** claims nothing, and the call may finish with any code. **Partial** says the codes listed can occur and others may. **Complete** says they are every code the implementation can finish with, for the release windows you evidenced from its source; a complete contract of `Ok` and `Error` only is one of the four facts purity is derived from.
+
+```
+completion {Ok Error} -complete {8.4 9.1}
+```
+
 ### `command_table_effect` — Command-table effect
 
 *command and subcommand* — How the command mutates the interpreter's command table.

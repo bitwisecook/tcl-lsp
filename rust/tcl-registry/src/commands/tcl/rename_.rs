@@ -79,10 +79,12 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name)],
         return_type: Some(TclType::String),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         hover: Some(HoverSnippet {
             summary: "Rename or delete a command",
             synopsis: &["rename oldName newName"],

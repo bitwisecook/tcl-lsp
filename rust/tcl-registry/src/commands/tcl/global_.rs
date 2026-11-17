@@ -128,10 +128,12 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         runtime_backing: RuntimeBacking::shipped("global"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME

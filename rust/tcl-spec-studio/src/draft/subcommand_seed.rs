@@ -288,8 +288,9 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "completion".into(),
-        lost.expr("completion", sub.completion.is_some()),
+        lost.expr("completion", !sub.completion.is_unknown()),
     );
+    d.insert("completion_knowledge".into(), knowledge(&sub.completion));
     d.insert(
         "lowering_hook".into(),
         sub.lowering_hook

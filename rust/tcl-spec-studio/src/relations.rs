@@ -391,7 +391,7 @@ pub const CLUSTERS: &[Cluster] = &[
     Cluster {
         name: "Completion",
         why: "How the call finishes, and what the editor offers after it.",
-        members: &["completion"],
+        members: &["completion", "completion_knowledge"],
     },
 ];
 

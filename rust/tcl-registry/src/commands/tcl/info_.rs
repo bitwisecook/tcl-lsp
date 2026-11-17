@@ -922,10 +922,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 direct_provider: None,
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         semantic_operation: Some(SemanticOperationId::Invoke),
         inline_codegen_hook: Some(InlineCodegenHookId::InfoCommandsResolve),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
@@ -1168,10 +1170,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // It answers, or raises `bad level "N"`; nothing else. tclsh 8.4.20,
         // 8.6.18, 9.0.4 and 9.1.0: `info level` and `info level 0` return,
         // `info level 99` raises.
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {

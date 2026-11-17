@@ -579,8 +579,9 @@ pub struct CommandSpec {
     /// Target-neutral completion semantics for this command.
     ///
     /// A resolved subcommand or invocation form can supply a more-specific
-    /// descriptor. `None` deliberately leaves the invocation conservative.
-    pub completion: Option<crate::completion::CompletionDescriptor>,
+    /// descriptor. `Unknown` deliberately leaves the invocation conservative;
+    /// only `Complete` closes the domain for the windows it names.
+    pub completion: crate::knowledge::Knowledge<crate::completion::CompletionDescriptor>,
 
     /// Whether equal evaluated arguments are sufficient to reproduce this
     /// command's result. `None` is conservative, not an assertion of purity.

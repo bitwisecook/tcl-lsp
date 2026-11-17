@@ -11,4 +11,4 @@ dialects []
 registrations 2
 notices 0
 commands 1
-command oo::class line 29 overrides false degraded false spec 25e6ad779b6550f5 hooks df60b29fcef47fc7 grammar 715ea0deb6f6f5f9
+command oo::class line 29 overrides false degraded false spec f8b8a91d8aea40ac hooks df60b29fcef47fc7 grammar 715ea0deb6f6f5f9

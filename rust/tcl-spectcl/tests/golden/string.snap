@@ -11,4 +11,4 @@ dialects []
 registrations 2
 notices 0
 commands 1
-command string line 44 overrides false degraded false spec 4bc927c0c5c7473e hooks 1c3263abc30faa01 grammar 715ea0deb6f6f5f9
+command string line 44 overrides false degraded false spec 90f2ac4a6db0f74d hooks 1c3263abc30faa01 grammar 715ea0deb6f6f5f9

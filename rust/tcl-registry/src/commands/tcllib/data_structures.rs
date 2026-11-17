@@ -446,7 +446,9 @@ fn struct_tree_prune_spec() -> CommandSpec {
     CommandSpec {
         name: "struct::tree::prune",
         arity: Arity::exact(0),
-        completion: Some(CompletionDescriptor::exact(STRUCT_TREE_PRUNE_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            STRUCT_TREE_PRUNE_CODES,
+        )),
         hover: Some(HoverSnippet {
             summary: "Abort the current struct::tree walk script and skip the current node's children.",
             synopsis: &["::struct::tree::prune"],
@@ -741,7 +743,7 @@ mod tests {
         assert_eq!(prune.owning_package(), Some("struct::tree"));
         assert_eq!(prune.lifecycle.introduced, Some("2.0"));
         assert_eq!(prune.arity, Arity::exact(0));
-        let completion = prune.completion.expect("a completion descriptor");
+        let completion = prune.completion.stated().expect("a completion descriptor");
         assert_eq!(
             completion.codes,
             CompletionCodeDomain::Exact(&[CompletionCode::Other(5)]),

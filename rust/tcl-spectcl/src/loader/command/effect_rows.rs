@@ -21,7 +21,8 @@
 use super::super::statement_reader::Stmt;
 use super::super::value_parsers::{
     CONNECTION_SIDES, FRAME_LAYOUTS, FRAME_LEVEL_WORDS, SIDE_EFFECT_TARGETS, apply_availability,
-    checked_lifecycle, enum_by_name, lifecycle_flag, list_words, next_text, parse_dialects,
+    checked_lifecycle, completion_row, enum_by_name, lifecycle_flag, list_words, next_text,
+    parse_dialects,
 };
 use super::super::{Log, available, leak_slice, leak_str};
 use tcl_dialect::model::{Family, SpecSurface, SpecWindow};
@@ -183,6 +184,16 @@ pub(in super::super) fn stated_knowledge<T: Copy>(
             Knowledge::Complete(value, surfaces)
         }
     }
+}
+
+/// `completion {CODE …} ?-partial? ?-complete WINDOW?…`: the codes alone
+/// are a lower bound, and each window closes them (issue #1712).
+pub(in super::super) fn completion_value(
+    stmt: &Stmt,
+    log: &mut Log,
+) -> Knowledge<tcl_registry::completion::CompletionDescriptor> {
+    let (stated, value) = split_knowledge_flags(stmt, log);
+    stated_knowledge(completion_row(value.word_text(1), stmt.line, log), stated)
 }
 
 pub(in super::super) fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {

@@ -239,8 +239,9 @@ pub(super) fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unreco
     );
     d.insert(
         "completion".into(),
-        lost.expr("completion", spec.completion.is_some()),
+        lost.expr("completion", !spec.completion.is_unknown()),
     );
+    d.insert("completion_knowledge".into(), knowledge(&spec.completion));
     d.insert(
         "lowering_hook".into(),
         spec.lowering_hook
@@ -257,6 +258,37 @@ pub(super) fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unreco
         spec.command_table_effect
             .map_or(Value::Null, |e| json!(catalogue::variant_name(&e))),
     );
+    command_effects(d, spec, lost);
+    d.insert(
+        "native_result".into(),
+        lost.expr("native_result", spec.native_result.is_some()),
+    );
+    d.insert(
+        "constraints".into(),
+        lost.expr("constraints", spec.constraints.is_some()),
+    );
+    d.insert(
+        "source_index_bounds".into(),
+        spec.source_index_bounds.map_or(Value::Null, |operation| {
+            json!(catalogue::variant_name(&operation))
+        }),
+    );
+    d.insert(
+        "literal_argument_validator".into(),
+        lost.expr(
+            "literal_argument_validator",
+            spec.literal_argument_validator.is_some(),
+        ),
+    );
+    d.insert(
+        "inferred_storage_type".into(),
+        spec.inferred_storage_type
+            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
+    );
+}
+
+/// The effect domains, and how completely each is known (issue #1712).
+fn command_effects(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "side_effects".into(),
         nested_rows(
@@ -292,32 +324,6 @@ pub(super) fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unreco
     d.insert(
         "result_stability".into(),
         lost.expr("result_stability", spec.result_stability.is_some()),
-    );
-    d.insert(
-        "native_result".into(),
-        lost.expr("native_result", spec.native_result.is_some()),
-    );
-    d.insert(
-        "constraints".into(),
-        lost.expr("constraints", spec.constraints.is_some()),
-    );
-    d.insert(
-        "source_index_bounds".into(),
-        spec.source_index_bounds.map_or(Value::Null, |operation| {
-            json!(catalogue::variant_name(&operation))
-        }),
-    );
-    d.insert(
-        "literal_argument_validator".into(),
-        lost.expr(
-            "literal_argument_validator",
-            spec.literal_argument_validator.is_some(),
-        ),
-    );
-    d.insert(
-        "inferred_storage_type".into(),
-        spec.inferred_storage_type
-            .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
     );
 }
 

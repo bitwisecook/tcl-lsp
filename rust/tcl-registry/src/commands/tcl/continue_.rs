@@ -47,7 +47,9 @@ pub fn spec() -> CommandSpec {
             | Traits::TRANSFERS_CONTROL
             | Traits::NEEDS_START_CMD,
         arity: Arity::exact(0),
-        completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            COMPLETION_CODES,
+        )),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Skip to the next iteration of the innermost enclosing loop.",

@@ -380,6 +380,7 @@ so the value stays the row's first word:
 ```tcl
 world_effects none -complete {8.4 9.1}   ;# no world access, evidenced 8.4 through 9.1
 world_effects none                       ;# stated, but only a lower bound
+completion {Ok Error} -complete {8.4 9.1} ;# finishes only normally or with an error
 ```
 
 No row is `Unknown`; a row without flags is `Partial`; each `-complete`
@@ -1456,7 +1457,7 @@ schema order. "excluded" rows carry the reason.
 | `command_forms` | `refine NAME { … }` | one block per invocation form (2.0); the body takes `arity`, `selector {WORD …} ?-exact?`, `arg N -role R`, `option …`, the four `option_*` relations, `available`/`dialects`, `traits`, `mutator`, `side_effect …` / `side_effects none`. An omitted overlay inherits, so `traits {}` and no `traits` row are different declarations. The descriptor's native halves (`completion`, `dispatch_dependencies`, `literal_argument_validator`) stay Rust-only and a form carrying one is reported, not thinned. Plain `forms` still only documents synopsis/lifecycle. |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `semantic_operation_windows` | `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` | since 2.2; one row per window, beside the plain row. Repeatable, must not overlap, and a window the primary release does not settle selects nothing |
-| `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
+| `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes. Where a pack does state one (`completion {CODE …}`), trailing `-partial` / `-complete WINDOW` flags state its `Knowledge` as for `world_effects` |
 | `assigns_variable_at` | `assigns_variable_at N` |  |
 | `safe_on_uninit` | `safe_on_uninit {SET …}` |  |
 | `const_fold` | `const_fold {words ctx} { … }` \| `-native ID` | emitter verb `fold VALUE`; no call = no fold |
@@ -1594,7 +1595,7 @@ schema order. "excluded" rows carry the reason.
 | `subcommand_forms` | `refine NAME { … }` | the subcommand-level twin of `command_forms`, one grammar and one reader |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `semantic_operation_windows` | `semantic_operation SPELLING -introduced V ?-deprecated V? ?-retired V?` | since 2.2; one row per window, beside the plain row. Repeatable, must not overlap, and a window the primary release does not settle selects nothing |
-| `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
+| `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes. Where a pack does state one (`completion {CODE …}`), trailing `-partial` / `-complete WINDOW` flags state its `Knowledge` as for `world_effects` |
 | `dialects` | `dialects {SET …}` | absent inherits the parent command's set |
 | `introduced_version` | `introduced_version V` | `Lifecycle.introduced` |
 | `deprecated_version` | `deprecated_version V` | `Lifecycle.deprecated` |

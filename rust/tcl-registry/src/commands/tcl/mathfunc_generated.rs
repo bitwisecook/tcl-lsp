@@ -97,12 +97,12 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
                 .map(crate::native_result::NativeResultContract::ScalarMath),
             successful_handler: scalar_operation
                 .map(|_| crate::native_compilation::SuccessfulHandlerSpec::Leaf),
-            completion: scalar_operation.map(|_| {
+            completion: crate::knowledge::Knowledge::from_stated(scalar_operation.map(|_| {
                 crate::completion::CompletionDescriptor::exact(&[
                     crate::completion::CompletionCode::Ok,
                     crate::completion::CompletionCode::Error,
                 ])
-            }),
+            })),
             traits: Traits::PURE,
             // Native operand updateStringProc/freeIntRepProc can change the
             // interpreter. The handler body effect and original object-hook

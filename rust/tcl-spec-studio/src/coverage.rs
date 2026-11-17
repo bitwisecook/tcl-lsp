@@ -384,7 +384,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         "semantic_operation_windows",
         Surface::Key("semantic_operation_windows"),
     ),
-    f("completion", Surface::Key("completion")),
+    f(
+        "completion",
+        Surface::Keys(&["completion", "completion_knowledge"]),
+    ),
     f("assigns_variable_at", Surface::Key("assigns_variable_at")),
     f("safe_on_uninit", Surface::Key("safe_on_uninit")),
     f("const_fold", Surface::Key("const_fold")),
@@ -768,7 +771,10 @@ pub const SUB_COMMAND: &[Field] = &[
         "semantic_operation_windows",
         Surface::Key("semantic_operation_windows"),
     ),
-    f("completion", Surface::Key("completion")),
+    f(
+        "completion",
+        Surface::Keys(&["completion", "completion_knowledge"]),
+    ),
     f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("safe_on_uninit", Surface::Key("safe_on_uninit")),

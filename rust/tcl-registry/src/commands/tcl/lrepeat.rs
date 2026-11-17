@@ -99,10 +99,12 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         // Reached native value handler has no callbacks or variable-name writes.
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         name: "lrepeat",
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {

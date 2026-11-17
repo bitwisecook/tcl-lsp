@@ -124,7 +124,13 @@ pub const GAPS: &[Gap] = &[
     // representation proofs; the loadable authoring surface cannot assert those.
     Gap {
         key: "completion",
-        spelling: "completion {CODE …}",
+        spelling: "completion {CODE …} ?-partial? ?-complete WINDOW?…",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        // Spelled on the opaque `completion` row, so it travels with it.
+        key: "completion_knowledge",
+        spelling: "completion … -complete WINDOW",
         kind: GapKind::DraftOpaque,
     },
     Gap {

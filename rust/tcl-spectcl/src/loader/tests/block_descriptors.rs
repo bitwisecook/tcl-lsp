@@ -594,3 +594,30 @@ fn world_effects_rows_state_their_completeness_issue_1712() {
         "{notices:?}"
     );
 }
+
+/// Issue #1712: a `completion` row's trailing flags state how completely its
+/// codes are known; the row alone is a lower bound and no row states nothing.
+#[test]
+fn completion_rows_state_their_completeness_issue_1712() {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
+    use tcl_registry::knowledge::KnowledgeLevel;
+    let load = |row: &str| {
+        let pack = evaluate_pack(&format!("speclib probe 2.2 {{ command demo {{ {row} }} }}"));
+        (pack.command("demo").unwrap().spec.completion, pack.notices)
+    };
+    let (absent, _) = load("arity 0");
+    assert!(absent.is_unknown());
+    let (stated, _) = load("completion {Ok Error}");
+    assert_eq!(stated.level(), KnowledgeLevel::Partial);
+    let (complete, notices) = load("completion {Ok Error} -complete {8.4 9.1}");
+    assert!(notices.is_empty(), "{notices:?}");
+    let at = SurfaceQuery::any_release(Family::Tcl);
+    let descriptor = complete
+        .complete_at(Some(&at))
+        .expect("complete over the ladder");
+    assert_eq!(
+        descriptor.codes,
+        CompletionCodeDomain::Exact(&[CompletionCode::Ok, CompletionCode::Error])
+    );
+}
