@@ -747,43 +747,10 @@ impl WorkspaceIndex {
                 return None;
             }
         }
-        if let Some(reference) = &inv.resolved_command_reference
-            && (inv.original_name_input.is_some() || reference.original_name_policy().is_some())
+        if let std::ops::ControlFlow::Break(settled) =
+            self.settle_original_invocation(inv, defined, links)
         {
-            return if let Some(links) = links {
-                reference
-                    .linked_definition()
-                    .or_else(|| reference.definition())
-                    .and_then(|definition| self.original_definition_target(definition))
-                    .or_else(|| {
-                        let slot = reference.original_slot()?;
-                        let name = String::from_utf8(
-                            tcl_syntax::naming::native_command_full_name_bytes(slot),
-                        )
-                        .ok()?;
-                        Self::linked_name_target(&name, links, defined)
-                    })
-            } else {
-                reference.is_direct_definition().then_some(())?;
-                Some(SettledCommandTarget::OriginalSlot(
-                    reference.original_slot()?.clone(),
-                    reference.original_name_policy()?,
-                ))
-            };
-        }
-        if let Some(lookup) = inv.original_lookup.as_ref()
-            && lookup.policy().authority() == tcl_syntax::naming::NamePolicyAuthority::Native
-        {
-            return self
-                .original_assistance_target(lookup, links.is_some())
-                .or_else(|| Self::linked_candidate_target(inv, links?, defined));
-        }
-        if let Some(lookup) = inv.original_lookup.as_ref()
-            && inv.logical_source_domain == Some(false)
-        {
-            return self
-                .workspace_assistance_target(lookup, links.is_some())
-                .or_else(|| Self::linked_candidate_target(inv, links?, defined));
+            return settled;
         }
         if inv.original_name_input.is_some() || inv.logical_source_domain != Some(false) {
             return None;
@@ -877,6 +844,59 @@ impl WorkspaceIndex {
                     unroot_rooted_key(&resolved).unwrap_or(&resolved).to_owned(),
                 )
             })
+    }
+
+    /// The settlement of a call its own document named through the original
+    /// naming owner: `Break(answer)` when that owner decides it, `Continue` to
+    /// fall through to the authored candidates.
+    fn settle_original_invocation(
+        &self,
+        inv: &WorkspaceInvocation,
+        defined: &HashSet<String>,
+        links: Option<&std::collections::HashMap<String, String>>,
+    ) -> std::ops::ControlFlow<Option<SettledCommandTarget>> {
+        if let Some(reference) = &inv.resolved_command_reference
+            && (inv.original_name_input.is_some() || reference.original_name_policy().is_some())
+        {
+            return std::ops::ControlFlow::Break(if let Some(links) = links {
+                reference
+                    .linked_definition()
+                    .or_else(|| reference.definition())
+                    .and_then(|definition| self.original_definition_target(definition))
+                    .or_else(|| {
+                        let slot = reference.original_slot()?;
+                        let name = String::from_utf8(
+                            tcl_syntax::naming::native_command_full_name_bytes(slot),
+                        )
+                        .ok()?;
+                        Self::linked_name_target(&name, links, defined)
+                    })
+            } else if reference.is_direct_definition()
+                && let (Some(slot), Some(policy)) =
+                    (reference.original_slot(), reference.original_name_policy())
+            {
+                Some(SettledCommandTarget::OriginalSlot(slot.clone(), policy))
+            } else {
+                None
+            });
+        }
+        if let Some(lookup) = inv.original_lookup.as_ref()
+            && lookup.policy().authority() == tcl_syntax::naming::NamePolicyAuthority::Native
+        {
+            return std::ops::ControlFlow::Break(
+                self.original_assistance_target(lookup, links.is_some())
+                    .or_else(|| Self::linked_candidate_target(inv, links?, defined)),
+            );
+        }
+        if let Some(lookup) = inv.original_lookup.as_ref()
+            && inv.logical_source_domain == Some(false)
+        {
+            return std::ops::ControlFlow::Break(
+                self.workspace_assistance_target(lookup, links.is_some())
+                    .or_else(|| Self::linked_candidate_target(inv, links?, defined)),
+            );
+        }
+        std::ops::ControlFlow::Continue(())
     }
 
     fn linked_candidate_target(
