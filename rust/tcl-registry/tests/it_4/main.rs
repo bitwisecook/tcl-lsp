@@ -22,6 +22,7 @@
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
 mod analyser_hooks;
+mod command_evidence;
 mod differential_fold;
 mod keyword_abbreviations;
 mod library_axis;
