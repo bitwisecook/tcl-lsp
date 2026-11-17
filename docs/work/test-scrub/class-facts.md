@@ -144,6 +144,7 @@ Wrong answers (the product says something tclsh contradicts):
 7. `struct::graph g` is typed as an object handle under tcl8.6 with no tcllib provider (tclsh: `can't find package`), adding call-graph candidates.
 8. Factory return candidates are produced with missing or foreign input, against `original-analysis-metadata-context.md`.
 9. Under an 8.4 or foreign context the tcltest body provider is still selected and `namespace export` still recorded; the contract withholds both.
+10. Two analyses of the same `aliases.tcl` under tcl8.6 compare unequal (`object_types::report_comparison::tests::current_native_alias_report_capture_control`).
 
 Missing facts (tclsh shows the behaviour; the product abstains or withdraws):
 
@@ -166,10 +167,12 @@ Missing facts (tclsh shows the behaviour; the product abstains or withdraws):
 
 Among them: `switch -exact $cmd {…}` is not ambiguous on 8.5 to 9.1 (tclsh prints `OTHER` for `--`, `-regexp`, `-nocase`, `-bogus`, `-glob`; only 8.4 reads the value as an option), so the test and its passage in `original-analysis-metadata-context.md` change; `return first second` is an option pair on 8.5 to 9.1; on a pinned release a bare `unknown_effect` mutates nothing under the #2427 rule (three rows apply to `tcl` only); only `::oo::Helpers::callback` is reachable on 9.0 and 9.1 even with `proc ::callback`; a second creation of an existing class raises `command already exists`.
 
-## Open for the coordinator
+## Rulings applied (coordinator, 17 November)
 
-- Four UNDECIDED rows: two member-body catalogue tests that turn on which side of the "Receiver methods never called" ruling a source catalogue sits; two analyses of `aliases.tcl` that compare unequal with no contract requiring equality; whether a source point under `source -encoding` must abstain.
-- Whether the every-entry facts of a never-called body cover a procedure that body defines on every call (7 rows marked KEEP-ORACLE on that reading).
+- The generic entry of a never-called body covers a procedure that body defines on every call: that procedure's body facts only; whether it exists for an outside caller still needs the outer body to have surely run, and a conditional or computed definition gets nothing.
+- Same input, same result to the byte is a contract of the analysis: the two unequal analyses of `aliases.tcl` are a wrong answer (the tenth).
+- A catalogue an edit-producing consumer reads stays on the proof side: a relative head in an uncalled method body has no proof until the entry-independent binding lands.
+- Abstaining at `source -encoding` with a recorded read obligation is sound design.
 
 ## Overlap with other tests
 
