@@ -111,9 +111,9 @@ fn report_publication_retains_unavailable_generation_status() {
 /// published diagnostic set.
 #[test]
 fn the_report_surfaces_compiler_check_codes() {
-    let registry = CommandRegistry::build_default();
+    let registry = tcl_lsp_core::registry_for_dialect("tcl8.6");
     let src = "if {1} { set x 1 } else { set y 2 }\n";
-    let diags = lifted_compiler_set(src, &registry, "", &open_policy());
+    let diags = lifted_compiler_set(src, registry, "tcl8.6", &open_policy());
     assert!(
         has_code(&diags, "O100"),
         "expected an O100 constant-branch diagnostic, got: {:?}",
@@ -392,14 +392,14 @@ async fn xc_findings_refuse_an_analysis_of_other_source() {
 /// and cannot be independently applied.
 #[test]
 fn a_grouped_optimisation_is_never_independently_applicable_issue_2149() {
-    let registry = CommandRegistry::build_default();
+    let registry = tcl_lsp_core::registry_for_dialect("tcl8.6");
     // O127 fires on a *computed* single-use assignment.
     let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
     // O127 abstains without a resolved dialect profile (it cannot prove
     // its alias-safety gate under "every dialect at once"), so the
     // fixture must state one.
     let diags =
-        tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "tcl8.6", None, None);
+        tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "tcl8.6", None, None);
     let grouped: Vec<_> = diags
         .optimisations
         .iter()
