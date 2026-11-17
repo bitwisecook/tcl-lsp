@@ -69,7 +69,9 @@ fn invalid_filename_layout_matches_full_registration_vectors() {
             directory,
             config,
             policy,
-            crate::source_structure::analyse_autoload_registration_structure,
+            IndexAnalysis::Autoload {
+                structure_only: true,
+            },
         );
         let generation = crate::context_for_dialect_profile(profile);
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
@@ -97,22 +99,34 @@ fn invalid_filename_layout_matches_full_registration_vectors() {
                 full.is_empty(),
                 "the unchanged full consumer contributes zero"
             );
-            let fresh = survey_index_entries_from_source(source, directory, config, policy)
-                .expect("authenticated invalid layout avoids full analysis");
-            assert!(fresh.is_empty());
+            // In auto_load_index's frame the `[list source -encoding ...]`
+            // builder is reached; the authenticated invalid-layout proof
+            // exists only for an unreached builder, so the fast path abstains.
+            assert!(survey_index_entries_from_source(source, directory, config, policy).is_none());
             assert!(
-                fresh
+                survey_index_entries(source, directory, config, policy)
                     .iter()
                     .map(|entry| (&entry.input, &entry.file))
                     .eq(full.iter().map(|entry| (&entry.input, &entry.file)))
             );
         } else {
+            let fresh = survey_index_entries_from_source(source, directory, config, policy)
+                .expect("a valid layout keeps the fast path");
+            assert!(
+                fresh
+                    .iter()
+                    .map(|entry| (&entry.input, &entry.file))
+                    .eq(full.iter().map(|entry| (&entry.input, &entry.file))),
+                "{version:?}"
+            );
             let index_loader::OriginalIndexFilenameSurvey::Filename(file) = query else {
                 panic!("Selected encoding filename prerequisite: {version:?}")
             };
-            assert_eq!(full.len(), 1);
+            // Both rows register: `$dir` is set in auto_load_index's frame.
+            assert_eq!(full.len(), 2, "{version:?}");
             assert_eq!(file, full[0].file, "{version:?}");
             assert_eq!(full[0].input.bytes(), b"a");
+            assert_eq!(full[1].input.bytes(), b"b");
         }
         let index_loader::OriginalIndexFilenameSurvey::NoContribution(receipt) =
             index_loader::survey_original_index_filename(source, &context, second, directory)
@@ -145,7 +159,9 @@ fn filename_layout_activation_preserves_mixed_row_order_and_fallback() {
             directory,
             config,
             policy,
-            crate::source_structure::analyse_autoload_registration_structure,
+            IndexAnalysis::Autoload {
+                structure_only: true,
+            },
         );
         assert_eq!(full.len(), 1, "{source}");
         assert_eq!(full[0].input.bytes(), b"valid");
@@ -169,7 +185,9 @@ fn filename_layout_activation_preserves_mixed_row_order_and_fallback() {
             directory,
             config,
             policy,
-            crate::source_structure::analyse_autoload_registration_structure,
+            IndexAnalysis::Autoload {
+                structure_only: true,
+            },
         );
         assert_eq!(full.len(), 1, "{mixed}");
         assert_eq!(full[0].input.bytes(), b"valid");
@@ -198,27 +216,36 @@ fn filename_layout_activation_accepts_conditional_mixed_rows() {
             .map(|entry| (entry.input.clone(), entry.file.clone()))
             .collect::<Vec<_>>()
     };
-    for (source, expected) in [
-        (format!("{valid}{invalid}"), 1),
-        (format!("{invalid}{valid}"), 0),
+    // In auto_load_index's frame `$dir` is set, so every row is reached and
+    // the invalid row contributes nothing wherever it stands. Its
+    // `[list source -encoding ...]` builder is reached, and the
+    // authenticated invalid-layout proof exists only for an unreached
+    // builder, so the fast path abstains on a source holding it; a source
+    // of valid rows keeps the fast path.
+    for (source, expected, fast) in [
+        (valid.to_owned(), 1, true),
+        (format!("{valid}{invalid}"), 1, false),
+        (format!("{invalid}{valid}"), 1, false),
     ] {
         let full = survey_index_entries_with(
             &source,
             directory,
             config,
             policy,
-            crate::source_structure::analyse_autoload_registration_structure,
+            IndexAnalysis::Autoload {
+                structure_only: true,
+            },
         );
         assert_eq!(full.len(), expected, "{source}");
         if let Some(entry) = full.first() {
             assert_eq!(entry.input.bytes(), b"valid");
             assert_eq!(entry.file, directory.join("valid.tcl"));
         }
-        // The later schema is absent after the original unresolved read;
-        // this compares consumer output, not runtime registration effects.
-        let fresh = survey_index_entries_from_source(&source, directory, config, policy)
-            .expect("Conditional invalid layout and later schema abstention");
-        assert_eq!(records(&fresh), records(&full), "{source}");
+        let fresh = survey_index_entries_from_source(&source, directory, config, policy);
+        assert_eq!(fresh.is_some(), fast, "{source}");
+        if let Some(fresh) = fresh {
+            assert_eq!(records(&fresh), records(&full), "{source}");
+        }
         assert_eq!(
             records(&survey_index_entries(&source, directory, config, policy)),
             records(&full),
@@ -227,6 +254,12 @@ fn filename_layout_activation_accepts_conditional_mixed_rows() {
     }
 }
 
+/// `auto_load_index` evaluates the index inside its own procedure, so a row
+/// that reads a variable nothing set raises (`can't read "missing": no such
+/// variable`) before it registers anything: the fast path answers zero
+/// entries. A row whose filename or builder the survey cannot name keeps the
+/// unavailable fallback to the full analysis. Either way the current survey
+/// agrees with the full registration consumer. Tcl 8.5.
 #[test]
 fn filename_layout_activation_retains_unavailable_fallbacks() {
     let version = tcl_dialect::TclVersion::V8_5;
@@ -234,16 +267,27 @@ fn filename_layout_activation_retains_unavailable_fallbacks() {
     let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
     let policy = NamePolicyProtocol::authored_tcl(version);
     let directory = Path::new("/library");
-    for source in [
-        "set auto_index(a) [list source $missing]",
-        "set auto_index(a) [list source [file dirname $dir]]",
-        "set auto_index(a) [list source $option utf-8 a.tcl]",
-        "set auto_index(a) [list source -encoding utf-8 $missing]",
-        "set auto_index(a) [list source {*}$unknown]",
-        "rename list saved; set auto_index(a) [list source a.tcl]",
+    for (source, fast) in [
+        ("set auto_index(a) [list source $missing]", Some(0)),
+        (
+            "set auto_index(a) [list source $option utf-8 a.tcl]",
+            Some(0),
+        ),
+        (
+            "set auto_index(a) [list source -encoding utf-8 $missing]",
+            Some(0),
+        ),
+        ("set auto_index(a) [list source {*}$unknown]", Some(0)),
+        ("set auto_index(a) [list source [file dirname $dir]]", None),
+        (
+            "rename list saved; set auto_index(a) [list source a.tcl]",
+            None,
+        ),
     ] {
-        assert!(
-            survey_index_entries_from_source(source, directory, config, policy).is_none(),
+        assert_eq!(
+            survey_index_entries_from_source(source, directory, config, policy)
+                .map(|entries| entries.len()),
+            fast,
             "{source}"
         );
         let full = survey_index_entries_with(
@@ -251,14 +295,17 @@ fn filename_layout_activation_retains_unavailable_fallbacks() {
             directory,
             config,
             policy,
-            crate::source_structure::analyse_autoload_registration_structure,
+            IndexAnalysis::Autoload {
+                structure_only: true,
+            },
         );
         let current = survey_index_entries(source, directory, config, policy);
         assert!(
             current
                 .iter()
                 .map(|entry| (&entry.input, &entry.file))
-                .eq(full.iter().map(|entry| (&entry.input, &entry.file)))
+                .eq(full.iter().map(|entry| (&entry.input, &entry.file))),
+            "{source}"
         );
     }
 }
@@ -285,7 +332,9 @@ fn filename_layout_activation_separates_positive_filenames_and_negative_proofs()
             directory,
             config,
             policy,
-            crate::source_structure::analyse_autoload_registration_structure,
+            IndexAnalysis::Autoload {
+                structure_only: true,
+            },
         );
         let fresh = survey_index_entries_from_source(source, directory, config, policy)
             .expect("unchanged ordinary positive filename extraction");
@@ -313,7 +362,9 @@ fn filename_layout_activation_separates_positive_filenames_and_negative_proofs()
         directory,
         config,
         policy,
-        crate::source_structure::analyse_autoload_registration_structure,
+        IndexAnalysis::Autoload {
+            structure_only: true,
+        },
     );
     assert!(full.is_empty());
     assert_eq!(
@@ -354,30 +405,37 @@ fn autoload_multirow_source_abstention_matches_full_registration_consumer() {
                 directory,
                 config,
                 policy,
-                crate::source_structure::analyse_autoload_registration_structure,
+                IndexAnalysis::Autoload {
+                    structure_only: true,
+                },
             );
             assert_eq!(records(&fresh), records(&full), "{version:?}: {source}");
         }
         let fresh = survey_index_entries_from_source(two_rows, directory, config, policy).unwrap();
-        assert_eq!(
-            fresh.len(),
-            1,
-            "the old consumer retains its absent later source schema: {version:?}"
-        );
+        // `auto_load_index` evaluates the index inside a procedure with `dir`
+        // set, so both rows register: with this index and `a.tcl` / `b.tcl`
+        // defining `a` and `b` in an auto_path directory, tclsh 8.4.20,
+        // 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print `A B` for `[a] [b]`.
+        assert_eq!(fresh.len(), 2, "both rows register: {version:?}");
         let full = survey_index_entries_with(
             &encoded,
             directory,
             config,
             policy,
-            crate::source_structure::analyse_autoload_registration_structure,
+            IndexAnalysis::Autoload {
+                structure_only: true,
+            },
         );
-        let fresh = survey_index_entries_from_source(&encoded, directory, config, policy)
-            .expect("encoded multirow source prerequisite");
+        let fresh = survey_index_entries_from_source(&encoded, directory, config, policy);
         if version == tcl_dialect::TclVersion::V8_4 {
-            assert!(fresh.is_empty(), "the full filename layout is invalid");
-            assert!(full.is_empty());
+            // The reached `[list source -encoding ...]` builder has no
+            // authenticated invalid-layout proof, so the fast path abstains.
+            assert!(fresh.is_none(), "the fast path abstains: {version:?}");
+            assert!(full.is_empty(), "the full filename layout is invalid");
+        } else {
+            let fresh = fresh.expect("encoded multirow source prerequisite");
+            assert_eq!(records(&fresh), records(&full), "{version:?}");
         }
-        assert_eq!(records(&fresh), records(&full), "{version:?}");
         assert_eq!(
             records(&survey_index_entries(&encoded, directory, config, policy)),
             records(&full)
@@ -421,7 +479,9 @@ fn autoload_source_context_matches_full_registration_consumer() {
                 directory,
                 config,
                 policy,
-                crate::source_structure::analyse_autoload_registration_structure,
+                IndexAnalysis::Autoload {
+                    structure_only: true,
+                },
             );
             let current = survey_index_entries(source, directory, config, policy);
             assert_eq!(records(&current), records(&old), "{version:?}: {source}");
@@ -447,7 +507,9 @@ fn autoload_source_context_matches_full_registration_consumer() {
                 directory,
                 config,
                 policy,
-                crate::source_structure::analyse_autoload_registration_structure,
+                IndexAnalysis::Autoload {
+                    structure_only: true,
+                },
             );
             assert_eq!(
                 records(&survey_index_entries(&source, directory, config, policy)),
@@ -505,14 +567,18 @@ fn autoload_registration_structure_matches_full_source_records() {
                 directory,
                 config,
                 policy,
-                crate::source_structure::analyse_document,
+                IndexAnalysis::Autoload {
+                    structure_only: false,
+                },
             );
             let structural = survey_index_entries_with(
                 source,
                 directory,
                 config,
                 policy,
-                crate::source_structure::analyse_autoload_registration_structure,
+                IndexAnalysis::Autoload {
+                    structure_only: true,
+                },
             );
             if let Some(expected) = expected {
                 assert_eq!(full.len(), expected, "{version:?}: {source}");
@@ -538,8 +604,13 @@ fn autoload_structure_retains_current_source_and_input_refusals() {
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let config = LexerConfig::for_file_grammar(profile.grammar);
     let source = "set auto_index(p) [list source [file join $dir p.tcl]]";
-    let analysis = crate::source_structure::analyse_autoload_registration_structure(
-        source, profile, registry, config,
+    let analysis = crate::source_structure::analyse_loader_index(
+        source,
+        profile,
+        registry,
+        config,
+        Some(tcl_index_entry_frame(Path::new("/library"))),
+        true,
     );
     assert!(index_loader::IndexLoader::new(source, &analysis).is_some());
     let mut missing = analysis.clone();
