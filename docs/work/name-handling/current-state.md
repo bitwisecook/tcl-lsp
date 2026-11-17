@@ -353,12 +353,17 @@ Landed this session (each with its own commit and measurement):
 - Hover answers a call head nothing resolves from the document's retained original procedure declarations (smallest qualified name, labelled `Possible procedure`, yields to a registry builtin); a declined source-view route no longer ends the hover request.
 - IRULE1005/1006 collect bootstrap is offered as one not-preferred action from conditional advice (`ContextActionTier::SingleNotPreferred`); never in fix-all.
 - A proc in a hosted outline is one symbol, not a vendor card plus a row.
+- Overlay abstention (coordinator ruling): an overlay whose packs are not installed is a typed miss; the analysis abstains (no findings, no W123 for a pack command) and the server publishes one `ANALYSIS_CONTEXT_UNAVAILABLE` error at 0:0 (pinned by `report_publication_retains_unavailable_generation_status`); the miss is recorded when the analysis input fails; tokens read the plain registry for a miss.
+- Server library unit tests (`cargo test -p tcl-lsp-server --lib`): 109 fail of 1,003 (128 at first measurement). 19 were fixtures that did not model a finished workspace scan (`current_diagnostics` is `Pending` until `workspace_scan_ready` is complete; `test_backend()` runs no scan, and a blanket mark breaks three tests that exercise the unready scan), fixed per fixture.
 - Fixtures corrected with tclsh evidence in the test: `idx102` declares `::tk` first (`proc ::tk::X` in a nonexistent namespace is `unknown namespace`); the sourced-sibling hover allows the conditional-source marker (`source lib.tcl` is working-directory relative); the call-site slice fixture links its files with `source`.
 
 Open, by cause. "Sent" means the owner has the smallest fixture.
 
 | Tests | Cause | Owner |
 | --- | --- | --- |
+| `tcl-lsp-server` lib: `method_families` (about 25), `rename` (7), `navigation` (9), code lens (5), `readonly_reference_reports` (15) | Cross-file navigation answers `[]` or refuses (`a completed original command world is unavailable`). | LSP features, sent |
+| `tcl-lsp-server` lib: `rewrite_wire` (4) | `optimise_unit` over a standalone unit yields no O127 where the database path yields two. | Dataflow and optimiser, sent |
+| `tcl-lsp-server` lib: `command_refinement` cross-file (3), `workspace::library_indexing`, `project_inputs`, `source_rehoming` (about 20) | Cross-file resolution without a `source` link even with `crossFileResolution` on. | Coordinator ruling asked (toggle as opt-in, or a proved link) |
 | `hover::hover_on_a_parameter_named_after_a_builtin_is_a_variable_923_idx102` (read half) | `$file` inside `namespace eval :: [list puts $file]` records no reference. | Diagnostics (`namespace eval` handler), sent via analyser-binding |
 | `hover::a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4` | A bare head imported from a tcllib namespace has no registry binding; `tcltest` does. | Analyser binding, sent |
 | `tcl-lsp-db` `class_factory_fixpoint` (7) | The chain beyond the first metaclass is not a class factory, even in one file. | Class facts, sent |
