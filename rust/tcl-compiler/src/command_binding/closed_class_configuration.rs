@@ -25,11 +25,17 @@ use super::{
 use tcl_registry::{InvocationFacts, ObjectDispatchLayer};
 
 /// The definition a closed class configuration evaluates, for the deferred
-/// walk of the method bodies it declares.
+/// walk of the method bodies it declares, and the class definition it
+/// configures as it stood before the configuration ran.
 pub(super) struct ClosedClassConfiguration {
-    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
-    body: super::ExecutedScriptSource,
-    parameters: tcl_dialect::ParameterGrammar,
+    pub(super) grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    pub(super) body: super::ExecutedScriptSource,
+    pub(super) parameters: tcl_dialect::ParameterGrammar,
+    pub(super) class: super::SourceCommandTarget,
+    pub(super) receipt: super::ClassDefinitionReceipt,
+    pub(super) bounded: Option<super::module_bindings::BoundedClassConstruction>,
+    pub(super) tainted: bool,
+    pub(super) tainted_all: bool,
 }
 
 impl SourceCommandBindings {
@@ -62,9 +68,9 @@ impl SourceCommandBindings {
         )?;
         let name = native.invocation.arguments().literal_at(target)?;
         let proof = super::source_binding(state, name, &context.namespace_identity());
-        let class = state
-            .class_definitions
-            .get(proof.proved_target()?.identity.as_ref()?)?;
+        let class_target = proof.proved_target()?;
+        let identity = class_target.identity.as_ref()?;
+        let class = state.class_definitions.get(identity)?;
         let dialect = state.baseline.dialect?;
         let construction = context.registry.native_default_construction_grammar(
             &class.factory,
@@ -99,16 +105,25 @@ impl SourceCommandBindings {
             grammar,
             body,
             parameters: dialect.parameter_grammar()?,
+            class: class_target.clone(),
+            receipt: class.clone(),
+            bounded: state.bounded_constructions.get(identity).cloned(),
+            tainted: state
+                .tainted_object_dispatch
+                .contains(&class_target.command),
+            tainted_all: state.tainted_object_dispatch.contains("*"),
         })
     }
 
-    /// Give the declared method bodies their deferred entries.
+    /// Give the declared method bodies their deferred entries, and keep the
+    /// configured class's definition with the methods it now declares.
     pub(super) fn register_closed_class_configuration(
         &mut self,
         configuration: &ClosedClassConfiguration,
-        state: &ModuleCommandBindings,
+        state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) {
+        state.retain_configured_class_definition(configuration, context);
         self.register_original_method_bodies(
             configuration.grammar,
             &configuration.body,

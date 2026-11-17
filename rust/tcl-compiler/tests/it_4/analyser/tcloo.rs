@@ -955,3 +955,31 @@ mod oo_helpers_namespace_path {
         );
     }
 }
+
+mod oo_define_configuration {
+    use super::super::*;
+
+    #[test]
+    fn a_class_keeps_its_methods_after_oo_define_adds_one() {
+        // tclsh 8.6.18, 9.0.4 and 9.1.0: after `oo::define C {method b …}`,
+        // `obj b` returns 1 and `puts hi` runs; `obj nosuch` raises
+        // `unknown method "nosuch": must be a, b or destroy`.
+        let prologue = concat!(
+            "oo::class create C {method a {} {}}\n",
+            "oo::define C {method b {} {return 1}}\n",
+            "C create obj\n",
+        );
+        let rows: [(&str, &[&str]); 2] = [("obj b\nputs hi\n", &[]), ("obj nosuch\n", &["W308"])];
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (tail, expected) in rows {
+                let src = format!("{prologue}{tail}");
+                let codes: Vec<String> = analyser_diags(&src, release)
+                    .into_iter()
+                    .map(|(code, _, _)| code)
+                    .filter(|code| code.starts_with("W3"))
+                    .collect();
+                assert_eq!(codes, expected, "{release}: {src}");
+            }
+        }
+    }
+}

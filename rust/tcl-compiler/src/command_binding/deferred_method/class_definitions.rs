@@ -469,4 +469,125 @@ impl ModuleCommandBindings {
         );
         Some(created.clone())
     }
+    /// The class definition a closed class configuration leaves: the receipt
+    /// from before it, with the instance methods it declares added. A
+    /// configuration that declares anything else (a variable, a lifecycle
+    /// body, a forward, a relation, a class method) leaves the class with no
+    /// retained definition, as an opaque configuration does.
+    pub(in super::super) fn retain_configured_class_definition(
+        &mut self,
+        configuration: &super::super::closed_class_configuration::ClosedClassConfiguration,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let Some(identity) = configuration.class.identity.clone() else {
+            return;
+        };
+        let definition = &configuration.body;
+        let Ok(text) = definition.text.try_text() else {
+            return;
+        };
+        let declares_methods =
+            super::super::module_bindings::definition_body_command_tokens(text, context.config)
+                .all(|words| {
+                    source_effective_words(
+                        words.words(),
+                        self.baseline.dialect,
+                        Some((&self.source_variables, context.registry)),
+                    )
+                    .first()
+                    .and_then(|word| word.as_registry_word().literal())
+                    .and_then(|head| configuration.grammar.member(head))
+                    .is_some_and(|member| {
+                        configuration.grammar.construction_member_effect(member)
+                        == tcl_registry::definer::MemberConstructionEffect::DeferredInstanceMethod
+                    })
+                });
+        if !declares_methods {
+            return;
+        }
+        let map =
+            tcl_lexer::SourceMap::from_image(&definition.text).with_base(definition.base(), 0, 0);
+        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &definition.text,
+            definition.base(),
+            context.config,
+        ) else {
+            return;
+        };
+        let Some(policy) = self
+            .baseline
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+        else {
+            return;
+        };
+        let entries = super::retained_class_entries(
+            configuration.grammar,
+            definition,
+            &map,
+            &segments,
+            self.baseline.dialect,
+            super::MethodParameterSource {
+                parameters: configuration.parameters,
+                policy,
+            },
+            context,
+        );
+        let declares_only_methods = entries.constructor_entry.is_none()
+            && entries.destructor_entry.is_none()
+            && entries.forward_method_entries.is_empty()
+            && entries.inherited_classes.is_empty()
+            && entries
+                .instance_variables
+                .as_ref()
+                .is_none_or(|variables| variables.declarations().is_empty())
+            && entries
+                .receiver_method_entries
+                .iter()
+                .all(|((receiver, _), entry)| {
+                    *receiver == SourceMethodReceiver::Instance && !entry.class_delegate
+                });
+        let (Some(declared), Some(retained)) = (
+            entries.instance_methods.as_ref(),
+            configuration.receipt.instance_methods.as_ref(),
+        ) else {
+            return;
+        };
+        // A redefinition replaces a body other classes may inherit or
+        // instances may already have dispatched; only new methods are added.
+        if !declares_only_methods
+            || entries.receiver_method_entries.keys().any(|key| {
+                configuration
+                    .receipt
+                    .receiver_method_entries
+                    .contains_key(key)
+            })
+        {
+            return;
+        }
+        let mut receipt = configuration.receipt.clone();
+        let mut methods = retained.as_ref().clone();
+        methods.extend(declared.iter().cloned());
+        receipt.instance_methods = Some(Arc::new(methods));
+        let receiver_entries = Arc::make_mut(&mut receipt.receiver_method_entries);
+        for (key, entry) in entries.receiver_method_entries.iter() {
+            let mut entry = entry.clone();
+            entry.declaring_class = Some(configuration.class.clone());
+            receiver_entries.insert(key.clone(), entry);
+        }
+        Arc::make_mut(&mut self.class_definitions).insert(identity.clone(), receipt);
+        if let Some(bounded) = &configuration.bounded {
+            Arc::make_mut(&mut self.bounded_constructions).insert(identity, bounded.clone());
+        }
+        // The definer's declared transition taints the configured operand,
+        // or every class when that operand is not an exact literal; this
+        // configuration changed the one class above and nothing else.
+        let tainted = Arc::make_mut(&mut self.tainted_object_dispatch);
+        if !configuration.tainted {
+            tainted.remove(&configuration.class.command);
+        }
+        if !configuration.tainted_all {
+            tainted.remove("*");
+        }
+    }
 }
