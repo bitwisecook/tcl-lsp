@@ -187,11 +187,11 @@ Updated at the hourly check from the ledgers on `work`.
 | class-facts | 250 (with the 44 class-factory tests) | 0 (started 20:45 UTC) | |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
-| taint | 190 | 0 | |
+| taint | 171 | 36 (FIX-FIXTURE 34 on one cause: helpers build a unit with no dialect; KEEP-CONTRACT 1, UNDECIDED 1); BIG-IP check 071 | |
 | analysis-performance | 30 | 0 | |
 | lsp-features | 500 | 0 | |
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
-| execution | 286 | 261 kept, 25 routed (KEEP-ORACLE 108, MERGE 48, RETIRE 36, REWRITE 32, KEEP-CONTRACT 28, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | G1 to G15 accepted; the 31 receipt-ordering retirements rejected (26 of 36 RETIRE rows cite a contract in the test) and sent back |
+| execution | 264 (23 routed to live-inlining) | 264, complete (KEEP-ORACLE 109, KEEP-CONTRACT 56, MERGE 49, REWRITE 33, RETIRE 8, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | signed off 21:20 UTC, after the receipt-ordering retirements were redone test by test (26 back to KEEP-CONTRACT) |
 | irules-registry-tooling | 151 | 151, complete (KEEP-F5 48, KEEP-CONTRACT 47, KEEP-ORACLE 40, MERGE 15, FIX-FIXTURE 1); BIG-IP checks TS-01 to TS-10 | signed off 21:00 UTC |
 | tk-oo | 60 | 0 | |
 | live-inlining | 29 (23 inliner tests routed from execution) | 23 routed rows, unread | |
