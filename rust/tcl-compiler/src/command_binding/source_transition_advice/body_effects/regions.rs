@@ -366,15 +366,34 @@ impl BodyWalk<'_, '_> {
         }
         graph.unknown_paths.extend(branch.unknown_paths);
         graph.unknown_exports.extend(branch.unknown_exports);
-        for debt in branch.arity_debts {
+        // The branch began as a copy of `original`, whose entries `graph`
+        // already holds (it only appends while the regions are merged), so
+        // the leading entries the branch still shares need no search.
+        let shared_debts = shared_prefix(&branch.arity_debts, &original.arity_debts);
+        for debt in branch.arity_debts.into_iter().skip(shared_debts) {
             if !graph.arity_debts.contains(&debt) {
                 graph.arity_debts.push(debt);
             }
         }
-        for operation in branch.uncertain_operations {
+        let shared_operations =
+            shared_prefix(&branch.uncertain_operations, &original.uncertain_operations);
+        for operation in branch
+            .uncertain_operations
+            .into_iter()
+            .skip(shared_operations)
+        {
             if !graph.uncertain_operations.contains(&operation) {
                 graph.uncertain_operations.push(operation);
             }
         }
     }
+}
+
+/// How many leading entries of `branch` are the very allocations of `original`.
+fn shared_prefix<T: ?Sized>(branch: &[Arc<T>], original: &[Arc<T>]) -> usize {
+    branch
+        .iter()
+        .zip(original)
+        .take_while(|(left, right)| Arc::ptr_eq(left, right))
+        .count()
 }
