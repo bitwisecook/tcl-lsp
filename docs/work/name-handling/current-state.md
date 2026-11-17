@@ -212,6 +212,7 @@ Fixed since the baseline (core new 0 each time; e2e new failures rerun three tim
 - Navigation: server references on a release profile list namespace-variable and caller-frame reads through the navigation selector; go-to-definition on a `superclass`/`mixin` word whose class another document declares (`WorkspaceIndex::class_relation_targets_at`); hover on a relation word names the class its lookup selects.
 - Completion (ruling): release-path instance candidates offer the family's exported built-in object methods from the registry, hidden where the nearest class unexports them.
 - Tokens (ruling): the project-level token queries advise from the plain registry under a missing overlay.
+- Rename refusal reasons: a namespace rename onto an existing namespace says so; a namespace-variable refusal names the computed-name site (`variable $n` in the same namespace, `namespace upvar $ns version local`) through `namespace_variable_rename_hazard`, read only after the strict route refuses.
 
 Waiting on other areas (fixtures sent):
 
@@ -221,6 +222,8 @@ Waiting on other areas (fixtures sent):
 - `tk` ensemble `-map` splice after `package require Tk` (three copies of one fixture: core definition and hover, e2e definition); the fixtures also need `package require Tk`, since `::tk` does not exist in plain tclsh.
 
 Traced, not changed here: rename's collision coverage needs a completed or conditional world for every document, and a conditional completion only comes from a `source` chain, so a consumer whose world stops at another document's procedure refuses ("a completed original command world is unavailable"); the same gap gives "References unavailable" on a lens whose subclass is in another file. Member lenses say "at least N" where the rename-grade census cannot classify a command (`Bar new`, `$b get`, `dict get`); member rename in bodies the analysis did not enter stays refused (owner question).
+
+Asked of the coordinator: four lenient and release namespace-variable renames (`tn_…_dynamic_name_under_another_namespace`, `tp_…_alias_in_another_namespace`, `fn_guard_…_computed_alias_of_another_cell`) refuse because `original_variable_rename_is_complete` counts every dynamic name and alias obligation in the document, though the per-site hazard rules the site out; narrowing that gate is a strict-rename change in `tcl-compiler`.
 
 Not touched, owner decisions pending: the minifier naming passes; descriptors in bodies the analysis did not enter (refactors, call hierarchy).
 
