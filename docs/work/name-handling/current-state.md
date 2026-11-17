@@ -10,7 +10,7 @@ Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
 
-**Open regression, 16:50 UTC:** the source optimiser drops a statement that runs. `tcl-codegen` `it_3` `release_optimiser_safety::issue_2262` and `additional_reported_witnesses` fail since today: for `proc p {} {set n 1; foreach v [incr n] {}; puts $n}; p` under `tcl8.4` the rewrite loses `puts $n` (tclsh 8.4.20 prints `2` then `0 {}`; the rewrite prints only `0 {}`). The dataflow area has it first; the unreachable-code deletion re-enabled in `2743377c7` is the first suspect, and it is switched off again if it cannot be made sound quickly. The start-of-work figure for the whole workspace was about 4,940.
+**Regression closed, 17:33 UTC; its cause is still open.** The source optimiser dropped a statement that runs: for `proc p {} {set n 1; foreach v [incr n] {}; puts $n}; p` the rewrite lost `puts $n` (tclsh 8.4.20 prints `2` then `0 {}`). Cause: `2743377c7` let unreachable-code deletion (O107) fire again, and SCCP judges the block after that `foreach` unreachable; a guard had been hiding the fault by dropping every O107. Reverted in `c28e66c38`; `release_optimiser_safety::issue_2262` and `additional_reported_witnesses` pass. O107 stays off until the reachability fault is fixed behind a test that compares the rewrite with real tclsh output (dataflow area), and that group runs before each of its pushes. `release_optimiser_safety::issue_2385` fails with and without this and predates it.
 
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
