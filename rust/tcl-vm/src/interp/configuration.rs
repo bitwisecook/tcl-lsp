@@ -114,7 +114,9 @@ impl Vm {
     /// pin stands.
     ///
     /// A compiled unit states the context it was compiled for, and is admitted
-    /// only at the rungs whose fields agree with this one.
+    /// only at the rungs whose fields agree with this one. A pin made from a
+    /// native command takes effect at the first command boundary after that
+    /// command returns: the command finishes under the context it entered with.
     ///
     /// # Errors
     ///
@@ -127,8 +129,30 @@ impl Vm {
         &mut self,
         context: &RuntimeContext,
     ) -> Result<(), tcl_registry::model::PinError> {
-        self.install_pin(crate::environment::pin_context(context)?);
+        let pin = crate::environment::pin_context(context)?;
+        if self.native_command_depth > 0 {
+            self.deferred_pin = Some((pin, self.native_command_depth));
+        } else {
+            self.deferred_pin = None;
+            self.install_pin(pin);
+        }
         Ok(())
+    }
+
+    /// Install a pin [`Self::pin_context`] deferred, once the native command
+    /// that made it has returned, and re-issue the operations entered under
+    /// the old context to the new one. Each running function is then checked
+    /// against its manifest at its next command boundary, the deopt epoch the
+    /// pin advances saying so, and finishes plain if it no longer fits.
+    pub(crate) fn install_deferred_pin(&mut self) {
+        if self
+            .deferred_pin
+            .as_ref()
+            .is_some_and(|(_, depth)| self.native_command_depth < *depth)
+            && let Some((pin, _)) = self.deferred_pin.take()
+        {
+            self.install_pin_reissuing(pin, true);
+        }
     }
 
     /// The world this VM is pinned to.
@@ -155,7 +179,17 @@ impl Vm {
         self.install_pin(pin);
     }
 
-    fn install_pin(&mut self, mut pin: tcl_registry::model::PinnedContext) {
+    pub(super) fn install_pin(&mut self, pin: tcl_registry::model::PinnedContext) {
+        self.install_pin_reissuing(pin, false);
+    }
+
+    /// Install `pin`; with `reissue`, the operations entered under the old
+    /// context are moved to it before anything runs under it.
+    pub(super) fn install_pin_reissuing(
+        &mut self,
+        mut pin: tcl_registry::model::PinnedContext,
+        reissue: bool,
+    ) {
         let profile = pin.profile;
         let profile_changed = !std::ptr::eq(self.pin.profile, profile);
         if profile_changed
@@ -179,6 +213,9 @@ impl Vm {
             self.bump_trace_deopt_epoch();
         }
         self.pin = pin;
+        if reissue {
+            self.reissue_entered_native_operations();
+        }
         // The 8.4 `namespace path` tier gate (M10.1) and the availability
         // gate change resolution outcomes, so the command-resolution memo
         // (M16.4) must not survive a version flip.

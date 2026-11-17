@@ -359,6 +359,12 @@ pub struct Vm {
     /// Synchronous host entries can nest outside an activation drive. Only the
     /// outermost entry may return or invariant-refuse a retained host error.
     pub(crate) host_execution_depth: usize,
+    /// A pin made from a native command, with the native-command depth it was
+    /// made at: installed at the first command boundary after that command
+    /// returns, so the command finishes under the context it entered with.
+    deferred_pin: Option<(tcl_registry::model::PinnedContext, usize)>,
+    /// Native commands running: a pin made from one waits until it returns.
+    pub(crate) native_command_depth: usize,
     /// Mutable standard-channel handles shared by every interpreter in this
     /// VM, just like the process-wide handles in C Tcl.
     pub(crate) standard_channels: RefCell<tcl_cmd_core::channel::StandardChannelConfigs>,

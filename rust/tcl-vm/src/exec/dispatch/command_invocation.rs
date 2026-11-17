@@ -1052,7 +1052,9 @@ impl Vm {
             }
             Command::Native(cmd) => {
                 let saved = std::mem::replace(&mut self.native_invocation.sidecar, sidecar);
+                self.native_command_depth += 1;
                 let res = cmd.invoke(self, argv);
+                self.native_command_depth -= 1;
                 self.native_invocation.sidecar = saved;
                 self.adopt_host_error_code(&res);
                 self.settle_native_invoke(res)

@@ -149,6 +149,7 @@ impl Vm {
         &mut self,
         completion: Completion<Value>,
     ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        self.install_deferred_pin();
         match self.take_host_boundary_refusal() {
             Some(error) => Err(error),
             None => Ok(completion),

@@ -487,7 +487,9 @@ impl Vm {
                     .map(CommandSidecarKey::visible)
             });
         let previous = std::mem::replace(&mut self.native_invocation.sidecar, selected);
+        self.native_command_depth += 1;
         let res = command.invoke(self, &words[1..]);
+        self.native_command_depth -= 1;
         self.native_invocation.sidecar = previous;
         self.adopt_host_error_code(&res);
         self.settle_native_dispatch(frame, res)

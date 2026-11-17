@@ -192,6 +192,8 @@ impl Vm {
             activation_depth: 0,
             execution_refusal: None,
             host_execution_depth: 0,
+            deferred_pin: None,
+            native_command_depth: 0,
             standard_channels,
             system_encoding,
             default_system_encoding: system_encoding,

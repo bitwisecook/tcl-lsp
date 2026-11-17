@@ -29,6 +29,8 @@ struct PackRestingCompilerSvc {
     claimed: tcl_runtime_api::PackFactStamp,
     also_listed: tcl_runtime_api::PackFactStamp,
     pub(super) plain_calls: Rc<Cell<usize>>,
+    /// The source of each plain compile, in order.
+    plain_sources: Rc<RefCell<Vec<String>>>,
 }
 
 impl PackRestingCompilerSvc {
@@ -52,8 +54,11 @@ impl PackRestingCompilerSvc {
         module
     }
 
-    fn count_plain(&self) {
+    fn count_plain(&self, source: &[u8]) {
         self.plain_calls.set(self.plain_calls.get() + 1);
+        self.plain_sources
+            .borrow_mut()
+            .push(String::from_utf8_lossy(source).into_owned());
     }
 }
 
@@ -92,7 +97,7 @@ impl CompileService for PackRestingCompilerSvc {
     }
 
     fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
-        self.count_plain();
+        self.count_plain(src.as_bytes());
         self.inner.compile_traced(src)
     }
 
@@ -101,7 +106,7 @@ impl CompileService for PackRestingCompilerSvc {
         target: tcl_runtime_api::ScriptCompileTarget<'_>,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        self.count_plain();
+        self.count_plain(target.source.as_bytes());
         self.inner.compile_plain_script_for_profile(target, profile)
     }
 
@@ -110,7 +115,7 @@ impl CompileService for PackRestingCompilerSvc {
         target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
         profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        self.count_plain();
+        self.count_plain(target.source.bytes());
         self.inner
             .compile_plain_script_bytes_for_profile(target, profile)
     }
@@ -121,7 +126,7 @@ impl CompileService for PackRestingCompilerSvc {
         profile: &'static tcl_dialect::DialectProfile,
         entry: &tcl_runtime_api::NativeCompilationEntry,
     ) -> Result<Self::Module, CompileError> {
-        self.count_plain();
+        self.count_plain(target.source.bytes());
         self.inner
             .compile_plain_script_bytes_with_entry(target, profile, entry)
     }
@@ -215,6 +220,7 @@ fn a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites() {
         claimed: held.clone(),
         also_listed: missing.clone(),
         plain_calls: Rc::clone(&plain_calls),
+        plain_sources: Rc::default(),
     }));
     vm.set_pack_facts(vec![held.clone()]);
 
@@ -400,6 +406,7 @@ fn a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs() {
         claimed: held.clone(),
         also_listed: other.clone(),
         plain_calls: Rc::clone(&plain_calls),
+        plain_sources: Rc::default(),
     }));
     vm.set_pack_facts(vec![held, other]);
     let rung_one = vm
@@ -431,44 +438,101 @@ fn a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs() {
     );
 }
 
+/// Runs a function handle from a native command, as an embedder nesting one
+/// evaluation in another does.
+struct Inner(Rc<RefCell<Option<tcl_vm::FunctionHandle>>>);
+
+impl NativeCommand for Inner {
+    fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+        let handle = self
+            .0
+            .borrow()
+            .clone()
+            .expect("the inner function is compiled");
+        vm.invoke_function(&handle)
+    }
+}
+
+const RESTING: &str = "# rests-on-pack\n";
+
+/// A VM whose compiler states a manifest listing two packs, holding both, with
+/// `repin` pinning other package floors when `pin_other_floors` and the same
+/// context otherwise, and `inner` running `inner` as a nested function. Answers
+/// `outer`'s result and the source of each plain compile.
+fn run_pinned(outer: &str, inner: Option<&str>, pin_other_floors: bool) -> (String, Vec<String>) {
+    let plain_sources = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = tcl_vm::test_support::native_vm();
+    vm.set_compiler(Box::new(PackRestingCompilerSvc {
+        inner: BytecodeCompileService::default(),
+        claimed: pack_stamp("held", 1),
+        also_listed: pack_stamp("other", 2),
+        plain_calls: Rc::default(),
+        plain_sources: Rc::clone(&plain_sources),
+    }));
+    vm.set_pack_facts(vec![pack_stamp("held", 1), pack_stamp("other", 2)]);
+    let mut context = vm.runtime_context().clone();
+    if pin_other_floors {
+        context.packages = vec![("vendor".to_owned(), "2.1".to_owned())];
+    }
+    vm.register_native_command("repin", Rc::new(Repin(context)));
+    let nested = Rc::new(RefCell::new(None));
+    vm.register_native_command("inner", Rc::new(Inner(Rc::clone(&nested))));
+    if let Some(inner) = inner {
+        *nested.borrow_mut() = Some(vm.compile_function(inner).expect("compiles"));
+    }
+    let handle = vm.compile_function(outer).expect("compiles");
+    let result = invoke(&mut vm, &handle);
+    let plain = plain_sources.borrow().clone();
+    (result, plain)
+}
+
 /// A running function carries its module's manifest: a pin to other package
-/// floors part-way through is seen at its next command, and the function that
-/// rests on a pack is recompiled plain and finishes, where the same function
-/// pinned to the context it already holds is not touched.
+/// floors made from a native command takes effect at the next command, where
+/// the function that rests on a pack is recompiled plain and finishes, and one
+/// that rests on none carries on compiled. The same function pinned to the
+/// context it already holds is not touched.
 #[test]
 fn a_running_function_is_checked_against_its_manifest_when_the_pin_changes() {
-    let held = pack_stamp("held", 1);
-    let other = pack_stamp("other", 2);
-    let run = |pin_other_floors: bool| {
-        let plain_calls = Rc::new(Cell::new(0));
-        let mut vm = tcl_vm::test_support::native_vm();
-        vm.set_compiler(Box::new(PackRestingCompilerSvc {
-            inner: BytecodeCompileService::default(),
-            claimed: held.clone(),
-            also_listed: other.clone(),
-            plain_calls: Rc::clone(&plain_calls),
-        }));
-        vm.set_pack_facts(vec![held.clone(), other.clone()]);
-        let mut context = vm.runtime_context().clone();
-        if pin_other_floors {
-            context.packages = vec![("vendor".to_owned(), "2.1".to_owned())];
-        }
-        vm.register_native_command("repin", Rc::new(Repin(context)));
-        let handle = vm
-            .compile_function("# rests-on-pack\nset x 1\nrepin\nset y 2")
-            .expect("compiles");
-        let result = invoke(&mut vm, &handle);
-        (result, plain_calls.get())
-    };
-
+    let resting = format!("{RESTING}set x 1\nrepin\nset y 2");
     assert_eq!(
-        run(false),
-        ("2".to_owned(), 0),
+        run_pinned(&resting, None, false),
+        ("2".to_owned(), Vec::new()),
         "the same context: admitted as compiled"
     );
     assert_eq!(
-        run(true),
-        ("2".to_owned(), 1),
+        run_pinned(&resting, None, true),
+        ("2".to_owned(), vec!["set y 2".to_owned()]),
         "other floors: plain from the next command"
+    );
+    assert_eq!(
+        run_pinned("set x 1\nrepin\nset y 2", None, true),
+        ("2".to_owned(), Vec::new()),
+        "other floors, a function that rests on no pack: carries on compiled"
+    );
+}
+
+/// Every function running when the pin takes effect is checked again, each at
+/// its own next command: the nested one where the pin took effect, the outer
+/// one when the nested evaluation returns to it.
+#[test]
+fn a_pin_change_rechecks_every_running_function_at_its_next_command() {
+    let inner = "set c 1\nrepin\nset d 2";
+    assert_eq!(
+        run_pinned(
+            &format!("{RESTING}set a 1\ninner\nset b 3"),
+            Some(inner),
+            true
+        ),
+        ("3".to_owned(), vec!["set b 3".to_owned()]),
+        "the outer function rests on a pack: plain at its next command"
+    );
+    assert_eq!(
+        run_pinned(
+            "set a 1\ninner\nset b 3",
+            Some(&format!("{RESTING}{inner}")),
+            true
+        ),
+        ("3".to_owned(), vec!["set d 2".to_owned()]),
+        "the nested function rests on a pack: plain at its next command"
     );
 }

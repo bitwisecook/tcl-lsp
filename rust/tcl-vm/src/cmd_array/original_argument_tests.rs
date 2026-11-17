@@ -255,7 +255,8 @@ fn original_vm_array_observer_refusal_stops_list_conversion_and_releases_receive
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Genuine VM NativeCommand variable observer; no custom C updater or
     // native reference-count equivalence is asserted.
-    for mode in [1, 2] {
+    {
+        let mode = 1;
         let mut vm = native("tcl9.1");
         assert_eq!(
             array_op(
@@ -315,4 +316,59 @@ fn original_vm_array_observer_refusal_stops_list_conversion_and_releases_receive
         assert_eq!(calls.get(), 1);
         assert_eq!(vm.execution_refusal, Some(first));
     }
+}
+
+/// An observer that pins another context and back from inside its native
+/// command is no host refusal (coordinator ruling, 17 November): the pin takes
+/// effect once the command has returned, and the operation answers its guest
+/// error.
+#[cfg(debug_assertions)]
+#[test]
+fn an_array_observer_that_pins_another_context_is_not_a_host_refusal() {
+    let mut vm = native("tcl9.1");
+    assert_eq!(
+        array_op(
+            &mut vm,
+            "set",
+            &[
+                bytes(b"arr"),
+                Value::list(vec![bytes(b"old"), bytes(b"OLD")])
+            ]
+        )
+        .code,
+        Code::Ok
+    );
+    let calls = Rc::new(Cell::new(0));
+    vm.register_command(
+        "context_trace",
+        Command::Native(Rc::new(ContextTrace {
+            mode: 2,
+            calls: calls.clone(),
+        })),
+    );
+    assert_eq!(
+        vm.eval_source("trace add variable arr array context_trace")
+            .unwrap()
+            .code,
+        Code::Ok
+    );
+    let malformed = array_op(&mut vm, "set", &[bytes(b"arr"), bytes(b"{")]);
+    assert_eq!(
+        malformed.code,
+        Code::Error,
+        "the malformed list is the guest's error"
+    );
+    assert_eq!(calls.get(), 1);
+    assert!(vm.execution_refusal.is_none());
+    let later = array_op(
+        &mut vm,
+        "set",
+        &[
+            bytes(b"arr"),
+            Value::list(vec![bytes(b"later"), bytes(b"LATER")]),
+        ],
+    );
+    assert_eq!(later.code, Code::Ok);
+    assert_eq!(calls.get(), 2);
+    assert!(vm.execution_refusal.is_none());
 }

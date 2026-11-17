@@ -370,6 +370,17 @@ impl Vm {
     /// locals are not on the native stack while the instruction runs (a `TclOO`
     /// method call recurses natively through the INVOKE path).
     #[inline(never)]
+    /// A source command starts: a pin deferred from a native command that has
+    /// returned takes effect, and the interpreter's result owner is reset
+    /// (frame mirrors preserve lifetime without introducing native references).
+    fn begin_source_command(&mut self, f: &mut Frame) -> Option<Completion<Value>> {
+        self.install_deferred_pin();
+        f.last_result = None;
+        self.reset_native_jim_result()
+            .err()
+            .map(|error| crate::command::completion_from_tcl_error(self, error.into()))
+    }
+
     fn tick_bytecode_prologue(&mut self, f: &mut Frame) -> ControlFlow<Tick, Rc<FunctionAsm>> {
         if f.native_bytecode_entry == BytecodeEntry::Pending {
             if let Err(refusal) = self.reset_native_ensemble_rewrite(
@@ -413,15 +424,10 @@ impl Vm {
                 },
             );
         }
-        // Each source command resets the interpreter's result owner. Frame
-        // mirrors preserve lifetime without introducing native references.
-        if instr.source_command_boundary.is_start() {
-            f.last_result = None;
-            if let Err(error) = self.reset_native_jim_result() {
-                return ControlFlow::Break(Tick::Return(
-                    crate::command::completion_from_tcl_error(self, error.into()),
-                ));
-            }
+        if instr.source_command_boundary.is_start()
+            && let Some(refused) = self.begin_source_command(f)
+        {
+            return ControlFlow::Break(Tick::Return(refused));
         }
         if instr.op != Op::START_CMD
             && instr.source_command_boundary.is_start()

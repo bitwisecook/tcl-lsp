@@ -77,11 +77,21 @@ impl NativeOperationContext {
     }
 }
 
+/// The pinned world an entered operation is re-issued to.
+#[derive(Clone)]
+struct ReissuedWorld {
+    context: std::sync::Arc<RuntimeContext>,
+    profile: &'static tcl_dialect::DialectProfile,
+}
+
 #[derive(Clone)]
 pub(crate) struct NativeOperationCurrency {
     owner: Rc<NativeOperationContext>,
     generation: u64,
     authorised_generation: Rc<Cell<Option<u64>>>,
+    /// The world a sanctioned re-issue moved this operation to: a pin the host
+    /// made from a native command, installed once that command returned.
+    reissued_world: Rc<RefCell<Option<ReissuedWorld>>>,
     allocation_permit: Rc<Cell<bool>>,
     interpreter: NativeInterpreterIdentity,
     context: std::sync::Arc<RuntimeContext>,
@@ -448,6 +458,7 @@ impl NativeOperationCurrency {
         Rc::ptr_eq(&self.owner, &other.owner)
             && self.generation == other.generation
             && Rc::ptr_eq(&self.authorised_generation, &other.authorised_generation)
+            && Rc::ptr_eq(&self.reissued_world, &other.reissued_world)
             && Rc::ptr_eq(&self.allocation_permit, &other.allocation_permit)
             && self.interpreter == other.interpreter
             && std::sync::Arc::ptr_eq(&self.context, &other.context)
@@ -472,6 +483,7 @@ impl NativeOperationCurrency {
             owner,
             generation,
             authorised_generation: Rc::new(Cell::new(None)),
+            reissued_world: Rc::new(RefCell::new(None)),
             allocation_permit,
             interpreter: vm.native_interpreter_identity(),
             context: std::sync::Arc::clone(&vm.pin.context),
@@ -524,6 +536,11 @@ impl NativeOperationCurrency {
         if !crate::verify_currency() {
             return Ok(());
         }
+        let world = self.reissued_world.borrow().clone();
+        let (context, profile) = world.map_or_else(
+            || (std::sync::Arc::clone(&self.context), self.profile),
+            |world| (world.context, world.profile),
+        );
         let current = self.owns_saved_target(vm, interpreter)
             && vm.st_of(interpreter).is_some_and(|state| {
                 // A compile-service change is not an invariant violation:
@@ -532,8 +549,8 @@ impl NativeOperationCurrency {
                 // it to them.
                 state.compiler_generation != self.compiler_generation
                     || self.owner.generation.get() == Some(generation)
-                        && state.pin.context == self.context
-                        && std::ptr::eq(state.pin.profile, self.profile)
+                        && state.pin.context == context
+                        && std::ptr::eq(state.pin.profile, profile)
                         && state.actual_engine_profile.map(std::ptr::from_ref)
                             == self.engine.map(std::ptr::from_ref)
                         && Rc::ptr_eq(&state.host, &self.host)
@@ -724,6 +741,34 @@ impl Vm {
         self.native_operation_context.generation.get().is_some()
     }
 
+    /// The sanctioned re-issue: move every operation entered in the current
+    /// interpreter to the world it now stands on. Only a pin deferred from a
+    /// native command reaches this; any other change of world still refuses
+    /// the operations entered before it.
+    pub(super) fn reissue_entered_native_operations(&self) {
+        let owner = &self.native_operation_context;
+        let Some(generation) = owner.generation.get() else {
+            return;
+        };
+        let world = ReissuedWorld {
+            context: std::sync::Arc::clone(&self.pin.context),
+            profile: self.pin.profile,
+        };
+        let entered: Vec<_> = owner
+            .entered
+            .borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .collect();
+        for operation in entered {
+            operation
+                .currency
+                .authorised_generation
+                .set(Some(generation));
+            *operation.currency.reissued_world.borrow_mut() = Some(world.clone());
+        }
+    }
+
     pub(super) fn advance_native_operation_context(&self) {
         self.native_compiler_pass_owner
             .invalidate_ordinary_entry_observation();
@@ -739,6 +784,31 @@ mod tests {
     fn native() -> Vm {
         crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"))
     }
+    /// A pin for other package floors, which changes the context.
+    fn other_floors(vm: &Vm) -> tcl_registry::model::PinnedContext {
+        let mut context = vm.runtime_context().clone();
+        context.packages = vec![("vendor".to_owned(), "2.1".to_owned())];
+        crate::environment::pin_context(&context).unwrap()
+    }
+
+    #[test]
+    fn only_a_sanctioned_reissue_carries_an_entered_operation_across_a_pin() {
+        let mut changed = native();
+        let entered = NativeOperationScope::enter(&mut changed).unwrap();
+        let pin = other_floors(&changed);
+        changed.install_pin(pin);
+        assert!(
+            entered.check(&mut changed).is_err(),
+            "a change of world the operation was not re-issued for still refuses it"
+        );
+
+        let mut reissued = native();
+        let entered = NativeOperationScope::enter(&mut reissued).unwrap();
+        let pin = other_floors(&reissued);
+        reissued.install_pin_reissuing(pin, true);
+        assert!(entered.check(&mut reissued).is_ok());
+    }
+
     #[test]
     fn actual_factory_scope_tracks_parked_selection_and_retains_first_cause_withdrawal() {
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
