@@ -796,6 +796,7 @@ mod binding_projection;
 mod binding_restoration;
 mod cfg_lattice;
 mod command_identity;
+mod command_world_tables;
 mod compilation_lookup_advice;
 mod deferred_entries;
 mod invocation_binding;
