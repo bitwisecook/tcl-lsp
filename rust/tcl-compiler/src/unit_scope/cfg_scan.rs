@@ -75,10 +75,17 @@ pub(super) fn scan_cfg_callers<'a>(
                     continue;
                 }
                 if stmt.tokens().is_some_and(|tokens| {
-                    tokens.synthetic == Some(crate::ir::SyntheticMarker::CallerFrameOpaque)
+                    matches!(
+                        tokens.synthetic,
+                        Some(
+                            crate::ir::SyntheticMarker::CallerFrameOpaque
+                                | crate::ir::SyntheticMarker::WordEffects(_)
+                        )
+                    )
                 }) {
-                    // Widens the caller frame for the host call beside it,
-                    // which performs (and is scanned for) the invocation.
+                    // Widens the caller frame for, or states the substitution
+                    // effects of, the host beside it, which performs (and is
+                    // scanned for) the invocation.
                     continue;
                 }
                 if crate::ssa::is_unseen_call_marker(stmt)
