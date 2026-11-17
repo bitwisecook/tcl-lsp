@@ -80,6 +80,7 @@ fn openssl(arguments: &[&str]) -> Vec<u8> {
 
 fn generated_certificate() -> GeneratedCertificate {
     use sha2::{Digest, Sha256};
+    use std::fmt::Write;
     use std::os::unix::fs::DirBuilderExt;
     let directory =
         std::env::temp_dir().join(format!("tcl-sslictcl-certificate-{}", std::process::id()));
@@ -147,8 +148,10 @@ fn generated_certificate() -> GeneratedCertificate {
         .to_lowercase(),
         spki_sha256: Sha256::digest(std::fs::read(&spki).expect("read the public key"))
             .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect(),
+            .fold(String::new(), |mut hex, byte| {
+                write!(hex, "{byte:02x}").expect("write to a String");
+                hex
+            }),
         serial: after_equals(text(openssl(&[
             "x509",
             "-in",

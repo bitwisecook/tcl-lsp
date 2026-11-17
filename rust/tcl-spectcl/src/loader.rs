@@ -324,7 +324,7 @@ pub enum HookOwner {
 
 /// One declared hook: what it is attached to, which field, which family, the
 /// text or name that supplies it, and where it was written.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HookDecl {
     /// What the hook hangs off.
     pub owner: HookOwner,
@@ -345,20 +345,6 @@ pub struct HookDecl {
     /// The source subject of that row, issued by the loader when the row's
     /// head word is a plain literal alone on its line.
     pub row: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
-}
-
-/// Prints what the hook is, not where its row sits: the golden `hooks` digest
-/// is taken over this text.
-impl fmt::Debug for HookDecl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("HookDecl")
-            .field("owner", &self.owner)
-            .field("field", &self.field)
-            .field("family", &self.family)
-            .field("source", &self.source)
-            .field("line", &self.line)
-            .finish()
-    }
 }
 
 // The abstaining implementations installed for every pack-declared hook until

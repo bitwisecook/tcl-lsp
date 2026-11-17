@@ -286,26 +286,28 @@ pub fn render(pack: &Pack) -> String {
             command.overrides_shipped,
             command.degraded,
             digest(&spec_rendering(pack, command.spec.name).unwrap_or_default()),
-            digest(&format!("{:?}", positionless(&command.hooks))),
+            digest(&positionless(&command.hooks)),
             digest(&format!("{:?}", command.clause_grammar)),
         );
     }
     out
 }
 
-/// `hooks` with every declaring line zeroed — what the `hooks` digest reads,
-/// so it records which hooks a command declares and not where. A position is
-/// the command's `line` column's business, and a vocabulary rewrite that
-/// moves every row must still load identically.
-fn positionless(hooks: &[HookDecl]) -> Vec<HookDecl> {
-    hooks
+/// The text of `hooks` with every declaring line zeroed and no row subject —
+/// what the `hooks` digest reads, so it records which hooks a command declares
+/// and not where. A position is the command's `line` column's business, and a
+/// vocabulary rewrite that moves every row must still load identically.
+fn positionless(hooks: &[HookDecl]) -> String {
+    let rendered: Vec<String> = hooks
         .iter()
-        .map(|hook| HookDecl {
-            line: 0,
-            row: None,
-            ..hook.clone()
+        .map(|hook| {
+            format!(
+                "HookDecl {{ owner: {:?}, field: {:?}, family: {:?}, source: {:?}, line: 0 }}",
+                hook.owner, hook.field, hook.family, hook.source
+            )
         })
-        .collect()
+        .collect();
+    format!("[{}]", rendered.join(", "))
 }
 
 /// The exhaustive rendering one command's `spec` digest is taken over — the
