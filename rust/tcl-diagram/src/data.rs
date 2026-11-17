@@ -969,8 +969,8 @@ fn source_procedure_nodes(
             let flow = body.map(|(_, procedure)| walk_script(&procedure.body, context, 0));
             let body_id = body.map(|(id, _)| id.ordinal());
             let body_key = body.map(|(id, _)| id.reporting_key());
-            let name = declaration.name().source_spelling().unwrap_or_else(||
-                tcl_syntax::native_string::resident_name_label(declaration.name_input().bytes()));
+            let name = tcl_syntax::native_string::resident_name_label(
+                declaration.name_input().original_word().try_text().unwrap_or("").as_bytes());
             let span = declaration.name_input().span();
             json!({ "id": format!("declaration-{ordinal}"), "name": name,
                 "name_span": {"start": span.start(), "end": span.end()},
