@@ -81,11 +81,12 @@ fn the_foreach_simulation_does_not_duplicate_body_diagnostics() {
 #[test]
 fn oo_define_over_a_dynamic_list_still_abstains() {
     // TN — the element list is a runtime value, so no class name is
-    // knowable and the members stay on a per-call-site synthetic key
-    // rather than being attributed to a guess.
+    // knowable and the members are attributed to no class.
     let src = concat!(
         "oo::class create chart { method Render {} { return 1 } }\n",
-        "foreach cls $classes {\n",
+        // A list only the run supplies; an unset `$classes` would raise
+        // `can't read "classes"` (tclsh 8.6.18, 9.0.4, 9.1.0) before the loop.
+        "foreach cls [lrange $argv 0 end] {\n",
         "    oo::define $cls {\n",
         "        method RenderTsb {} { return tsb }\n",
         "    }\n",
@@ -96,10 +97,13 @@ fn oo_define_over_a_dynamic_list_still_abstains() {
         !r.all_classes["::chart"].methods.contains_key("RenderTsb"),
         "a runtime target must not be attributed to a literal class"
     );
-    assert!(
-        r.all_classes.keys().any(|k| k.contains("@dynclass@")),
-        "the members land on a synthetic key: {:?}",
-        r.all_classes.keys().collect::<Vec<_>>()
+    // Under a pinned release a configuration of a class the document does
+    // not name records no class of its own (ruling of 17 November on
+    // `oo::define` targets the document does not declare).
+    assert_eq!(
+        r.all_classes.keys().collect::<Vec<_>>(),
+        ["::chart"],
+        "a runtime target records no class"
     );
 }
 
