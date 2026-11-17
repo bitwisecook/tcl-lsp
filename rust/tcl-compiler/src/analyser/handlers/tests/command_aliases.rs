@@ -243,8 +243,15 @@ fn handle_interp_alias_records_canonical_form() {
     );
     assert!(a.command_aliases.contains_key("::myset"));
     assert!(a.result.command_aliases.contains_key("::myset"));
+    // The resolution map keys the target as the global command it invokes,
+    // while the published record keeps the written spelling. tclsh 8.4.20,
+    // 8.6.18, 9.0.4 and 9.1.0: after `namespace eval n {proc set args
+    // {return n-set}}; namespace eval n {interp alias {} ::ms {} set}`,
+    // `ms x 1` returns 1 (the global `set`) and `interp alias {} ::ms`
+    // returns `set`.
     let (target, prepended) = &a.command_aliases["::myset"];
-    assert_eq!(target, "set");
+    assert_eq!(target, "::set");
+    assert_eq!(a.result.command_aliases["::myset"].target, "set");
     assert_eq!(prepended.as_slice(), [] as [String; 0]);
     assert_eq!(a.alias_offsets.get("::myset"), Some(&42));
     // The offset is also promoted onto the finalised `AnalysisResult`
@@ -273,7 +280,8 @@ fn handle_interp_alias_with_prepended_args() {
         0,
     );
     let (target, prepended) = &a.command_aliases["::logerr"];
-    assert_eq!(target, "puts");
+    assert_eq!(target, "::puts");
+    assert_eq!(a.result.command_aliases["::logerr"].target, "puts");
     assert_eq!(prepended, &vec!["stderr".to_string()]);
 }
 
