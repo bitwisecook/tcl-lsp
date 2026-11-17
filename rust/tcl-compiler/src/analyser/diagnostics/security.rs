@@ -155,7 +155,8 @@ impl Analyser {
 
     /// W306: live original lexical substitutions in an independently selected
     /// regex pattern operand. An unresolved option boundary supplies no pattern
-    /// role. Braced and pure-variable words remain literal/dynamic idioms.
+    /// role. Braced words and words made only of variables remain
+    /// literal/dynamic idioms.
     pub(in crate::analyser) fn emit_w306_literal_expected(
         &mut self,
         original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
@@ -183,7 +184,12 @@ impl Analyser {
                 .iter()
                 .filter(|part| !arena.text(part).is_some_and(<[u8]>::is_empty))
                 .collect::<Vec<_>>();
-            if matches!(parts.as_slice(), [part] if matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. }))
+            // A word built only from variables (`$pattern`, `$pattern$suffix`)
+            // is a deliberately computed pattern; braces would defeat it.
+            if !parts.is_empty()
+                && parts
+                    .iter()
+                    .all(|part| matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. }))
             {
                 continue;
             }

@@ -250,10 +250,13 @@ mod literal_expected {
     fn concatenated_var_pattern_no_w306_rust_behaviour() {
         // The analyser only flags a *bracketed* command-substitution /
         // quoted-live-`$var` pattern, not a bare var-concatenation like
-        // `$pattern$suffix`, so W306 does NOT fire here. (The reads still
-        // surface W210 — `$pattern`/`$suffix`/`$text` are all unset.) Pinned to
-        // the actual verdict.
-        assert!(!fires("regexp -- $pattern$suffix $text", D, "W306"));
+        // `$pattern$suffix`, so W306 does NOT fire here. The variables are
+        // bound first: tclsh 8.6.18 raises `can't read "pattern"` otherwise.
+        assert!(!fires(
+            "set pattern a\nset suffix b\nset text ab\nregexp -- $pattern$suffix $text",
+            D,
+            "W306"
+        ));
     }
 
     #[test]
