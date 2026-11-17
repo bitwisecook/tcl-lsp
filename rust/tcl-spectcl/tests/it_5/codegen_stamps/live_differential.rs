@@ -50,6 +50,8 @@ const CASES: &[(&str, &[&str], usize)] = &[
         0,
     ),
     ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 1),
+    // The call's own argument count is wrong.
+    ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),
     (
         "proc caller {a b} {vcount $a $b}",
         &["caller 1 2", "caller {} {}"],
@@ -75,6 +77,25 @@ fn shapes_pack() -> String {
     pack
 }
 
+/// What a call reports, as a Tcl list, the same text run by the VM and by
+/// tclsh: its code and result and, when it fails, `errorInfo`, `errorCode`,
+/// the `-errorstack` of its options and `info errorstack` where the release
+/// has them (8.4 has no options dictionary).
+fn report(version: TclVersion, call: &str) -> String {
+    if version == TclVersion::V8_4 {
+        return format!(
+            "set c [catch {{{call}}} r]; set out [list $c $r]; \
+             if {{$c}} {{lappend out $::errorInfo $::errorCode}}; set out"
+        );
+    }
+    format!(
+        "set c [catch {{{call}}} r o]; set out [list $c $r]; \
+         if {{$c}} {{lappend out $::errorInfo $::errorCode; \
+         if {{[dict exists $o -errorstack]}} {{lappend out [dict get $o -errorstack]}}; \
+         if {{![catch {{info errorstack}} s]}} {{lappend out $s}}}}; set out"
+    )
+}
+
 /// `caller` and `call` run by a VM of `version` whose compile service inlines
 /// the pack's bodies and which holds the pack's facts: the call's completion as
 /// a list of its code and its result, which is what tclsh prints for the same.
@@ -94,9 +115,7 @@ fn run_inlined(set: &PackSet, version: TclVersion, caller: &str, call: &str) -> 
     }
     let completion = vm.eval_source(caller).expect("compiles");
     assert_eq!(completion.code, Code::Ok, "{caller}");
-    let completion = vm
-        .eval_source(&format!("list [catch {{{call}}} r] $r"))
-        .expect("compiles");
+    let completion = vm.eval_source(&report(version, call)).expect("compiles");
     Outcome {
         code: completion.code,
         answer: completion.result.to_str().to_string(),
@@ -106,17 +125,18 @@ fn run_inlined(set: &PackSet, version: TclVersion, caller: &str, call: &str) -> 
 }
 
 /// The same under tclsh.
-fn run_tclsh(tclsh: &std::path::Path, caller: &str, call: &str) -> String {
+fn run_tclsh(tclsh: &tcl_test_support::Tclsh, caller: &str, call: &str) -> String {
     let definitions: Vec<&str> = SHAPES
         .iter()
         .map(|(_, _, _, definition)| *definition)
         .collect();
     let script = format!(
-        "{}\n{caller}\nputs -nonewline [list [catch {{{call}}} r] $r]\n",
-        definitions.join("\n")
+        "{}\n{caller}\nputs -nonewline [{}]\n",
+        definitions.join("\n"),
+        report(tclsh.version, call)
     );
-    let outcome = tcl_test_support::run_script(tclsh, script.as_bytes()).expect("tclsh runs");
-    assert!(outcome.success(), "{script}");
+    let outcome = tcl_test_support::run_script(&tclsh.path, script.as_bytes()).expect("tclsh runs");
+    assert!(outcome.success() && outcome.stderr.is_empty(), "{script}");
     String::from_utf8(outcome.stdout).expect("tclsh prints text")
 }
 
@@ -130,31 +150,37 @@ fn run_tclsh(tclsh: &std::path::Path, caller: &str, call: &str) -> String {
 #[test]
 fn each_shape_spliced_by_the_live_compile_answers_as_tclsh_does() {
     let (set, _registry) = bundled_source("live-differential", &shapes_pack());
+    let mut disagreements = Vec::new();
     for version in TclVersion::ALL {
         let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
             continue;
         };
         for (caller, calls, spliced) in CASES {
             for call in *calls {
-                let want = run_tclsh(&tclsh.path, caller, call);
-                let got = run_inlined(&set, version, caller, call);
-                let spliced = if version.revalidates_running_bytecode() {
-                    *spliced
-                } else {
-                    0
-                };
-                assert_eq!(
-                    got,
-                    Outcome {
-                        code: Code::Ok,
-                        answer: want,
-                        plain: 0,
-                        spliced,
+                let want = Outcome {
+                    code: Code::Ok,
+                    answer: run_tclsh(&tclsh, caller, call),
+                    plain: 0,
+                    spliced: if version.revalidates_running_bytecode() {
+                        live_splices(*spliced)
+                    } else {
+                        0
                     },
-                    "{} {caller}: {call}",
-                    version.version_string()
-                );
+                };
+                let got = run_inlined(&set, version, caller, call);
+                if got != want {
+                    disagreements.push(format!(
+                        "{} {caller}: {call}\n    tclsh {want:?}\n    vm    {got:?}",
+                        version.version_string()
+                    ));
+                }
             }
         }
     }
+    assert!(
+        disagreements.is_empty(),
+        "{} disagreement(s):\n{}",
+        disagreements.len(),
+        disagreements.join("\n")
+    );
 }
