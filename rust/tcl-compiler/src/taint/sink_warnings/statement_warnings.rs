@@ -188,6 +188,11 @@ pub(in super::super) fn emit_statement_warnings<
     if let Some(tokens) = tokens
         && tokens.source_binding.is_some()
     {
+        // A proved wrapper's argument boundary is where its substituted words
+        // reach the wrapper: `eval p $x s` hands the concatenated script to
+        // `eval` there, while its phases and residual boundary pass nothing.
+        let wrapper = tokens.evaluated_arguments_invocation();
+        let tokens = wrapper.as_ref().unwrap_or(tokens);
         emit_retained_invocation_warnings(tokens, ssa_stmt, taints, warnings, source, context);
         return;
     }

@@ -394,6 +394,16 @@ impl CommandTokens {
         })
     }
 
+    /// The wrapper invocation a proved wrapper's argument boundary
+    /// ([`SyntheticMarker::EvaluatedArguments`]) hands its substituted words to.
+    #[must_use]
+    pub(crate) fn evaluated_arguments_invocation(&self) -> Option<Self> {
+        (self.synthetic == Some(SyntheticMarker::EvaluatedArguments)).then(|| Self {
+            synthetic: None,
+            ..self.clone()
+        })
+    }
+
     /// Return an attached execution plan only when its routing is complete.
     ///
     /// Consumers use this fact to avoid recovering script effects a second time.
