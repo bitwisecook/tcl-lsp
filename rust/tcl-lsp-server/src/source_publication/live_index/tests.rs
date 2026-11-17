@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::super::super::tests::test_backend;
 use super::super::super::DocumentState;
+use super::super::super::tests::test_backend;
 use std::str::FromStr as _;
 use std::time::Duration;
 use tower_lsp_server::ls_types::Uri;

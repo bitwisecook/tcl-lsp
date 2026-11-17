@@ -208,13 +208,18 @@ impl Backend {
             let advanced = self.live_publication_advanced.notified();
             tokio::pin!(advanced);
             advanced.as_mut().enable();
-            if !self
-                .documents
-                .lock("index_seed_currency")
-                .await
-                .get(uri)
-                .is_some_and(&current)
-            {
+            // `work` stays polled while the check waits for the map. A seed
+            // parked in the map's fair queue is handed the map on release and
+            // only a poll lets it take and release it; waiting for the check
+            // alone left the map assigned to a future nobody polled (#1657).
+            let check = self.documents.lock("index_seed_currency");
+            tokio::pin!(check);
+            let still_current = tokio::select! {
+                biased;
+                value = work.as_mut() => return Some(value),
+                documents = &mut check => documents.get(uri).is_some_and(&current),
+            };
+            if !still_current {
                 return None;
             }
             tokio::select! {
