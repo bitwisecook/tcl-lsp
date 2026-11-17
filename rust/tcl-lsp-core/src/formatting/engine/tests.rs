@@ -1749,3 +1749,17 @@ fn rooted_and_namespaced_case_list_aliases_format_at_their_positions() {
     }
     assert_eq!(fmt(&formatted), formatted);
 }
+
+#[test]
+fn a_declaration_documents_member_blocks_indent_at_every_depth() {
+    let source = "speclib demo 1 {\ncommand foo {\nsynopsis {foo value}\narity 1\n}\n}";
+    let config = FormatterConfig::for_dialect("spectcl");
+    assert_eq!(
+        format_tcl(
+            source,
+            &config,
+            tcl_registry::model::static_context_for("spectcl").commands()
+        ),
+        "speclib demo 1 {\n    command foo {\n        synopsis {foo value}\n        arity 1\n    }\n}\n"
+    );
+}
