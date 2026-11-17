@@ -477,7 +477,12 @@ impl CfgBuilder<'_> {
                             })
                 });
 
-        if original_each || (!self.inline_loops && !raw_args.is_empty()) || has_qualified_vars {
+        // A qualified binder names a namespace variable, not a frame local:
+        // codegen keeps the loop opaque, analysis expands it like a plain one.
+        if original_each
+            || (!self.inline_loops && !raw_args.is_empty())
+            || (has_qualified_vars && !self.faithful_exceptions)
+        {
             self.push_opaque_loop_call(stmt, current);
             return true;
         }
