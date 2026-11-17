@@ -84,12 +84,12 @@ tests	files	crates	failing	fixture
 16	2	2	0	oo::class create Counter {
 16	3	3	1	package require tcltest
 16	8	4	0	proc greet {name} { puts $name }
+16	9	4	3	puts done
 16	8	3	2	set after
 16	7	2	3	source child.tcl
 15	14	5	1	$arr(idx)
 15	15	5	0	$missing
 15	8	3	0	$x + 1
-15	9	4	3	puts done
 15	11	7	1	return $x
 15	13	3	5	string length
 14	13	2	7	# displaced {source}
@@ -837,6 +837,7 @@ tests	files	crates	failing	fixture
 4	3	2	0	set {new} 1 puts ${new}
 4	4	3	0	"source ""lib/old.tcl"""
 4	2	1	0	source /proj/lib/old.tcl
+4	3	2	2	source lib.tcl helper dev
 4	3	2	0	source {lib/old.tcl}
 4	3	1	0	special variable
 4	4	3	1	string cat
@@ -1523,7 +1524,6 @@ tests	files	crates	failing	fixture
 3	3	1	0	source -encoding utf-8 $path
 3	2	1	0	source [file join lib helper.tcl]
 3	3	1	1	source leaf.tcl
-3	2	2	1	source lib.tcl helper dev
 3	3	3	1	source lib.tcl helper prod
 3	2	1	0	source mod.tcl source imp.tcl source exp.tcl
 3	3	2	0	source {a $b [c].tcl}
@@ -1607,6 +1607,7 @@ tests	files	crates	failing	fixture
 3	3	1	1	{*}$superclasses]\;$body
 3	3	3	2	{0 && [incr x]}
 3	3	3	2	{[incr x] + [incr x]}
+3	3	2	1	{a $b}
 3	3	2	0	{foreach name {a b} {method $name {} {}}}
 3	2	2	0	{f}($x)
 3	3	2	0	{method $name {} {}}
@@ -1717,6 +1718,7 @@ tests	files	crates	failing	fixture
 2	2	1	1	$longleft
 2	2	1	0	$missing + 1
 2	2	2	0	$myns::total
+2	2	2	0	$n - 1
 2	2	1	2	$n == 1
 2	2	2	2	$n == 1 && $x == 2
 2	2	1	0	$ns::count
@@ -2669,6 +2671,7 @@ tests	files	crates	failing	fixture
 2	2	2	1	oo::class create ::R::Mk { superclass oo::class }
 2	2	2	1	oo::class create ::Widget
 2	2	1	0	oo::class create A
+2	2	2	1	oo::class create A { method Foo {} { return foo } export Foo } set a [A new] puts [$a Foo]
 2	2	2	0	"oo::class create A { method make {} { ::return [::B new] } } oo::class create B { method greet {} { ::return ""hi"" } } set a [A new] set b [$a make] $b"
 2	2	2	0	oo::class create A {}
 2	2	1	0	oo::class create A {} oo::class create B { superclass A } oo::class create C { superclass B }
@@ -4281,7 +4284,6 @@ tests	files	crates	failing	fixture
 2	2	2	2	{BUMP}proc twice {{name}} {{upvar 1 $name w; bump w; bump w}} set t 1 twice t puts $t
 2	2	2	2	{BUMP}set n 1 bump n bump n 2 puts $n
 2	2	2	0	{[append}
-2	2	2	0	{a $b}
 2	2	1	2	{a* {puts yes} default {puts no}}
 2	2	2	0	{a[b]c}
 2	2	2	0	"{basic {x traced} {{whole A x read} {elem A x read}} traced {x y}} {missing 0 {} {TCL READ VARNAME} 0 0} {destroy 1 {can't read ""C(x)"": no such variable} {TCL READ VARNAME}} {retype 1 {can't read ""D(x)"": no such element in array} {TCL READ VARNAME} scalar} {boom 0 {} {TCL READ VARNAME} 1 1 1 {TCL RE"

@@ -2,10 +2,10 @@
 
 Written by `tools/scrub_inventory.py`; do not edit by hand.
 
-- Tests read: 37,567; marked failing from the lists: 3,743 (list entries with no matching test: 20).
+- Tests read: 37,572; marked failing from the lists: 3,743 (list entries with no matching test: 20).
 - Bodies that are the same text as another test's: 179 tests in 88 groups.
 - Tests running the same Tcl sources through the same helpers against the same codes as another test: 844 in 385 groups (157 groups span files).
-- Tcl sources used from more than one file: 4,313.
+- Tcl sources used from more than one file: 4,315.
 
 Classes: **A** runs Tcl source and cites tclsh, Jim or a release; **B** runs Tcl source and cites an issue, a contract or a KCS page; **C** runs Tcl source and cites nothing; **D** runs no Tcl source (it holds an internal structure or API).
 
@@ -13,25 +13,25 @@ Classes: **A** runs Tcl source and cites tclsh, Jim or a release; **B** runs Tcl
 
 | Class | Tests | Failing | Failing share of class |
 | --- | ---: | ---: | ---: |
-| A-oracle | 4,045 | 564 | 14% |
+| A-oracle | 4,049 | 564 | 14% |
 | B-cited | 2,962 | 497 | 17% |
-| C-uncited | 18,182 | 2,333 | 13% |
+| C-uncited | 18,183 | 2,333 | 13% |
 | D-internal | 12,378 | 349 | 3% |
 
 ## By crate
 
 | Crate | Tests | Failing | A | B | C | D | Failing A | Failing B | Failing C | Failing D |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `tcl-compiler` | 13,171 | 2,213 | 1,640 | 1,316 | 7,651 | 2,564 | 336 | 335 | 1,405 | 137 |
-| `tcl-lsp-core` | 4,911 | 530 | 650 | 578 | 2,962 | 721 | 66 | 97 | 344 | 23 |
-| `tcl-vm` | 3,184 | 101 | 767 | 170 | 1,007 | 1,240 | 19 | 2 | 37 | 43 |
+| `tcl-compiler` | 13,173 | 2,213 | 1,642 | 1,316 | 7,651 | 2,564 | 336 | 335 | 1,405 | 137 |
+| `tcl-lsp-core` | 4,912 | 530 | 651 | 578 | 2,962 | 721 | 66 | 97 | 344 | 23 |
+| `tcl-vm` | 3,185 | 101 | 768 | 170 | 1,007 | 1,240 | 19 | 2 | 37 | 43 |
 | `tcl-runtime` | 2,715 | 58 | 258 | 291 | 955 | 1,211 | 10 | 7 | 20 | 21 |
 | `tcl-lsp-server` | 2,682 | 409 | 218 | 134 | 1,636 | 694 | 69 | 25 | 247 | 68 |
 | `tcl-registry` | 2,453 | 1 | 141 | 119 | 712 | 1,481 | 0 | 0 | 0 | 1 |
 | `tcl-codegen` | 1,538 | 186 | 174 | 92 | 898 | 374 | 33 | 9 | 134 | 10 |
 | `tcl-syntax` | 925 | 0 | 20 | 32 | 210 | 663 | 0 | 0 | 0 | 0 |
 | `tcl-lexer` | 815 | 0 | 60 | 26 | 304 | 425 | 0 | 0 | 0 | 0 |
-| `tcl-spectcl` | 622 | 21 | 15 | 3 | 224 | 380 | 2 | 1 | 13 | 5 |
+| `tcl-spectcl` | 623 | 21 | 15 | 3 | 225 | 380 | 2 | 1 | 13 | 5 |
 | `tcl-spec-studio` | 399 | 3 | 3 | 14 | 152 | 230 | 0 | 0 | 0 | 3 |
 | `xtask` | 388 | 0 | 0 | 0 | 133 | 255 | 0 | 0 | 0 | 0 |
 | `tcl-bigip` | 362 | 0 | 0 | 1 | 89 | 272 | 0 | 0 | 0 | 0 |
@@ -90,14 +90,14 @@ A family is a crate, a test target and the first module under it.
 
 | Family | Tests | Failing | Cites an oracle | Runs no Tcl source | In an overlap group |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `tcl-compiler/lib/analyser` | 3,512 | 408 | 12% | 15% | 2% |
+| `tcl-compiler/lib/analyser` | 3,513 | 408 | 12% | 15% | 2% |
 | `tcl-compiler/lib/command_binding` | 1,371 | 283 | 3% | 14% | 0% |
 | `tcl-compiler/lib/optimiser` | 576 | 147 | 8% | 12% | 2% |
 | `tcl-compiler/it_4/analyser` | 514 | 112 | 18% | 8% | 3% |
 | `tcl-compiler/it_2/value_transfer_witnesses` | 180 | 109 | 76% | 3% | 0% |
 | `tcl-compiler/lib/registry_invocation` | 355 | 95 | 1% | 6% | 0% |
 | `tcl-lsp-server/lib/tests` | 611 | 83 | 4% | 29% | 2% |
-| `tcl-compiler/lib/cfg_builder` | 269 | 79 | 10% | 16% | 0% |
+| `tcl-compiler/lib/cfg_builder` | 270 | 79 | 10% | 16% | 0% |
 | `tcl-compiler/lib/lowering` | 348 | 72 | 6% | 14% | 3% |
 | `tcl-compiler/it_3/taint` | 373 | 68 | 24% | 10% | 7% |
 | `tcl-lsp-core/lib/workspace_index` | 251 | 62 | 15% | 2% | 2% |

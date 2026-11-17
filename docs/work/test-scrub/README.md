@@ -86,6 +86,7 @@ Rules:
 - Oracles in the tree: tclsh 8.4.20 to 9.1.0 under `tmp/tcl*/unix/tclsh`; Jim through `scripts/dev/ensure-jim-oracle.sh` (prints `TCL_LSP_JIMSH`); tcllib 2.0 at `tmp/tcllib-2.0` (add it to `auto_path`). "No interpreter here" is not a reason for `UNDECIDED`.
 - A test of an internal record with no cited observable is decided by its consumer: if the record can reach a diagnostic, a fold, a rewrite or an editor answer, write the Tcl source that shows the wrong answer and the verdict is `REWRITE` to that observable; if no path to a consumer answer can be shown, it is `RETIRE` with that argument written down.
 - A cause that makes the product give a wrong answer (a fold tclsh contradicts, a rewrite that changes behaviour, an edit that breaks code) gets its own slug and goes to the top of the fix list: wrong answers before missing ones.
+- A test that cites a proof document, a contract or a naming owner key is not retired on a group argument. It is `KEEP-CONTRACT` unless the document no longer says that (`FIX-EXPECTATION`, with the passage). A retirement's argument is specific to the test.
 - Each area ends with `<area>.md`: counts by verdict, the causes ranked by tests blocked, and the list
   of distinct behaviours that are failing. That list is what is worth fixing.
 
@@ -155,7 +156,7 @@ Updated at the hourly check from the ledgers on `work`.
 | analysis-performance | 30 | 0 | |
 | lsp-features | 500 | 0 | |
 | server-e2e-db | 400 | 0 | |
-| execution | 286 | 286 (KEEP-ORACLE 87, KEEP-CONTRACT 17, KEEP-F5 1, REWRITE 78, FIX-EXPECTATION 4, FIX-FIXTURE 3, UNDECIDED 96; part 2 reads the undecided rows) | part 1 read, 20:40 UTC |
+| execution | 286 | 261 kept, 25 routed (KEEP-ORACLE 108, MERGE 48, RETIRE 36, REWRITE 32, KEEP-CONTRACT 28, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | G1 to G15 accepted; the 31 receipt-ordering retirements rejected (26 of 36 RETIRE rows cite a contract in the test) and sent back |
 | irules-registry-tooling | 140 | 0 | |
 | tk-oo | 60 | 0 | |
 | live-inlining | 6 | 0 | |
