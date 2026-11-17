@@ -956,7 +956,8 @@ fn tp_consumer_bare_dispatch_belongs_to_the_matching_namespaces_class() {
 /// `::`-qualified command word rather than the two-word `Factory make` shape
 /// `TclOO` / snit use.  Definition, references, and rename must all follow it.
 ///
-/// Oracle (tclsh 8.6.14 + Itcl 3.4): `Factory::make` and `::Factory::make`
+/// Without `package require itcl`, `itcl::class` is an invalid command on
+/// every release. Oracle (tclsh 8.6.14 + Itcl 3.4): `Factory::make` and `::Factory::make`
 /// both dispatch the class proc, a bare `make` inside a sibling class body
 /// does too, and the two-word `Factory make` instead creates an *object*
 /// named `make`.
@@ -967,7 +968,7 @@ fn tp_itcl_class_proc_colon_dispatch_navigates_end_to_end() {
     lsp.open_ready(
         &uri,
         concat!(
-            "itcl::class Factory {\n",
+            "package require itcl; itcl::class Factory {\n",
             "    proc make {} { return 1 }\n",
             "    proc other {} { return [make] }\n",
             "}\n",
