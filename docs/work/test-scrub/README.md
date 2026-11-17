@@ -91,6 +91,10 @@ Rules:
 
 The second pass, after the failing tests, takes the passing ones through the exact and overlap groups.
 
+## Rulings made during the scrub
+
+- *Tests of `inlining::inline_module`* (23, no production caller): read per test by the live-inlining session. "The inlined program answers as the original" is `KEEP-ORACLE`; an assertion on the inliner's internal shape is `REWRITE` to the differential or `MERGE` into a `live_differential` row; an assertion that names the renamed locals is `FIX-EXPECTATION`, since they become anonymous slots.
+
 ## Families by session
 
 `tcl-compiler` is split by family (crate, target, first modules); a family not listed goes to the
@@ -127,7 +131,7 @@ Updated at the hourly check from the ledgers on `work`.
 | analysis-performance | 30 | 0 | |
 | lsp-features | 500 | 0 | |
 | server-e2e-db | 400 | 0 | |
-| execution | 300 | 0 | |
+| execution | 286 | 286 (KEEP-ORACLE 87, KEEP-CONTRACT 17, KEEP-F5 1, REWRITE 78, FIX-EXPECTATION 4, FIX-FIXTURE 3, UNDECIDED 96; part 2 reads the undecided rows) | part 1 read, 20:40 UTC |
 | irules-registry-tooling | 140 | 0 | |
 | tk-oo | 60 | 0 | |
 | live-inlining | 6 | 0 | |
